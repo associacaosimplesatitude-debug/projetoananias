@@ -18,30 +18,39 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          current_installment: number | null
           description: string
           due_date: string
           id: string
+          installments: number | null
           payment_date: string | null
+          payment_type: string | null
           status: string
           updated_at: string
         }
         Insert: {
           amount: number
           created_at?: string
+          current_installment?: number | null
           description: string
           due_date: string
           id?: string
+          installments?: number | null
           payment_date?: string | null
+          payment_type?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
           amount?: number
           created_at?: string
+          current_installment?: number | null
           description?: string
           due_date?: string
           id?: string
+          installments?: number | null
           payment_date?: string | null
+          payment_type?: string | null
           status?: string
           updated_at?: string
         }

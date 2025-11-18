@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
 
@@ -17,6 +18,9 @@ interface AccountPayable {
   payment_date: string | null;
   status: string;
   description: string;
+  payment_type: string;
+  installments: number | null;
+  current_installment: number | null;
 }
 
 export default function AdminAccountsPayable() {
@@ -28,6 +32,8 @@ export default function AdminAccountsPayable() {
     amount: '',
     due_date: '',
     description: '',
+    payment_type: 'unica',
+    installments: '1',
   });
 
   useEffect(() => {
@@ -46,29 +52,78 @@ export default function AdminAccountsPayable() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const { error } = await supabase
-      .from('accounts_payable')
-      .insert({
-        amount: parseFloat(formData.amount),
-        due_date: formData.due_date,
-        description: formData.description,
-        status: 'open',
-      });
+    const amount = parseFloat(formData.amount);
+    const installments = parseInt(formData.installments);
     
-    if (error) {
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível criar a conta a pagar',
-        variant: 'destructive',
-      });
+    // Se for pagamento parcelado, criar múltiplas contas
+    if (formData.payment_type === 'parcelada' && installments > 1) {
+      const installmentAmount = amount / installments;
+      const baseDate = new Date(formData.due_date);
+      
+      const accountsToCreate = [];
+      for (let i = 0; i < installments; i++) {
+        const dueDate = new Date(baseDate);
+        dueDate.setMonth(dueDate.getMonth() + i);
+        
+        accountsToCreate.push({
+          amount: installmentAmount,
+          due_date: dueDate.toISOString().split('T')[0],
+          description: `${formData.description} - Parcela ${i + 1}/${installments}`,
+          status: 'open',
+          payment_type: formData.payment_type,
+          installments: installments,
+          current_installment: i + 1,
+        });
+      }
+      
+      const { error } = await supabase
+        .from('accounts_payable')
+        .insert(accountsToCreate);
+      
+      if (error) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível criar as contas a pagar',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sucesso',
+          description: `${installments} parcelas criadas com sucesso`,
+        });
+        setOpen(false);
+        setFormData({ amount: '', due_date: '', description: '', payment_type: 'unica', installments: '1' });
+        fetchAccounts();
+      }
     } else {
-      toast({
-        title: 'Sucesso',
-        description: 'Conta a pagar criada com sucesso',
-      });
-      setOpen(false);
-      setFormData({ amount: '', due_date: '', description: '' });
-      fetchAccounts();
+      // Pagamento único ou recorrente
+      const { error } = await supabase
+        .from('accounts_payable')
+        .insert({
+          amount: amount,
+          due_date: formData.due_date,
+          description: formData.description,
+          status: 'open',
+          payment_type: formData.payment_type,
+          installments: formData.payment_type === 'parcelada' ? 1 : null,
+          current_installment: formData.payment_type === 'parcelada' ? 1 : null,
+        });
+      
+      if (error) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível criar a conta a pagar',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sucesso',
+          description: 'Conta a pagar criada com sucesso',
+        });
+        setOpen(false);
+        setFormData({ amount: '', due_date: '', description: '', payment_type: 'unica', installments: '1' });
+        fetchAccounts();
+      }
     }
   };
 
@@ -114,7 +169,39 @@ export default function AdminAccountsPayable() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="amount">Valor (R$)</Label>
+                <Label htmlFor="payment_type">Tipo de Pagamento</Label>
+                <Select
+                  value={formData.payment_type}
+                  onValueChange={(value) => setFormData({ ...formData, payment_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unica">Única</SelectItem>
+                    <SelectItem value="parcelada">Parcelada</SelectItem>
+                    <SelectItem value="recorrente">Recorrente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.payment_type === 'parcelada' && (
+                <div className="space-y-2">
+                  <Label htmlFor="installments">Número de Parcelas</Label>
+                  <Input
+                    id="installments"
+                    type="number"
+                    min="2"
+                    max="60"
+                    value={formData.installments}
+                    onChange={(e) => setFormData({ ...formData, installments: e.target.value })}
+                    required
+                  />
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label htmlFor="amount">Valor {formData.payment_type === 'parcelada' ? 'Total ' : ''}(R$)</Label>
                 <Input
                   id="amount"
                   type="number"
@@ -123,6 +210,11 @@ export default function AdminAccountsPayable() {
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   required
                 />
+                {formData.payment_type === 'parcelada' && formData.amount && formData.installments && (
+                  <p className="text-sm text-muted-foreground">
+                    {parseInt(formData.installments)}x de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parseFloat(formData.amount) / parseInt(formData.installments))}
+                  </p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -162,6 +254,7 @@ export default function AdminAccountsPayable() {
               <TableRow>
                 <TableHead>Valor</TableHead>
                 <TableHead>Vencimento</TableHead>
+                <TableHead>Tipo</TableHead>
                 <TableHead>Pagamento</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Descrição</TableHead>
@@ -176,6 +269,13 @@ export default function AdminAccountsPayable() {
                   </TableCell>
                   <TableCell>
                     {new Date(account.due_date).toLocaleDateString('pt-BR')}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {account.payment_type === 'unica' && 'Única'}
+                      {account.payment_type === 'parcelada' && `${account.current_installment}/${account.installments}`}
+                      {account.payment_type === 'recorrente' && 'Recorrente'}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     {account.payment_date 
