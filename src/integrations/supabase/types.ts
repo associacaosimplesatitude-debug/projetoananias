@@ -14,16 +14,285 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      accounts_payable: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          due_date: string
+          id: string
+          payment_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description: string
+          due_date: string
+          id?: string
+          payment_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          due_date?: string
+          id?: string
+          payment_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      accounts_receivable: {
+        Row: {
+          amount: number
+          church_id: string
+          created_at: string
+          description: string | null
+          due_date: string
+          id: string
+          payment_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          church_id: string
+          created_at?: string
+          description?: string | null
+          due_date: string
+          id?: string
+          payment_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          church_id?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string
+          id?: string
+          payment_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_receivable_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      church_stage_progress: {
+        Row: {
+          church_id: string
+          created_at: string
+          id: string
+          stage_id: number
+          status: string
+          sub_task_id: string
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          id?: string
+          stage_id: number
+          status?: string
+          sub_task_id: string
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          id?: string
+          stage_id?: number
+          status?: string
+          sub_task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "church_stage_progress_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      churches: {
+        Row: {
+          address: string | null
+          church_name: string
+          city: string | null
+          created_at: string
+          current_stage: number | null
+          id: string
+          neighborhood: string | null
+          pastor_email: string
+          postal_code: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          church_name: string
+          city?: string | null
+          created_at?: string
+          current_stage?: number | null
+          id?: string
+          neighborhood?: string | null
+          pastor_email: string
+          postal_code?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          church_name?: string
+          city?: string | null
+          created_at?: string
+          current_stage?: number | null
+          id?: string
+          neighborhood?: string | null
+          pastor_email?: string
+          postal_code?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stage_info_texts: {
+        Row: {
+          created_at: string
+          id: string
+          info_text: string
+          stage_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          info_text: string
+          stage_id: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          info_text?: string
+          stage_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      variable_payments: {
+        Row: {
+          amount: number | null
+          church_id: string
+          created_at: string
+          id: string
+          status: string
+          sub_task_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number | null
+          church_id: string
+          created_at?: string
+          id?: string
+          status?: string
+          sub_task_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number | null
+          church_id?: string
+          created_at?: string
+          id?: string
+          status?: string
+          sub_task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "variable_payments_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "client"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +419,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "client"],
+    },
   },
 } as const
