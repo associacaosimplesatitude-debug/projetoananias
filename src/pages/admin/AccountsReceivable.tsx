@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Filter } from 'lucide-react';
+import { Plus, Filter, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 interface AccountReceivable {
   id: string;
@@ -23,6 +24,8 @@ interface AccountReceivable {
   payment_type: string;
   installments: number | null;
   current_installment: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function AdminAccountsReceivable() {
@@ -191,6 +194,54 @@ export default function AdminAccountsReceivable() {
         description: 'Conta marcada como paga',
       });
       fetchAccounts();
+    }
+  };
+
+  const cancelReceivable = async (account: AccountReceivable) => {
+    // Se for parcelado, deletar todas as parcelas relacionadas
+    if (account.payment_type === 'parcelas' && account.installments) {
+      const { error } = await supabase
+        .from('accounts_receivable')
+        .delete()
+        .eq('church_id', account.church_id)
+        .eq('payment_type', 'parcelas')
+        .eq('installments', account.installments)
+        .gte('created_at', new Date(new Date(account.created_at).getTime() - 1000).toISOString())
+        .lte('created_at', new Date(new Date(account.created_at).getTime() + 1000).toISOString());
+      
+      if (error) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível cancelar a cobrança',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sucesso',
+          description: `Cobrança cancelada com sucesso! ${account.installments} parcelas foram removidas.`,
+        });
+        fetchAccounts();
+      }
+    } else {
+      // Para pagamentos únicos ou recorrentes, deletar apenas essa conta
+      const { error } = await supabase
+        .from('accounts_receivable')
+        .delete()
+        .eq('id', account.id);
+      
+      if (error) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível cancelar a cobrança',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sucesso',
+          description: 'Cobrança cancelada com sucesso',
+        });
+        fetchAccounts();
+      }
     }
   };
 
@@ -410,15 +461,46 @@ export default function AdminAccountsReceivable() {
                   </TableCell>
                   <TableCell>{account.description}</TableCell>
                   <TableCell className="text-right">
-                    {account.status !== 'paid' && (
-                      <Button
-                        size="sm"
-                        onClick={() => markAsPaid(account.id)}
-                        variant="outline"
-                      >
-                        Marcar como Pago
-                      </Button>
-                    )}
+                    <div className="flex gap-2 justify-end">
+                      {account.status !== 'paid' && (
+                        <Button
+                          size="sm"
+                          onClick={() => markAsPaid(account.id)}
+                          variant="outline"
+                        >
+                          Marcar como Pago
+                        </Button>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancelar Cobrança</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {account.payment_type === 'parcelas' 
+                                ? `Tem certeza que deseja cancelar esta cobrança? Todas as ${account.installments} parcelas serão removidas. Esta ação não pode ser desfeita.`
+                                : 'Tem certeza que deseja cancelar esta cobrança? Esta ação não pode ser desfeita.'}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Voltar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => cancelReceivable(account)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Cancelar Cobrança
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               )))}
