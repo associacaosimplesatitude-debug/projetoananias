@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus } from 'lucide-react';
+import { Plus, Filter } from 'lucide-react';
 
 interface AccountReceivable {
   id: string;
@@ -26,6 +26,7 @@ export default function AdminAccountsReceivable() {
   const [accounts, setAccounts] = useState<AccountReceivable[]>([]);
   const [churches, setChurches] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'open' | 'overdue' | 'paid'>('all');
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -119,6 +120,26 @@ export default function AdminAccountsReceivable() {
     }
   };
 
+  const getFilteredAccounts = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    switch (filter) {
+      case 'open':
+        return accounts.filter(acc => acc.status === 'open');
+      case 'overdue':
+        return accounts.filter(acc => 
+          acc.status === 'open' && new Date(acc.due_date) < today
+        );
+      case 'paid':
+        return accounts.filter(acc => acc.status === 'paid');
+      default:
+        return accounts;
+    }
+  };
+
+  const filteredAccounts = getFilteredAccounts();
+
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="space-y-6">
@@ -193,9 +214,40 @@ export default function AdminAccountsReceivable() {
         </Dialog>
       </div>
       
+      <div className="flex gap-2 mb-4">
+        <Button
+          variant={filter === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('all')}
+        >
+          Todas
+        </Button>
+        <Button
+          variant={filter === 'open' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('open')}
+        >
+          Abertas
+        </Button>
+        <Button
+          variant={filter === 'overdue' ? 'destructive' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('overdue')}
+        >
+          Atrasadas
+        </Button>
+        <Button
+          variant={filter === 'paid' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('paid')}
+        >
+          Pagas
+        </Button>
+      </div>
+      
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Contas a Receber</CardTitle>
+          <CardTitle>Lista de Contas a Receber ({filteredAccounts.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -211,7 +263,14 @@ export default function AdminAccountsReceivable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {accounts.map((account) => (
+              {filteredAccounts.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    Nenhuma conta encontrada
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredAccounts.map((account) => (
                 <TableRow key={account.id}>
                   <TableCell className="font-medium">{account.church_name}</TableCell>
                   <TableCell>
@@ -249,7 +308,7 @@ export default function AdminAccountsReceivable() {
                     )}
                   </TableCell>
                 </TableRow>
-              ))}
+              )))}
             </TableBody>
           </Table>
         </CardContent>
