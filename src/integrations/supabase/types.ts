@@ -172,6 +172,7 @@ export type Database = {
           address: string | null
           church_name: string
           city: string | null
+          cnpj: string | null
           created_at: string
           current_stage: number | null
           id: string
@@ -192,6 +193,7 @@ export type Database = {
           address?: string | null
           church_name: string
           city?: string | null
+          cnpj?: string | null
           created_at?: string
           current_stage?: number | null
           id?: string
@@ -212,6 +214,7 @@ export type Database = {
           address?: string | null
           church_name?: string
           city?: string | null
+          cnpj?: string | null
           created_at?: string
           current_stage?: number | null
           id?: string

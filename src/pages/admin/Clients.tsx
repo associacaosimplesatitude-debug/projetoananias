@@ -20,6 +20,7 @@ const churchSchema = z.object({
   pastor_rg: z.string().trim().min(1, 'RG é obrigatório').max(20),
   pastor_cpf: z.string().trim().min(11, 'CPF inválido').max(14),
   pastor_whatsapp: z.string().trim().min(10, 'WhatsApp inválido').max(20),
+  cnpj: z.string().trim().min(14, 'CNPJ inválido').max(18),
   city: z.string().trim().min(1, 'Cidade é obrigatória').max(100),
   state: z.string().trim().length(2, 'Estado deve ter 2 caracteres'),
   address: z.string().trim().max(200).optional(),
@@ -37,6 +38,7 @@ interface Church {
   pastor_rg?: string;
   pastor_cpf?: string;
   pastor_whatsapp?: string;
+  cnpj?: string;
   current_stage: number;
   city: string;
   state: string;
@@ -59,6 +61,7 @@ export default function AdminClients() {
     pastor_rg: '',
     pastor_cpf: '',
     pastor_whatsapp: '',
+    cnpj: '',
     city: '',
     state: '',
     address: '',
@@ -132,6 +135,7 @@ export default function AdminClients() {
         pastor_rg: '',
         pastor_cpf: '',
         pastor_whatsapp: '',
+        cnpj: '',
         city: '',
         state: '',
         address: '',
@@ -254,6 +258,21 @@ export default function AdminClients() {
                     />
                     {errors.pastor_whatsapp && (
                       <p className="text-sm text-destructive">{errors.pastor_whatsapp}</p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="cnpj">CNPJ</Label>
+                    <Input
+                      id="cnpj"
+                      value={formData.cnpj}
+                      onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+                      placeholder="00.000.000/0000-00"
+                      maxLength={18}
+                      required
+                    />
+                    {errors.cnpj && (
+                      <p className="text-sm text-destructive">{errors.cnpj}</p>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
