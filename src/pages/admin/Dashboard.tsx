@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle, DollarSign, TrendingUp, Users, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, DollarSign, TrendingUp, Users, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 
 interface FunnelData {
   stage: string;
@@ -16,12 +18,14 @@ interface RevenueData {
 }
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     pendingTasks: 0,
     receivable: 0,
     payable: 0,
     totalClients: 0,
     completedFunnels: 0,
+    overdueReceivable: 0,
   });
   const [funnelData, setFunnelData] = useState<FunnelData[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
@@ -33,12 +37,15 @@ export default function AdminDashboard() {
   }, []);
 
   const fetchStats = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    
     const [
       { count: pendingCount },
       { data: receivableData },
       { data: payableData },
       { count: clientCount },
       { count: completedCount },
+      { data: overdueData },
     ] = await Promise.all([
       supabase
         .from('church_stage_progress')
@@ -59,10 +66,16 @@ export default function AdminDashboard() {
         .from('churches')
         .select('*', { count: 'exact', head: true })
         .eq('current_stage', 6),
+      supabase
+        .from('accounts_receivable')
+        .select('amount')
+        .eq('status', 'open')
+        .lt('due_date', today),
     ]);
 
     const totalReceivable = receivableData?.reduce((sum, item) => sum + Number(item.amount), 0) || 0;
     const totalPayable = payableData?.reduce((sum, item) => sum + Number(item.amount), 0) || 0;
+    const totalOverdue = overdueData?.reduce((sum, item) => sum + Number(item.amount), 0) || 0;
 
     setStats({
       pendingTasks: pendingCount || 0,
@@ -70,6 +83,7 @@ export default function AdminDashboard() {
       payable: totalPayable,
       totalClients: clientCount || 0,
       completedFunnels: completedCount || 0,
+      overdueReceivable: totalOverdue,
     });
   };
 
@@ -131,7 +145,7 @@ export default function AdminDashboard() {
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Painel Administrativo</h1>
       
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
@@ -188,6 +202,25 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.completedFunnels}</div>
               <p className="text-xs text-muted-foreground">CNPJs emitidos</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-destructive">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Contas Atrasadas</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.overdueReceivable)}
+              </div>
+              <Button 
+                variant="link" 
+                className="p-0 h-auto text-xs text-muted-foreground hover:text-destructive"
+                onClick={() => navigate('/admin/receivable')}
+              >
+                Ver clientes →
+              </Button>
             </CardContent>
           </Card>
         </div>
