@@ -20,7 +20,7 @@ const churchSchema = z.object({
   pastor_rg: z.string().trim().min(1, 'RG é obrigatório').max(20),
   pastor_cpf: z.string().trim().min(11, 'CPF inválido').max(14),
   pastor_whatsapp: z.string().trim().min(10, 'WhatsApp inválido').max(20),
-  cnpj: z.string().trim().min(14, 'CNPJ inválido').max(18),
+  cnpj: z.string().trim().max(18).optional(),
   city: z.string().trim().min(1, 'Cidade é obrigatória').max(100),
   state: z.string().trim().length(2, 'Estado deve ter 2 caracteres'),
   address: z.string().trim().max(200).optional(),
