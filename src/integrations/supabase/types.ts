@@ -175,8 +175,14 @@ export type Database = {
           created_at: string
           current_stage: number | null
           id: string
+          monthly_fee: number | null
           neighborhood: string | null
+          pastor_cpf: string | null
           pastor_email: string
+          pastor_name: string | null
+          pastor_rg: string | null
+          pastor_whatsapp: string | null
+          payment_due_day: number | null
           postal_code: string | null
           state: string | null
           updated_at: string
@@ -189,8 +195,14 @@ export type Database = {
           created_at?: string
           current_stage?: number | null
           id?: string
+          monthly_fee?: number | null
           neighborhood?: string | null
+          pastor_cpf?: string | null
           pastor_email: string
+          pastor_name?: string | null
+          pastor_rg?: string | null
+          pastor_whatsapp?: string | null
+          payment_due_day?: number | null
           postal_code?: string | null
           state?: string | null
           updated_at?: string
@@ -203,8 +215,14 @@ export type Database = {
           created_at?: string
           current_stage?: number | null
           id?: string
+          monthly_fee?: number | null
           neighborhood?: string | null
+          pastor_cpf?: string | null
           pastor_email?: string
+          pastor_name?: string | null
+          pastor_rg?: string | null
+          pastor_whatsapp?: string | null
+          payment_due_day?: number | null
           postal_code?: string | null
           state?: string | null
           updated_at?: string
