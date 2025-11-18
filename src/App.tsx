@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import DiretoriaForm from "./pages/DiretoriaForm";
 import Members from "./pages/Members";
+import ChurchMembers from "./pages/ChurchMembers";
 import FinancialEntries from "./pages/FinancialEntries";
 import FinancialExpenses from "./pages/FinancialExpenses";
 import FinancialDashboard from "./pages/FinancialDashboard";
@@ -41,6 +42,7 @@ const App = () => (
                     <Route path="/" element={<Index />} />
                     <Route path="/diretoria-form" element={<DiretoriaForm />} />
                     <Route path="/members" element={<Members />} />
+                    <Route path="/church-members" element={<ChurchMembers />} />
                     <Route path="/entries" element={<FinancialEntries />} />
                     <Route path="/expenses" element={<FinancialExpenses />} />
                     <Route path="/dashboard" element={<FinancialDashboard />} />

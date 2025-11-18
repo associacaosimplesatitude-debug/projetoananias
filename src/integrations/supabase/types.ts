@@ -176,6 +176,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          church_id: string | null
           created_at: string
           email: string
           full_name: string | null
@@ -183,6 +184,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          church_id?: string | null
           created_at?: string
           email: string
           full_name?: string | null
@@ -190,13 +192,22 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          church_id?: string | null
           created_at?: string
           email?: string
           full_name?: string | null
           id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stage_info_texts: {
         Row: {
