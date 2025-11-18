@@ -7,12 +7,11 @@ export const initialStages: Stage[] = [
     status: 'active',
     info: 'Nesta etapa, realizamos a contratação dos serviços. Você precisará fornecer os dados do presidente, revisar e assinar o contrato, e efetuar o pagamento do primeiro boleto mensal.',
     subTasks: [
-      { id: '1-1', name: 'Sub-elemento', status: 'pending' },
-      { id: '1-2', name: 'Dados do Presidente', status: 'pending' },
-      { id: '1-3', name: 'Minuta Contratual', status: 'pending' },
-      { id: '1-4', name: 'Assinatura do Contrato', status: 'pending' },
-      { id: '1-5', name: 'Emissão 1º Boleto Mensal', status: 'pending' },
-      { id: '1-6', name: 'Aguardando Pagamento', status: 'pending' },
+      { id: '1-1', name: 'Dados do Presidente', status: 'pending' },
+      { id: '1-2', name: 'Minuta Contratual', status: 'pending' },
+      { id: '1-3', name: 'Assinatura do Contrato', status: 'pending' },
+      { id: '1-4', name: 'Emissão 1º Boleto Mensal', status: 'pending' },
+      { id: '1-5', name: 'Aguardando Pagamento', status: 'pending' },
     ],
   },
   {
