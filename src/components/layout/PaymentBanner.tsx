@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 
 export const PaymentBanner = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [daysUntilDue, setDaysUntilDue] = useState<number | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
@@ -16,6 +16,12 @@ export const PaymentBanner = () => {
   useEffect(() => {
     const checkPaymentStatus = async () => {
       if (!user) return;
+
+      // Não mostrar tarja para admins
+      if (role === 'admin') {
+        setIsLoading(false);
+        return;
+      }
 
       // Verificar se o banner foi dismissado hoje
       const dismissedDate = localStorage.getItem('paymentBannerDismissed');
@@ -68,7 +74,7 @@ export const PaymentBanner = () => {
     };
 
     checkPaymentStatus();
-  }, [user, navigate]);
+  }, [user, role, navigate]);
 
   const handleDismiss = () => {
     const today = new Date().toDateString();
