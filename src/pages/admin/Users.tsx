@@ -222,19 +222,31 @@ export default function AdminUsers() {
 
   const deleteUser = async (userId: string) => {
     try {
-      await supabase.from('user_roles').delete().eq('user_id', userId);
-      await supabase.from('profiles').delete().eq('id', userId);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Não autenticado');
+      }
+
+      const { error } = await supabase.functions.invoke('delete-user', {
+        body: { userId },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
 
       toast({
         title: 'Sucesso',
-        description: 'Usuário removido com sucesso',
+        description: 'Usuário removido completamente do sistema',
       });
 
       fetchUsers();
     } catch (error) {
       toast({
         title: 'Erro',
-        description: 'Não foi possível remover o usuário',
+        description: error instanceof Error ? error.message : 'Não foi possível remover o usuário',
         variant: 'destructive',
       });
     }
