@@ -8,8 +8,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Eye } from 'lucide-react';
+import { Plus, Eye, Calendar } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 
@@ -54,7 +55,13 @@ export default function AdminClients() {
   const [churches, setChurches] = useState<Church[]>([]);
   const [open, setOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [mandateOpen, setMandateOpen] = useState(false);
   const [selectedChurch, setSelectedChurch] = useState<Church | null>(null);
+  const [mandateData, setMandateData] = useState({
+    start_date: '',
+    end_date: '',
+    notes: '',
+  });
   const [formData, setFormData] = useState({
     church_name: '',
     pastor_email: '',
@@ -87,6 +94,84 @@ export default function AdminClients() {
       .order('created_at', { ascending: false });
     
     setChurches(data || []);
+  };
+
+  const handleMandateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedChurch) return;
+
+    try {
+      // Check if mandate already exists
+      const { data: existingMandate } = await supabase
+        .from('board_mandates')
+        .select('id')
+        .eq('church_id', selectedChurch.id)
+        .maybeSingle();
+
+      if (existingMandate) {
+        // Update existing mandate
+        const { error } = await supabase
+          .from('board_mandates')
+          .update({
+            start_date: mandateData.start_date,
+            end_date: mandateData.end_date,
+            notes: mandateData.notes,
+          })
+          .eq('id', existingMandate.id);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Sucesso',
+          description: 'Mandato atualizado com sucesso',
+        });
+      } else {
+        // Create new mandate
+        const { error } = await supabase
+          .from('board_mandates')
+          .insert({
+            church_id: selectedChurch.id,
+            start_date: mandateData.start_date,
+            end_date: mandateData.end_date,
+            notes: mandateData.notes,
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: 'Sucesso',
+          description: 'Mandato cadastrado com sucesso',
+        });
+      }
+
+      setMandateOpen(false);
+      setMandateData({ start_date: '', end_date: '', notes: '' });
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível salvar o mandato',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const loadMandateData = async (churchId: string) => {
+    const { data } = await supabase
+      .from('board_mandates')
+      .select('*')
+      .eq('church_id', churchId)
+      .maybeSingle();
+
+    if (data) {
+      setMandateData({
+        start_date: data.start_date,
+        end_date: data.end_date,
+        notes: data.notes || '',
+      });
+    } else {
+      setMandateData({ start_date: '', end_date: '', notes: '' });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -470,16 +555,31 @@ export default function AdminClients() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => {
-                          setSelectedChurch(church);
-                          setViewOpen(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2 justify-end">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedChurch(church);
+                            setViewOpen(true);
+                          }}
+                          title="Ver detalhes"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={async () => {
+                            setSelectedChurch(church);
+                            await loadMandateData(church.id);
+                            setMandateOpen(true);
+                          }}
+                          title="Cadastrar Mandato"
+                        >
+                          <Calendar className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -518,6 +618,62 @@ export default function AdminClients() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={mandateOpen} onOpenChange={setMandateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cadastrar Mandato da Diretoria</DialogTitle>
+              <DialogDescription>
+                {selectedChurch?.church_name}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleMandateSubmit} className="space-y-4">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="start_date">Data de Início do Mandato</Label>
+                  <Input
+                    id="start_date"
+                    type="date"
+                    value={mandateData.start_date}
+                    onChange={(e) => setMandateData({ ...mandateData, start_date: e.target.value })}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="end_date">Data de Término do Mandato</Label>
+                  <Input
+                    id="end_date"
+                    type="date"
+                    value={mandateData.end_date}
+                    onChange={(e) => setMandateData({ ...mandateData, end_date: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Observações (opcional)</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Adicione observações sobre o mandato..."
+                    value={mandateData.notes}
+                    onChange={(e) => setMandateData({ ...mandateData, notes: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setMandateOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit">
+                  Salvar Mandato
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>

@@ -109,6 +109,44 @@ export type Database = {
           },
         ]
       }
+      board_mandates: {
+        Row: {
+          church_id: string
+          created_at: string
+          end_date: string
+          id: string
+          notes: string | null
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          end_date: string
+          id?: string
+          notes?: string | null
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          end_date?: string
+          id?: string
+          notes?: string | null
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_mandates_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       church_member_permissions: {
         Row: {
           church_id: string
