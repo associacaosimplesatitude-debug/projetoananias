@@ -16,6 +16,7 @@ import FinancialDashboard from "./pages/FinancialDashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminClients from "./pages/admin/Clients";
 import AdminTasks from "./pages/admin/Tasks";
+import AdminUsers from "./pages/admin/Users";
 import AdminAccountsReceivable from "./pages/admin/AccountsReceivable";
 import AdminAccountsPayable from "./pages/admin/AccountsPayable";
 import NotFound from "./pages/NotFound";
@@ -65,6 +66,14 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <AdminTasks />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/users"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminUsers />
                         </ProtectedRoute>
                       }
                     />

@@ -1,5 +1,5 @@
 import { NavLink } from '@/components/NavLink';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, CheckSquare, DollarSign, LogOut } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, CheckSquare, DollarSign, LogOut, UserCog } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -52,6 +52,11 @@ export const Navigation = () => {
       to: '/admin/tasks',
       icon: CheckSquare,
       label: 'Tarefas',
+    },
+    {
+      to: '/admin/users',
+      icon: UserCog,
+      label: 'Usuários',
     },
     {
       to: '/admin/receivable',
