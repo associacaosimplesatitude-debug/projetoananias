@@ -61,10 +61,13 @@ export type Database = {
           amount: number
           church_id: string
           created_at: string
+          current_installment: number | null
           description: string | null
           due_date: string
           id: string
+          installments: number | null
           payment_date: string | null
+          payment_type: string | null
           status: string
           updated_at: string
         }
@@ -72,10 +75,13 @@ export type Database = {
           amount: number
           church_id: string
           created_at?: string
+          current_installment?: number | null
           description?: string | null
           due_date: string
           id?: string
+          installments?: number | null
           payment_date?: string | null
+          payment_type?: string | null
           status?: string
           updated_at?: string
         }
@@ -83,10 +89,13 @@ export type Database = {
           amount?: number
           church_id?: string
           created_at?: string
+          current_installment?: number | null
           description?: string | null
           due_date?: string
           id?: string
+          installments?: number | null
           payment_date?: string | null
+          payment_type?: string | null
           status?: string
           updated_at?: string
         }
