@@ -110,6 +110,22 @@ export default function AdminClients() {
     }
 
     try {
+      // Verificar se já existe um usuário com esse email
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', formData.pastor_email.trim())
+        .single();
+
+      if (existingProfile) {
+        toast({
+          title: 'Erro',
+          description: 'Este email já está cadastrado no sistema. Use um email diferente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       // Gerar senha aleatória
       const generatedPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
       
@@ -124,7 +140,17 @@ export default function AdminClients() {
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message.includes('already registered')) {
+          toast({
+            title: 'Erro',
+            description: 'Este email já está cadastrado no sistema. Use um email diferente.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        throw authError;
+      }
 
       if (authData.user) {
         // Criar igreja
