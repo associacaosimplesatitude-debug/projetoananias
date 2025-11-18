@@ -91,6 +91,44 @@ export type Database = {
           },
         ]
       }
+      church_member_permissions: {
+        Row: {
+          church_id: string
+          created_at: string
+          granted_by: string | null
+          id: string
+          permission: Database["public"]["Enums"]["church_permission"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          permission: Database["public"]["Enums"]["church_permission"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          permission?: Database["public"]["Enums"]["church_permission"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "church_member_permissions_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       church_stage_progress: {
         Row: {
           church_id: string
@@ -294,6 +332,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_church_permission: {
+        Args: {
+          _church_id: string
+          _permission: Database["public"]["Enums"]["church_permission"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -304,6 +350,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "client"
+      church_permission:
+        | "view_financial"
+        | "edit_financial"
+        | "approve_expenses"
+        | "manage_members"
+        | "view_reports"
+        | "edit_church_info"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -432,6 +485,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "client"],
+      church_permission: [
+        "view_financial",
+        "edit_financial",
+        "approve_expenses",
+        "manage_members",
+        "view_reports",
+        "edit_church_info",
+      ],
     },
   },
 } as const
