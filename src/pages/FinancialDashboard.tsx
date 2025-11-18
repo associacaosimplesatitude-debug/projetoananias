@@ -1,9 +1,53 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Wallet, LayoutDashboard } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, LayoutDashboard, CalendarClock } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { Badge } from '@/components/ui/badge';
 
 const FinancialDashboard = () => {
+  const { user } = useAuth();
+  const [mandateEndDate, setMandateEndDate] = useState<string | null>(null);
+  const [daysUntilExpiry, setDaysUntilExpiry] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchMandate = async () => {
+      if (!user) return;
+
+      // Buscar a igreja do usuário
+      const { data: church } = await supabase
+        .from('churches')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!church) return;
+
+      // Buscar o mandato da igreja
+      const { data: mandate } = await supabase
+        .from('board_mandates')
+        .select('end_date')
+        .eq('church_id', church.id)
+        .maybeSingle();
+
+      if (mandate) {
+        setMandateEndDate(mandate.end_date);
+        
+        // Calcular dias até o vencimento
+        const endDate = new Date(mandate.end_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = endDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        setDaysUntilExpiry(diffDays);
+      }
+    };
+
+    fetchMandate();
+  }, [user]);
   // Dados de exemplo (em produção viriam do backend)
   const [entries] = useState([
     { tipo: 'Dízimo', valor: 15000 },
@@ -56,6 +100,46 @@ const FinancialDashboard = () => {
             </div>
           </div>
         </div>
+
+        {/* Mandate Expiry Alert */}
+        {mandateEndDate && (
+          <Card className="mb-8 border-primary/50 bg-primary/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center h-16 w-16 rounded-full bg-primary text-primary-foreground">
+                    <CalendarClock className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                      Vencimento do Mandato da Diretoria
+                    </h3>
+                    <p className="text-4xl font-bold">
+                      {new Date(mandateEndDate).toLocaleDateString('pt-BR', { 
+                        day: '2-digit', 
+                        month: 'long', 
+                        year: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+                </div>
+                {daysUntilExpiry !== null && (
+                  <Badge 
+                    variant={daysUntilExpiry <= 30 ? "destructive" : daysUntilExpiry <= 90 ? "secondary" : "default"}
+                    className="text-lg px-4 py-2"
+                  >
+                    {daysUntilExpiry > 0 
+                      ? `Faltam ${daysUntilExpiry} dias` 
+                      : daysUntilExpiry === 0
+                      ? 'Vence hoje!'
+                      : `Vencido há ${Math.abs(daysUntilExpiry)} dias`
+                    }
+                  </Badge>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Key Indicators */}
         <div className="grid gap-6 md:grid-cols-3 mb-8">
