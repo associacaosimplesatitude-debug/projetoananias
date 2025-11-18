@@ -321,7 +321,6 @@ export default function AdminClients() {
                       onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
                       placeholder="00.000.000/0000-00"
                       maxLength={18}
-                      required
                     />
                     {errors.cnpj && (
                       <p className="text-sm text-destructive">{errors.cnpj}</p>
