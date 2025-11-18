@@ -109,43 +109,95 @@ export default function AdminClients() {
       }
     }
 
-    const { error } = await supabase
-      .from('churches')
-      .insert({
-        ...formData,
-        user_id: user.id,
+    try {
+      // Gerar senha aleatória
+      const generatedPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+      
+      // Criar usuário no auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.pastor_email.trim(),
+        password: generatedPassword,
+        options: {
+          data: {
+            full_name: formData.pastor_name?.trim() || '',
+          },
+        },
       });
 
-    if (error) {
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // Criar igreja
+        const { data: churchData, error: churchError } = await supabase
+          .from('churches')
+          .insert({
+            ...formData,
+            user_id: authData.user.id,
+          })
+          .select()
+          .single();
+
+        if (churchError) throw churchError;
+
+        // Criar perfil
+        await supabase.from('profiles').insert({
+          id: authData.user.id,
+          email: formData.pastor_email.trim(),
+          full_name: formData.pastor_name?.trim() || '',
+          church_id: churchData.id,
+        });
+
+        // Criar role de cliente
+        await supabase.from('user_roles').insert({
+          user_id: authData.user.id,
+          role: 'client',
+        });
+
+        // Enviar email com dados de acesso
+        const loginUrl = `${window.location.origin}/auth`;
+        
+        await supabase.functions.invoke('send-welcome-email', {
+          body: {
+            pastorName: formData.pastor_name || 'Pastor(a)',
+            pastorEmail: formData.pastor_email,
+            churchName: formData.church_name,
+            password: generatedPassword,
+            loginUrl: loginUrl,
+          },
+        });
+
+        toast({
+          title: 'Sucesso',
+          description: 'Cliente cadastrado e email enviado com os dados de acesso',
+        });
+
+        setOpen(false);
+        setFormData({
+          church_name: '',
+          pastor_email: '',
+          pastor_name: '',
+          pastor_rg: '',
+          pastor_cpf: '',
+          pastor_whatsapp: '',
+          cnpj: '',
+          city: '',
+          state: '',
+          address: '',
+          neighborhood: '',
+          postal_code: '',
+          monthly_fee: 199.90,
+          payment_due_day: 5,
+        });
+        setErrors({});
+        fetchChurches();
+      }
+    } catch (error: any) {
+      console.error('Error creating client:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível cadastrar o cliente',
+        description: error.message || 'Não foi possível cadastrar o cliente',
         variant: 'destructive',
       });
-    } else {
-      toast({
-        title: 'Sucesso',
-        description: 'Cliente cadastrado com sucesso',
-      });
-      setOpen(false);
-      setFormData({
-        church_name: '',
-        pastor_email: '',
-        pastor_name: '',
-        pastor_rg: '',
-        pastor_cpf: '',
-        pastor_whatsapp: '',
-        cnpj: '',
-        city: '',
-        state: '',
-        address: '',
-        neighborhood: '',
-        postal_code: '',
-        monthly_fee: 199.90,
-        payment_due_day: 5,
-      });
-      setErrors({});
-      fetchChurches();
     }
   };
 
