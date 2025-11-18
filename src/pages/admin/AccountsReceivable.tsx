@@ -20,6 +20,9 @@ interface AccountReceivable {
   payment_date: string | null;
   status: string;
   description: string;
+  payment_type: string;
+  installments: number | null;
+  current_installment: number | null;
 }
 
 export default function AdminAccountsReceivable() {
@@ -34,6 +37,8 @@ export default function AdminAccountsReceivable() {
     amount: '',
     due_date: '',
     description: '',
+    payment_type: 'unica',
+    installments: '',
   });
 
   useEffect(() => {
@@ -44,9 +49,33 @@ export default function AdminAccountsReceivable() {
   const fetchChurches = async () => {
     const { data } = await supabase
       .from('churches')
-      .select('id, church_name')
+      .select('id, church_name, monthly_fee, payment_due_day')
       .order('church_name');
     setChurches(data || []);
+  };
+
+  const handleChurchChange = (churchId: string) => {
+    const selectedChurch = churches.find(c => c.id === churchId);
+    if (selectedChurch) {
+      // Calcular a data de vencimento baseada no payment_due_day
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+      const dueDay = selectedChurch.payment_due_day || 10;
+      
+      // Se o dia já passou neste mês, usar o próximo mês
+      const dueDate = new Date(currentYear, currentMonth, dueDay);
+      if (dueDate < today) {
+        dueDate.setMonth(dueDate.getMonth() + 1);
+      }
+      
+      setFormData({
+        ...formData,
+        church_id: churchId,
+        amount: selectedChurch.monthly_fee?.toString() || '',
+        due_date: dueDate.toISOString().split('T')[0],
+      });
+    }
   };
 
   const fetchAccounts = async () => {
@@ -69,30 +98,75 @@ export default function AdminAccountsReceivable() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const { error } = await supabase
-      .from('accounts_receivable')
-      .insert({
-        church_id: formData.church_id,
-        amount: parseFloat(formData.amount),
-        due_date: formData.due_date,
-        description: formData.description,
-        status: 'open',
-      });
-    
-    if (error) {
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível criar a conta a receber',
-        variant: 'destructive',
-      });
+    // Se for pagamento parcelado, criar múltiplas contas
+    if (formData.payment_type === 'parcelas' && formData.installments) {
+      const numInstallments = parseInt(formData.installments);
+      const installmentAmount = parseFloat(formData.amount) / numInstallments;
+      const dueDate = new Date(formData.due_date);
+      
+      const installmentsData = [];
+      for (let i = 1; i <= numInstallments; i++) {
+        const installmentDueDate = new Date(dueDate);
+        installmentDueDate.setMonth(installmentDueDate.getMonth() + (i - 1));
+        
+        installmentsData.push({
+          church_id: formData.church_id,
+          amount: installmentAmount,
+          due_date: installmentDueDate.toISOString().split('T')[0],
+          description: `${formData.description} - Parcela ${i}/${numInstallments}`,
+          status: 'open',
+          payment_type: 'parcelas',
+          installments: numInstallments,
+          current_installment: i,
+        });
+      }
+      
+      const { error } = await supabase
+        .from('accounts_receivable')
+        .insert(installmentsData);
+      
+      if (error) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível criar as contas a receber',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sucesso',
+          description: `${numInstallments} parcelas criadas com sucesso`,
+        });
+        setOpen(false);
+        setFormData({ church_id: '', amount: '', due_date: '', description: '', payment_type: 'unica', installments: '' });
+        fetchAccounts();
+      }
     } else {
-      toast({
-        title: 'Sucesso',
-        description: 'Conta a receber criada com sucesso',
-      });
-      setOpen(false);
-      setFormData({ church_id: '', amount: '', due_date: '', description: '' });
-      fetchAccounts();
+      const { error } = await supabase
+        .from('accounts_receivable')
+        .insert({
+          church_id: formData.church_id,
+          amount: parseFloat(formData.amount),
+          due_date: formData.due_date,
+          description: formData.description,
+          status: 'open',
+          payment_type: formData.payment_type,
+        });
+      
+      if (error) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível criar a conta a receber',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sucesso',
+          description: 'Conta a receber criada com sucesso',
+        });
+        setOpen(false);
+        setFormData({ church_id: '', amount: '', due_date: '', description: '', payment_type: 'unica', installments: '' });
+        fetchAccounts();
+      }
     }
   };
 
@@ -161,7 +235,7 @@ export default function AdminAccountsReceivable() {
                 <Label htmlFor="church">Igreja</Label>
                 <Select
                   value={formData.church_id}
-                  onValueChange={(value) => setFormData({ ...formData, church_id: value })}
+                  onValueChange={handleChurchChange}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a igreja" />
@@ -175,6 +249,37 @@ export default function AdminAccountsReceivable() {
                   </SelectContent>
                 </Select>
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="payment_type">Tipo de Pagamento</Label>
+                <Select
+                  value={formData.payment_type}
+                  onValueChange={(value) => setFormData({ ...formData, payment_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unica">Única</SelectItem>
+                    <SelectItem value="recorrente">Recorrente</SelectItem>
+                    <SelectItem value="parcelas">Parcelas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.payment_type === 'parcelas' && (
+                <div className="space-y-2">
+                  <Label htmlFor="installments">Número de Parcelas</Label>
+                  <Input
+                    id="installments"
+                    type="number"
+                    min="2"
+                    value={formData.installments}
+                    onChange={(e) => setFormData({ ...formData, installments: e.target.value })}
+                    required
+                  />
+                </div>
+              )}
               
               <div className="space-y-2">
                 <Label htmlFor="amount">Valor (R$)</Label>
@@ -254,6 +359,7 @@ export default function AdminAccountsReceivable() {
             <TableHeader>
               <TableRow>
                 <TableHead>Igreja</TableHead>
+                <TableHead>Tipo</TableHead>
                 <TableHead>Valor</TableHead>
                 <TableHead>Vencimento</TableHead>
                 <TableHead>Pagamento</TableHead>
@@ -265,7 +371,7 @@ export default function AdminAccountsReceivable() {
             <TableBody>
               {filteredAccounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     Nenhuma conta encontrada
                   </TableCell>
                 </TableRow>
@@ -273,6 +379,13 @@ export default function AdminAccountsReceivable() {
                 filteredAccounts.map((account) => (
                 <TableRow key={account.id}>
                   <TableCell className="font-medium">{account.church_name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {account.payment_type === 'unica' ? 'Única' :
+                       account.payment_type === 'recorrente' ? 'Recorrente' :
+                       `${account.current_installment}/${account.installments}`}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(account.amount)}
                   </TableCell>
