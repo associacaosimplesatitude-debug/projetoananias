@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Navigation } from "@/components/layout/Navigation";
+import { PaymentBanner } from "@/components/layout/PaymentBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -20,6 +21,7 @@ import AdminTasks from "./pages/admin/Tasks";
 import AdminUsers from "./pages/admin/Users";
 import AdminAccountsReceivable from "./pages/admin/AccountsReceivable";
 import AdminAccountsPayable from "./pages/admin/AccountsPayable";
+import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,11 +35,13 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/payment-blocked" element={<PaymentBlocked />} />
             <Route
               path="/*"
               element={
                 <ProtectedRoute>
                   <Navigation />
+                  <PaymentBanner />
                   <Routes>
                     <Route path="/" element={<Index />} />
                     <Route path="/diretoria-form" element={<DiretoriaForm />} />
