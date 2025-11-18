@@ -17,6 +17,7 @@ const churchSchema = z.object({
   church_name: z.string().trim().min(1, 'Nome da igreja é obrigatório').max(200),
   pastor_email: z.string().trim().email('Email inválido').max(255),
   pastor_name: z.string().trim().min(1, 'Nome do pastor é obrigatório').max(200),
+  pastor_password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres').max(100),
   pastor_rg: z.string().trim().min(1, 'RG é obrigatório').max(20),
   pastor_cpf: z.string().trim().min(11, 'CPF inválido').max(14),
   pastor_whatsapp: z.string().trim().min(10, 'WhatsApp inválido').max(20),
@@ -58,6 +59,7 @@ export default function AdminClients() {
     church_name: '',
     pastor_email: '',
     pastor_name: '',
+    pastor_password: '',
     pastor_rg: '',
     pastor_cpf: '',
     pastor_whatsapp: '',
@@ -126,13 +128,10 @@ export default function AdminClients() {
         return;
       }
 
-      // Gerar senha aleatória
-      const generatedPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
-      
-      // Criar usuário no auth
+      // Criar usuário no auth com a senha fornecida
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.pastor_email.trim(),
-        password: generatedPassword,
+        password: formData.pastor_password,
         options: {
           data: {
             full_name: formData.pastor_name?.trim() || '',
@@ -187,7 +186,7 @@ export default function AdminClients() {
             pastorName: formData.pastor_name || 'Pastor(a)',
             pastorEmail: formData.pastor_email,
             churchName: formData.church_name,
-            password: generatedPassword,
+            password: formData.pastor_password,
             loginUrl: loginUrl,
           },
         });
@@ -202,6 +201,7 @@ export default function AdminClients() {
           church_name: '',
           pastor_email: '',
           pastor_name: '',
+          pastor_password: '',
           pastor_rg: '',
           pastor_cpf: '',
           pastor_whatsapp: '',
@@ -291,6 +291,21 @@ export default function AdminClients() {
                     />
                     {errors.pastor_email && (
                       <p className="text-sm text-destructive">{errors.pastor_email}</p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="pastor_password">Senha de Acesso</Label>
+                    <Input
+                      id="pastor_password"
+                      type="password"
+                      value={formData.pastor_password}
+                      onChange={(e) => setFormData({ ...formData, pastor_password: e.target.value })}
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                    />
+                    {errors.pastor_password && (
+                      <p className="text-sm text-destructive">{errors.pastor_password}</p>
                     )}
                   </div>
 
