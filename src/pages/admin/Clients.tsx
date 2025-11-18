@@ -128,95 +128,73 @@ export default function AdminClients() {
         return;
       }
 
-      // Criar usuário no auth com a senha fornecida
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.pastor_email.trim(),
-        password: formData.pastor_password,
-        options: {
-          data: {
-            full_name: formData.pastor_name?.trim() || '',
-          },
+      // Criar cliente usando edge function (mantém sessão do admin)
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Sessão não encontrada');
+      }
+
+      const { data, error: createError } = await supabase.functions.invoke('create-client', {
+        body: {
+          churchData: formData,
+          password: formData.pastor_password,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
         },
       });
 
-      if (authError) {
-        if (authError.message.includes('already registered')) {
+      if (createError) {
+        if (createError.message?.includes('already registered')) {
           toast({
             title: 'Erro',
-            description: 'Este email já está cadastrado no sistema. Use um email diferente.',
+            description: 'Este email já está cadastrado no sistema.',
             variant: 'destructive',
           });
           return;
         }
-        throw authError;
+        throw createError;
       }
 
-      if (authData.user) {
-        // Criar igreja
-        const { data: churchData, error: churchError } = await supabase
-          .from('churches')
-          .insert({
-            ...formData,
-            user_id: authData.user.id,
-          })
-          .select()
-          .single();
+      // Enviar email com dados de acesso
+      const loginUrl = `${window.location.origin}/auth`;
+      
+      await supabase.functions.invoke('send-welcome-email', {
+        body: {
+          pastorName: formData.pastor_name || 'Pastor(a)',
+          pastorEmail: formData.pastor_email,
+          churchName: formData.church_name,
+          password: formData.pastor_password,
+          loginUrl: loginUrl,
+        },
+      });
 
-        if (churchError) throw churchError;
+      toast({
+        title: 'Sucesso',
+        description: 'Cliente cadastrado e email enviado com os dados de acesso',
+      });
 
-        // Criar perfil
-        await supabase.from('profiles').insert({
-          id: authData.user.id,
-          email: formData.pastor_email.trim(),
-          full_name: formData.pastor_name?.trim() || '',
-          church_id: churchData.id,
-        });
-
-        // Criar role de cliente
-        await supabase.from('user_roles').insert({
-          user_id: authData.user.id,
-          role: 'client',
-        });
-
-        // Enviar email com dados de acesso
-        const loginUrl = `${window.location.origin}/auth`;
-        
-        await supabase.functions.invoke('send-welcome-email', {
-          body: {
-            pastorName: formData.pastor_name || 'Pastor(a)',
-            pastorEmail: formData.pastor_email,
-            churchName: formData.church_name,
-            password: formData.pastor_password,
-            loginUrl: loginUrl,
-          },
-        });
-
-        toast({
-          title: 'Sucesso',
-          description: 'Cliente cadastrado e email enviado com os dados de acesso',
-        });
-
-        setOpen(false);
-        setFormData({
-          church_name: '',
-          pastor_email: '',
-          pastor_name: '',
-          pastor_password: '',
-          pastor_rg: '',
-          pastor_cpf: '',
-          pastor_whatsapp: '',
-          cnpj: '',
-          city: '',
-          state: '',
-          address: '',
-          neighborhood: '',
-          postal_code: '',
-          monthly_fee: 199.90,
-          payment_due_day: 5,
-        });
-        setErrors({});
-        fetchChurches();
-      }
+      setOpen(false);
+      setFormData({
+        church_name: '',
+        pastor_email: '',
+        pastor_name: '',
+        pastor_password: '',
+        pastor_rg: '',
+        pastor_cpf: '',
+        pastor_whatsapp: '',
+        cnpj: '',
+        city: '',
+        state: '',
+        address: '',
+        neighborhood: '',
+        postal_code: '',
+        monthly_fee: 199.90,
+        payment_due_day: 5,
+      });
+      setErrors({});
+      fetchChurches();
     } catch (error: any) {
       console.error('Error creating client:', error);
       toast({
