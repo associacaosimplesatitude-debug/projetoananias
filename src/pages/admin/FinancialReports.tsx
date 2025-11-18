@@ -20,6 +20,7 @@ interface AccountData {
   due_date: string;
   payment_date: string | null;
   status: string;
+  payment_type: string;
   churches: { church_name: string };
 }
 
@@ -67,6 +68,7 @@ export default function FinancialReports() {
         due_date,
         payment_date,
         status,
+        payment_type,
         churches (church_name)
       `)
       .gte('due_date', startDate)
@@ -85,22 +87,49 @@ export default function FinancialReports() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // Calcular métricas
-  const totalReceivable = accounts.reduce((sum, acc) => sum + acc.amount, 0);
+  // Função para calcular quantos meses entre duas datas
+  const getMonthsBetween = (start: Date, end: Date): number => {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                   (endDate.getMonth() - startDate.getMonth()) + 1;
+    return Math.max(0, months);
+  };
+
+  // Calcular métricas considerando pagamentos recorrentes
+  const calculateRecurringValue = (acc: AccountData): number => {
+    if (acc.payment_type === 'recorrente') {
+      // Para recorrentes, calcular quantos meses dentro do período
+      const dueDate = new Date(acc.due_date);
+      const filterStart = new Date(startDate);
+      const filterEnd = new Date(endDate);
+      
+      // A cobrança recorrente começa na data de vencimento
+      const recurringStart = dueDate < filterStart ? filterStart : dueDate;
+      const recurringEnd = filterEnd;
+      
+      const monthsInPeriod = getMonthsBetween(recurringStart, recurringEnd);
+      return acc.amount * monthsInPeriod;
+    }
+    return acc.amount;
+  };
+
+  const totalReceivable = accounts.reduce((sum, acc) => sum + calculateRecurringValue(acc), 0);
   const totalPaid = accounts
     .filter(acc => acc.status === 'paid')
-    .reduce((sum, acc) => sum + acc.amount, 0);
+    .reduce((sum, acc) => sum + calculateRecurringValue(acc), 0);
   const totalOpen = accounts
     .filter(acc => acc.status === 'open')
-    .reduce((sum, acc) => sum + acc.amount, 0);
+    .reduce((sum, acc) => sum + calculateRecurringValue(acc), 0);
   const totalOverdue = accounts
     .filter(acc => acc.status === 'open' && new Date(acc.due_date) < new Date())
-    .reduce((sum, acc) => sum + acc.amount, 0);
+    .reduce((sum, acc) => sum + calculateRecurringValue(acc), 0);
 
   // Dados por igreja
   const dataByChurch = Object.values(
     accounts.reduce((acc, curr) => {
       const churchName = (curr.churches as any)?.church_name || 'Sem nome';
+      const value = calculateRecurringValue(curr);
       if (!acc[churchName]) {
         acc[churchName] = {
           name: churchName,
@@ -109,11 +138,11 @@ export default function FinancialReports() {
           aberto: 0,
         };
       }
-      acc[churchName].total += curr.amount;
+      acc[churchName].total += value;
       if (curr.status === 'paid') {
-        acc[churchName].pago += curr.amount;
+        acc[churchName].pago += value;
       } else {
-        acc[churchName].aberto += curr.amount;
+        acc[churchName].aberto += value;
       }
       return acc;
     }, {} as Record<string, any>)
@@ -126,27 +155,64 @@ export default function FinancialReports() {
     { name: 'Atrasado', value: totalOverdue, color: '#ef4444' },
   ].filter(item => item.value > 0);
 
-  // Dados por mês
+  // Dados por mês - para recorrentes, distribuir pelos meses
   const monthlyData = Object.values(
     accounts.reduce((acc, curr) => {
-      const month = new Date(curr.due_date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-      if (!acc[month]) {
-        acc[month] = {
-          mes: month,
-          total: 0,
-          pago: 0,
-          aberto: 0,
-        };
-      }
-      acc[month].total += curr.amount;
-      if (curr.status === 'paid') {
-        acc[month].pago += curr.amount;
+      if (curr.payment_type === 'recorrente') {
+        // Para recorrentes, criar uma entrada para cada mês dentro do período
+        const dueDate = new Date(curr.due_date);
+        const filterStart = new Date(startDate);
+        const filterEnd = new Date(endDate);
+        
+        const recurringStart = dueDate < filterStart ? filterStart : dueDate;
+        const monthsInPeriod = getMonthsBetween(recurringStart, filterEnd);
+        
+        for (let i = 0; i < monthsInPeriod; i++) {
+          const monthDate = new Date(recurringStart);
+          monthDate.setMonth(monthDate.getMonth() + i);
+          const month = monthDate.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+          
+          if (!acc[month]) {
+            acc[month] = {
+              mes: month,
+              total: 0,
+              pago: 0,
+              aberto: 0,
+            };
+          }
+          acc[month].total += curr.amount;
+          if (curr.status === 'paid') {
+            acc[month].pago += curr.amount;
+          } else {
+            acc[month].aberto += curr.amount;
+          }
+        }
       } else {
-        acc[month].aberto += curr.amount;
+        // Para não-recorrentes, processar normalmente
+        const month = new Date(curr.due_date).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+        if (!acc[month]) {
+          acc[month] = {
+            mes: month,
+            total: 0,
+            pago: 0,
+            aberto: 0,
+          };
+        }
+        acc[month].total += curr.amount;
+        if (curr.status === 'paid') {
+          acc[month].pago += curr.amount;
+        } else {
+          acc[month].aberto += curr.amount;
+        }
       }
       return acc;
     }, {} as Record<string, any>)
-  );
+  ).sort((a, b) => {
+    // Ordenar por data
+    const dateA = new Date(a.mes.split('/').reverse().join('-'));
+    const dateB = new Date(b.mes.split('/').reverse().join('-'));
+    return dateA.getTime() - dateB.getTime();
+  });
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -222,6 +288,9 @@ export default function FinancialReports() {
               <div className="text-2xl font-bold">{formatCurrency(totalReceivable)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {accounts.length} cobrança(s)
+                {accounts.some(acc => acc.payment_type === 'recorrente') && 
+                  ` (${accounts.filter(acc => acc.payment_type === 'recorrente').length} recorrente${accounts.filter(acc => acc.payment_type === 'recorrente').length > 1 ? 's' : ''})`
+                }
               </p>
             </CardContent>
           </Card>
