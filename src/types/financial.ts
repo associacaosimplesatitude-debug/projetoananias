@@ -1,0 +1,72 @@
+export type MemberCargo = 
+  | 'Membro' 
+  | 'Obreiro' 
+  | 'Obreira' 
+  | 'Diácono' 
+  | 'Presbítero' 
+  | 'Diaconisa' 
+  | 'Pastor';
+
+export type Gender = 'Masculino' | 'Feminino';
+
+export interface Member {
+  id: string;
+  nomeCompleto: string;
+  endereco: string;
+  dataAniversario: string;
+  sexo: Gender;
+  whatsapp: string;
+  cargo: MemberCargo | string;
+  createdAt: string;
+}
+
+export type EntryType = 'Dízimo' | 'Oferta' | 'Venda de Produtos' | 'Outros';
+
+export interface FinancialEntry {
+  id: string;
+  data: string;
+  hora?: string;
+  tipo: EntryType;
+  valor: number;
+  membroId?: string;
+  membroNome?: string;
+  descricao: string;
+  createdAt: string;
+}
+
+export type ExpenseMainCategory = 
+  | 'DESPESAS COM PESSOAL'
+  | 'DESPESAS ADMINISTRATIVAS'
+  | 'DESPESAS OPERACIONAIS'
+  | 'DESPESAS FINANCEIRAS';
+
+export interface ExpenseCategory {
+  main: ExpenseMainCategory;
+  sub: string;
+}
+
+export const expenseCategories: Record<ExpenseMainCategory, string[]> = {
+  'DESPESAS COM PESSOAL': ['Salários e Ordenados', 'Encargos Sociais'],
+  'DESPESAS ADMINISTRATIVAS': [
+    'Aluguel',
+    'Água e Esgoto',
+    'Energia Elétrica',
+    'Telefone e Internet',
+    'Material de Escritório',
+  ],
+  'DESPESAS OPERACIONAIS': [
+    'Manutenção do Templo',
+    'Missões e Evangelismo',
+    'Eventos e Congressos',
+  ],
+  'DESPESAS FINANCEIRAS': ['Juros e Multas', 'Tarifas Bancárias'],
+};
+
+export interface FinancialExpense {
+  id: string;
+  data: string;
+  valor: number;
+  categoria: ExpenseCategory;
+  descricao: string;
+  createdAt: string;
+}

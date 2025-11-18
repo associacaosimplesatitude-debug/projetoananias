@@ -5,8 +5,7 @@ import { PaymentModal } from '@/components/church-opening/PaymentModal';
 import { InfoModal } from '@/components/church-opening/InfoModal';
 import { initialStages } from '@/data/stages';
 import { Stage } from '@/types/church-opening';
-import { Church, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArrowRight } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -73,27 +72,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary text-primary-foreground">
-                <Church className="h-6 w-6" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Abertura de Igreja</h1>
-                <p className="text-sm text-muted-foreground">Acompanhe seu processo</p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm">
-              Precisa de ajuda?
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 text-center space-y-2">
           <h2 className="text-3xl font-bold">Processo de Abertura</h2>
