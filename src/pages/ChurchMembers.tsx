@@ -7,10 +7,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { UserPlus, Trash2 } from 'lucide-react';
+import { UserPlus, Trash2, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
+import { PermissionsDialog } from '@/components/church-members/PermissionsDialog';
 
 const createMemberSchema = z.object({
   email: z.string().trim().email({ message: 'Email inválido' }).max(255),
@@ -30,6 +31,8 @@ export default function ChurchMembers() {
   const [loading, setLoading] = useState(true);
   const [churchId, setChurchId] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -172,6 +175,11 @@ export default function ChurchMembers() {
     }
   };
 
+  const handleManagePermissions = (member: Member) => {
+    setSelectedMember(member);
+    setPermissionsDialogOpen(true);
+  };
+
   if (!churchId) {
     return (
       <div className="container mx-auto py-8 px-4">
@@ -296,28 +304,39 @@ export default function ChurchMembers() {
                           {new Date(member.created_at).toLocaleDateString('pt-BR')}
                         </TableCell>
                         <TableCell className="text-right">
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="outline">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Tem certeza que deseja remover {member.full_name || member.email}?
-                                  Esta ação não pode ser desfeita.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteMember(member.id)}>
-                                  Remover
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleManagePermissions(member)}
+                              title="Gerenciar Permissões"
+                            >
+                              <Shield className="h-4 w-4 mr-1" />
+                              Permissões
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="outline">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Tem certeza que deseja remover {member.full_name || member.email}?
+                                    Esta ação não pode ser desfeita.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteMember(member.id)}>
+                                    Remover
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -328,6 +347,16 @@ export default function ChurchMembers() {
           </CardContent>
         </Card>
       </div>
+
+      {selectedMember && churchId && (
+        <PermissionsDialog
+          open={permissionsDialogOpen}
+          onOpenChange={setPermissionsDialogOpen}
+          memberId={selectedMember.id}
+          memberName={selectedMember.full_name || selectedMember.email}
+          churchId={churchId}
+        />
+      )}
     </div>
   );
 }
