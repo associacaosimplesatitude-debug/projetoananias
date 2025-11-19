@@ -49,8 +49,8 @@ export const AdminSubTaskItem = ({
 
   // Show approve/reject actions for final documents delivery when status is pending (after admin uploads)
   const showFinalDocumentsActions = isFinalDocumentsDelivery && churchId && subTask.status === 'pending';
-  // Show approve/reject actions for bank account when status is pending_approval
-  const showBankAccountActions = isBankAccount && churchId && subTask.status === 'pending_approval';
+  // Show approve/reject actions for bank account when status is pending_approval (after client confirms)
+  const showBankAccountActions = isBankAccount && churchId && (subTask.status === 'pending_approval' || subTask.status === 'pending');
 
   // Fetch payment link if this is a payment task, lawyer signature, registry payment, or bank account
   useEffect(() => {
@@ -222,9 +222,13 @@ export const AdminSubTaskItem = ({
         churchId={churchId || ''}
         stageId={stageId}
         subTaskId={subTask.id}
-        documentType="conferencia"
+        documentType={
+          isDocumentReview ? "conferencia" : 
+          isRegistryBudget ? "orcamento_cartorio" : 
+          "documentos_finais"
+        }
         onUploadSuccess={() => {}}
-        allowMultiple={true}
+        allowMultiple={isDocumentReview || isFinalDocumentsDelivery}
       />
       <FileUploadDialog
         open={printUploadDialogOpen}
@@ -235,16 +239,6 @@ export const AdminSubTaskItem = ({
         documentType="impressao"
         onUploadSuccess={() => {}}
         allowMultiple={true}
-      />
-      <FileUploadDialog
-        open={uploadDialogOpen}
-        onOpenChange={setUploadDialogOpen}
-        churchId={churchId || ''}
-        stageId={stageId}
-        subTaskId={subTask.id}
-        documentType={isRegistryBudget ? "orcamento_cartorio" : "documentos_finais"}
-        onUploadSuccess={() => {}}
-        allowMultiple={isFinalDocumentsDelivery}
       />
     <div className={`border rounded-lg p-4 transition-all ${getStatusColor(subTask.status)}`}>
       <div className="flex items-center justify-between gap-3">
