@@ -542,6 +542,71 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               <span className="inline-block">Enviar Assinaturas</span>
             </Button>
           )}
+
+          {isFinalDocumentsDelivery && subTask.status === 'completed' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={async () => {
+                if (!churchId) return;
+                
+                try {
+                  const { data: documents, error } = await supabase
+                    .from('church_documents')
+                    .select('file_path, file_name')
+                    .eq('church_id', churchId)
+                    .eq('stage_id', stageId)
+                    .eq('sub_task_id', subTask.id)
+                    .eq('document_type', 'documentos_finais');
+
+                  if (error) throw error;
+
+                  if (!documents || documents.length === 0) {
+                    toast({
+                      title: 'Nenhum documento',
+                      description: 'Ainda não há documentos disponíveis para download',
+                      variant: 'default',
+                    });
+                    return;
+                  }
+
+                  for (const doc of documents) {
+                    const { data, error: downloadError } = await supabase.storage
+                      .from('church-documents')
+                      .download(doc.file_path);
+
+                    if (downloadError) throw downloadError;
+
+                    const url = URL.createObjectURL(data);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = doc.file_name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }
+
+                  toast({
+                    title: 'Sucesso',
+                    description: 'Documentos baixados com sucesso',
+                  });
+                } catch (error) {
+                  console.error('Error downloading files:', error);
+                  toast({
+                    title: 'Erro',
+                    description: 'Não foi possível baixar os arquivos',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+              disabled={disabled}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <Download className="h-4 w-4" />
+              <span className="inline-block">Baixar Meus Documentos</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -563,7 +628,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         </div>
       )}
 
-      {(showDocumentsList || isDocumentReview || isDocumentSend || isBoardSignature || isRegistryBudget) && churchId && (
+      {(showDocumentsList || isDocumentReview || isDocumentSend || isBoardSignature || isRegistryBudget || isFinalDocumentsDelivery) && churchId && (
         <DocumentsList
           churchId={churchId!}
           stageId={stageId}

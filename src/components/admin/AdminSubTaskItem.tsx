@@ -42,7 +42,9 @@ export const AdminSubTaskItem = ({
   const isOfficeReturn = subTask.id === '4-6'; // RETORNO ESCRITÓRIO
   const isRegistryOffice = subTask.id === '5-1'; // ENVIO CARTÓRIO
   const isRegistryBudget = subTask.id === '5-2'; // ORÇAMENTO CARTÓRIO
-  const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORAIS
+  const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORALS
+  const isDocumentRegistry = subTask.id === '5-4'; // REGISTRO DOCUMENTOS
+  const isFinalDocumentsDelivery = subTask.id === '6-4'; // ENTREGA CNPJ E DOCUMENTOS
 
   // Fetch payment link if this is a payment task, lawyer signature, or registry payment
   useEffect(() => {
@@ -180,8 +182,8 @@ export const AdminSubTaskItem = ({
     }
   };
 
-  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget && !isRegistryPayment;
-  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget;
+  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget && !isRegistryPayment && !isDocumentRegistry && !isFinalDocumentsDelivery;
+  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget && !isFinalDocumentsDelivery;
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
 
@@ -230,9 +232,9 @@ export const AdminSubTaskItem = ({
         churchId={churchId || ''}
         stageId={stageId}
         subTaskId={subTask.id}
-        documentType="orcamento_cartorio"
+        documentType={isRegistryBudget ? "orcamento_cartorio" : "documentos_finais"}
         onUploadSuccess={() => {}}
-        allowMultiple={false}
+        allowMultiple={isFinalDocumentsDelivery}
       />
     <div className={`border rounded-lg p-4 transition-all ${getStatusColor(subTask.status)}`}>
       <div className="flex items-center justify-between gap-3">
@@ -356,6 +358,33 @@ export const AdminSubTaskItem = ({
             </Button>
           )}
 
+          {isDocumentRegistry && churchId && (
+            <Select
+              value={subTask.status === 'completed' ? 'completed' : 'pending'}
+              onValueChange={handleStatusChange}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Aguardando</SelectItem>
+                <SelectItem value="completed">Registrado</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          {isFinalDocumentsDelivery && churchId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setUploadDialogOpen(true)}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Anexar Documentos Finais
+            </Button>
+          )}
+
           {isOfficeReturn && churchId && subTask.status !== 'completed' && (
             <Button
               variant="default"
@@ -411,7 +440,7 @@ export const AdminSubTaskItem = ({
         </div>
       )}
 
-      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview || isDocumentSend || isBoardSignature || isRegistryBudget) && (
+      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview || isDocumentSend || isBoardSignature || isRegistryBudget || isFinalDocumentsDelivery) && (
         <div className="mt-3">
           <DocumentsList
             churchId={churchId}
