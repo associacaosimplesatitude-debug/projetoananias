@@ -172,9 +172,11 @@ export default function AdminClientView() {
             </Button>
           </Link>
           <div className="flex-1 text-center space-y-2">
-            <h2 className="text-3xl font-bold">Processo de Abertura - Visão Admin</h2>
-            <p className="text-muted-foreground">
-              Acompanhe e aprove as etapas do cliente
+            <h2 className="text-3xl font-bold">
+              Processo de Abertura - {churchName || 'Carregando...'}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Visão do Administrador
             </p>
           </div>
         </div>
