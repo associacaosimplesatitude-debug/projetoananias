@@ -188,6 +188,7 @@ export const AdminSubTaskItem = ({
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
   const showDocumentReviewActions = isDocumentReview && subTask.status === 'pending_approval';
+  const showDocumentSendActions = isDocumentSend && subTask.status === 'pending_approval';
 
   return (
     <>
@@ -430,6 +431,29 @@ export const AdminSubTaskItem = ({
                 onClick={() => onReject(subTask.id)}
                 className="text-destructive border-destructive/20 hover:bg-destructive/10"
                 title="Reprovar Documentos"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+
+          {showDocumentSendActions && (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onApprove(subTask.id)}
+                className="text-success border-success/20 hover:bg-success/10"
+                title="Aprovar Envio"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onReject(subTask.id)}
+                className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                title="Reprovar Envio"
               >
                 <X className="h-4 w-4" />
               </Button>
