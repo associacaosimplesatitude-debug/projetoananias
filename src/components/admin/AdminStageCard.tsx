@@ -11,6 +11,7 @@ interface AdminStageCardProps {
   onViewData: (subTaskId: string) => void;
   onApprove: (stageId: number, subTaskId: string) => void;
   onReject: (stageId: number, subTaskId: string) => void;
+  onFinishStage: () => void;
 }
 
 export const AdminStageCard = ({
@@ -20,9 +21,11 @@ export const AdminStageCard = ({
   onViewData,
   onApprove,
   onReject,
+  onFinishStage,
 }: AdminStageCardProps) => {
   const completedTasks = stage.subTasks.filter((t) => t.status === 'completed').length;
   const totalTasks = stage.subTasks.length;
+  const allTasksCompleted = completedTasks === totalTasks;
 
   return (
     <Card className="relative">
@@ -59,6 +62,15 @@ export const AdminStageCard = ({
             onReject={(subTaskId) => onReject(stage.id, subTaskId)}
           />
         ))}
+        
+        {allTasksCompleted && (
+          <Button 
+            onClick={onFinishStage}
+            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Finalizar Etapa
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

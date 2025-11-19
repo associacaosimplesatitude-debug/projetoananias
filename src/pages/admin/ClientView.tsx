@@ -151,6 +151,24 @@ export default function AdminClientView() {
     }
   };
 
+  const handleFinishStage = async (stageId: number) => {
+    if (!churchId) return;
+
+    try {
+      const { error } = await supabase
+        .from('churches')
+        .update({ current_stage: stageId })
+        .eq('id', churchId);
+
+      if (error) throw error;
+
+      toast.success(`Etapa ${stageId} finalizada!`);
+    } catch (error) {
+      console.error('Error finishing stage:', error);
+      toast.error('Erro ao finalizar etapa');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -216,6 +234,7 @@ export default function AdminClientView() {
               onViewData={(subTaskId) => handleViewData(stage.id, subTaskId)}
               onApprove={handleApprove}
               onReject={handleReject}
+              onFinishStage={() => handleFinishStage(stage.id)}
             />
           ))}
         </div>
