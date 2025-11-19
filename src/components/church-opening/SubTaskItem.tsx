@@ -107,9 +107,9 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
     }
   }, [isContractSignature, churchId, stageId, subTask.id]);
 
-  // Check for payment link for monthly payment task, lawyer signature, and registry payment
+  // Check for payment link for monthly payment task, lawyer signature, registry payment, and bank account
   useEffect(() => {
-    if ((isMonthlyPayment || isLawyerSignature || isRegistryPayment) && churchId) {
+    if ((isMonthlyPayment || isLawyerSignature || isRegistryPayment || isBankAccount) && churchId) {
       const checkPaymentLink = async () => {
         const { data, error } = await supabase
           .from('church_stage_progress')
