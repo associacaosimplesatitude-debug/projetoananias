@@ -47,6 +47,9 @@ export const AdminSubTaskItem = ({
   const isFinalDocumentsDelivery = subTask.id === '6-4'; // ENTREGA CNPJ E DOCUMENTOS
   const isBankAccount = subTask.id === '6-5'; // CONTA BANCÁRIA
 
+  // Show approve/reject actions for final documents delivery when status is pending (after admin uploads)
+  const showFinalDocumentsActions = isFinalDocumentsDelivery && churchId && subTask.status === 'pending';
+
   // Fetch payment link if this is a payment task, lawyer signature, registry payment, or bank account
   useEffect(() => {
     if ((isPaymentTask || isLawyerSignature || isRegistryPayment || isBankAccount) && churchId) {
@@ -502,6 +505,29 @@ export const AdminSubTaskItem = ({
                 onClick={() => onReject(subTask.id)}
                 className="text-destructive border-destructive/20 hover:bg-destructive/10"
                 title="Reprovar Pagamento"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+
+          {showFinalDocumentsActions && (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onApprove(subTask.id)}
+                className="text-success border-success/20 hover:bg-success/10"
+                title="Aprovar Entrega"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onReject(subTask.id)}
+                className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                title="Reprovar Entrega"
               >
                 <X className="h-4 w-4" />
               </Button>
