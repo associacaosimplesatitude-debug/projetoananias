@@ -41,7 +41,7 @@ export default function AdminTasks() {
         *,
         churches (church_name)
       `)
-      .neq('status', 'completed')
+      .eq('status', 'pending_approval')
       .order('created_at', { ascending: true });
     
     const formattedTasks = data?.map(task => ({
