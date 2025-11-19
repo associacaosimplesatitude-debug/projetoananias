@@ -301,6 +301,7 @@ export type Database = {
           id: string
           payment_link: string | null
           rejection_reason: string | null
+          scheduled_datetime: string | null
           stage_id: number
           status: string
           sub_task_id: string
@@ -312,6 +313,7 @@ export type Database = {
           id?: string
           payment_link?: string | null
           rejection_reason?: string | null
+          scheduled_datetime?: string | null
           stage_id: number
           status?: string
           sub_task_id: string
@@ -323,6 +325,7 @@ export type Database = {
           id?: string
           payment_link?: string | null
           rejection_reason?: string | null
+          scheduled_datetime?: string | null
           stage_id?: number
           status?: string
           sub_task_id?: string

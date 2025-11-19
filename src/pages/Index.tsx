@@ -5,6 +5,7 @@ import { PaymentModal } from '@/components/church-opening/PaymentModal';
 import { InfoModal } from '@/components/church-opening/InfoModal';
 import { FileUploadDialog } from '@/components/church-opening/FileUploadDialog';
 import { PresidentFormDialog } from '@/components/church-opening/PresidentFormDialog';
+import { ScheduleDialog } from '@/components/church-opening/ScheduleDialog';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChurchData } from '@/hooks/useChurchData';
@@ -52,6 +53,15 @@ const Index = () => {
   });
 
   const [presidentFormModal, setPresidentFormModal] = useState(false);
+  const [scheduleModal, setScheduleModal] = useState<{
+    open: boolean;
+    stageId: number;
+    subTaskId: string;
+  }>({
+    open: false,
+    stageId: 0,
+    subTaskId: '',
+  });
 
   const handlePayment = (stageId: number, subTaskId: string) => {
     const stage = stages.find((s) => s.id === stageId);
@@ -124,6 +134,20 @@ const Index = () => {
         console.error('Error updating contract status:', error);
         toast.error('Erro ao registrar assinatura');
       }
+      return;
+    }
+
+    // Handle schedule action (subtask 2-3)
+    if (subTaskId === '2-3') {
+      if (!churchId) {
+        toast.error('Erro ao carregar dados da igreja. Tente novamente.');
+        return;
+      }
+      setScheduleModal({
+        open: true,
+        stageId,
+        subTaskId,
+      });
       return;
     }
 
