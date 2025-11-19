@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 
 interface PresidentFormDialogProps {
   open: boolean;
@@ -32,6 +32,7 @@ export const PresidentFormDialog = ({
   onSuccess,
 }: PresidentFormDialogProps) => {
   const [loading, setLoading] = useState(false);
+  const [searchingCep, setSearchingCep] = useState(false);
   const [formData, setFormData] = useState<PresidentFormData>({
     nomeCompleto: '',
     rg: '',
@@ -45,6 +46,55 @@ export const PresidentFormDialog = ({
 
   const handleChange = (field: keyof PresidentFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const formatCep = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 5) {
+      return numbers;
+    }
+    return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
+  };
+
+  const handleCepChange = (value: string) => {
+    const formatted = formatCep(value);
+    setFormData(prev => ({ ...prev, cep: formatted }));
+  };
+
+  const searchCep = async () => {
+    const cepNumbers = formData.cep.replace(/\D/g, '');
+    
+    if (cepNumbers.length !== 8) {
+      toast.error('CEP deve conter 8 dígitos');
+      return;
+    }
+
+    setSearchingCep(true);
+
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cepNumbers}/json/`);
+      const data = await response.json();
+
+      if (data.erro) {
+        toast.error('CEP não encontrado');
+        return;
+      }
+
+      // Monta o endereço completo
+      const enderecoCompleto = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
+      
+      setFormData(prev => ({
+        ...prev,
+        endereco: enderecoCompleto,
+      }));
+
+      toast.success('Endereço encontrado!');
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error);
+      toast.error('Erro ao buscar CEP. Tente novamente.');
+    } finally {
+      setSearchingCep(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -167,6 +217,37 @@ export const PresidentFormDialog = ({
               </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cep">
+                  CEP <span className="text-destructive">*</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="cep"
+                    value={formData.cep}
+                    onChange={(e) => handleCepChange(e.target.value)}
+                    placeholder="00000-000"
+                    maxLength={9}
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={searchCep}
+                    disabled={searchingCep || formData.cep.replace(/\D/g, '').length !== 8}
+                    title="Buscar CEP"
+                  >
+                    {searchingCep ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
             <div className="space-y-2">
               <Label htmlFor="endereco">
                 Endereço Completo <span className="text-destructive">*</span>
@@ -179,20 +260,9 @@ export const PresidentFormDialog = ({
                 required
               />
             </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="cep">
-                  CEP <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="cep"
-                  value={formData.cep}
-                  onChange={(e) => handleChange('cep', e.target.value)}
-                  placeholder="00000-000"
-                  required
-                />
-              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="whatsapp">WhatsApp</Label>
