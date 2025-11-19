@@ -33,6 +33,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
   const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
+  const isOfficeReturn = subTask.id === '4-6'; // RETORNO ESCRITÓRIO
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
@@ -512,6 +513,12 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
       {subTask.status === 'needs_adjustment' && (
         <div className="mt-2 text-sm text-destructive px-3">
           Ajuste necessário - verifique as observações
+        </div>
+      )}
+
+      {isOfficeReturn && subTask.status !== 'completed' && (
+        <div className="mt-2 text-sm text-muted-foreground px-3 py-2 bg-muted/50 rounded-md">
+          Por favor, envie os documentos assinados para o nosso endereço. Avisaremos assim que recebermos.
         </div>
       )}
 

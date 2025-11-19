@@ -38,6 +38,7 @@ export const AdminSubTaskItem = ({
   const isDocumentElaboration = subTask.id === '4-2'; // ELABORAÇÃO DOS DOCUMENTOS
   const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
   const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
+  const isOfficeReturn = subTask.id === '4-6'; // RETORNO ESCRITÓRIO
 
   // Fetch payment link if this is a payment task
   useEffect(() => {
@@ -144,8 +145,39 @@ export const AdminSubTaskItem = ({
     }
   };
 
-  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend;
-  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend;
+  const handleConfirmReceipt = async () => {
+    if (!churchId) return;
+
+    try {
+      const { error } = await supabase
+        .from('church_stage_progress')
+        .upsert({
+          church_id: churchId,
+          stage_id: stageId,
+          sub_task_id: subTask.id,
+          status: 'completed',
+        }, {
+          onConflict: 'church_id,stage_id,sub_task_id',
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Recebimento confirmado',
+        description: 'Documentos marcados como recebidos',
+      });
+    } catch (error) {
+      console.error('Error confirming receipt:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível confirmar o recebimento',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn;
+  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn;
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
 
@@ -257,6 +289,18 @@ export const AdminSubTaskItem = ({
                 <SelectItem value="completed">Feito</SelectItem>
               </SelectContent>
             </Select>
+          )}
+
+          {isOfficeReturn && churchId && subTask.status !== 'completed' && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleConfirmReceipt}
+              className="gap-2"
+            >
+              <Check className="h-4 w-4" />
+              Confirmar Recebimento
+            </Button>
           )}
 
           {showViewData && churchId && (
