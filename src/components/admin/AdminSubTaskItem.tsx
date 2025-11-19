@@ -147,6 +147,7 @@ export const AdminSubTaskItem = ({
   const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend;
   const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend;
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
+  const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
 
   return (
     <>
@@ -301,7 +302,7 @@ export const AdminSubTaskItem = ({
         </div>
       )}
 
-      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview || isDocumentSend) && (
+      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview || isDocumentSend || isBoardSignature) && (
         <div className="mt-3">
           <DocumentsList
             churchId={churchId}
