@@ -1,19 +1,38 @@
+import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, CheckSquare, DollarSign, LogOut, UserCog, UserPlus, BarChart3, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 export const Navigation = () => {
-  const { role, signOut } = useAuth();
+  const { role, signOut, user } = useAuth();
+  const [processStatus, setProcessStatus] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const fetchProcessStatus = async () => {
+      if (user && role === 'client') {
+        const { data: churchData } = await supabase
+          .from('churches')
+          .select('process_status')
+          .eq('user_id', user.id)
+          .single();
+        
+        setProcessStatus(churchData?.process_status || null);
+      }
+    };
+
+    fetchProcessStatus();
+  }, [user, role]);
 
   const clientNavItems = [
-    {
+    ...(processStatus !== 'completed' ? [{
       to: '/',
       icon: Church,
       label: 'Abertura',
       exact: true,
-    },
+    }] : []),
     {
       to: '/members',
       icon: Users,

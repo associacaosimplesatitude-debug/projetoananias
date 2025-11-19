@@ -359,6 +359,7 @@ export type Database = {
           pastor_whatsapp: string | null
           payment_due_day: number | null
           postal_code: string | null
+          process_status: string
           state: string | null
           updated_at: string
           user_id: string
@@ -380,6 +381,7 @@ export type Database = {
           pastor_whatsapp?: string | null
           payment_due_day?: number | null
           postal_code?: string | null
+          process_status?: string
           state?: string | null
           updated_at?: string
           user_id: string
@@ -401,6 +403,7 @@ export type Database = {
           pastor_whatsapp?: string | null
           payment_due_day?: number | null
           postal_code?: string | null
+          process_status?: string
           state?: string | null
           updated_at?: string
           user_id?: string
