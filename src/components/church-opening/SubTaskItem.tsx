@@ -20,7 +20,9 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const { churchId } = useChurchData();
   const showDocumentsList = (subTask.actionType === 'upload' || subTask.actionType === 'send') && churchId;
   const [hasContract, setHasContract] = useState(false);
+  const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const isContractSignature = subTask.id === '1-2';
+  const isMonthlyPayment = subTask.id === '1-3';
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
@@ -71,6 +73,55 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
       };
     }
   }, [isContractSignature, churchId, stageId, subTask.id]);
+
+  // Check for payment link for monthly payment task
+  useEffect(() => {
+    if (isMonthlyPayment && churchId) {
+      const checkPaymentLink = async () => {
+        const { data, error } = await supabase
+          .from('church_stage_progress')
+          .select('payment_link')
+          .eq('church_id', churchId)
+          .eq('stage_id', stageId)
+          .eq('sub_task_id', subTask.id)
+          .maybeSingle();
+
+        if (!error && data?.payment_link) {
+          setPaymentLink(data.payment_link);
+        }
+      };
+
+      checkPaymentLink();
+
+      // Set up realtime subscription for payment link updates
+      const channel = supabase
+        .channel('payment-link-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'church_stage_progress',
+            filter: `church_id=eq.${churchId}`,
+          },
+          (payload) => {
+            const updated = payload.new as any;
+            if (
+              updated.stage_id === stageId &&
+              updated.sub_task_id === subTask.id &&
+              updated.payment_link
+            ) {
+              setPaymentLink(updated.payment_link);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isMonthlyPayment, churchId, stageId, subTask.id]);
   const getActionIcon = () => {
     switch (subTask.actionType) {
       case 'send':
@@ -138,7 +189,26 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         </div>
 
         <div className="flex items-center gap-2">
-          {subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
+          {isMonthlyPayment && subTask.status !== 'completed' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => {
+                if (paymentLink) {
+                  window.open(paymentLink, '_blank');
+                }
+              }}
+              disabled={disabled || !paymentLink}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="inline-block">
+                {paymentLink ? 'Pagar Mensalidade' : 'Aguardando Link'}
+              </span>
+            </Button>
+          )}
+
+          {!isMonthlyPayment && subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
             <Button
               size="sm"
               variant="default"
@@ -151,7 +221,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
+          {!isMonthlyPayment && subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
             <Button
               size="sm"
               variant="default"
