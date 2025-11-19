@@ -1,6 +1,6 @@
 import { SubTask } from '@/types/church-opening';
 import { Button } from '@/components/ui/button';
-import { Check, Clock, Eye, X, CheckCircle2, Paperclip, Link, Upload } from 'lucide-react';
+import { Check, Clock, Eye, X, CheckCircle2, Paperclip, Link, Upload, Save } from 'lucide-react';
 import { DocumentsList } from '@/components/church-opening/DocumentsList';
 import { AttachContractDialog } from './AttachContractDialog';
 import { PaymentLinkDialog } from './PaymentLinkDialog';
@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
 
 interface AdminSubTaskItemProps {
   subTask: SubTask;
@@ -293,14 +294,65 @@ export const AdminSubTaskItem = ({
           )}
 
           {isBankAccount && churchId && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPaymentLinkDialogOpen(true)}
-              title={currentPaymentLink ? 'Editar Link da Conta Bancária' : 'Adicionar Link da Conta Bancária'}
-            >
-              <Link className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                type="url"
+                placeholder="https://link-da-conta-bancaria.com"
+                value={currentPaymentLink}
+                onChange={(e) => setCurrentPaymentLink(e.target.value)}
+                className="w-64"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={async () => {
+                  if (!currentPaymentLink.trim()) {
+                    toast({
+                      title: 'Link inválido',
+                      description: 'Cole um link válido antes de salvar.',
+                      variant: 'destructive',
+                    });
+                    return;
+                  }
+
+                  if (!churchId) return;
+
+                  try {
+                    const { error } = await supabase
+                      .from('church_stage_progress')
+                      .upsert(
+                        {
+                          church_id: churchId,
+                          stage_id: stageId,
+                          sub_task_id: subTask.id,
+                          payment_link: currentPaymentLink.trim(),
+                          status: 'pending',
+                        },
+                        {
+                          onConflict: 'church_id,stage_id,sub_task_id',
+                        },
+                      );
+
+                    if (error) throw error;
+
+                    toast({
+                      title: 'Link salvo',
+                      description: 'O link da conta bancária foi salvo com sucesso.',
+                    });
+                  } catch (error) {
+                    console.error('Error saving bank account link:', error);
+                    toast({
+                      title: 'Erro',
+                      description: 'Não foi possível salvar o link. Tente novamente.',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+                title={currentPaymentLink ? 'Salvar alterações do link' : 'Salvar link da conta bancária'}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
           )}
 
           {isDocumentReview && churchId && (

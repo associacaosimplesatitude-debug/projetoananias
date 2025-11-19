@@ -576,7 +576,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </div>
           )}
 
-          {isBankAccount && subTask.status !== 'completed' && (
+          {isBankAccount && subTask.status !== 'completed' && paymentLink && (
             <div className="flex flex-col gap-2 w-full">
               <Button
                 size="sm"
@@ -586,34 +586,32 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
                     window.open(paymentLink, '_blank');
                   }
                 }}
-                disabled={disabled || !paymentLink}
+                disabled={disabled}
                 className="gap-2 whitespace-nowrap flex-shrink-0"
               >
                 <ExternalLink className="h-4 w-4" />
-                <span className="inline-block">
-                  {paymentLink ? 'Abrir Conta Bancária' : 'Aguardando Link'}
-                </span>
+                <span className="inline-block">Abrir Conta</span>
               </Button>
-              {subTask.status !== 'pending_approval' && paymentLink && (
+              {subTask.status !== 'pending_approval' && (
                 <Button
                   size="sm"
                   onClick={async () => {
                     if (!churchId) return;
-                    
                     try {
                       const { error } = await supabase
                         .from('church_stage_progress')
-                        .upsert({
-                          church_id: churchId,
-                          stage_id: stageId,
-                          sub_task_id: subTask.id,
-                          status: 'pending_approval',
-                        }, {
-                          onConflict: 'church_id,stage_id,sub_task_id',
-                        });
-
+                        .upsert(
+                          {
+                            church_id: churchId,
+                            stage_id: stageId,
+                            sub_task_id: subTask.id,
+                            status: 'pending_approval',
+                          },
+                          {
+                            onConflict: 'church_id,stage_id,sub_task_id',
+                          },
+                        );
                       if (error) throw error;
-
                       toast({
                         title: 'Confirmação enviada!',
                         description: 'Aguardando confirmação da abertura da conta pelo administrador.',
@@ -636,7 +634,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               )}
             </div>
           )}
-          
+
           {isBankAccount && subTask.status === 'pending_approval' && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
               <p className="text-sm text-yellow-800">
