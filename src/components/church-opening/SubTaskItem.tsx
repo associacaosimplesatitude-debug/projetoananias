@@ -592,55 +592,96 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {isDocumentSend && hasPrintDocuments && subTask.status !== 'completed' && (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={async () => {
-                if (!churchId) return;
-                
-                try {
-                  const { data: documents, error } = await supabase
-                    .from('church_documents')
-                    .select('file_path, file_name')
-                    .eq('church_id', churchId)
-                    .eq('stage_id', stageId)
-                    .eq('sub_task_id', subTask.id)
-                    .eq('document_type', 'impressao');
+          {isDocumentSend && hasPrintDocuments && subTask.status !== 'completed' && subTask.status !== 'pending_approval' && (
+            <>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={async () => {
+                  if (!churchId) return;
+                  
+                  try {
+                    const { data: documents, error } = await supabase
+                      .from('church_documents')
+                      .select('file_path, file_name')
+                      .eq('church_id', churchId)
+                      .eq('stage_id', stageId)
+                      .eq('sub_task_id', subTask.id)
+                      .eq('document_type', 'impressao');
 
-                  if (error) throw error;
+                    if (error) throw error;
 
-                  for (const doc of documents || []) {
-                    const { data, error: downloadError } = await supabase.storage
-                      .from('church-documents')
-                      .download(doc.file_path);
+                    for (const doc of documents || []) {
+                      const { data, error: downloadError } = await supabase.storage
+                        .from('church-documents')
+                        .download(doc.file_path);
 
-                    if (downloadError) throw downloadError;
+                      if (downloadError) throw downloadError;
 
-                    const url = URL.createObjectURL(data);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = doc.file_name;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                      const url = URL.createObjectURL(data);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = doc.file_name;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }
+                  } catch (error) {
+                    console.error('Error downloading files:', error);
+                    toast({
+                      title: 'Erro',
+                      description: 'Não foi possível baixar os arquivos',
+                      variant: 'destructive',
+                    });
                   }
-                } catch (error) {
-                  console.error('Error downloading files:', error);
-                  toast({
-                    title: 'Erro',
-                    description: 'Não foi possível baixar os arquivos',
-                    variant: 'destructive',
-                  });
-                }
-              }}
-              disabled={disabled}
-              className="gap-2 whitespace-nowrap flex-shrink-0"
-            >
-              <Download className="h-4 w-4" />
-              <span className="inline-block">Baixar e Imprimir</span>
-            </Button>
+                }}
+                disabled={disabled}
+                className="gap-2 whitespace-nowrap flex-shrink-0"
+              >
+                <Download className="h-4 w-4" />
+                <span className="inline-block">Baixar e Imprimir</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={async () => {
+                  if (!churchId) return;
+                  
+                  try {
+                    const { error } = await supabase
+                      .from('church_stage_progress')
+                      .upsert({
+                        church_id: churchId,
+                        stage_id: stageId,
+                        sub_task_id: subTask.id,
+                        status: 'pending_approval',
+                      }, {
+                        onConflict: 'church_id,stage_id,sub_task_id',
+                      });
+
+                    if (error) throw error;
+
+                    toast({
+                      title: 'Confirmação enviada',
+                      description: 'Aguardando aprovação do administrador',
+                    });
+                  } catch (error) {
+                    console.error('Error updating status:', error);
+                    toast({
+                      title: 'Erro',
+                      description: 'Não foi possível confirmar',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+                disabled={disabled}
+                className="gap-2 whitespace-nowrap flex-shrink-0 bg-success hover:bg-success/90"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="inline-block">Documentos Baixados e Impressos</span>
+              </Button>
+            </>
           )}
 
           {isBoardSignature && subTask.status !== 'completed' && subTask.status !== 'pending_approval' && (
