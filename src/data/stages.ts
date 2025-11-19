@@ -18,10 +18,10 @@ export const initialStages: Stage[] = [
     status: 'locked',
     info: 'O certificado digital é essencial para assinar documentos eletronicamente. O custo é de R$ 150,00 anual. Após o pagamento, coletaremos seus dados e agendaremos a certificação.',
     subTasks: [
-      { id: '2-1', name: 'Pag. certificado (R$ 150 anual)', status: 'pending', paymentType: 'fixed', paymentAmount: 150 },
-      { id: '2-2', name: 'Dados para Certificação', status: 'pending' },
-      { id: '2-3', name: 'Agendar Certificação', status: 'pending' },
-      { id: '2-4', name: 'Emissão do Certificado', status: 'pending' },
+      { id: '2-1', name: 'CNH', status: 'pending', actionType: 'upload', actionLabel: 'Enviar' },
+      { id: '2-2', name: 'Certificado Digital', status: 'pending', paymentType: 'fixed', paymentAmount: 150 },
+      { id: '2-3', name: 'Agendamento', status: 'pending', actionType: 'schedule', actionLabel: 'Agendar' },
+      { id: '2-4', name: 'Status', status: 'pending' },
     ],
   },
   {

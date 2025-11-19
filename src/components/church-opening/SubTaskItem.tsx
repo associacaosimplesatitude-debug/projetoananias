@@ -1,5 +1,5 @@
 import { SubTask } from '@/types/church-opening';
-import { Check, Circle, Clock, CreditCard, FileText, Send, PenTool, Upload } from 'lucide-react';
+import { Check, Circle, Clock, CreditCard, FileText, Send, PenTool, Upload, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +22,8 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         return <CreditCard className="h-4 w-4" />;
       case 'upload':
         return <Upload className="h-4 w-4" />;
+      case 'schedule':
+        return <Calendar className="h-4 w-4" />;
       default:
         return null;
     }
