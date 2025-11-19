@@ -1,7 +1,9 @@
 import { SubTask } from '@/types/church-opening';
 import { Button } from '@/components/ui/button';
-import { Check, Clock, Eye, X, CheckCircle2 } from 'lucide-react';
+import { Check, Clock, Eye, X, CheckCircle2, Paperclip } from 'lucide-react';
 import { DocumentsList } from '@/components/church-opening/DocumentsList';
+import { AttachContractDialog } from './AttachContractDialog';
+import { useState } from 'react';
 
 interface AdminSubTaskItemProps {
   subTask: SubTask;
@@ -20,6 +22,7 @@ export const AdminSubTaskItem = ({
   onApprove,
   onReject
 }: AdminSubTaskItemProps) => {
+  const [attachDialogOpen, setAttachDialogOpen] = useState(false);
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -48,8 +51,18 @@ export const AdminSubTaskItem = ({
 
   const showActions = subTask.status !== 'completed';
   const showViewData = subTask.actionType === 'send' || subTask.actionType === 'upload';
+  const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
 
   return (
+    <>
+      <AttachContractDialog
+        open={attachDialogOpen}
+        onOpenChange={setAttachDialogOpen}
+        churchId={churchId || ''}
+        stageId={stageId}
+        subTaskId={subTask.id}
+        subTaskName={subTask.name}
+      />
     <div className={`border rounded-lg p-4 transition-all ${getStatusColor(subTask.status)}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-1">
@@ -58,6 +71,18 @@ export const AdminSubTaskItem = ({
         </div>
         
         <div className="flex items-center gap-2">
+          {isContractSignature && churchId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAttachDialogOpen(true)}
+              className="gap-2"
+            >
+              <Paperclip className="h-4 w-4" />
+              Anexar Contrato
+            </Button>
+          )}
+          
           {showViewData && churchId && (
             <Button
               variant="outline"
@@ -111,5 +136,6 @@ export const AdminSubTaskItem = ({
         </div>
       )}
     </div>
+    </>
   );
 };
