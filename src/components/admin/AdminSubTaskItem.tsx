@@ -46,7 +46,7 @@ export const AdminSubTaskItem = ({
     }
   };
 
-  const showActions = subTask.status === 'pending_approval' || subTask.status === 'in_progress';
+  const showActions = subTask.status !== 'completed';
   const showViewData = subTask.actionType === 'send' || subTask.actionType === 'upload';
 
   return (
