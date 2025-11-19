@@ -299,6 +299,7 @@ export type Database = {
           church_id: string
           created_at: string
           id: string
+          payment_link: string | null
           rejection_reason: string | null
           stage_id: number
           status: string
@@ -309,6 +310,7 @@ export type Database = {
           church_id: string
           created_at?: string
           id?: string
+          payment_link?: string | null
           rejection_reason?: string | null
           stage_id: number
           status?: string
@@ -319,6 +321,7 @@ export type Database = {
           church_id?: string
           created_at?: string
           id?: string
+          payment_link?: string | null
           rejection_reason?: string | null
           stage_id?: number
           status?: string
