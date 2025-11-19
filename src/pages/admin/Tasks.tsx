@@ -8,6 +8,7 @@ import { CheckCircle, Filter, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { initialStages } from '@/data/stages';
+import { RejectTaskDialog } from '@/components/admin/RejectTaskDialog';
 
 interface Task {
   id: string;
@@ -24,6 +25,8 @@ export default function AdminTasks() {
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -103,11 +106,21 @@ export default function AdminTasks() {
     }
   };
 
-  const rejectTask = async (taskId: string) => {
+  const handleRejectClick = (task: Task) => {
+    setSelectedTask(task);
+    setRejectDialogOpen(true);
+  };
+
+  const rejectTask = async (reason: string) => {
+    if (!selectedTask) return;
+
     const { error } = await supabase
       .from('church_stage_progress')
-      .update({ status: 'rejected' })
-      .eq('id', taskId);
+      .update({ 
+        status: 'needs_adjustment',
+        rejection_reason: reason
+      })
+      .eq('id', selectedTask.id);
     
     if (error) {
       toast({
@@ -118,7 +131,7 @@ export default function AdminTasks() {
     } else {
       toast({
         title: 'Sucesso',
-        description: 'Tarefa reprovada',
+        description: 'Tarefa reprovada com sucesso',
       });
       fetchTasks();
     }
@@ -212,7 +225,7 @@ export default function AdminTasks() {
                           </Button>
                           <Button
                             size="sm"
-                            onClick={() => rejectTask(task.id)}
+                            onClick={() => handleRejectClick(task)}
                             variant="destructive"
                           >
                             <X className="mr-2 h-4 w-4" />
@@ -228,6 +241,16 @@ export default function AdminTasks() {
           </CardContent>
         </Card>
       </div>
+
+      {selectedTask && (
+        <RejectTaskDialog
+          open={rejectDialogOpen}
+          onOpenChange={setRejectDialogOpen}
+          onConfirm={rejectTask}
+          taskName={getSubTaskName(selectedTask.stage_id, selectedTask.sub_task_id)}
+          churchName={selectedTask.church_name}
+        />
+      )}
     </div>
   );
 }

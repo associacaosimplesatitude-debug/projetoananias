@@ -299,6 +299,7 @@ export type Database = {
           church_id: string
           created_at: string
           id: string
+          rejection_reason: string | null
           stage_id: number
           status: string
           sub_task_id: string
@@ -308,6 +309,7 @@ export type Database = {
           church_id: string
           created_at?: string
           id?: string
+          rejection_reason?: string | null
           stage_id: number
           status?: string
           sub_task_id: string
@@ -317,6 +319,7 @@ export type Database = {
           church_id?: string
           created_at?: string
           id?: string
+          rejection_reason?: string | null
           stage_id?: number
           status?: string
           sub_task_id?: string
