@@ -7,9 +7,9 @@ export const initialStages: Stage[] = [
     status: 'active',
     info: 'Nesta etapa, realizamos a contratação dos serviços. Você precisará fornecer os dados do presidente, revisar e assinar o contrato, e efetuar o pagamento do primeiro boleto mensal.',
     subTasks: [
-      { id: '1-1', name: 'Dados do Presidente', status: 'pending', actionType: 'send', actionLabel: 'Enviar' },
-      { id: '1-2', name: 'Assinatura do Contrato', status: 'pending', actionType: 'sign', actionLabel: 'Assinar' },
-      { id: '1-3', name: 'Pagar Mensalidade', status: 'pending', actionType: 'pay', actionLabel: 'Pagar Agora' },
+      { id: '1-1', name: 'DADOS DO PRESIDENTE', status: 'pending', actionType: 'send', actionLabel: 'Enviar' },
+      { id: '1-2', name: 'ASSINATURA DO CONTRATO', status: 'pending', actionType: 'sign', actionLabel: 'Assinar' },
+      { id: '1-3', name: 'PAGAR MENSALIDADE', status: 'pending', paymentType: 'fixed', paymentAmount: 199.90 },
     ],
   },
   {
@@ -19,9 +19,9 @@ export const initialStages: Stage[] = [
     info: 'O certificado digital é essencial para assinar documentos eletronicamente. O custo é de R$ 150,00 anual. Após o pagamento, coletaremos seus dados e agendaremos a certificação.',
     subTasks: [
       { id: '2-1', name: 'CNH', status: 'pending', actionType: 'upload', actionLabel: 'Enviar' },
-      { id: '2-2', name: 'Certificado Digital', status: 'pending', paymentType: 'fixed', paymentAmount: 150 },
-      { id: '2-3', name: 'Agendamento', status: 'pending', actionType: 'schedule', actionLabel: 'Agendar' },
-      { id: '2-4', name: 'Status', status: 'pending' },
+      { id: '2-2', name: 'CERTIFICADO DIGITAL', status: 'pending', paymentType: 'fixed', paymentAmount: 150 },
+      { id: '2-3', name: 'AGENDAMENTO', status: 'pending', actionType: 'schedule', actionLabel: 'Agendar' },
+      { id: '2-4', name: 'STATUS', status: 'pending' },
     ],
   },
   {
@@ -31,8 +31,8 @@ export const initialStages: Stage[] = [
     info: 'Nesta etapa, verificamos a viabilidade do endereço para funcionamento da igreja. Você precisará enviar uma cópia do IPTU do imóvel.',
     subTasks: [
       { id: '3-1', name: 'IPTU', status: 'pending', actionType: 'upload', actionLabel: 'Enviar' },
-      { id: '3-2', name: 'Pedido de Viabilidade', status: 'pending' },
-      { id: '3-3', name: 'Emissão de Viabilidade', status: 'pending' },
+      { id: '3-2', name: 'PEDIDO DE VIABILIDADE', status: 'pending' },
+      { id: '3-3', name: 'EMISSÃO DE VIABILIDADE', status: 'pending' },
     ],
   },
   {
@@ -58,7 +58,7 @@ export const initialStages: Stage[] = [
     subTasks: [
       { id: '5-1', name: 'ENVIO CARTÓRIO', status: 'pending' },
       { id: '5-2', name: 'ORÇAMENTO CARTÓRIO', status: 'pending', actionType: 'view', actionLabel: 'Ver Valor' },
-      { id: '5-3', name: 'PAGAMENTO CUSTAS CARTORAIS', status: 'pending', paymentType: 'variable' },
+      { id: '5-3', name: 'PAGAMENTO CUSTAS CARTORAIS', status: 'pending', paymentType: 'fixed', paymentAmount: 0, actionLabel: 'Pagar Agora' },
       { id: '5-4', name: 'REGISTRO DOCUMENTOS', status: 'pending' },
     ],
   },
