@@ -33,6 +33,7 @@ export const PresidentFormDialog = ({
 }: PresidentFormDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [searchingCep, setSearchingCep] = useState(false);
+  const [cpfValid, setCpfValid] = useState<boolean | null>(null);
   const [formData, setFormData] = useState<PresidentFormData>({
     nomeCompleto: '',
     rg: '',
@@ -46,6 +47,67 @@ export const PresidentFormDialog = ({
 
   const handleChange = (field: keyof PresidentFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const formatCpf = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 3) {
+      return numbers;
+    }
+    if (numbers.length <= 6) {
+      return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+    }
+    if (numbers.length <= 9) {
+      return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+    }
+    return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
+  };
+
+  const validateCpf = (cpf: string): boolean => {
+    const numbers = cpf.replace(/\D/g, '');
+    
+    // CPF deve ter 11 dígitos
+    if (numbers.length !== 11) return false;
+    
+    // Verifica se todos os dígitos são iguais (CPF inválido)
+    if (/^(\d)\1{10}$/.test(numbers)) return false;
+    
+    // Validação do primeiro dígito verificador
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(numbers.charAt(i)) * (10 - i);
+    }
+    let digit = 11 - (sum % 11);
+    if (digit >= 10) digit = 0;
+    if (digit !== parseInt(numbers.charAt(9))) return false;
+    
+    // Validação do segundo dígito verificador
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += parseInt(numbers.charAt(i)) * (11 - i);
+    }
+    digit = 11 - (sum % 11);
+    if (digit >= 10) digit = 0;
+    if (digit !== parseInt(numbers.charAt(10))) return false;
+    
+    return true;
+  };
+
+  const handleCpfChange = (value: string) => {
+    const formatted = formatCpf(value);
+    setFormData(prev => ({ ...prev, cpf: formatted }));
+    
+    // Valida apenas se tiver 11 dígitos
+    const numbers = formatted.replace(/\D/g, '');
+    if (numbers.length === 11) {
+      const isValid = validateCpf(formatted);
+      setCpfValid(isValid);
+      if (!isValid) {
+        toast.error('CPF inválido');
+      }
+    } else {
+      setCpfValid(null);
+    }
   };
 
   const formatCep = (value: string) => {
@@ -120,6 +182,12 @@ export const PresidentFormDialog = ({
     if (!formData.nomeCompleto.trim() || !formData.rg.trim() || !formData.cpf.trim() || 
         !formData.endereco.trim() || !formData.cep.trim() || !formData.email.trim()) {
       toast.error('Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+
+    // CPF validation
+    if (!validateCpf(formData.cpf)) {
+      toast.error('Por favor, insira um CPF válido');
       return;
     }
 
@@ -223,13 +291,29 @@ export const PresidentFormDialog = ({
                 <Label htmlFor="cpf">
                   CPF <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="cpf"
-                  value={formData.cpf}
-                  onChange={(e) => handleChange('cpf', e.target.value)}
-                  placeholder="000.000.000-00"
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="cpf"
+                    value={formData.cpf}
+                    onChange={(e) => handleCpfChange(e.target.value)}
+                    placeholder="000.000.000-00"
+                    maxLength={14}
+                    required
+                    className={
+                      cpfValid === false 
+                        ? 'border-destructive focus-visible:ring-destructive' 
+                        : cpfValid === true 
+                        ? 'border-success focus-visible:ring-success' 
+                        : ''
+                    }
+                  />
+                  {cpfValid === true && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-success">✓</span>
+                  )}
+                </div>
+                {cpfValid === false && (
+                  <p className="text-xs text-destructive">CPF inválido</p>
+                )}
               </div>
             </div>
 
