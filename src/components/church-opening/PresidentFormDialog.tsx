@@ -56,9 +56,25 @@ export const PresidentFormDialog = ({
     return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
   };
 
+  const formatWhatsApp = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 2) {
+      return numbers;
+    }
+    if (numbers.length <= 7) {
+      return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    }
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  };
+
   const handleCepChange = (value: string) => {
     const formatted = formatCep(value);
     setFormData(prev => ({ ...prev, cep: formatted }));
+  };
+
+  const handleWhatsAppChange = (value: string) => {
+    const formatted = formatWhatsApp(value);
+    setFormData(prev => ({ ...prev, whatsapp: formatted }));
   };
 
   const searchCep = async () => {
@@ -269,8 +285,9 @@ export const PresidentFormDialog = ({
                 <Input
                   id="whatsapp"
                   value={formData.whatsapp}
-                  onChange={(e) => handleChange('whatsapp', e.target.value)}
+                  onChange={(e) => handleWhatsAppChange(e.target.value)}
                   placeholder="(00) 00000-0000"
+                  maxLength={15}
                 />
               </div>
             </div>
