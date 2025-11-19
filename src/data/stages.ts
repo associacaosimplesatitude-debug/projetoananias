@@ -30,9 +30,9 @@ export const initialStages: Stage[] = [
     status: 'locked',
     info: 'Nesta etapa, verificamos a viabilidade do endereço para funcionamento da igreja. Você precisará enviar uma cópia do IPTU do imóvel.',
     subTasks: [
-      { id: '3-1', name: 'Envio do IPTU', status: 'pending' },
-      { id: '3-2', name: 'Pedido Viabilidade', status: 'pending' },
-      { id: '3-3', name: 'Emissão Viabilidade', status: 'pending' },
+      { id: '3-1', name: 'IPTU', status: 'pending', actionType: 'upload', actionLabel: 'Enviar' },
+      { id: '3-2', name: 'Pedido de Viabilidade', status: 'pending' },
+      { id: '3-3', name: 'Emissão de Viabilidade', status: 'pending' },
     ],
   },
   {
