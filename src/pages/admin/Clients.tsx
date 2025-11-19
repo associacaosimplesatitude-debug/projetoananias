@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Eye, Calendar, Settings } from 'lucide-react';
+import { Plus, Eye, Calendar, Settings, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
@@ -50,6 +50,7 @@ interface Church {
   postal_code: string;
   monthly_fee?: number;
   payment_due_day?: number;
+  process_status?: string;
 }
 
 export default function AdminClients() {
@@ -95,6 +96,31 @@ export default function AdminClients() {
       .order('created_at', { ascending: false });
     
     setChurches(data || []);
+  };
+
+  const handleCompleteProcess = async (churchId: string) => {
+    try {
+      const { error } = await supabase
+        .from('churches')
+        .update({ process_status: 'completed' })
+        .eq('id', churchId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Processo Concluído',
+        description: 'O processo de abertura foi marcado como concluído.',
+      });
+
+      fetchChurches();
+    } catch (error) {
+      console.error('Erro ao concluir processo:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao concluir processo.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleMandateSubmit = async (e: React.FormEvent) => {
@@ -595,6 +621,17 @@ export default function AdminClients() {
                         >
                           <Settings className="h-4 w-4" />
                         </Button>
+                        {church.process_status !== 'completed' && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleCompleteProcess(church.id)}
+                            title="Concluir Processo"
+                            className="text-green-600 hover:text-green-700"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
