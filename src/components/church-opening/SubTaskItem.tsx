@@ -7,6 +7,7 @@ import { ReviewDialog } from './ReviewDialog';
 import { useChurchData } from '@/hooks/useChurchData';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 interface SubTaskItemProps {
   subTask: SubTask;
@@ -24,9 +25,11 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [hasDocuments, setHasDocuments] = useState(false);
+  const [hasPrintDocuments, setHasPrintDocuments] = useState(false);
   const isContractSignature = subTask.id === '1-2';
   const isMonthlyPayment = subTask.id === '1-3';
   const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
+  const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
@@ -176,6 +179,56 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
       };
     }
   }, [isDocumentReview, churchId, stageId, subTask.id]);
+
+  // Check for print documents in document send task
+  useEffect(() => {
+    if (isDocumentSend && churchId) {
+      const checkPrintDocuments = async () => {
+        const { data, error } = await supabase
+          .from('church_documents')
+          .select('id')
+          .eq('church_id', churchId)
+          .eq('stage_id', stageId)
+          .eq('sub_task_id', subTask.id)
+          .eq('document_type', 'impressao')
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          setHasPrintDocuments(true);
+        }
+      };
+
+      checkPrintDocuments();
+
+      // Set up realtime subscription for document uploads
+      const channel = supabase
+        .channel('print-docs-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'church_documents',
+            filter: `church_id=eq.${churchId}`,
+          },
+          (payload) => {
+            const newDoc = payload.new as any;
+            if (
+              newDoc.stage_id === stageId &&
+              newDoc.sub_task_id === subTask.id &&
+              newDoc.document_type === 'impressao'
+            ) {
+              setHasPrintDocuments(true);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isDocumentSend, churchId, stageId, subTask.id]);
 
   const getActionIcon = () => {
     switch (subTask.actionType) {
@@ -340,6 +393,57 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               <span className="inline-block">Conferir Documentos</span>
             </Button>
           )}
+
+          {isDocumentSend && hasPrintDocuments && subTask.status !== 'completed' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={async () => {
+                if (!churchId) return;
+                
+                try {
+                  const { data: documents, error } = await supabase
+                    .from('church_documents')
+                    .select('file_path, file_name')
+                    .eq('church_id', churchId)
+                    .eq('stage_id', stageId)
+                    .eq('sub_task_id', subTask.id)
+                    .eq('document_type', 'impressao');
+
+                  if (error) throw error;
+
+                  for (const doc of documents || []) {
+                    const { data, error: downloadError } = await supabase.storage
+                      .from('church-documents')
+                      .download(doc.file_path);
+
+                    if (downloadError) throw downloadError;
+
+                    const url = URL.createObjectURL(data);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = doc.file_name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }
+                } catch (error) {
+                  console.error('Error downloading files:', error);
+                  toast({
+                    title: 'Erro',
+                    description: 'Não foi possível baixar os arquivos',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+              disabled={disabled}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <Download className="h-4 w-4" />
+              <span className="inline-block">Baixar e Imprimir</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -355,7 +459,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         </div>
       )}
 
-      {(showDocumentsList || isDocumentReview) && churchId && (
+      {(showDocumentsList || isDocumentReview || isDocumentSend) && churchId && (
         <DocumentsList
           churchId={churchId!}
           stageId={stageId}
