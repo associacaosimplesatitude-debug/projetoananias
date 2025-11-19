@@ -37,6 +37,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const isLawyerSignature = subTask.id === '4-7'; // ASSINATURA ADVOGADO
   const isRegistryBudget = subTask.id === '5-2'; // ORÇAMENTO CARTÓRIO
   const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORAIS
+  const isFinalDocumentsDelivery = subTask.id === '6-4'; // ENTREGA CNPJ E DOCUMENTOS
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
