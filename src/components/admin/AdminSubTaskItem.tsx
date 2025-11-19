@@ -30,12 +30,14 @@ export const AdminSubTaskItem = ({
   const [attachDialogOpen, setAttachDialogOpen] = useState(false);
   const [paymentLinkDialogOpen, setPaymentLinkDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [printUploadDialogOpen, setPrintUploadDialogOpen] = useState(false);
   const [currentPaymentLink, setCurrentPaymentLink] = useState('');
   const { toast } = useToast();
 
   const isPaymentTask = subTask.id === '1-3'; // PAGAR MENSALIDADE
   const isDocumentElaboration = subTask.id === '4-2'; // ELABORAÇÃO DOS DOCUMENTOS
   const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
+  const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
 
   // Fetch payment link if this is a payment task
   useEffect(() => {
@@ -142,8 +144,8 @@ export const AdminSubTaskItem = ({
     }
   };
 
-  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview;
-  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview;
+  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend;
+  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend;
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
 
   return (
@@ -172,6 +174,16 @@ export const AdminSubTaskItem = ({
         stageId={stageId}
         subTaskId={subTask.id}
         documentType="conferencia"
+        onUploadSuccess={() => {}}
+        allowMultiple={true}
+      />
+      <FileUploadDialog
+        open={printUploadDialogOpen}
+        onOpenChange={setPrintUploadDialogOpen}
+        churchId={churchId || ''}
+        stageId={stageId}
+        subTaskId={subTask.id}
+        documentType="impressao"
         onUploadSuccess={() => {}}
         allowMultiple={true}
       />
@@ -216,6 +228,18 @@ export const AdminSubTaskItem = ({
             >
               <Upload className="h-4 w-4" />
               Anexar Documentos para Conferência
+            </Button>
+          )}
+
+          {isDocumentSend && churchId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPrintUploadDialogOpen(true)}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Anexar para Impressão
             </Button>
           )}
 
@@ -277,7 +301,7 @@ export const AdminSubTaskItem = ({
         </div>
       )}
 
-      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview) && (
+      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview || isDocumentSend) && (
         <div className="mt-3">
           <DocumentsList
             churchId={churchId}
