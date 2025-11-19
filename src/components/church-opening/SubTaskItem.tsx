@@ -6,6 +6,7 @@ import { DocumentsList } from './DocumentsList';
 import { ReviewDialog } from './ReviewDialog';
 import { FileUploadDialog } from './FileUploadDialog';
 import { DirectorFormDialog } from './DirectorFormDialog';
+import { ReportErrorDialog } from './ReportErrorDialog';
 import { useChurchData } from '@/hooks/useChurchData';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +33,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const [directorFormOpen, setDirectorFormOpen] = useState(false);
   const [selectedCargo, setSelectedCargo] = useState<string>('');
   const [boardMembersStatus, setBoardMembersStatus] = useState<Record<string, boolean>>({});
+  const [reportErrorDialogOpen, setReportErrorDialogOpen] = useState(false);
   const isContractSignature = subTask.id === '1-2';
   const isMonthlyPayment = subTask.id === '1-3';
   const isBoardData = subTask.id === '4-1'; // DADOS DA DIRETORIA
@@ -784,16 +786,39 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
           />
           
           {/* Buttons for CONFERÊNCIA DOCUMENTOS task (client view only) */}
-          {isDocumentReview && (
+          {isDocumentReview && subTask.status !== 'pending_approval' && subTask.status !== 'completed' && (
             <div className="flex gap-3 mt-4 px-3">
               <Button
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => {
-                  // TODO: Handle "Tudo Certo!" action
-                  toast({
-                    title: 'Confirmado!',
-                    description: 'Você confirmou que os documentos estão corretos.',
-                  });
+                onClick={async () => {
+                  if (!churchId) return;
+                  
+                  try {
+                    const { error } = await supabase
+                      .from('church_stage_progress')
+                      .upsert({
+                        church_id: churchId,
+                        stage_id: stageId,
+                        sub_task_id: subTask.id,
+                        status: 'pending_approval',
+                      }, {
+                        onConflict: 'church_id,stage_id,sub_task_id',
+                      });
+
+                    if (error) throw error;
+
+                    toast({
+                      title: 'Confirmado!',
+                      description: 'Documentos enviados para aprovação do administrador.',
+                    });
+                  } catch (error) {
+                    console.error('Error updating status:', error);
+                    toast({
+                      title: 'Erro',
+                      description: 'Não foi possível confirmar. Tente novamente.',
+                      variant: 'destructive',
+                    });
+                  }
                 }}
               >
                 Tudo Certo!
@@ -801,14 +826,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               <Button
                 variant="destructive"
                 className="flex-1"
-                onClick={() => {
-                  // TODO: Handle "Encontrei um Erro" action
-                  toast({
-                    title: 'Erro Reportado',
-                    description: 'Você reportou um erro nos documentos.',
-                    variant: 'destructive',
-                  });
-                }}
+                onClick={() => setReportErrorDialogOpen(true)}
               >
                 Encontrei um Erro
               </Button>
@@ -816,6 +834,44 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
           )}
         </>
       )}
+
+      {/* Report Error Dialog */}
+      <ReportErrorDialog
+        open={reportErrorDialogOpen}
+        onOpenChange={setReportErrorDialogOpen}
+        taskName={subTask.name}
+        onConfirm={async (errorDescription) => {
+          if (!churchId) return;
+          
+          try {
+            const { error } = await supabase
+              .from('church_stage_progress')
+              .upsert({
+                church_id: churchId,
+                stage_id: stageId,
+                sub_task_id: subTask.id,
+                status: 'needs_adjustment',
+                rejection_reason: errorDescription,
+              }, {
+                onConflict: 'church_id,stage_id,sub_task_id',
+              });
+
+            if (error) throw error;
+
+            toast({
+              title: 'Erro Reportado',
+              description: 'Seu relato foi enviado. Aguarde as correções.',
+            });
+          } catch (error) {
+            console.error('Error reporting error:', error);
+            toast({
+              title: 'Erro',
+              description: 'Não foi possível enviar o relato. Tente novamente.',
+              variant: 'destructive',
+            });
+          }
+        }}
+      />
     </div>
   );
 };
