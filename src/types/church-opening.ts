@@ -9,7 +9,7 @@ export interface SubTask {
   paymentType?: PaymentType;
   paymentAmount?: number;
   requiresForm?: boolean;
-  actionType?: 'send' | 'sign' | 'pay' | 'upload' | 'schedule' | 'check';
+  actionType?: 'send' | 'sign' | 'pay' | 'upload' | 'schedule' | 'check' | 'view';
   actionLabel?: string;
 }
 

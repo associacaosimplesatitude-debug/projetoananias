@@ -56,10 +56,10 @@ export const initialStages: Stage[] = [
     status: 'locked',
     info: 'Os documentos serão registrados em cartório. O valor das custas é variável de acordo com cada cartório e será informado após o orçamento.',
     subTasks: [
-      { id: '5-1', name: 'Envio cartório', status: 'pending' },
-      { id: '5-2', name: 'Orçamento Cartório', status: 'pending' },
-      { id: '5-3', name: 'Pagamento das Custas Cartório', status: 'pending', paymentType: 'variable' },
-      { id: '5-4', name: 'Registro dos Documentos', status: 'pending' },
+      { id: '5-1', name: 'ENVIO CARTÓRIO', status: 'pending' },
+      { id: '5-2', name: 'ORÇAMENTO CARTÓRIO', status: 'pending', actionType: 'view', actionLabel: 'Ver Valor' },
+      { id: '5-3', name: 'PAGAMENTO CUSTAS CARTORAIS', status: 'pending', paymentType: 'variable' },
+      { id: '5-4', name: 'REGISTRO DOCUMENTOS', status: 'pending' },
     ],
   },
   {
