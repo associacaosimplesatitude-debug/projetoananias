@@ -776,11 +776,45 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
       )}
 
       {(showDocumentsList || isDocumentReview || isDocumentSend || isBoardSignature || isRegistryBudget || isFinalDocumentsDelivery) && churchId && (
-        <DocumentsList
-          churchId={churchId!}
-          stageId={stageId}
-          subTaskId={subTask.id}
-        />
+        <>
+          <DocumentsList
+            churchId={churchId!}
+            stageId={stageId}
+            subTaskId={subTask.id}
+          />
+          
+          {/* Buttons for CONFERÊNCIA DOCUMENTOS task (client view only) */}
+          {isDocumentReview && (
+            <div className="flex gap-3 mt-4 px-3">
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => {
+                  // TODO: Handle "Tudo Certo!" action
+                  toast({
+                    title: 'Confirmado!',
+                    description: 'Você confirmou que os documentos estão corretos.',
+                  });
+                }}
+              >
+                Tudo Certo!
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => {
+                  // TODO: Handle "Encontrei um Erro" action
+                  toast({
+                    title: 'Erro Reportado',
+                    description: 'Você reportou um erro nos documentos.',
+                    variant: 'destructive',
+                  });
+                }}
+              >
+                Encontrei um Erro
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
