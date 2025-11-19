@@ -11,18 +11,26 @@ export const useChurchData = () => {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
+          console.log('No user found');
           setLoading(false);
           return;
         }
 
-        const { data: church } = await supabase
+        const { data: church, error } = await supabase
           .from('churches')
           .select('id')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error fetching church:', error);
+        }
 
         if (church) {
+          console.log('Church found:', church.id);
           setChurchId(church.id);
+        } else {
+          console.log('No church found for user');
         }
       } catch (error) {
         console.error('Error fetching church data:', error);
