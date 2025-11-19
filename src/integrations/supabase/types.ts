@@ -147,6 +147,59 @@ export type Database = {
           },
         ]
       }
+      church_documents: {
+        Row: {
+          church_id: string
+          created_at: string | null
+          document_type: string
+          file_name: string
+          file_path: string
+          file_size: number
+          id: string
+          mime_type: string
+          stage_id: number
+          sub_task_id: string
+          updated_at: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string | null
+          document_type: string
+          file_name: string
+          file_path: string
+          file_size: number
+          id?: string
+          mime_type: string
+          stage_id: number
+          sub_task_id: string
+          updated_at?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string | null
+          document_type?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          id?: string
+          mime_type?: string
+          stage_id?: number
+          sub_task_id?: string
+          updated_at?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "church_documents_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       church_member_permissions: {
         Row: {
           church_id: string
