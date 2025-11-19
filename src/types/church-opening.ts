@@ -1,4 +1,4 @@
-export type SubTaskStatus = 'pending' | 'in_progress' | 'completed';
+export type SubTaskStatus = 'pending' | 'in_progress' | 'completed' | 'pending_approval' | 'needs_adjustment';
 
 export type PaymentType = 'fixed' | 'variable' | 'none';
 
