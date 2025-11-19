@@ -1,8 +1,9 @@
 import { SubTask } from '@/types/church-opening';
-import { Check, Circle, Clock, CreditCard, FileText, Send, PenTool, Upload, Calendar, FileCheck, Eye, Download, ExternalLink } from 'lucide-react';
+import { Check, Circle, Clock, CreditCard, FileText, Send, PenTool, Upload, Calendar, FileCheck, Eye, Download, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DocumentsList } from './DocumentsList';
+import { ReviewDialog } from './ReviewDialog';
 import { useChurchData } from '@/hooks/useChurchData';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,8 +22,11 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const showDocumentsList = (subTask.actionType === 'upload' || subTask.actionType === 'send') && churchId;
   const [hasContract, setHasContract] = useState(false);
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [hasDocuments, setHasDocuments] = useState(false);
   const isContractSignature = subTask.id === '1-2';
   const isMonthlyPayment = subTask.id === '1-3';
+  const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
@@ -122,6 +126,57 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
       };
     }
   }, [isMonthlyPayment, churchId, stageId, subTask.id]);
+
+  // Check for documents in document review task
+  useEffect(() => {
+    if (isDocumentReview && churchId) {
+      const checkDocuments = async () => {
+        const { data, error } = await supabase
+          .from('church_documents')
+          .select('id')
+          .eq('church_id', churchId)
+          .eq('stage_id', stageId)
+          .eq('sub_task_id', subTask.id)
+          .eq('document_type', 'conferencia')
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          setHasDocuments(true);
+        }
+      };
+
+      checkDocuments();
+
+      // Set up realtime subscription for document uploads
+      const channel = supabase
+        .channel('review-docs-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'church_documents',
+            filter: `church_id=eq.${churchId}`,
+          },
+          (payload) => {
+            const newDoc = payload.new as any;
+            if (
+              newDoc.stage_id === stageId &&
+              newDoc.sub_task_id === subTask.id &&
+              newDoc.document_type === 'conferencia'
+            ) {
+              setHasDocuments(true);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isDocumentReview, churchId, stageId, subTask.id]);
+
   const getActionIcon = () => {
     switch (subTask.actionType) {
       case 'send':
@@ -149,8 +204,9 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const getStatusIcon = () => {
     switch (subTask.status) {
       case 'completed':
-        return <Check className="h-5 w-5 text-success" />;
+        return <CheckCircle2 className="h-5 w-5 text-success" />;
       case 'in_progress':
+      case 'pending_approval':
         return <Clock className="h-5 w-5 text-warning" />;
       default:
         return <Circle className="h-5 w-5 text-muted-foreground" />;
@@ -162,7 +218,10 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
       case 'completed':
         return 'border-success/20 bg-success/5';
       case 'in_progress':
+      case 'pending_approval':
         return 'border-warning/20 bg-warning/5';
+      case 'needs_adjustment':
+        return 'border-destructive/20 bg-destructive/5';
       default:
         return 'border-border bg-background';
     }
@@ -170,6 +229,13 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
 
   return (
     <div>
+      <ReviewDialog
+        open={reviewDialogOpen}
+        onOpenChange={setReviewDialogOpen}
+        churchId={churchId || ''}
+        stageId={stageId}
+        subTaskId={subTask.id}
+      />
       <div
         className={cn(
           'flex items-center justify-between gap-3 rounded-lg border p-3 transition-all',
@@ -247,7 +313,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {subTask.actionType && subTask.status !== 'completed' && !subTask.paymentType && !subTask.requiresForm && (
+          {subTask.actionType && subTask.status !== 'completed' && !subTask.paymentType && !subTask.requiresForm && !isDocumentReview && (
             <Button
               size="sm"
               variant="default"
@@ -261,10 +327,35 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               </span>
             </Button>
           )}
+
+          {isDocumentReview && hasDocuments && subTask.status !== 'completed' && subTask.status !== 'pending_approval' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => setReviewDialogOpen(true)}
+              disabled={disabled}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <FileCheck className="h-4 w-4" />
+              <span className="inline-block">Conferir Documentos</span>
+            </Button>
+          )}
         </div>
       </div>
 
-      {showDocumentsList && (
+      {subTask.status === 'pending_approval' && (
+        <div className="mt-2 text-sm text-warning px-3">
+          Aguardando aprovação final do administrador
+        </div>
+      )}
+
+      {subTask.status === 'needs_adjustment' && (
+        <div className="mt-2 text-sm text-destructive px-3">
+          Ajuste necessário - verifique as observações
+        </div>
+      )}
+
+      {(showDocumentsList || isDocumentReview) && churchId && (
         <DocumentsList
           churchId={churchId!}
           stageId={stageId}

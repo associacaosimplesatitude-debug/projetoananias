@@ -1,9 +1,10 @@
 import { SubTask } from '@/types/church-opening';
 import { Button } from '@/components/ui/button';
-import { Check, Clock, Eye, X, CheckCircle2, Paperclip, Link } from 'lucide-react';
+import { Check, Clock, Eye, X, CheckCircle2, Paperclip, Link, Upload } from 'lucide-react';
 import { DocumentsList } from '@/components/church-opening/DocumentsList';
 import { AttachContractDialog } from './AttachContractDialog';
 import { PaymentLinkDialog } from './PaymentLinkDialog';
+import { FileUploadDialog } from '@/components/church-opening/FileUploadDialog';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,11 +29,13 @@ export const AdminSubTaskItem = ({
 }: AdminSubTaskItemProps) => {
   const [attachDialogOpen, setAttachDialogOpen] = useState(false);
   const [paymentLinkDialogOpen, setPaymentLinkDialogOpen] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [currentPaymentLink, setCurrentPaymentLink] = useState('');
   const { toast } = useToast();
 
   const isPaymentTask = subTask.id === '1-3'; // PAGAR MENSALIDADE
   const isDocumentElaboration = subTask.id === '4-2'; // ELABORAÇÃO DOS DOCUMENTOS
+  const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
 
   // Fetch payment link if this is a payment task
   useEffect(() => {
@@ -139,8 +142,8 @@ export const AdminSubTaskItem = ({
     }
   };
 
-  const showActions = subTask.status !== 'completed' && !isDocumentElaboration;
-  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration;
+  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview;
+  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview;
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
 
   return (
@@ -161,6 +164,16 @@ export const AdminSubTaskItem = ({
         subTaskId={subTask.id}
         subTaskName={subTask.name}
         currentLink={currentPaymentLink}
+      />
+      <FileUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        churchId={churchId || ''}
+        stageId={stageId}
+        subTaskId={subTask.id}
+        documentType="conferencia"
+        onUploadSuccess={() => {}}
+        allowMultiple={true}
       />
     <div className={`border rounded-lg p-4 transition-all ${getStatusColor(subTask.status)}`}>
       <div className="flex items-center justify-between gap-3">
@@ -193,7 +206,19 @@ export const AdminSubTaskItem = ({
               {currentPaymentLink ? 'Editar Link' : 'Adicionar Link'}
             </Button>
           )}
-          
+
+          {isDocumentReview && churchId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setUploadDialogOpen(true)}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Anexar Documentos para Conferência
+            </Button>
+          )}
+
           {isDocumentElaboration && churchId && (
             <Select
               value={subTask.status === 'completed' ? 'completed' : 'pending'}
@@ -252,7 +277,7 @@ export const AdminSubTaskItem = ({
         </div>
       )}
 
-      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send') && (
+      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview) && (
         <div className="mt-3">
           <DocumentsList
             churchId={churchId}
