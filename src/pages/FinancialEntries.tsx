@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,12 @@ import { FinancialEntry, EntryType } from '@/types/financial';
 import { TrendingUp, Save, List } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
+import { useChurchData } from '@/hooks/useChurchData';
 
 const FinancialEntries = () => {
   const { toast } = useToast();
+  const { churchId } = useChurchData();
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [formData, setFormData] = useState({
     data: new Date().toISOString().split('T')[0],
@@ -24,8 +27,52 @@ const FinancialEntries = () => {
 
   const entryTypes: EntryType[] = ['Dízimo', 'Oferta', 'Venda de Produtos', 'Outros'];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Buscar entradas do banco
+  useEffect(() => {
+    const fetchEntries = async () => {
+      if (!churchId) return;
+
+      const { data, error } = await supabase
+        .from('financial_entries')
+        .select('*')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar entradas:', error);
+        return;
+      }
+
+      if (data) {
+        const formattedEntries = data.map(entry => ({
+          id: entry.id,
+          data: entry.data,
+          hora: entry.hora || undefined,
+          tipo: entry.tipo as EntryType,
+          valor: Number(entry.valor),
+          membroId: entry.membro_id || undefined,
+          membroNome: entry.membro_nome || undefined,
+          descricao: entry.descricao,
+          createdAt: entry.created_at,
+        }));
+        setEntries(formattedEntries);
+      }
+    };
+
+    fetchEntries();
+  }, [churchId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!churchId) {
+      toast({
+        title: 'Erro',
+        description: 'Igreja não identificada.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     if (formData.tipo === 'Dízimo' && !formData.membroId) {
       toast({
@@ -36,18 +83,43 @@ const FinancialEntries = () => {
       return;
     }
 
-    const newEntry: FinancialEntry = {
-      id: Math.random().toString(36).substr(2, 9),
-      data: formData.data,
-      hora: formData.hora,
-      tipo: formData.tipo,
-      valor: parseFloat(formData.valor),
-      membroId: formData.membroId || undefined,
-      descricao: formData.descricao,
-      createdAt: new Date().toISOString(),
-    };
+    const { data, error } = await supabase
+      .from('financial_entries')
+      .insert({
+        church_id: churchId,
+        data: formData.data,
+        hora: formData.hora || null,
+        tipo: formData.tipo,
+        valor: parseFloat(formData.valor),
+        membro_id: formData.membroId || null,
+        descricao: formData.descricao,
+      })
+      .select()
+      .single();
 
-    setEntries((prev) => [newEntry, ...prev]);
+    if (error) {
+      toast({
+        title: 'Erro ao salvar',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (data) {
+      const newEntry: FinancialEntry = {
+        id: data.id,
+        data: data.data,
+        hora: data.hora || undefined,
+        tipo: data.tipo as EntryType,
+        valor: Number(data.valor),
+        membroId: data.membro_id || undefined,
+        membroNome: data.membro_nome || undefined,
+        descricao: data.descricao,
+        createdAt: data.created_at,
+      };
+      setEntries((prev) => [newEntry, ...prev]);
+    }
     
     setFormData({
       data: new Date().toISOString().split('T')[0],

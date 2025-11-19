@@ -5,11 +5,15 @@ import { TrendingUp, TrendingDown, Wallet, LayoutDashboard, CalendarClock } from
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
+import { useChurchData } from '@/hooks/useChurchData';
 
 const FinancialDashboard = () => {
   const { user } = useAuth();
+  const { churchId } = useChurchData();
   const [mandateEndDate, setMandateEndDate] = useState<string | null>(null);
   const [daysUntilExpiry, setDaysUntilExpiry] = useState<number | null>(null);
+  const [entries, setEntries] = useState<Array<{ tipo: string; valor: number }>>([]);
+  const [expenses, setExpenses] = useState<Array<{ categoria: string; valor: number }>>([]);
 
   useEffect(() => {
     const fetchMandate = async () => {
@@ -50,20 +54,51 @@ const FinancialDashboard = () => {
 
     fetchMandate();
   }, [user]);
-  // Dados de exemplo (em produção viriam do backend)
-  const [entries] = useState([
-    { tipo: 'Dízimo', valor: 15000 },
-    { tipo: 'Oferta', valor: 8000 },
-    { tipo: 'Venda de Produtos', valor: 3500 },
-    { tipo: 'Outros', valor: 2500 },
-  ]);
 
-  const [expenses] = useState([
-    { categoria: 'DESPESAS COM PESSOAL', valor: 12000 },
-    { categoria: 'DESPESAS ADMINISTRATIVAS', valor: 5000 },
-    { categoria: 'DESPESAS OPERACIONAIS', valor: 7500 },
-    { categoria: 'DESPESAS FINANCEIRAS', valor: 500 },
-  ]);
+  // Buscar dados financeiros do banco
+  useEffect(() => {
+    const fetchFinancialData = async () => {
+      if (!churchId) return;
+
+      // Buscar entradas
+      const { data: entriesData } = await supabase
+        .from('financial_entries')
+        .select('tipo, valor')
+        .eq('church_id', churchId);
+
+      if (entriesData && entriesData.length > 0) {
+        // Agrupar por tipo
+        const groupedEntries = entriesData.reduce((acc: Record<string, number>, entry) => {
+          acc[entry.tipo] = (acc[entry.tipo] || 0) + Number(entry.valor);
+          return acc;
+        }, {});
+
+        setEntries(Object.entries(groupedEntries).map(([tipo, valor]) => ({ tipo, valor })));
+      } else {
+        setEntries([]);
+      }
+
+      // Buscar despesas
+      const { data: expensesData } = await supabase
+        .from('financial_expenses')
+        .select('categoria_main, valor')
+        .eq('church_id', churchId);
+
+      if (expensesData && expensesData.length > 0) {
+        // Agrupar por categoria principal
+        const groupedExpenses = expensesData.reduce((acc: Record<string, number>, expense) => {
+          acc[expense.categoria_main] = (acc[expense.categoria_main] || 0) + Number(expense.valor);
+          return acc;
+        }, {});
+
+        setExpenses(Object.entries(groupedExpenses).map(([categoria, valor]) => ({ categoria, valor })));
+      } else {
+        setExpenses([]);
+      }
+    };
+
+    fetchFinancialData();
+  }, [churchId]);
 
   const totalEntries = useMemo(() => entries.reduce((sum, e) => sum + e.valor, 0), [entries]);
   const totalExpenses = useMemo(() => expenses.reduce((sum, e) => sum + e.valor, 0), [expenses]);

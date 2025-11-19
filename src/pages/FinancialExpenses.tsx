@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,12 @@ import { FinancialExpense, expenseCategories, ExpenseMainCategory } from '@/type
 import { TrendingDown, Save, List } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
+import { useChurchData } from '@/hooks/useChurchData';
 
 const FinancialExpenses = () => {
   const { toast } = useToast();
+  const { churchId } = useChurchData();
   const [expenses, setExpenses] = useState<FinancialExpense[]>([]);
   const [formData, setFormData] = useState({
     data: new Date().toISOString().split('T')[0],
@@ -24,22 +27,90 @@ const FinancialExpenses = () => {
   const mainCategories = Object.keys(expenseCategories) as ExpenseMainCategory[];
   const subCategories = formData.categoriaMain ? expenseCategories[formData.categoriaMain] : [];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Buscar despesas do banco
+  useEffect(() => {
+    const fetchExpenses = async () => {
+      if (!churchId) return;
 
-    const newExpense: FinancialExpense = {
-      id: Math.random().toString(36).substr(2, 9),
-      data: formData.data,
-      valor: parseFloat(formData.valor),
-      categoria: {
-        main: formData.categoriaMain,
-        sub: formData.categoriaSub,
-      },
-      descricao: formData.descricao,
-      createdAt: new Date().toISOString(),
+      const { data, error } = await supabase
+        .from('financial_expenses')
+        .select('*')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar despesas:', error);
+        return;
+      }
+
+      if (data) {
+        // Converter formato do banco para o formato do tipo
+        const formattedExpenses = data.map(expense => ({
+          id: expense.id,
+          data: expense.data,
+          valor: Number(expense.valor),
+          categoria: {
+            main: expense.categoria_main as ExpenseMainCategory,
+            sub: expense.categoria_sub,
+          },
+          descricao: expense.descricao,
+          createdAt: expense.created_at,
+        }));
+        setExpenses(formattedExpenses);
+      }
     };
 
-    setExpenses((prev) => [newExpense, ...prev]);
+    fetchExpenses();
+  }, [churchId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!churchId) {
+      toast({
+        title: 'Erro',
+        description: 'Igreja não identificada.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('financial_expenses')
+      .insert({
+        church_id: churchId,
+        data: formData.data,
+        valor: parseFloat(formData.valor),
+        categoria_main: formData.categoriaMain,
+        categoria_sub: formData.categoriaSub,
+        descricao: formData.descricao,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast({
+        title: 'Erro ao salvar',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (data) {
+      const newExpense: FinancialExpense = {
+        id: data.id,
+        data: data.data,
+        valor: Number(data.valor),
+        categoria: {
+          main: data.categoria_main as ExpenseMainCategory,
+          sub: data.categoria_sub,
+        },
+        descricao: data.descricao,
+        createdAt: data.created_at,
+      };
+      setExpenses((prev) => [newExpense, ...prev]);
+    }
     
     setFormData({
       data: new Date().toISOString().split('T')[0],
