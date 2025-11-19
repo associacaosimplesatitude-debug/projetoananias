@@ -4,6 +4,7 @@ import { StageCard } from '@/components/church-opening/StageCard';
 import { PaymentModal } from '@/components/church-opening/PaymentModal';
 import { InfoModal } from '@/components/church-opening/InfoModal';
 import { FileUploadDialog } from '@/components/church-opening/FileUploadDialog';
+import { PresidentFormDialog } from '@/components/church-opening/PresidentFormDialog';
 import { initialStages } from '@/data/stages';
 import { Stage } from '@/types/church-opening';
 import { ArrowRight } from 'lucide-react';
@@ -49,6 +50,8 @@ const Index = () => {
     stageId: 0,
     subTaskId: '',
   });
+
+  const [presidentFormModal, setPresidentFormModal] = useState(false);
 
   const handlePayment = (stageId: number, subTaskId: string) => {
     const stage = stages.find((s) => s.id === stageId);
@@ -97,6 +100,16 @@ const Index = () => {
 
     if (!subTask) return;
 
+    // Handle president form (subtask 1-1)
+    if (subTaskId === '1-1') {
+      if (!churchId) {
+        toast.error('Erro ao carregar dados da igreja. Tente novamente.');
+        return;
+      }
+      setPresidentFormModal(true);
+      return;
+    }
+
     // Handle upload actions
     if (subTask.actionType === 'upload' || subTask.actionType === 'send') {
       if (!churchId) {
@@ -129,6 +142,18 @@ const Index = () => {
     );
 
     toast.success('Documento enviado com sucesso!');
+  };
+
+  const handlePresidentFormSuccess = () => {
+    // Mark subtask 1-1 as completed
+    setStages((prev) =>
+      prev.map((stage) => ({
+        ...stage,
+        subTasks: stage.subTasks.map((task) =>
+          task.id === '1-1' ? { ...task, status: 'completed' as const } : task
+        ),
+      }))
+    );
   };
 
   return (
@@ -208,6 +233,15 @@ const Index = () => {
           subTaskId={uploadModal.subTaskId}
           churchId={churchId}
           onUploadSuccess={handleUploadSuccess}
+        />
+      )}
+
+      {churchId && (
+        <PresidentFormDialog
+          open={presidentFormModal}
+          onOpenChange={setPresidentFormModal}
+          churchId={churchId}
+          onSuccess={handlePresidentFormSuccess}
         />
       )}
     </div>
