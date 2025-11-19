@@ -507,22 +507,72 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
           )}
 
           {isRegistryPayment && subTask.status !== 'completed' && (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => {
-                if (paymentLink) {
-                  window.open(paymentLink, '_blank');
-                }
-              }}
-              disabled={disabled || !paymentLink}
-              className="gap-2 whitespace-nowrap flex-shrink-0"
-            >
-              <CreditCard className="h-4 w-4" />
-              <span className="inline-block">
-                {paymentLink ? 'Pagar Custas' : 'Aguardando Link'}
-              </span>
-            </Button>
+            <div className="flex flex-col gap-2 w-full">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => {
+                  if (paymentLink) {
+                    window.open(paymentLink, '_blank');
+                  }
+                }}
+                disabled={disabled || !paymentLink}
+                className="gap-2 whitespace-nowrap flex-shrink-0"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span className="inline-block">
+                  {paymentLink ? 'Pagar Custas' : 'Aguardando Link'}
+                </span>
+              </Button>
+              {subTask.status !== 'pending_approval' && paymentLink && (
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    if (!churchId) return;
+                    
+                    try {
+                      const { error } = await supabase
+                        .from('church_stage_progress')
+                        .upsert({
+                          church_id: churchId,
+                          stage_id: stageId,
+                          sub_task_id: subTask.id,
+                          status: 'pending_approval',
+                        }, {
+                          onConflict: 'church_id,stage_id,sub_task_id',
+                        });
+
+                      if (error) throw error;
+
+                      toast({
+                        title: 'Confirmação enviada!',
+                        description: 'Aguardando confirmação do pagamento pelo administrador.',
+                      });
+                    } catch (error) {
+                      console.error('Error updating status:', error);
+                      toast({
+                        title: 'Erro',
+                        description: 'Não foi possível confirmar o pagamento. Tente novamente.',
+                        variant: 'destructive',
+                      });
+                    }
+                  }}
+                  disabled={disabled}
+                  className="gap-2 whitespace-nowrap flex-shrink-0 bg-green-600 hover:bg-green-700"
+                >
+                  <Check className="h-4 w-4" />
+                  <span className="inline-block">Pagamento Realizado</span>
+                </Button>
+              )}
+            </div>
+          )}
+          
+          {isRegistryPayment && subTask.status === 'pending_approval' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
+              <p className="text-sm text-yellow-800">
+                ⏳ Aguardando confirmação do pagamento pelo administrador
+              </p>
+            </div>
           )}
 
           {!isMonthlyPayment && !isLawyerSignature && !isRegistryPayment && subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (

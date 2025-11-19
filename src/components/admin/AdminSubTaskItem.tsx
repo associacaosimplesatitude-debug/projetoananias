@@ -190,6 +190,7 @@ export const AdminSubTaskItem = ({
   const showDocumentReviewActions = isDocumentReview && subTask.status === 'pending_approval';
   const showDocumentSendActions = isDocumentSend && subTask.status === 'pending_approval';
   const showRegistryBudgetActions = isRegistryBudget && subTask.status === 'pending_approval';
+  const showRegistryPaymentActions = isRegistryPayment && subTask.status === 'pending_approval';
 
   return (
     <>
@@ -478,6 +479,29 @@ export const AdminSubTaskItem = ({
                 onClick={() => onReject(subTask.id)}
                 className="text-destructive border-destructive/20 hover:bg-destructive/10"
                 title="Reprovar Orçamento"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+
+          {showRegistryPaymentActions && (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onApprove(subTask.id)}
+                className="text-success border-success/20 hover:bg-success/10"
+                title="Aprovar Pagamento"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onReject(subTask.id)}
+                className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                title="Reprovar Pagamento"
               >
                 <X className="h-4 w-4" />
               </Button>
