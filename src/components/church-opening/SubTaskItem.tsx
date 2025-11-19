@@ -87,7 +87,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             className="gap-2"
           >
             <CreditCard className="h-4 w-4" />
-            Pagar R$ {subTask.paymentAmount}
+            {subTask.actionLabel || `Pagar R$ ${subTask.paymentAmount}`}
           </Button>
         )}
 
