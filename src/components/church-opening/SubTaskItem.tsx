@@ -268,6 +268,35 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             statusMap[cargo] = data.some(member => member.cargo === cargo);
           });
           setBoardMembersStatus(statusMap);
+
+          // Check if all 7 positions are filled
+          const allFilled = boardCargos.every(cargo => 
+            data.some(member => member.cargo === cargo)
+          );
+
+          // If all positions are filled and task is not already in pending_approval or completed
+          if (allFilled && subTask.status !== 'pending_approval' && subTask.status !== 'completed') {
+            // Update task status to pending_approval
+            const { error: updateError } = await supabase
+              .from('church_stage_progress')
+              .upsert({
+                church_id: churchId,
+                stage_id: stageId,
+                sub_task_id: subTask.id,
+                status: 'pending_approval',
+              }, {
+                onConflict: 'church_id,stage_id,sub_task_id',
+              });
+
+            if (updateError) {
+              console.error('Error updating task status:', updateError);
+            } else {
+              toast({
+                title: 'Dados Completos!',
+                description: 'Todos os cargos foram preenchidos. Aguardando aprovação do administrador.',
+              });
+            }
+          }
         }
       };
 
@@ -295,7 +324,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         supabase.removeChannel(channel);
       };
     }
-  }, [isBoardData, churchId]);
+  }, [isBoardData, churchId, subTask.status, stageId, subTask.id]);
 
   const getActionIcon = () => {
     switch (subTask.actionType) {
