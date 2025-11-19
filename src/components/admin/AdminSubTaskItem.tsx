@@ -45,10 +45,11 @@ export const AdminSubTaskItem = ({
   const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORALS
   const isDocumentRegistry = subTask.id === '5-4'; // REGISTRO DOCUMENTOS
   const isFinalDocumentsDelivery = subTask.id === '6-4'; // ENTREGA CNPJ E DOCUMENTOS
+  const isBankAccount = subTask.id === '6-5'; // CONTA BANCÁRIA
 
-  // Fetch payment link if this is a payment task, lawyer signature, or registry payment
+  // Fetch payment link if this is a payment task, lawyer signature, registry payment, or bank account
   useEffect(() => {
-    if ((isPaymentTask || isLawyerSignature || isRegistryPayment) && churchId) {
+    if ((isPaymentTask || isLawyerSignature || isRegistryPayment || isBankAccount) && churchId) {
       const fetchPaymentLink = async () => {
         const { data } = await supabase
           .from('church_stage_progress')
@@ -93,7 +94,7 @@ export const AdminSubTaskItem = ({
         supabase.removeChannel(channel);
       };
     }
-  }, [isPaymentTask, isLawyerSignature, isRegistryPayment, churchId, stageId, subTask.id]);
+  }, [isPaymentTask, isLawyerSignature, isRegistryPayment, isBankAccount, churchId, stageId, subTask.id]);
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -182,7 +183,7 @@ export const AdminSubTaskItem = ({
     }
   };
 
-  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget && !isRegistryPayment && !isDocumentRegistry && !isFinalDocumentsDelivery;
+  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget && !isRegistryPayment && !isDocumentRegistry && !isFinalDocumentsDelivery && !isBankAccount;
   const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget && !isFinalDocumentsDelivery;
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
@@ -285,6 +286,17 @@ export const AdminSubTaskItem = ({
               title={currentPaymentLink ? 'Editar Link de Pagamento' : 'Adicionar Link de Pagamento'}
             >
               <Link className="h-4 w-4" />
+            </Button>
+          )}
+
+          {isBankAccount && churchId && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setPaymentLinkDialogOpen(true)}
+              title={currentPaymentLink ? 'Editar Link da Conta Bancária' : 'Adicionar Link da Conta Bancária'}
+            >
+              <Paperclip className="h-4 w-4" />
             </Button>
           )}
 
