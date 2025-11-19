@@ -84,10 +84,10 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             variant="default"
             onClick={onPayment}
             disabled={disabled}
-            className="gap-2"
+            className="gap-2 whitespace-nowrap flex-shrink-0"
           >
             <CreditCard className="h-4 w-4" />
-            {subTask.actionLabel || `Pagar R$ ${subTask.paymentAmount}`}
+            <span className="inline-block">{subTask.actionLabel || `Pagar R$ ${subTask.paymentAmount}`}</span>
           </Button>
         )}
 
@@ -97,10 +97,10 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             variant="default"
             onClick={onPayment}
             disabled={disabled || !subTask.paymentAmount}
-            className="gap-2"
+            className="gap-2 whitespace-nowrap flex-shrink-0"
           >
             <CreditCard className="h-4 w-4" />
-            {subTask.paymentAmount ? `Pagar R$ ${subTask.paymentAmount}` : 'Aguardando valor'}
+            <span className="inline-block">{subTask.paymentAmount ? `Pagar R$ ${subTask.paymentAmount}` : 'Aguardando valor'}</span>
           </Button>
         )}
 
@@ -110,10 +110,10 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             variant="default"
             onClick={onFormOpen}
             disabled={disabled}
-            className="gap-2"
+            className="gap-2 whitespace-nowrap flex-shrink-0"
           >
             <FileText className="h-4 w-4" />
-            Preencher
+            <span className="inline-block">Preencher</span>
           </Button>
         )}
 
@@ -123,10 +123,10 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             variant="default"
             onClick={onAction}
             disabled={disabled}
-            className="gap-2"
+            className="gap-2 whitespace-nowrap flex-shrink-0"
           >
             {getActionIcon()}
-            {subTask.actionLabel}
+            <span className="inline-block">{subTask.actionLabel}</span>
           </Button>
         )}
       </div>
