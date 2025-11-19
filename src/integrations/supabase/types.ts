@@ -147,6 +147,62 @@ export type Database = {
           },
         ]
       }
+      board_members: {
+        Row: {
+          cargo: string
+          cep: string
+          church_id: string
+          cpf: string
+          created_at: string
+          endereco: string
+          estado_civil: string
+          id: string
+          nome_completo: string
+          orgao_emissor: string
+          profissao: string
+          rg: string
+          updated_at: string
+        }
+        Insert: {
+          cargo: string
+          cep: string
+          church_id: string
+          cpf: string
+          created_at?: string
+          endereco: string
+          estado_civil: string
+          id?: string
+          nome_completo: string
+          orgao_emissor: string
+          profissao: string
+          rg: string
+          updated_at?: string
+        }
+        Update: {
+          cargo?: string
+          cep?: string
+          church_id?: string
+          cpf?: string
+          created_at?: string
+          endereco?: string
+          estado_civil?: string
+          id?: string
+          nome_completo?: string
+          orgao_emissor?: string
+          profissao?: string
+          rg?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_members_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       church_documents: {
         Row: {
           church_id: string

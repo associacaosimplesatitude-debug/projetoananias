@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Eye, Calendar } from 'lucide-react';
+import { Plus, Eye, Calendar, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 
@@ -578,6 +578,14 @@ export default function AdminClients() {
                           title="Cadastrar Mandato"
                         >
                           <Calendar className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => window.location.href = `/admin/clients/${church.id}`}
+                          title="Gerenciar Cliente"
+                        >
+                          <Settings className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>

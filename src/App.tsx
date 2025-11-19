@@ -17,6 +17,7 @@ import FinancialExpenses from "./pages/FinancialExpenses";
 import FinancialDashboard from "./pages/FinancialDashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminClients from "./pages/admin/Clients";
+import AdminClientManagement from "./pages/admin/ClientManagement";
 import AdminTasks from "./pages/admin/Tasks";
 import AdminUsers from "./pages/admin/Users";
 import AdminAccountsReceivable from "./pages/admin/AccountsReceivable";
@@ -62,10 +63,10 @@ const App = () => (
                       }
                     />
                     <Route
-                      path="/admin/clients"
+                      path="/admin/clients/:churchId"
                       element={
                         <ProtectedRoute requireAdmin>
-                          <AdminClients />
+                          <AdminClientManagement />
                         </ProtectedRoute>
                       }
                     />
