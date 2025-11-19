@@ -45,6 +45,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const isRegistryBudget = subTask.id === '5-2'; // ORÇAMENTO CARTÓRIO
   const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORAIS
   const isFinalDocumentsDelivery = subTask.id === '6-4'; // ENTREGA CNPJ E DOCUMENTOS
+  const isBankAccount = subTask.id === '6-5'; // CONTA BANCÁRIA
 
   const boardCargos = [
     'Presidente',
@@ -153,7 +154,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         supabase.removeChannel(channel);
       };
     }
-  }, [isMonthlyPayment, isLawyerSignature, isRegistryPayment, churchId, stageId, subTask.id]);
+  }, [isMonthlyPayment, isLawyerSignature, isRegistryPayment, isBankAccount, churchId, stageId, subTask.id]);
 
   // Check for documents in document review task
   useEffect(() => {
@@ -575,7 +576,76 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </div>
           )}
 
-          {!isMonthlyPayment && !isLawyerSignature && !isRegistryPayment && subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
+          {isBankAccount && subTask.status !== 'completed' && (
+            <div className="flex flex-col gap-2 w-full">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => {
+                  if (paymentLink) {
+                    window.open(paymentLink, '_blank');
+                  }
+                }}
+                disabled={disabled || !paymentLink}
+                className="gap-2 whitespace-nowrap flex-shrink-0"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span className="inline-block">
+                  {paymentLink ? 'Abrir Conta Bancária' : 'Aguardando Link'}
+                </span>
+              </Button>
+              {subTask.status !== 'pending_approval' && paymentLink && (
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    if (!churchId) return;
+                    
+                    try {
+                      const { error } = await supabase
+                        .from('church_stage_progress')
+                        .upsert({
+                          church_id: churchId,
+                          stage_id: stageId,
+                          sub_task_id: subTask.id,
+                          status: 'pending_approval',
+                        }, {
+                          onConflict: 'church_id,stage_id,sub_task_id',
+                        });
+
+                      if (error) throw error;
+
+                      toast({
+                        title: 'Confirmação enviada!',
+                        description: 'Aguardando confirmação da abertura da conta pelo administrador.',
+                      });
+                    } catch (error) {
+                      console.error('Error updating status:', error);
+                      toast({
+                        title: 'Erro',
+                        description: 'Não foi possível confirmar a abertura da conta. Tente novamente.',
+                        variant: 'destructive',
+                      });
+                    }
+                  }}
+                  disabled={disabled}
+                  className="gap-2 whitespace-nowrap flex-shrink-0 bg-green-600 hover:bg-green-700"
+                >
+                  <Check className="h-4 w-4" />
+                  <span className="inline-block">Conta Aberta</span>
+                </Button>
+              )}
+            </div>
+          )}
+          
+          {isBankAccount && subTask.status === 'pending_approval' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
+              <p className="text-sm text-yellow-800">
+                ⏳ Aguardando confirmação da abertura da conta pelo administrador
+              </p>
+            </div>
+          )}
+
+          {!isMonthlyPayment && !isLawyerSignature && !isRegistryPayment && !isBankAccount && subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
             <Button
               size="sm"
               variant="default"
@@ -588,7 +658,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {!isMonthlyPayment && !isLawyerSignature && !isRegistryPayment && subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
+          {!isMonthlyPayment && !isLawyerSignature && !isRegistryPayment && !isBankAccount && subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
             <Button
               size="sm"
               variant="default"
@@ -614,7 +684,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {subTask.actionType && subTask.status !== 'completed' && !subTask.paymentType && !subTask.requiresForm && !isDocumentReview && (
+          {subTask.actionType && subTask.status !== 'completed' && !subTask.paymentType && !subTask.requiresForm && !isDocumentReview && !isBankAccount && (
             <Button
               size="sm"
               variant="default"

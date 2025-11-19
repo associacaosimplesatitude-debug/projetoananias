@@ -49,6 +49,8 @@ export const AdminSubTaskItem = ({
 
   // Show approve/reject actions for final documents delivery when status is pending (after admin uploads)
   const showFinalDocumentsActions = isFinalDocumentsDelivery && churchId && subTask.status === 'pending';
+  // Show approve/reject actions for bank account when status is pending_approval
+  const showBankAccountActions = isBankAccount && churchId && subTask.status === 'pending_approval';
 
   // Fetch payment link if this is a payment task, lawyer signature, registry payment, or bank account
   useEffect(() => {
@@ -303,7 +305,7 @@ export const AdminSubTaskItem = ({
               onClick={() => setPaymentLinkDialogOpen(true)}
               title={currentPaymentLink ? 'Editar Link da Conta Bancária' : 'Adicionar Link da Conta Bancária'}
             >
-              <Paperclip className="h-4 w-4" />
+              <Link className="h-4 w-4" />
             </Button>
           )}
 
@@ -528,6 +530,29 @@ export const AdminSubTaskItem = ({
                 onClick={() => onReject(subTask.id)}
                 className="text-destructive border-destructive/20 hover:bg-destructive/10"
                 title="Reprovar Entrega"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+
+          {showBankAccountActions && (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onApprove(subTask.id)}
+                className="text-success border-success/20 hover:bg-success/10"
+                title="Aprovar Abertura de Conta"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onReject(subTask.id)}
+                className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                title="Reprovar Abertura de Conta"
               >
                 <X className="h-4 w-4" />
               </Button>
