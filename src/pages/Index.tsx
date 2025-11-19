@@ -299,6 +299,19 @@ const Index = () => {
           onSuccess={handlePresidentFormSuccess}
         />
       )}
+
+      {churchId && (
+        <ScheduleDialog
+          open={scheduleModal.open}
+          onOpenChange={(open) => setScheduleModal({ ...scheduleModal, open })}
+          churchId={churchId}
+          stageId={scheduleModal.stageId}
+          subTaskId={scheduleModal.subTaskId}
+          onSuccess={async () => {
+            await updateProgress(scheduleModal.stageId, scheduleModal.subTaskId, 'pending_approval');
+          }}
+        />
+      )}
         </>
       )}
     </div>
