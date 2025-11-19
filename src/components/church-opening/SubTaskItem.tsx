@@ -873,6 +873,47 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               </Button>
             </div>
           )}
+
+          {/* Buttons for ORÇAMENTO CARTÓRIO task (client view only) */}
+          {isRegistryBudget && subTask.status !== 'pending_approval' && subTask.status !== 'completed' && (
+            <div className="flex gap-3 mt-4 px-3">
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                onClick={async () => {
+                  if (!churchId) return;
+                  
+                  try {
+                    const { error } = await supabase
+                      .from('church_stage_progress')
+                      .upsert({
+                        church_id: churchId,
+                        stage_id: stageId,
+                        sub_task_id: subTask.id,
+                        status: 'pending_approval',
+                      }, {
+                        onConflict: 'church_id,stage_id,sub_task_id',
+                      });
+
+                    if (error) throw error;
+
+                    toast({
+                      title: 'Confirmado!',
+                      description: 'Orçamento enviado para aprovação do administrador.',
+                    });
+                  } catch (error) {
+                    console.error('Error updating status:', error);
+                    toast({
+                      title: 'Erro',
+                      description: 'Não foi possível confirmar. Tente novamente.',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+              >
+                Orçamento Conferido
+              </Button>
+            </div>
+          )}
         </>
       )}
 
