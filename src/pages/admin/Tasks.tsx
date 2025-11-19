@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Filter } from 'lucide-react';
+import { CheckCircle, Filter, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { initialStages } from '@/data/stages';
@@ -82,7 +82,7 @@ export default function AdminTasks() {
     return stage?.name || `Etapa ${stageId}`;
   };
 
-  const completeTask = async (taskId: string) => {
+  const approveTask = async (taskId: string) => {
     const { error } = await supabase
       .from('church_stage_progress')
       .update({ status: 'completed' })
@@ -91,13 +91,34 @@ export default function AdminTasks() {
     if (error) {
       toast({
         title: 'Erro',
-        description: 'Não foi possível completar a tarefa',
+        description: 'Não foi possível aprovar a tarefa',
         variant: 'destructive',
       });
     } else {
       toast({
         title: 'Sucesso',
-        description: 'Tarefa marcada como concluída',
+        description: 'Tarefa aprovada',
+      });
+      fetchTasks();
+    }
+  };
+
+  const rejectTask = async (taskId: string) => {
+    const { error } = await supabase
+      .from('church_stage_progress')
+      .update({ status: 'rejected' })
+      .eq('id', taskId);
+    
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível reprovar a tarefa',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Sucesso',
+        description: 'Tarefa reprovada',
       });
       fetchTasks();
     }
@@ -180,14 +201,24 @@ export default function AdminTasks() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          onClick={() => completeTask(task.id)}
-                          variant="outline"
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Concluir
-                        </Button>
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            onClick={() => approveTask(task.id)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <Check className="mr-2 h-4 w-4" />
+                            Aprovar
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => rejectTask(task.id)}
+                            variant="destructive"
+                          >
+                            <X className="mr-2 h-4 w-4" />
+                            Reprovar
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
