@@ -219,12 +219,12 @@ export const PresidentFormDialog = ({
         throw insertError;
       }
 
-      // Update stage progress
+      // Update stage progress to pending approval
       const { error: progressError } = await supabase.from('church_stage_progress').upsert({
         church_id: churchId,
         stage_id: 1,
         sub_task_id: '1-1',
-        status: 'completed',
+        status: 'pending_approval',
       }, {
         onConflict: 'church_id,stage_id,sub_task_id',
       });
