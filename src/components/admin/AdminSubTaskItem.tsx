@@ -35,14 +35,15 @@ export const AdminSubTaskItem = ({
   const { toast } = useToast();
 
   const isPaymentTask = subTask.id === '1-3'; // PAGAR MENSALIDADE
+  const isLawyerSignature = subTask.id === '4-7'; // ASSINATURA ADVOGADO
   const isDocumentElaboration = subTask.id === '4-2'; // ELABORAÇÃO DOS DOCUMENTOS
   const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
   const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
   const isOfficeReturn = subTask.id === '4-6'; // RETORNO ESCRITÓRIO
 
-  // Fetch payment link if this is a payment task
+  // Fetch payment link if this is a payment task or lawyer signature
   useEffect(() => {
-    if (isPaymentTask && churchId) {
+    if ((isPaymentTask || isLawyerSignature) && churchId) {
       const fetchPaymentLink = async () => {
         const { data } = await supabase
           .from('church_stage_progress')
@@ -87,7 +88,7 @@ export const AdminSubTaskItem = ({
         supabase.removeChannel(channel);
       };
     }
-  }, [isPaymentTask, churchId, stageId, subTask.id]);
+  }, [isPaymentTask, isLawyerSignature, churchId, stageId, subTask.id]);
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -241,6 +242,18 @@ export const AdminSubTaskItem = ({
           )}
 
           {isPaymentTask && churchId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPaymentLinkDialogOpen(true)}
+              className="gap-2"
+            >
+              <Link className="h-4 w-4" />
+              {currentPaymentLink ? 'Editar Link' : 'Adicionar Link'}
+            </Button>
+          )}
+
+          {isLawyerSignature && churchId && (
             <Button
               variant="outline"
               size="sm"
