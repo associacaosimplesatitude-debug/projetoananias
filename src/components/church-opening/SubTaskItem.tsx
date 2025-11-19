@@ -1,5 +1,5 @@
 import { SubTask } from '@/types/church-opening';
-import { Check, Circle, Clock, CreditCard, FileText } from 'lucide-react';
+import { Check, Circle, Clock, CreditCard, FileText, Send, PenTool, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -7,10 +7,25 @@ interface SubTaskItemProps {
   subTask: SubTask;
   onPayment?: () => void;
   onFormOpen?: () => void;
+  onAction?: () => void;
   disabled?: boolean;
 }
 
-export const SubTaskItem = ({ subTask, onPayment, onFormOpen, disabled }: SubTaskItemProps) => {
+export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled }: SubTaskItemProps) => {
+  const getActionIcon = () => {
+    switch (subTask.actionType) {
+      case 'send':
+        return <Send className="h-4 w-4" />;
+      case 'sign':
+        return <PenTool className="h-4 w-4" />;
+      case 'pay':
+        return <CreditCard className="h-4 w-4" />;
+      case 'upload':
+        return <Upload className="h-4 w-4" />;
+      default:
+        return null;
+    }
+  };
   const getStatusIcon = () => {
     switch (subTask.status) {
       case 'completed':
@@ -89,6 +104,19 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, disabled }: SubTas
           >
             <FileText className="h-4 w-4" />
             Preencher
+          </Button>
+        )}
+
+        {subTask.actionType && subTask.status !== 'completed' && !subTask.paymentType && !subTask.requiresForm && (
+          <Button
+            size="sm"
+            variant="default"
+            onClick={onAction}
+            disabled={disabled}
+            className="gap-2"
+          >
+            {getActionIcon()}
+            {subTask.actionLabel}
           </Button>
         )}
       </div>

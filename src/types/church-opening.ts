@@ -9,6 +9,8 @@ export interface SubTask {
   paymentType?: PaymentType;
   paymentAmount?: number;
   requiresForm?: boolean;
+  actionType?: 'send' | 'sign' | 'pay' | 'upload';
+  actionLabel?: string;
 }
 
 export interface Stage {

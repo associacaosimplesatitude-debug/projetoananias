@@ -10,9 +10,10 @@ interface StageCardProps {
   onInfoClick: () => void;
   onPayment: (subTaskId: string) => void;
   onFormOpen: () => void;
+  onAction?: (subTaskId: string) => void;
 }
 
-export const StageCard = ({ stage, onInfoClick, onPayment, onFormOpen }: StageCardProps) => {
+export const StageCard = ({ stage, onInfoClick, onPayment, onFormOpen, onAction }: StageCardProps) => {
   const isLocked = stage.status === 'locked';
   const isCompleted = stage.status === 'completed';
 
@@ -63,6 +64,7 @@ export const StageCard = ({ stage, onInfoClick, onPayment, onFormOpen }: StageCa
             subTask={subTask}
             onPayment={() => onPayment(subTask.id)}
             onFormOpen={onFormOpen}
+            onAction={() => onAction?.(subTask.id)}
             disabled={isLocked}
           />
         ))}
