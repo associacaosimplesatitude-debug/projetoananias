@@ -40,10 +40,13 @@ export const AdminSubTaskItem = ({
   const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
   const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
   const isOfficeReturn = subTask.id === '4-6'; // RETORNO ESCRITÓRIO
+  const isRegistryOffice = subTask.id === '5-1'; // ENVIO CARTÓRIO
+  const isRegistryBudget = subTask.id === '5-2'; // ORÇAMENTO CARTÓRIO
+  const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORAIS
 
-  // Fetch payment link if this is a payment task or lawyer signature
+  // Fetch payment link if this is a payment task, lawyer signature, or registry payment
   useEffect(() => {
-    if ((isPaymentTask || isLawyerSignature) && churchId) {
+    if ((isPaymentTask || isLawyerSignature || isRegistryPayment) && churchId) {
       const fetchPaymentLink = async () => {
         const { data } = await supabase
           .from('church_stage_progress')
@@ -88,7 +91,7 @@ export const AdminSubTaskItem = ({
         supabase.removeChannel(channel);
       };
     }
-  }, [isPaymentTask, isLawyerSignature, churchId, stageId, subTask.id]);
+  }, [isPaymentTask, isLawyerSignature, isRegistryPayment, churchId, stageId, subTask.id]);
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -177,8 +180,8 @@ export const AdminSubTaskItem = ({
     }
   };
 
-  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn;
-  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn;
+  const showActions = subTask.status !== 'completed' && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget && !isRegistryPayment;
+  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration && !isDocumentReview && !isDocumentSend && !isOfficeReturn && !isRegistryOffice && !isRegistryBudget;
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
 
@@ -221,6 +224,16 @@ export const AdminSubTaskItem = ({
         onUploadSuccess={() => {}}
         allowMultiple={true}
       />
+      <FileUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        churchId={churchId || ''}
+        stageId={stageId}
+        subTaskId={subTask.id}
+        documentType="orcamento_cartorio"
+        onUploadSuccess={() => {}}
+        allowMultiple={false}
+      />
     <div className={`border rounded-lg p-4 transition-all ${getStatusColor(subTask.status)}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-1">
@@ -254,6 +267,18 @@ export const AdminSubTaskItem = ({
           )}
 
           {isLawyerSignature && churchId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPaymentLinkDialogOpen(true)}
+              className="gap-2"
+            >
+              <Link className="h-4 w-4" />
+              {currentPaymentLink ? 'Editar Link' : 'Adicionar Link'}
+            </Button>
+          )}
+
+          {isRegistryPayment && churchId && (
             <Button
               variant="outline"
               size="sm"
@@ -302,6 +327,33 @@ export const AdminSubTaskItem = ({
                 <SelectItem value="completed">Feito</SelectItem>
               </SelectContent>
             </Select>
+          )}
+
+          {isRegistryOffice && churchId && (
+            <Select
+              value={subTask.status === 'completed' ? 'completed' : 'pending'}
+              onValueChange={handleStatusChange}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Aguardando</SelectItem>
+                <SelectItem value="completed">Feito</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          {isRegistryBudget && churchId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setUploadDialogOpen(true)}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Anexar Orçamento
+            </Button>
           )}
 
           {isOfficeReturn && churchId && subTask.status !== 'completed' && (
@@ -359,7 +411,7 @@ export const AdminSubTaskItem = ({
         </div>
       )}
 
-      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview || isDocumentSend || isBoardSignature) && (
+      {churchId && (subTask.actionType === 'upload' || subTask.actionType === 'send' || isDocumentReview || isDocumentSend || isBoardSignature || isRegistryBudget) && (
         <div className="mt-3">
           <DocumentsList
             churchId={churchId}

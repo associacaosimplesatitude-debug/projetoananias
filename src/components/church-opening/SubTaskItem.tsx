@@ -35,6 +35,8 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
   const isOfficeReturn = subTask.id === '4-6'; // RETORNO ESCRITÓRIO
   const isLawyerSignature = subTask.id === '4-7'; // ASSINATURA ADVOGADO
+  const isRegistryBudget = subTask.id === '5-2'; // ORÇAMENTO CARTÓRIO
+  const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORAIS
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
@@ -86,9 +88,9 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
     }
   }, [isContractSignature, churchId, stageId, subTask.id]);
 
-  // Check for payment link for monthly payment task and lawyer signature
+  // Check for payment link for monthly payment task, lawyer signature, and registry payment
   useEffect(() => {
-    if ((isMonthlyPayment || isLawyerSignature) && churchId) {
+    if ((isMonthlyPayment || isLawyerSignature || isRegistryPayment) && churchId) {
       const checkPaymentLink = async () => {
         const { data, error } = await supabase
           .from('church_stage_progress')
@@ -133,7 +135,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         supabase.removeChannel(channel);
       };
     }
-  }, [isMonthlyPayment, isLawyerSignature, churchId, stageId, subTask.id]);
+  }, [isMonthlyPayment, isLawyerSignature, isRegistryPayment, churchId, stageId, subTask.id]);
 
   // Check for documents in document review task
   useEffect(() => {
@@ -391,7 +393,26 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {!isMonthlyPayment && !isLawyerSignature && subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
+          {isRegistryPayment && subTask.status !== 'completed' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => {
+                if (paymentLink) {
+                  window.open(paymentLink, '_blank');
+                }
+              }}
+              disabled={disabled || !paymentLink}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="inline-block">
+                {paymentLink ? 'Pagar Custas' : 'Aguardando Link'}
+              </span>
+            </Button>
+          )}
+
+          {!isMonthlyPayment && !isLawyerSignature && !isRegistryPayment && subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
             <Button
               size="sm"
               variant="default"
@@ -404,7 +425,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {!isMonthlyPayment && !isLawyerSignature && subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
+          {!isMonthlyPayment && !isLawyerSignature && !isRegistryPayment && subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
             <Button
               size="sm"
               variant="default"
@@ -542,7 +563,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         </div>
       )}
 
-      {(showDocumentsList || isDocumentReview || isDocumentSend || isBoardSignature) && churchId && (
+      {(showDocumentsList || isDocumentReview || isDocumentSend || isBoardSignature || isRegistryBudget) && churchId && (
         <DocumentsList
           churchId={churchId!}
           stageId={stageId}
