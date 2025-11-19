@@ -398,10 +398,17 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
       />
       <DirectorFormDialog
         open={directorFormOpen}
-        onOpenChange={setDirectorFormOpen}
+        onOpenChange={(open) => {
+          setDirectorFormOpen(open);
+          if (!open) {
+            setSelectedCargo('');
+          }
+        }}
         churchId={churchId || ''}
         initialCargo={selectedCargo}
         onSuccess={() => {
+          setDirectorFormOpen(false);
+          setSelectedCargo('');
           toast({
             title: 'Sucesso!',
             description: 'Dados do diretor salvos com sucesso',
