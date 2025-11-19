@@ -2,6 +2,8 @@ import { SubTask } from '@/types/church-opening';
 import { Check, Circle, Clock, CreditCard, FileText, Send, PenTool, Upload, Calendar, FileCheck, Eye, Download, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { DocumentsList } from './DocumentsList';
+import { useChurchData } from '@/hooks/useChurchData';
 
 interface SubTaskItemProps {
   subTask: SubTask;
@@ -9,9 +11,12 @@ interface SubTaskItemProps {
   onFormOpen?: () => void;
   onAction?: () => void;
   disabled?: boolean;
+  stageId: number;
 }
 
-export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled }: SubTaskItemProps) => {
+export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled, stageId }: SubTaskItemProps) => {
+  const { churchId } = useChurchData();
+  const showDocumentsList = (subTask.actionType === 'upload' || subTask.actionType === 'send') && churchId;
   const getActionIcon = () => {
     switch (subTask.actionType) {
       case 'send':
@@ -59,77 +64,87 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   };
 
   return (
-    <div
-      className={cn(
-        'flex items-center justify-between gap-3 rounded-lg border p-3 transition-all',
-        getStatusColor(),
-        disabled && 'opacity-50'
+    <div>
+      <div
+        className={cn(
+          'flex items-center justify-between gap-3 rounded-lg border p-3 transition-all',
+          getStatusColor(),
+          disabled && 'opacity-50'
+        )}
+      >
+        <div className="flex items-center gap-3 flex-1">
+          {getStatusIcon()}
+          <span className={cn(
+            'text-sm font-medium',
+            subTask.status === 'completed' && 'text-success',
+            subTask.status === 'in_progress' && 'text-warning'
+          )}>
+            {subTask.name}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={onPayment}
+              disabled={disabled}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="inline-block">{subTask.actionLabel || `Pagar R$ ${subTask.paymentAmount}`}</span>
+            </Button>
+          )}
+
+          {subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={onPayment}
+              disabled={disabled || !subTask.paymentAmount}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="inline-block">{subTask.paymentAmount ? `Pagar R$ ${subTask.paymentAmount}` : 'Aguardando valor'}</span>
+            </Button>
+          )}
+
+          {subTask.requiresForm && subTask.status !== 'completed' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={onFormOpen}
+              disabled={disabled}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <FileText className="h-4 w-4" />
+              <span className="inline-block">Preencher</span>
+            </Button>
+          )}
+
+          {subTask.actionType && subTask.status !== 'completed' && !subTask.paymentType && !subTask.requiresForm && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={onAction}
+              disabled={disabled}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              {getActionIcon()}
+              <span className="inline-block">{subTask.actionLabel}</span>
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {showDocumentsList && (
+        <DocumentsList
+          churchId={churchId!}
+          stageId={stageId}
+          subTaskId={subTask.id}
+        />
       )}
-    >
-      <div className="flex items-center gap-3 flex-1">
-        {getStatusIcon()}
-        <span className={cn(
-          'text-sm font-medium',
-          subTask.status === 'completed' && 'text-success',
-          subTask.status === 'in_progress' && 'text-warning'
-        )}>
-          {subTask.name}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        {subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={onPayment}
-            disabled={disabled}
-            className="gap-2 whitespace-nowrap flex-shrink-0"
-          >
-            <CreditCard className="h-4 w-4" />
-            <span className="inline-block">{subTask.actionLabel || `Pagar R$ ${subTask.paymentAmount}`}</span>
-          </Button>
-        )}
-
-        {subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={onPayment}
-            disabled={disabled || !subTask.paymentAmount}
-            className="gap-2 whitespace-nowrap flex-shrink-0"
-          >
-            <CreditCard className="h-4 w-4" />
-            <span className="inline-block">{subTask.paymentAmount ? `Pagar R$ ${subTask.paymentAmount}` : 'Aguardando valor'}</span>
-          </Button>
-        )}
-
-        {subTask.requiresForm && subTask.status !== 'completed' && (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={onFormOpen}
-            disabled={disabled}
-            className="gap-2 whitespace-nowrap flex-shrink-0"
-          >
-            <FileText className="h-4 w-4" />
-            <span className="inline-block">Preencher</span>
-          </Button>
-        )}
-
-        {subTask.actionType && subTask.status !== 'completed' && !subTask.paymentType && !subTask.requiresForm && (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={onAction}
-            disabled={disabled}
-            className="gap-2 whitespace-nowrap flex-shrink-0"
-          >
-            {getActionIcon()}
-            <span className="inline-block">{subTask.actionLabel}</span>
-          </Button>
-        )}
-      </div>
     </div>
   );
 };

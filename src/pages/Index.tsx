@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { StageCard } from '@/components/church-opening/StageCard';
 import { PaymentModal } from '@/components/church-opening/PaymentModal';
 import { InfoModal } from '@/components/church-opening/InfoModal';
+import { FileUploadDialog } from '@/components/church-opening/FileUploadDialog';
 import { initialStages } from '@/data/stages';
 import { Stage } from '@/types/church-opening';
 import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { useChurchData } from '@/hooks/useChurchData';
 
 const Index = () => {
   const navigate = useNavigate();
+  const { churchId, loading: churchLoading } = useChurchData();
   const [stages, setStages] = useState<Stage[]>(initialStages);
   const [paymentModal, setPaymentModal] = useState<{
     open: boolean;
@@ -30,6 +33,17 @@ const Index = () => {
     open: false,
     title: '',
     content: '',
+  });
+  const [uploadModal, setUploadModal] = useState<{
+    open: boolean;
+    documentType: string;
+    stageId: number;
+    subTaskId: string;
+  }>({
+    open: false,
+    documentType: '',
+    stageId: 0,
+    subTaskId: '',
   });
 
   const handlePayment = (stageId: number, subTaskId: string) => {
@@ -75,11 +89,40 @@ const Index = () => {
     const stage = stages.find((s) => s.id === stageId);
     const subTask = stage?.subTasks.find((t) => t.id === subTaskId);
 
-    if (subTask) {
-      // Por enquanto, apenas mostra uma notificação
-      // A funcionalidade específica pode ser implementada depois
+    if (!subTask) return;
+
+    // Handle upload actions
+    if (subTask.actionType === 'upload' || subTask.actionType === 'send') {
+      if (!churchId) {
+        toast.error('Erro ao carregar dados da igreja. Tente novamente.');
+        return;
+      }
+      setUploadModal({
+        open: true,
+        documentType: subTask.name,
+        stageId,
+        subTaskId,
+      });
+    } else {
+      // Other actions
       toast.info(`Ação: ${subTask.actionLabel || 'Clicado'} - ${subTask.name}`);
     }
+  };
+
+  const handleUploadSuccess = () => {
+    const { stageId, subTaskId } = uploadModal;
+    
+    // Mark subtask as completed
+    setStages((prev) =>
+      prev.map((stage) => ({
+        ...stage,
+        subTasks: stage.subTasks.map((task) =>
+          task.id === subTaskId ? { ...task, status: 'completed' as const } : task
+        ),
+      }))
+    );
+
+    toast.success('Documento enviado com sucesso!');
   };
 
   return (
@@ -148,6 +191,18 @@ const Index = () => {
         title={infoModal.title}
         content={infoModal.content}
       />
+
+      {churchId && (
+        <FileUploadDialog
+          open={uploadModal.open}
+          onOpenChange={(open) => setUploadModal((prev) => ({ ...prev, open }))}
+          documentType={uploadModal.documentType}
+          stageId={uploadModal.stageId}
+          subTaskId={uploadModal.subTaskId}
+          churchId={churchId}
+          onUploadSuccess={handleUploadSuccess}
+        />
+      )}
     </div>
   );
 };

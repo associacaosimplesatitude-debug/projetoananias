@@ -62,6 +62,7 @@ export const StageCard = ({ stage, onInfoClick, onPayment, onFormOpen, onAction 
           <SubTaskItem
             key={subTask.id}
             subTask={subTask}
+            stageId={stage.id}
             onPayment={() => onPayment(subTask.id)}
             onFormOpen={onFormOpen}
             onAction={() => onAction?.(subTask.id)}
