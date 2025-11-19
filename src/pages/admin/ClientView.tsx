@@ -165,9 +165,6 @@ export default function AdminClientView() {
       if (error) throw error;
 
       toast.success(`Etapa ${stageId} finalizada! Avançando para Etapa ${nextStage}.`);
-      
-      // Recarregar os dados
-      window.location.reload();
     } catch (error) {
       console.error('Error finishing stage:', error);
       toast.error('Erro ao finalizar etapa');
