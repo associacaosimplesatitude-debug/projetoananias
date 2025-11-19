@@ -247,72 +247,66 @@ export const AdminSubTaskItem = ({
           {isContractSignature && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setAttachDialogOpen(true)}
-              className="gap-2"
+              title="Anexar Contrato"
             >
               <Paperclip className="h-4 w-4" />
-              Anexar Contrato
             </Button>
           )}
 
           {isPaymentTask && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPaymentLinkDialogOpen(true)}
-              className="gap-2"
+              title={currentPaymentLink ? 'Editar Link de Pagamento' : 'Adicionar Link de Pagamento'}
             >
               <Link className="h-4 w-4" />
-              {currentPaymentLink ? 'Editar Link' : 'Adicionar Link'}
             </Button>
           )}
 
           {isLawyerSignature && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPaymentLinkDialogOpen(true)}
-              className="gap-2"
+              title={currentPaymentLink ? 'Editar Link de Pagamento' : 'Adicionar Link de Pagamento'}
             >
               <Link className="h-4 w-4" />
-              {currentPaymentLink ? 'Editar Link' : 'Adicionar Link'}
             </Button>
           )}
 
           {isRegistryPayment && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPaymentLinkDialogOpen(true)}
-              className="gap-2"
+              title={currentPaymentLink ? 'Editar Link de Pagamento' : 'Adicionar Link de Pagamento'}
             >
               <Link className="h-4 w-4" />
-              {currentPaymentLink ? 'Editar Link' : 'Adicionar Link'}
             </Button>
           )}
 
           {isDocumentReview && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setUploadDialogOpen(true)}
-              className="gap-2"
+              title="Anexar Documentos para Conferência"
             >
               <Upload className="h-4 w-4" />
-              Anexar Documentos para Conferência
             </Button>
           )}
 
           {isDocumentSend && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPrintUploadDialogOpen(true)}
-              className="gap-2"
+              title="Anexar para Impressão"
             >
               <Upload className="h-4 w-4" />
-              Anexar para Impressão
             </Button>
           )}
 
@@ -349,12 +343,11 @@ export const AdminSubTaskItem = ({
           {isRegistryBudget && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setUploadDialogOpen(true)}
-              className="gap-2"
+              title="Anexar Orçamento"
             >
               <Upload className="h-4 w-4" />
-              Anexar Orçamento
             </Button>
           )}
 
@@ -376,12 +369,11 @@ export const AdminSubTaskItem = ({
           {isFinalDocumentsDelivery && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setUploadDialogOpen(true)}
-              className="gap-2"
+              title="Anexar Documentos Finais"
             >
               <Upload className="h-4 w-4" />
-              Anexar Documentos Finais
             </Button>
           )}
 
@@ -400,12 +392,11 @@ export const AdminSubTaskItem = ({
           {showViewData && churchId && (
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => onViewData(subTask.id)}
-              className="gap-2"
+              title="Ver Dados"
             >
               <Eye className="h-4 w-4" />
-              Ver Dados
             </Button>
           )}
           
@@ -413,21 +404,21 @@ export const AdminSubTaskItem = ({
             <>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={() => onApprove(subTask.id)}
-                className="gap-2 text-success border-success/20 hover:bg-success/10"
+                className="text-success border-success/20 hover:bg-success/10"
+                title="Aprovar"
               >
                 <Check className="h-4 w-4" />
-                Aprovar
               </Button>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={() => onReject(subTask.id)}
-                className="gap-2 text-destructive border-destructive/20 hover:bg-destructive/10"
+                className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                title="Reprovar"
               >
                 <X className="h-4 w-4" />
-                Reprovar
               </Button>
             </>
           )}
