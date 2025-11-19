@@ -6,6 +6,8 @@ import { AttachContractDialog } from './AttachContractDialog';
 import { PaymentLinkDialog } from './PaymentLinkDialog';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 
 interface AdminSubTaskItemProps {
   subTask: SubTask;
@@ -27,8 +29,10 @@ export const AdminSubTaskItem = ({
   const [attachDialogOpen, setAttachDialogOpen] = useState(false);
   const [paymentLinkDialogOpen, setPaymentLinkDialogOpen] = useState(false);
   const [currentPaymentLink, setCurrentPaymentLink] = useState('');
+  const { toast } = useToast();
 
   const isPaymentTask = subTask.id === '1-3'; // PAGAR MENSALIDADE
+  const isDocumentElaboration = subTask.id === '4-2'; // ELABORAÇÃO DOS DOCUMENTOS
 
   // Fetch payment link if this is a payment task
   useEffect(() => {
@@ -104,8 +108,39 @@ export const AdminSubTaskItem = ({
     }
   };
 
-  const showActions = subTask.status !== 'completed';
-  const showViewData = subTask.actionType === 'send' || subTask.actionType === 'upload';
+  const handleStatusChange = async (newStatus: string) => {
+    if (!churchId) return;
+
+    try {
+      const { error } = await supabase
+        .from('church_stage_progress')
+        .upsert({
+          church_id: churchId,
+          stage_id: stageId,
+          sub_task_id: subTask.id,
+          status: newStatus,
+        }, {
+          onConflict: 'church_id,stage_id,sub_task_id',
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Status atualizado',
+        description: `Status alterado para ${newStatus === 'pending' ? 'Aguardando' : 'Feito'}`,
+      });
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível atualizar o status',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const showActions = subTask.status !== 'completed' && !isDocumentElaboration;
+  const showViewData = (subTask.actionType === 'send' || subTask.actionType === 'upload') && !isDocumentElaboration;
   const isContractSignature = subTask.id === '1-2'; // ASSINATURA DO CONTRATO
 
   return (
@@ -159,6 +194,21 @@ export const AdminSubTaskItem = ({
             </Button>
           )}
           
+          {isDocumentElaboration && churchId && (
+            <Select
+              value={subTask.status === 'completed' ? 'completed' : 'pending'}
+              onValueChange={handleStatusChange}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Aguardando</SelectItem>
+                <SelectItem value="completed">Feito</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
           {showViewData && churchId && (
             <Button
               variant="outline"
