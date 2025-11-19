@@ -22,6 +22,7 @@ import AdminUsers from "./pages/admin/Users";
 import AdminAccountsReceivable from "./pages/admin/AccountsReceivable";
 import AdminAccountsPayable from "./pages/admin/AccountsPayable";
 import AdminFinancialReports from "./pages/admin/FinancialReports";
+import AdminStageManagement from "./pages/admin/StageManagement";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 
@@ -105,6 +106,14 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <AdminFinancialReports />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/stages"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminStageManagement />
                         </ProtectedRoute>
                       }
                     />

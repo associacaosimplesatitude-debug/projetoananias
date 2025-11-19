@@ -9,10 +9,12 @@ import { Stage } from '@/types/church-opening';
 import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChurchData } from '@/hooks/useChurchData';
+import { useStageInfo } from '@/hooks/useStageInfo';
 
 const Index = () => {
   const navigate = useNavigate();
   const { churchId, loading: churchLoading } = useChurchData();
+  const { getStageInfo } = useStageInfo();
   const [stages, setStages] = useState<Stage[]>(initialStages);
   const [paymentModal, setPaymentModal] = useState<{
     open: boolean;
@@ -29,10 +31,12 @@ const Index = () => {
     open: boolean;
     title: string;
     content: string;
+    videoUrl?: string;
   }>({
     open: false,
     title: '',
     content: '',
+    videoUrl: '',
   });
   const [uploadModal, setUploadModal] = useState<{
     open: boolean;
@@ -74,10 +78,12 @@ const Index = () => {
   };
 
   const handleInfoClick = (stage: Stage) => {
+    const stageInfo = getStageInfo(stage.id);
     setInfoModal({
       open: true,
       title: stage.name,
-      content: stage.info,
+      content: stageInfo?.info_text || stage.info,
+      videoUrl: stageInfo?.video_url || undefined,
     });
   };
 
@@ -190,6 +196,7 @@ const Index = () => {
         onOpenChange={(open) => setInfoModal((prev) => ({ ...prev, open }))}
         title={infoModal.title}
         content={infoModal.content}
+        videoUrl={infoModal.videoUrl}
       />
 
       {churchId && (

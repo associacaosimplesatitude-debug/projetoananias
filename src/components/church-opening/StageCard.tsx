@@ -41,7 +41,6 @@ export const StageCard = ({ stage, onInfoClick, onPayment, onFormOpen, onAction 
             size="sm"
             variant="outline"
             onClick={onInfoClick}
-            disabled={isLocked}
             className="gap-2 shrink-0"
           >
             <Info className="h-4 w-4" />
