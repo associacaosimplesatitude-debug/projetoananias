@@ -158,7 +158,23 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background">
-      <main className="container mx-auto px-4 py-8">
+      {churchLoading ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground">Carregando dados...</p>
+          </div>
+        </div>
+      ) : !churchId ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center space-y-4 p-8 bg-card rounded-lg border">
+            <h3 className="text-xl font-semibold">Nenhuma igreja encontrada</h3>
+            <p className="text-muted-foreground">Por favor, entre em contato com o administrador.</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <main className="container mx-auto px-4 py-8">
         <div className="mb-8 text-center space-y-2">
           <h2 className="text-3xl font-bold">Processo de Abertura</h2>
           <p className="text-muted-foreground">
@@ -243,6 +259,8 @@ const Index = () => {
           churchId={churchId}
           onSuccess={handlePresidentFormSuccess}
         />
+      )}
+        </>
       )}
     </div>
   );

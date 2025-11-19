@@ -201,7 +201,7 @@ export const PresidentFormDialog = ({
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('board_members').insert({
+      const { error: insertError } = await supabase.from('board_members').insert({
         church_id: churchId,
         cargo: 'Presidente',
         nome_completo: formData.nomeCompleto,
@@ -214,10 +214,13 @@ export const PresidentFormDialog = ({
         orgao_emissor: '', // Campo não obrigatório
       });
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('Error inserting board member:', insertError);
+        throw insertError;
+      }
 
       // Update stage progress
-      await supabase.from('church_stage_progress').upsert({
+      const { error: progressError } = await supabase.from('church_stage_progress').upsert({
         church_id: churchId,
         stage_id: 1,
         sub_task_id: '1-1',
@@ -226,9 +229,20 @@ export const PresidentFormDialog = ({
         onConflict: 'church_id,stage_id,sub_task_id',
       });
 
+      if (progressError) {
+        console.error('Error updating progress:', progressError);
+        // Continue even if progress update fails
+      }
+
       toast.success('Dados do presidente salvos com sucesso!');
+      
+      // Call success callback
       onSuccess();
-      handleClose();
+      
+      // Close modal after a short delay
+      setTimeout(() => {
+        handleClose();
+      }, 500);
     } catch (error) {
       console.error('Error saving president data:', error);
       toast.error('Erro ao salvar dados. Tente novamente.');
@@ -238,6 +252,7 @@ export const PresidentFormDialog = ({
   };
 
   const handleClose = () => {
+    // Reset form data
     setFormData({
       nomeCompleto: '',
       rg: '',
@@ -248,6 +263,9 @@ export const PresidentFormDialog = ({
       dataNascimento: '',
       email: '',
     });
+    // Reset validation states
+    setCpfValid(null);
+    // Close dialog
     onOpenChange(false);
   };
 
