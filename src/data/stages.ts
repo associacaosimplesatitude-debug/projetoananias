@@ -68,11 +68,11 @@ export const initialStages: Stage[] = [
     status: 'locked',
     info: 'Etapa final! Realizamos o pedido do CNPJ junto à Receita Federal. Após a emissão, você receberá todos os documentos e poderá abrir conta bancária em nome da igreja.',
     subTasks: [
-      { id: '6-1', name: 'Emissão DBE', status: 'pending' },
-      { id: '6-2', name: 'Envio do pedido', status: 'pending' },
-      { id: '6-3', name: 'Emissão CNPJ', status: 'pending' },
-      { id: '6-4', name: 'Entrega do CNPJ e Documentos', status: 'pending' },
-      { id: '6-5', name: 'Abertura de Conta Bancária', status: 'pending' },
+      { id: '6-1', name: 'EMISSÃO DBE', status: 'pending' },
+      { id: '6-2', name: 'ENVIO PEDIDO', status: 'pending' },
+      { id: '6-3', name: 'EMISSÃO CNPJ', status: 'pending' },
+      { id: '6-4', name: 'ENTREGA CNPJ E DOCUMENTOS', status: 'pending', actionType: 'download', actionLabel: 'Baixar' },
+      { id: '6-5', name: 'CONTA BANCÁRIA', status: 'pending', actionType: 'open', actionLabel: 'Abrir' },
     ],
   },
 ];
