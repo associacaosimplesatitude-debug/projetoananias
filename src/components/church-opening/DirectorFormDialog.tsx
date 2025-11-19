@@ -70,6 +70,21 @@ export const DirectorFormDialog = ({
     if (initialCargo && open) {
       setFormData(prev => ({ ...prev, cargo: initialCargo }));
     }
+    
+    // Reset form when dialog closes without saving
+    if (!open) {
+      setFormData({
+        cargo: initialCargo || '',
+        nomeCompleto: '',
+        rg: '',
+        orgaoEmissor: '',
+        cpf: '',
+        endereco: '',
+        cep: '',
+        estadoCivil: '',
+        profissao: '',
+      });
+    }
   }, [initialCargo, open]);
 
   const handleChange = (field: keyof DirectorFormData, value: string) => {
@@ -187,7 +202,11 @@ export const DirectorFormDialog = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="cargo">Cargo *</Label>
-            <Select value={formData.cargo} onValueChange={(value) => handleChange('cargo', value)}>
+            <Select 
+              value={formData.cargo} 
+              onValueChange={(value) => handleChange('cargo', value)}
+              disabled={!!initialCargo}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o cargo" />
               </SelectTrigger>
