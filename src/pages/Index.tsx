@@ -5,18 +5,18 @@ import { PaymentModal } from '@/components/church-opening/PaymentModal';
 import { InfoModal } from '@/components/church-opening/InfoModal';
 import { FileUploadDialog } from '@/components/church-opening/FileUploadDialog';
 import { PresidentFormDialog } from '@/components/church-opening/PresidentFormDialog';
-import { initialStages } from '@/data/stages';
-import { Stage } from '@/types/church-opening';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChurchData } from '@/hooks/useChurchData';
 import { useStageInfo } from '@/hooks/useStageInfo';
+import { useStageProgress } from '@/hooks/useStageProgress';
+import { Stage } from '@/types/church-opening';
 
 const Index = () => {
   const navigate = useNavigate();
   const { churchId, loading: churchLoading } = useChurchData();
   const { getStageInfo } = useStageInfo();
-  const [stages, setStages] = useState<Stage[]>(initialStages);
+  const { stages, loading: progressLoading, updateProgress } = useStageProgress(churchId);
   const [paymentModal, setPaymentModal] = useState<{
     open: boolean;
     amount: number;
@@ -67,17 +67,18 @@ const Index = () => {
     }
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = async () => {
     const subTaskId = paymentModal.subTaskId;
+    const stage = stages.find(s => s.subTasks.some(t => t.id === subTaskId));
     
-    setStages((prev) =>
-      prev.map((stage) => ({
-        ...stage,
-        subTasks: stage.subTasks.map((task) =>
-          task.id === subTaskId ? { ...task, status: 'completed' as const } : task
-        ),
-      }))
-    );
+    if (stage && churchId) {
+      try {
+        await updateProgress(stage.id, subTaskId, 'completed');
+        toast.success('Pagamento confirmado!');
+      } catch (error) {
+        toast.error('Erro ao atualizar progresso');
+      }
+    }
   };
 
   const handleInfoClick = (stage: Stage) => {
@@ -128,40 +129,38 @@ const Index = () => {
     }
   };
 
-  const handleUploadSuccess = () => {
+  const handleUploadSuccess = async () => {
     const { stageId, subTaskId } = uploadModal;
     
-    // Mark subtask as completed
-    setStages((prev) =>
-      prev.map((stage) => ({
-        ...stage,
-        subTasks: stage.subTasks.map((task) =>
-          task.id === subTaskId ? { ...task, status: 'completed' as const } : task
-        ),
-      }))
-    );
-
-    toast.success('Documento enviado com sucesso!');
+    if (churchId) {
+      try {
+        await updateProgress(stageId, subTaskId, 'completed');
+        toast.success('Documento enviado com sucesso!');
+      } catch (error) {
+        toast.error('Erro ao atualizar progresso');
+      }
+    }
   };
 
-  const handlePresidentFormSuccess = () => {
-    // Mark subtask 1-1 as completed
-    setStages((prev) =>
-      prev.map((stage) => ({
-        ...stage,
-        subTasks: stage.subTasks.map((task) =>
-          task.id === '1-1' ? { ...task, status: 'completed' as const } : task
-        ),
-      }))
-    );
+  const handlePresidentFormSuccess = async () => {
+    if (churchId) {
+      try {
+        await updateProgress(1, '1-1', 'completed');
+        toast.success('Status atualizado!');
+      } catch (error) {
+        console.error('Error updating progress:', error);
+      }
+    }
   };
+
+  const isLoading = churchLoading || progressLoading;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background">
-      {churchLoading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
             <p className="text-muted-foreground">Carregando dados...</p>
           </div>
         </div>
