@@ -6,6 +6,7 @@ import { InfoModal } from '@/components/church-opening/InfoModal';
 import { initialStages } from '@/data/stages';
 import { Stage } from '@/types/church-opening';
 import { ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -70,6 +71,17 @@ const Index = () => {
     navigate('/diretoria-form');
   };
 
+  const handleAction = (stageId: number, subTaskId: string) => {
+    const stage = stages.find((s) => s.id === stageId);
+    const subTask = stage?.subTasks.find((t) => t.id === subTaskId);
+
+    if (subTask) {
+      // Por enquanto, apenas mostra uma notificação
+      // A funcionalidade específica pode ser implementada depois
+      toast.info(`Ação: ${subTask.actionLabel || 'Clicado'} - ${subTask.name}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background">
       <main className="container mx-auto px-4 py-8">
@@ -115,6 +127,7 @@ const Index = () => {
               onInfoClick={() => handleInfoClick(stage)}
               onPayment={(subTaskId) => handlePayment(stage.id, subTaskId)}
               onFormOpen={handleFormOpen}
+              onAction={(subTaskId) => handleAction(stage.id, subTaskId)}
             />
           ))}
         </div>
