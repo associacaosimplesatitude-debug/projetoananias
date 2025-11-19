@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DirectoriaFormData, ChurchData, DirectorData } from '@/types/church-opening';
+import { supabase } from '@/integrations/supabase/client';
 
 const cargos = [
   'Presidente',
@@ -59,7 +60,7 @@ const DiretoriaForm = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validação básica
@@ -85,16 +86,76 @@ const DiretoriaForm = () => {
       return;
     }
 
-    // Salvar dados (aqui você salvaria em um backend real)
-    const formData: DirectoriaFormData = { churchData, directors };
-    console.log('Dados salvos:', formData);
+    try {
+      // Buscar a igreja do usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Usuário não autenticado.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    toast({
-      title: 'Formulário enviado!',
-      description: 'Os dados da diretoria foram salvos com sucesso.',
-    });
+      const { data: church, error: churchError } = await supabase
+        .from('churches')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
 
-    navigate('/');
+      if (churchError || !church) {
+        toast({
+          title: 'Erro',
+          description: 'Igreja não encontrada.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Salvar membros da diretoria
+      const membersToInsert = directors.map(director => ({
+        church_id: church.id,
+        cargo: director.cargo,
+        nome_completo: director.nomeCompleto,
+        rg: director.rg,
+        orgao_emissor: director.orgaoEmissor,
+        cpf: director.cpf,
+        endereco: director.endereco,
+        cep: director.cep,
+        estado_civil: director.estadoCivil,
+        profissao: director.profissao,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('board_members')
+        .insert(membersToInsert);
+
+      if (insertError) {
+        console.error('Erro ao salvar:', insertError);
+        toast({
+          title: 'Erro',
+          description: 'Erro ao salvar os dados da diretoria.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Formulário enviado!',
+        description: 'Os dados da diretoria foram salvos com sucesso.',
+      });
+
+      navigate('/');
+    } catch (error) {
+      console.error('Erro:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao processar o formulário.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
