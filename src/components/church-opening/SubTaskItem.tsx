@@ -125,7 +125,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             disabled={disabled}
             className="gap-2"
           >
-            {subTask.actionType !== 'send' && getActionIcon()}
+            {getActionIcon()}
             {subTask.actionLabel}
           </Button>
         )}
