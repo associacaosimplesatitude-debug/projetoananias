@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DocumentsList } from './DocumentsList';
 import { ReviewDialog } from './ReviewDialog';
+import { FileUploadDialog } from './FileUploadDialog';
 import { useChurchData } from '@/hooks/useChurchData';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,12 +25,14 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const [hasContract, setHasContract] = useState(false);
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [signatureUploadDialogOpen, setSignatureUploadDialogOpen] = useState(false);
   const [hasDocuments, setHasDocuments] = useState(false);
   const [hasPrintDocuments, setHasPrintDocuments] = useState(false);
   const isContractSignature = subTask.id === '1-2';
   const isMonthlyPayment = subTask.id === '1-3';
   const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
   const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
+  const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
@@ -289,6 +292,46 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         stageId={stageId}
         subTaskId={subTask.id}
       />
+      <FileUploadDialog
+        open={signatureUploadDialogOpen}
+        onOpenChange={setSignatureUploadDialogOpen}
+        churchId={churchId || ''}
+        stageId={stageId}
+        subTaskId={subTask.id}
+        documentType="assinaturas_diretoria"
+        onUploadSuccess={async () => {
+          // Update status to pending_approval after upload
+          if (!churchId) return;
+          
+          try {
+            const { error } = await supabase
+              .from('church_stage_progress')
+              .upsert({
+                church_id: churchId,
+                stage_id: stageId,
+                sub_task_id: subTask.id,
+                status: 'pending_approval',
+              }, {
+                onConflict: 'church_id,stage_id,sub_task_id',
+              });
+
+            if (error) throw error;
+
+            toast({
+              title: 'Sucesso!',
+              description: 'Assinaturas enviadas para aprovação',
+            });
+          } catch (error) {
+            console.error('Error updating status:', error);
+            toast({
+              title: 'Atenção',
+              description: 'Assinaturas enviadas, mas houve erro ao atualizar o status',
+              variant: 'destructive',
+            });
+          }
+        }}
+        allowMultiple={true}
+      />
       <div
         className={cn(
           'flex items-center justify-between gap-3 rounded-lg border p-3 transition-all',
@@ -444,6 +487,19 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               <span className="inline-block">Baixar e Imprimir</span>
             </Button>
           )}
+
+          {isBoardSignature && subTask.status !== 'completed' && subTask.status !== 'pending_approval' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => setSignatureUploadDialogOpen(true)}
+              disabled={disabled}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="inline-block">Enviar Assinaturas</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -459,7 +515,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         </div>
       )}
 
-      {(showDocumentsList || isDocumentReview || isDocumentSend) && churchId && (
+      {(showDocumentsList || isDocumentReview || isDocumentSend || isBoardSignature) && churchId && (
         <DocumentsList
           churchId={churchId!}
           stageId={stageId}
