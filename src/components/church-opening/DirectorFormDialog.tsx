@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, Search } from 'lucide-react';
 
 interface DirectorFormDialogProps {
@@ -13,6 +13,7 @@ interface DirectorFormDialogProps {
   onOpenChange: (open: boolean) => void;
   churchId: string;
   onSuccess: () => void;
+  initialCargo?: string;
 }
 
 interface DirectorFormData {
@@ -49,11 +50,12 @@ export const DirectorFormDialog = ({
   onOpenChange,
   churchId,
   onSuccess,
+  initialCargo,
 }: DirectorFormDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [searchingCep, setSearchingCep] = useState(false);
   const [formData, setFormData] = useState<DirectorFormData>({
-    cargo: '',
+    cargo: initialCargo || '',
     nomeCompleto: '',
     rg: '',
     orgaoEmissor: '',
@@ -63,6 +65,12 @@ export const DirectorFormDialog = ({
     estadoCivil: '',
     profissao: '',
   });
+
+  useEffect(() => {
+    if (initialCargo && open) {
+      setFormData(prev => ({ ...prev, cargo: initialCargo }));
+    }
+  }, [initialCargo, open]);
 
   const handleChange = (field: keyof DirectorFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));

@@ -1,10 +1,11 @@
 import { SubTask } from '@/types/church-opening';
-import { Check, Circle, Clock, CreditCard, FileText, Send, PenTool, Upload, Calendar, FileCheck, Eye, Download, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Check, Circle, Clock, CreditCard, FileText, Send, PenTool, Upload, Calendar, FileCheck, Eye, Download, ExternalLink, CheckCircle2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DocumentsList } from './DocumentsList';
 import { ReviewDialog } from './ReviewDialog';
 import { FileUploadDialog } from './FileUploadDialog';
+import { DirectorFormDialog } from './DirectorFormDialog';
 import { useChurchData } from '@/hooks/useChurchData';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,8 +29,12 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const [signatureUploadDialogOpen, setSignatureUploadDialogOpen] = useState(false);
   const [hasDocuments, setHasDocuments] = useState(false);
   const [hasPrintDocuments, setHasPrintDocuments] = useState(false);
+  const [directorFormOpen, setDirectorFormOpen] = useState(false);
+  const [selectedCargo, setSelectedCargo] = useState<string>('');
+  const [boardMembersStatus, setBoardMembersStatus] = useState<Record<string, boolean>>({});
   const isContractSignature = subTask.id === '1-2';
   const isMonthlyPayment = subTask.id === '1-3';
+  const isBoardData = subTask.id === '4-1'; // DADOS DA DIRETORIA
   const isDocumentReview = subTask.id === '4-3'; // CONFERÊNCIA DOCUMENTOS
   const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
@@ -38,6 +43,16 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const isRegistryBudget = subTask.id === '5-2'; // ORÇAMENTO CARTÓRIO
   const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORAIS
   const isFinalDocumentsDelivery = subTask.id === '6-4'; // ENTREGA CNPJ E DOCUMENTOS
+
+  const boardCargos = [
+    'Presidente',
+    'Vice-Presidente',
+    '1º Tesoureiro',
+    '1º Secretário',
+    '1º Conselheiro',
+    '2º Conselheiro',
+    '3º Conselheiro',
+  ];
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
@@ -238,6 +253,50 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
     }
   }, [isDocumentSend, churchId, stageId, subTask.id]);
 
+  // Check board members status for DADOS DA DIRETORIA task
+  useEffect(() => {
+    if (isBoardData && churchId) {
+      const checkBoardMembers = async () => {
+        const { data, error } = await supabase
+          .from('board_members')
+          .select('cargo')
+          .eq('church_id', churchId);
+
+        if (!error && data) {
+          const statusMap: Record<string, boolean> = {};
+          boardCargos.forEach(cargo => {
+            statusMap[cargo] = data.some(member => member.cargo === cargo);
+          });
+          setBoardMembersStatus(statusMap);
+        }
+      };
+
+      checkBoardMembers();
+
+      // Set up realtime subscription for board members changes
+      const channel = supabase
+        .channel('board-members-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'board_members',
+            filter: `church_id=eq.${churchId}`,
+          },
+          () => {
+            // Refetch board members when changes occur
+            checkBoardMembers();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isBoardData, churchId]);
+
   const getActionIcon = () => {
     switch (subTask.actionType) {
       case 'send':
@@ -337,25 +396,40 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         }}
         allowMultiple={true}
       />
+      <DirectorFormDialog
+        open={directorFormOpen}
+        onOpenChange={setDirectorFormOpen}
+        churchId={churchId || ''}
+        initialCargo={selectedCargo}
+        onSuccess={() => {
+          toast({
+            title: 'Sucesso!',
+            description: 'Dados do diretor salvos com sucesso',
+          });
+        }}
+      />
       <div
         className={cn(
-          'flex items-center justify-between gap-3 rounded-lg border p-3 transition-all',
+          'rounded-lg border p-3 transition-all',
           getStatusColor(),
           disabled && 'opacity-50'
         )}
       >
-        <div className="flex items-center gap-3 flex-1">
-          {getStatusIcon()}
-          <span className={cn(
-            'text-sm font-medium',
-            subTask.status === 'completed' && 'text-success',
-            subTask.status === 'in_progress' && 'text-warning'
-          )}>
-            {subTask.name}
-          </span>
-        </div>
+        {!isBoardData ? (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-1">
+                {getStatusIcon()}
+                <span className={cn(
+                  'text-sm font-medium',
+                  subTask.status === 'completed' && 'text-success',
+                  subTask.status === 'in_progress' && 'text-warning'
+                )}>
+                  {subTask.name}
+                </span>
+              </div>
 
-        <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
           {isMonthlyPayment && subTask.status !== 'completed' && (
             <Button
               size="sm"
@@ -608,7 +682,43 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               <span className="inline-block">Baixar Meus Documentos</span>
             </Button>
           )}
-        </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-3">
+              {getStatusIcon()}
+              <span className={cn(
+                'text-sm font-medium',
+                subTask.status === 'completed' && 'text-success',
+                subTask.status === 'in_progress' && 'text-warning'
+              )}>
+                {subTask.name}
+              </span>
+            </div>
+            <div className="space-y-2 w-full">
+              {boardCargos.map((cargo) => (
+                <button
+                  key={cargo}
+                  onClick={() => {
+                    setSelectedCargo(cargo);
+                    setDirectorFormOpen(true);
+                  }}
+                  disabled={disabled}
+                  className="flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-accent transition-colors text-left"
+                >
+                  <span className="text-sm">{cargo}</span>
+                  {boardMembersStatus[cargo] ? (
+                    <Check className="h-4 w-4 text-success" />
+                  ) : (
+                    <X className="h-4 w-4 text-destructive" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {subTask.status === 'pending_approval' && (
