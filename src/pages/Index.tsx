@@ -6,6 +6,7 @@ import { InfoModal } from '@/components/church-opening/InfoModal';
 import { FileUploadDialog } from '@/components/church-opening/FileUploadDialog';
 import { PresidentFormDialog } from '@/components/church-opening/PresidentFormDialog';
 import { ScheduleDialog } from '@/components/church-opening/ScheduleDialog';
+import { DirectorFormDialog } from '@/components/church-opening/DirectorFormDialog';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useChurchData } from '@/hooks/useChurchData';
@@ -62,6 +63,8 @@ const Index = () => {
     stageId: 0,
     subTaskId: '',
   });
+
+  const [directorModal, setDirectorModal] = useState(false);
 
   const handlePayment = (stageId: number, subTaskId: string) => {
     const stage = stages.find((s) => s.id === stageId);
@@ -148,6 +151,16 @@ const Index = () => {
         stageId,
         subTaskId,
       });
+      return;
+    }
+
+    // Handle director form (subtask 4-1)
+    if (subTaskId === '4-1') {
+      if (!churchId) {
+        toast.error('Erro ao carregar dados da igreja. Tente novamente.');
+        return;
+      }
+      setDirectorModal(true);
       return;
     }
 
@@ -301,16 +314,27 @@ const Index = () => {
       )}
 
       {churchId && (
-        <ScheduleDialog
-          open={scheduleModal.open}
-          onOpenChange={(open) => setScheduleModal({ ...scheduleModal, open })}
-          churchId={churchId}
-          stageId={scheduleModal.stageId}
-          subTaskId={scheduleModal.subTaskId}
-          onSuccess={async () => {
-            await updateProgress(scheduleModal.stageId, scheduleModal.subTaskId, 'pending_approval');
-          }}
-        />
+        <>
+          <ScheduleDialog
+            open={scheduleModal.open}
+            onOpenChange={(open) => setScheduleModal({ ...scheduleModal, open })}
+            churchId={churchId}
+            stageId={scheduleModal.stageId}
+            subTaskId={scheduleModal.subTaskId}
+            onSuccess={async () => {
+              await updateProgress(scheduleModal.stageId, scheduleModal.subTaskId, 'pending_approval');
+            }}
+          />
+
+          <DirectorFormDialog
+            open={directorModal}
+            onOpenChange={setDirectorModal}
+            churchId={churchId}
+            onSuccess={() => {
+              toast.success('Diretor adicionado com sucesso!');
+            }}
+          />
+        </>
       )}
         </>
       )}
