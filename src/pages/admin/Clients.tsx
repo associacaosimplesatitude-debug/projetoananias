@@ -584,9 +584,23 @@ export default function AdminClients() {
                     <TableCell>{church.pastor_email}</TableCell>
                     <TableCell>{church.city}, {church.state}</TableCell>
                     <TableCell>
-                      <Badge variant={getStageColor(church.current_stage || 1)}>
-                        Etapa {church.current_stage || 1}/6
-                      </Badge>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5, 6].map((stage) => {
+                          const isCompleted = (church.current_stage || 1) >= stage;
+                          return (
+                            <div
+                              key={stage}
+                              className={`w-7 h-7 flex items-center justify-center text-xs font-semibold rounded border ${
+                                isCompleted
+                                  ? 'bg-green-500 text-white border-green-600'
+                                  : 'bg-muted text-muted-foreground border-border'
+                              }`}
+                            >
+                              {stage}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-2 justify-end">
