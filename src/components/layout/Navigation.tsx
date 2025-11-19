@@ -54,11 +54,6 @@ export const Navigation = () => {
       label: 'Clientes',
     },
     {
-      to: '/admin/tasks',
-      icon: CheckSquare,
-      label: 'Tarefas',
-    },
-    {
       to: '/admin/users',
       icon: UserCog,
       label: 'Usuários',
