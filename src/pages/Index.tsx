@@ -95,7 +95,7 @@ const Index = () => {
     navigate('/diretoria-form');
   };
 
-  const handleAction = (stageId: number, subTaskId: string) => {
+  const handleAction = async (stageId: number, subTaskId: string) => {
     const stage = stages.find((s) => s.id === stageId);
     const subTask = stage?.subTasks.find((t) => t.id === subTaskId);
 
@@ -108,6 +108,22 @@ const Index = () => {
         return;
       }
       setPresidentFormModal(true);
+      return;
+    }
+
+    // Handle contract signature (subtask 1-2)
+    if (subTaskId === '1-2') {
+      if (!churchId) {
+        toast.error('Erro ao carregar dados da igreja. Tente novamente.');
+        return;
+      }
+      try {
+        await updateProgress(stageId, subTaskId, 'pending_approval');
+        toast.success('Assinatura registrada! Aguardando aprovação.');
+      } catch (error) {
+        console.error('Error updating contract status:', error);
+        toast.error('Erro ao registrar assinatura');
+      }
       return;
     }
 
