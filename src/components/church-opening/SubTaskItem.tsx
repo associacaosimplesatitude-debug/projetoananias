@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DocumentsList } from './DocumentsList';
 import { useChurchData } from '@/hooks/useChurchData';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SubTaskItemProps {
   subTask: SubTask;
@@ -17,6 +19,58 @@ interface SubTaskItemProps {
 export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled, stageId }: SubTaskItemProps) => {
   const { churchId } = useChurchData();
   const showDocumentsList = (subTask.actionType === 'upload' || subTask.actionType === 'send') && churchId;
+  const [hasContract, setHasContract] = useState(false);
+  const isContractSignature = subTask.id === '1-2';
+
+  // Check if contract is attached for contract signature task
+  useEffect(() => {
+    if (isContractSignature && churchId) {
+      const checkContract = async () => {
+        const { data, error } = await supabase
+          .from('church_documents')
+          .select('id')
+          .eq('church_id', churchId)
+          .eq('stage_id', stageId)
+          .eq('sub_task_id', subTask.id)
+          .eq('document_type', 'contract')
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          setHasContract(true);
+        }
+      };
+
+      checkContract();
+
+      // Set up realtime subscription for contract uploads
+      const channel = supabase
+        .channel('contract-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'church_documents',
+            filter: `church_id=eq.${churchId}`,
+          },
+          (payload) => {
+            const newDoc = payload.new as any;
+            if (
+              newDoc.stage_id === stageId &&
+              newDoc.sub_task_id === subTask.id &&
+              newDoc.document_type === 'contract'
+            ) {
+              setHasContract(true);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [isContractSignature, churchId, stageId, subTask.id]);
   const getActionIcon = () => {
     switch (subTask.actionType) {
       case 'send':
@@ -128,11 +182,13 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
               size="sm"
               variant="default"
               onClick={onAction}
-              disabled={disabled}
+              disabled={disabled || (isContractSignature && !hasContract)}
               className="gap-2 whitespace-nowrap flex-shrink-0"
             >
               {getActionIcon()}
-              <span className="inline-block">{subTask.actionLabel}</span>
+              <span className="inline-block">
+                {isContractSignature && !hasContract ? 'Aguardando Contrato' : subTask.actionLabel}
+              </span>
             </Button>
           )}
         </div>
