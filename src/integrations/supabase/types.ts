@@ -384,6 +384,7 @@ export type Database = {
           info_text: string
           stage_id: number
           updated_at: string
+          video_url: string | null
         }
         Insert: {
           created_at?: string
@@ -391,6 +392,7 @@ export type Database = {
           info_text: string
           stage_id: number
           updated_at?: string
+          video_url?: string | null
         }
         Update: {
           created_at?: string
@@ -398,6 +400,7 @@ export type Database = {
           info_text?: string
           stage_id?: number
           updated_at?: string
+          video_url?: string | null
         }
         Relationships: []
       }
