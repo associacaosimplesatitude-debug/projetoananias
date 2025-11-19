@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Eye, Calendar, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
+import { Link } from 'react-router-dom';
 
 const churchSchema = z.object({
   church_name: z.string().trim().min(1, 'Nome da igreja é obrigatório').max(200),
@@ -546,7 +547,14 @@ export default function AdminClients() {
               <TableBody>
                 {churches.map((church) => (
                   <TableRow key={church.id}>
-                    <TableCell className="font-medium">{church.church_name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link 
+                        to={`/admin/client-view/${church.id}`}
+                        className="text-primary hover:underline"
+                      >
+                        {church.church_name}
+                      </Link>
+                    </TableCell>
                     <TableCell>{church.pastor_email}</TableCell>
                     <TableCell>{church.city}, {church.state}</TableCell>
                     <TableCell>
