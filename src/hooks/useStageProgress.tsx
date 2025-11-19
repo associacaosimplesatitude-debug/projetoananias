@@ -21,6 +21,20 @@ export const useStageProgress = (churchId: string | null) => {
 
     const fetchProgress = async () => {
       try {
+        // Fetch church's current stage
+        const { data: churchData, error: churchError } = await supabase
+          .from('churches')
+          .select('current_stage')
+          .eq('id', churchId)
+          .single();
+
+        if (churchError) {
+          console.error('Error fetching church:', churchError);
+        }
+
+        const currentStage = churchData?.current_stage || 1;
+
+        // Fetch progress data
         const { data: progressData, error } = await supabase
           .from('church_stage_progress')
           .select('*')
@@ -38,14 +52,31 @@ export const useStageProgress = (churchId: string | null) => {
             progressMap.set(progress.sub_task_id, progress.status);
           });
 
-          // Update stages with progress from database
+          // Update stages with progress from database and stage status based on current_stage
           setStages(prevStages =>
             prevStages.map(stage => ({
               ...stage,
+              status: stage.id < currentStage 
+                ? 'completed' 
+                : stage.id === currentStage 
+                ? 'active' 
+                : 'locked',
               subTasks: stage.subTasks.map(task => ({
                 ...task,
                 status: (progressMap.get(task.id) as any) || task.status,
               })),
+            }))
+          );
+        } else {
+          // No progress data yet, just update stage status
+          setStages(prevStages =>
+            prevStages.map(stage => ({
+              ...stage,
+              status: stage.id < currentStage 
+                ? 'completed' 
+                : stage.id === currentStage 
+                ? 'active' 
+                : 'locked',
             }))
           );
         }
@@ -90,8 +121,41 @@ export const useStageProgress = (churchId: string | null) => {
       )
       .subscribe();
 
+    // Listen for changes in churches table (current_stage updates)
+    const churchChannel = supabase
+      .channel('church-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'churches',
+          filter: `id=eq.${churchId}`,
+        },
+        (payload) => {
+          console.log('Church updated:', payload);
+          
+          if (payload.new && 'current_stage' in payload.new) {
+            const currentStage = (payload.new as any).current_stage || 1;
+            
+            setStages(prevStages =>
+              prevStages.map(stage => ({
+                ...stage,
+                status: stage.id < currentStage 
+                  ? 'completed' 
+                  : stage.id === currentStage 
+                  ? 'active' 
+                  : 'locked',
+              }))
+            );
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(churchChannel);
     };
   }, [churchId]);
 
