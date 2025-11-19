@@ -34,6 +34,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
   const isDocumentSend = subTask.id === '4-4'; // ENVIO DOCUMENTOS
   const isBoardSignature = subTask.id === '4-5'; // ASSINATURA DIRETORIA
   const isOfficeReturn = subTask.id === '4-6'; // RETORNO ESCRITÓRIO
+  const isLawyerSignature = subTask.id === '4-7'; // ASSINATURA ADVOGADO
 
   // Check if contract is attached for contract signature task
   useEffect(() => {
@@ -85,9 +86,9 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
     }
   }, [isContractSignature, churchId, stageId, subTask.id]);
 
-  // Check for payment link for monthly payment task
+  // Check for payment link for monthly payment task and lawyer signature
   useEffect(() => {
-    if (isMonthlyPayment && churchId) {
+    if ((isMonthlyPayment || isLawyerSignature) && churchId) {
       const checkPaymentLink = async () => {
         const { data, error } = await supabase
           .from('church_stage_progress')
@@ -132,7 +133,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
         supabase.removeChannel(channel);
       };
     }
-  }, [isMonthlyPayment, churchId, stageId, subTask.id]);
+  }, [isMonthlyPayment, isLawyerSignature, churchId, stageId, subTask.id]);
 
   // Check for documents in document review task
   useEffect(() => {
@@ -371,7 +372,26 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {!isMonthlyPayment && subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
+          {isLawyerSignature && subTask.status !== 'completed' && (
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => {
+                if (paymentLink) {
+                  window.open(paymentLink, '_blank');
+                }
+              }}
+              disabled={disabled || !paymentLink}
+              className="gap-2 whitespace-nowrap flex-shrink-0"
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="inline-block">
+                {paymentLink ? 'Pagar Advogado' : 'Aguardando Link'}
+              </span>
+            </Button>
+          )}
+
+          {!isMonthlyPayment && !isLawyerSignature && subTask.paymentType === 'fixed' && subTask.status !== 'completed' && (
             <Button
               size="sm"
               variant="default"
@@ -384,7 +404,7 @@ export const SubTaskItem = ({ subTask, onPayment, onFormOpen, onAction, disabled
             </Button>
           )}
 
-          {!isMonthlyPayment && subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
+          {!isMonthlyPayment && !isLawyerSignature && subTask.paymentType === 'variable' && subTask.status !== 'completed' && (
             <Button
               size="sm"
               variant="default"
