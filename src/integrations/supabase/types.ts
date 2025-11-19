@@ -410,6 +410,100 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_entries: {
+        Row: {
+          church_id: string
+          created_at: string
+          data: string
+          descricao: string
+          hora: string | null
+          id: string
+          membro_id: string | null
+          membro_nome: string | null
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          data: string
+          descricao: string
+          hora?: string | null
+          id?: string
+          membro_id?: string | null
+          membro_nome?: string | null
+          tipo: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          data?: string
+          descricao?: string
+          hora?: string | null
+          id?: string
+          membro_id?: string | null
+          membro_nome?: string | null
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_entries_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_expenses: {
+        Row: {
+          categoria_main: string
+          categoria_sub: string
+          church_id: string
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          categoria_main: string
+          categoria_sub: string
+          church_id: string
+          created_at?: string
+          data: string
+          descricao: string
+          id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          categoria_main?: string
+          categoria_sub?: string
+          church_id?: string
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_expenses_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           church_id: string | null
