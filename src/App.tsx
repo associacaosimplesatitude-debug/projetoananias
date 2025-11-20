@@ -17,6 +17,7 @@ import FinancialEntries from "./pages/FinancialEntries";
 import FinancialExpenses from "./pages/FinancialExpenses";
 import FinancialDashboard from "./pages/FinancialDashboard";
 import BankAccounts from "./pages/BankAccounts";
+import BankTransfers from "./pages/BankTransfers";
 import AccountingReports from "./pages/reports/AccountingReports";
 import AccountingJournal from "./pages/reports/AccountingJournal";
 import IncomeStatement from "./pages/reports/IncomeStatement";
@@ -63,6 +64,7 @@ const App = () => (
                     <Route path="/expenses" element={<FinancialExpenses />} />
                     <Route path="/dashboard" element={<FinancialDashboard />} />
                     <Route path="/bank-accounts" element={<BankAccounts />} />
+                    <Route path="/bank-transfers" element={<BankTransfers />} />
           <Route path="/reports/accounting" element={<AccountingReports />} />
           <Route path="/reports/journal" element={<AccountingJournal />} />
           <Route path="/reports/income-statement" element={<IncomeStatement />} />
