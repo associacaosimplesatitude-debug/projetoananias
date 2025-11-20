@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import logoAnanias from '@/assets/logo_ananias.png';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
@@ -143,9 +144,12 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <img src={logoAnanias} alt="Logo Projeto Ananias" className="h-20" />
+          </div>
           <CardTitle className="text-2xl font-bold text-center">
             {isLogin ? 'Fazer Login' : 'Criar Conta'}
           </CardTitle>
@@ -204,7 +208,7 @@ export default function Auth() {
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline"
+              className="text-primary hover:underline font-medium"
             >
               {isLogin 
                 ? 'Não tem uma conta? Cadastre-se' 

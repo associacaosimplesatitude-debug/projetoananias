@@ -8,25 +8,25 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 97%;
+    --foreground: 208 42% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 208 42% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 208 42% 18%;
 
-    --primary: 221 83% 53%;
+    --primary: 36 50% 57%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary-foreground: 208 42% 18%;
 
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
 
-    --accent: 142 76% 36%;
+    --accent: 36 50% 57%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -34,7 +34,7 @@ All colors MUST be HSL.
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --ring: 36 50% 57%;
 
     --radius: 0.75rem;
     
@@ -47,7 +47,10 @@ All colors MUST be HSL.
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
     
-    --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%), hsl(221 83% 63%));
+    --nav-background: 208 42% 18%;
+    --nav-foreground: 0 0% 100%;
+    
+    --gradient-primary: linear-gradient(135deg, hsl(36 50% 57%), hsl(36 50% 67%));
     --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
     
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -75,33 +78,33 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --background: 208 42% 18%;
+    --foreground: 0 0% 97%;
 
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
+    --card: 208 42% 22%;
+    --card-foreground: 0 0% 97%;
 
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 208 42% 22%;
+    --popover-foreground: 0 0% 97%;
 
-    --primary: 221 83% 53%;
+    --primary: 36 50% 57%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 208 42% 25%;
+    --secondary-foreground: 0 0% 97%;
 
-    --muted: 217 33% 17%;
+    --muted: 208 42% 25%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 142 76% 36%;
+    --accent: 36 50% 57%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 97%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 221 83% 53%;
+    --border: 208 42% 30%;
+    --input: 208 42% 30%;
+    --ring: 36 50% 57%;
     
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
@@ -111,6 +114,10 @@ All colors MUST be HSL.
     
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
+    
+    --nav-background: 208 42% 15%;
+    --nav-foreground: 0 0% 100%;
+    
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
