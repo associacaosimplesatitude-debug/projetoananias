@@ -56,7 +56,12 @@ export const Navigation = () => {
     {
       to: '/reports/accounting',
       icon: FileText,
-      label: 'Relatórios',
+      label: 'Balancete',
+    },
+    {
+      to: '/reports/journal',
+      icon: FileText,
+      label: 'Livro Diário',
     },
   ];
 
@@ -84,7 +89,12 @@ export const Navigation = () => {
     {
       to: '/reports/accounting',
       icon: FileText,
-      label: 'Relatórios',
+      label: 'Balancete',
+    },
+    {
+      to: '/reports/journal',
+      icon: FileText,
+      label: 'Livro Diário',
     },
   ];
 
