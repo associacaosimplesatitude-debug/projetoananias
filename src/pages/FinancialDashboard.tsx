@@ -271,36 +271,7 @@ const FinancialDashboard = () => {
           </div>
         </div>
 
-        {/* Mandate Expiry Alert */}
-        {mandateEndDate && (
-          <Card className="mb-8 border-primary/50 bg-primary/5">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Vencimento do Mandato</CardTitle>
-              <CalendarClock className="h-5 w-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {new Date(mandateEndDate).toLocaleDateString('pt-BR', { 
-                  day: '2-digit', 
-                  month: 'short', 
-                  year: 'numeric' 
-                })}
-              </div>
-              {daysUntilExpiry !== null && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {daysUntilExpiry > 0 
-                    ? `Faltam ${daysUntilExpiry} dias` 
-                    : daysUntilExpiry === 0
-                    ? 'Vence hoje!'
-                    : `Vencido há ${Math.abs(daysUntilExpiry)} dias`
-                  }
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Key Indicators */}
+        {/* Key Indicators - Grid com 4 colunas */}
         <div className="grid gap-6 md:grid-cols-4 mb-8">
           <Card className={balance >= 0 ? 'border-success/50 bg-success/5' : 'border-destructive/50 bg-destructive/5'}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -308,7 +279,7 @@ const FinancialDashboard = () => {
               <Wallet className={`h-5 w-5 ${balance >= 0 ? 'text-success' : 'text-destructive'}`} />
             </CardHeader>
             <CardContent>
-              <div className={`text-3xl font-bold ${balance >= 0 ? 'text-success' : 'text-destructive'}`}>
+              <div className={`text-2xl font-bold ${balance >= 0 ? 'text-success' : 'text-destructive'}`}>
                 {formatCurrency(balance)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -323,7 +294,7 @@ const FinancialDashboard = () => {
               <TrendingUp className="h-5 w-5 text-success" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-success">{formatCurrency(totalEntries)}</div>
+              <div className="text-2xl font-bold text-success">{formatCurrency(totalEntries)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 No mês atual
               </p>
@@ -336,7 +307,7 @@ const FinancialDashboard = () => {
               <TrendingDown className="h-5 w-5 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-destructive">
+              <div className="text-2xl font-bold text-destructive">
                 {formatCurrency(totalExpenses)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -344,6 +315,34 @@ const FinancialDashboard = () => {
               </p>
             </CardContent>
           </Card>
+
+          {mandateEndDate && (
+            <Card className="border-primary/50 bg-primary/5">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Vencimento do Mandato</CardTitle>
+                <CalendarClock className="h-5 w-5 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {new Date(mandateEndDate).toLocaleDateString('pt-BR', { 
+                    day: '2-digit', 
+                    month: 'short', 
+                    year: 'numeric' 
+                  })}
+                </div>
+                {daysUntilExpiry !== null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {daysUntilExpiry > 0 
+                      ? `Faltam ${daysUntilExpiry} dias` 
+                      : daysUntilExpiry === 0
+                      ? 'Vence hoje!'
+                      : `Vencido há ${Math.abs(daysUntilExpiry)} dias`
+                    }
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Charts */}
