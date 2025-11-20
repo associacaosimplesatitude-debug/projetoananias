@@ -27,7 +27,7 @@ export const Navigation = () => {
   }, [user, role]);
 
   const clientNavItems = [
-    ...(processStatus !== 'completed' ? [{
+    ...(processStatus === 'in_progress' ? [{
       to: '/',
       icon: Church,
       label: 'Abertura',
