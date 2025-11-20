@@ -89,38 +89,59 @@ export default function ChurchUsers() {
 
   const fetchUsers = async (churchId: string) => {
     try {
-      const { data: profiles } = await supabase
+      // Buscar todos os perfis da igreja
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, email, full_name, created_at')
         .eq('church_id', churchId)
         .order('created_at', { ascending: false });
 
-      if (profiles) {
-        const usersWithRoles = await Promise.all(
-          profiles.map(async (profile) => {
-            const { data: roleData } = await supabase
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', profile.id)
-              .single();
-
-            if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
-              return {
-                id: profile.id,
-                email: profile.email,
-                full_name: profile.full_name,
-                role: roleData.role,
-                created_at: profile.created_at,
-              };
-            }
-            return null;
-          })
-        );
-
-        setUsers(usersWithRoles.filter(Boolean) as SystemUser[]);
+      if (profilesError) {
+        console.error('Erro ao buscar profiles:', profilesError);
+        throw profilesError;
       }
+
+      if (!profiles || profiles.length === 0) {
+        setUsers([]);
+        return;
+      }
+
+      // Buscar as roles de todos os usuários de uma vez
+      const profileIds = profiles.map(p => p.id);
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .in('user_id', profileIds)
+        .in('role', ['tesoureiro', 'secretario']);
+
+      if (rolesError) {
+        console.error('Erro ao buscar roles:', rolesError);
+        throw rolesError;
+      }
+
+      // Mapear roles por user_id
+      const rolesMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+
+      // Combinar profiles com roles
+      const usersWithRoles = profiles
+        .filter(profile => rolesMap.has(profile.id))
+        .map(profile => ({
+          id: profile.id,
+          email: profile.email,
+          full_name: profile.full_name,
+          role: rolesMap.get(profile.id) as 'tesoureiro' | 'secretario',
+          created_at: profile.created_at,
+        }));
+
+      console.log('Usuários carregados:', usersWithRoles);
+      setUsers(usersWithRoles);
     } catch (error) {
       console.error('Erro ao carregar usuários:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os usuários',
+        variant: 'destructive',
+      });
     }
   };
 
