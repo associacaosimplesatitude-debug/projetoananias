@@ -67,7 +67,7 @@ serve(async (req) => {
       throw new Error('Failed to create user');
     }
 
-    // Create church
+    // Create church with conditional status based on has_cnpj
     const { data: church, error: churchError } = await supabaseAdmin
       .from('churches')
       .insert({
@@ -86,6 +86,8 @@ serve(async (req) => {
         monthly_fee: churchData.monthly_fee,
         payment_due_day: churchData.payment_due_day,
         user_id: newUser.user.id,
+        process_status: churchData.has_cnpj ? 'completed' : 'in_progress',
+        current_stage: churchData.has_cnpj ? 6 : 1,
       })
       .select()
       .single();

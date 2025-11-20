@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+interface Church {
+  id: string;
+  church_name: string;
+  process_status: string;
+  current_stage: number;
+}
+
 export const useChurchData = () => {
-  const [churchId, setChurchId] = useState<string | null>(null);
+  const [church, setChurch] = useState<Church | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,9 +23,9 @@ export const useChurchData = () => {
           return;
         }
 
-        const { data: church, error } = await supabase
+        const { data: churchData, error } = await supabase
           .from('churches')
-          .select('id')
+          .select('id, church_name, process_status, current_stage')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -26,9 +33,9 @@ export const useChurchData = () => {
           console.error('Error fetching church:', error);
         }
 
-        if (church) {
-          console.log('Church found:', church.id);
-          setChurchId(church.id);
+        if (churchData) {
+          console.log('Church found:', churchData.id);
+          setChurch(churchData);
         } else {
           console.log('No church found for user');
         }
@@ -42,5 +49,5 @@ export const useChurchData = () => {
     fetchChurchData();
   }, []);
 
-  return { churchId, loading };
+  return { church, churchId: church?.id || null, loading };
 };
