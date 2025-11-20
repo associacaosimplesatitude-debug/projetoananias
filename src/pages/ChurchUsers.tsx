@@ -126,13 +126,34 @@ export default function ChurchUsers() {
 
   const fetchChurchMembers = async (churchId: string) => {
     try {
+      // Buscar todos os membros
       const { data: members } = await supabase
         .from('church_members')
         .select('id, nome_completo, whatsapp')
         .eq('church_id', churchId)
         .order('nome_completo');
 
-      setChurchMembers(members || []);
+      if (!members) {
+        setChurchMembers([]);
+        return;
+      }
+
+      // Buscar emails de usuários já cadastrados
+      const { data: existingProfiles } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('church_id', churchId);
+
+      const existingEmails = new Set(existingProfiles?.map(p => p.email) || []);
+
+      // Filtrar membros que ainda não são usuários
+      const availableMembers = members.filter(member => {
+        const cleanPhone = member.whatsapp.replace(/\D/g, '');
+        const tempEmail = `${cleanPhone}@igreja.temp`;
+        return !existingEmails.has(tempEmail);
+      });
+
+      setChurchMembers(availableMembers);
     } catch (error) {
       console.error('Erro ao carregar membros:', error);
     }
@@ -164,9 +185,20 @@ export default function ChurchUsers() {
       const selectedMember = churchMembers.find(m => m.id === newUser.memberId);
       if (!selectedMember) throw new Error('Membro não encontrado');
 
-      // Gerar email temporário baseado no nome e whatsapp
+      // Gerar email temporário baseado no whatsapp
       const cleanPhone = selectedMember.whatsapp.replace(/\D/g, '');
       const tempEmail = `${cleanPhone}@igreja.temp`;
+
+      // Verificar se já existe um usuário com esse email
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', tempEmail)
+        .single();
+
+      if (existingProfile) {
+        throw new Error('Este membro já está cadastrado como usuário do sistema');
+      }
 
       // Criar usuário no Supabase Auth
       const { data, error } = await supabase.auth.signUp({
@@ -179,7 +211,12 @@ export default function ChurchUsers() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('User already registered')) {
+          throw new Error('Este membro já está cadastrado como usuário do sistema');
+        }
+        throw error;
+      }
 
       if (data.user) {
         await supabase.from('profiles').insert({
