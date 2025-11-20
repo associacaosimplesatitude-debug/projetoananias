@@ -1,10 +1,17 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Link } from 'react-router-dom';
 
 export const Navigation = () => {
   const { role, user } = useAuth();
@@ -63,24 +70,23 @@ export const Navigation = () => {
       icon: ArrowLeftRight,
       label: 'Transferências',
     },
+  ];
+
+  const accountingMenuItems = [
     {
       to: '/reports/accounting',
-      icon: FileText,
       label: 'Balancete',
     },
     {
       to: '/reports/journal',
-      icon: FileText,
       label: 'Livro Diário',
     },
     {
       to: '/reports/income-statement',
-      icon: FileText,
       label: 'DRE',
     },
     {
       to: '/reports/balance-sheet',
-      icon: FileText,
       label: 'Balanço',
     },
   ];
@@ -115,26 +121,6 @@ export const Navigation = () => {
       to: '/bank-transfers',
       icon: ArrowLeftRight,
       label: 'Transferências',
-    },
-    {
-      to: '/reports/accounting',
-      icon: FileText,
-      label: 'Balancete',
-    },
-    {
-      to: '/reports/journal',
-      icon: FileText,
-      label: 'Livro Diário',
-    },
-    {
-      to: '/reports/income-statement',
-      icon: FileText,
-      label: 'DRE',
-    },
-    {
-      to: '/reports/balance-sheet',
-      icon: FileText,
-      label: 'Balanço',
     },
   ];
 
@@ -218,6 +204,28 @@ export const Navigation = () => {
                   <span className="hidden sm:inline">{item.label}</span>
                 </NavLink>
               ))}
+              
+              {(role === 'client' || role === 'tesoureiro') && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                    'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  )}>
+                    <FileText className="h-4 w-4" />
+                    <span className="hidden sm:inline">Contabilidade</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {accountingMenuItems.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
           

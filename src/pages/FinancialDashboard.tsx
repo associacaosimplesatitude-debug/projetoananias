@@ -68,16 +68,34 @@ const FinancialDashboard = () => {
     const fetchFinancialData = async () => {
       if (!churchId) return;
 
-      // Buscar entradas
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth() + 1;
+      const currentYear = currentDate.getFullYear();
+
+      // Buscar entradas do mês atual
       const { data: entriesData } = await supabase
         .from('financial_entries')
-        .select('tipo, valor')
+        .select('tipo, valor, data')
         .eq('church_id', churchId);
 
       if (entriesData && entriesData.length > 0) {
+        // Filtrar por mês atual
+        const currentMonthEntries = entriesData.filter(entry => {
+          const entryDate = new Date(entry.data);
+          return entryDate.getMonth() + 1 === currentMonth && entryDate.getFullYear() === currentYear;
+        });
+
+        // Buscar nomes das contas do plano de contas
+        const { data: contasData } = await supabase
+          .from('plano_de_contas')
+          .select('codigo_conta, nome_conta');
+
+        const contasMap = new Map(contasData?.map(c => [c.codigo_conta, c.nome_conta]) || []);
+
         // Agrupar por tipo
-        const groupedEntries = entriesData.reduce((acc: Record<string, number>, entry) => {
-          acc[entry.tipo] = (acc[entry.tipo] || 0) + Number(entry.valor);
+        const groupedEntries = currentMonthEntries.reduce((acc: Record<string, number>, entry) => {
+          const nomeConta = contasMap.get(entry.tipo) || entry.tipo;
+          acc[nomeConta] = (acc[nomeConta] || 0) + Number(entry.valor);
           return acc;
         }, {});
 
@@ -86,16 +104,25 @@ const FinancialDashboard = () => {
         setEntries([]);
       }
 
-      // Buscar despesas
+      // Buscar despesas pagas do mês atual
       const { data: expensesData } = await supabase
-        .from('financial_expenses')
-        .select('categoria_main, valor')
-        .eq('church_id', churchId);
+        .from('bills_to_pay')
+        .select('category_main, paid_amount, paid_date')
+        .eq('church_id', churchId)
+        .eq('status', 'paid')
+        .not('paid_date', 'is', null);
 
       if (expensesData && expensesData.length > 0) {
+        // Filtrar por mês atual
+        const currentMonthExpenses = expensesData.filter(expense => {
+          if (!expense.paid_date) return false;
+          const expenseDate = new Date(expense.paid_date);
+          return expenseDate.getMonth() + 1 === currentMonth && expenseDate.getFullYear() === currentYear;
+        });
+
         // Agrupar por categoria principal
-        const groupedExpenses = expensesData.reduce((acc: Record<string, number>, expense) => {
-          acc[expense.categoria_main] = (acc[expense.categoria_main] || 0) + Number(expense.valor);
+        const groupedExpenses = currentMonthExpenses.reduce((acc: Record<string, number>, expense) => {
+          acc[expense.category_main] = (acc[expense.category_main] || 0) + Number(expense.paid_amount || 0);
           return acc;
         }, {});
 
@@ -247,45 +274,34 @@ const FinancialDashboard = () => {
         {/* Mandate Expiry Alert */}
         {mandateEndDate && (
           <Card className="mb-8 border-primary/50 bg-primary/5">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center h-16 w-16 rounded-full bg-primary text-primary-foreground">
-                    <CalendarClock className="h-8 w-8" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      Vencimento do Mandato da Diretoria
-                    </h3>
-                    <p className="text-4xl font-bold">
-                      {new Date(mandateEndDate).toLocaleDateString('pt-BR', { 
-                        day: '2-digit', 
-                        month: 'long', 
-                        year: 'numeric' 
-                      })}
-                    </p>
-                  </div>
-                </div>
-                {daysUntilExpiry !== null && (
-                  <Badge 
-                    variant={daysUntilExpiry <= 30 ? "destructive" : daysUntilExpiry <= 90 ? "secondary" : "default"}
-                    className="text-lg px-4 py-2"
-                  >
-                    {daysUntilExpiry > 0 
-                      ? `Faltam ${daysUntilExpiry} dias` 
-                      : daysUntilExpiry === 0
-                      ? 'Vence hoje!'
-                      : `Vencido há ${Math.abs(daysUntilExpiry)} dias`
-                    }
-                  </Badge>
-                )}
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Vencimento do Mandato</CardTitle>
+              <CalendarClock className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {new Date(mandateEndDate).toLocaleDateString('pt-BR', { 
+                  day: '2-digit', 
+                  month: 'short', 
+                  year: 'numeric' 
+                })}
               </div>
+              {daysUntilExpiry !== null && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {daysUntilExpiry > 0 
+                    ? `Faltam ${daysUntilExpiry} dias` 
+                    : daysUntilExpiry === 0
+                    ? 'Vence hoje!'
+                    : `Vencido há ${Math.abs(daysUntilExpiry)} dias`
+                  }
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
 
         {/* Key Indicators */}
-        <div className="grid gap-6 md:grid-cols-3 mb-8">
+        <div className="grid gap-6 md:grid-cols-4 mb-8">
           <Card className={balance >= 0 ? 'border-success/50 bg-success/5' : 'border-destructive/50 bg-destructive/5'}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Saldo Atual</CardTitle>
@@ -381,33 +397,48 @@ const FinancialDashboard = () => {
               <CardTitle>Distribuição de Despesas</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={expensesData}>
-                  <XAxis dataKey="categoria" hide />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                  <Bar dataKey="valor" fill="#ef4444" radius={[8, 8, 0, 0]}>
-                    {expensesData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {expensesData.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={expensesData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ categoria, percentage }) => `${categoria}: ${percentage}%`}
+                        outerRadius={80}
+                        fill="#ef4444"
+                        dataKey="valor"
+                      >
+                        {expensesData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                    </PieChart>
+                  </ResponsiveContainer>
 
-              <div className="mt-4 space-y-2">
-                {expensesData.map((expense, index) => (
-                  <div key={index} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: expense.fill }}
-                      />
-                      <span className="text-xs">{expense.categoria}</span>
-                    </div>
-                    <span className="font-semibold">{formatCurrency(expense.valor)}</span>
+                  <div className="mt-4 space-y-2">
+                    {expensesData.map((expense, index) => (
+                      <div key={index} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="h-3 w-3 rounded-full"
+                            style={{ backgroundColor: expense.fill }}
+                          />
+                          <span>{expense.categoria}</span>
+                        </div>
+                        <span className="font-semibold">{formatCurrency(expense.valor)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  Nenhuma despesa paga no período
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
