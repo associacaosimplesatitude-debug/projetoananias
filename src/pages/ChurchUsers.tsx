@@ -24,6 +24,7 @@ interface ChurchMember {
   id: string;
   nome_completo: string;
   whatsapp: string;
+  email: string | null;
 }
 
 interface SystemUser {
@@ -150,7 +151,7 @@ export default function ChurchUsers() {
       // Buscar todos os membros
       const { data: members } = await supabase
         .from('church_members')
-        .select('id, nome_completo, whatsapp')
+        .select('id, nome_completo, whatsapp, email')
         .eq('church_id', churchId)
         .order('nome_completo');
 
@@ -167,11 +168,12 @@ export default function ChurchUsers() {
 
       const existingEmails = new Set(existingProfiles?.map(p => p.email) || []);
 
-      // Filtrar membros que ainda não são usuários
+      // Filtrar membros que ainda não são usuários e que têm email
       const availableMembers = members.filter(member => {
-        const cleanPhone = member.whatsapp.replace(/\D/g, '');
-        const tempEmail = `${cleanPhone}@igreja.temp`;
-        return !existingEmails.has(tempEmail);
+        // Verificar se o membro tem email
+        if (!member.email) return false;
+        // Verificar se o email já está em uso
+        return !existingEmails.has(member.email);
       });
 
       setChurchMembers(availableMembers);
@@ -206,15 +208,18 @@ export default function ChurchUsers() {
       const selectedMember = churchMembers.find(m => m.id === newUser.memberId);
       if (!selectedMember) throw new Error('Membro não encontrado');
 
-      // Gerar email temporário baseado no whatsapp
-      const cleanPhone = selectedMember.whatsapp.replace(/\D/g, '');
-      const tempEmail = `${cleanPhone}@igreja.temp`;
+      // Validar se o membro tem email
+      if (!selectedMember.email) {
+        throw new Error('Este membro não possui email cadastrado. Atualize o cadastro do membro primeiro.');
+      }
+
+      const loginEmail = selectedMember.email;
 
       // Verificar se já existe um usuário com esse email
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
-        .eq('email', tempEmail)
+        .eq('email', loginEmail)
         .single();
 
       if (existingProfile) {
@@ -223,7 +228,7 @@ export default function ChurchUsers() {
 
       // Criar usuário no Supabase Auth
       const { data, error } = await supabase.auth.signUp({
-        email: tempEmail,
+        email: loginEmail,
         password: newUser.password,
         options: {
           data: {
@@ -243,7 +248,7 @@ export default function ChurchUsers() {
         // Inserir perfil
         const { error: profileError } = await supabase.from('profiles').insert({
           id: data.user.id,
-          email: tempEmail,
+          email: loginEmail,
           full_name: selectedMember.nome_completo,
           church_id: churchId,
         });
@@ -429,6 +434,22 @@ export default function ChurchUsers() {
                     <p className="text-sm text-destructive mt-1">{errors.memberId}</p>
                   )}
                 </div>
+                {newUser.memberId && (
+                  <div>
+                    <Label htmlFor="loginEmail">Email para Login</Label>
+                    <Input
+                      id="loginEmail"
+                      type="email"
+                      value={churchMembers.find(m => m.id === newUser.memberId)?.email || ''}
+                      readOnly
+                      disabled
+                      className="bg-muted cursor-not-allowed"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Este email será usado para login no sistema
+                    </p>
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="password">Senha Inicial</Label>
                   <Input

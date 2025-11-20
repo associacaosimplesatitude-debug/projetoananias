@@ -373,6 +373,7 @@ export type Database = {
           complemento: string | null
           created_at: string
           data_aniversario: string
+          email: string | null
           estado: string
           id: string
           nome_completo: string
@@ -391,6 +392,7 @@ export type Database = {
           complemento?: string | null
           created_at?: string
           data_aniversario: string
+          email?: string | null
           estado?: string
           id?: string
           nome_completo: string
@@ -409,6 +411,7 @@ export type Database = {
           complemento?: string | null
           created_at?: string
           data_aniversario?: string
+          email?: string | null
           estado?: string
           id?: string
           nome_completo?: string
