@@ -641,6 +641,73 @@ export type Database = {
           },
         ]
       }
+      lancamentos_contabeis: {
+        Row: {
+          church_id: string
+          conta_credito: string
+          conta_debito: string
+          created_at: string
+          data: string
+          documento: string | null
+          entry_id: string | null
+          expense_id: string | null
+          historico: string
+          id: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          church_id: string
+          conta_credito: string
+          conta_debito: string
+          created_at?: string
+          data: string
+          documento?: string | null
+          entry_id?: string | null
+          expense_id?: string | null
+          historico: string
+          id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          church_id?: string
+          conta_credito?: string
+          conta_debito?: string
+          created_at?: string
+          data?: string
+          documento?: string | null
+          entry_id?: string | null
+          expense_id?: string | null
+          historico?: string
+          id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lancamentos_contabeis_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_contabeis_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "financial_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_contabeis_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "bills_to_pay"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plano_de_contas: {
         Row: {
           codigo_conta: string

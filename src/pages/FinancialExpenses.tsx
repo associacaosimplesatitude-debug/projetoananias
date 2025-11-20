@@ -12,6 +12,11 @@ import { ExpenseHistoryList } from '@/components/expenses/ExpenseHistoryList';
 import { RecurringExpenseDialog } from '@/components/expenses/RecurringExpenseDialog';
 import { PaymentDialog } from '@/components/expenses/PaymentDialog';
 
+interface ExpenseAccount {
+  codigo_conta: string;
+  nome_conta: string;
+}
+
 interface Bill {
   id: string;
   description: string;
@@ -131,7 +136,8 @@ const FinancialExpenses = () => {
   const handlePaymentConfirm = async (
     paidDate: string,
     paidAmount: number,
-    receiptFile?: File
+    receiptFile?: File,
+    pagoComConta?: string
   ) => {
     if (!selectedBill || !churchId) return;
 
@@ -164,6 +170,26 @@ const FinancialExpenses = () => {
         .eq('id', selectedBill.id);
 
       if (updateError) throw updateError;
+
+      // Criar lançamento contábil (partidas dobradas)
+      // Débito: Conta de Despesa
+      // Crédito: Caixa/Banco (pago com)
+      if (pagoComConta) {
+        const contaDebito = `${selectedBill.category_main}`;
+        
+        await supabase
+          .from('lancamentos_contabeis')
+          .insert({
+            church_id: churchId,
+            data: paidDate,
+            historico: `${selectedBill.description}`,
+            conta_debito: contaDebito,
+            conta_credito: pagoComConta,
+            valor: paidAmount,
+            documento: selectedBill.id,
+            expense_id: selectedBill.id,
+          });
+      }
 
       toast({
         title: 'Pagamento registrado!',

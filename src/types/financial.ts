@@ -26,7 +26,7 @@ export interface Member {
   createdAt: string;
 }
 
-export type EntryType = 'Dízimo' | 'Oferta' | 'Venda de Produtos' | 'Outros';
+export type EntryType = string;
 
 export interface FinancialEntry {
   id: string;
