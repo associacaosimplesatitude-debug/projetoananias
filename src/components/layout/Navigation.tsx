@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,6 +53,11 @@ export const Navigation = () => {
       icon: LayoutDashboard,
       label: 'Dashboard',
     },
+    {
+      to: '/reports/accounting',
+      icon: FileText,
+      label: 'Relatórios',
+    },
   ];
 
   const tesoureiroNavItems = [
@@ -75,6 +80,11 @@ export const Navigation = () => {
       to: '/expenses',
       icon: TrendingDown,
       label: 'Despesas',
+    },
+    {
+      to: '/reports/accounting',
+      icon: FileText,
+      label: 'Relatórios',
     },
   ];
 
