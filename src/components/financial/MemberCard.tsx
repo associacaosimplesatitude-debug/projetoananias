@@ -16,6 +16,17 @@ export const MemberCard = ({ member, onEdit, onDelete }: MemberCardProps) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
   };
 
+  const formatAddress = () => {
+    const parts = [];
+    if (member.rua) parts.push(member.rua);
+    if (member.numero) parts.push(member.numero);
+    if (member.complemento) parts.push(member.complemento);
+    if (member.bairro) parts.push(member.bairro);
+    if (member.cidade) parts.push(member.cidade);
+    if (member.estado) parts.push(member.estado);
+    return parts.length > 0 ? parts.join(', ') : 'Endereço não informado';
+  };
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4 space-y-3">
@@ -48,7 +59,7 @@ export const MemberCard = ({ member, onEdit, onDelete }: MemberCardProps) => {
           </div>
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 shrink-0" />
-            <span className="truncate">{member.endereco}</span>
+            <span className="truncate">{formatAddress()}</span>
           </div>
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 shrink-0" />

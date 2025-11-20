@@ -296,37 +296,55 @@ export type Database = {
       }
       church_members: {
         Row: {
+          bairro: string
           cargo: string
+          cep: string
           church_id: string
+          cidade: string
+          complemento: string | null
           created_at: string
           data_aniversario: string
-          endereco: string
+          estado: string
           id: string
           nome_completo: string
+          numero: string
+          rua: string
           sexo: string
           updated_at: string
           whatsapp: string
         }
         Insert: {
+          bairro?: string
           cargo: string
+          cep?: string
           church_id: string
+          cidade?: string
+          complemento?: string | null
           created_at?: string
           data_aniversario: string
-          endereco: string
+          estado?: string
           id?: string
           nome_completo: string
+          numero?: string
+          rua?: string
           sexo: string
           updated_at?: string
           whatsapp: string
         }
         Update: {
+          bairro?: string
           cargo?: string
+          cep?: string
           church_id?: string
+          cidade?: string
+          complemento?: string | null
           created_at?: string
           data_aniversario?: string
-          endereco?: string
+          estado?: string
           id?: string
           nome_completo?: string
+          numero?: string
+          rua?: string
           sexo?: string
           updated_at?: string
           whatsapp?: string

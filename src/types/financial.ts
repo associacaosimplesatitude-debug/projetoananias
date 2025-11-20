@@ -12,7 +12,13 @@ export type Gender = 'Masculino' | 'Feminino';
 export interface Member {
   id: string;
   nomeCompleto: string;
-  endereco: string;
+  cep: string;
+  rua: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
   dataAniversario: string;
   sexo: Gender;
   whatsapp: string;
