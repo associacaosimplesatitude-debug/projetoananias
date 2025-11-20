@@ -33,6 +33,7 @@ export const AdminSubTaskItem = ({
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [printUploadDialogOpen, setPrintUploadDialogOpen] = useState(false);
   const [currentPaymentLink, setCurrentPaymentLink] = useState('');
+  const [cnpjNumber, setCnpjNumber] = useState('');
   const { toast } = useToast();
 
   const isPaymentTask = subTask.id === '1-3'; // PAGAR MENSALIDADE
@@ -45,6 +46,7 @@ export const AdminSubTaskItem = ({
   const isRegistryBudget = subTask.id === '5-2'; // ORÇAMENTO CARTÓRIO
   const isRegistryPayment = subTask.id === '5-3'; // PAGAMENTO CUSTAS CARTORALS
   const isDocumentRegistry = subTask.id === '5-4'; // REGISTRO DOCUMENTOS
+  const isCnpjIssuance = subTask.id === '6-3'; // EMISSÃO CNPJ
   const isFinalDocumentsDelivery = subTask.id === '6-4'; // ENTREGA CNPJ E DOCUMENTOS
   const isBankAccount = subTask.id === '6-5'; // CONTA BANCÁRIA
 
@@ -101,6 +103,26 @@ export const AdminSubTaskItem = ({
       };
     }
   }, [isPaymentTask, isLawyerSignature, isRegistryPayment, isBankAccount, churchId, stageId, subTask.id]);
+
+  // Fetch CNPJ if this is the CNPJ issuance task
+  useEffect(() => {
+    if (isCnpjIssuance && churchId) {
+      const fetchCnpj = async () => {
+        const { data } = await supabase
+          .from('churches')
+          .select('cnpj')
+          .eq('id', churchId)
+          .maybeSingle();
+
+        if (data?.cnpj) {
+          setCnpjNumber(data.cnpj);
+        }
+      };
+
+      fetchCnpj();
+    }
+  }, [isCnpjIssuance, churchId]);
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -349,6 +371,59 @@ export const AdminSubTaskItem = ({
                   }
                 }}
                 title={currentPaymentLink ? 'Salvar alterações do link' : 'Salvar link da conta bancária'}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          {isCnpjIssuance && churchId && (
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                placeholder="00.000.000/0000-00"
+                value={cnpjNumber}
+                onChange={(e) => setCnpjNumber(e.target.value)}
+                className="w-48"
+                maxLength={18}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={async () => {
+                  if (!cnpjNumber.trim()) {
+                    toast({
+                      title: 'CNPJ inválido',
+                      description: 'Digite o número do CNPJ antes de salvar.',
+                      variant: 'destructive',
+                    });
+                    return;
+                  }
+
+                  if (!churchId) return;
+
+                  try {
+                    const { error } = await supabase
+                      .from('churches')
+                      .update({ cnpj: cnpjNumber.trim() })
+                      .eq('id', churchId);
+
+                    if (error) throw error;
+
+                    toast({
+                      title: 'CNPJ salvo',
+                      description: 'O número do CNPJ foi salvo com sucesso.',
+                    });
+                  } catch (error) {
+                    console.error('Error saving CNPJ:', error);
+                    toast({
+                      title: 'Erro',
+                      description: 'Não foi possível salvar o CNPJ. Tente novamente.',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+                title={cnpjNumber ? 'Salvar alterações do CNPJ' : 'Salvar número do CNPJ'}
               >
                 <Save className="h-4 w-4" />
               </Button>
