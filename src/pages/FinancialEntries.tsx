@@ -12,26 +12,46 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useChurchData } from '@/hooks/useChurchData';
 
+interface RevenueAccount {
+  codigo_conta: string;
+  nome_conta: string;
+}
+
 const FinancialEntries = () => {
   const { toast } = useToast();
   const { churchId } = useChurchData();
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
+  const [revenueAccounts, setRevenueAccounts] = useState<RevenueAccount[]>([]);
   const [formData, setFormData] = useState({
     data: new Date().toISOString().split('T')[0],
     hora: '',
-    tipo: '' as EntryType,
+    tipoEntrada: '',
     valor: '',
+    recebidoEm: '',
     membroId: '',
     descricao: '',
   });
 
-  const entryTypes: EntryType[] = ['Dízimo', 'Oferta', 'Venda de Produtos', 'Outros'];
-
-  // Buscar entradas do banco
+  // Buscar contas de receita e entradas do banco
   useEffect(() => {
-    const fetchEntries = async () => {
+    const fetchData = async () => {
       if (!churchId) return;
 
+      // Buscar contas de receita analíticas (4.1.x)
+      const { data: accountsData, error: accountsError } = await supabase
+        .from('plano_de_contas')
+        .select('codigo_conta, nome_conta')
+        .like('codigo_conta', '4.1.%')
+        .eq('tipo_conta', 'Analítica')
+        .order('codigo_conta');
+
+      if (accountsError) {
+        console.error('Erro ao buscar contas de receita:', accountsError);
+      } else if (accountsData) {
+        setRevenueAccounts(accountsData);
+      }
+
+      // Buscar entradas
       const { data, error } = await supabase
         .from('financial_entries')
         .select('*')
@@ -59,7 +79,7 @@ const FinancialEntries = () => {
       }
     };
 
-    fetchEntries();
+    fetchData();
   }, [churchId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -74,66 +94,76 @@ const FinancialEntries = () => {
       return;
     }
 
-    if (formData.tipo === 'Dízimo' && !formData.membroId) {
-      toast({
-        title: 'Membro obrigatório',
-        description: 'Para lançamentos de Dízimo, é necessário selecionar um membro.',
-        variant: 'destructive',
+    try {
+      // Inserir entrada financeira
+      const { data: entryData, error: entryError } = await supabase
+        .from('financial_entries')
+        .insert({
+          church_id: churchId,
+          data: formData.data,
+          hora: formData.hora || null,
+          tipo: formData.tipoEntrada,
+          valor: parseFloat(formData.valor),
+          membro_id: formData.membroId || null,
+          descricao: formData.descricao,
+        })
+        .select()
+        .single();
+
+      if (entryError) throw entryError;
+
+      // Criar lançamento contábil (partidas dobradas)
+      // Débito: Caixa/Banco (onde foi recebido)
+      // Crédito: Conta de Receita (tipo de entrada)
+      const { error: lancamentoError } = await supabase
+        .from('lancamentos_contabeis')
+        .insert({
+          church_id: churchId,
+          data: formData.data,
+          historico: `${formData.tipoEntrada} - ${formData.descricao}`,
+          conta_debito: formData.recebidoEm,
+          conta_credito: formData.tipoEntrada,
+          valor: parseFloat(formData.valor),
+          documento: entryData.id,
+          entry_id: entryData.id,
+        });
+
+      if (lancamentoError) throw lancamentoError;
+
+      const newEntry: FinancialEntry = {
+        id: entryData.id,
+        data: entryData.data,
+        hora: entryData.hora || undefined,
+        tipo: entryData.tipo as EntryType,
+        valor: Number(entryData.valor),
+        membroId: entryData.membro_id || undefined,
+        membroNome: entryData.membro_nome || undefined,
+        descricao: entryData.descricao,
+        createdAt: entryData.created_at,
+      };
+      setEntries((prev) => [newEntry, ...prev]);
+      
+      setFormData({
+        data: new Date().toISOString().split('T')[0],
+        hora: '',
+        tipoEntrada: '',
+        valor: '',
+        recebidoEm: '',
+        membroId: '',
+        descricao: '',
       });
-      return;
-    }
 
-    const { data, error } = await supabase
-      .from('financial_entries')
-      .insert({
-        church_id: churchId,
-        data: formData.data,
-        hora: formData.hora || null,
-        tipo: formData.tipo,
-        valor: parseFloat(formData.valor),
-        membro_id: formData.membroId || null,
-        descricao: formData.descricao,
-      })
-      .select()
-      .single();
-
-    if (error) {
+      toast({
+        title: 'Entrada registrada!',
+        description: `Lançamento de R$ ${parseFloat(formData.valor).toFixed(2)} registrado com sucesso.`,
+      });
+    } catch (error: any) {
       toast({
         title: 'Erro ao salvar',
         description: error.message,
         variant: 'destructive',
       });
-      return;
     }
-
-    if (data) {
-      const newEntry: FinancialEntry = {
-        id: data.id,
-        data: data.data,
-        hora: data.hora || undefined,
-        tipo: data.tipo as EntryType,
-        valor: Number(data.valor),
-        membroId: data.membro_id || undefined,
-        membroNome: data.membro_nome || undefined,
-        descricao: data.descricao,
-        createdAt: data.created_at,
-      };
-      setEntries((prev) => [newEntry, ...prev]);
-    }
-    
-    setFormData({
-      data: new Date().toISOString().split('T')[0],
-      hora: '',
-      tipo: '' as EntryType,
-      valor: '',
-      membroId: '',
-      descricao: '',
-    });
-
-    toast({
-      title: 'Entrada registrada!',
-      description: `Lançamento de R$ ${parseFloat(formData.valor).toFixed(2)} registrado com sucesso.`,
-    });
   };
 
   const formatCurrency = (value: number) => {
@@ -191,19 +221,19 @@ const FinancialEntries = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="tipo">Tipo *</Label>
+                  <Label htmlFor="tipoEntrada">Tipo de Entrada *</Label>
                   <Select
-                    value={formData.tipo}
-                    onValueChange={(value) => setFormData({ ...formData, tipo: value as EntryType })}
+                    value={formData.tipoEntrada}
+                    onValueChange={(value) => setFormData({ ...formData, tipoEntrada: value })}
                     required
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
+                      <SelectValue placeholder="Selecione o tipo de entrada" />
                     </SelectTrigger>
                     <SelectContent>
-                      {entryTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
+                      {revenueAccounts.map((account) => (
+                        <SelectItem key={account.codigo_conta} value={account.codigo_conta}>
+                          {account.nome_conta}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -224,18 +254,34 @@ const FinancialEntries = () => {
                   />
                 </div>
 
-                {formData.tipo === 'Dízimo' && (
+                <div className="space-y-2">
+                  <Label htmlFor="recebidoEm">Recebido em *</Label>
+                  <Select
+                    value={formData.recebidoEm}
+                    onValueChange={(value) => setFormData({ ...formData, recebidoEm: value })}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione onde foi recebido" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1.1.1.01">Caixa Geral</SelectItem>
+                      <SelectItem value="1.1.2.01">Contas Correntes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {formData.tipoEntrada === '4.1.1.01' && (
                   <div className="space-y-2">
-                    <Label htmlFor="membro">Membro *</Label>
+                    <Label htmlFor="membro">Membro (Opcional)</Label>
                     <Input
                       id="membro"
                       placeholder="Buscar membro..."
                       value={formData.membroId}
                       onChange={(e) => setFormData({ ...formData, membroId: e.target.value })}
-                      required
                     />
                     <p className="text-xs text-muted-foreground">
-                      O campo membro é obrigatório para dízimos
+                      Opcional: vincule o dízimo a um membro
                     </p>
                   </div>
                 )}

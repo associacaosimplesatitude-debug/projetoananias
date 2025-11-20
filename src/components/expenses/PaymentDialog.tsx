@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Paperclip, X } from 'lucide-react';
 
 interface Bill {
@@ -23,12 +24,13 @@ interface PaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   bill: Bill | null;
-  onConfirm: (paidDate: string, paidAmount: number, receiptFile?: File) => void;
+  onConfirm: (paidDate: string, paidAmount: number, receiptFile?: File, pagoComConta?: string) => void;
 }
 
 export const PaymentDialog = ({ open, onOpenChange, bill, onConfirm }: PaymentDialogProps) => {
   const [paidDate, setPaidDate] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
+  const [pagoComConta, setPagoComConta] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,17 +62,19 @@ export const PaymentDialog = ({ open, onOpenChange, bill, onConfirm }: PaymentDi
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!bill) return;
+    if (!bill || !pagoComConta) return;
 
     onConfirm(
       paidDate,
       parseFloat(paidAmount),
-      receiptFile || undefined
+      receiptFile || undefined,
+      pagoComConta
     );
 
     // Reset form
     setPaidDate('');
     setPaidAmount('');
+    setPagoComConta('');
     setReceiptFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -82,6 +86,7 @@ export const PaymentDialog = ({ open, onOpenChange, bill, onConfirm }: PaymentDi
     if (bill && open) {
       setPaidDate(new Date().toISOString().split('T')[0]);
       setPaidAmount(bill.amount.toString());
+      setPagoComConta('');
     }
   }, [bill, open]);
 
@@ -125,6 +130,19 @@ export const PaymentDialog = ({ open, onOpenChange, bill, onConfirm }: PaymentDi
               <p className="text-xs text-muted-foreground">
                 Valor previsto: R$ {bill.amount.toFixed(2)}
               </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="pago-com">Pago com *</Label>
+              <Select value={pagoComConta} onValueChange={setPagoComConta} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a forma de pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1.1.1.01">Caixa Geral</SelectItem>
+                  <SelectItem value="1.1.2.01">Contas Correntes</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid gap-2">
