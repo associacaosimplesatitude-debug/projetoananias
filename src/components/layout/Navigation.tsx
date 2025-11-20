@@ -179,7 +179,7 @@ export const Navigation = () => {
     clientNavItems;
 
   return (
-    <nav className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+    <nav className="border-b sticky top-0 z-10" style={{ backgroundColor: 'hsl(var(--nav-background))', color: 'hsl(var(--nav-foreground))' }}>
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8 flex-1">
@@ -194,9 +194,9 @@ export const Navigation = () => {
                   to={item.to}
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                    'text-muted-foreground hover:text-foreground hover:bg-accent'
+                    'text-white/80 hover:text-white hover:bg-white/10'
                   )}
-                  activeClassName="text-primary bg-primary/10"
+                  activeClassName="text-white bg-accent"
                 >
                   <item.icon className="h-4 w-4" />
                   <span className="hidden sm:inline">{item.label}</span>
@@ -207,7 +207,7 @@ export const Navigation = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger className={cn(
                     'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                    'text-muted-foreground hover:text-foreground hover:bg-accent'
+                    'text-white/80 hover:text-white hover:bg-white/10'
                   )}>
                     <FileText className="h-4 w-4" />
                     <span className="hidden sm:inline">Contabilidade</span>
