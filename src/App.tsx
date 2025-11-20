@@ -12,6 +12,7 @@ import Auth from "./pages/Auth";
 import DiretoriaForm from "./pages/DiretoriaForm";
 import Members from "./pages/Members";
 import ChurchMembers from "./pages/ChurchMembers";
+import ChurchUsers from "./pages/ChurchUsers";
 import FinancialEntries from "./pages/FinancialEntries";
 import FinancialExpenses from "./pages/FinancialExpenses";
 import FinancialDashboard from "./pages/FinancialDashboard";
@@ -56,6 +57,7 @@ const App = () => (
                     <Route path="/entries" element={<FinancialEntries />} />
                     <Route path="/expenses" element={<FinancialExpenses />} />
                     <Route path="/dashboard" element={<FinancialDashboard />} />
+                    <Route path="/settings/users" element={<ChurchUsers />} />
                     
                     <Route
                       path="/admin"
@@ -99,14 +101,6 @@ const App = () => (
                     />
                     <Route
                       path="/admin/users"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminUsers />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/settings/users"
                       element={
                         <ProtectedRoute requireAdmin>
                           <AdminUsers />
