@@ -106,6 +106,14 @@ const App = () => (
                       }
                     />
                     <Route
+                      path="/settings/users"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminUsers />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
                       path="/admin/receivable"
                       element={
                         <ProtectedRoute requireAdmin>
