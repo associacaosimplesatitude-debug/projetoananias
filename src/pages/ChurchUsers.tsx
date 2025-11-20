@@ -219,17 +219,29 @@ export default function ChurchUsers() {
       }
 
       if (data.user) {
-        await supabase.from('profiles').insert({
+        // Inserir perfil
+        const { error: profileError } = await supabase.from('profiles').insert({
           id: data.user.id,
           email: tempEmail,
           full_name: selectedMember.nome_completo,
           church_id: churchId,
         });
 
-        await supabase.from('user_roles').insert({
+        if (profileError) {
+          console.error('Erro ao criar perfil:', profileError);
+          throw new Error('Erro ao criar perfil: ' + profileError.message);
+        }
+
+        // Inserir role
+        const { error: roleError } = await supabase.from('user_roles').insert({
           user_id: data.user.id,
           role: newUser.role,
         });
+
+        if (roleError) {
+          console.error('Erro ao criar role:', roleError);
+          throw new Error('Erro ao criar permissão: ' + roleError.message);
+        }
 
         toast({
           title: 'Sucesso',
@@ -240,7 +252,7 @@ export default function ChurchUsers() {
         setNewUser({ memberId: '', password: '', role: 'tesoureiro' });
         setErrors({});
         setSearchTerm('');
-        fetchChurchAndData();
+        await fetchChurchAndData();
       }
     } catch (error: any) {
       toast({
