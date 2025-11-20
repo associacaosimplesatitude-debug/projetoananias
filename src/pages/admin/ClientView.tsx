@@ -17,6 +17,7 @@ export default function AdminClientView() {
   const { stages, loading, updateProgress } = useStageProgress(churchId);
   const { getStageInfo } = useStageInfo();
   const [churchName, setChurchName] = useState('');
+  const [processStatus, setProcessStatus] = useState<string>('');
   
   const [infoModal, setInfoModal] = useState<{
     open: boolean;
@@ -60,12 +61,13 @@ export default function AdminClientView() {
       
       const { data } = await supabase
         .from('churches')
-        .select('church_name')
+        .select('church_name, process_status')
         .eq('id', churchId)
         .single();
       
       if (data) {
         setChurchName(data.church_name);
+        setProcessStatus(data.process_status);
       }
     };
     
@@ -209,7 +211,7 @@ export default function AdminClientView() {
                   flex items-center justify-center h-10 w-10 rounded-full font-semibold text-sm
                   transition-all duration-300
                   ${
-                    stage.status === 'completed'
+                    processStatus === 'completed' || stage.status === 'completed'
                       ? 'bg-success text-success-foreground'
                       : stage.status === 'active'
                       ? 'bg-primary text-primary-foreground'

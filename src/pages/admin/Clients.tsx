@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Eye, Calendar, Settings, CheckCircle2 } from 'lucide-react';
+import { Plus, Eye, Calendar, Settings } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
@@ -108,28 +108,31 @@ export default function AdminClients() {
     setChurches(data || []);
   };
 
-  const handleCompleteProcess = async (churchId: string) => {
+  const loadMandateData = async (churchId: string) => {
     try {
-      const { error } = await supabase
-        .from('churches')
-        .update({ process_status: 'completed' })
-        .eq('id', churchId);
+      const { data } = await supabase
+        .from('board_mandates')
+        .select('*')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error) throw error;
-
-      toast({
-        title: 'Processo Concluído',
-        description: 'O processo de abertura foi marcado como concluído.',
-      });
-
-      fetchChurches();
+      if (data) {
+        setMandateData({
+          start_date: data.start_date,
+          end_date: data.end_date,
+          notes: data.notes || '',
+        });
+      } else {
+        setMandateData({
+          start_date: '',
+          end_date: '',
+          notes: '',
+        });
+      }
     } catch (error) {
-      console.error('Erro ao concluir processo:', error);
-      toast({
-        title: 'Erro',
-        description: 'Erro ao concluir processo.',
-        variant: 'destructive',
-      });
+      console.error('Error loading mandate:', error);
     }
   };
 
@@ -190,24 +193,6 @@ export default function AdminClients() {
         description: error.message || 'Não foi possível salvar o mandato',
         variant: 'destructive',
       });
-    }
-  };
-
-  const loadMandateData = async (churchId: string) => {
-    const { data } = await supabase
-      .from('board_mandates')
-      .select('*')
-      .eq('church_id', churchId)
-      .maybeSingle();
-
-    if (data) {
-      setMandateData({
-        start_date: data.start_date,
-        end_date: data.end_date,
-        notes: data.notes || '',
-      });
-    } else {
-      setMandateData({ start_date: '', end_date: '', notes: '' });
     }
   };
 
@@ -608,6 +593,7 @@ export default function AdminClients() {
                   <TableHead>Nome da Igreja</TableHead>
                   <TableHead>Email do Pastor</TableHead>
                   <TableHead>Localização</TableHead>
+                  <TableHead>CNPJ</TableHead>
                   <TableHead>Etapa Atual</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -625,10 +611,11 @@ export default function AdminClients() {
                     </TableCell>
                     <TableCell>{church.pastor_email}</TableCell>
                     <TableCell>{church.city}, {church.state}</TableCell>
+                    <TableCell>{church.cnpj || '-'}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         {[1, 2, 3, 4, 5, 6].map((stage) => {
-                          const isCompleted = (church.current_stage || 1) >= stage;
+                          const isCompleted = church.process_status === 'completed' || (church.current_stage || 1) >= stage;
                           return (
                             <div
                               key={stage}
@@ -677,17 +664,6 @@ export default function AdminClients() {
                         >
                           <Settings className="h-4 w-4" />
                         </Button>
-                        {church.process_status !== 'completed' && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleCompleteProcess(church.id)}
-                            title="Concluir Processo"
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                          </Button>
-                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -711,6 +687,10 @@ export default function AdminClients() {
                 <div>
                   <Label className="text-sm text-muted-foreground">Email do Pastor</Label>
                   <p className="font-medium">{selectedChurch.pastor_email}</p>
+                </div>
+                <div>
+                  <Label className="text-sm text-muted-foreground">CNPJ</Label>
+                  <p className="font-medium">{selectedChurch.cnpj || 'Não informado'}</p>
                 </div>
                 <div>
                   <Label className="text-sm text-muted-foreground">Endereço Completo</Label>
