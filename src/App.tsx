@@ -18,6 +18,7 @@ import FinancialExpenses from "./pages/FinancialExpenses";
 import FinancialDashboard from "./pages/FinancialDashboard";
 import AccountingReports from "./pages/reports/AccountingReports";
 import AccountingJournal from "./pages/reports/AccountingJournal";
+import IncomeStatement from "./pages/reports/IncomeStatement";
 import MyProfile from "./pages/MyProfile";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminClients from "./pages/admin/Clients";
@@ -61,6 +62,7 @@ const App = () => (
                     <Route path="/dashboard" element={<FinancialDashboard />} />
           <Route path="/reports/accounting" element={<AccountingReports />} />
           <Route path="/reports/journal" element={<AccountingJournal />} />
+          <Route path="/reports/income-statement" element={<IncomeStatement />} />
                     <Route path="/settings/users" element={<ChurchUsers />} />
                     
                     <Route

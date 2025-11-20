@@ -63,6 +63,11 @@ export const Navigation = () => {
       icon: FileText,
       label: 'Livro Diário',
     },
+    {
+      to: '/reports/income-statement',
+      icon: FileText,
+      label: 'DRE',
+    },
   ];
 
   const tesoureiroNavItems = [
@@ -95,6 +100,11 @@ export const Navigation = () => {
       to: '/reports/journal',
       icon: FileText,
       label: 'Livro Diário',
+    },
+    {
+      to: '/reports/income-statement',
+      icon: FileText,
+      label: 'DRE',
     },
   ];
 
