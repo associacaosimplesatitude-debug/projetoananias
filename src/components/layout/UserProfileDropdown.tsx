@@ -84,7 +84,7 @@ export function UserProfileDropdown() {
           <User className="mr-2 h-4 w-4" />
           Meu Perfil
         </DropdownMenuItem>
-        {role === 'admin' && (
+        {(role === 'admin' || role === 'client') && (
           <DropdownMenuItem onClick={handleManageUsers} className="cursor-pointer">
             <Users className="mr-2 h-4 w-4" />
             Gerenciar Usuários
