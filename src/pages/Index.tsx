@@ -208,9 +208,9 @@ const Index = () => {
 
   const isLoading = churchLoading || progressLoading;
 
-  // Redirect to financial dashboard if process is completed
+  // Redirect to dashboard if process is completed
   if (!isLoading && church && church.process_status === 'completed') {
-    navigate('/financial-dashboard');
+    navigate('/dashboard');
     return null;
   }
 

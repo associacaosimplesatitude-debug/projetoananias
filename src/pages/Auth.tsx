@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,9 +21,65 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      handlePostLoginRedirect();
+    }
+  }, [user]);
+
+  const handlePostLoginRedirect = async () => {
+    if (!user) return;
+    
+    try {
+      // Buscar role do usuário
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      // Se for admin, vai para o dashboard de admin
+      if (roleData?.role === 'admin') {
+        navigate('/admin');
+        return;
+      }
+
+      // Se for tesoureiro ou secretário, vai direto para o dashboard
+      if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
+        navigate('/dashboard');
+        return;
+      }
+
+      // Se for client, verifica o status da igreja
+      if (roleData?.role === 'client') {
+        const { data: church } = await supabase
+          .from('churches')
+          .select('process_status')
+          .eq('user_id', user.id)
+          .single();
+
+        // Redirecionar baseado no status
+        if (church?.process_status === 'completed') {
+          navigate('/dashboard');
+        } else {
+          navigate('/');
+        }
+        return;
+      }
+
+      // Fallback: vai para página inicial
+      navigate('/');
+    } catch (error) {
+      console.error('Erro ao redirecionar após login:', error);
+      // Se não encontrar dados, vai para página inicial
+      navigate('/');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,9 +103,8 @@ export default function Auth() {
               : error.message,
             variant: 'destructive',
           });
-        } else {
-          navigate('/');
         }
+        // O redirecionamento será feito pelo useEffect
       } else {
         const { error } = await signUp(validatedData.email, validatedData.password, validatedData.fullName);
         if (error) {
