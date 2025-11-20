@@ -68,6 +68,11 @@ export const Navigation = () => {
       icon: FileText,
       label: 'DRE',
     },
+    {
+      to: '/reports/balance-sheet',
+      icon: FileText,
+      label: 'Balanço',
+    },
   ];
 
   const tesoureiroNavItems = [
@@ -105,6 +110,11 @@ export const Navigation = () => {
       to: '/reports/income-statement',
       icon: FileText,
       label: 'DRE',
+    },
+    {
+      to: '/reports/balance-sheet',
+      icon: FileText,
+      label: 'Balanço',
     },
   ];
 
