@@ -33,18 +33,31 @@ interface MemberDialogProps {
 export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialogProps) => {
   const [formData, setFormData] = useState({
     nomeCompleto: '',
-    endereco: '',
+    cep: '',
+    rua: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
     dataAniversario: '',
     sexo: '' as Gender,
     whatsapp: '',
     cargo: '' as string,
   });
+  const [loadingCep, setLoadingCep] = useState(false);
 
   useEffect(() => {
     if (member) {
       setFormData({
         nomeCompleto: member.nomeCompleto,
-        endereco: member.endereco,
+        cep: member.cep || '',
+        rua: member.rua || '',
+        numero: member.numero || '',
+        complemento: member.complemento || '',
+        bairro: member.bairro || '',
+        cidade: member.cidade || '',
+        estado: member.estado || '',
         dataAniversario: member.dataAniversario,
         sexo: member.sexo,
         whatsapp: member.whatsapp,
@@ -53,7 +66,13 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
     } else {
       setFormData({
         nomeCompleto: '',
-        endereco: '',
+        cep: '',
+        rua: '',
+        numero: '',
+        complemento: '',
+        bairro: '',
+        cidade: '',
+        estado: '',
         dataAniversario: '',
         sexo: '' as Gender,
         whatsapp: '',
@@ -61,6 +80,31 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
       });
     }
   }, [member, open]);
+
+  const handleCepBlur = async () => {
+    const cep = formData.cep.replace(/\D/g, '');
+    if (cep.length !== 8) return;
+
+    setLoadingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+      
+      if (!data.erro) {
+        setFormData(prev => ({
+          ...prev,
+          rua: data.logradouro || '',
+          bairro: data.bairro || '',
+          cidade: data.localidade || '',
+          estado: data.uf || '',
+        }));
+      }
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error);
+    } finally {
+      setLoadingCep(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,13 +135,73 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="endereco">Endereço *</Label>
+              <Label htmlFor="cep">CEP</Label>
               <Input
-                id="endereco"
-                value={formData.endereco}
-                onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                required
+                id="cep"
+                value={formData.cep}
+                onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                onBlur={handleCepBlur}
+                placeholder="00000-000"
+                disabled={loadingCep}
               />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-2 col-span-2">
+                <Label htmlFor="rua">Rua</Label>
+                <Input
+                  id="rua"
+                  value={formData.rua}
+                  onChange={(e) => setFormData({ ...formData, rua: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="numero">Número *</Label>
+                <Input
+                  id="numero"
+                  value={formData.numero}
+                  onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="complemento">Complemento</Label>
+              <Input
+                id="complemento"
+                value={formData.complemento}
+                onChange={(e) => setFormData({ ...formData, complemento: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="bairro">Bairro</Label>
+                <Input
+                  id="bairro"
+                  value={formData.bairro}
+                  onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="cidade">Cidade</Label>
+                <Input
+                  id="cidade"
+                  value={formData.cidade}
+                  onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="estado">Estado</Label>
+                <Input
+                  id="estado"
+                  value={formData.estado}
+                  onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                  maxLength={2}
+                  placeholder="UF"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
