@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Wallet, LayoutDashboard, CalendarClock } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, LayoutDashboard, CalendarClock, Users, Cake, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { useChurchData } from '@/hooks/useChurchData';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 const FinancialDashboard = () => {
   const { user } = useAuth();
@@ -14,6 +15,13 @@ const FinancialDashboard = () => {
   const [daysUntilExpiry, setDaysUntilExpiry] = useState<number | null>(null);
   const [entries, setEntries] = useState<Array<{ tipo: string; valor: number }>>([]);
   const [expenses, setExpenses] = useState<Array<{ categoria: string; valor: number }>>([]);
+  const [members, setMembers] = useState<Array<{
+    id: string;
+    nome_completo: string;
+    sexo: string;
+    cargo: string;
+    data_aniversario: string;
+  }>>([]);
 
   useEffect(() => {
     const fetchMandate = async () => {
@@ -100,9 +108,107 @@ const FinancialDashboard = () => {
     fetchFinancialData();
   }, [churchId]);
 
+  // Buscar membros
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!churchId) return;
+
+      const { data: membersData } = await supabase
+        .from('church_members')
+        .select('id, nome_completo, sexo, cargo, data_aniversario')
+        .eq('church_id', churchId);
+
+      if (membersData) {
+        setMembers(membersData);
+      }
+    };
+
+    fetchMembers();
+  }, [churchId]);
+
   const totalEntries = useMemo(() => entries.reduce((sum, e) => sum + e.valor, 0), [entries]);
   const totalExpenses = useMemo(() => expenses.reduce((sum, e) => sum + e.valor, 0), [expenses]);
   const balance = totalEntries - totalExpenses;
+
+  // Estatísticas de membros
+  const totalMembers = members.length;
+  const totalMen = members.filter(m => m.sexo === 'Masculino').length;
+  const totalWomen = members.filter(m => m.sexo === 'Feminino').length;
+
+  // Aniversariantes de hoje
+  const todayBirthdays = useMemo(() => {
+    const today = new Date();
+    const todayMonth = today.getMonth() + 1;
+    const todayDay = today.getDate();
+
+    return members.filter(member => {
+      const birthDate = new Date(member.data_aniversario);
+      return birthDate.getMonth() + 1 === todayMonth && birthDate.getDate() === todayDay;
+    });
+  }, [members]);
+
+  // Aniversariantes do mês
+  const monthBirthdays = useMemo(() => {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+
+    return members
+      .filter(member => {
+        const birthDate = new Date(member.data_aniversario);
+        return birthDate.getMonth() + 1 === currentMonth;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.data_aniversario).getDate();
+        const dateB = new Date(b.data_aniversario).getDate();
+        return dateA - dateB;
+      });
+  }, [members]);
+
+  // Distribuição por cargo
+  const cargoDistribution = useMemo(() => {
+    const distribution = members.reduce((acc: Record<string, number>, member) => {
+      acc[member.cargo] = (acc[member.cargo] || 0) + 1;
+      return acc;
+    }, {});
+
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+    return Object.entries(distribution).map(([cargo, count], index) => ({
+      cargo,
+      count,
+      fill: colors[index % colors.length],
+      percentage: ((count / totalMembers) * 100).toFixed(1)
+    }));
+  }, [members, totalMembers]);
+
+  // Distribuição por faixa etária
+  const ageDistribution = useMemo(() => {
+    const today = new Date();
+    const ranges = {
+      '0-12': 0,
+      '13-18': 0,
+      '19-30': 0,
+      '31-50': 0,
+      '51+': 0
+    };
+
+    members.forEach(member => {
+      const birthDate = new Date(member.data_aniversario);
+      const age = today.getFullYear() - birthDate.getFullYear();
+      
+      if (age <= 12) ranges['0-12']++;
+      else if (age <= 18) ranges['13-18']++;
+      else if (age <= 30) ranges['19-30']++;
+      else if (age <= 50) ranges['31-50']++;
+      else ranges['51+']++;
+    });
+
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+    return Object.entries(ranges).map(([faixa, count], index) => ({
+      faixa,
+      count,
+      fill: colors[index]
+    }));
+  }, [members]);
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -302,6 +408,242 @@ const FinancialDashboard = () => {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Painel de Membros */}
+        <div className="mt-12">
+          <div className="flex items-center gap-2 mb-6">
+            <Users className="h-6 w-6 text-primary" />
+            <h2 className="text-2xl font-bold">Painel de Membros</h2>
+          </div>
+
+          {/* Cards de Resumo de Membros */}
+          <div className="grid gap-6 md:grid-cols-3 mb-6">
+            <Card className="border-primary/50 bg-primary/5">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total de Membros</CardTitle>
+                <Users className="h-5 w-5 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-primary">{totalMembers}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Membros cadastrados
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-blue-500/50 bg-blue-500/5">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total de Homens</CardTitle>
+                <User className="h-5 w-5 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-500">{totalMen}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {((totalMen / totalMembers) * 100 || 0).toFixed(1)}% do total
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-pink-500/50 bg-pink-500/5">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total de Mulheres</CardTitle>
+                <User className="h-5 w-5 text-pink-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-pink-500">{totalWomen}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {((totalWomen / totalMembers) * 100 || 0).toFixed(1)}% do total
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Aniversariantes de Hoje - Destacado */}
+          {todayBirthdays.length > 0 && (
+            <Card className="mb-6 border-amber-500 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Cake className="h-6 w-6 text-amber-500" />
+                  <CardTitle className="text-xl">🎉 Aniversariantes de Hoje!</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-4">
+                  {todayBirthdays.map(member => (
+                    <div key={member.id} className="flex items-center gap-3 bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
+                      <Avatar className="h-12 w-12 border-2 border-amber-500">
+                        <AvatarFallback className="bg-amber-500 text-white font-semibold">
+                          {member.nome_completo.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-semibold">{member.nome_completo}</p>
+                        <p className="text-sm text-muted-foreground">{member.cargo}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {todayBirthdays.length === 0 && (
+            <Card className="mb-6 border-muted">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Cake className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-lg">Aniversariantes de Hoje</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Nenhum aniversariante hoje</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Gráficos de Membros */}
+          <div className="grid gap-6 lg:grid-cols-2 mb-6">
+            {/* Distribuição de Cargos */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribuição de Cargos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {cargoDistribution.length > 0 ? (
+                  <>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={cargoDistribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ cargo, percentage }) => `${cargo}: ${percentage}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="count"
+                        >
+                          {cargoDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                    <div className="mt-4 space-y-2">
+                      {cargoDistribution.map((entry, index) => (
+                        <div key={index} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: entry.fill }}
+                            />
+                            <span>{entry.cargo}</span>
+                          </div>
+                          <span className="font-semibold">{entry.count} ({entry.percentage}%)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">Nenhum membro cadastrado</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Distribuição por Faixa Etária */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribuição por Faixa Etária</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {ageDistribution.some(d => d.count > 0) ? (
+                  <>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={ageDistribution}>
+                        <XAxis dataKey="faixa" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                          {ageDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+
+                    <div className="mt-4 space-y-2">
+                      {ageDistribution.map((entry, index) => (
+                        <div key={index} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: entry.fill }}
+                            />
+                            <span>{entry.faixa} anos</span>
+                          </div>
+                          <span className="font-semibold">{entry.count} membros</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">Nenhum membro cadastrado</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Aniversariantes do Mês */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Cake className="h-5 w-5 text-primary" />
+                <CardTitle>Aniversariantes do Mês</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {monthBirthdays.length > 0 ? (
+                <div className="space-y-3">
+                  {monthBirthdays.map(member => {
+                    const birthDate = new Date(member.data_aniversario);
+                    const day = birthDate.getDate();
+                    const isToday = todayBirthdays.some(b => b.id === member.id);
+                    
+                    return (
+                      <div 
+                        key={member.id} 
+                        className={`flex items-center justify-between p-3 rounded-lg ${
+                          isToday ? 'bg-amber-100 dark:bg-amber-900/20' : 'bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className={isToday ? 'bg-amber-500 text-white' : ''}>
+                              {member.nome_completo.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold">{member.nome_completo}</p>
+                            <p className="text-sm text-muted-foreground">{member.cargo}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant={isToday ? "default" : "secondary"}>
+                            Dia {day}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">Nenhum aniversariante este mês</p>
+              )}
             </CardContent>
           </Card>
         </div>
