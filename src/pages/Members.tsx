@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MemberCard } from '@/components/financial/MemberCard';
@@ -6,42 +6,151 @@ import { MemberDialog } from '@/components/financial/MemberDialog';
 import { Member } from '@/types/financial';
 import { Plus, Search, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useChurchData } from '@/hooks/useChurchData';
 
 const Members = () => {
   const { toast } = useToast();
+  const { churchId, loading: churchLoading } = useChurchData();
   const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | undefined>();
+
+  // Fetch members from database
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!churchId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('church_members')
+          .select('*')
+          .eq('church_id', churchId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          const formattedMembers: Member[] = data.map(m => ({
+            id: m.id,
+            nomeCompleto: m.nome_completo,
+            endereco: m.endereco,
+            dataAniversario: m.data_aniversario,
+            sexo: m.sexo as 'Masculino' | 'Feminino',
+            whatsapp: m.whatsapp,
+            cargo: m.cargo,
+            createdAt: m.created_at,
+          }));
+          setMembers(formattedMembers);
+        }
+      } catch (error) {
+        console.error('Error fetching members:', error);
+        toast({
+          title: 'Erro ao carregar membros',
+          description: 'Não foi possível carregar a lista de membros.',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!churchLoading) {
+      fetchMembers();
+    }
+  }, [churchId, churchLoading, toast]);
 
   const filteredMembers = members.filter((member) =>
     member.nomeCompleto.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSave = (memberData: Omit<Member, 'id' | 'createdAt'>) => {
-    if (editingMember) {
-      setMembers((prev) =>
-        prev.map((m) =>
-          m.id === editingMember.id ? { ...memberData, id: m.id, createdAt: m.createdAt } : m
-        )
-      );
+  const handleSave = async (memberData: Omit<Member, 'id' | 'createdAt'>) => {
+    if (!churchId) {
       toast({
-        title: 'Membro atualizado!',
-        description: 'Os dados do membro foram atualizados com sucesso.',
+        title: 'Erro',
+        description: 'Igreja não encontrada. Faça login novamente.',
+        variant: 'destructive',
       });
-    } else {
-      const newMember: Member = {
-        ...memberData,
-        id: Math.random().toString(36).substr(2, 9),
-        createdAt: new Date().toISOString(),
-      };
-      setMembers((prev) => [...prev, newMember]);
+      return;
+    }
+
+    try {
+      if (editingMember) {
+        // Update existing member
+        const { error } = await supabase
+          .from('church_members')
+          .update({
+            nome_completo: memberData.nomeCompleto,
+            endereco: memberData.endereco,
+            data_aniversario: memberData.dataAniversario,
+            sexo: memberData.sexo,
+            whatsapp: memberData.whatsapp,
+            cargo: memberData.cargo,
+          })
+          .eq('id', editingMember.id);
+
+        if (error) throw error;
+
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.id === editingMember.id ? { ...memberData, id: m.id, createdAt: m.createdAt } : m
+          )
+        );
+        toast({
+          title: 'Membro atualizado!',
+          description: 'Os dados do membro foram atualizados com sucesso.',
+        });
+      } else {
+        // Insert new member
+        const { data, error } = await supabase
+          .from('church_members')
+          .insert({
+            church_id: churchId,
+            nome_completo: memberData.nomeCompleto,
+            endereco: memberData.endereco,
+            data_aniversario: memberData.dataAniversario,
+            sexo: memberData.sexo,
+            whatsapp: memberData.whatsapp,
+            cargo: memberData.cargo,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          const newMember: Member = {
+            id: data.id,
+            nomeCompleto: data.nome_completo,
+            endereco: data.endereco,
+            dataAniversario: data.data_aniversario,
+            sexo: data.sexo as 'Masculino' | 'Feminino',
+            whatsapp: data.whatsapp,
+            cargo: data.cargo,
+            createdAt: data.created_at,
+          };
+          setMembers((prev) => [newMember, ...prev]);
+        }
+
+        toast({
+          title: 'Membro cadastrado!',
+          description: 'O novo membro foi adicionado com sucesso.',
+        });
+      }
+      setEditingMember(undefined);
+    } catch (error) {
+      console.error('Error saving member:', error);
       toast({
-        title: 'Membro cadastrado!',
-        description: 'O novo membro foi adicionado com sucesso.',
+        title: 'Erro ao salvar',
+        description: 'Não foi possível salvar o membro. Tente novamente.',
+        variant: 'destructive',
       });
     }
-    setEditingMember(undefined);
   };
 
   const handleEdit = (member: Member) => {
@@ -49,18 +158,56 @@ const Members = () => {
     setDialogOpen(true);
   };
 
-  const handleDelete = (memberId: string) => {
-    setMembers((prev) => prev.filter((m) => m.id !== memberId));
-    toast({
-      title: 'Membro removido',
-      description: 'O membro foi removido do cadastro.',
-    });
+  const handleDelete = async (memberId: string) => {
+    try {
+      const { error } = await supabase
+        .from('church_members')
+        .delete()
+        .eq('id', memberId);
+
+      if (error) throw error;
+
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      toast({
+        title: 'Membro removido',
+        description: 'O membro foi removido do cadastro.',
+      });
+    } catch (error) {
+      console.error('Error deleting member:', error);
+      toast({
+        title: 'Erro ao remover',
+        description: 'Não foi possível remover o membro. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleNewMember = () => {
     setEditingMember(undefined);
     setDialogOpen(true);
   };
+
+  if (churchLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+          <p className="text-muted-foreground">Carregando membros...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!churchId) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">Você precisa estar associado a uma igreja para gerenciar membros.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
