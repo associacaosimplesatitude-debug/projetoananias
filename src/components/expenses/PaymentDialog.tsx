@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Paperclip, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useChurchData } from '@/hooks/useChurchData';
 
 interface Bill {
   id: string;
@@ -28,11 +30,35 @@ interface PaymentDialogProps {
 }
 
 export const PaymentDialog = ({ open, onOpenChange, bill, onConfirm }: PaymentDialogProps) => {
+  const { churchId } = useChurchData();
   const [paidDate, setPaidDate] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [pagoComConta, setPagoComConta] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch bank accounts
+  useEffect(() => {
+    const fetchBankAccounts = async () => {
+      if (!churchId) return;
+
+      const { data, error } = await supabase
+        .from('bank_accounts')
+        .select('*')
+        .eq('church_id', churchId)
+        .eq('is_active', true)
+        .order('bank_name');
+
+      if (!error && data) {
+        setBankAccounts(data);
+      }
+    };
+
+    if (open) {
+      fetchBankAccounts();
+    }
+  }, [churchId, open]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,8 +165,12 @@ export const PaymentDialog = ({ open, onOpenChange, bill, onConfirm }: PaymentDi
                   <SelectValue placeholder="Selecione a forma de pagamento" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1.1.1.01">Caixa Geral</SelectItem>
-                  <SelectItem value="1.1.2.01">Contas Correntes</SelectItem>
+                  <SelectItem value="Caixa Geral">Caixa Geral</SelectItem>
+                  {bankAccounts.map((account) => (
+                    <SelectItem key={account.id} value={`${account.bank_name} - Ag: ${account.agency} - Conta: ${account.account_number}`}>
+                      {account.bank_name} - Ag: {account.agency} - Conta: {account.account_number}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -109,6 +109,56 @@ export type Database = {
           },
         ]
       }
+      bank_accounts: {
+        Row: {
+          account_number: string
+          account_type: string
+          agency: string
+          bank_name: string
+          church_id: string
+          created_at: string
+          id: string
+          initial_balance: number
+          initial_balance_date: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          account_number: string
+          account_type: string
+          agency: string
+          bank_name: string
+          church_id: string
+          created_at?: string
+          id?: string
+          initial_balance?: number
+          initial_balance_date: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          account_number?: string
+          account_type?: string
+          agency?: string
+          bank_name?: string
+          church_id?: string
+          created_at?: string
+          id?: string
+          initial_balance?: number
+          initial_balance_date?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bills_to_pay: {
         Row: {
           amount: number
@@ -122,6 +172,7 @@ export type Database = {
           is_recurring: boolean
           paid_amount: number | null
           paid_date: string | null
+          payment_account: string | null
           receipt_path: string | null
           recurring_expense_id: string | null
           status: string
@@ -139,6 +190,7 @@ export type Database = {
           is_recurring?: boolean
           paid_amount?: number | null
           paid_date?: string | null
+          payment_account?: string | null
           receipt_path?: string | null
           recurring_expense_id?: string | null
           status?: string
@@ -156,6 +208,7 @@ export type Database = {
           is_recurring?: boolean
           paid_amount?: number | null
           paid_date?: string | null
+          payment_account?: string | null
           receipt_path?: string | null
           recurring_expense_id?: string | null
           status?: string
@@ -557,6 +610,7 @@ export type Database = {
           id: string
           membro_id: string | null
           membro_nome: string | null
+          payment_account: string | null
           tipo: string
           updated_at: string
           valor: number
@@ -570,6 +624,7 @@ export type Database = {
           id?: string
           membro_id?: string | null
           membro_nome?: string | null
+          payment_account?: string | null
           tipo: string
           updated_at?: string
           valor?: number
@@ -583,6 +638,7 @@ export type Database = {
           id?: string
           membro_id?: string | null
           membro_nome?: string | null
+          payment_account?: string | null
           tipo?: string
           updated_at?: string
           valor?: number
