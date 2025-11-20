@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
 import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown } from 'lucide-react';
+import logoAnanias from '@/assets/logo_ananias.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -182,11 +183,8 @@ export const Navigation = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8 flex-1">
-            <div className="flex items-center gap-2 font-bold text-lg">
-              <Church className="h-6 w-6 text-primary" />
-              <span className="hidden sm:inline">
-                {role === 'admin' ? 'Admin' : 'Sistema Igreja'}
-              </span>
+            <div className="flex items-center">
+              <img src={logoAnanias} alt="Logo Projeto Ananias" className="h-10" />
             </div>
             
             <div className="flex items-center gap-1 flex-1 overflow-x-auto">
