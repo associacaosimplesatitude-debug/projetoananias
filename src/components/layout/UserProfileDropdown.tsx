@@ -61,7 +61,7 @@ export function UserProfileDropdown() {
   };
 
   const handleManageUsers = () => {
-    navigate('/admin/users');
+    navigate('/settings/users');
   };
 
   return (
