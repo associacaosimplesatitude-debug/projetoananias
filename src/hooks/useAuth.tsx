@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  role: 'admin' | 'client' | null;
+  role: 'admin' | 'client' | 'tesoureiro' | 'secretario' | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
@@ -18,7 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<'admin' | 'client' | null>(null);
+  const [role, setRole] = useState<'admin' | 'client' | 'tesoureiro' | 'secretario' | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 

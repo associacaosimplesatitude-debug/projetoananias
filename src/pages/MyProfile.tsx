@@ -1,0 +1,192 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Upload, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+
+export default function MyProfile() {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+    }
+  }, [user]);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    const { data } = await supabase
+      .from('profiles')
+      .select('full_name, email, avatar_url')
+      .eq('id', user.id)
+      .single();
+
+    if (data) {
+      setFullName(data.full_name || '');
+      setEmail(data.email || '');
+      if (data.avatar_url) {
+        const { data: urlData } = supabase.storage
+          .from('profile-avatars')
+          .getPublicUrl(data.avatar_url);
+        setAvatarUrl(urlData.publicUrl);
+      }
+    }
+    setLoading(false);
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setUploading(true);
+      const file = event.target.files?.[0];
+      if (!file || !user) return;
+
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/avatar.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('profile-avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: filePath })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      await fetchProfile();
+      toast.success('Foto de perfil atualizada com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao fazer upload da foto: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ full_name: fullName, email: email })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast.success('Perfil atualizado com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao atualizar perfil: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getInitials = () => {
+    if (fullName) {
+      return fullName
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    return email?.[0]?.toUpperCase() || 'U';
+  };
+
+  return (
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6 text-foreground">Meu Perfil</h1>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Informações Pessoais</CardTitle>
+            <CardDescription>Atualize suas informações e foto de perfil</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex flex-col items-center space-y-4">
+              <Avatar className="h-32 w-32">
+                <AvatarImage src={avatarUrl || undefined} alt={fullName || 'Usuário'} />
+                <AvatarFallback className="bg-primary text-primary-foreground text-3xl">
+                  {getInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="relative">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                  id="avatar-upload"
+                  disabled={uploading}
+                />
+                <Label htmlFor="avatar-upload">
+                  <Button variant="outline" className="cursor-pointer" asChild disabled={uploading}>
+                    <span>
+                      {uploading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="mr-2 h-4 w-4" />
+                      )}
+                      Alterar Foto
+                    </span>
+                  </Button>
+                </Label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="fullName">Nome Completo</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Digite seu nome completo"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="seu@email.com"
+                />
+              </div>
+            </div>
+
+            <Button onClick={handleSave} disabled={loading} className="w-full">
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Alterações'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

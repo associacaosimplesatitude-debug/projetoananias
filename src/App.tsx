@@ -15,6 +15,7 @@ import ChurchMembers from "./pages/ChurchMembers";
 import FinancialEntries from "./pages/FinancialEntries";
 import FinancialExpenses from "./pages/FinancialExpenses";
 import FinancialDashboard from "./pages/FinancialDashboard";
+import MyProfile from "./pages/MyProfile";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminClients from "./pages/admin/Clients";
 import AdminClientManagement from "./pages/admin/ClientManagement";
@@ -48,6 +49,7 @@ const App = () => (
                   <PaymentBanner />
                   <Routes>
                     <Route path="/" element={<Index />} />
+                    <Route path="/my-profile" element={<MyProfile />} />
                     <Route path="/diretoria-form" element={<DiretoriaForm />} />
                     <Route path="/members" element={<Members />} />
                     <Route path="/church-members" element={<ChurchMembers />} />

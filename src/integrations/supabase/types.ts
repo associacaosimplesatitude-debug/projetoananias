@@ -640,6 +640,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           church_id: string | null
           created_at: string
           email: string
@@ -648,6 +649,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           church_id?: string | null
           created_at?: string
           email: string
@@ -656,6 +658,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           church_id?: string | null
           created_at?: string
           email?: string
@@ -831,7 +834,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "client"
+      app_role: "admin" | "client" | "tesoureiro" | "secretario"
       church_permission:
         | "view_financial"
         | "edit_financial"
@@ -966,7 +969,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "client"],
+      app_role: ["admin", "client", "tesoureiro", "secretario"],
       church_permission: [
         "view_financial",
         "edit_financial",

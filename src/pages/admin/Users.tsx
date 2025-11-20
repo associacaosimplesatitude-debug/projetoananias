@@ -17,14 +17,14 @@ const createUserSchema = z.object({
   email: z.string().trim().email({ message: 'Email inválido' }).max(255),
   password: z.string().min(6, { message: 'Senha deve ter no mínimo 6 caracteres' }).max(100),
   fullName: z.string().trim().min(1, { message: 'Nome completo obrigatório' }).max(200),
-  role: z.enum(['admin', 'client'], { message: 'Role inválida' }),
+  role: z.enum(['admin', 'client', 'tesoureiro', 'secretario'], { message: 'Role inválida' }),
 });
 
 interface User {
   id: string;
   email: string;
   full_name: string | null;
-  role: 'admin' | 'client';
+  role: 'admin' | 'client' | 'tesoureiro' | 'secretario';
   created_at: string;
 }
 
@@ -42,9 +42,9 @@ export default function AdminUsers() {
     email: '',
     password: '',
     fullName: '',
-    role: 'client' as 'admin' | 'client',
+    role: 'client' as 'admin' | 'client' | 'tesoureiro' | 'secretario',
   });
-  const [newRole, setNewRole] = useState<'admin' | 'client'>('client');
+  const [newRole, setNewRole] = useState<'admin' | 'client' | 'tesoureiro' | 'secretario'>('client');
   const [newPassword, setNewPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -317,7 +317,7 @@ export default function AdminUsers() {
                   <Label htmlFor="role">Role</Label>
                   <Select
                     value={newUser.role}
-                    onValueChange={(value: 'admin' | 'client') =>
+                    onValueChange={(value: any) =>
                       setNewUser({ ...newUser, role: value })
                     }
                   >
@@ -325,8 +325,10 @@ export default function AdminUsers() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="client">Cliente</SelectItem>
+                      <SelectItem value="client">Cliente (Dono da Igreja)</SelectItem>
                       <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="tesoureiro">Tesoureiro</SelectItem>
+                      <SelectItem value="secretario">Secretário(a)</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (
@@ -376,7 +378,9 @@ export default function AdminUsers() {
                         <TableCell>{user.email}</TableCell>
                         <TableCell>
                           <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                            {user.role === 'admin' ? 'Administrador' : 'Cliente'}
+                            {user.role === 'admin' ? 'Administrador' : 
+                             user.role === 'tesoureiro' ? 'Tesoureiro' :
+                             user.role === 'secretario' ? 'Secretário(a)' : 'Cliente'}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -410,13 +414,15 @@ export default function AdminUsers() {
                                 <div className="space-y-4">
                                   <div>
                                     <Label>Role</Label>
-                                    <Select value={newRole} onValueChange={(value: 'admin' | 'client') => setNewRole(value)}>
+                                    <Select value={newRole} onValueChange={(value: any) => setNewRole(value)}>
                                       <SelectTrigger>
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="client">Cliente</SelectItem>
+                                        <SelectItem value="client">Cliente (Dono da Igreja)</SelectItem>
                                         <SelectItem value="admin">Administrador</SelectItem>
+                                        <SelectItem value="tesoureiro">Tesoureiro</SelectItem>
+                                        <SelectItem value="secretario">Secretário(a)</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
