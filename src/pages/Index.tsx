@@ -16,7 +16,7 @@ import { Stage } from '@/types/church-opening';
 
 const Index = () => {
   const navigate = useNavigate();
-  const { churchId, loading: churchLoading } = useChurchData();
+  const { church, churchId, loading: churchLoading } = useChurchData();
   const { getStageInfo } = useStageInfo();
   const { stages, loading: progressLoading, updateProgress } = useStageProgress(churchId);
   const [paymentModal, setPaymentModal] = useState<{
@@ -207,6 +207,12 @@ const Index = () => {
   };
 
   const isLoading = churchLoading || progressLoading;
+
+  // Redirect to financial dashboard if process is completed
+  if (!isLoading && church && church.process_status === 'completed') {
+    navigate('/financial-dashboard');
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background">
