@@ -23,6 +23,7 @@ const churchSchema = z.object({
   pastor_rg: z.string().trim().min(1, 'RG é obrigatório').max(20),
   pastor_cpf: z.string().trim().min(11, 'CPF inválido').max(14),
   pastor_whatsapp: z.string().trim().min(10, 'WhatsApp inválido').max(20),
+  has_cnpj: z.boolean(),
   cnpj: z.string().trim().max(18).optional(),
   city: z.string().trim().min(1, 'Cidade é obrigatória').max(100),
   state: z.string().trim().length(2, 'Estado deve ter 2 caracteres'),
@@ -31,6 +32,14 @@ const churchSchema = z.object({
   postal_code: z.string().trim().max(10).optional(),
   monthly_fee: z.number().positive().default(199.90),
   payment_due_day: z.number().int().min(5).max(30),
+}).refine((data) => {
+  if (data.has_cnpj && !data.cnpj) {
+    return false;
+  }
+  return true;
+}, {
+  message: "CNPJ é obrigatório quando a igreja já possui CNPJ",
+  path: ["cnpj"],
 });
 
 interface Church {
@@ -72,6 +81,7 @@ export default function AdminClients() {
     pastor_rg: '',
     pastor_cpf: '',
     pastor_whatsapp: '',
+    has_cnpj: false,
     cnpj: '',
     city: '',
     state: '',
@@ -296,6 +306,7 @@ export default function AdminClients() {
         pastor_rg: '',
         pastor_cpf: '',
         pastor_whatsapp: '',
+        has_cnpj: false,
         cnpj: '',
         city: '',
         state: '',
@@ -445,18 +456,49 @@ export default function AdminClients() {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="cnpj">CNPJ</Label>
-                    <Input
-                      id="cnpj"
-                      value={formData.cnpj}
-                      onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
-                      placeholder="00.000.000/0000-00"
-                      maxLength={18}
-                    />
-                    {errors.cnpj && (
-                      <p className="text-sm text-destructive">{errors.cnpj}</p>
-                    )}
+                    <Label>A igreja já possui CNPJ?</Label>
+                    <div className="flex gap-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          id="has_cnpj_yes"
+                          name="has_cnpj"
+                          checked={formData.has_cnpj === true}
+                          onChange={() => setFormData({ ...formData, has_cnpj: true })}
+                          className="h-4 w-4"
+                        />
+                        <Label htmlFor="has_cnpj_yes" className="font-normal cursor-pointer">Sim</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          id="has_cnpj_no"
+                          name="has_cnpj"
+                          checked={formData.has_cnpj === false}
+                          onChange={() => setFormData({ ...formData, has_cnpj: false, cnpj: '' })}
+                          className="h-4 w-4"
+                        />
+                        <Label htmlFor="has_cnpj_no" className="font-normal cursor-pointer">Não</Label>
+                      </div>
+                    </div>
                   </div>
+
+                  {formData.has_cnpj && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="cnpj">CNPJ</Label>
+                      <Input
+                        id="cnpj"
+                        value={formData.cnpj}
+                        onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+                        placeholder="00.000.000/0000-00"
+                        maxLength={18}
+                        required={formData.has_cnpj}
+                      />
+                      {errors.cnpj && (
+                        <p className="text-sm text-destructive">{errors.cnpj}</p>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="city">Cidade</Label>
