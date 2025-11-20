@@ -172,19 +172,49 @@ const FinancialExpenses = () => {
       if (updateError) throw updateError;
 
       // Criar lançamento contábil (partidas dobradas)
-      // Débito: Conta de Despesa
-      // Crédito: Caixa/Banco (pago com)
+      // Débito: Conta de Despesa (aumenta despesa)
+      // Crédito: Caixa/Banco (diminui ativo)
       if (pagoComConta) {
-        const contaDebito = `${selectedBill.category_main}`;
+        // Mapear categoria para código do plano de contas
+        const categoryMap: Record<string, Record<string, string>> = {
+          'DESPESAS COM PESSOAL': {
+            'Salários e Ordenados': '4.1.1.01',
+            'Encargos Sociais': '4.1.1.02',
+          },
+          'DESPESAS ADMINISTRATIVAS': {
+            'Aluguel': '4.2.2.03',
+            'Água e Esgoto': '4.2.2.04',
+            'Energia Elétrica': '4.2.2.05',
+            'Telefone e Internet': '4.2.2.06',
+            'Material de Escritório': '4.2.2.01',
+          },
+          'DESPESAS OPERACIONAIS': {
+            'Manutenção do Templo': '4.2.2.02',
+            'Missões e Evangelismo': '4.2.1.01',
+            'Eventos e Congressos': '4.2.3.01',
+          },
+          'DESPESAS FINANCEIRAS': {
+            'Juros e Multas': '4.3.1.01',
+            'Tarifas Bancárias': '4.3.1.02',
+          },
+        };
+
+        const contaDebito = categoryMap[selectedBill.category_main]?.[selectedBill.category_sub] || '4.2.9.99';
         
+        // Mapear conta de pagamento para código do plano de contas
+        let contaCredito = '1.1.1.01'; // Caixa Geral por padrão
+        if (pagoComConta !== 'Caixa Geral') {
+          contaCredito = '1.1.2.01'; // Contas Correntes para qualquer conta bancária
+        }
+
         await supabase
           .from('lancamentos_contabeis')
           .insert({
             church_id: churchId,
             data: paidDate,
-            historico: `${selectedBill.description}`,
+            historico: `Pagamento: ${selectedBill.description}`,
             conta_debito: contaDebito,
-            conta_credito: pagoComConta,
+            conta_credito: contaCredito,
             valor: paidAmount,
             documento: selectedBill.id,
             expense_id: selectedBill.id,
@@ -213,17 +243,50 @@ const FinancialExpenses = () => {
     if (!churchId) return;
 
     try {
-      const { error } = await supabase.from('recurring_expenses').insert({
-        church_id: churchId,
-        ...data,
-        is_active: true,
-      });
+      // Inserir a despesa recorrente
+      const { data: recurringData, error } = await supabase
+        .from('recurring_expenses')
+        .insert({
+          church_id: churchId,
+          ...data,
+          is_active: true,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
+      // Gerar a primeira conta a pagar imediatamente
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+      
+      // Calcular a data de vencimento para este mês
+      const dueDate = new Date(currentYear, currentMonth, data.due_day);
+      
+      // Se a data já passou neste mês, gerar para o próximo mês
+      if (dueDate < today) {
+        dueDate.setMonth(dueDate.getMonth() + 1);
+      }
+
+      // Criar a primeira conta a pagar
+      const { error: billError } = await supabase.from('bills_to_pay').insert({
+        church_id: churchId,
+        description: data.description,
+        amount: data.amount,
+        category_main: data.category_main,
+        category_sub: data.category_sub,
+        due_date: dueDate.toISOString().split('T')[0],
+        status: 'pending',
+        recurring_expense_id: recurringData.id,
+        is_recurring: true,
+      });
+
+      if (billError) throw billError;
+
       toast({
         title: 'Despesa recorrente criada!',
-        description: 'A despesa foi cadastrada com sucesso.',
+        description: 'A despesa foi cadastrada e a primeira conta foi gerada.',
       });
 
       fetchData();
