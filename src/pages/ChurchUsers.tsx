@@ -419,7 +419,9 @@ export default function ChurchUsers() {
                     <SelectContent>
                       {filteredMembers.length === 0 ? (
                         <div className="p-2 text-sm text-muted-foreground">
-                          Nenhum membro encontrado
+                          {searchTerm 
+                            ? 'Nenhum membro encontrado' 
+                            : 'Nenhum membro disponível. Cadastre membros com email ou verifique se já foram adicionados como usuários.'}
                         </div>
                       ) : (
                         filteredMembers.map((member) => (
