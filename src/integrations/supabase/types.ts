@@ -109,6 +109,75 @@ export type Database = {
           },
         ]
       }
+      bills_to_pay: {
+        Row: {
+          amount: number
+          category_main: string
+          category_sub: string
+          church_id: string
+          created_at: string
+          description: string
+          due_date: string
+          id: string
+          is_recurring: boolean
+          paid_amount: number | null
+          paid_date: string | null
+          receipt_path: string | null
+          recurring_expense_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          category_main: string
+          category_sub: string
+          church_id: string
+          created_at?: string
+          description: string
+          due_date: string
+          id?: string
+          is_recurring?: boolean
+          paid_amount?: number | null
+          paid_date?: string | null
+          receipt_path?: string | null
+          recurring_expense_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category_main?: string
+          category_sub?: string
+          church_id?: string
+          created_at?: string
+          description?: string
+          due_date?: string
+          id?: string
+          is_recurring?: boolean
+          paid_amount?: number | null
+          paid_date?: string | null
+          receipt_path?: string | null
+          recurring_expense_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_to_pay_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_to_pay_recurring_expense_id_fkey"
+            columns: ["recurring_expense_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       board_mandates: {
         Row: {
           church_id: string
@@ -597,6 +666,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_expenses: {
+        Row: {
+          amount: number
+          category_main: string
+          category_sub: string
+          church_id: string
+          created_at: string
+          description: string
+          due_day: number
+          end_date: string | null
+          frequency: string
+          id: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          category_main: string
+          category_sub: string
+          church_id: string
+          created_at?: string
+          description: string
+          due_day: number
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category_main?: string
+          category_sub?: string
+          church_id?: string
+          created_at?: string
+          description?: string
+          due_day?: number
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_expenses_church_id_fkey"
             columns: ["church_id"]
             isOneToOne: false
             referencedRelation: "churches"
