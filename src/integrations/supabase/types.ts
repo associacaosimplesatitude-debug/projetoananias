@@ -294,6 +294,53 @@ export type Database = {
           },
         ]
       }
+      church_members: {
+        Row: {
+          cargo: string
+          church_id: string
+          created_at: string
+          data_aniversario: string
+          endereco: string
+          id: string
+          nome_completo: string
+          sexo: string
+          updated_at: string
+          whatsapp: string
+        }
+        Insert: {
+          cargo: string
+          church_id: string
+          created_at?: string
+          data_aniversario: string
+          endereco: string
+          id?: string
+          nome_completo: string
+          sexo: string
+          updated_at?: string
+          whatsapp: string
+        }
+        Update: {
+          cargo?: string
+          church_id?: string
+          created_at?: string
+          data_aniversario?: string
+          endereco?: string
+          id?: string
+          nome_completo?: string
+          sexo?: string
+          updated_at?: string
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "church_members_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       church_stage_progress: {
         Row: {
           church_id: string
