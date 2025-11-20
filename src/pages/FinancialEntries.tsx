@@ -306,14 +306,13 @@ const FinancialEntries = () => {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="descricao">Descrição *</Label>
+                  <Label htmlFor="descricao">Descrição</Label>
                   <Textarea
                     id="descricao"
                     value={formData.descricao}
                     onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                    placeholder="Breve descrição do lançamento"
+                    placeholder="Breve descrição do lançamento (opcional)"
                     rows={3}
-                    required
                   />
                 </div>
 

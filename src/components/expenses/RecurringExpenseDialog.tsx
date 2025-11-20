@@ -73,13 +73,12 @@ export const RecurringExpenseDialog = ({ open, onOpenChange, onSave }: Recurring
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="description">Descrição *</Label>
+              <Label htmlFor="description">Descrição</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                required
-                placeholder="Ex: Aluguel do templo"
+                placeholder="Ex: Aluguel do templo (opcional)"
               />
             </div>
 
