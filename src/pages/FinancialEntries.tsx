@@ -22,6 +22,7 @@ const FinancialEntries = () => {
   const { churchId } = useChurchData();
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [revenueAccounts, setRevenueAccounts] = useState<RevenueAccount[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     data: new Date().toISOString().split('T')[0],
     hora: '',
@@ -32,7 +33,7 @@ const FinancialEntries = () => {
     descricao: '',
   });
 
-  // Buscar contas de receita e entradas do banco
+  // Buscar contas de receita, contas bancárias e entradas do banco
   useEffect(() => {
     const fetchData = async () => {
       if (!churchId) return;
@@ -49,6 +50,20 @@ const FinancialEntries = () => {
         console.error('Erro ao buscar contas de receita:', accountsError);
       } else if (accountsData) {
         setRevenueAccounts(accountsData);
+      }
+
+      // Buscar contas bancárias
+      const { data: banksData, error: banksError } = await supabase
+        .from('bank_accounts')
+        .select('*')
+        .eq('church_id', churchId)
+        .eq('is_active', true)
+        .order('bank_name');
+
+      if (banksError) {
+        console.error('Erro ao buscar contas bancárias:', banksError);
+      } else if (banksData) {
+        setBankAccounts(banksData);
       }
 
       // Buscar entradas
@@ -265,8 +280,12 @@ const FinancialEntries = () => {
                       <SelectValue placeholder="Selecione onde foi recebido" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1.1.1.01">Caixa Geral</SelectItem>
-                      <SelectItem value="1.1.2.01">Contas Correntes</SelectItem>
+                      <SelectItem value="Caixa Geral">Caixa Geral</SelectItem>
+                      {bankAccounts.map((account) => (
+                        <SelectItem key={account.id} value={`${account.bank_name} - Ag: ${account.agency} - Conta: ${account.account_number}`}>
+                          {account.bank_name} - Ag: {account.agency} - Conta: {account.account_number}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
