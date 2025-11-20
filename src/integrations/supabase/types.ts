@@ -641,6 +641,39 @@ export type Database = {
           },
         ]
       }
+      plano_de_contas: {
+        Row: {
+          codigo_conta: string
+          created_at: string
+          grupo: string
+          id: string
+          natureza: string
+          nome_conta: string
+          tipo_conta: string
+          updated_at: string
+        }
+        Insert: {
+          codigo_conta: string
+          created_at?: string
+          grupo: string
+          id?: string
+          natureza: string
+          nome_conta: string
+          tipo_conta: string
+          updated_at?: string
+        }
+        Update: {
+          codigo_conta?: string
+          created_at?: string
+          grupo?: string
+          id?: string
+          natureza?: string
+          nome_conta?: string
+          tipo_conta?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
