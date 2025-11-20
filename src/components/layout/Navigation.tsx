@@ -1,13 +1,13 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, CheckSquare, DollarSign, LogOut, UserCog, UserPlus, BarChart3, Settings } from 'lucide-react';
+import { UserProfileDropdown } from './UserProfileDropdown';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 
 export const Navigation = () => {
-  const { role, signOut, user } = useAuth();
+  const { role, user } = useAuth();
   const [processStatus, setProcessStatus] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -39,9 +39,32 @@ export const Navigation = () => {
       label: 'Membros',
     },
     {
-      to: '/church-members',
-      icon: UserPlus,
-      label: 'Usuários',
+      to: '/entries',
+      icon: TrendingUp,
+      label: 'Entradas',
+    },
+    {
+      to: '/expenses',
+      icon: TrendingDown,
+      label: 'Despesas',
+    },
+    {
+      to: '/dashboard',
+      icon: LayoutDashboard,
+      label: 'Dashboard',
+    },
+  ];
+
+  const tesoureiroNavItems = [
+    {
+      to: '/dashboard',
+      icon: LayoutDashboard,
+      label: 'Dashboard',
+    },
+    {
+      to: '/members',
+      icon: Users,
+      label: 'Membros',
     },
     {
       to: '/entries',
@@ -52,6 +75,14 @@ export const Navigation = () => {
       to: '/expenses',
       icon: TrendingDown,
       label: 'Despesas',
+    },
+  ];
+
+  const secretarioNavItems = [
+    {
+      to: '/members',
+      icon: Users,
+      label: 'Membros',
     },
     {
       to: '/dashboard',
@@ -71,11 +102,6 @@ export const Navigation = () => {
       to: '/admin/clients',
       icon: Building,
       label: 'Clientes',
-    },
-    {
-      to: '/admin/users',
-      icon: UserCog,
-      label: 'Usuários',
     },
     {
       to: '/admin/receivable',
@@ -99,7 +125,11 @@ export const Navigation = () => {
     },
   ];
 
-  const navItems = role === 'admin' ? adminNavItems : clientNavItems;
+  const navItems = 
+    role === 'admin' ? adminNavItems :
+    role === 'tesoureiro' ? tesoureiroNavItems :
+    role === 'secretario' ? secretarioNavItems :
+    clientNavItems;
 
   return (
     <nav className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
@@ -131,10 +161,7 @@ export const Navigation = () => {
             </div>
           </div>
           
-          <Button variant="ghost" size="sm" onClick={signOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Sair</span>
-          </Button>
+          <UserProfileDropdown />
         </div>
       </div>
     </nav>
