@@ -150,38 +150,61 @@ const IncomeStatement = () => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const exportToCSV = () => {
-    if (!dreData) return;
+  const exportToPDF = async () => {
+    const jsPDF = (await import('jspdf')).default;
+    const autoTable = (await import('jspdf-autotable')).default;
+    const { addPDFHeader, formatCurrency } = await import('@/lib/pdfGenerator');
+    
+    const doc = new jsPDF();
 
-    const rows: string[][] = [
-      ['DEMONSTRAÇÃO DO RESULTADO DO EXERCÍCIO'],
-      [`Período: ${format(new Date(startDate), 'dd/MM/yyyy')} até ${format(new Date(endDate), 'dd/MM/yyyy')}`],
-      [''],
-      ['RECEITAS'],
-    ];
+    // Buscar informações da igreja
+    const { data: churchData } = await supabase
+      .from('churches')
+      .select('church_name, address, city, state, postal_code, cnpj')
+      .single();
 
+    const yStart = addPDFHeader(doc, {
+      documentTitle: 'Demonstração do Resultado do Exercício (DRE)',
+      churchInfo: churchData || { church_name: 'Igreja' },
+      period: `${new Date(startDate).toLocaleDateString('pt-BR')} a ${new Date(endDate).toLocaleDateString('pt-BR')}`,
+      pageNumber: 1,
+    });
+
+    const tableData: any[] = [];
+
+    // Receitas
+    tableData.push(['RECEITAS', '', '']);
     dreData.receitas.forEach(item => {
-      rows.push([item.codigo, item.nome, item.valor.toFixed(2)]);
+      const indent = '  '.repeat(item.nivel - 1);
+      tableData.push([item.codigo, indent + item.nome, formatCurrency(item.valor)]);
     });
+    tableData.push(['', 'Total de Receitas', formatCurrency(dreData.totalReceitas)]);
+    tableData.push(['', '', '']);
 
-    rows.push(['', 'TOTAL DE RECEITAS', dreData.totalReceitas.toFixed(2)]);
-    rows.push(['']);
-    rows.push(['DESPESAS']);
-
+    // Despesas
+    tableData.push(['DESPESAS', '', '']);
     dreData.despesas.forEach(item => {
-      rows.push([item.codigo, item.nome, item.valor.toFixed(2)]);
+      const indent = '  '.repeat(item.nivel - 1);
+      tableData.push([item.codigo, indent + item.nome, formatCurrency(item.valor)]);
+    });
+    tableData.push(['', 'Total de Despesas', formatCurrency(dreData.totalDespesas)]);
+    tableData.push(['', '', '']);
+
+    // Resultado
+    const resultado = dreData.totalReceitas - dreData.totalDespesas;
+    const resultadoLabel = resultado >= 0 ? 'SUPERÁVIT DO PERÍODO' : 'DÉFICIT DO PERÍODO';
+    tableData.push(['', resultadoLabel, formatCurrency(Math.abs(resultado))]);
+
+    autoTable(doc, {
+      startY: yStart,
+      head: [['Código', 'Descrição', 'Valor']],
+      body: tableData,
+      theme: 'grid',
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [66, 66, 66] },
     });
 
-    rows.push(['', 'TOTAL DE DESPESAS', dreData.totalDespesas.toFixed(2)]);
-    rows.push(['']);
-    rows.push(['', 'RESULTADO DO PERÍODO', dreData.resultado.toFixed(2)]);
-
-    const csv = rows.map(row => row.join(';')).join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `dre_${startDate}_${endDate}.csv`;
-    link.click();
+    doc.save(`dre_${startDate}_${endDate}.pdf`);
   };
 
   return (
@@ -244,9 +267,9 @@ const IncomeStatement = () => {
                   <p className="text-sm text-muted-foreground">
                     Período: {format(new Date(startDate), 'dd/MM/yyyy')} até {format(new Date(endDate), 'dd/MM/yyyy')}
                   </p>
-                  <Button onClick={exportToCSV} variant="outline" size="sm">
+                  <Button onClick={exportToPDF} variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-2" />
-                    Exportar CSV
+                    Baixar PDF
                   </Button>
                 </div>
 

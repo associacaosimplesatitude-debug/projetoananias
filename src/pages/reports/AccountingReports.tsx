@@ -147,32 +147,62 @@ const AccountingReports = () => {
   const calculateTotals = () => {
     const totalDebitos = balanceData.reduce((sum, line) => sum + line.debitos, 0);
     const totalCreditos = balanceData.reduce((sum, line) => sum + line.creditos, 0);
-    return { totalDebitos, totalCreditos };
+    const totalSaldoAnterior = balanceData.reduce((sum, line) => sum + line.saldoAnterior, 0);
+    const totalSaldoAtual = balanceData.reduce((sum, line) => sum + line.saldoAtual, 0);
+    return { totalDebitos, totalCreditos, totalSaldoAnterior, totalSaldoAtual };
   };
 
-  const exportToCSV = () => {
-    if (balanceData.length === 0) return;
+  const exportToPDF = async () => {
+    const jsPDF = (await import('jspdf')).default;
+    const autoTable = (await import('jspdf-autotable')).default;
+    const { addPDFHeader, formatCurrency } = await import('@/lib/pdfGenerator');
+    
+    const doc = new jsPDF();
 
-    const headers = ['Código', 'Nome da Conta', 'Natureza', 'Saldo Anterior', 'Débitos', 'Créditos', 'Saldo Atual'];
-    const rows = balanceData.map(line => [
-      line.codigoConta,
-      line.nomeConta,
-      line.natureza,
-      line.saldoAnterior.toFixed(2),
-      line.debitos.toFixed(2),
-      line.creditos.toFixed(2),
-      line.saldoAtual.toFixed(2),
+    // Buscar informações da igreja
+    const { data: churchData } = await supabase
+      .from('churches')
+      .select('church_name, address, city, state, postal_code, cnpj')
+      .single();
+
+    const yStart = addPDFHeader(doc, {
+      documentTitle: 'Balancete Analítico',
+      churchInfo: churchData || { church_name: 'Igreja' },
+      period: `${new Date(startDate).toLocaleDateString('pt-BR')} a ${new Date(endDate).toLocaleDateString('pt-BR')}`,
+      pageNumber: 1,
+    });
+
+    const tableData = balanceData.map(item => [
+      item.codigoConta,
+      item.nomeConta,
+      item.natureza,
+      formatCurrency(item.saldoAnterior),
+      formatCurrency(item.debitos),
+      formatCurrency(item.creditos),
+      formatCurrency(item.saldoAtual),
     ]);
 
-    const { totalDebitos, totalCreditos } = calculateTotals();
-    rows.push(['', '', 'TOTAIS', '', totalDebitos.toFixed(2), totalCreditos.toFixed(2), '']);
+    const totals = calculateTotals();
+    tableData.push([
+      '',
+      'TOTAIS',
+      '',
+      formatCurrency(totals.totalSaldoAnterior),
+      formatCurrency(totals.totalDebitos),
+      formatCurrency(totals.totalCreditos),
+      formatCurrency(totals.totalSaldoAtual),
+    ]);
 
-    const csv = [headers, ...rows].map(row => row.join(';')).join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `balancete_${startDate}_${endDate}.csv`;
-    link.click();
+    autoTable(doc, {
+      startY: yStart,
+      head: [['Código', 'Conta', 'Natureza', 'Saldo Anterior', 'Débitos', 'Créditos', 'Saldo Atual']],
+      body: tableData,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [66, 66, 66] },
+    });
+
+    doc.save(`balancete_${startDate}_${endDate}.pdf`);
   };
 
   const totals = balanceData.length > 0 ? calculateTotals() : null;
@@ -239,9 +269,9 @@ const AccountingReports = () => {
                   <p className="text-sm text-muted-foreground">
                     Período: {format(new Date(startDate), 'dd/MM/yyyy')} até {format(new Date(endDate), 'dd/MM/yyyy')}
                   </p>
-                  <Button onClick={exportToCSV} variant="outline" size="sm">
+                  <Button onClick={exportToPDF} variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-2" />
-                    Exportar CSV
+                    Baixar PDF
                   </Button>
                 </div>
 

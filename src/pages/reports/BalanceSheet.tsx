@@ -199,52 +199,64 @@ const BalanceSheet = () => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const exportToCSV = () => {
-    if (!balanceData) return;
+  const exportToPDF = async () => {
+    const jsPDF = (await import('jspdf')).default;
+    const autoTable = (await import('jspdf-autotable')).default;
+    const { addPDFHeader, formatCurrency } = await import('@/lib/pdfGenerator');
+    
+    const doc = new jsPDF();
 
-    const rows: string[][] = [
-      ['BALANÇO PATRIMONIAL'],
-      [`Data: ${format(new Date(balanceDate), 'dd/MM/yyyy')}`],
-      [''],
-      ['ATIVO'],
-    ];
+    // Buscar informações da igreja
+    const { data: churchData } = await supabase
+      .from('churches')
+      .select('church_name, address, city, state, postal_code, cnpj')
+      .single();
 
+    const yStart = addPDFHeader(doc, {
+      documentTitle: 'Balanço Patrimonial',
+      churchInfo: churchData || { church_name: 'Igreja' },
+      period: `Posição em ${new Date(balanceDate).toLocaleDateString('pt-BR')}`,
+      pageNumber: 1,
+    });
+
+    const tableData: any[] = [];
+
+    // Ativo
+    tableData.push(['ATIVO', '']);
     balanceData.ativo.forEach(item => {
-      if (item.valor !== 0 || item.tipo === 'Sintética') {
-        rows.push([item.codigo, item.nome, item.valor.toFixed(2)]);
-      }
+      const indent = '  '.repeat(item.nivel - 1);
+      tableData.push([indent + item.nome, formatCurrency(item.valor)]);
     });
+    tableData.push(['Total do Ativo', formatCurrency(balanceData.totalAtivo)]);
+    tableData.push(['', '']);
 
-    rows.push(['', 'TOTAL DO ATIVO', balanceData.totalAtivo.toFixed(2)]);
-    rows.push(['']);
-    rows.push(['PASSIVO']);
-
+    // Passivo
+    tableData.push(['PASSIVO', '']);
     balanceData.passivo.forEach(item => {
-      if (item.valor !== 0 || item.tipo === 'Sintética') {
-        rows.push([item.codigo, item.nome, item.valor.toFixed(2)]);
-      }
+      const indent = '  '.repeat(item.nivel - 1);
+      tableData.push([indent + item.nome, formatCurrency(item.valor)]);
     });
+    tableData.push(['Total do Passivo', formatCurrency(balanceData.totalPassivo)]);
+    tableData.push(['', '']);
 
-    rows.push(['', 'TOTAL DO PASSIVO', balanceData.totalPassivo.toFixed(2)]);
-    rows.push(['']);
-    rows.push(['PATRIMÔNIO LÍQUIDO']);
-
+    // Patrimônio Líquido
+    tableData.push(['PATRIMÔNIO LÍQUIDO', '']);
     balanceData.patrimonioLiquido.forEach(item => {
-      if (item.valor !== 0 || item.tipo === 'Sintética') {
-        rows.push([item.codigo, item.nome, item.valor.toFixed(2)]);
-      }
+      const indent = '  '.repeat(item.nivel - 1);
+      tableData.push([indent + item.nome, formatCurrency(item.valor)]);
+    });
+    tableData.push(['Total do Patrimônio Líquido', formatCurrency(balanceData.totalPatrimonioLiquido)]);
+
+    autoTable(doc, {
+      startY: yStart,
+      head: [['Descrição', 'Valor']],
+      body: tableData,
+      theme: 'grid',
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [66, 66, 66] },
     });
 
-    rows.push(['', 'TOTAL DO PATRIMÔNIO LÍQUIDO', balanceData.totalPatrimonioLiquido.toFixed(2)]);
-    rows.push(['']);
-    rows.push(['', 'TOTAL DO PASSIVO + PL', (balanceData.totalPassivo + balanceData.totalPatrimonioLiquido).toFixed(2)]);
-
-    const csv = rows.map(row => row.join(';')).join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `balanco_patrimonial_${balanceDate}.csv`;
-    link.click();
+    doc.save(`balanco_${balanceDate}.pdf`);
   };
 
   const totalPassivoEPL = balanceData 
@@ -304,9 +316,9 @@ const BalanceSheet = () => {
                   <p className="text-sm text-muted-foreground">
                     Data: {format(new Date(balanceDate), 'dd/MM/yyyy')}
                   </p>
-                  <Button onClick={exportToCSV} variant="outline" size="sm">
+                  <Button onClick={exportToPDF} variant="outline" size="sm">
                     <Download className="h-4 w-4 mr-2" />
-                    Exportar CSV
+                    Baixar PDF
                   </Button>
                 </div>
 
