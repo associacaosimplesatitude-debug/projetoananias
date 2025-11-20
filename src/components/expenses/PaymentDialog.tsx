@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -78,12 +78,12 @@ export const PaymentDialog = ({ open, onOpenChange, bill, onConfirm }: PaymentDi
   };
 
   // Set default values when bill changes
-  useState(() => {
+  useEffect(() => {
     if (bill && open) {
       setPaidDate(new Date().toISOString().split('T')[0]);
       setPaidAmount(bill.amount.toString());
     }
-  });
+  }, [bill, open]);
 
   if (!bill) return null;
 
