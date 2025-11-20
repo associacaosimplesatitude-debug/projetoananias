@@ -34,12 +34,11 @@ export const Navigation = () => {
   }, [user, role]);
 
   const clientNavItems = [
-    ...(processStatus === 'in_progress' ? [{
-      to: '/',
-      icon: Church,
-      label: 'Abertura',
-      exact: true,
-    }] : []),
+    {
+      to: '/dashboard',
+      icon: LayoutDashboard,
+      label: 'Dashboard',
+    },
     {
       to: '/members',
       icon: Users,
@@ -56,11 +55,6 @@ export const Navigation = () => {
       label: 'Despesas',
     },
     {
-      to: '/dashboard',
-      icon: LayoutDashboard,
-      label: 'Dashboard',
-    },
-    {
       to: '/bank-accounts',
       icon: Building2,
       label: 'Contas Bancárias',
@@ -70,6 +64,12 @@ export const Navigation = () => {
       icon: ArrowLeftRight,
       label: 'Transferências',
     },
+    ...(processStatus === 'in_progress' ? [{
+      to: '/',
+      icon: Church,
+      label: 'Abertura',
+      exact: true,
+    }] : []),
   ];
 
   const accountingMenuItems = [
@@ -126,14 +126,14 @@ export const Navigation = () => {
 
   const secretarioNavItems = [
     {
-      to: '/members',
-      icon: Users,
-      label: 'Membros',
-    },
-    {
       to: '/dashboard',
       icon: LayoutDashboard,
       label: 'Dashboard',
+    },
+    {
+      to: '/members',
+      icon: Users,
+      label: 'Membros',
     },
   ];
 
