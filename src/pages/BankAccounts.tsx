@@ -114,7 +114,10 @@ const BankAccounts = () => {
         });
       } else {
         // Insert
-        const { error } = await supabase
+        const initialBalance = parseFloat(formData.initial_balance);
+        
+        // 1. Inserir a conta bancária
+        const { error: accountError } = await supabase
           .from('bank_accounts')
           .insert({
             church_id: churchId,
@@ -122,15 +125,41 @@ const BankAccounts = () => {
             agency: formData.agency,
             account_number: formData.account_number,
             account_type: formData.account_type,
-            initial_balance: parseFloat(formData.initial_balance),
+            initial_balance: initialBalance,
             initial_balance_date: formData.initial_balance_date,
           });
 
-        if (error) throw error;
+        if (accountError) throw accountError;
+
+        // 2. Se houver saldo inicial, criar lançamento contábil de abertura
+        if (initialBalance > 0) {
+          const { error: entryError } = await supabase
+            .from('lancamentos_contabeis')
+            .insert({
+              church_id: churchId,
+              data: formData.initial_balance_date,
+              conta_debito: '1.1.2.01', // Contas Correntes (Ativo)
+              conta_credito: '3.1.1.01', // Capital Social / Fundo Patrimonial
+              valor: initialBalance,
+              historico: `Lançamento de Saldo Inicial - ${formData.bank_name}`,
+              documento: `Abertura de Conta - ${formData.account_number}`,
+            });
+
+          if (entryError) {
+            console.error('Erro ao criar lançamento de abertura:', entryError);
+            // Não bloqueia o cadastro da conta, mas avisa o usuário
+            toast({
+              title: 'Atenção',
+              description: 'Conta cadastrada, mas houve um erro ao registrar o saldo inicial no sistema contábil.',
+              variant: 'destructive',
+            });
+            return;
+          }
+        }
 
         toast({
           title: 'Conta cadastrada!',
-          description: 'A conta bancária foi cadastrada com sucesso.',
+          description: 'A conta bancária foi cadastrada e o saldo inicial foi registrado no sistema contábil.',
         });
       }
 
