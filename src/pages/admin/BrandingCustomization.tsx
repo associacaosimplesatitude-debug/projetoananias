@@ -13,11 +13,13 @@ export default function BrandingCustomization() {
 
   const [navColor, setNavColor] = useState(settings?.nav_background_color || '#1a2d40');
   const [accentColor, setAccentColor] = useState(settings?.accent_color || '#c89c5a');
+  const [navTextColor, setNavTextColor] = useState(settings?.nav_text_color || '#ffffff');
 
   React.useEffect(() => {
     if (settings) {
       setNavColor(settings.nav_background_color);
       setAccentColor(settings.accent_color);
+      setNavTextColor(settings.nav_text_color);
     }
   }, [settings]);
 
@@ -39,6 +41,7 @@ export default function BrandingCustomization() {
     updateSettings.mutate({
       nav_background_color: navColor,
       accent_color: accentColor,
+      nav_text_color: navTextColor,
     });
   };
 
@@ -184,6 +187,33 @@ export default function BrandingCustomization() {
               />
             </div>
 
+            {/* Nav Text Color */}
+            <div className="space-y-3">
+              <Label htmlFor="nav-text-color">Cor da Fonte do Menu</Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="nav-text-color"
+                  type="color"
+                  value={navTextColor}
+                  onChange={(e) => setNavTextColor(e.target.value)}
+                  className="w-20 h-12 cursor-pointer"
+                />
+                <Input
+                  type="text"
+                  value={navTextColor}
+                  onChange={(e) => setNavTextColor(e.target.value)}
+                  placeholder="#ffffff"
+                  className="flex-1"
+                />
+              </div>
+              <div
+                className="h-12 rounded-md border flex items-center justify-center font-medium"
+                style={{ backgroundColor: navColor, color: navTextColor }}
+              >
+                Texto do Menu
+              </div>
+            </div>
+
             <Button
               onClick={handleSaveColors}
               disabled={updateSettings.isPending}
@@ -209,8 +239,8 @@ export default function BrandingCustomization() {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <div
-                  className="px-4 py-2 rounded-md text-white font-medium"
-                  style={{ backgroundColor: navColor }}
+                  className="px-4 py-2 rounded-md font-medium"
+                  style={{ backgroundColor: navColor, color: navTextColor }}
                 >
                   Barra de Navegação
                 </div>
