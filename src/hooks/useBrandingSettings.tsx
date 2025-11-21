@@ -10,6 +10,7 @@ export interface BrandingSettings {
   login_logo_url: string | null;
   nav_background_color: string;
   accent_color: string;
+  nav_text_color: string;
 }
 
 export const useBrandingSettings = () => {

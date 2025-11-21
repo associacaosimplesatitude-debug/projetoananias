@@ -333,6 +333,7 @@ export type Database = {
           login_logo_url: string | null
           nav_background_color: string | null
           nav_logo_url: string | null
+          nav_text_color: string | null
           updated_at: string
         }
         Insert: {
@@ -342,6 +343,7 @@ export type Database = {
           login_logo_url?: string | null
           nav_background_color?: string | null
           nav_logo_url?: string | null
+          nav_text_color?: string | null
           updated_at?: string
         }
         Update: {
@@ -351,6 +353,7 @@ export type Database = {
           login_logo_url?: string | null
           nav_background_color?: string | null
           nav_logo_url?: string | null
+          nav_text_color?: string | null
           updated_at?: string
         }
         Relationships: []
