@@ -325,6 +325,36 @@ export type Database = {
           },
         ]
       }
+      branding_settings: {
+        Row: {
+          accent_color: string | null
+          created_at: string
+          id: string
+          login_logo_url: string | null
+          nav_background_color: string | null
+          nav_logo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          created_at?: string
+          id?: string
+          login_logo_url?: string | null
+          nav_background_color?: string | null
+          nav_logo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          created_at?: string
+          id?: string
+          login_logo_url?: string | null
+          nav_background_color?: string | null
+          nav_logo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       church_documents: {
         Row: {
           church_id: string

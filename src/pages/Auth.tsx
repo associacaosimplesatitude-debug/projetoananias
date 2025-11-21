@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import logoAnanias from '@/assets/logo_ananias.png';
+import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
@@ -25,6 +26,7 @@ export default function Auth() {
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { data: brandingSettings } = useBrandingSettings();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -143,12 +145,15 @@ export default function Auth() {
     }
   };
 
+  const loginLogoUrl = brandingSettings?.login_logo_url || logoAnanias;
+  const accentColor = brandingSettings?.accent_color || '#c89c5a';
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
           <div className="flex justify-center">
-            <img src={logoAnanias} alt="Logo Projeto Ananias" className="h-20" />
+            <img src={loginLogoUrl} alt="Logo" className="h-20" />
           </div>
           <CardTitle className="text-2xl font-bold text-center">
             {isLogin ? 'Fazer Login' : 'Criar Conta'}
@@ -199,7 +204,12 @@ export default function Auth() {
               />
             </div>
             
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={loading}
+              style={{ backgroundColor: accentColor, color: 'white' }}
+            >
               {loading ? 'Processando...' : (isLogin ? 'Entrar' : 'Criar Conta')}
             </Button>
           </form>
@@ -208,7 +218,8 @@ export default function Auth() {
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline font-medium"
+              className="hover:underline font-medium"
+              style={{ color: accentColor }}
             >
               {isLogin 
                 ? 'Não tem uma conta? Cadastre-se' 
