@@ -5,7 +5,14 @@ export type MemberCargo =
   | 'Diácono' 
   | 'Presbítero' 
   | 'Diaconisa' 
-  | 'Pastor';
+  | 'Pastor'
+  | 'Pastora'
+  | 'Evangelista'
+  | 'Missionário'
+  | 'Missionária'
+  | 'Apóstolo'
+  | 'Bispo'
+  | 'Bispa';
 
 export type Gender = 'Masculino' | 'Feminino';
 

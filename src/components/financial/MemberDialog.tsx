@@ -22,6 +22,13 @@ const defaultCargos: MemberCargo[] = [
   'Presbítero',
   'Diaconisa',
   'Pastor',
+  'Pastora',
+  'Evangelista',
+  'Missionário',
+  'Missionária',
+  'Apóstolo',
+  'Bispo',
+  'Bispa',
 ];
 
 interface MemberDialogProps {
