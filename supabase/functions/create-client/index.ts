@@ -49,6 +49,11 @@ serve(async (req) => {
 
     const { churchData, password } = await req.json();
 
+    // Validar client_type
+    if (!churchData.client_type || !['igreja', 'associacao'].includes(churchData.client_type)) {
+      churchData.client_type = 'igreja'; // Default
+    }
+
     // Create user with admin API (doesn't change current session)
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: churchData.pastor_email,
@@ -85,6 +90,7 @@ serve(async (req) => {
         postal_code: churchData.postal_code,
         monthly_fee: churchData.monthly_fee,
         payment_due_day: churchData.payment_due_day,
+        client_type: churchData.client_type || 'igreja',
         user_id: newUser.user.id,
         process_status: churchData.has_cnpj ? 'completed' : 'in_progress',
         current_stage: churchData.has_cnpj ? 6 : 1,

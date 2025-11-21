@@ -24,8 +24,12 @@ export default function AdminDashboard() {
     receivable: 0,
     payable: 0,
     totalClients: 0,
+    totalIgrejas: 0,
+    totalAssociacoes: 0,
     completedFunnels: 0,
     overdueReceivable: 0,
+    receivableIgrejas: 0,
+    receivableAssociacoes: 0,
   });
   const [funnelData, setFunnelData] = useState<FunnelData[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
@@ -46,6 +50,7 @@ export default function AdminDashboard() {
       { count: clientCount },
       { count: completedCount },
       { data: overdueData },
+      { data: churchesData },
     ] = await Promise.all([
       supabase
         .from('church_stage_progress')
@@ -53,7 +58,7 @@ export default function AdminDashboard() {
         .neq('status', 'completed'),
       supabase
         .from('accounts_receivable')
-        .select('amount')
+        .select('amount, churches!inner(client_type)')
         .eq('status', 'open'),
       supabase
         .from('accounts_payable')
@@ -71,19 +76,39 @@ export default function AdminDashboard() {
         .select('amount')
         .eq('status', 'open')
         .lt('due_date', today),
+      supabase
+        .from('churches')
+        .select('client_type'),
     ]);
 
     const totalReceivable = receivableData?.reduce((sum, item) => sum + Number(item.amount), 0) || 0;
     const totalPayable = payableData?.reduce((sum, item) => sum + Number(item.amount), 0) || 0;
     const totalOverdue = overdueData?.reduce((sum, item) => sum + Number(item.amount), 0) || 0;
 
+    // Calcular totais por tipo
+    const totalIgrejas = churchesData?.filter(c => c.client_type === 'igreja').length || 0;
+    const totalAssociacoes = churchesData?.filter(c => c.client_type === 'associacao').length || 0;
+
+    // Calcular contas a receber por tipo
+    const receivableIgrejas = receivableData
+      ?.filter((item: any) => item.churches?.client_type === 'igreja')
+      .reduce((sum, item) => sum + Number(item.amount), 0) || 0;
+    
+    const receivableAssociacoes = receivableData
+      ?.filter((item: any) => item.churches?.client_type === 'associacao')
+      .reduce((sum, item) => sum + Number(item.amount), 0) || 0;
+
     setStats({
       pendingTasks: pendingCount || 0,
       receivable: totalReceivable,
       payable: totalPayable,
       totalClients: clientCount || 0,
+      totalIgrejas,
+      totalAssociacoes,
       completedFunnels: completedCount || 0,
       overdueReceivable: totalOverdue,
+      receivableIgrejas,
+      receivableAssociacoes,
     });
   };
 
@@ -153,7 +178,29 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalClients}</div>
+              <p className="text-xs text-muted-foreground">Cadastrados</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total de Igrejas</CardTitle>
+              <Users className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalIgrejas}</div>
               <p className="text-xs text-muted-foreground">Igrejas cadastradas</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total de Associações</CardTitle>
+              <Users className="h-4 w-4 text-secondary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalAssociacoes}</div>
+              <p className="text-xs text-muted-foreground">Associações cadastradas</p>
             </CardContent>
           </Card>
 
@@ -170,12 +217,25 @@ export default function AdminDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Contas a Receber</CardTitle>
+              <CardTitle className="text-sm font-medium">Contas a Receber - Igrejas</CardTitle>
               <DollarSign className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.receivable)}
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.receivableIgrejas)}
+              </div>
+              <p className="text-xs text-muted-foreground">Em aberto</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Contas a Receber - Associações</CardTitle>
+              <DollarSign className="h-4 w-4 text-success" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.receivableAssociacoes)}
               </div>
               <p className="text-xs text-muted-foreground">Em aberto</p>
             </CardContent>
