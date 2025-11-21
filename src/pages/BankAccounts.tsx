@@ -133,6 +133,7 @@ const BankAccounts = () => {
 
         // 2. Se houver saldo inicial, criar lançamento contábil de abertura
         if (initialBalance > 0) {
+          // 2.1 Lançamento no Livro Diário (lancamentos_contabeis)
           const { error: entryError } = await supabase
             .from('lancamentos_contabeis')
             .insert({
@@ -150,7 +151,31 @@ const BankAccounts = () => {
             // Não bloqueia o cadastro da conta, mas avisa o usuário
             toast({
               title: 'Atenção',
-              description: 'Conta cadastrada, mas houve um erro ao registrar o saldo inicial no sistema contábil.',
+              description:
+                'Conta cadastrada, mas houve um erro ao registrar o saldo inicial no sistema contábil.',
+              variant: 'destructive',
+            });
+            return;
+          }
+
+          // 2.2 Lançamento nas Entradas financeiras para integração com o Dashboard
+          const { error: financialEntryError } = await supabase
+            .from('financial_entries')
+            .insert({
+              church_id: churchId,
+              data: formData.initial_balance_date,
+              tipo: '1.1.2.01', // Usa a conta de Contas Correntes apenas para fins de agrupamento
+              descricao: `Saldo inicial da conta bancária - ${formData.bank_name}`,
+              valor: initialBalance,
+              payment_account: `${formData.bank_name} - Ag: ${formData.agency} - Conta: ${formData.account_number}`,
+            });
+
+          if (financialEntryError) {
+            console.error('Erro ao criar entrada financeira de saldo inicial:', financialEntryError);
+            toast({
+              title: 'Atenção',
+              description:
+                'Conta cadastrada, mas houve um erro ao integrar o saldo inicial com o Dashboard financeiro.',
               variant: 'destructive',
             });
             return;
@@ -159,7 +184,8 @@ const BankAccounts = () => {
 
         toast({
           title: 'Conta cadastrada!',
-          description: 'A conta bancária foi cadastrada e o saldo inicial foi registrado no sistema contábil.',
+          description:
+            'A conta bancária foi cadastrada e o saldo inicial foi registrado no sistema contábil.',
         });
       }
 
