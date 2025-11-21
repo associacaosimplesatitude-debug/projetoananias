@@ -48,22 +48,22 @@ export const ImportMembersDialog = ({
   // Available system fields
   const systemFields = [
     { value: 'ignore', label: 'Ignorar esta coluna' },
-    { value: 'nome_completo', label: 'Nome Completo' },
-    { value: 'cargo', label: 'Cargo' },
-    { value: 'sexo', label: 'Sexo' },
-    { value: 'estado_civil', label: 'Estado Civil' },
-    { value: 'data_aniversario', label: 'Data de Nascimento' },
     { value: 'avatar_url', label: 'Foto de Perfil (URL)' },
-    { value: 'whatsapp', label: 'Telefone/WhatsApp' },
-    { value: 'email', label: 'Email' },
-    { value: 'endereco', label: 'Endereço Completo' },
+    { value: 'nome_completo', label: 'Nome Completo' },
+    { value: 'cep', label: 'CEP' },
     { value: 'rua', label: 'Rua' },
     { value: 'numero', label: 'Número' },
+    { value: 'complemento', label: 'Complemento' },
     { value: 'bairro', label: 'Bairro' },
     { value: 'cidade', label: 'Cidade' },
     { value: 'estado', label: 'Estado' },
-    { value: 'cep', label: 'CEP' },
-    { value: 'complemento', label: 'Complemento' },
+    { value: 'data_aniversario', label: 'Data de Aniversário' },
+    { value: 'sexo', label: 'Sexo' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'email', label: 'E-mail' },
+    { value: 'estado_civil', label: 'Estado Civil' },
+    { value: 'cargo', label: 'Cargo' },
+    { value: 'endereco', label: 'Endereço Completo' },
   ];
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -250,16 +250,57 @@ export const ImportMembersDialog = ({
       complemento: '',
     };
     
-    const parts = address.split(',').map(p => p.trim());
-    return {
-      rua: parts[0] || '',
-      numero: parts[1] || '',
-      bairro: parts[2] || '',
-      cidade: parts[3] || '',
-      estado: parts[4] || '',
+    const result = {
+      rua: '',
+      numero: '',
+      bairro: '',
+      cidade: '',
+      estado: '',
       cep: '',
       complemento: '',
     };
+    
+    try {
+      // Extract CEP (formato XXXXX-XXX)
+      const cepMatch = address.match(/\d{5}-?\d{3}/);
+      if (cepMatch) {
+        result.cep = cepMatch[0].replace(/(\d{5})(\d{3})/, '$1-$2');
+      }
+      
+      // Extract Estado (sigla de 2 letras maiúsculas)
+      const estadoMatch = address.match(/\b([A-Z]{2})\b/);
+      if (estadoMatch) {
+        result.estado = estadoMatch[1];
+      }
+      
+      // Extract Número (após vírgula, antes de hífen ou próxima vírgula)
+      const numeroMatch = address.match(/,\s*(\d+)/);
+      if (numeroMatch) {
+        result.numero = numeroMatch[1];
+      }
+      
+      // Extract Rua (tudo antes da primeira vírgula)
+      const ruaMatch = address.match(/^([^,]+)/);
+      if (ruaMatch) {
+        result.rua = ruaMatch[1].trim();
+      }
+      
+      // Extract Bairro (depois de hífen e antes da próxima vírgula)
+      const bairroMatch = address.match(/-\s*([^,]+),/);
+      if (bairroMatch) {
+        result.bairro = bairroMatch[1].trim();
+      }
+      
+      // Extract Cidade (depois do bairro e antes do estado ou hífen)
+      const cidadeMatch = address.match(/,\s*([^,-]+)\s*[-,]\s*[A-Z]{2}/);
+      if (cidadeMatch) {
+        result.cidade = cidadeMatch[1].trim();
+      }
+    } catch (error) {
+      console.error('Error parsing address:', error);
+    }
+    
+    return result;
   };
 
   const mapRowDataToMember = async (row: any) => {
