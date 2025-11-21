@@ -57,6 +57,7 @@ const Members = () => {
             sexo: m.sexo as 'Masculino' | 'Feminino',
             whatsapp: m.whatsapp,
             cargo: m.cargo,
+            avatarUrl: m.avatar_url || undefined,
             createdAt: m.created_at,
           }));
           setMembers(formattedMembers);
@@ -110,6 +111,7 @@ const Members = () => {
             sexo: memberData.sexo,
             whatsapp: memberData.whatsapp,
             cargo: memberData.cargo,
+            avatar_url: memberData.avatarUrl || null,
           })
           .eq('id', editingMember.id);
 
@@ -142,6 +144,7 @@ const Members = () => {
             sexo: memberData.sexo,
             whatsapp: memberData.whatsapp,
             cargo: memberData.cargo,
+            avatar_url: memberData.avatarUrl || null,
           })
           .select()
           .single();
@@ -163,6 +166,7 @@ const Members = () => {
             sexo: data.sexo as 'Masculino' | 'Feminino',
             whatsapp: data.whatsapp,
             cargo: data.cargo,
+            avatarUrl: data.avatar_url || undefined,
             createdAt: data.created_at,
           };
           setMembers((prev) => [newMember, ...prev]);

@@ -13,6 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Member, MemberCargo, Gender } from '@/types/financial';
 import { useClientType } from '@/hooks/useClientType';
+import { ImageCropDialog } from './ImageCropDialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Upload, User } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const defaultCargos: MemberCargo[] = [
   'Membro',
@@ -53,8 +58,12 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
     sexo: '' as Gender,
     whatsapp: '',
     cargo: '' as string,
+    avatarUrl: '' as string,
   });
   const [loadingCep, setLoadingCep] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showCropDialog, setShowCropDialog] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     if (member) {
@@ -71,6 +80,7 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
         sexo: member.sexo,
         whatsapp: member.whatsapp,
         cargo: member.cargo,
+        avatarUrl: member.avatarUrl || '',
       });
     } else {
       setFormData({
@@ -86,6 +96,7 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
         sexo: '' as Gender,
         whatsapp: '',
         cargo: '',
+        avatarUrl: '',
       });
     }
   }, [member, open]);
@@ -115,6 +126,53 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
     }
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('A imagem deve ter no máximo 5MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSelectedImage(reader.result as string);
+        setShowCropDialog(true);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCropComplete = async (croppedImageBlob: Blob) => {
+    setUploadingImage(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const fileName = `${user.id}/${Date.now()}.jpg`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('profile-avatars')
+        .upload(fileName, croppedImageBlob, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('profile-avatars')
+        .getPublicUrl(fileName);
+
+      setFormData({ ...formData, avatarUrl: publicUrl });
+      toast.success('Foto carregada com sucesso!');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Erro ao fazer upload da imagem');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
@@ -133,6 +191,37 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Foto de Perfil (Opcional)</Label>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={formData.avatarUrl} />
+                  <AvatarFallback>
+                    <User className="h-10 w-10" />
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                    id="avatar-upload"
+                    disabled={uploadingImage}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('avatar-upload')?.click()}
+                    disabled={uploadingImage}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploadingImage ? 'Carregando...' : 'Escolher Foto'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="nome">Nome Completo *</Label>
               <Input
@@ -287,6 +376,13 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <ImageCropDialog
+        open={showCropDialog}
+        onOpenChange={setShowCropDialog}
+        imageSrc={selectedImage || ''}
+        onCropComplete={handleCropComplete}
+      />
     </Dialog>
   );
 };

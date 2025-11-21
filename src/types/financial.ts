@@ -30,6 +30,7 @@ export interface Member {
   sexo: Gender;
   whatsapp: string;
   cargo: MemberCargo | string;
+  avatarUrl?: string;
   createdAt: string;
 }
 

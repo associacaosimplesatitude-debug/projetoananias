@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { User, Phone, MapPin, Calendar, Edit, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface MemberCardProps {
   member: Member;
@@ -32,9 +33,12 @@ export const MemberCard = ({ member, onEdit, onDelete }: MemberCardProps) => {
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 flex-1">
-            <div className="flex items-center justify-center h-10 w-10 rounded-full bg-primary/10 text-primary shrink-0">
-              <User className="h-5 w-5" />
-            </div>
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarImage src={member.avatarUrl} />
+              <AvatarFallback className="bg-primary/10 text-primary">
+                <User className="h-5 w-5" />
+              </AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold truncate">{member.nomeCompleto}</h3>
               <Badge variant="secondary" className="mt-1">

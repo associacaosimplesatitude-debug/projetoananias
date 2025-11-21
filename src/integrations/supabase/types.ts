@@ -451,6 +451,7 @@ export type Database = {
       }
       church_members: {
         Row: {
+          avatar_url: string | null
           bairro: string
           cargo: string
           cep: string
@@ -470,6 +471,7 @@ export type Database = {
           whatsapp: string
         }
         Insert: {
+          avatar_url?: string | null
           bairro?: string
           cargo: string
           cep?: string
@@ -489,6 +491,7 @@ export type Database = {
           whatsapp: string
         }
         Update: {
+          avatar_url?: string | null
           bairro?: string
           cargo?: string
           cep?: string
