@@ -227,7 +227,7 @@ export default function AdminClients() {
         .from('profiles')
         .select('id')
         .eq('email', formData.pastor_email.trim())
-        .single();
+        .maybeSingle();
 
       if (existingProfile) {
         toast({
@@ -256,15 +256,24 @@ export default function AdminClients() {
       });
 
       if (createError) {
-        if (createError.message?.includes('already registered')) {
+        throw createError;
+      }
+
+      // Verificar se a resposta contém erro
+      if (data && data.error) {
+        if (data.error.includes('already registered') || data.error.includes('already been registered')) {
           toast({
             title: 'Erro',
-            description: 'Este email já está cadastrado no sistema.',
+            description: 'Este email já está cadastrado no sistema. Use um email diferente.',
             variant: 'destructive',
           });
           return;
         }
-        throw createError;
+        throw new Error(data.error);
+      }
+
+      if (!data || !data.success) {
+        throw new Error('Erro ao criar cliente');
       }
 
       // Enviar email com dados de acesso
