@@ -19,6 +19,11 @@ const FinancialDashboard = () => {
   const [expenses, setExpenses] = useState<Array<{ categoria: string; valor: number }>>([]);
   const [totalEntriesAllTime, setTotalEntriesAllTime] = useState(0);
   const [totalExpensesAllTime, setTotalExpensesAllTime] = useState(0);
+  const [bankBalances, setBankBalances] = useState<Array<{
+    account: string;
+    balance: number;
+    isCash: boolean;
+  }>>([]);
   const [members, setMembers] = useState<Array<{
     id: string;
     nome_completo: string;
@@ -76,10 +81,10 @@ const FinancialDashboard = () => {
       const currentMonth = currentDate.getMonth() + 1;
       const currentYear = currentDate.getFullYear();
 
-      // Buscar entradas do mês atual
+      // Buscar entradas com payment_account
       const { data: entriesData } = await supabase
         .from('financial_entries')
-        .select('tipo, valor, data')
+        .select('tipo, valor, data, payment_account')
         .eq('church_id', churchId);
 
       if (entriesData && entriesData.length > 0) {
@@ -119,10 +124,10 @@ const FinancialDashboard = () => {
         setTotalEntriesAllTime(0);
       }
 
-      // Buscar despesas pagas do mês atual
+      // Buscar despesas pagas com payment_account
       const { data: expensesData } = await supabase
         .from('bills_to_pay')
-        .select('category_main, paid_amount, paid_date')
+        .select('category_main, paid_amount, paid_date, payment_account')
         .eq('church_id', churchId)
         .eq('status', 'paid')
         .not('paid_date', 'is', null);
@@ -160,6 +165,38 @@ const FinancialDashboard = () => {
         setExpenses([]);
         setTotalExpensesAllTime(0);
       }
+
+      // Calcular saldos por conta bancária
+      const accountBalances = new Map<string, number>();
+
+      // Adicionar entradas por conta
+      if (entriesData) {
+        entriesData.forEach(entry => {
+          const account = entry.payment_account || 'Caixa Geral (Dinheiro)';
+          accountBalances.set(account, (accountBalances.get(account) || 0) + Number(entry.valor));
+        });
+      }
+
+      // Subtrair despesas por conta
+      if (expensesData) {
+        expensesData.forEach(expense => {
+          const account = expense.payment_account || 'Caixa Geral (Dinheiro)';
+          accountBalances.set(account, (accountBalances.get(account) || 0) - Number(expense.paid_amount || 0));
+        });
+      }
+
+      // Converter para array e ordenar (Caixa primeiro, depois bancos)
+      const balancesArray = Array.from(accountBalances.entries()).map(([account, balance]) => ({
+        account,
+        balance,
+        isCash: account.toLowerCase().includes('caixa') || account.toLowerCase().includes('dinheiro')
+      })).sort((a, b) => {
+        if (a.isCash && !b.isCash) return -1;
+        if (!a.isCash && b.isCash) return 1;
+        return a.account.localeCompare(b.account);
+      });
+
+      setBankBalances(balancesArray);
     };
 
     fetchFinancialData();
@@ -307,11 +344,47 @@ const FinancialDashboard = () => {
           </div>
         </div>
 
-        {/* Key Indicators - Grid com 4 colunas */}
-        <div className="grid gap-6 md:grid-cols-4 mb-8">
+        {/* Saldos por Conta Bancária */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-4">Saldos por Conta</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {bankBalances.length > 0 ? (
+              bankBalances.map((item, index) => (
+                <Card 
+                  key={index}
+                  className={item.balance >= 0 ? 'border-success/50 bg-success/5' : 'border-destructive/50 bg-destructive/5'}
+                >
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium truncate" title={item.account}>
+                      {item.account}
+                    </CardTitle>
+                    <Wallet className={`h-5 w-5 flex-shrink-0 ${item.balance >= 0 ? 'text-success' : 'text-destructive'}`} />
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold ${item.balance >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {formatCurrency(item.balance)}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Saldo acumulado
+                    </p>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card className="col-span-full">
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  Nenhuma movimentação financeira registrada ainda
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Key Indicators - Grid com 3 colunas */}
+        <div className="grid gap-6 md:grid-cols-3 mb-8">
           <Card className={balance >= 0 ? 'border-success/50 bg-success/5' : 'border-destructive/50 bg-destructive/5'}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Saldo Atual</CardTitle>
+              <CardTitle className="text-sm font-medium">Saldo Total Geral</CardTitle>
               <Wallet className={`h-5 w-5 ${balance >= 0 ? 'text-success' : 'text-destructive'}`} />
             </CardHeader>
             <CardContent>
@@ -319,7 +392,7 @@ const FinancialDashboard = () => {
                 {formatCurrency(balance)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Saldo acumulado total
+                Soma de todas as contas
               </p>
             </CardContent>
           </Card>
@@ -351,35 +424,35 @@ const FinancialDashboard = () => {
               </p>
             </CardContent>
           </Card>
-
-          {mandateEndDate && (
-            <Card className="border-primary/50 bg-primary/5">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Vencimento do Mandato</CardTitle>
-                <CalendarClock className="h-5 w-5 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {new Date(mandateEndDate).toLocaleDateString('pt-BR', { 
-                    day: '2-digit', 
-                    month: 'short', 
-                    year: 'numeric' 
-                  })}
-                </div>
-                {daysUntilExpiry !== null && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {daysUntilExpiry > 0 
-                      ? `Faltam ${daysUntilExpiry} dias` 
-                      : daysUntilExpiry === 0
-                      ? 'Vence hoje!'
-                      : `Vencido há ${Math.abs(daysUntilExpiry)} dias`
-                    }
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </div>
+
+        {mandateEndDate && (
+          <Card className="border-primary/50 bg-primary/5 mb-8">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Vencimento do Mandato</CardTitle>
+              <CalendarClock className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {new Date(mandateEndDate).toLocaleDateString('pt-BR', { 
+                  day: '2-digit', 
+                  month: 'short', 
+                  year: 'numeric' 
+                })}
+              </div>
+              {daysUntilExpiry !== null && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {daysUntilExpiry > 0 
+                    ? `Faltam ${daysUntilExpiry} dias` 
+                    : daysUntilExpiry === 0
+                    ? 'Vence hoje!'
+                    : `Vencido há ${Math.abs(daysUntilExpiry)} dias`
+                  }
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
