@@ -8,15 +8,22 @@ import { Plus, Search, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useChurchData } from '@/hooks/useChurchData';
+import { useClientType } from '@/hooks/useClientType';
 
 const Members = () => {
   const { toast } = useToast();
   const { churchId, loading: churchLoading } = useChurchData();
+  const { clientType } = useClientType();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | undefined>();
+
+  // Termos dinâmicos baseados no tipo de cliente
+  const memberTerm = clientType === 'associacao' ? 'Associado' : 'Membro';
+  const memberTermPlural = clientType === 'associacao' ? 'Associados' : 'Membros';
+  const organizationTerm = clientType === 'associacao' ? 'associação' : 'igreja';
 
   // Fetch members from database
   useEffect(() => {
@@ -76,14 +83,14 @@ const Members = () => {
   );
 
   const handleSave = async (memberData: Omit<Member, 'id' | 'createdAt'>) => {
-    if (!churchId) {
-      toast({
-        title: 'Erro',
-        description: 'Igreja não encontrada. Faça login novamente.',
-        variant: 'destructive',
-      });
-      return;
-    }
+      if (!churchId) {
+        toast({
+          title: 'Erro',
+          description: `${organizationTerm === 'igreja' ? 'Igreja' : 'Associação'} não encontrada. Faça login novamente.`,
+          variant: 'destructive',
+        });
+        return;
+      }
 
     try {
       if (editingMember) {
@@ -114,8 +121,8 @@ const Members = () => {
           )
         );
         toast({
-          title: 'Membro atualizado!',
-          description: 'Os dados do membro foram atualizados com sucesso.',
+          title: `${memberTerm} atualizado!`,
+          description: `Os dados do ${memberTerm.toLowerCase()} foram atualizados com sucesso.`,
         });
       } else {
         // Insert new member
@@ -162,8 +169,8 @@ const Members = () => {
         }
 
         toast({
-          title: 'Membro cadastrado!',
-          description: 'O novo membro foi adicionado com sucesso.',
+          title: `${memberTerm} cadastrado!`,
+          description: `O novo ${memberTerm.toLowerCase()} foi adicionado com sucesso.`,
         });
       }
       setEditingMember(undefined);
@@ -171,7 +178,7 @@ const Members = () => {
       console.error('Error saving member:', error);
       toast({
         title: 'Erro ao salvar',
-        description: 'Não foi possível salvar o membro. Tente novamente.',
+        description: `Não foi possível salvar o ${memberTerm.toLowerCase()}. Tente novamente.`,
         variant: 'destructive',
       });
     }
@@ -193,14 +200,14 @@ const Members = () => {
 
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
       toast({
-        title: 'Membro removido',
-        description: 'O membro foi removido do cadastro.',
+        title: `${memberTerm} removido`,
+        description: `O ${memberTerm.toLowerCase()} foi removido do cadastro.`,
       });
     } catch (error) {
       console.error('Error deleting member:', error);
       toast({
         title: 'Erro ao remover',
-        description: 'Não foi possível remover o membro. Tente novamente.',
+        description: `Não foi possível remover o ${memberTerm.toLowerCase()}. Tente novamente.`,
         variant: 'destructive',
       });
     }
@@ -214,10 +221,10 @@ const Members = () => {
   if (churchLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
-          <p className="text-muted-foreground">Carregando membros...</p>
-        </div>
+      <div className="text-center">
+        <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+        <p className="text-muted-foreground">Carregando {memberTermPlural.toLowerCase()}...</p>
+      </div>
       </div>
     );
   }
@@ -225,10 +232,10 @@ const Members = () => {
   if (!churchId) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">Você precisa estar associado a uma igreja para gerenciar membros.</p>
-        </div>
+      <div className="text-center">
+        <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <p className="text-muted-foreground">Você precisa estar associado a uma {organizationTerm} para gerenciar {memberTermPlural.toLowerCase()}.</p>
+      </div>
       </div>
     );
   }
@@ -242,8 +249,8 @@ const Members = () => {
               <Users className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Cadastro de Membros</h1>
-              <p className="text-muted-foreground">Gerencie os membros da sua igreja</p>
+              <h1 className="text-3xl font-bold">Cadastro de {memberTermPlural}</h1>
+              <p className="text-muted-foreground">Gerencie os {memberTermPlural.toLowerCase()} da sua {organizationTerm}</p>
             </div>
           </div>
 
@@ -251,7 +258,7 @@ const Members = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar membro por nome..."
+                placeholder={`Buscar ${memberTerm.toLowerCase()} por nome...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -259,7 +266,7 @@ const Members = () => {
             </div>
             <Button onClick={handleNewMember} className="gap-2">
               <Plus className="h-4 w-4" />
-              Novo Membro
+              Novo {memberTerm}
             </Button>
           </div>
         </div>
@@ -267,16 +274,16 @@ const Members = () => {
         {filteredMembers.length === 0 ? (
           <div className="text-center py-12">
             <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum membro encontrado</h3>
+            <h3 className="text-lg font-semibold mb-2">Nenhum {memberTerm.toLowerCase()} encontrado</h3>
             <p className="text-muted-foreground mb-4">
               {searchTerm
-                ? 'Nenhum membro corresponde à sua busca.'
-                : 'Comece adicionando o primeiro membro da sua igreja.'}
+                ? `Nenhum ${memberTerm.toLowerCase()} corresponde à sua busca.`
+                : `Comece adicionando o primeiro ${memberTerm.toLowerCase()} da sua ${organizationTerm}.`}
             </p>
             {!searchTerm && (
               <Button onClick={handleNewMember} className="gap-2">
                 <Plus className="h-4 w-4" />
-                Adicionar Primeiro Membro
+                Adicionar Primeiro {memberTerm}
               </Button>
             )}
           </div>

@@ -268,7 +268,7 @@ const FinancialDashboard = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold">Dashboard Financeiro</h1>
-              <p className="text-muted-foreground">Visão geral das finanças da igreja</p>
+              <p className="text-muted-foreground">Visão geral das finanças da {clientType === 'associacao' ? 'associação' : 'igreja'}</p>
             </div>
           </div>
         </div>
