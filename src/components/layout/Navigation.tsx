@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette } from 'lucide-react';
 import logoAnanias from '@/assets/logo_ananias_horizontal.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,7 @@ import { Link } from 'react-router-dom';
 
 export const Navigation = () => {
   const { role, user } = useAuth();
+  const { data: brandingSettings } = useBrandingSettings();
   const [processStatus, setProcessStatus] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -170,6 +172,11 @@ export const Navigation = () => {
       icon: Settings,
       label: 'Etapas',
     },
+    {
+      to: '/superadmin/branding',
+      icon: Palette,
+      label: 'Aparência',
+    },
   ];
 
   const navItems = 
@@ -178,30 +185,46 @@ export const Navigation = () => {
     role === 'secretario' ? secretarioNavItems :
     clientNavItems;
 
+  const navBgColor = brandingSettings?.nav_background_color || '#1a2d40';
+  const accentColor = brandingSettings?.accent_color || '#c89c5a';
+  const logoUrl = brandingSettings?.nav_logo_url || logoAnanias;
+
   return (
-    <nav className="border-b sticky top-0 z-10" style={{ backgroundColor: 'hsl(var(--nav-background))', color: 'hsl(var(--nav-foreground))' }}>
+    <nav className="border-b sticky top-0 z-10" style={{ backgroundColor: navBgColor, color: '#ffffff' }}>
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8 flex-1">
             <div className="flex items-center">
-              <img src={logoAnanias} alt="Logo Projeto Ananias" className="h-10" />
+              <img src={logoUrl} alt="Logo" className="h-10" />
             </div>
             
             <div className="flex items-center gap-1 flex-1 overflow-x-auto">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                    'text-white/80 hover:text-white hover:bg-white/10'
-                  )}
-                  activeClassName="text-white bg-accent"
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{item.label}</span>
-                </NavLink>
-              ))}
+              {navItems.map((item) => {
+                const navItemId = `nav-item-${item.to.replace(/\//g, '-')}`;
+                return (
+                  <React.Fragment key={item.to}>
+                    <style>
+                      {`
+                        #${navItemId}.active {
+                          background-color: ${accentColor} !important;
+                        }
+                      `}
+                    </style>
+                    <NavLink
+                      id={navItemId}
+                      to={item.to}
+                      className={cn(
+                        'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                        'text-white/80 hover:text-white hover:bg-white/10'
+                      )}
+                      activeClassName="text-white active"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span className="hidden sm:inline">{item.label}</span>
+                    </NavLink>
+                  </React.Fragment>
+                );
+              })}
               
               {(role === 'client' || role === 'tesoureiro') && (
                 <DropdownMenu>

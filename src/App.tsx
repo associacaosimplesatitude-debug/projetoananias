@@ -33,6 +33,7 @@ import AdminAccountsReceivable from "./pages/admin/AccountsReceivable";
 import AdminAccountsPayable from "./pages/admin/AccountsPayable";
 import AdminFinancialReports from "./pages/admin/FinancialReports";
 import AdminStageManagement from "./pages/admin/StageManagement";
+import BrandingCustomization from "./pages/admin/BrandingCustomization";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 
@@ -148,6 +149,14 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <AdminStageManagement />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/superadmin/branding"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <BrandingCustomization />
                         </ProtectedRoute>
                       }
                     />
