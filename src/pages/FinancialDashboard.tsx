@@ -17,6 +17,8 @@ const FinancialDashboard = () => {
   const [daysUntilExpiry, setDaysUntilExpiry] = useState<number | null>(null);
   const [entries, setEntries] = useState<Array<{ tipo: string; valor: number }>>([]);
   const [expenses, setExpenses] = useState<Array<{ categoria: string; valor: number }>>([]);
+  const [totalEntriesAllTime, setTotalEntriesAllTime] = useState(0);
+  const [totalExpensesAllTime, setTotalExpensesAllTime] = useState(0);
   const [members, setMembers] = useState<Array<{
     id: string;
     nome_completo: string;
@@ -81,10 +83,17 @@ const FinancialDashboard = () => {
         .eq('church_id', churchId);
 
       if (entriesData && entriesData.length > 0) {
-        // Filtrar por mês atual
-        const currentMonthEntries = entriesData.filter(entry => {
+        // Total acumulado de entradas (todas as datas)
+        const totalAllTime = entriesData.reduce((sum, entry) => sum + Number(entry.valor), 0);
+        setTotalEntriesAllTime(totalAllTime);
+
+        // Filtrar por mês atual para os gráficos e cartões mensais
+        const currentMonthEntries = entriesData.filter((entry) => {
           const entryDate = new Date(entry.data);
-          return entryDate.getMonth() + 1 === currentMonth && entryDate.getFullYear() === currentYear;
+          return (
+            entryDate.getMonth() + 1 === currentMonth &&
+            entryDate.getFullYear() === currentYear
+          );
         });
 
         // Buscar nomes das contas do plano de contas
@@ -92,18 +101,22 @@ const FinancialDashboard = () => {
           .from('plano_de_contas')
           .select('codigo_conta, nome_conta');
 
-        const contasMap = new Map(contasData?.map(c => [c.codigo_conta, c.nome_conta]) || []);
+        const contasMap = new Map(contasData?.map((c) => [c.codigo_conta, c.nome_conta]) || []);
 
         // Agrupar por tipo
-        const groupedEntries = currentMonthEntries.reduce((acc: Record<string, number>, entry) => {
-          const nomeConta = contasMap.get(entry.tipo) || entry.tipo;
-          acc[nomeConta] = (acc[nomeConta] || 0) + Number(entry.valor);
-          return acc;
-        }, {});
+        const groupedEntries = currentMonthEntries.reduce(
+          (acc: Record<string, number>, entry) => {
+            const nomeConta = contasMap.get(entry.tipo) || entry.tipo;
+            acc[nomeConta] = (acc[nomeConta] || 0) + Number(entry.valor);
+            return acc;
+          },
+          {},
+        );
 
         setEntries(Object.entries(groupedEntries).map(([tipo, valor]) => ({ tipo, valor })));
       } else {
         setEntries([]);
+        setTotalEntriesAllTime(0);
       }
 
       // Buscar despesas pagas do mês atual
@@ -115,22 +128,37 @@ const FinancialDashboard = () => {
         .not('paid_date', 'is', null);
 
       if (expensesData && expensesData.length > 0) {
+        // Total acumulado de despesas pagas (todas as datas)
+        const totalAllTimeExpenses = expensesData.reduce(
+          (sum, expense) => sum + Number(expense.paid_amount || 0),
+          0,
+        );
+        setTotalExpensesAllTime(totalAllTimeExpenses);
+
         // Filtrar por mês atual
-        const currentMonthExpenses = expensesData.filter(expense => {
+        const currentMonthExpenses = expensesData.filter((expense) => {
           if (!expense.paid_date) return false;
           const expenseDate = new Date(expense.paid_date);
-          return expenseDate.getMonth() + 1 === currentMonth && expenseDate.getFullYear() === currentYear;
+          return (
+            expenseDate.getMonth() + 1 === currentMonth &&
+            expenseDate.getFullYear() === currentYear
+          );
         });
 
         // Agrupar por categoria principal
-        const groupedExpenses = currentMonthExpenses.reduce((acc: Record<string, number>, expense) => {
-          acc[expense.category_main] = (acc[expense.category_main] || 0) + Number(expense.paid_amount || 0);
-          return acc;
-        }, {});
+        const groupedExpenses = currentMonthExpenses.reduce(
+          (acc: Record<string, number>, expense) => {
+            acc[expense.category_main] =
+              (acc[expense.category_main] || 0) + Number(expense.paid_amount || 0);
+            return acc;
+          },
+          {},
+        );
 
         setExpenses(Object.entries(groupedExpenses).map(([categoria, valor]) => ({ categoria, valor })));
       } else {
         setExpenses([]);
+        setTotalExpensesAllTime(0);
       }
     };
 
@@ -156,8 +184,14 @@ const FinancialDashboard = () => {
   }, [churchId]);
 
   const totalEntries = useMemo(() => entries.reduce((sum, e) => sum + e.valor, 0), [entries]);
-  const totalExpenses = useMemo(() => expenses.reduce((sum, e) => sum + e.valor, 0), [expenses]);
-  const balance = totalEntries - totalExpenses;
+  const totalExpenses = useMemo(
+    () => expenses.reduce((sum, e) => sum + e.valor, 0),
+    [expenses],
+  );
+  const balance = useMemo(
+    () => totalEntriesAllTime - totalExpensesAllTime,
+    [totalEntriesAllTime, totalExpensesAllTime],
+  );
 
   // Estatísticas de membros
   const totalMembers = members.length;
