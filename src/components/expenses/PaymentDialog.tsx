@@ -165,7 +165,7 @@ export const PaymentDialog = ({ open, onOpenChange, bill, onConfirm }: PaymentDi
                   <SelectValue placeholder="Selecione a forma de pagamento" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Caixa Geral">Caixa Geral</SelectItem>
+                  <SelectItem value="Caixa Geral (Dinheiro)">Caixa Geral (Dinheiro)</SelectItem>
                   {bankAccounts.map((account) => (
                     <SelectItem key={account.id} value={`${account.bank_name} - Ag: ${account.agency} - Conta: ${account.account_number}`}>
                       {account.bank_name} - Ag: {account.agency} - Conta: {account.account_number}

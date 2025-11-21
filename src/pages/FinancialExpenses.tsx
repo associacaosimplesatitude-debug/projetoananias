@@ -202,8 +202,8 @@ const FinancialExpenses = () => {
         const contaDebito = categoryMap[selectedBill.category_main]?.[selectedBill.category_sub] || '4.2.9.99';
         
         // Mapear conta de pagamento para código do plano de contas
-        let contaCredito = '1.1.1.01'; // Caixa Geral por padrão
-        if (pagoComConta !== 'Caixa Geral') {
+        let contaCredito = '1.1.1.01'; // Caixa Geral (Dinheiro) por padrão
+        if (pagoComConta !== 'Caixa Geral (Dinheiro)') {
           contaCredito = '1.1.2.01'; // Contas Correntes para qualquer conta bancária
         }
 
