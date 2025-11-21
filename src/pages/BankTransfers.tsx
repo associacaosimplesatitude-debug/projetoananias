@@ -140,7 +140,7 @@ const BankTransfers = () => {
       // Mapear os nomes das contas para os códigos do plano de contas
       const getAccountCode = (accountId: string) => {
         if (accountId === 'caixa_geral') {
-          return '1.1.1.01'; // Caixa Geral
+          return '1.1.1.01'; // Caixa Geral (Dinheiro)
         } else {
           return '1.1.2.01'; // Contas Correntes
         }
@@ -150,8 +150,8 @@ const BankTransfers = () => {
       const contaDestinoCodigo = getAccountCode(toAccount);
 
       // Obter os nomes das contas para o histórico
-      let fromAccountName = 'Caixa Geral';
-      let toAccountName = 'Caixa Geral';
+      let fromAccountName = 'Caixa Geral (Dinheiro)';
+      let toAccountName = 'Caixa Geral (Dinheiro)';
 
       if (fromAccount !== 'caixa_geral') {
         const account = accounts.find(acc => acc.id === fromAccount);
@@ -217,9 +217,9 @@ const BankTransfers = () => {
     return format(new Date(dateString), 'dd/MM/yyyy');
   };
 
-  // Criar lista de opções de contas (Caixa Geral + contas bancárias)
+  // Criar lista de opções de contas (Caixa Geral (Dinheiro) + contas bancárias)
   const accountOptions = [
-    { id: 'caixa_geral', name: 'Caixa Geral' },
+    { id: 'caixa_geral', name: 'Caixa Geral (Dinheiro)' },
     ...accounts.map(acc => ({
       id: acc.id,
       name: `${acc.bank_name} - ${acc.account_number} (${acc.account_type})`,
@@ -237,7 +237,7 @@ const BankTransfers = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-bold">Transferências entre Contas</h1>
-                <p className="text-muted-foreground">Registre transferências entre Caixa Geral e Contas Bancárias</p>
+                <p className="text-muted-foreground">Registre transferências entre Caixa Geral (Dinheiro) e Contas Bancárias</p>
               </div>
             </div>
 
