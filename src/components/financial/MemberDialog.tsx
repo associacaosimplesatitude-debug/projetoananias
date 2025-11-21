@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -66,6 +66,7 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showCropDialog, setShowCropDialog] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const numeroInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (member) {
@@ -124,6 +125,11 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
           cidade: data.localidade || '',
           estado: data.uf || '',
         }));
+        
+        // Move cursor to numero field after auto-fill
+        setTimeout(() => {
+          numeroInputRef.current?.focus();
+        }, 100);
       }
     } catch (error) {
       console.error('Erro ao buscar CEP:', error);
@@ -263,6 +269,7 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
                 <Label htmlFor="numero">Número *</Label>
                 <Input
                   id="numero"
+                  ref={numeroInputRef}
                   value={formData.numero}
                   onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
                   required
