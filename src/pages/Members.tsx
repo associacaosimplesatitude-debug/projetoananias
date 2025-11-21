@@ -3,8 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MemberCard } from '@/components/financial/MemberCard';
 import { MemberDialog } from '@/components/financial/MemberDialog';
+import { ImportMembersDialog } from '@/components/financial/ImportMembersDialog';
 import { Member } from '@/types/financial';
-import { Plus, Search, Users } from 'lucide-react';
+import { Plus, Search, Users, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useChurchData } from '@/hooks/useChurchData';
@@ -18,6 +19,7 @@ const Members = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | undefined>();
 
   // Termos dinâmicos baseados no tipo de cliente
@@ -56,6 +58,8 @@ const Members = () => {
             dataAniversario: m.data_aniversario,
             sexo: m.sexo as 'Masculino' | 'Feminino',
             whatsapp: m.whatsapp,
+            email: m.email || undefined,
+            estadoCivil: m.estado_civil || undefined,
             cargo: m.cargo,
             avatarUrl: m.avatar_url || undefined,
             createdAt: m.created_at,
@@ -110,6 +114,8 @@ const Members = () => {
             data_aniversario: memberData.dataAniversario,
             sexo: memberData.sexo,
             whatsapp: memberData.whatsapp,
+            email: memberData.email || null,
+            estado_civil: memberData.estadoCivil || null,
             cargo: memberData.cargo,
             avatar_url: memberData.avatarUrl || null,
           })
@@ -143,6 +149,8 @@ const Members = () => {
             data_aniversario: memberData.dataAniversario,
             sexo: memberData.sexo,
             whatsapp: memberData.whatsapp,
+            email: memberData.email || null,
+            estado_civil: memberData.estadoCivil || null,
             cargo: memberData.cargo,
             avatar_url: memberData.avatarUrl || null,
           })
@@ -165,6 +173,8 @@ const Members = () => {
             dataAniversario: data.data_aniversario,
             sexo: data.sexo as 'Masculino' | 'Feminino',
             whatsapp: data.whatsapp,
+            email: data.email || undefined,
+            estadoCivil: data.estado_civil || undefined,
             cargo: data.cargo,
             avatarUrl: data.avatar_url || undefined,
             createdAt: data.created_at,
@@ -222,6 +232,50 @@ const Members = () => {
     setDialogOpen(true);
   };
 
+  const handleImportComplete = () => {
+    // Refresh the members list after import
+    const fetchMembers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('church_members')
+          .select('*')
+          .eq('church_id', churchId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          const formattedMembers: Member[] = data.map(m => ({
+            id: m.id,
+            nomeCompleto: m.nome_completo,
+            cep: m.cep || '',
+            rua: m.rua || '',
+            numero: m.numero || '',
+            complemento: m.complemento || '',
+            bairro: m.bairro || '',
+            cidade: m.cidade || '',
+            estado: m.estado || '',
+            dataAniversario: m.data_aniversario,
+            sexo: m.sexo as 'Masculino' | 'Feminino',
+            whatsapp: m.whatsapp,
+            email: m.email || undefined,
+            estadoCivil: m.estado_civil || undefined,
+            cargo: m.cargo,
+            avatarUrl: m.avatar_url || undefined,
+            createdAt: m.created_at,
+          }));
+          setMembers(formattedMembers);
+        }
+      } catch (error) {
+        console.error('Error refreshing members:', error);
+      }
+    };
+
+    if (churchId) {
+      fetchMembers();
+    }
+  };
+
   if (churchLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -272,6 +326,10 @@ const Members = () => {
               <Plus className="h-4 w-4" />
               Novo {memberTerm}
             </Button>
+            <Button onClick={() => setImportDialogOpen(true)} variant="outline" className="gap-2">
+              <Upload className="h-4 w-4" />
+              Importar Planilha
+            </Button>
           </div>
         </div>
 
@@ -309,6 +367,14 @@ const Members = () => {
           onOpenChange={setDialogOpen}
           member={editingMember}
           onSave={handleSave}
+        />
+
+        <ImportMembersDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          churchId={churchId}
+          onImportComplete={handleImportComplete}
+          memberTerm={memberTerm}
         />
       </div>
     </div>

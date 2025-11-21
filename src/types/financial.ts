@@ -29,6 +29,8 @@ export interface Member {
   dataAniversario: string;
   sexo: Gender;
   whatsapp: string;
+  email?: string;
+  estadoCivil?: string;
   cargo: MemberCargo | string;
   avatarUrl?: string;
   createdAt: string;

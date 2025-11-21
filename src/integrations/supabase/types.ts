@@ -462,6 +462,7 @@ export type Database = {
           data_aniversario: string
           email: string | null
           estado: string
+          estado_civil: string | null
           id: string
           nome_completo: string
           numero: string
@@ -482,6 +483,7 @@ export type Database = {
           data_aniversario: string
           email?: string | null
           estado?: string
+          estado_civil?: string | null
           id?: string
           nome_completo: string
           numero?: string
@@ -502,6 +504,7 @@ export type Database = {
           data_aniversario?: string
           email?: string | null
           estado?: string
+          estado_civil?: string | null
           id?: string
           nome_completo?: string
           numero?: string

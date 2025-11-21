@@ -57,6 +57,8 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
     dataAniversario: '',
     sexo: '' as Gender,
     whatsapp: '',
+    email: '',
+    estadoCivil: '',
     cargo: '' as string,
     avatarUrl: '' as string,
   });
@@ -79,6 +81,8 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
         dataAniversario: member.dataAniversario,
         sexo: member.sexo,
         whatsapp: member.whatsapp,
+        email: member.email || '',
+        estadoCivil: member.estadoCivil || '',
         cargo: member.cargo,
         avatarUrl: member.avatarUrl || '',
       });
@@ -95,6 +99,8 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
         dataAniversario: '',
         sexo: '' as Gender,
         whatsapp: '',
+        email: '',
+        estadoCivil: '',
         cargo: '',
         avatarUrl: '',
       });
@@ -342,6 +348,37 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
                   placeholder="(11) 99999-9999"
                   required
                 />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="estadoCivil">Estado Civil</Label>
+                <Select
+                  value={formData.estadoCivil}
+                  onValueChange={(value) => setFormData({ ...formData, estadoCivil: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Solteiro(a)">Solteiro(a)</SelectItem>
+                    <SelectItem value="Casado(a)">Casado(a)</SelectItem>
+                    <SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem>
+                    <SelectItem value="Viúvo(a)">Viúvo(a)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {clientType !== 'associacao' && (
