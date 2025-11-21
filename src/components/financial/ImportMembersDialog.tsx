@@ -239,68 +239,54 @@ export const ImportMembersDialog = ({
     }
   };
 
-  const parseAddress = (address: string) => {
-    if (!address) return {
-      rua: '',
-      numero: '',
-      bairro: '',
-      cidade: '',
-      estado: '',
-      cep: '',
-      complemento: '',
-    };
+  const extractCepFromAddress = (address: string): string => {
+    if (!address) return '';
     
-    const result = {
-      rua: '',
-      numero: '',
-      bairro: '',
-      cidade: '',
-      estado: '',
-      cep: '',
-      complemento: '',
-    };
-    
-    try {
-      // Extract CEP (formato XXXXX-XXX)
-      const cepMatch = address.match(/\d{5}-?\d{3}/);
-      if (cepMatch) {
-        result.cep = cepMatch[0].replace(/(\d{5})(\d{3})/, '$1-$2');
-      }
-      
-      // Extract Estado (sigla de 2 letras maiúsculas)
-      const estadoMatch = address.match(/\b([A-Z]{2})\b/);
-      if (estadoMatch) {
-        result.estado = estadoMatch[1];
-      }
-      
-      // Extract Número (após vírgula, antes de hífen ou próxima vírgula)
-      const numeroMatch = address.match(/,\s*(\d+)/);
-      if (numeroMatch) {
-        result.numero = numeroMatch[1];
-      }
-      
-      // Extract Rua (tudo antes da primeira vírgula)
-      const ruaMatch = address.match(/^([^,]+)/);
-      if (ruaMatch) {
-        result.rua = ruaMatch[1].trim();
-      }
-      
-      // Extract Bairro (depois de hífen e antes da próxima vírgula)
-      const bairroMatch = address.match(/-\s*([^,]+),/);
-      if (bairroMatch) {
-        result.bairro = bairroMatch[1].trim();
-      }
-      
-      // Extract Cidade (depois do bairro e antes do estado ou hífen)
-      const cidadeMatch = address.match(/,\s*([^,-]+)\s*[-,]\s*[A-Z]{2}/);
-      if (cidadeMatch) {
-        result.cidade = cidadeMatch[1].trim();
-      }
-    } catch (error) {
-      console.error('Error parsing address:', error);
+    // Extract CEP (formato XXXXX-XXX)
+    const cepMatch = address.match(/\d{5}-?\d{3}/);
+    if (cepMatch) {
+      return cepMatch[0].replace(/(\d{5})(\d{3})/, '$1-$2');
     }
     
-    return result;
+    return '';
+  };
+
+  const fetchAddressFromCep = async (cep: string) => {
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) {
+      return {
+        rua: '',
+        bairro: '',
+        cidade: '',
+        estado: '',
+        cep: '',
+      };
+    }
+
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      
+      if (!data.erro) {
+        return {
+          rua: data.logradouro || '',
+          bairro: data.bairro || '',
+          cidade: data.localidade || '',
+          estado: data.uf || '',
+          cep: cep,
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching address from CEP:', error);
+    }
+
+    return {
+      rua: '',
+      bairro: '',
+      cidade: '',
+      estado: '',
+      cep: '',
+    };
   };
 
   const mapRowDataToMember = async (row: any) => {
@@ -335,9 +321,12 @@ export const ImportMembersDialog = ({
           memberData[systemField] = downloadedUrl;
         }
       } else if (systemField === 'endereco') {
-        // Parse full address
-        const addressData = parseAddress(value);
-        Object.assign(memberData, addressData);
+        // Extract CEP and fetch address from API
+        const extractedCep = extractCepFromAddress(value);
+        if (extractedCep) {
+          const addressData = await fetchAddressFromCep(extractedCep);
+          Object.assign(memberData, addressData);
+        }
       } else {
         memberData[systemField] = value;
       }
