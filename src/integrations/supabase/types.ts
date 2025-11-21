@@ -569,6 +569,7 @@ export type Database = {
           address: string | null
           church_name: string
           city: string | null
+          client_type: string
           cnpj: string | null
           created_at: string
           current_stage: number | null
@@ -591,6 +592,7 @@ export type Database = {
           address?: string | null
           church_name: string
           city?: string | null
+          client_type?: string
           cnpj?: string | null
           created_at?: string
           current_stage?: number | null
@@ -613,6 +615,7 @@ export type Database = {
           address?: string | null
           church_name?: string
           city?: string | null
+          client_type?: string
           cnpj?: string | null
           created_at?: string
           current_stage?: number | null

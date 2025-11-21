@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useChurchData } from '@/hooks/useChurchData';
+import { useClientType } from '@/hooks/useClientType';
 
 interface RevenueAccount {
   codigo_conta: string;
@@ -20,6 +21,7 @@ interface RevenueAccount {
 const FinancialEntries = () => {
   const { toast } = useToast();
   const { churchId } = useChurchData();
+  const { clientType } = useClientType();
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [revenueAccounts, setRevenueAccounts] = useState<RevenueAccount[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
@@ -49,7 +51,15 @@ const FinancialEntries = () => {
       if (accountsError) {
         console.error('Erro ao buscar contas de receita:', accountsError);
       } else if (accountsData) {
-        setRevenueAccounts(accountsData);
+        // Filtrar contas específicas se for associação
+        let filteredAccounts = accountsData;
+        if (clientType === 'associacao') {
+          // Remover Dízimos (4.1.1.01) e Ofertas Gerais (4.1.1.02)
+          filteredAccounts = accountsData.filter(
+            acc => acc.codigo_conta !== '4.1.1.01' && acc.codigo_conta !== '4.1.1.02'
+          );
+        }
+        setRevenueAccounts(filteredAccounts);
       }
 
       // Buscar contas bancárias
@@ -95,7 +105,7 @@ const FinancialEntries = () => {
     };
 
     fetchData();
-  }, [churchId]);
+  }, [churchId, clientType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

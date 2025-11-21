@@ -6,11 +6,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { useChurchData } from '@/hooks/useChurchData';
+import { useClientType } from '@/hooks/useClientType';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 const FinancialDashboard = () => {
   const { user } = useAuth();
   const { churchId } = useChurchData();
+  const { clientType } = useClientType();
   const [mandateEndDate, setMandateEndDate] = useState<string | null>(null);
   const [daysUntilExpiry, setDaysUntilExpiry] = useState<number | null>(null);
   const [entries, setEntries] = useState<Array<{ tipo: string; valor: number }>>([]);
@@ -446,20 +448,20 @@ const FinancialDashboard = () => {
         <div className="mt-12">
           <div className="flex items-center gap-2 mb-6">
             <Users className="h-6 w-6 text-primary" />
-            <h2 className="text-2xl font-bold">Painel de Membros</h2>
+            <h2 className="text-2xl font-bold">Painel de {clientType === 'associacao' ? 'Associados' : 'Membros'}</h2>
           </div>
 
           {/* Cards de Resumo de Membros */}
           <div className="grid gap-6 md:grid-cols-3 mb-6">
             <Card className="border-primary/50 bg-primary/5">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total de Membros</CardTitle>
+                <CardTitle className="text-sm font-medium">Total de {clientType === 'associacao' ? 'Associados' : 'Membros'}</CardTitle>
                 <Users className="h-5 w-5 text-primary" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">{totalMembers}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Membros cadastrados
+                  {clientType === 'associacao' ? 'Associados' : 'Membros'} cadastrados
                 </p>
               </CardContent>
             </Card>
@@ -536,54 +538,56 @@ const FinancialDashboard = () => {
 
           {/* Gráficos de Membros */}
           <div className="grid gap-6 lg:grid-cols-2 mb-6">
-            {/* Distribuição de Cargos */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Distribuição de Cargos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {cargoDistribution.length > 0 ? (
-                  <>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={cargoDistribution}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ cargo, percentage }) => `${cargo}: ${percentage}%`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="count"
-                        >
-                          {cargoDistribution.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
+            {/* Distribuição de Cargos - Apenas para Igrejas */}
+            {clientType !== 'associacao' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Distribuição de Cargos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {cargoDistribution.length > 0 ? (
+                    <>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={cargoDistribution}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ cargo, percentage }) => `${cargo}: ${percentage}%`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="count"
+                          >
+                            {cargoDistribution.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
 
-                    <div className="mt-4 space-y-2">
-                      {cargoDistribution.map((entry, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="h-3 w-3 rounded-full"
-                              style={{ backgroundColor: entry.fill }}
-                            />
-                            <span>{entry.cargo}</span>
+                      <div className="mt-4 space-y-2">
+                        {cargoDistribution.map((entry, index) => (
+                          <div key={index} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-3 w-3 rounded-full"
+                                style={{ backgroundColor: entry.fill }}
+                              />
+                              <span>{entry.cargo}</span>
+                            </div>
+                            <span className="font-semibold">{entry.count} ({entry.percentage}%)</span>
                           </div>
-                          <span className="font-semibold">{entry.count} ({entry.percentage}%)</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">Nenhum membro cadastrado</p>
-                )}
-              </CardContent>
-            </Card>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">Nenhum membro cadastrado</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Distribuição por Faixa Etária */}
             <Card>

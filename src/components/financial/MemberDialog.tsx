@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Member, MemberCargo, Gender } from '@/types/financial';
+import { useClientType } from '@/hooks/useClientType';
 
 const defaultCargos: MemberCargo[] = [
   'Membro',
@@ -31,6 +32,7 @@ interface MemberDialogProps {
 }
 
 export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialogProps) => {
+  const { clientType } = useClientType();
   const [formData, setFormData] = useState({
     nomeCompleto: '',
     cep: '',
@@ -117,9 +119,9 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{member ? 'Editar Membro' : 'Novo Membro'}</DialogTitle>
+            <DialogTitle>{member ? 'Editar' : 'Novo'} {clientType === 'associacao' ? 'Associado' : 'Membro'}</DialogTitle>
             <DialogDescription>
-              Preencha os dados do membro da igreja
+              Preencha os dados do {clientType === 'associacao' ? 'associado' : 'membro'}
             </DialogDescription>
           </DialogHeader>
 
@@ -246,25 +248,27 @@ export const MemberDialog = ({ open, onOpenChange, member, onSave }: MemberDialo
                 />
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="cargo">Cargo *</Label>
-                <Select
-                  value={formData.cargo}
-                  onValueChange={(value) => setFormData({ ...formData, cargo: value })}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o cargo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {defaultCargos.map((cargo) => (
-                      <SelectItem key={cargo} value={cargo}>
-                        {cargo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {clientType !== 'associacao' && (
+                <div className="grid gap-2">
+                  <Label htmlFor="cargo">Cargo *</Label>
+                  <Select
+                    value={formData.cargo}
+                    onValueChange={(value) => setFormData({ ...formData, cargo: value })}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o cargo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {defaultCargos.map((cargo) => (
+                        <SelectItem key={cargo} value={cargo}>
+                          {cargo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 

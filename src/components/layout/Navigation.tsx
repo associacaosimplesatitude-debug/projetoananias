@@ -6,6 +6,8 @@ import logoAnanias from '@/assets/logo_ananias_horizontal.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useChurchData } from '@/hooks/useChurchData';
+import { useClientType } from '@/hooks/useClientType';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 import {
   DropdownMenu,
@@ -18,7 +20,10 @@ import { Link } from 'react-router-dom';
 export const Navigation = () => {
   const { role, user } = useAuth();
   const { data: brandingSettings } = useBrandingSettings();
+  const { clientType } = useClientType();
   const [processStatus, setProcessStatus] = React.useState<string | null>(null);
+
+  const membersLabel = clientType === 'associacao' ? 'Associados' : 'Membros';
 
   React.useEffect(() => {
     const fetchProcessStatus = async () => {
@@ -45,7 +50,7 @@ export const Navigation = () => {
     {
       to: '/members',
       icon: Users,
-      label: 'Membros',
+      label: membersLabel,
     },
     {
       to: '/entries',
@@ -103,7 +108,7 @@ export const Navigation = () => {
     {
       to: '/members',
       icon: Users,
-      label: 'Membros',
+      label: membersLabel,
     },
     {
       to: '/entries',
@@ -136,7 +141,7 @@ export const Navigation = () => {
     {
       to: '/members',
       icon: Users,
-      label: 'Membros',
+      label: membersLabel,
     },
   ];
 

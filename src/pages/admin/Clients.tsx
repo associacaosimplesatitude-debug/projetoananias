@@ -16,9 +16,9 @@ import { z } from 'zod';
 import { Link } from 'react-router-dom';
 
 const churchSchema = z.object({
-  church_name: z.string().trim().min(1, 'Nome da igreja é obrigatório').max(200),
+  church_name: z.string().trim().min(1, 'Nome é obrigatório').max(200),
   pastor_email: z.string().trim().email('Email inválido').max(255),
-  pastor_name: z.string().trim().min(1, 'Nome do pastor é obrigatório').max(200),
+  pastor_name: z.string().trim().min(1, 'Nome é obrigatório').max(200),
   pastor_password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres').max(100),
   pastor_rg: z.string().trim().min(1, 'RG é obrigatório').max(20),
   pastor_cpf: z.string().trim().min(11, 'CPF inválido').max(14),
@@ -32,13 +32,14 @@ const churchSchema = z.object({
   postal_code: z.string().trim().max(10).optional(),
   monthly_fee: z.number().positive().default(199.90),
   payment_due_day: z.number().int().min(5).max(30),
+  client_type: z.enum(['igreja', 'associacao']).default('igreja'),
 }).refine((data) => {
   if (data.has_cnpj && !data.cnpj) {
     return false;
   }
   return true;
 }, {
-  message: "CNPJ é obrigatório quando a igreja já possui CNPJ",
+  message: "CNPJ é obrigatório quando a organização já possui CNPJ",
   path: ["cnpj"],
 });
 
@@ -60,6 +61,7 @@ interface Church {
   monthly_fee?: number;
   payment_due_day?: number;
   process_status?: string;
+  client_type?: 'igreja' | 'associacao';
 }
 
 export default function AdminClients() {
@@ -90,6 +92,7 @@ export default function AdminClients() {
     postal_code: '',
     monthly_fee: 199.90,
     payment_due_day: 5,
+    client_type: 'igreja' as 'igreja' | 'associacao',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
@@ -105,7 +108,7 @@ export default function AdminClients() {
       .select('*')
       .order('created_at', { ascending: false });
     
-    setChurches(data || []);
+    setChurches((data || []) as Church[]);
   };
 
   const loadMandateData = async (churchId: string) => {
@@ -300,6 +303,7 @@ export default function AdminClients() {
         postal_code: '',
         monthly_fee: 199.90,
         payment_due_day: 5,
+        client_type: 'igreja' as 'igreja' | 'associacao',
       });
       setErrors({});
       fetchChurches();
@@ -334,14 +338,34 @@ export default function AdminClients() {
             <DialogContent className="sm:max-w-[500px]">
               <form onSubmit={handleSubmit}>
                 <DialogHeader>
-                  <DialogTitle>Cadastrar Nova Igreja</DialogTitle>
+                  <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
                   <DialogDescription>
                     Preencha os dados do novo cliente para iniciar o funil
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
                   <div className="grid gap-2">
-                    <Label htmlFor="church_name">Nome da Igreja</Label>
+                    <Label htmlFor="client_type">Tipo de Cliente *</Label>
+                    <Select
+                      value={formData.client_type}
+                      onValueChange={(value: 'igreja' | 'associacao') => setFormData({ ...formData, client_type: value })}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="igreja">Igreja</SelectItem>
+                        <SelectItem value="associacao">Associação</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {errors.client_type && (
+                      <p className="text-sm text-destructive">{errors.client_type}</p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="church_name">Nome</Label>
                     <Input
                       id="church_name"
                       value={formData.church_name}
@@ -354,7 +378,7 @@ export default function AdminClients() {
                   </div>
                   
                   <div className="grid gap-2">
-                    <Label htmlFor="pastor_name">Nome do Pastor</Label>
+                    <Label htmlFor="pastor_name">Nome do Responsável</Label>
                     <Input
                       id="pastor_name"
                       value={formData.pastor_name}
@@ -367,7 +391,7 @@ export default function AdminClients() {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="pastor_email">Email do Pastor</Label>
+                    <Label htmlFor="pastor_email">Email</Label>
                     <Input
                       id="pastor_email"
                       type="email"
@@ -441,7 +465,7 @@ export default function AdminClients() {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label>A igreja já possui CNPJ?</Label>
+                    <Label>{formData.client_type === 'igreja' ? 'A igreja já possui CNPJ?' : 'A associação já possui CNPJ?'}</Label>
                     <div className="flex gap-4">
                       <div className="flex items-center space-x-2">
                         <input
@@ -584,14 +608,15 @@ export default function AdminClients() {
       
         <Card>
           <CardHeader>
-            <CardTitle>Lista de Igrejas ({churches.length})</CardTitle>
+            <CardTitle>Lista de Clientes ({churches.length})</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome da Igreja</TableHead>
-                  <TableHead>Email do Pastor</TableHead>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Localização</TableHead>
                   <TableHead>CNPJ</TableHead>
                   <TableHead>Etapa Atual</TableHead>
@@ -610,6 +635,11 @@ export default function AdminClients() {
                       </Link>
                     </TableCell>
                     <TableCell>{church.pastor_email}</TableCell>
+                    <TableCell>
+                      <Badge variant={church.client_type === 'igreja' ? 'default' : 'secondary'}>
+                        {church.client_type === 'igreja' ? 'Igreja' : 'Associação'}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{church.city}, {church.state}</TableCell>
                     <TableCell>{church.cnpj || '-'}</TableCell>
                     <TableCell>
