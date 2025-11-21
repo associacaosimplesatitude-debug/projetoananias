@@ -319,7 +319,7 @@ const FinancialDashboard = () => {
                 {formatCurrency(balance)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Referente ao mês atual
+                Saldo acumulado total
               </p>
             </CardContent>
           </Card>
