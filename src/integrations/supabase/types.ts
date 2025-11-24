@@ -687,6 +687,674 @@ export type Database = {
         }
         Relationships: []
       }
+      ebd_aluno_badges: {
+        Row: {
+          aluno_id: string
+          badge_id: string
+          conquistado_em: string
+          id: string
+        }
+        Insert: {
+          aluno_id: string
+          badge_id: string
+          conquistado_em?: string
+          id?: string
+        }
+        Update: {
+          aluno_id?: string
+          badge_id?: string
+          conquistado_em?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_aluno_badges_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_alunos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_aluno_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_alunos: {
+        Row: {
+          church_id: string
+          created_at: string
+          data_nascimento: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          nome_completo: string
+          pontos_totais: number
+          responsavel: string | null
+          telefone: string | null
+          turma_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          data_nascimento?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          nome_completo: string
+          pontos_totais?: number
+          responsavel?: string | null
+          telefone?: string | null
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          data_nascimento?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          nome_completo?: string
+          pontos_totais?: number
+          responsavel?: string | null
+          telefone?: string | null
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_alunos_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_alunos_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_badges: {
+        Row: {
+          church_id: string
+          created_at: string
+          criterio: string
+          descricao: string | null
+          icone: string | null
+          id: string
+          nome: string
+          pontos: number
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          criterio: string
+          descricao?: string | null
+          icone?: string | null
+          id?: string
+          nome: string
+          pontos?: number
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          criterio?: string
+          descricao?: string | null
+          icone?: string | null
+          id?: string
+          nome?: string
+          pontos?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_badges_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_devocionais: {
+        Row: {
+          church_id: string
+          conteudo: string
+          created_at: string
+          data: string
+          id: string
+          titulo: string
+        }
+        Insert: {
+          church_id: string
+          conteudo: string
+          created_at?: string
+          data: string
+          id?: string
+          titulo: string
+        }
+        Update: {
+          church_id?: string
+          conteudo?: string
+          created_at?: string
+          data?: string
+          id?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_devocionais_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_devocional_registro: {
+        Row: {
+          aluno_id: string
+          devocional_id: string
+          feito_em: string
+          id: string
+        }
+        Insert: {
+          aluno_id: string
+          devocional_id: string
+          feito_em?: string
+          id?: string
+        }
+        Update: {
+          aluno_id?: string
+          devocional_id?: string
+          feito_em?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_devocional_registro_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_alunos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_devocional_registro_devocional_id_fkey"
+            columns: ["devocional_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_devocionais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_escalas: {
+        Row: {
+          church_id: string
+          confirmado: boolean
+          created_at: string
+          data: string
+          id: string
+          observacao: string | null
+          professor_id: string
+          tipo: string
+          turma_id: string
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          confirmado?: boolean
+          created_at?: string
+          data: string
+          id?: string
+          observacao?: string | null
+          professor_id: string
+          tipo: string
+          turma_id: string
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          confirmado?: boolean
+          created_at?: string
+          data?: string
+          id?: string
+          observacao?: string | null
+          professor_id?: string
+          tipo?: string
+          turma_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_escalas_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_escalas_professor_id_fkey"
+            columns: ["professor_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_professores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_escalas_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_frequencia: {
+        Row: {
+          aluno_id: string
+          church_id: string
+          created_at: string
+          data: string
+          id: string
+          observacao: string | null
+          presente: boolean
+          turma_id: string
+          updated_at: string
+        }
+        Insert: {
+          aluno_id: string
+          church_id: string
+          created_at?: string
+          data: string
+          id?: string
+          observacao?: string | null
+          presente?: boolean
+          turma_id: string
+          updated_at?: string
+        }
+        Update: {
+          aluno_id?: string
+          church_id?: string
+          created_at?: string
+          data?: string
+          id?: string
+          observacao?: string | null
+          presente?: boolean
+          turma_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_frequencia_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_alunos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_frequencia_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_frequencia_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_licoes: {
+        Row: {
+          arquivo_url: string | null
+          church_id: string
+          conteudo: string | null
+          created_at: string
+          data_aula: string
+          id: string
+          publicada: boolean
+          titulo: string
+          turma_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          arquivo_url?: string | null
+          church_id: string
+          conteudo?: string | null
+          created_at?: string
+          data_aula: string
+          id?: string
+          publicada?: boolean
+          titulo: string
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          arquivo_url?: string | null
+          church_id?: string
+          conteudo?: string | null
+          created_at?: string
+          data_aula?: string
+          id?: string
+          publicada?: boolean
+          titulo?: string
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_licoes_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_licoes_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_licoes_acesso: {
+        Row: {
+          acessado_em: string
+          aluno_id: string
+          id: string
+          licao_id: string
+        }
+        Insert: {
+          acessado_em?: string
+          aluno_id: string
+          id?: string
+          licao_id: string
+        }
+        Update: {
+          acessado_em?: string
+          aluno_id?: string
+          id?: string
+          licao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_licoes_acesso_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_alunos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_licoes_acesso_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_licoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_professores: {
+        Row: {
+          church_id: string
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          nome_completo: string
+          telefone: string | null
+          turma_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          nome_completo: string
+          telefone?: string | null
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          nome_completo?: string
+          telefone?: string | null
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_professores_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_professores_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_quiz_questoes: {
+        Row: {
+          created_at: string
+          id: string
+          opcao_a: string
+          opcao_b: string
+          opcao_c: string | null
+          opcao_d: string | null
+          ordem: number
+          pergunta: string
+          quiz_id: string
+          resposta_correta: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          opcao_a: string
+          opcao_b: string
+          opcao_c?: string | null
+          opcao_d?: string | null
+          ordem: number
+          pergunta: string
+          quiz_id: string
+          resposta_correta: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          opcao_a?: string
+          opcao_b?: string
+          opcao_c?: string | null
+          opcao_d?: string | null
+          ordem?: number
+          pergunta?: string
+          quiz_id?: string
+          resposta_correta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_quiz_questoes_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_quiz_respostas: {
+        Row: {
+          aluno_id: string
+          completado: boolean
+          completado_em: string | null
+          created_at: string
+          id: string
+          pontos_obtidos: number
+          quiz_id: string
+          updated_at: string
+        }
+        Insert: {
+          aluno_id: string
+          completado?: boolean
+          completado_em?: string | null
+          created_at?: string
+          id?: string
+          pontos_obtidos?: number
+          quiz_id: string
+          updated_at?: string
+        }
+        Update: {
+          aluno_id?: string
+          completado?: boolean
+          completado_em?: string | null
+          created_at?: string
+          id?: string
+          pontos_obtidos?: number
+          quiz_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_quiz_respostas_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_alunos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_quiz_respostas_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_quizzes: {
+        Row: {
+          church_id: string
+          created_at: string
+          data_limite: string | null
+          descricao: string | null
+          id: string
+          is_active: boolean
+          licao_id: string | null
+          pontos_max: number
+          titulo: string
+          turma_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          data_limite?: string | null
+          descricao?: string | null
+          id?: string
+          is_active?: boolean
+          licao_id?: string | null
+          pontos_max?: number
+          titulo: string
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          data_limite?: string | null
+          descricao?: string | null
+          id?: string
+          is_active?: boolean
+          licao_id?: string | null
+          pontos_max?: number
+          titulo?: string
+          turma_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_quizzes_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_quizzes_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_licoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_quizzes_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_turmas: {
+        Row: {
+          church_id: string
+          created_at: string
+          descricao: string | null
+          faixa_etaria: string
+          id: string
+          is_active: boolean
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          descricao?: string | null
+          faixa_etaria: string
+          id?: string
+          is_active?: boolean
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          descricao?: string | null
+          faixa_etaria?: string
+          id?: string
+          is_active?: boolean
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_turmas_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_entries: {
         Row: {
           church_id: string
