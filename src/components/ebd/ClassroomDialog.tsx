@@ -39,8 +39,17 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
   const [selectedProfessores, setSelectedProfessores] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
-  const form = useForm<FormData>();
+  const form = useForm<FormData>({
+    defaultValues: {
+      nome: "",
+      faixa_etaria: "",
+      descricao: "",
+    }
+  });
   const { register, handleSubmit, reset, formState: { errors } } = form;
+
+  // Não renderizar se não tiver churchId válido
+  if (!churchId || !open) return null;
 
   // Buscar professores ativos
   const { data: professores, isLoading: loadingProfessores } = useQuery({
@@ -154,7 +163,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
                       <SelectValue placeholder="Selecione a faixa etária" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
+                  <SelectContent className="bg-background z-50">
                     {FAIXAS_ETARIAS.map((faixa) => (
                       <SelectItem key={faixa} value={faixa}>
                         {faixa}
