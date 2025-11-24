@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
 interface ClassroomDialogProps {
   open: boolean;
@@ -38,7 +39,8 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
   const [selectedProfessores, setSelectedProfessores] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>();
+  const form = useForm<FormData>();
+  const { register, handleSubmit, reset, formState: { errors } } = form;
 
   // Buscar professores ativos
   const { data: professores, isLoading: loadingProfessores } = useQuery({
@@ -125,7 +127,8 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
           <DialogTitle>Nova Sala</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Form {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="nome">Nome da Turma *</Label>
             <Input
@@ -138,26 +141,31 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="faixa_etaria">Faixa Etária *</Label>
-            <Select
-              onValueChange={(value) => setValue("faixa_etaria", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a faixa etária" />
-              </SelectTrigger>
-              <SelectContent>
-                {FAIXAS_ETARIAS.map((faixa) => (
-                  <SelectItem key={faixa} value={faixa}>
-                    {faixa}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.faixa_etaria && (
-              <p className="text-sm text-destructive">{errors.faixa_etaria.message}</p>
+          <FormField
+            control={form.control}
+            name="faixa_etaria"
+            rules={{ required: "Faixa etária é obrigatória" }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Faixa Etária *</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a faixa etária" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {FAIXAS_ETARIAS.map((faixa) => (
+                      <SelectItem key={faixa} value={faixa}>
+                        {faixa}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
             )}
-          </div>
+          />
 
           <div className="space-y-2">
             <Label htmlFor="descricao">Descrição (Opcional)</Label>
@@ -219,6 +227,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
             </Button>
           </div>
         </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
