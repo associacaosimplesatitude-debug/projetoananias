@@ -23,9 +23,11 @@ export default function MemberSearchDialog({
 }: MemberSearchDialogProps) {
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: members, isLoading } = useQuery({
+  const { data: members, isLoading, error } = useQuery({
     queryKey: ["church-members-search", churchId, searchTerm],
     queryFn: async () => {
+      console.log("Buscando membros para church_id:", churchId);
+      
       let query = supabase
         .from("church_members")
         .select("*")
@@ -38,11 +40,22 @@ export default function MemberSearchDialog({
       }
 
       const { data, error } = await query.order("nome_completo");
-      if (error) throw error;
+      
+      if (error) {
+        console.error("Erro ao buscar membros:", error);
+        throw error;
+      }
+      
+      console.log("Membros encontrados:", data?.length || 0);
       return data;
     },
     enabled: open && !!churchId,
   });
+
+  // Log error if exists
+  if (error) {
+    console.error("Query error:", error);
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,10 +79,17 @@ export default function MemberSearchDialog({
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
+          ) : error ? (
+            <div className="text-center py-12 text-destructive">
+              <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Erro ao carregar membros</p>
+              <p className="text-sm mt-2">{error.message}</p>
+            </div>
           ) : members?.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>Nenhum membro encontrado</p>
+              {searchTerm && <p className="text-sm mt-2">Tente buscar por outro nome ou WhatsApp</p>}
             </div>
           ) : (
             members?.map((member) => (

@@ -104,6 +104,8 @@ export default function EBDStudents() {
     );
   }
 
+  console.log("Church ID para busca de membros:", churchData.id);
+
   const allRecords = [
     ...(alunos?.map((a) => ({ ...a, type: "Aluno" })) || []),
     ...(professores?.map((p) => ({ ...p, type: "Professor" })) || []),
@@ -118,7 +120,13 @@ export default function EBDStudents() {
             <p className="text-muted-foreground">Gerencie alunos e professores da EBD</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setMemberSearchOpen(true)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                console.log("Abrindo busca de membros. Church ID:", churchData.id);
+                setMemberSearchOpen(true);
+              }}
+            >
               <Search className="w-4 h-4 mr-2" />
               Buscar Membro
             </Button>
