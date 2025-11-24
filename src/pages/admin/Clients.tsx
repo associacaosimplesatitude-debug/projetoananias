@@ -9,11 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Eye, Calendar, Settings } from 'lucide-react';
+import { Plus, Eye, Calendar, Settings, Package } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
+import { useModulos } from '@/hooks/useModulos';
+import { useCreateAssinaturas } from '@/hooks/useAssinaturas';
 
 const churchSchema = z.object({
   church_name: z.string().trim().min(1, 'Nome é obrigatório').max(200),
@@ -70,6 +73,7 @@ export default function AdminClients() {
   const [viewOpen, setViewOpen] = useState(false);
   const [mandateOpen, setMandateOpen] = useState(false);
   const [selectedChurch, setSelectedChurch] = useState<Church | null>(null);
+  const [selectedModulos, setSelectedModulos] = useState<string[]>([]);
   const [mandateData, setMandateData] = useState({
     start_date: '',
     end_date: '',
@@ -97,6 +101,8 @@ export default function AdminClients() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const { user } = useAuth();
+  const { data: modulos, isLoading: modulosLoading } = useModulos();
+  const createAssinaturas = useCreateAssinaturas();
 
   useEffect(() => {
     fetchChurches();
@@ -276,6 +282,14 @@ export default function AdminClients() {
         throw new Error('Erro ao criar cliente');
       }
 
+      // Criar assinaturas dos módulos selecionados
+      if (selectedModulos.length > 0 && data.churchId) {
+        await createAssinaturas.mutateAsync({
+          clienteId: data.churchId,
+          moduloIds: selectedModulos,
+        });
+      }
+
       // Enviar email com dados de acesso
       const loginUrl = `${window.location.origin}/auth`;
       
@@ -295,6 +309,7 @@ export default function AdminClients() {
       });
 
       setOpen(false);
+      setSelectedModulos([]);
       setFormData({
         church_name: '',
         pastor_email: '',
@@ -566,6 +581,42 @@ export default function AdminClients() {
                   </div>
 
                   <div className="border-t pt-4 mt-2">
+                    <h3 className="font-medium mb-4">Módulos REOBOTE</h3>
+                    <div className="grid gap-3">
+                      <Label>Selecione os módulos para este cliente</Label>
+                      {modulosLoading ? (
+                        <p className="text-sm text-muted-foreground">Carregando módulos...</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {modulos?.map((modulo) => (
+                            <div key={modulo.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={modulo.id}
+                                checked={selectedModulos.includes(modulo.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedModulos([...selectedModulos, modulo.id]);
+                                  } else {
+                                    setSelectedModulos(selectedModulos.filter(id => id !== modulo.id));
+                                  }
+                                }}
+                              />
+                              <Label htmlFor={modulo.id} className="font-normal cursor-pointer">
+                                {modulo.nome_modulo}
+                                {modulo.descricao && (
+                                  <span className="text-sm text-muted-foreground ml-2">
+                                    - {modulo.descricao}
+                                  </span>
+                                )}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 mt-2">
                     <h3 className="font-medium mb-4">Informações de Pagamento</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
@@ -694,6 +745,14 @@ export default function AdminClients() {
                           title="Cadastrar Mandato"
                         >
                           <Calendar className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => window.location.href = `/admin/clients/${church.id}/modules`}
+                          title="Gerenciar Módulos"
+                        >
+                          <Package className="h-4 w-4" />
                         </Button>
                         <Button 
                           variant="ghost" 

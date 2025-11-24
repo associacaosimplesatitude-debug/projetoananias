@@ -34,6 +34,7 @@ import AdminAccountsPayable from "./pages/admin/AccountsPayable";
 import AdminFinancialReports from "./pages/admin/FinancialReports";
 import AdminStageManagement from "./pages/admin/StageManagement";
 import BrandingCustomization from "./pages/admin/BrandingCustomization";
+import ClientModules from "./pages/admin/ClientModules";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 
@@ -149,6 +150,22 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <AdminStageManagement />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/clients/:clientId/modules"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <ClientModules />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/branding"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <BrandingCustomization />
                         </ProtectedRoute>
                       }
                     />

@@ -178,7 +178,7 @@ export const Navigation = () => {
       label: 'Etapas',
     },
     {
-      to: '/superadmin/branding',
+      to: '/admin/branding',
       icon: Palette,
       label: 'Aparência',
     },
