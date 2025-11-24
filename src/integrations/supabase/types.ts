@@ -731,12 +731,14 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean
+          member_id: string | null
           nome_completo: string
           pontos_totais: number
           responsavel: string | null
           telefone: string | null
           turma_id: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           church_id: string
@@ -745,12 +747,14 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          member_id?: string | null
           nome_completo: string
           pontos_totais?: number
           responsavel?: string | null
           telefone?: string | null
           turma_id?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           church_id?: string
@@ -759,12 +763,14 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          member_id?: string | null
           nome_completo?: string
           pontos_totais?: number
           responsavel?: string | null
           telefone?: string | null
           turma_id?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -772,6 +778,13 @@ export type Database = {
             columns: ["church_id"]
             isOneToOne: false
             referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_alunos_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "church_members"
             referencedColumns: ["id"]
           },
           {
@@ -1111,10 +1124,12 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean
+          member_id: string | null
           nome_completo: string
           telefone: string | null
           turma_id: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           church_id: string
@@ -1122,10 +1137,12 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          member_id?: string | null
           nome_completo: string
           telefone?: string | null
           turma_id?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           church_id?: string
@@ -1133,10 +1150,12 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          member_id?: string | null
           nome_completo?: string
           telefone?: string | null
           turma_id?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1144,6 +1163,13 @@ export type Database = {
             columns: ["church_id"]
             isOneToOne: false
             referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_professores_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "church_members"
             referencedColumns: ["id"]
           },
           {
