@@ -15,27 +15,19 @@ export default function EBDClassrooms() {
   const { clientId } = useParams();
 
   // Buscar church_id
-  const { data: churchData, isLoading: loadingChurch } = useQuery({
+  const { data: churchData, isLoading: loadingChurch, error: churchError } = useQuery({
     queryKey: ["church-data", clientId],
     queryFn: async () => {
-      console.log("Buscando dados da igreja. clientId:", clientId);
-      
       if (clientId) {
         const { data, error } = await supabase
           .from("churches")
           .select("*")
           .eq("id", clientId)
           .single();
-        if (error) {
-          console.error("Erro ao buscar igreja por clientId:", error);
-          throw error;
-        }
-        console.log("Igreja encontrada (admin view):", data);
+        if (error) throw error;
         return data;
       } else {
         const { data: { user } } = await supabase.auth.getUser();
-        console.log("Usuário autenticado:", user?.id);
-        
         if (!user) throw new Error("Usuário não autenticado");
 
         const { data, error } = await supabase
@@ -43,11 +35,7 @@ export default function EBDClassrooms() {
           .select("*")
           .eq("user_id", user.id)
           .single();
-        if (error) {
-          console.error("Erro ao buscar igreja por user_id:", error);
-          throw error;
-        }
-        console.log("Igreja encontrada (cliente):", data);
+        if (error) throw error;
         return data;
       }
     },
@@ -85,6 +73,36 @@ export default function EBDClassrooms() {
 
   const filteredTurmas = turmas || [];
 
+  // Loading state
+  if (loadingChurch) {
+    return (
+      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando dados...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (churchError || !churchData) {
+    return (
+      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <School className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+          <h2 className="text-2xl font-bold mb-2">Erro ao carregar dados</h2>
+          <p className="text-muted-foreground mb-4">
+            {churchError?.message || "Não foi possível carregar os dados da igreja. Tente novamente."}
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Recarregar Página
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -93,26 +111,9 @@ export default function EBDClassrooms() {
             <h1 className="text-3xl font-bold">Cadastro de Salas</h1>
             <p className="text-muted-foreground">Gerencie as turmas da EBD</p>
           </div>
-          <Button 
-            onClick={() => {
-              console.log("Botão Nova Sala clicado");
-              console.log("churchData:", churchData);
-              console.log("loadingChurch:", loadingChurch);
-              setDialogOpen(true);
-            }}
-            disabled={loadingChurch || !churchData}
-          >
-            {loadingChurch ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                Carregando...
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4 mr-2" />
-                Nova Sala
-              </>
-            )}
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Sala
           </Button>
         </div>
 
@@ -191,13 +192,11 @@ export default function EBDClassrooms() {
         </Card>
       </div>
 
-      {churchData?.id && (
-        <ClassroomDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          churchId={churchData.id}
-        />
-      )}
+      <ClassroomDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        churchId={churchData.id}
+      />
     </div>
   );
 }
