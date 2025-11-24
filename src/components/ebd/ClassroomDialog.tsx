@@ -48,9 +48,6 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
   });
   const { register, handleSubmit, reset, formState: { errors } } = form;
 
-  // Não renderizar se não tiver churchId válido
-  if (!churchId || !open) return null;
-
   // Buscar professores ativos
   const { data: professores, isLoading: loadingProfessores } = useQuery({
     queryKey: ["ebd-professores-active", churchId],
@@ -128,6 +125,9 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
         : [...prev, professorId]
     );
   };
+
+  // Não renderizar se não tiver churchId válido
+  if (!churchId) return null;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
