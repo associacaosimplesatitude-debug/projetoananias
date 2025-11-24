@@ -11,12 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Eye, Calendar, Settings, Package } from 'lucide-react';
+import { Plus, Eye, Calendar, Settings, Package, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { useModulos } from '@/hooks/useModulos';
-import { useCreateAssinaturas } from '@/hooks/useAssinaturas';
+import { useCreateAssinaturas, useDeleteClient } from '@/hooks/useAssinaturas';
 
 const churchSchema = z.object({
   church_name: z.string().trim().min(1, 'Nome é obrigatório').max(200),
@@ -72,6 +73,7 @@ export default function AdminClients() {
   const [open, setOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [mandateOpen, setMandateOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedChurch, setSelectedChurch] = useState<Church | null>(null);
   const [selectedModulos, setSelectedModulos] = useState<string[]>([]);
   const [mandateData, setMandateData] = useState({
@@ -103,6 +105,7 @@ export default function AdminClients() {
   const { user } = useAuth();
   const { data: modulos, isLoading: modulosLoading } = useModulos();
   const createAssinaturas = useCreateAssinaturas();
+  const deleteClient = useDeleteClient();
 
   useEffect(() => {
     fetchChurches();
@@ -345,6 +348,19 @@ export default function AdminClients() {
     if (stage === 6) return 'default';
     if (stage >= 4) return 'secondary';
     return 'outline';
+  };
+
+  const handleDeleteClient = async () => {
+    if (!selectedChurch) return;
+
+    try {
+      await deleteClient.mutateAsync(selectedChurch.id);
+      setDeleteDialogOpen(false);
+      setSelectedChurch(null);
+      fetchChurches();
+    } catch (error) {
+      console.error('Error deleting client:', error);
+    }
   };
 
   return (
@@ -684,7 +700,14 @@ export default function AdminClients() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {churches.map((church) => (
+                {churches.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      Nenhum cliente cadastrado ainda. Clique em "Cadastrar Cliente" para adicionar o primeiro.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  churches.map((church) => (
                   <TableRow key={church.id}>
                     <TableCell className="font-medium">
                       <Link 
@@ -762,10 +785,23 @@ export default function AdminClients() {
                         >
                           <Settings className="h-4 w-4" />
                         </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedChurch(church);
+                            setDeleteDialogOpen(true);
+                          }}
+                          title="Excluir Cliente"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -863,6 +899,34 @@ export default function AdminClients() {
             </form>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o cliente <strong>{selectedChurch?.church_name}</strong>?
+                <br /><br />
+                Esta ação é irreversível e irá deletar:
+                <ul className="list-disc list-inside mt-2">
+                  <li>Todos os dados do cliente</li>
+                  <li>Todas as assinaturas de módulos</li>
+                  <li>Todo o progresso no funil de abertura</li>
+                  <li>Documentos e informações relacionadas</li>
+                </ul>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteClient}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir Cliente
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
