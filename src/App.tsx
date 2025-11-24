@@ -162,7 +162,7 @@ const App = () => (
                     <Route 
                       path="/ebd" 
                       element={
-                        <ModuleProtectedRoute requiredModule="EBD">
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDIndex />
                         </ModuleProtectedRoute>
                       } 
@@ -170,7 +170,7 @@ const App = () => (
                     <Route 
                       path="/ebd/dashboard" 
                       element={
-                        <ModuleProtectedRoute requiredModule="EBD">
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDDashboard />
                         </ModuleProtectedRoute>
                       } 
@@ -178,7 +178,7 @@ const App = () => (
                     <Route 
                       path="/ebd/students" 
                       element={
-                        <ModuleProtectedRoute requiredModule="EBD">
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDStudents />
                         </ModuleProtectedRoute>
                       } 
@@ -186,7 +186,7 @@ const App = () => (
                     <Route 
                       path="/ebd/classrooms" 
                       element={
-                        <ModuleProtectedRoute requiredModule="EBD">
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDClassrooms />
                         </ModuleProtectedRoute>
                       } 
@@ -194,7 +194,7 @@ const App = () => (
                     <Route 
                       path="/ebd/quizzes" 
                       element={
-                        <ModuleProtectedRoute requiredModule="EBD">
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDQuizzes />
                         </ModuleProtectedRoute>
                       } 
@@ -202,7 +202,7 @@ const App = () => (
                     <Route 
                       path="/ebd/schedule" 
                       element={
-                        <ModuleProtectedRoute requiredModule="EBD">
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDSchedule />
                         </ModuleProtectedRoute>
                       } 

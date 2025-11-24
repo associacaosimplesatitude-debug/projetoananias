@@ -84,7 +84,7 @@ export const Navigation = () => {
         exact: true,
       }] : []),
     ] : []),
-    ...(activeModules?.includes('EBD') ? [{
+    ...(activeModules?.includes('REOBOTE EBD') ? [{
       to: '/ebd',
       icon: BookOpen,
       label: 'EBD',
