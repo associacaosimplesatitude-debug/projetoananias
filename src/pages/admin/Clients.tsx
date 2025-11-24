@@ -15,7 +15,7 @@ import { Plus, Eye, Calendar, Settings, Package, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useModulos } from '@/hooks/useModulos';
 import { useCreateAssinaturas, useDeleteClient } from '@/hooks/useAssinaturas';
 
@@ -103,6 +103,7 @@ export default function AdminClients() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { data: modulos, isLoading: modulosLoading } = useModulos();
   const createAssinaturas = useCreateAssinaturas();
   const deleteClient = useDeleteClient();
@@ -811,7 +812,7 @@ export default function AdminClients() {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          onClick={() => window.location.href = `/admin/clients/${church.id}/modules`}
+                          onClick={() => navigate(`/admin/clients/${church.id}/modules`)}
                           title="Gerenciar Módulos"
                         >
                           <Package className="h-4 w-4" />
@@ -819,7 +820,7 @@ export default function AdminClients() {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          onClick={() => window.location.href = `/admin/clients/${church.id}`}
+                          onClick={() => navigate(`/admin/clients/${church.id}`)}
                           title="Gerenciar Cliente"
                         >
                           <Settings className="h-4 w-4" />
