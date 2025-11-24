@@ -1181,6 +1181,42 @@ export type Database = {
           },
         ]
       }
+      ebd_professores_turmas: {
+        Row: {
+          created_at: string
+          id: string
+          professor_id: string
+          turma_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          professor_id: string
+          turma_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          professor_id?: string
+          turma_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_professores_turmas_professor_id_fkey"
+            columns: ["professor_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_professores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_professores_turmas_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_quiz_questoes: {
         Row: {
           created_at: string
