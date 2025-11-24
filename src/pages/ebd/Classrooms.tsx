@@ -191,11 +191,13 @@ export default function EBDClassrooms() {
         </Card>
       </div>
 
-      <ClassroomDialog
-        open={dialogOpen && !!churchData}
-        onOpenChange={setDialogOpen}
-        churchId={churchData?.id || ""}
-      />
+      {churchData?.id && (
+        <ClassroomDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          churchId={churchData.id}
+        />
+      )}
     </div>
   );
 }
