@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { Navigation } from "@/components/layout/Navigation";
 import { PaymentBanner } from "@/components/layout/PaymentBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ModuleProtectedRoute from "@/components/ModuleProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import DiretoriaForm from "./pages/DiretoriaForm";
@@ -57,20 +58,97 @@ const App = () => (
                   <Navigation />
                   <PaymentBanner />
                   <Routes>
-                    <Route path="/" element={<Index />} />
+                    <Route 
+                      path="/" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                          <Index />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
                     <Route path="/my-profile" element={<MyProfile />} />
-                    <Route path="/diretoria-form" element={<DiretoriaForm />} />
+                    <Route 
+                      path="/diretoria-form" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                          <DiretoriaForm />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
                     <Route path="/members" element={<Members />} />
                     <Route path="/church-members" element={<ChurchMembers />} />
-                    <Route path="/entries" element={<FinancialEntries />} />
-                    <Route path="/expenses" element={<FinancialExpenses />} />
-                    <Route path="/dashboard" element={<FinancialDashboard />} />
-                    <Route path="/bank-accounts" element={<BankAccounts />} />
-                    <Route path="/bank-transfers" element={<BankTransfers />} />
-          <Route path="/reports/accounting" element={<AccountingReports />} />
-          <Route path="/reports/journal" element={<AccountingJournal />} />
-          <Route path="/reports/income-statement" element={<IncomeStatement />} />
-          <Route path="/reports/balance-sheet" element={<BalanceSheet />} />
+                    <Route 
+                      path="/entries" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                          <FinancialEntries />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/expenses" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                          <FinancialExpenses />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/dashboard" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                          <FinancialDashboard />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/bank-accounts" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                          <BankAccounts />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/bank-transfers" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                          <BankTransfers />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+          <Route 
+            path="/reports/accounting" 
+            element={
+              <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                <AccountingReports />
+              </ModuleProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/reports/journal" 
+            element={
+              <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                <AccountingJournal />
+              </ModuleProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/reports/income-statement" 
+            element={
+              <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                <IncomeStatement />
+              </ModuleProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/reports/balance-sheet" 
+            element={
+              <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
+                <BalanceSheet />
+              </ModuleProtectedRoute>
+            } 
+          />
                     <Route path="/settings/users" element={<ChurchUsers />} />
                     
                     <Route

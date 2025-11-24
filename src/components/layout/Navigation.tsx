@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useChurchData } from '@/hooks/useChurchData';
 import { useClientType } from '@/hooks/useClientType';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
+import { useActiveModules } from '@/hooks/useActiveModules';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +22,10 @@ export const Navigation = () => {
   const { role, user } = useAuth();
   const { data: brandingSettings } = useBrandingSettings();
   const { clientType } = useClientType();
+  const { data: activeModules } = useActiveModules();
   const [processStatus, setProcessStatus] = React.useState<string | null>(null);
+
+  const hasReoboteIgrejas = role === 'admin' || activeModules?.includes('REOBOTE IGREJAS');
 
   const membersLabel = clientType === 'associacao' ? 'Associados' : 'Membros';
 
@@ -42,42 +46,44 @@ export const Navigation = () => {
   }, [user, role]);
 
   const clientNavItems = [
-    {
-      to: '/dashboard',
-      icon: LayoutDashboard,
-      label: 'Dashboard',
-    },
-    {
-      to: '/members',
-      icon: Users,
-      label: membersLabel,
-    },
-    {
-      to: '/entries',
-      icon: TrendingUp,
-      label: 'Entradas',
-    },
-    {
-      to: '/expenses',
-      icon: TrendingDown,
-      label: 'Despesas',
-    },
-    {
-      to: '/bank-accounts',
-      icon: Building2,
-      label: 'Contas Bancárias',
-    },
-    {
-      to: '/bank-transfers',
-      icon: ArrowLeftRight,
-      label: 'Transferências',
-    },
-    ...(processStatus === 'in_progress' ? [{
-      to: '/',
-      icon: Church,
-      label: 'Abertura',
-      exact: true,
-    }] : []),
+    ...(hasReoboteIgrejas ? [
+      {
+        to: '/dashboard',
+        icon: LayoutDashboard,
+        label: 'Dashboard',
+      },
+      {
+        to: '/members',
+        icon: Users,
+        label: membersLabel,
+      },
+      {
+        to: '/entries',
+        icon: TrendingUp,
+        label: 'Entradas',
+      },
+      {
+        to: '/expenses',
+        icon: TrendingDown,
+        label: 'Despesas',
+      },
+      {
+        to: '/bank-accounts',
+        icon: Building2,
+        label: 'Contas Bancárias',
+      },
+      {
+        to: '/bank-transfers',
+        icon: ArrowLeftRight,
+        label: 'Transferências',
+      },
+      ...(processStatus === 'in_progress' ? [{
+        to: '/',
+        icon: Church,
+        label: 'Abertura',
+        exact: true,
+      }] : []),
+    ] : []),
   ];
 
   const accountingMenuItems = [
@@ -100,36 +106,38 @@ export const Navigation = () => {
   ];
 
   const tesoureiroNavItems = [
-    {
-      to: '/dashboard',
-      icon: LayoutDashboard,
-      label: 'Dashboard',
-    },
-    {
-      to: '/members',
-      icon: Users,
-      label: membersLabel,
-    },
-    {
-      to: '/entries',
-      icon: TrendingUp,
-      label: 'Entradas',
-    },
-    {
-      to: '/expenses',
-      icon: TrendingDown,
-      label: 'Despesas',
-    },
-    {
-      to: '/bank-accounts',
-      icon: Building2,
-      label: 'Contas Bancárias',
-    },
-    {
-      to: '/bank-transfers',
-      icon: ArrowLeftRight,
-      label: 'Transferências',
-    },
+    ...(hasReoboteIgrejas ? [
+      {
+        to: '/dashboard',
+        icon: LayoutDashboard,
+        label: 'Dashboard',
+      },
+      {
+        to: '/members',
+        icon: Users,
+        label: membersLabel,
+      },
+      {
+        to: '/entries',
+        icon: TrendingUp,
+        label: 'Entradas',
+      },
+      {
+        to: '/expenses',
+        icon: TrendingDown,
+        label: 'Despesas',
+      },
+      {
+        to: '/bank-accounts',
+        icon: Building2,
+        label: 'Contas Bancárias',
+      },
+      {
+        to: '/bank-transfers',
+        icon: ArrowLeftRight,
+        label: 'Transferências',
+      },
+    ] : []),
   ];
 
   const secretarioNavItems = [
@@ -233,7 +241,7 @@ export const Navigation = () => {
                 );
               })}
               
-              {(role === 'client' || role === 'tesoureiro') && (
+              {(role === 'client' || role === 'tesoureiro') && hasReoboteIgrejas && (
                 <DropdownMenu>
                   <DropdownMenuTrigger 
                     className={cn(
