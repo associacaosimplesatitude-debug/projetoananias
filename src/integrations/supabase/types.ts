@@ -109,6 +109,51 @@ export type Database = {
           },
         ]
       }
+      assinaturas: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          data_ativacao: string
+          id: string
+          modulo_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          data_ativacao?: string
+          id?: string
+          modulo_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          data_ativacao?: string
+          id?: string
+          modulo_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assinaturas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assinaturas_modulo_id_fkey"
+            columns: ["modulo_id"]
+            isOneToOne: false
+            referencedRelation: "modulos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           account_number: string
@@ -805,6 +850,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      modulos: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          id: string
+          nome_modulo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome_modulo: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome_modulo?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       plano_de_contas: {
         Row: {
