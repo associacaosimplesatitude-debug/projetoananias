@@ -15,19 +15,27 @@ export default function EBDClassrooms() {
   const { clientId } = useParams();
 
   // Buscar church_id
-  const { data: churchData } = useQuery({
+  const { data: churchData, isLoading: loadingChurch } = useQuery({
     queryKey: ["church-data", clientId],
     queryFn: async () => {
+      console.log("Buscando dados da igreja. clientId:", clientId);
+      
       if (clientId) {
         const { data, error } = await supabase
           .from("churches")
           .select("*")
           .eq("id", clientId)
           .single();
-        if (error) throw error;
+        if (error) {
+          console.error("Erro ao buscar igreja por clientId:", error);
+          throw error;
+        }
+        console.log("Igreja encontrada (admin view):", data);
         return data;
       } else {
         const { data: { user } } = await supabase.auth.getUser();
+        console.log("Usuário autenticado:", user?.id);
+        
         if (!user) throw new Error("Usuário não autenticado");
 
         const { data, error } = await supabase
@@ -35,7 +43,11 @@ export default function EBDClassrooms() {
           .select("*")
           .eq("user_id", user.id)
           .single();
-        if (error) throw error;
+        if (error) {
+          console.error("Erro ao buscar igreja por user_id:", error);
+          throw error;
+        }
+        console.log("Igreja encontrada (cliente):", data);
         return data;
       }
     },
@@ -81,9 +93,26 @@ export default function EBDClassrooms() {
             <h1 className="text-3xl font-bold">Cadastro de Salas</h1>
             <p className="text-muted-foreground">Gerencie as turmas da EBD</p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Sala
+          <Button 
+            onClick={() => {
+              console.log("Botão Nova Sala clicado");
+              console.log("churchData:", churchData);
+              console.log("loadingChurch:", loadingChurch);
+              setDialogOpen(true);
+            }}
+            disabled={loadingChurch || !churchData}
+          >
+            {loadingChurch ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                Carregando...
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Sala
+              </>
+            )}
           </Button>
         </div>
 
@@ -162,13 +191,11 @@ export default function EBDClassrooms() {
         </Card>
       </div>
 
-      {churchData && (
-        <ClassroomDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          churchId={churchData.id}
-        />
-      )}
+      <ClassroomDialog
+        open={dialogOpen && !!churchData}
+        onOpenChange={setDialogOpen}
+        churchId={churchData?.id || ""}
+      />
     </div>
   );
 }
