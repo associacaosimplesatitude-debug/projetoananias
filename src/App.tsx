@@ -39,6 +39,14 @@ import ClientModules from "./pages/admin/ClientModules";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 
+// EBD Pages
+import EBDIndex from "./pages/ebd/Index";
+import EBDDashboard from "./pages/ebd/Dashboard";
+import EBDStudents from "./pages/ebd/Students";
+import EBDClassrooms from "./pages/ebd/Classrooms";
+import EBDQuizzes from "./pages/ebd/Quizzes";
+import EBDSchedule from "./pages/ebd/Schedule";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -149,6 +157,57 @@ const App = () => (
               </ModuleProtectedRoute>
             } 
           />
+                    
+                    {/* EBD Routes */}
+                    <Route 
+                      path="/ebd" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="EBD">
+                          <EBDIndex />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/dashboard" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="EBD">
+                          <EBDDashboard />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/students" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="EBD">
+                          <EBDStudents />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/classrooms" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="EBD">
+                          <EBDClassrooms />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/quizzes" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="EBD">
+                          <EBDQuizzes />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/schedule" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="EBD">
+                          <EBDSchedule />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    
                     <Route path="/settings/users" element={<ChurchUsers />} />
                     
                     <Route
