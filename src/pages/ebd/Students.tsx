@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,16 +12,23 @@ import ManualRegistrationDialog from "@/components/ebd/ManualRegistrationDialog"
 import { Badge } from "@/components/ui/badge";
 
 export default function EBDStudents() {
+  const { clientId } = useParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [activateMemberOpen, setActivateMemberOpen] = useState(false);
   const [manualRegOpen, setManualRegOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
 
-  // Get church ID
+  // Get church ID - use clientId from route if available (admin view), otherwise get user's church
   const { data: churchData } = useQuery({
-    queryKey: ["user-church"],
+    queryKey: ["user-church", clientId],
     queryFn: async () => {
+      // If clientId is in the route (admin viewing a client), use it directly
+      if (clientId) {
+        return { id: clientId };
+      }
+
+      // Otherwise, get the church for the logged-in user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
