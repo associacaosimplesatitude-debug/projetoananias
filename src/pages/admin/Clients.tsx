@@ -265,46 +265,74 @@ export default function AdminClients() {
       });
 
       if (createError) {
-        throw createError;
+        console.error('Edge function error:', createError);
+        toast({
+          title: 'Erro',
+          description: createError.message || 'Erro ao comunicar com o servidor',
+          variant: 'destructive',
+        });
+        return;
       }
 
       // Verificar se a resposta contém erro
       if (data && data.error) {
-        if (data.error.includes('already registered') || data.error.includes('already been registered')) {
+        console.error('Server error:', data.error);
+        toast({
+          title: 'Erro ao cadastrar cliente',
+          description: data.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!data || !data.success || !data.churchId) {
+        console.error('Invalid response:', data);
+        toast({
+          title: 'Erro',
+          description: 'Resposta inválida do servidor. Tente novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      console.log('Client created successfully:', data.churchId);
+
+      // Criar assinaturas dos módulos selecionados (apenas se houver módulos e churchId válido)
+      if (selectedModulos.length > 0 && data.churchId) {
+        try {
+          await createAssinaturas.mutateAsync({
+            clienteId: data.churchId,
+            moduloIds: selectedModulos,
+          });
+          console.log('Subscriptions created successfully');
+        } catch (assinaturaError: any) {
+          console.error('Error creating subscriptions:', assinaturaError);
           toast({
-            title: 'Erro',
-            description: 'Este email já está cadastrado no sistema. Use um email diferente.',
+            title: 'Aviso',
+            description: 'Cliente criado mas houve erro ao ativar os módulos. Você pode ativá-los depois na página de módulos.',
             variant: 'destructive',
           });
-          return;
         }
-        throw new Error(data.error);
-      }
-
-      if (!data || !data.success) {
-        throw new Error('Erro ao criar cliente');
-      }
-
-      // Criar assinaturas dos módulos selecionados
-      if (selectedModulos.length > 0 && data.churchId) {
-        await createAssinaturas.mutateAsync({
-          clienteId: data.churchId,
-          moduloIds: selectedModulos,
-        });
       }
 
       // Enviar email com dados de acesso
-      const loginUrl = `${window.location.origin}/auth`;
-      
-      await supabase.functions.invoke('send-welcome-email', {
-        body: {
-          pastorName: formData.pastor_name || 'Pastor(a)',
-          pastorEmail: formData.pastor_email,
-          churchName: formData.church_name,
-          password: formData.pastor_password,
-          loginUrl: loginUrl,
-        },
-      });
+      try {
+        const loginUrl = `${window.location.origin}/auth`;
+        
+        await supabase.functions.invoke('send-welcome-email', {
+          body: {
+            pastorName: formData.pastor_name || 'Pastor(a)',
+            pastorEmail: formData.pastor_email,
+            churchName: formData.church_name,
+            password: formData.pastor_password,
+            loginUrl: loginUrl,
+          },
+        });
+        console.log('Welcome email sent');
+      } catch (emailError) {
+        console.error('Error sending email:', emailError);
+        // Não bloqueamos o processo se o email falhar
+      }
 
       toast({
         title: 'Sucesso',
@@ -336,9 +364,20 @@ export default function AdminClients() {
       fetchChurches();
     } catch (error: any) {
       console.error('Error creating client:', error);
+      
+      let errorMessage = 'Não foi possível cadastrar o cliente. ';
+      
+      if (error.message) {
+        errorMessage += error.message;
+      } else if (typeof error === 'string') {
+        errorMessage += error;
+      } else {
+        errorMessage += 'Verifique os dados e tente novamente.';
+      }
+      
       toast({
-        title: 'Erro',
-        description: error.message || 'Não foi possível cadastrar o cliente',
+        title: 'Erro no cadastro',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
