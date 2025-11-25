@@ -181,45 +181,53 @@ export function MontarEscalaDialog({ planejamento, open, onOpenChange, churchId 
             Selecione um professor para cada lição:
           </div>
 
-          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-            {licoes?.map((licao, index) => (
-              <div key={licao.id} className="border rounded-lg p-4">
-                <div className="grid grid-cols-12 gap-4 items-center">
-                  <div className="col-span-1">
-                    <span className="font-bold text-lg">{licao.numero_licao}</span>
-                  </div>
-                  <div className="col-span-6">
-                    <div>
-                      <p className="font-medium">{licao.titulo}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(datasAulas[index], "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                      </p>
+          {!licoes || licoes.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma lição encontrada para esta revista.
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+              {licoes.map((licao, index) => (
+                <div key={licao.id} className="border rounded-lg p-4 hover:bg-accent/50 transition-colors">
+                  <div className="grid grid-cols-12 gap-4 items-center">
+                    <div className="col-span-1 text-center">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="font-bold text-primary">{licao.numero_licao}</span>
+                      </div>
+                    </div>
+                    <div className="col-span-6">
+                      <div>
+                        <p className="font-medium text-foreground">{licao.titulo}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          📅 {format(datasAulas[index], "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="col-span-5">
+                      <Label htmlFor={`professor-${licao.id}`} className="text-xs text-muted-foreground mb-1 block">
+                        Professor
+                      </Label>
+                      <Select
+                        value={escalas[licao.id] || ""}
+                        onValueChange={(value) => setEscalas({ ...escalas, [licao.id]: value })}
+                      >
+                        <SelectTrigger id={`professor-${licao.id}`}>
+                          <SelectValue placeholder="Selecionar" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {professores?.map((professor) => (
+                            <SelectItem key={professor.id} value={professor.id}>
+                              {professor.nome_completo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  <div className="col-span-5">
-                    <Label htmlFor={`professor-${licao.id}`} className="sr-only">
-                      Professor
-                    </Label>
-                    <Select
-                      value={escalas[licao.id] || ""}
-                      onValueChange={(value) => setEscalas({ ...escalas, [licao.id]: value })}
-                    >
-                      <SelectTrigger id={`professor-${licao.id}`}>
-                        <SelectValue placeholder="Selecione o professor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {professores?.map((professor) => (
-                          <SelectItem key={professor.id} value={professor.id}>
-                            {professor.nome_completo}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
