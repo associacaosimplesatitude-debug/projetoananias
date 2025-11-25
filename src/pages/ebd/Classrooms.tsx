@@ -95,8 +95,8 @@ export default function EBDClassrooms() {
           <p className="text-muted-foreground mb-4">
             {churchError?.message || "Não foi possível carregar os dados da igreja. Tente novamente."}
           </p>
-          <Button onClick={() => window.location.reload()}>
-            Recarregar Página
+          <Button onClick={() => window.history.back()}>
+            Voltar
           </Button>
         </div>
       </div>
