@@ -119,11 +119,38 @@ export const Navigation = () => {
         exact: true,
       }] : []),
     ] : []),
-    ...(activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD ? [{
-      to: '/ebd',
-      icon: BookOpen,
-      label: 'EBD',
-    }] : []),
+    ...(activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD ? [
+      {
+        to: '/ebd/dashboard',
+        icon: LayoutDashboard,
+        label: 'Dashboard EBD',
+      },
+      {
+        to: '/ebd/students',
+        icon: Users,
+        label: 'Alunos',
+      },
+      {
+        to: '/ebd/students?filter=professores',
+        icon: UserCog,
+        label: 'Professores',
+      },
+      {
+        to: '/ebd/classrooms',
+        icon: Building,
+        label: 'Turmas',
+      },
+      {
+        to: '/ebd/quizzes',
+        icon: FileText,
+        label: 'Quiz',
+      },
+      {
+        to: '/ebd/schedule',
+        icon: Settings,
+        label: 'Escala',
+      },
+    ] : []),
   ];
 
   const accountingMenuItems = [
