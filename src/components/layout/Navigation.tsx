@@ -78,7 +78,7 @@ export const Navigation = () => {
       label: 'Alunos',
     },
     {
-      to: '/ebd/students?filter=professores',
+      to: '/ebd/teachers',
       icon: UserCog,
       label: 'Professores',
     },
@@ -150,7 +150,7 @@ export const Navigation = () => {
         label: 'Alunos',
       },
       {
-        to: '/ebd/students?filter=professores',
+        to: '/ebd/teachers',
         icon: UserCog,
         label: 'Professores',
       },

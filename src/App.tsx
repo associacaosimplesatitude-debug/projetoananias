@@ -45,6 +45,7 @@ import DashboardRedirect from "./components/DashboardRedirect";
 import EBDIndex from "./pages/ebd/Index";
 import EBDDashboard from "./pages/ebd/Dashboard";
 import EBDStudents from "./pages/ebd/Students";
+import EBDTeachers from "./pages/ebd/Teachers";
 import EBDClassrooms from "./pages/ebd/Classrooms";
 import EBDQuizzes from "./pages/ebd/Quizzes";
 import EBDSchedule from "./pages/ebd/Schedule";
@@ -186,6 +187,14 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDStudents />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/teachers" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDTeachers />
                         </ModuleProtectedRoute>
                       } 
                     />
