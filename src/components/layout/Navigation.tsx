@@ -26,6 +26,7 @@ export const Navigation = () => {
   const [processStatus, setProcessStatus] = React.useState<string | null>(null);
 
   const hasReoboteIgrejas = role === 'admin' || activeModules?.includes('REOBOTE IGREJAS');
+  const hasOnlyReoboteEBD = activeModules?.length === 1 && activeModules.includes('REOBOTE EBD');
 
   const membersLabel = clientType === 'associacao' ? 'Associados' : 'Membros';
 
@@ -44,6 +45,40 @@ export const Navigation = () => {
 
     fetchProcessStatus();
   }, [user, role]);
+
+  // EBD-only navigation items
+  const ebdOnlyNavItems = [
+    {
+      to: '/ebd/dashboard',
+      icon: LayoutDashboard,
+      label: 'Dashboard',
+    },
+    {
+      to: '/ebd/students',
+      icon: Users,
+      label: 'Alunos',
+    },
+    {
+      to: '/ebd/students?filter=professores',
+      icon: UserCog,
+      label: 'Professores',
+    },
+    {
+      to: '/ebd/classrooms',
+      icon: Building,
+      label: 'Turmas',
+    },
+    {
+      to: '/ebd/quizzes',
+      icon: FileText,
+      label: 'Quiz',
+    },
+    {
+      to: '/ebd/schedule',
+      icon: Settings,
+      label: 'Escala',
+    },
+  ];
 
   const clientNavItems = [
     ...(hasReoboteIgrejas ? [
@@ -78,13 +113,13 @@ export const Navigation = () => {
         label: 'Transferências',
       },
       ...(processStatus === 'in_progress' ? [{
-        to: '/',
+        to: '/abertura',
         icon: Church,
         label: 'Abertura',
         exact: true,
       }] : []),
     ] : []),
-    ...(activeModules?.includes('REOBOTE EBD') ? [{
+    ...(activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD ? [{
       to: '/ebd',
       icon: BookOpen,
       label: 'EBD',
@@ -201,6 +236,7 @@ export const Navigation = () => {
     role === 'admin' ? adminNavItems :
     role === 'tesoureiro' ? tesoureiroNavItems :
     role === 'secretario' ? secretarioNavItems :
+    hasOnlyReoboteEBD ? ebdOnlyNavItems :
     clientNavItems;
 
   const navBgColor = brandingSettings?.nav_background_color || '#1a2d40';
@@ -246,7 +282,7 @@ export const Navigation = () => {
                 );
               })}
               
-              {(role === 'client' || role === 'tesoureiro') && hasReoboteIgrejas && (
+              {(role === 'client' || role === 'tesoureiro') && hasReoboteIgrejas && !hasOnlyReoboteEBD && (
                 <DropdownMenu>
                   <DropdownMenuTrigger 
                     className={cn(
