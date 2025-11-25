@@ -83,7 +83,7 @@ export const Navigation = () => {
       label: 'Professores',
     },
     {
-      to: '/ebd/classrooms',
+      to: '/ebd/turmas',
       icon: Building,
       label: 'Turmas',
     },
@@ -155,7 +155,7 @@ export const Navigation = () => {
         label: 'Professores',
       },
       {
-        to: '/ebd/classrooms',
+        to: '/ebd/turmas',
         icon: Building,
         label: 'Turmas',
       },

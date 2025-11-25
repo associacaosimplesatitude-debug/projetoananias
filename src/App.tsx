@@ -200,7 +200,7 @@ const App = () => (
                       } 
                     />
                     <Route 
-                      path="/ebd/classrooms" 
+                      path="/ebd/turmas" 
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDClassrooms />
