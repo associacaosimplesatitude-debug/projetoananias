@@ -251,7 +251,7 @@ export default function AdminDashboard() {
 
           <Card className="border-destructive">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Contas Atrasadas</CardTitle>
+              <CardTitle className="text-sm font-medium">Inadimplentes</CardTitle>
               <AlertTriangle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
@@ -261,7 +261,7 @@ export default function AdminDashboard() {
               <Button 
                 variant="link" 
                 className="p-0 h-auto text-xs text-muted-foreground hover:text-destructive"
-                onClick={() => navigate('/admin/receivable')}
+                onClick={() => navigate('/admin/contas-receber')}
               >
                 Ver clientes →
               </Button>
