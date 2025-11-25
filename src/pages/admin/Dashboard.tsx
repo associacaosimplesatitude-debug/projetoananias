@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, DollarSign, TrendingUp, Users, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { DollarSign, Users, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,13 +20,11 @@ interface RevenueData {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
-    pendingTasks: 0,
     receivable: 0,
     payable: 0,
     totalClients: 0,
     totalIgrejas: 0,
     totalAssociacoes: 0,
-    completedFunnels: 0,
     overdueReceivable: 0,
     receivableIgrejas: 0,
     receivableAssociacoes: 0,
@@ -44,21 +42,15 @@ export default function AdminDashboard() {
     const today = new Date().toISOString().split('T')[0];
     
     const [
-      { count: pendingCount },
       { data: receivableData },
       { data: payableData },
       { count: clientCount },
-      { count: completedCount },
       { data: overdueData },
       { data: churchesData },
     ] = await Promise.all([
       supabase
-        .from('church_stage_progress')
-        .select('*', { count: 'exact', head: true })
-        .neq('status', 'completed'),
-      supabase
         .from('accounts_receivable')
-        .select('amount, churches!inner(client_type)')
+        .select('amount, due_date, churches!inner(client_type)')
         .eq('status', 'open'),
       supabase
         .from('accounts_payable')
@@ -68,12 +60,8 @@ export default function AdminDashboard() {
         .from('churches')
         .select('*', { count: 'exact', head: true }),
       supabase
-        .from('churches')
-        .select('*', { count: 'exact', head: true })
-        .eq('current_stage', 6),
-      supabase
         .from('accounts_receivable')
-        .select('amount')
+        .select('amount, due_date')
         .eq('status', 'open')
         .lt('due_date', today),
       supabase
@@ -99,13 +87,11 @@ export default function AdminDashboard() {
       .reduce((sum, item) => sum + Number(item.amount), 0) || 0;
 
     setStats({
-      pendingTasks: pendingCount || 0,
       receivable: totalReceivable,
       payable: totalPayable,
       totalClients: clientCount || 0,
       totalIgrejas,
       totalAssociacoes,
-      completedFunnels: completedCount || 0,
       overdueReceivable: totalOverdue,
       receivableIgrejas,
       receivableAssociacoes,
@@ -135,30 +121,50 @@ export default function AdminDashboard() {
   const fetchRevenueData = async () => {
     const { data: receivableData } = await supabase
       .from('accounts_receivable')
-      .select('amount, created_at');
+      .select('amount, due_date')
+      .order('due_date', { ascending: true });
     
     const { data: payableData } = await supabase
       .from('accounts_payable')
-      .select('amount, created_at');
+      .select('amount, due_date')
+      .order('due_date', { ascending: true });
 
-    const monthlyData: Record<string, { receitas: number; despesas: number }> = {};
+    // Criar um mapa com os últimos 12 meses
+    const monthlyData: Record<string, { receitas: number; despesas: number; order: number }> = {};
+    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    
+    // Inicializar os últimos 12 meses
+    const currentDate = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const monthKey = `${months[date.getMonth()]}/${date.getFullYear().toString().slice(-2)}`;
+      monthlyData[monthKey] = { receitas: 0, despesas: 0, order: 11 - i };
+    }
     
     receivableData?.forEach(item => {
-      const month = new Date(item.created_at).toLocaleDateString('pt-BR', { month: 'short' });
-      if (!monthlyData[month]) monthlyData[month] = { receitas: 0, despesas: 0 };
-      monthlyData[month].receitas += Number(item.amount);
+      const date = new Date(item.due_date);
+      const monthKey = `${months[date.getMonth()]}/${date.getFullYear().toString().slice(-2)}`;
+      if (monthlyData[monthKey]) {
+        monthlyData[monthKey].receitas += Number(item.amount);
+      }
     });
 
     payableData?.forEach(item => {
-      const month = new Date(item.created_at).toLocaleDateString('pt-BR', { month: 'short' });
-      if (!monthlyData[month]) monthlyData[month] = { receitas: 0, despesas: 0 };
-      monthlyData[month].despesas += Number(item.amount);
+      const date = new Date(item.due_date);
+      const monthKey = `${months[date.getMonth()]}/${date.getFullYear().toString().slice(-2)}`;
+      if (monthlyData[monthKey]) {
+        monthlyData[monthKey].despesas += Number(item.amount);
+      }
     });
 
-    const formatted = Object.entries(monthlyData).map(([month, data]) => ({
-      month,
-      ...data,
-    }));
+    const formatted = Object.entries(monthlyData)
+      .map(([month, data]) => ({
+        month,
+        receitas: data.receitas,
+        despesas: data.despesas,
+        order: data.order,
+      }))
+      .sort((a, b) => a.order - b.order);
 
     setRevenueData(formatted);
   };
@@ -170,7 +176,7 @@ export default function AdminDashboard() {
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Painel Administrativo</h1>
       
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
@@ -201,17 +207,6 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalAssociacoes}</div>
               <p className="text-xs text-muted-foreground">Associações cadastradas</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tarefas Pendentes</CardTitle>
-              <AlertCircle className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pendingTasks}</div>
-              <p className="text-xs text-muted-foreground">Sub-tarefas para concluir</p>
             </CardContent>
           </Card>
 
@@ -251,17 +246,6 @@ export default function AdminDashboard() {
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.payable)}
               </div>
               <p className="text-xs text-muted-foreground">Em aberto</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Funis Concluídos</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.completedFunnels}</div>
-              <p className="text-xs text-muted-foreground">CNPJs emitidos</p>
             </CardContent>
           </Card>
 
