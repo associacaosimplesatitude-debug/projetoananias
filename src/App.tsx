@@ -39,6 +39,7 @@ import BrandingCustomization from "./pages/admin/BrandingCustomization";
 import ClientModules from "./pages/admin/ClientModules";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
+import DashboardRedirect from "./components/DashboardRedirect";
 
 // EBD Pages
 import EBDIndex from "./pages/ebd/Index";
@@ -69,6 +70,10 @@ const App = () => (
                   <Routes>
                     <Route 
                       path="/" 
+                      element={<DashboardRedirect />} 
+                    />
+                    <Route 
+                      path="/abertura" 
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE IGREJAS">
                           <Index />
