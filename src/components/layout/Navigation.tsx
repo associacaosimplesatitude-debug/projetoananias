@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus } from 'lucide-react';
 import logoAnanias from '@/assets/logo_ananias_horizontal.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,6 +10,8 @@ import { useChurchData } from '@/hooks/useChurchData';
 import { useClientType } from '@/hooks/useClientType';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 import { useActiveModules } from '@/hooks/useActiveModules';
+import ManualRegistrationDialog from '@/components/ebd/ManualRegistrationDialog';
+import { useQuery } from '@tanstack/react-query';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +26,23 @@ export const Navigation = () => {
   const { clientType } = useClientType();
   const { data: activeModules } = useActiveModules();
   const [processStatus, setProcessStatus] = React.useState<string | null>(null);
+  const [manualRegOpen, setManualRegOpen] = React.useState(false);
+
+  // Get church ID for EBD registration
+  const { data: churchData } = useQuery({
+    queryKey: ["user-church-nav", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from("churches")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!user && activeModules?.includes('REOBOTE EBD'),
+  });
 
   const hasReoboteIgrejas = role === 'admin' || activeModules?.includes('REOBOTE IGREJAS');
   const hasOnlyReoboteEBD = activeModules?.length === 1 && activeModules.includes('REOBOTE EBD');
@@ -333,12 +352,35 @@ export const Navigation = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
+
+              {activeModules?.includes('REOBOTE EBD') && (role === 'client' || role === 'tesoureiro') && (
+                <button
+                  onClick={() => setManualRegOpen(true)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                    'hover:bg-white/10'
+                  )}
+                  style={{ color: navTextColor, opacity: 0.8 }}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">CADASTRO</span>
+                </button>
+              )}
             </div>
           </div>
           
           <UserProfileDropdown />
         </div>
       </div>
+
+      {churchData && (
+        <ManualRegistrationDialog
+          open={manualRegOpen}
+          onOpenChange={setManualRegOpen}
+          churchId={churchData.id}
+          onSuccess={() => {}}
+        />
+      )}
     </nav>
   );
 };
