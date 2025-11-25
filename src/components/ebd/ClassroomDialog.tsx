@@ -146,137 +146,139 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
   if (!churchId) return null;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Nova Turma</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nova Turma</DialogTitle>
+          </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="faixa_etaria_id"
-            rules={{ required: "Faixa etária é obrigatória" }}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Faixa Etária *</FormLabel>
-                <div className="flex gap-2">
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Selecione a faixa etária" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-background z-50">
-                      {loadingAgeRanges ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
-                          Carregando...
-                        </div>
-                      ) : !ageRanges || ageRanges.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
-                          Nenhuma faixa etária cadastrada. Clique em "+ Nova Faixa".
-                        </div>
-                      ) : (
-                        ageRanges.map((range) => (
-                          <SelectItem key={range.id} value={range.id}>
-                            {range.nome_faixa} ({range.idade_min}-{range.idade_max} anos)
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setAgeRangeDialogOpen(true)}
-                    title="Nova Faixa Etária"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {selectedAgeRange && (
-            <div className="p-3 bg-muted rounded-md">
-              <p className="text-sm text-muted-foreground">
-                <span className="font-medium">Nome da Turma:</span> {selectedAgeRange.nome_faixa} {selectedAgeRange.idade_min}-{selectedAgeRange.idade_max}
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="descricao">Descrição (Opcional)</Label>
-            <Input
-              id="descricao"
-              {...register("descricao")}
-              placeholder="Informações adicionais sobre a turma"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Professores</Label>
-            <p className="text-sm text-muted-foreground">
-              Selecione um ou mais professores para esta sala
-            </p>
-            
-            {loadingProfessores ? (
-              <div className="flex items-center justify-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-              </div>
-            ) : professores && professores.length > 0 ? (
-              <ScrollArea className="h-[200px] border rounded-md p-4">
-                <div className="space-y-3">
-                  {professores.map((professor) => (
-                    <div key={professor.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={professor.id}
-                        checked={selectedProfessores.includes(professor.id)}
-                        onCheckedChange={() => toggleProfessor(professor.id)}
-                      />
-                      <Label
-                        htmlFor={professor.id}
-                        className="text-sm font-normal cursor-pointer flex-1"
-                      >
-                        {professor.nome_completo}
-                        {professor.email && (
-                          <span className="text-muted-foreground ml-2">
-                            ({professor.email})
-                          </span>
+          <Form {...form}>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="faixa_etaria_id"
+              rules={{ required: "Faixa etária é obrigatória" }}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Faixa Etária *</FormLabel>
+                  <div className="flex gap-2">
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Selecione a faixa etária" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-background z-50">
+                        {loadingAgeRanges ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            Carregando...
+                          </div>
+                        ) : !ageRanges || ageRanges.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            Nenhuma faixa etária cadastrada. Clique em "+ Nova Faixa".
+                          </div>
+                        ) : (
+                          ageRanges.map((range) => (
+                            <SelectItem key={range.id} value={range.id}>
+                              {range.nome_faixa} ({range.idade_min}-{range.idade_max} anos)
+                            </SelectItem>
+                          ))
                         )}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            ) : (
-              <p className="text-sm text-muted-foreground py-4 text-center border rounded-md">
-                Nenhum professor cadastrado. Cadastre professores primeiro.
-              </p>
-            )}
-          </div>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setAgeRangeDialogOpen(true)}
+                      title="Nova Faixa Etária"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={createTurmaMutation.isPending}>
-              {createTurmaMutation.isPending ? "Salvando..." : "Salvar Turma"}
-            </Button>
-          </div>
-        </form>
-        </Form>
-      </DialogContent>
+            {selectedAgeRange && (
+              <div className="p-3 bg-muted rounded-md">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium">Nome da Turma:</span> {selectedAgeRange.nome_faixa} {selectedAgeRange.idade_min}-{selectedAgeRange.idade_max}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="descricao">Descrição (Opcional)</Label>
+              <Input
+                id="descricao"
+                {...register("descricao")}
+                placeholder="Informações adicionais sobre a turma"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Professores</Label>
+              <p className="text-sm text-muted-foreground">
+                Selecione um ou mais professores para esta turma
+              </p>
+              
+              {loadingProfessores ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                </div>
+              ) : professores && professores.length > 0 ? (
+                <ScrollArea className="h-[200px] border rounded-md p-4">
+                  <div className="space-y-3">
+                    {professores.map((professor) => (
+                      <div key={professor.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={professor.id}
+                          checked={selectedProfessores.includes(professor.id)}
+                          onCheckedChange={() => toggleProfessor(professor.id)}
+                        />
+                        <Label
+                          htmlFor={professor.id}
+                          className="text-sm font-normal cursor-pointer flex-1"
+                        >
+                          {professor.nome_completo}
+                          {professor.email && (
+                            <span className="text-muted-foreground ml-2">
+                              ({professor.email})
+                            </span>
+                          )}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center border rounded-md">
+                  Nenhum professor cadastrado. Cadastre professores primeiro.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={handleClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createTurmaMutation.isPending}>
+                {createTurmaMutation.isPending ? "Salvando..." : "Salvar Turma"}
+              </Button>
+            </div>
+          </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       <AgeRangeDialog
         open={ageRangeDialogOpen}
         onOpenChange={setAgeRangeDialogOpen}
         churchId={churchId}
       />
-    </Dialog>
+    </>
   );
 }
