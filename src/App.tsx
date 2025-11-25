@@ -223,14 +223,6 @@ const App = () => (
                         </ModuleProtectedRoute>
                       } 
                     />
-                    <Route 
-                      path="/ebd/age-ranges" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDAgeRanges />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
                     

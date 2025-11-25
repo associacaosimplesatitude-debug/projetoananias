@@ -53,7 +53,7 @@ export default function AgeRangeDialog({ open, onOpenChange, churchId }: AgeRang
     },
     onSuccess: () => {
       toast.success("Faixa etária cadastrada com sucesso!");
-      queryClient.invalidateQueries({ queryKey: ["ebd-age-ranges"] });
+      queryClient.invalidateQueries({ queryKey: ["ebd-age-ranges", churchId] });
       handleClose();
     },
     onError: (error: any) => {
