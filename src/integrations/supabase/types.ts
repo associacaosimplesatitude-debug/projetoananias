@@ -1068,7 +1068,7 @@ export type Database = {
       ebd_licoes: {
         Row: {
           arquivo_url: string | null
-          church_id: string
+          church_id: string | null
           conteudo: string | null
           created_at: string
           data_aula: string
@@ -1082,7 +1082,7 @@ export type Database = {
         }
         Insert: {
           arquivo_url?: string | null
-          church_id: string
+          church_id?: string | null
           conteudo?: string | null
           created_at?: string
           data_aula: string
@@ -1096,7 +1096,7 @@ export type Database = {
         }
         Update: {
           arquivo_url?: string | null
-          church_id?: string
+          church_id?: string | null
           conteudo?: string | null
           created_at?: string
           data_aula?: string

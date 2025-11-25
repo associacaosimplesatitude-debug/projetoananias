@@ -148,7 +148,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
           revista_id: revistaId,
           numero_licao: l.numero_licao,
           titulo: l.titulo_licao,
-          church_id: '00000000-0000-0000-0000-000000000000', // UUID especial para revistas globais
+          church_id: null, // NULL para lições de revistas globais
           data_aula: '2000-01-01', // Data padrão para lições de revista
         }));
 
