@@ -917,6 +917,7 @@ export type Database = {
           id: string
           observacao: string | null
           professor_id: string
+          sem_aula: boolean
           tipo: string
           turma_id: string
           updated_at: string
@@ -929,6 +930,7 @@ export type Database = {
           id?: string
           observacao?: string | null
           professor_id: string
+          sem_aula?: boolean
           tipo: string
           turma_id: string
           updated_at?: string
@@ -941,6 +943,7 @@ export type Database = {
           id?: string
           observacao?: string | null
           professor_id?: string
+          sem_aula?: boolean
           tipo?: string
           turma_id?: string
           updated_at?: string

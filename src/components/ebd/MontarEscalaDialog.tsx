@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { addDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Calendar } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface MontarEscalaDialogProps {
   planejamento: {
@@ -65,6 +67,7 @@ const diasSemanaMap: Record<string, number> = {
 export function MontarEscalaDialog({ planejamento, open, onOpenChange, churchId }: MontarEscalaDialogProps) {
   const queryClient = useQueryClient();
   const [escalas, setEscalas] = useState<Record<string, string>>({});
+  const [semAula, setSemAula] = useState<Record<string, boolean>>({});
 
   // Buscar lições da revista
   const { data: licoes } = useQuery({
@@ -129,20 +132,23 @@ export function MontarEscalaDialog({ planejamento, open, onOpenChange, churchId 
         throw new Error("Dados incompletos");
       }
 
-      // Verificar se todas as lições têm professor
-      const licoesComProfessor = Object.keys(escalas).length;
-      if (licoesComProfessor !== licoes.length) {
-        throw new Error("Selecione um professor para todas as lições");
+      // Verificar se todas as lições têm professor (exceto as sem aula)
+      const licoesQueNecessitamProfessor = licoes.filter(licao => !semAula[licao.id]);
+      const licoesComProfessor = licoesQueNecessitamProfessor.filter(licao => escalas[licao.id]);
+      
+      if (licoesComProfessor.length !== licoesQueNecessitamProfessor.length) {
+        throw new Error("Selecione um professor para todas as lições ou marque como 'Sem aula'");
       }
 
       // Criar registros de escala
       const escalaData = licoes.map((licao, index) => ({
         church_id: churchId,
         turma_id: null, // Pode ser ajustado futuramente para associar a uma turma
-        professor_id: escalas[licao.id],
+        professor_id: semAula[licao.id] ? null : escalas[licao.id],
         data: format(datasAulas[index], 'yyyy-MM-dd'),
         tipo: 'Aula Regular',
         confirmado: false,
+        sem_aula: semAula[licao.id] || false,
       }));
 
       const { error } = await supabase
@@ -189,39 +195,67 @@ export function MontarEscalaDialog({ planejamento, open, onOpenChange, churchId 
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
               {licoes.map((licao, index) => (
                 <div key={licao.id} className="border rounded-lg p-4 hover:bg-accent/50 transition-colors">
-                  <div className="grid grid-cols-12 gap-4 items-center">
+                  <div className="grid grid-cols-12 gap-4 items-start">
                     <div className="col-span-1 text-center">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                         <span className="font-bold text-primary">{licao.numero_licao}</span>
                       </div>
                     </div>
-                    <div className="col-span-6">
+                    <div className="col-span-11 space-y-3">
                       <div>
                         <p className="font-medium text-foreground">{licao.titulo}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          📅 {format(datasAulas[index], "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                        </p>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                          <Calendar className="h-3 w-3" />
+                          <span>{format(datasAulas[index], "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="col-span-5">
-                      <Label htmlFor={`professor-${licao.id}`} className="text-xs text-muted-foreground mb-1 block">
-                        Professor
-                      </Label>
-                      <Select
-                        value={escalas[licao.id] || ""}
-                        onValueChange={(value) => setEscalas({ ...escalas, [licao.id]: value })}
-                      >
-                        <SelectTrigger id={`professor-${licao.id}`}>
-                          <SelectValue placeholder="Selecionar" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {professores?.map((professor) => (
-                            <SelectItem key={professor.id} value={professor.id}>
-                              {professor.nome_completo}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`sem-aula-${licao.id}`}
+                          checked={semAula[licao.id] || false}
+                          onCheckedChange={(checked) => {
+                            setSemAula(prev => ({ ...prev, [licao.id]: checked as boolean }));
+                            if (checked) {
+                              // Limpar professor selecionado quando marcar sem aula
+                              setEscalas(prev => {
+                                const newEscalas = { ...prev };
+                                delete newEscalas[licao.id];
+                                return newEscalas;
+                              });
+                            }
+                          }}
+                        />
+                        <label 
+                          htmlFor={`sem-aula-${licao.id}`}
+                          className="text-sm text-muted-foreground cursor-pointer"
+                        >
+                          Sem aula nesta data (feriado, santa ceia, etc)
+                        </label>
+                      </div>
+                      
+                      {!semAula[licao.id] && (
+                        <div>
+                          <Label htmlFor={`professor-${licao.id}`} className="text-xs text-muted-foreground mb-1 block">
+                            Professor
+                          </Label>
+                          <Select
+                            value={escalas[licao.id] || ""}
+                            onValueChange={(value) => setEscalas({ ...escalas, [licao.id]: value })}
+                          >
+                            <SelectTrigger id={`professor-${licao.id}`}>
+                              <SelectValue placeholder="Selecionar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {professores?.map((professor) => (
+                                <SelectItem key={professor.id} value={professor.id}>
+                                  {professor.nome_completo}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
