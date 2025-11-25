@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { CalendarIcon } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -109,7 +110,10 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{revista.titulo}</DialogTitle>
-          <DialogDescription>{revista.faixa_etaria_alvo}</DialogDescription>
+          <DialogDescription className="flex items-center gap-2 mt-2">
+            <span>Faixa etária:</span>
+            <Badge variant="secondary">{revista.faixa_etaria_alvo}</Badge>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
