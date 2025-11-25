@@ -1073,7 +1073,9 @@ export type Database = {
           created_at: string
           data_aula: string
           id: string
+          numero_licao: number | null
           publicada: boolean
+          revista_id: string | null
           titulo: string
           turma_id: string | null
           updated_at: string
@@ -1085,7 +1087,9 @@ export type Database = {
           created_at?: string
           data_aula: string
           id?: string
+          numero_licao?: number | null
           publicada?: boolean
+          revista_id?: string | null
           titulo: string
           turma_id?: string | null
           updated_at?: string
@@ -1097,7 +1101,9 @@ export type Database = {
           created_at?: string
           data_aula?: string
           id?: string
+          numero_licao?: number | null
           publicada?: boolean
+          revista_id?: string | null
           titulo?: string
           turma_id?: string | null
           updated_at?: string
@@ -1108,6 +1114,13 @@ export type Database = {
             columns: ["church_id"]
             isOneToOne: false
             referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_licoes_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_revistas"
             referencedColumns: ["id"]
           },
           {
@@ -1151,6 +1164,47 @@ export type Database = {
             columns: ["licao_id"]
             isOneToOne: false
             referencedRelation: "ebd_licoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_planejamento: {
+        Row: {
+          church_id: string
+          created_at: string
+          data_inicio: string
+          data_termino: string
+          dia_semana: string
+          id: string
+          revista_id: string
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          data_inicio: string
+          data_termino: string
+          dia_semana: string
+          id?: string
+          revista_id: string
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          data_inicio?: string
+          data_termino?: string
+          dia_semana?: string
+          id?: string
+          revista_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_planejamento_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_revistas"
             referencedColumns: ["id"]
           },
         ]
@@ -1413,6 +1467,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ebd_revistas: {
+        Row: {
+          autor: string | null
+          created_at: string
+          faixa_etaria_alvo: string
+          id: string
+          imagem_url: string | null
+          num_licoes: number
+          sinopse: string | null
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          autor?: string | null
+          created_at?: string
+          faixa_etaria_alvo: string
+          id?: string
+          imagem_url?: string | null
+          num_licoes?: number
+          sinopse?: string | null
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          autor?: string | null
+          created_at?: string
+          faixa_etaria_alvo?: string
+          id?: string
+          imagem_url?: string | null
+          num_licoes?: number
+          sinopse?: string | null
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       ebd_turmas: {
         Row: {
