@@ -7,8 +7,19 @@ import { Calendar, BookOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RevistaDetailDialog } from "@/components/ebd/RevistaDetailDialog";
+import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+const FAIXAS_ETARIAS = [
+  "Jovens e Adultos",
+  "Maternal: 2 a 3 Anos",
+  "Jardim de Infância: 4 a 6 Anos",
+  "Primários: 7 a 8 Anos",
+  "Juniores: 9 a 11 Anos",
+  "Adolescentes: 12 a 14 Anos",
+  "Adolescentes+: 15 a 17 Anos",
+] as const;
 
 interface Revista {
   id: string;
@@ -33,6 +44,7 @@ export default function PlanejamentoEscolar() {
   const { user } = useAuth();
   const [faixaEtariaSelecionada, setFaixaEtariaSelecionada] = useState<string>("");
   const [revistaDialog, setRevistaDialog] = useState<Revista | null>(null);
+  const [planejamentoEscala, setPlanejamentoEscala] = useState<Planejamento | null>(null);
 
   // Buscar church_id do usuário
   const { data: churchData } = useQuery({
@@ -49,22 +61,6 @@ export default function PlanejamentoEscolar() {
       return data;
     },
     enabled: !!user,
-  });
-
-  // Buscar faixas etárias cadastradas
-  const { data: faixasEtarias } = useQuery({
-    queryKey: ['ebd-faixas-etarias', churchData?.id],
-    queryFn: async () => {
-      if (!churchData?.id) return [];
-      const { data, error } = await supabase
-        .from('ebd_faixas_etarias')
-        .select('nome_faixa')
-        .eq('church_id', churchData.id);
-
-      if (error) throw error;
-      return data.map(f => f.nome_faixa);
-    },
-    enabled: !!churchData?.id,
   });
 
   // Buscar revistas por faixa etária
@@ -146,7 +142,9 @@ export default function PlanejamentoEscolar() {
                         </p>
                       </div>
                     </div>
-                    <Button>Montar Escala</Button>
+                    <Button onClick={() => setPlanejamentoEscala(planejamento)}>
+                      Montar Escala
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -169,7 +167,7 @@ export default function PlanejamentoEscolar() {
                     <SelectValue placeholder="Selecione uma faixa etária" />
                   </SelectTrigger>
                   <SelectContent>
-                    {faixasEtarias?.map((faixa) => (
+                    {FAIXAS_ETARIAS.map((faixa) => (
                       <SelectItem key={faixa} value={faixa}>
                         {faixa}
                       </SelectItem>
@@ -227,6 +225,15 @@ export default function PlanejamentoEscolar() {
             revista={revistaDialog}
             open={!!revistaDialog}
             onOpenChange={(open) => !open && setRevistaDialog(null)}
+            churchId={churchData?.id}
+          />
+        )}
+
+        {planejamentoEscala && (
+          <MontarEscalaDialog
+            planejamento={planejamentoEscala}
+            open={!!planejamentoEscala}
+            onOpenChange={(open) => !open && setPlanejamentoEscala(null)}
             churchId={churchData?.id}
           />
         )}
