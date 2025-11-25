@@ -37,6 +37,7 @@ import AdminFinancialReports from "./pages/admin/FinancialReports";
 import AdminStageManagement from "./pages/admin/StageManagement";
 import BrandingCustomization from "./pages/admin/BrandingCustomization";
 import ClientModules from "./pages/admin/ClientModules";
+import AdminEBDCurriculo from "./pages/admin/EBDCurriculo";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 import DashboardRedirect from "./components/DashboardRedirect";
@@ -50,6 +51,7 @@ import EBDClassrooms from "./pages/ebd/Classrooms";
 import EBDQuizzes from "./pages/ebd/Quizzes";
 import EBDSchedule from "./pages/ebd/Schedule";
 import EBDAgeRanges from "./pages/ebd/AgeRanges";
+import EBDPlanejamento from "./pages/ebd/PlanejamentoEscolar";
 
 const queryClient = new QueryClient();
 
@@ -223,6 +225,14 @@ const App = () => (
                         </ModuleProtectedRoute>
                       } 
                     />
+                    <Route 
+                      path="/ebd/planejamento" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDPlanejamento />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
                     
@@ -327,6 +337,14 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <BrandingCustomization />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/curriculo-ebd"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminEBDCurriculo />
                         </ProtectedRoute>
                       }
                     />

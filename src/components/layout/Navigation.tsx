@@ -92,11 +92,16 @@ export const Navigation = () => {
       icon: FileText,
       label: 'Quiz',
     },
-    {
-      to: '/ebd/schedule',
-      icon: Settings,
-      label: 'Escala',
-    },
+      {
+        to: '/ebd/schedule',
+        icon: Settings,
+        label: 'Escala',
+      },
+      {
+        to: '/ebd/planejamento',
+        icon: BookOpen,
+        label: 'Planejamento',
+      },
   ];
 
   const clientNavItems = [
@@ -168,6 +173,11 @@ export const Navigation = () => {
         to: '/ebd/schedule',
         icon: Settings,
         label: 'Escala',
+      },
+      {
+        to: '/ebd/planejamento',
+        icon: BookOpen,
+        label: 'Planejamento',
       },
     ] : []),
   ];
@@ -275,6 +285,11 @@ export const Navigation = () => {
       to: '/admin/branding',
       icon: Palette,
       label: 'Aparência',
+    },
+    {
+      to: '/admin/curriculo-ebd',
+      icon: BookOpen,
+      label: 'Currículo EBD',
     },
   ];
 
