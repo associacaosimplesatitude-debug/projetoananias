@@ -11,6 +11,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Plus } from "lucide-react";
+import AgeRangeDialog from "./AgeRangeDialog";
 
 interface ClassroomDialogProps {
   open: boolean;
@@ -25,6 +27,7 @@ interface FormData {
 
 export default function ClassroomDialog({ open, onOpenChange, churchId }: ClassroomDialogProps) {
   const [selectedProfessores, setSelectedProfessores] = useState<string[]>([]);
+  const [ageRangeDialogOpen, setAgeRangeDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const form = useForm<FormData>({
@@ -158,30 +161,41 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Faixa Etária *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a faixa etária" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent className="bg-background z-50">
-                    {loadingAgeRanges ? (
-                      <div className="p-4 text-center text-sm text-muted-foreground">
-                        Carregando...
-                      </div>
-                    ) : !ageRanges || ageRanges.length === 0 ? (
-                      <div className="p-4 text-center text-sm text-muted-foreground">
-                        Nenhuma faixa etária cadastrada. Cadastre primeiro em "Faixas Etárias".
-                      </div>
-                    ) : (
-                      ageRanges.map((range) => (
-                        <SelectItem key={range.id} value={range.id}>
-                          {range.nome_faixa} ({range.idade_min}-{range.idade_max} anos)
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Selecione a faixa etária" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-background z-50">
+                      {loadingAgeRanges ? (
+                        <div className="p-4 text-center text-sm text-muted-foreground">
+                          Carregando...
+                        </div>
+                      ) : !ageRanges || ageRanges.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-muted-foreground">
+                          Nenhuma faixa etária cadastrada. Clique em "+ Nova Faixa".
+                        </div>
+                      ) : (
+                        ageRanges.map((range) => (
+                          <SelectItem key={range.id} value={range.id}>
+                            {range.nome_faixa} ({range.idade_min}-{range.idade_max} anos)
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setAgeRangeDialogOpen(true)}
+                    title="Nova Faixa Etária"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -257,6 +271,12 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
         </form>
         </Form>
       </DialogContent>
+
+      <AgeRangeDialog
+        open={ageRangeDialogOpen}
+        onOpenChange={setAgeRangeDialogOpen}
+        churchId={churchId}
+      />
     </Dialog>
   );
 }

@@ -88,11 +88,6 @@ export const Navigation = () => {
       label: 'Turmas',
     },
     {
-      to: '/ebd/age-ranges',
-      icon: Users,
-      label: 'Faixas Etárias',
-    },
-    {
       to: '/ebd/quizzes',
       icon: FileText,
       label: 'Quiz',
@@ -163,11 +158,6 @@ export const Navigation = () => {
         to: '/ebd/classrooms',
         icon: Building,
         label: 'Turmas',
-      },
-      {
-        to: '/ebd/age-ranges',
-        icon: Users,
-        label: 'Faixas Etárias',
       },
       {
         to: '/ebd/quizzes',
