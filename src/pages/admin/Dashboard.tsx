@@ -61,8 +61,8 @@ export default function AdminDashboard() {
         .select('*', { count: 'exact', head: true }),
       supabase
         .from('accounts_receivable')
-        .select('amount, due_date')
-        .eq('status', 'open')
+        .select('amount, due_date, status')
+        .neq('status', 'paid')
         .lt('due_date', today),
       supabase
         .from('churches')
@@ -261,7 +261,7 @@ export default function AdminDashboard() {
               <Button 
                 variant="link" 
                 className="p-0 h-auto text-xs text-muted-foreground hover:text-destructive"
-                onClick={() => navigate('/admin/contas-receber')}
+                onClick={() => navigate('/admin/receivable')}
               >
                 Ver clientes →
               </Button>
