@@ -1,32 +1,24 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Users, UserPlus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import MemberSearchDialog from "@/components/ebd/MemberSearchDialog";
-import ActivateMemberDialog from "@/components/ebd/ActivateMemberDialog";
 import { Badge } from "@/components/ui/badge";
 
-export default function EBDStudents() {
+export default function EBDTeachers() {
   const { clientId } = useParams();
   const [searchTerm, setSearchTerm] = useState("");
-  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
-  const [activateMemberOpen, setActivateMemberOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<any>(null);
 
-  // Get church ID - use clientId from route if available (admin view), otherwise get user's church
+  // Get church ID
   const { data: churchData } = useQuery({
     queryKey: ["user-church", clientId],
     queryFn: async () => {
-      // If clientId is in the route (admin viewing a client), use it directly
       if (clientId) {
         return { id: clientId };
       }
 
-      // Otherwise, get the church for the logged-in user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
@@ -41,15 +33,15 @@ export default function EBDStudents() {
     },
   });
 
-  // Get EBD students only
-  const { data: alunos, refetch: refetchAlunos } = useQuery({
-    queryKey: ["ebd-alunos", churchData?.id, searchTerm],
+  // Get EBD teachers only
+  const { data: professores } = useQuery({
+    queryKey: ["ebd-professores", churchData?.id, searchTerm],
     queryFn: async () => {
       if (!churchData?.id) return [];
 
       let query = supabase
-        .from("ebd_alunos")
-        .select("*, church_members!member_id(nome_completo, whatsapp), ebd_turmas!turma_id(nome)")
+        .from("ebd_professores")
+        .select("*, church_members!member_id(nome_completo, whatsapp)")
         .eq("church_id", churchData.id);
 
       if (searchTerm) {
@@ -63,15 +55,6 @@ export default function EBDStudents() {
     enabled: !!churchData?.id,
   });
 
-  const handleSelectMember = (member: any) => {
-    setSelectedMember(member);
-    setActivateMemberOpen(true);
-  };
-
-  const handleSuccess = () => {
-    refetchAlunos();
-  };
-
   if (!churchData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -80,35 +63,23 @@ export default function EBDStudents() {
     );
   }
 
-  console.log("Church ID para busca de membros:", churchData.id);
-
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Cadastro de Alunos</h1>
-            <p className="text-muted-foreground">Gerencie alunos da EBD</p>
+            <h1 className="text-3xl font-bold">Cadastro de Professores</h1>
+            <p className="text-muted-foreground">Gerencie professores da EBD</p>
           </div>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              console.log("Abrindo busca de membros. Church ID:", churchData.id);
-              setMemberSearchOpen(true);
-            }}
-          >
-            <Search className="w-4 h-4 mr-2" />
-            Buscar Membro
-          </Button>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Lista de Alunos
+              Lista de Professores
             </CardTitle>
-            <CardDescription>Alunos cadastrados no sistema</CardDescription>
+            <CardDescription>Professores cadastrados no sistema</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4 mb-6">
@@ -123,25 +94,25 @@ export default function EBDStudents() {
               </div>
             </div>
 
-            {!alunos || alunos.length === 0 ? (
+            {!professores || professores.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhum aluno encontrado</p>
-                <p className="text-sm">Use o menu CADASTRO para adicionar alunos</p>
+                <p>Nenhum professor encontrado</p>
+                <p className="text-sm">Use o menu CADASTRO para adicionar professores</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {alunos.map((record) => (
-                  <Card key={record.id}>
+                {professores.map((professor) => (
+                  <Card key={professor.id}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-semibold">{record.nome_completo}</h3>
-                            <Badge variant="default">
-                              Aluno
+                            <h3 className="font-semibold">{professor.nome_completo}</h3>
+                            <Badge variant="secondary">
+                              Professor
                             </Badge>
-                            {record.user_id && (
+                            {professor.user_id && (
                               <Badge variant="outline" className="text-xs">
                                 <UserPlus className="w-3 h-3 mr-1" />
                                 Acesso
@@ -149,12 +120,9 @@ export default function EBDStudents() {
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground space-y-1">
-                            {record.email && <p>Email: {record.email}</p>}
-                            {record.telefone && <p>Telefone: {record.telefone}</p>}
-                            {record.ebd_turmas && (
-                              <p>Turma: {record.ebd_turmas.nome}</p>
-                            )}
-                            {record.member_id && (
+                            {professor.email && <p>Email: {professor.email}</p>}
+                            {professor.telefone && <p>Telefone: {professor.telefone}</p>}
+                            {professor.member_id && (
                               <Badge variant="outline" className="text-xs">
                                 Vinculado ao Cadastro de Membros
                               </Badge>
@@ -170,21 +138,6 @@ export default function EBDStudents() {
           </CardContent>
         </Card>
       </div>
-
-      <MemberSearchDialog
-        open={memberSearchOpen}
-        onOpenChange={setMemberSearchOpen}
-        onSelectMember={handleSelectMember}
-        churchId={churchData.id}
-      />
-
-      <ActivateMemberDialog
-        open={activateMemberOpen}
-        onOpenChange={setActivateMemberOpen}
-        member={selectedMember}
-        churchId={churchData.id}
-        onSuccess={handleSuccess}
-      />
     </div>
   );
 }
