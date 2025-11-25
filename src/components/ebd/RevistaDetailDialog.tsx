@@ -51,7 +51,7 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
 
-  const { data: licoes } = useQuery({
+  const { data: licoes, isLoading: loadingLicoes } = useQuery({
     queryKey: ['ebd-licoes-revista', revista.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -199,16 +199,26 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
           <div>
             <h3 className="font-semibold mb-3">Lições ({revista.num_licoes})</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-              {licoes?.map((licao) => (
-                <div key={licao.id} className="p-3 border rounded-lg">
-                  <div className="flex gap-2">
-                    <span className="font-medium text-sm">
-                      {licao.numero_licao}.
-                    </span>
-                    <span className="text-sm">{licao.titulo}</span>
-                  </div>
+              {loadingLicoes ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
-              ))}
+              ) : !licoes || licoes.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  Nenhuma lição cadastrada ainda
+                </div>
+              ) : (
+                licoes.map((licao) => (
+                  <div key={licao.id} className="p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <div className="flex gap-2">
+                      <span className="font-medium text-sm text-primary">
+                        {licao.numero_licao}.
+                      </span>
+                      <span className="text-sm">{licao.titulo}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
