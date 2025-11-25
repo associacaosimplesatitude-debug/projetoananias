@@ -14,9 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2 } from "lucide-react";
+
+const FAIXAS_ETARIAS = [
+  "Jovens e Adultos",
+  "Maternal: 2 a 3 Anos",
+  "Jardim de Infância: 4 a 6 Anos",
+  "Primários: 7 a 8 Anos",
+  "Juniores: 9 a 11 Anos",
+  "Adolescentes: 12 a 14 Anos",
+  "Adolescentes+: 15 a 17 Anos",
+] as const;
 
 interface RevistaDialogProps {
   open: boolean;
@@ -52,7 +63,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
   const [licoes, setLicoes] = useState<Licao[]>([]);
   const [activeTab, setActiveTab] = useState("dados");
 
-  const { register, handleSubmit, reset, watch } = useForm<RevistaFormData>({
+  const { register, handleSubmit, reset, watch, setValue } = useForm<RevistaFormData>({
     defaultValues: {
       titulo: "",
       faixa_etaria_alvo: "",
@@ -219,11 +230,21 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
 
                 <div className="space-y-2">
                   <Label htmlFor="faixa_etaria_alvo">Faixa Etária Alvo *</Label>
-                  <Input
-                    id="faixa_etaria_alvo"
-                    {...register("faixa_etaria_alvo", { required: true })}
-                    placeholder="Ex: Jovens e Adultos"
-                  />
+                  <Select
+                    value={watch("faixa_etaria_alvo")}
+                    onValueChange={(value) => setValue("faixa_etaria_alvo", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a faixa etária" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FAIXAS_ETARIAS.map((faixa) => (
+                        <SelectItem key={faixa} value={faixa}>
+                          {faixa}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
