@@ -49,6 +49,7 @@ import EBDTeachers from "./pages/ebd/Teachers";
 import EBDClassrooms from "./pages/ebd/Classrooms";
 import EBDQuizzes from "./pages/ebd/Quizzes";
 import EBDSchedule from "./pages/ebd/Schedule";
+import EBDAgeRanges from "./pages/ebd/AgeRanges";
 
 const queryClient = new QueryClient();
 
@@ -219,6 +220,14 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDSchedule />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/age-ranges" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDAgeRanges />
                         </ModuleProtectedRoute>
                       } 
                     />

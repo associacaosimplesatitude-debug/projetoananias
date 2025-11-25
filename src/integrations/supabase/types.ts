@@ -969,6 +969,44 @@ export type Database = {
           },
         ]
       }
+      ebd_faixas_etarias: {
+        Row: {
+          church_id: string
+          created_at: string
+          id: string
+          idade_max: number
+          idade_min: number
+          nome_faixa: string
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          id?: string
+          idade_max: number
+          idade_min: number
+          nome_faixa: string
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          id?: string
+          idade_max?: number
+          idade_min?: number
+          nome_faixa?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_faixas_etarias_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_frequencia: {
         Row: {
           aluno_id: string

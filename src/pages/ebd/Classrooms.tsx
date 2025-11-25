@@ -108,12 +108,12 @@ export default function EBDClassrooms() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Cadastro de Salas</h1>
+            <h1 className="text-3xl font-bold">Turmas</h1>
             <p className="text-muted-foreground">Gerencie as turmas da EBD</p>
           </div>
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Nova Sala
+            Nova Turma
           </Button>
         </div>
 
@@ -121,16 +121,16 @@ export default function EBDClassrooms() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <School className="w-5 h-5" />
-              Salas Cadastradas
+              Turmas Cadastradas
             </CardTitle>
-            <CardDescription>Turmas e salas disponíveis</CardDescription>
+            <CardDescription>Lista de turmas da EBD</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4 mb-6">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
-                  placeholder="Buscar sala..."
+                  placeholder="Buscar turma..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -145,7 +145,7 @@ export default function EBDClassrooms() {
             ) : filteredTurmas.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <School className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma sala cadastrada</p>
+                <p>Nenhuma turma cadastrada</p>
                 <p className="text-sm">Comece adicionando turmas</p>
               </div>
             ) : (
