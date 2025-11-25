@@ -735,14 +735,13 @@ export default function AdminClients() {
                   <TableHead>Tipo</TableHead>
                   <TableHead>Localização</TableHead>
                   <TableHead>CNPJ</TableHead>
-                  <TableHead>Etapa Atual</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {churches.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Nenhum cliente cadastrado ainda. Clique em "Cadastrar Cliente" para adicionar o primeiro.
                     </TableCell>
                   </TableRow>
@@ -765,25 +764,6 @@ export default function AdminClients() {
                     </TableCell>
                     <TableCell>{church.city}, {church.state}</TableCell>
                     <TableCell>{church.cnpj || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5, 6].map((stage) => {
-                          const isCompleted = church.process_status === 'completed' || (church.current_stage || 1) >= stage;
-                          return (
-                            <div
-                              key={stage}
-                              className={`w-7 h-7 flex items-center justify-center text-xs font-semibold rounded border ${
-                                isCompleted
-                                  ? 'bg-green-500 text-white border-green-600'
-                                  : 'bg-muted text-muted-foreground border-border'
-                              }`}
-                            >
-                              {stage}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-2 justify-end">
                         <Button 

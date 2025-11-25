@@ -171,6 +171,11 @@ export const Navigation = () => {
       label: 'Clientes',
     },
     {
+      to: '/admin/processos',
+      icon: Settings,
+      label: 'Etapas',
+    },
+    {
       to: '/admin/receivable',
       icon: DollarSign,
       label: 'A Receber',
@@ -184,11 +189,6 @@ export const Navigation = () => {
       to: '/admin/reports',
       icon: BarChart3,
       label: 'Relatórios',
-    },
-    {
-      to: '/admin/stages',
-      icon: Settings,
-      label: 'Etapas',
     },
     {
       to: '/admin/branding',
