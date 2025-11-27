@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BookOpen, Edit, Trash2 } from "lucide-react";
+import { Plus, BookOpen, Edit, Trash2, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { RevistaDialog } from "@/components/ebd/RevistaDialog";
+import { ImportXMLDialog } from "@/components/ebd/ImportXMLDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,7 @@ export default function EBDCurriculo() {
   const [selectedRevista, setSelectedRevista] = useState<Revista | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [revistaToDelete, setRevistaToDelete] = useState<string | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: revistas, isLoading } = useQuery({
@@ -91,10 +93,16 @@ export default function EBDCurriculo() {
             <h1 className="text-3xl font-bold">Gestão de Currículo EBD</h1>
             <p className="text-muted-foreground">Cadastre revistas e suas lições</p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Revista
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <FileUp className="w-4 h-4 mr-2" />
+              Importar XML
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Revista
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -167,6 +175,12 @@ export default function EBDCurriculo() {
           open={dialogOpen}
           onOpenChange={handleCloseDialog}
           revista={selectedRevista}
+        />
+
+        <ImportXMLDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['ebd-revistas'] })}
         />
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
