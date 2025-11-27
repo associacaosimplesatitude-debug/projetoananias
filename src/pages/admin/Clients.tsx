@@ -588,26 +588,35 @@ export default function AdminClients() {
                       )}
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="city">Cidade</Label>
-                      <Input
-                        id="city"
-                        value={formData.city}
-                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="state">Estado</Label>
-                      <Input
-                        id="state"
-                        value={formData.state}
-                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                        maxLength={2}
-                        required
-                      />
-                    </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="postal_code">CEP</Label>
+                    <Input
+                      id="postal_code"
+                      value={formData.postal_code}
+                      onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                      onBlur={async (e) => {
+                        const cep = e.target.value.replace(/\D/g, '');
+                        if (cep.length === 8) {
+                          try {
+                            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                            const data = await response.json();
+                            if (!data.erro) {
+                              setFormData({
+                                ...formData,
+                                postal_code: cep,
+                                address: data.logradouro || '',
+                                neighborhood: data.bairro || '',
+                                city: data.localidade || '',
+                                state: data.uf || '',
+                              });
+                            }
+                          } catch (error) {
+                            console.error('Erro ao buscar CEP:', error);
+                          }
+                        }
+                      }}
+                      placeholder="00000-000"
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="address">Endereço</Label>
@@ -627,13 +636,24 @@ export default function AdminClients() {
                       />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="postal_code">CEP</Label>
+                      <Label htmlFor="city">Cidade</Label>
                       <Input
-                        id="postal_code"
-                        value={formData.postal_code}
-                        onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                        id="city"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        required
                       />
                     </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="state">Estado (UF)</Label>
+                    <Input
+                      id="state"
+                      value={formData.state}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      maxLength={2}
+                      required
+                    />
                   </div>
 
                   <div className="border-t pt-4 mt-2">
