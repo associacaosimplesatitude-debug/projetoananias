@@ -50,16 +50,19 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(text, "text/xml");
 
-      const items = xmlDoc.getElementsByTagName("item");
+      // Google Shopping feed usa <entry> ao invés de <item>
+      const entries = xmlDoc.getElementsByTagName("entry");
       const revistas: ParsedRevista[] = [];
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const title = item.getElementsByTagName("title")[0]?.textContent || "";
-        const description = item.getElementsByTagName("description")[0]?.textContent || "";
-        const link = item.getElementsByTagName("link")[0]?.textContent || "";
-        const productType = item.getElementsByTagNameNS("*", "product_type")[0]?.textContent || "";
-        const imageLink = item.getElementsByTagNameNS("*", "image_link")[0]?.textContent || null;
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        
+        // Pegar campos com namespace g: (Google Shopping)
+        const title = entry.getElementsByTagName("g:title")[0]?.textContent || "";
+        const description = entry.getElementsByTagName("g:description")[0]?.textContent || "";
+        const link = entry.getElementsByTagName("g:link")[0]?.textContent || "";
+        const productType = entry.getElementsByTagName("g:product_type")[0]?.textContent || "";
+        const imageLink = entry.getElementsByTagName("g:image_link")[0]?.textContent || null;
 
         // Verificar se é uma revista EBD procurando por "REVISTA" ou "EBD" (case-insensitive)
         const searchText = `${title} ${description} ${link}`.toLowerCase();
@@ -75,7 +78,7 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
 
           revistas.push({
             titulo: title,
-            faixa_etaria_alvo: productType,
+            faixa_etaria_alvo: productType || "Não especificado",
             autor,
             imagem_url: imageLink,
             sinopse: description,
