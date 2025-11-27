@@ -16,6 +16,7 @@ interface ParsedRevista {
   sinopse: string | null;
   num_licoes: number;
   licoes: { numero_licao: number; titulo: string }[];
+  preco_cheio: number;
 }
 
 interface ImportXMLDialogProps {
@@ -77,6 +78,17 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
             autor = autorMatch[1].trim();
           }
 
+          // Extrair preço
+          let preco = 0;
+          const priceElement = entry.getElementsByTagName("g:price")[0] || entry.getElementsByTagName("price")[0];
+          if (priceElement) {
+            const priceText = priceElement.textContent || '';
+            const priceMatch = priceText.match(/[\d.,]+/);
+            if (priceMatch) {
+              preco = parseFloat(priceMatch[0].replace(',', '.'));
+            }
+          }
+
           // Extrair títulos das lições
           const licoes: { numero_licao: number; titulo: string }[] = [];
           const titulosMatch = description.match(/Títulos das Lições:([\s\S]*?)(?:Sobre o Autor:|Especificação|ISBN:|$)/i);
@@ -106,7 +118,8 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
             imagem_url: imageLink,
             sinopse: description,
             num_licoes: licoes.length || 13,
-            licoes
+            licoes,
+            preco_cheio: preco
           });
         }
       }
