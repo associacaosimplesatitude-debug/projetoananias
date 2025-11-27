@@ -1479,6 +1479,7 @@ export type Database = {
           id: string
           imagem_url: string | null
           num_licoes: number
+          preco_cheio: number | null
           sinopse: string | null
           titulo: string
           updated_at: string
@@ -1490,6 +1491,7 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           num_licoes?: number
+          preco_cheio?: number | null
           sinopse?: string | null
           titulo: string
           updated_at?: string
@@ -1501,11 +1503,54 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           num_licoes?: number
+          preco_cheio?: number | null
           sinopse?: string | null
           titulo?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      ebd_revistas_compradas: {
+        Row: {
+          church_id: string
+          created_at: string | null
+          data_compra: string | null
+          id: string
+          preco_pago: number
+          revista_id: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string | null
+          data_compra?: string | null
+          id?: string
+          preco_pago: number
+          revista_id: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string | null
+          data_compra?: string | null
+          id?: string
+          preco_pago?: number
+          revista_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_revistas_compradas_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_revistas_compradas_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_revistas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ebd_turmas: {
         Row: {

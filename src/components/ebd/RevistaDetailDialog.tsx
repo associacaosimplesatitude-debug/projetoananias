@@ -30,6 +30,7 @@ interface RevistaDetailDialogProps {
     autor: string | null;
     imagem_url: string | null;
     num_licoes: number;
+    preco_cheio: number;
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -50,6 +51,29 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
   const [diaSemana, setDiaSemana] = useState<string>("");
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
+
+  // Calcular preços
+  const precoDesconto = revista.preco_cheio * 0.65; // 35% de desconto
+  const descontoValor = revista.preco_cheio - precoDesconto;
+
+  // Verificar se a igreja já comprou esta revista
+  const { data: revistaComprada } = useQuery({
+    queryKey: ['revista-comprada', churchId, revista.id],
+    queryFn: async () => {
+      if (!churchId) return null;
+      
+      const { data, error } = await supabase
+        .from('ebd_revistas_compradas')
+        .select('*')
+        .eq('church_id', churchId)
+        .eq('revista_id', revista.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!churchId,
+  });
 
   const { data: licoes, isLoading: loadingLicoes } = useQuery({
     queryKey: ['ebd-licoes-revista', revista.id],
@@ -98,11 +122,20 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
   });
 
   const handleUsarRevista = () => {
+    if (!revistaComprada && revista.preco_cheio > 0) {
+      toast.error('Você precisa comprar esta revista primeiro');
+      return;
+    }
     if (!diaSemana || !dataInicio) {
       toast.error('Selecione o dia da semana e a data de início');
       return;
     }
     salvarPlanejamentoMutation.mutate();
+  };
+
+  const handleComprar = () => {
+    // TODO: Implementar fluxo de pagamento
+    toast.info('Fluxo de pagamento será implementado em breve');
   };
 
   return (
@@ -140,6 +173,37 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
               <div>
                 <h3 className="font-semibold mb-1">Sinopse</h3>
                 <p className="text-sm text-muted-foreground">{revista.sinopse}</p>
+              </div>
+            )}
+
+            {/* Seção de Preço */}
+            {revista.preco_cheio > 0 && (
+              <div className="pt-4 border-t space-y-3">
+                <div className="bg-primary/5 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Preço Original:</span>
+                    <span className="text-sm line-through text-muted-foreground">
+                      R$ {revista.preco_cheio.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Desconto (35%):</span>
+                    <span className="text-sm text-green-600 font-semibold">
+                      -R$ {descontoValor.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="font-bold">Seu Preço:</span>
+                    <span className="text-2xl font-bold text-primary">
+                      R$ {precoDesconto.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-center mt-2">
+                    <Badge className="bg-green-600 text-white">
+                      ✓ Você tem 35% de desconto!
+                    </Badge>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -227,9 +291,23 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleUsarRevista} disabled={salvarPlanejamentoMutation.isPending}>
-            {salvarPlanejamentoMutation.isPending ? 'Salvando...' : 'USAR ESSA REVISTA'}
-          </Button>
+          
+          {revistaComprada || revista.preco_cheio === 0 ? (
+            <Button 
+              onClick={handleUsarRevista} 
+              disabled={salvarPlanejamentoMutation.isPending}
+              className="bg-primary"
+            >
+              {salvarPlanejamentoMutation.isPending ? 'Salvando...' : 'USAR ESSA REVISTA'}
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleComprar}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              COMPRAR AGORA - R$ {precoDesconto.toFixed(2)}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

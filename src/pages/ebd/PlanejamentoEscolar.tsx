@@ -29,6 +29,7 @@ interface Revista {
   autor: string | null;
   imagem_url: string | null;
   num_licoes: number;
+  preco_cheio: number;
 }
 
 interface Planejamento {
