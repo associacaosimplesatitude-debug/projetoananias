@@ -53,29 +53,19 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
       const items = xmlDoc.getElementsByTagName("item");
       const revistas: ParsedRevista[] = [];
 
-      const faixasEtariasKeywords = [
-        "Adolescente",
-        "Jovens e Adultos",
-        "Juniores",
-        "Maternal",
-        "Primários",
-        "Jardim de Infância"
-      ];
-
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
+        const title = item.getElementsByTagName("title")[0]?.textContent || "";
+        const description = item.getElementsByTagName("description")[0]?.textContent || "";
+        const link = item.getElementsByTagName("link")[0]?.textContent || "";
         const productType = item.getElementsByTagNameNS("*", "product_type")[0]?.textContent || "";
+        const imageLink = item.getElementsByTagNameNS("*", "image_link")[0]?.textContent || null;
 
-        // Verificar se é uma revista EBD
-        const isRevistaEBD = faixasEtariasKeywords.some(keyword => 
-          productType.toLowerCase().includes(keyword.toLowerCase())
-        );
+        // Verificar se é uma revista EBD procurando por "REVISTA" ou "EBD" (case-insensitive)
+        const searchText = `${title} ${description} ${link}`.toLowerCase();
+        const isRevistaEBD = searchText.includes("revista") || searchText.includes("ebd");
 
         if (isRevistaEBD) {
-          const title = item.getElementsByTagName("title")[0]?.textContent || "";
-          const description = item.getElementsByTagName("description")[0]?.textContent || "";
-          const imageLink = item.getElementsByTagNameNS("*", "image_link")[0]?.textContent || null;
-
           // Extrair autor da descrição (tentativa básica)
           let autor: string | null = null;
           const autorMatch = description.match(/(?:Autor|Author|Por):\s*([^.\n]+)/i);
