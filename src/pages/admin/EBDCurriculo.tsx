@@ -133,39 +133,9 @@ export default function EBDCurriculo() {
               <Trash2 className="w-4 h-4 mr-2" />
               Limpar Tudo
             </Button>
-            <Button 
-              variant="secondary" 
-              size="sm"
-              onClick={async () => {
-                try {
-                  const response = await fetch(
-                    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-xml-curriculo`,
-                    {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                      }
-                    }
-                  );
-                  const data = await response.json();
-                  if (data.success) {
-                    toast.success(`${data.message}`);
-                    queryClient.invalidateQueries({ queryKey: ['ebd-revistas'] });
-                  } else {
-                    toast.error(data.error || 'Erro ao importar');
-                  }
-                } catch (error) {
-                  console.error('Error calling import function:', error);
-                  toast.error('Erro ao chamar função de importação');
-                }
-              }}
-            >
-              <FileUp className="w-4 h-4 mr-2" />
-              Importar XML do Servidor
-            </Button>
             <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
               <FileUp className="w-4 h-4 mr-2" />
-              Importar XML Manual
+              Importar XML
             </Button>
             <Button onClick={() => setDialogOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
