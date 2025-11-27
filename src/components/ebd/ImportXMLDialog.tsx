@@ -166,6 +166,8 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
     }
 
     setIsImporting(true);
+    let totalLicoesImportadas = 0;
+    
     try {
       // Inserir revistas
       for (const revista of selectedRevistas) {
@@ -177,7 +179,10 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
           .select()
           .single();
 
-        if (revistaError) throw revistaError;
+        if (revistaError) {
+          console.error('Erro ao inserir revista:', revistaError);
+          throw new Error(`Erro ao importar revista "${revista.titulo}": ${revistaError.message}`);
+        }
 
         // Inserir lições se houver
         if (licoes && licoes.length > 0 && revistaInserida) {
@@ -185,25 +190,30 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
             revista_id: revistaInserida.id,
             titulo: licao.titulo,
             numero_licao: licao.numero_licao,
-            data_aula: new Date().toISOString().split('T')[0] // Data placeholder
+            data_aula: new Date().toISOString().split('T')[0], // Data placeholder
+            church_id: null // Lições globais
           }));
 
-          const { error: licoesError } = await supabase
+          const { data: licoesInseridas, error: licoesError } = await supabase
             .from('ebd_licoes')
-            .insert(licoesParaInserir);
+            .insert(licoesParaInserir)
+            .select();
 
           if (licoesError) {
             console.error('Erro ao inserir lições:', licoesError);
+            toast.error(`Erro ao importar lições da revista "${revista.titulo}": ${licoesError.message}`);
+          } else {
+            totalLicoesImportadas += licoesInseridas?.length || 0;
           }
         }
       }
 
-      toast.success(`${selectedRevistas.length} revista(s) importada(s) com sucesso!`);
+      toast.success(`${selectedRevistas.length} revista(s) e ${totalLicoesImportadas} lição(ões) importadas com sucesso!`);
       onSuccess();
       handleClose();
     } catch (error) {
       console.error('Erro ao importar revistas:', error);
-      toast.error('Erro ao importar revistas');
+      toast.error(error instanceof Error ? error.message : 'Erro ao importar revistas');
     } finally {
       setIsImporting(false);
     }
