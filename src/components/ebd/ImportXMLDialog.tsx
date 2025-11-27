@@ -15,6 +15,7 @@ interface ParsedRevista {
   imagem_url: string | null;
   sinopse: string | null;
   num_licoes: number;
+  licoes: { numero_licao: number; titulo: string }[];
 }
 
 interface ImportXMLDialogProps {
@@ -71,9 +72,31 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
         if (isRevistaEBD) {
           // Extrair autor da descrição (tentativa básica)
           let autor: string | null = null;
-          const autorMatch = description.match(/(?:Autor|Author|Por):\s*([^.\n]+)/i);
+          const autorMatch = description.match(/(?:Autor|Author|Por|Sobre o Autor):\s*([^.\n]+)/i);
           if (autorMatch) {
             autor = autorMatch[1].trim();
+          }
+
+          // Extrair títulos das lições
+          const licoes: { numero_licao: number; titulo: string }[] = [];
+          const titulosMatch = description.match(/Títulos das Lições:([\s\S]*?)(?:Sobre o Autor:|Especificação|ISBN:|$)/i);
+          
+          if (titulosMatch) {
+            const titulosTexto = titulosMatch[1];
+            // Separar por linhas e filtrar linhas vazias
+            const linhas = titulosTexto
+              .split('\n')
+              .map(l => l.trim())
+              .filter(l => l.length > 0 && !l.match(/^\d+\.?\s*$/)); // Remove linhas que são só números
+            
+            linhas.forEach((linha, index) => {
+              if (linha) {
+                licoes.push({
+                  numero_licao: index + 1,
+                  titulo: linha
+                });
+              }
+            });
           }
 
           revistas.push({
@@ -82,7 +105,8 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
             autor,
             imagem_url: imageLink,
             sinopse: description,
-            num_licoes: 13
+            num_licoes: licoes.length || 13,
+            licoes
           });
         }
       }
@@ -130,11 +154,36 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
 
     setIsImporting(true);
     try {
-      const { error } = await supabase
-        .from('ebd_revistas')
-        .insert(selectedRevistas);
+      // Inserir revistas
+      for (const revista of selectedRevistas) {
+        const { licoes, ...revistaData } = revista;
+        
+        const { data: revistaInserida, error: revistaError } = await supabase
+          .from('ebd_revistas')
+          .insert(revistaData)
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (revistaError) throw revistaError;
+
+        // Inserir lições se houver
+        if (licoes && licoes.length > 0 && revistaInserida) {
+          const licoesParaInserir = licoes.map(licao => ({
+            revista_id: revistaInserida.id,
+            titulo: licao.titulo,
+            numero_licao: licao.numero_licao,
+            data_aula: new Date().toISOString().split('T')[0] // Data placeholder
+          }));
+
+          const { error: licoesError } = await supabase
+            .from('ebd_licoes')
+            .insert(licoesParaInserir);
+
+          if (licoesError) {
+            console.error('Erro ao inserir lições:', licoesError);
+          }
+        }
+      }
 
       toast.success(`${selectedRevistas.length} revista(s) importada(s) com sucesso!`);
       onSuccess();
@@ -246,6 +295,11 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
                         {revista.autor && (
                           <p className="text-xs text-muted-foreground mt-1">
                             Autor: {revista.autor}
+                          </p>
+                        )}
+                        {revista.licoes && revista.licoes.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {revista.licoes.length} lições encontradas
                           </p>
                         )}
                       </div>
