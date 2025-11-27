@@ -33,6 +33,7 @@ export default function EBDCurriculo() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedRevista, setSelectedRevista] = useState<Revista | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [revistaToDelete, setRevistaToDelete] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -71,6 +72,35 @@ export default function EBDCurriculo() {
     },
   });
 
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+      // Deletar todas as lições globais primeiro
+      const { error: licoesError } = await supabase
+        .from('ebd_licoes')
+        .delete()
+        .is('church_id', null);
+      
+      if (licoesError) throw licoesError;
+
+      // Depois deletar todas as revistas
+      const { error: revistasError } = await supabase
+        .from('ebd_revistas')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Deleta todos
+      
+      if (revistasError) throw revistasError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-revistas'] });
+      toast.success('Todas as revistas e lições foram excluídas!');
+      setDeleteAllDialogOpen(false);
+    },
+    onError: (error) => {
+      console.error('Erro ao excluir todas as revistas:', error);
+      toast.error('Erro ao excluir as revistas');
+    }
+  });
+
   const handleEdit = (revista: Revista) => {
     setSelectedRevista(revista);
     setDialogOpen(true);
@@ -95,6 +125,14 @@ export default function EBDCurriculo() {
             <p className="text-muted-foreground">Cadastre revistas e suas lições</p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => setDeleteAllDialogOpen(true)}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Limpar Tudo
+            </Button>
             <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
               <FileUp className="w-4 h-4 mr-2" />
               Importar XML
@@ -200,6 +238,34 @@ export default function EBDCurriculo() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>⚠️ Atenção: Exclusão Total</AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p className="font-semibold text-destructive">
+                  Esta ação irá excluir TODAS as revistas e lições importadas do banco de dados!
+                </p>
+                <p>
+                  Use esta função apenas para testes ou quando precisar limpar completamente o catálogo.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Esta ação não pode ser desfeita.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteAllMutation.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Sim, excluir tudo
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
