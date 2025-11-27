@@ -50,11 +50,24 @@ export default function AdminAccountsReceivable() {
   }, []);
 
   const fetchChurches = async () => {
-    const { data } = await supabase
+    // Buscar todos os clientes
+    const { data: allChurches } = await supabase
       .from('churches')
       .select('id, church_name, monthly_fee, payment_due_day')
       .order('church_name');
-    setChurches(data || []);
+    
+    // Buscar clientes com contas abertas
+    const { data: openAccounts } = await supabase
+      .from('accounts_receivable')
+      .select('church_id')
+      .eq('status', 'open');
+    
+    const churchesWithOpenAccounts = new Set(openAccounts?.map(acc => acc.church_id) || []);
+    
+    // Filtrar apenas clientes sem contas abertas
+    const availableChurches = allChurches?.filter(church => !churchesWithOpenAccounts.has(church.id)) || [];
+    
+    setChurches(availableChurches);
   };
 
   const handleChurchChange = (churchId: string) => {
@@ -283,20 +296,26 @@ export default function AdminAccountsReceivable() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="church">Igreja</Label>
+                <Label htmlFor="church">Cliente</Label>
                 <Select
                   value={formData.church_id}
                   onValueChange={handleChurchChange}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a igreja" />
+                    <SelectValue placeholder="Selecione o cliente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {churches.map((church) => (
-                      <SelectItem key={church.id} value={church.id}>
-                        {church.church_name}
-                      </SelectItem>
-                    ))}
+                    {churches.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground">
+                        Nenhum cliente disponível (todos possuem contas abertas)
+                      </div>
+                    ) : (
+                      churches.map((church) => (
+                        <SelectItem key={church.id} value={church.id}>
+                          {church.church_name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

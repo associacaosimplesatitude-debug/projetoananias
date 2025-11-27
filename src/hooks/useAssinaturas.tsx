@@ -207,7 +207,126 @@ export const useDeleteClient = () => {
         .delete()
         .eq('church_id', clientId);
 
-      // 15. Deletar assinaturas de módulos
+      // 15. Deletar dados do módulo EBD - tabelas dependentes primeiro
+      // Buscar IDs necessários para deletar tabelas relacionadas
+      const { data: alunos } = await supabase
+        .from('ebd_alunos')
+        .select('id')
+        .eq('church_id', clientId);
+      const alunoIds = alunos?.map(a => a.id) || [];
+
+      const { data: quizzes } = await supabase
+        .from('ebd_quizzes')
+        .select('id')
+        .eq('church_id', clientId);
+      const quizIds = quizzes?.map(q => q.id) || [];
+
+      const { data: professores } = await supabase
+        .from('ebd_professores')
+        .select('id')
+        .eq('church_id', clientId);
+      const professorIds = professores?.map(p => p.id) || [];
+
+      // Deletar registros dependentes usando os IDs
+      if (alunoIds.length > 0) {
+        await supabase
+          .from('ebd_aluno_badges')
+          .delete()
+          .in('aluno_id', alunoIds);
+
+        await supabase
+          .from('ebd_devocional_registro')
+          .delete()
+          .in('aluno_id', alunoIds);
+
+        await supabase
+          .from('ebd_licoes_acesso')
+          .delete()
+          .in('aluno_id', alunoIds);
+
+        await supabase
+          .from('ebd_quiz_respostas')
+          .delete()
+          .in('aluno_id', alunoIds);
+      }
+
+      if (quizIds.length > 0) {
+        await supabase
+          .from('ebd_quiz_questoes')
+          .delete()
+          .in('quiz_id', quizIds);
+      }
+
+      if (professorIds.length > 0) {
+        await supabase
+          .from('ebd_professores_turmas')
+          .delete()
+          .in('professor_id', professorIds);
+      }
+
+      // 16. Deletar tabelas principais do EBD
+      await supabase
+        .from('ebd_frequencia')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_escalas')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_quizzes')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_licoes')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_planejamento')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_alunos')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_professores')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_turmas')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_faixas_etarias')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_badges')
+        .delete()
+        .eq('church_id', clientId);
+
+      await supabase
+        .from('ebd_devocionais')
+        .delete()
+        .eq('church_id', clientId);
+
+      // 17. Deletar perfis de usuários associados ao cliente
+      await supabase
+        .from('profiles')
+        .delete()
+        .eq('church_id', clientId);
+
+      // 18. Deletar assinaturas de módulos
       const { error: assinaturasError } = await supabase
         .from('assinaturas')
         .delete()
@@ -215,7 +334,7 @@ export const useDeleteClient = () => {
 
       if (assinaturasError) throw assinaturasError;
 
-      // 16. Por fim, deletar o cliente
+      // 19. Por fim, deletar o cliente
       const { error: clientError } = await supabase
         .from('churches')
         .delete()
