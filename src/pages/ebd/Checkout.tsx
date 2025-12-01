@@ -118,7 +118,7 @@ export default function Checkout() {
 
       const { data: churchData } = await supabase
         .from('churches')
-        .select('id')
+        .select('id, pastor_email, pastor_name')
         .eq('user_id', user.id)
         .single();
 
@@ -131,8 +131,41 @@ export default function Checkout() {
         return;
       }
 
-      // Simular processamento de pagamento
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Preparar itens para o Mercado Pago
+      const items = revistaIds.map(revistaId => {
+        const revista = revistas?.find(r => r.id === revistaId);
+        return {
+          id: revistaId,
+          title: revista?.titulo || 'Revista EBD',
+          quantity: cart[revistaId],
+          unit_price: (revista?.preco_cheio || 0) * 0.7,
+        };
+      });
+
+      // Criar preferência de pagamento no Mercado Pago
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+        'create-mercadopago-payment',
+        {
+          body: {
+            items,
+            payment_method: paymentMethod,
+            payer: {
+              email: churchData.pastor_email,
+              name: churchData.pastor_name || 'Cliente',
+            },
+            address: {
+              street_name: data.rua,
+              street_number: data.numero,
+              zip_code: data.cep.replace(/\D/g, ''),
+            },
+          },
+        }
+      );
+
+      if (paymentError) {
+        console.error('Erro ao criar pagamento:', paymentError);
+        throw paymentError;
+      }
 
       // Registrar compras
       const purchases = revistaIds.map(revistaId => ({
@@ -149,13 +182,17 @@ export default function Checkout() {
 
       // Limpar carrinho
       localStorage.removeItem('ebd-cart');
-      
-      toast({
-        title: 'Pedido confirmado!',
-        description: `Seu pedido no valor de R$ ${total.toFixed(2)} foi processado com sucesso.`,
-      });
 
-      navigate('/ebd/catalogo');
+      // Redirecionar para página de pagamento do Mercado Pago
+      if (paymentData?.init_point) {
+        window.location.href = paymentData.init_point;
+      } else {
+        toast({
+          title: 'Pedido criado!',
+          description: 'Redirecionando para pagamento...',
+        });
+        navigate('/ebd/catalogo');
+      }
     } catch (error) {
       console.error('Erro ao processar pedido:', error);
       toast({
