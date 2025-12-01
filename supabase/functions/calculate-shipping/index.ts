@@ -39,84 +39,81 @@ serve(async (req) => {
 
     console.log('Calculando frete para CEP:', cleanCep, 'Peso total:', totalWeight, 'kg');
 
-    // API dos Correios - usando o serviço SEDEX (código 04014)
-    // Formato: nCdEmpresa, sDsSenha, nCdServico, sCepOrigem, sCepDestino, nVlPeso, nCdFormato, nVlComprimento, nVlAltura, nVlLargura, nVlDiametro
-    const params = new URLSearchParams({
-      nCdEmpresa: correiosUser,
-      sDsSenha: correiosPassword,
-      nCdServico: '04014', // SEDEX
-      sCepOrigem: '01310100', // CEP de origem (São Paulo - ajustar conforme necessário)
-      sCepDestino: cleanCep,
-      nVlPeso: totalWeight.toString(),
-      nCdFormato: '1', // Caixa/Pacote
-      nVlComprimento: '30',
-      nVlAltura: '10',
-      nVlLargura: '20',
-      nVlDiametro: '0',
-      sCdMaoPropria: 'N',
-      nVlValorDeclarado: '0',
-      sCdAvisoRecebimento: 'N',
-    });
-
-    const response = await fetch(
-      `http://ws.correios.com.br/calculador/CalcPrecoPrazo.aspx?${params.toString()}`
-    );
-
-    const xmlText = await response.text();
-    console.log('Resposta dos Correios:', xmlText);
-
-    // Parse da resposta XML
-    const valorMatch = xmlText.match(/<Valor>([\d,]+)<\/Valor>/);
-    const prazoMatch = xmlText.match(/<PrazoEntrega>(\d+)<\/PrazoEntrega>/);
-    const erroMatch = xmlText.match(/<Erro>(\d+)<\/Erro>/);
-
-    if (erroMatch && erroMatch[1] !== '0') {
-      // Se houver erro, tentar com PAC (código 04510)
-      console.log('Erro no SEDEX, tentando PAC');
-      const pacParams = new URLSearchParams({
-        ...Object.fromEntries(params),
-        nCdServico: '04510', // PAC
-      });
-
-      const pacResponse = await fetch(
-        `http://ws.correios.com.br/calculador/CalcPrecoPrazo.aspx?${pacParams.toString()}`
-      );
-
-      const pacXmlText = await pacResponse.text();
-      console.log('Resposta PAC dos Correios:', pacXmlText);
-
-      const pacValorMatch = pacXmlText.match(/<Valor>([\d,]+)<\/Valor>/);
-      const pacPrazoMatch = pacXmlText.match(/<PrazoEntrega>(\d+)<\/PrazoEntrega>/);
-
-      if (pacValorMatch && pacPrazoMatch) {
-        const shippingCost = parseFloat(pacValorMatch[1].replace(',', '.'));
-        const deliveryDays = parseInt(pacPrazoMatch[1]);
-
-        return new Response(
-          JSON.stringify({
-            shipping_cost: shippingCost,
-            delivery_days: deliveryDays,
-            service: 'PAC',
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else {
-        throw new Error('Não foi possível calcular o frete');
-      }
+    // Calcular frete baseado em região e peso
+    // Como a API antiga dos Correios foi descontinuada, usamos uma tabela de preços
+    const cepPrefix = cleanCep.substring(0, 2);
+    
+    // Definir região baseada no CEP
+    let region: 'sudeste' | 'sul' | 'centro-oeste' | 'nordeste' | 'norte';
+    
+    if (['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19'].includes(cepPrefix)) {
+      region = 'sudeste'; // SP, RJ, ES, MG
+    } else if (['20', '21', '22', '23', '24', '25', '26', '27', '28'].includes(cepPrefix)) {
+      region = 'sudeste';
+    } else if (['29'].includes(cepPrefix)) {
+      region = 'sudeste';
+    } else if (['30', '31', '32', '33', '34', '35', '36', '37', '38', '39'].includes(cepPrefix)) {
+      region = 'sudeste';
+    } else if (['40', '41', '42', '43', '44', '45', '46', '47', '48'].includes(cepPrefix)) {
+      region = 'nordeste'; // BA
+    } else if (['49'].includes(cepPrefix)) {
+      region = 'nordeste'; // SE
+    } else if (['50', '51', '52', '53', '54'].includes(cepPrefix)) {
+      region = 'nordeste'; // PE
+    } else if (['55', '56'].includes(cepPrefix)) {
+      region = 'nordeste'; // AL
+    } else if (['57', '58'].includes(cepPrefix)) {
+      region = 'nordeste'; // PB
+    } else if (['59'].includes(cepPrefix)) {
+      region = 'nordeste'; // RN
+    } else if (['60', '61', '62', '63'].includes(cepPrefix)) {
+      region = 'nordeste'; // CE
+    } else if (['64'].includes(cepPrefix)) {
+      region = 'nordeste'; // PI
+    } else if (['65'].includes(cepPrefix)) {
+      region = 'nordeste'; // MA
+    } else if (['66', '67', '68'].includes(cepPrefix)) {
+      region = 'norte'; // PA, AP, AM
+    } else if (['69'].includes(cepPrefix)) {
+      region = 'norte'; // AC, RO, RR
+    } else if (['70', '71', '72', '73'].includes(cepPrefix)) {
+      region = 'centro-oeste'; // DF, GO
+    } else if (['74', '75', '76', '77'].includes(cepPrefix)) {
+      region = 'centro-oeste'; // GO, TO
+    } else if (['78'].includes(cepPrefix)) {
+      region = 'centro-oeste'; // MT
+    } else if (['79'].includes(cepPrefix)) {
+      region = 'centro-oeste'; // MS
+    } else if (['80', '81', '82', '83', '84', '85', '86', '87'].includes(cepPrefix)) {
+      region = 'sul'; // PR
+    } else if (['88', '89'].includes(cepPrefix)) {
+      region = 'sul'; // SC
+    } else if (['90', '91', '92', '93', '94', '95', '96', '97', '98', '99'].includes(cepPrefix)) {
+      region = 'sul'; // RS
+    } else {
+      region = 'sudeste'; // default
     }
 
-    if (!valorMatch || !prazoMatch) {
-      throw new Error('Formato de resposta inválido dos Correios');
-    }
+    // Tabela de preços por região e peso (valores aproximados do PAC)
+    const shippingRates = {
+      sudeste: { base: 15, perKg: 5, days: 5 },
+      sul: { base: 20, perKg: 7, days: 7 },
+      'centro-oeste': { base: 25, perKg: 8, days: 8 },
+      nordeste: { base: 30, perKg: 10, days: 10 },
+      norte: { base: 35, perKg: 12, days: 12 },
+    };
 
-    const shippingCost = parseFloat(valorMatch[1].replace(',', '.'));
-    const deliveryDays = parseInt(prazoMatch[1]);
+    const rate = shippingRates[region];
+    const shippingCost = rate.base + (totalWeight * rate.perKg);
+    const deliveryDays = rate.days;
+
+    console.log('Região:', region, 'Frete calculado:', shippingCost, 'Prazo:', deliveryDays, 'dias');
 
     return new Response(
       JSON.stringify({
-        shipping_cost: shippingCost,
+        shipping_cost: Number(shippingCost.toFixed(2)),
         delivery_days: deliveryDays,
-        service: 'SEDEX',
+        service: 'PAC',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
