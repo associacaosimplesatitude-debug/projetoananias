@@ -35,8 +35,9 @@ interface Revista {
   preco_cheio: number | null;
 }
 
-// Chave pública do Mercado Pago vinda do .env
-const PUBLIC_KEY = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY as string | undefined;
+// Chave pública do Mercado Pago (pode ser sobrescrita via env)
+const PUBLIC_KEY = (import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY as string | undefined) ||
+  'TEST-f3b9f2e5-3e5a-4d8a-9c5b-7e3b9f2e5a6c';
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -56,18 +57,11 @@ export default function Checkout() {
   });
 
   useEffect(() => {
-    if (!PUBLIC_KEY) {
-      console.error('MERCADO_PAGO_PUBLIC_KEY não configurada');
-      toast({
-        title: 'Erro de pagamento',
-        description: 'Configuração de pagamento indisponível no momento.',
-        variant: 'destructive',
-      });
-      return;
+    // Inicializa o SDK do Mercado Pago no cliente
+    if (typeof window !== 'undefined') {
+      initMercadoPago(PUBLIC_KEY, { locale: 'pt-BR' });
     }
-
-    initMercadoPago(PUBLIC_KEY, { locale: 'pt-BR' });
-  }, [toast]);
+  }, []);
 
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -414,89 +408,77 @@ export default function Checkout() {
                   <CardTitle>Pagamento</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {!PUBLIC_KEY ? (
-                    <p className="text-sm text-muted-foreground">
-                      Configuração de pagamento indisponível. Entre em contato com o suporte.
-                    </p>
-                  ) : (
-                    <div id="payment-brick-container" className="min-h-[400px]">
-                      {typeof window === 'undefined' ? (
-                        <p className="text-sm text-muted-foreground">
-                          Carregando formulário de pagamento...
-                        </p>
-                      ) : (
-                        <CardPayment
-                          initialization={{
-                            amount: total,
-                          }}
-                          customization={{
-                            paymentMethods: {
-                              maxInstallments: 12,
-                            },
-                          }}
-                          onSubmit={async (cardData: any) => {
-                            setIsProcessing(true);
-                            try {
-                              console.log('Dados do formulário:', cardData);
+                  <div id="payment-brick-container" className="min-h-[400px]">
+                    <CardPayment
+                      initialization={{
+                        amount: total,
+                      }}
+                      customization={{
+                        paymentMethods: {
+                          maxInstallments: 12,
+                        },
+                      }}
+                      onSubmit={async (cardData: any) => {
+                        setIsProcessing(true);
+                        try {
+                          console.log('Dados do formulário:', cardData);
 
-                              const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
-                                'process-transparent-payment',
-                                {
-                                  body: {
-                                    token: cardData.token,
-                                    payment_method_id: cardData.payment_method_id,
-                                    order_id: orderId,
-                                    installments: cardData.installments || 1,
-                                    payer: {
-                                      email: cardData.payer?.email,
-                                      identification: cardData.payer?.identification,
-                                    },
-                                  },
-                                }
-                              );
-
-                              if (paymentError) {
-                                throw paymentError;
-                              }
-
-                              if (paymentData.status === 'approved') {
-                                localStorage.removeItem('ebd-cart');
-                                navigate(`/ebd/checkout/success?order_id=${orderId}&status=approved`);
-                              } else if (paymentData.status === 'pending' || paymentData.status === 'in_process') {
-                                navigate(`/ebd/checkout/success?order_id=${orderId}&status=pending`);
-                              } else {
-                                toast({
-                                  title: 'Pagamento não aprovado',
-                                  description: paymentData.status_detail || 'Tente novamente',
-                                  variant: 'destructive',
-                                });
-                              }
-                            } catch (error) {
-                              console.error('Erro ao processar pagamento:', error);
-                              toast({
-                                title: 'Erro no pagamento',
-                                description: 'Tente novamente',
-                                variant: 'destructive',
-                              });
-                            } finally {
-                              setIsProcessing(false);
+                          const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+                            'process-transparent-payment',
+                            {
+                              body: {
+                                token: cardData.token,
+                                payment_method_id: cardData.payment_method_id,
+                                order_id: orderId,
+                                installments: cardData.installments || 1,
+                                payer: {
+                                  email: cardData.payer?.email,
+                                  identification: cardData.payer?.identification,
+                                },
+                              },
                             }
-                          }}
-                          onError={(error: any) => {
-                            console.error('Erro no Card Payment Brick:', error);
+                          );
+
+                          if (paymentError) {
+                            throw paymentError;
+                          }
+
+                          if (paymentData.status === 'approved') {
+                            localStorage.removeItem('ebd-cart');
+                            navigate(`/ebd/checkout/success?order_id=${orderId}&status=approved`);
+                          } else if (paymentData.status === 'pending' || paymentData.status === 'in_process') {
+                            navigate(`/ebd/checkout/success?order_id=${orderId}&status=pending`);
+                          } else {
                             toast({
-                              title: 'Erro no formulário',
-                              description: 'Verifique os dados e tente novamente',
+                              title: 'Pagamento não aprovado',
+                              description: paymentData.status_detail || 'Tente novamente',
                               variant: 'destructive',
                             });
-                          }}
-                          onReady={() => {
-                            console.log('Card Payment Brick carregado');
-                          }}
-                        />
-                      )}
-                    </div>
-                  )}
+                          }
+                        } catch (error) {
+                          console.error('Erro ao processar pagamento:', error);
+                          toast({
+                            title: 'Erro no pagamento',
+                            description: 'Tente novamente',
+                            variant: 'destructive',
+                          });
+                        } finally {
+                          setIsProcessing(false);
+                        }
+                      }}
+                      onError={(error: any) => {
+                        console.error('Erro no Card Payment Brick:', error);
+                        toast({
+                          title: 'Erro no formulário',
+                          description: 'Verifique os dados e tente novamente',
+                          variant: 'destructive',
+                        });
+                      }}
+                      onReady={() => {
+                        console.log('Card Payment Brick carregado');
+                      }}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             )}
