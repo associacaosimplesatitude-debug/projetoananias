@@ -232,7 +232,9 @@ export default function Checkout() {
         .from('ebd_revistas_compradas')
         .insert(purchases);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Erro ao registrar compras (continuando para pagamento):', insertError);
+      }
 
       // Limpar carrinho
       localStorage.removeItem('ebd-cart');
