@@ -39,6 +39,9 @@ export default function Checkout() {
   const { toast } = useToast();
   const [paymentMethod, setPaymentMethod] = useState<'boleto' | 'card' | 'pix'>('pix');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [shippingCost, setShippingCost] = useState<number>(0);
+  const [deliveryDays, setDeliveryDays] = useState<number>(0);
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [cart, setCart] = useState<{ [key: string]: number }>(() => {
     const saved = localStorage.getItem('ebd-cart');
     return saved ? JSON.parse(saved) : {};
@@ -74,7 +77,7 @@ export default function Checkout() {
     enabled: revistaIds.length > 0,
   });
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     if (!revistas) return 0;
     return revistas.reduce((sum, revista) => {
       const precoComDesconto = (revista.preco_cheio || 0) * 0.7;
@@ -82,12 +85,14 @@ export default function Checkout() {
     }, 0);
   };
 
-  const total = calculateTotal();
+  const subtotal = calculateSubtotal();
+  const total = subtotal + shippingCost;
 
   const handleCEPBlur = async (cep: string) => {
     const cleanCEP = cep.replace(/\D/g, '');
     if (cleanCEP.length === 8) {
       try {
+        // Buscar endereço
         const response = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
         const data = await response.json();
         if (!data.erro) {
@@ -96,8 +101,40 @@ export default function Checkout() {
           form.setValue('cidade', data.localidade);
           form.setValue('estado', data.uf);
         }
+
+        // Calcular frete
+        setIsCalculatingShipping(true);
+        const items = revistaIds.map(revistaId => ({
+          id: revistaId,
+          quantity: cart[revistaId],
+        }));
+
+        const { data: shippingData, error: shippingError } = await supabase.functions.invoke(
+          'calculate-shipping',
+          {
+            body: { cep: cleanCEP, items },
+          }
+        );
+
+        if (shippingError) {
+          console.error('Erro ao calcular frete:', shippingError);
+          toast({
+            title: 'Erro ao calcular frete',
+            description: 'Não foi possível calcular o frete. Tente novamente.',
+            variant: 'destructive',
+          });
+        } else if (shippingData) {
+          setShippingCost(shippingData.shipping_cost);
+          setDeliveryDays(shippingData.delivery_days);
+          toast({
+            title: 'Frete calculado',
+            description: `${shippingData.service}: R$ ${shippingData.shipping_cost.toFixed(2)} - Entrega em ${shippingData.delivery_days} dias úteis`,
+          });
+        }
       } catch (error) {
-        console.error('Erro ao buscar CEP:', error);
+        console.error('Erro ao processar CEP:', error);
+      } finally {
+        setIsCalculatingShipping(false);
       }
     }
   };
@@ -407,6 +444,33 @@ export default function Checkout() {
 
                 <Separator />
 
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal:</span>
+                    <span>R$ {subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Frete:</span>
+                    <span>
+                      {isCalculatingShipping ? (
+                        'Calculando...'
+                      ) : shippingCost > 0 ? (
+                        `R$ ${shippingCost.toFixed(2)}`
+                      ) : (
+                        'Informe o CEP'
+                      )}
+                    </span>
+                  </div>
+                  {deliveryDays > 0 && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Prazo de entrega:</span>
+                      <span>{deliveryDays} dias úteis</span>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total:</span>
                   <span className="text-primary">R$ {total.toFixed(2)}</span>
@@ -416,9 +480,9 @@ export default function Checkout() {
                   className="w-full"
                   size="lg"
                   onClick={form.handleSubmit(onSubmit)}
-                  disabled={isProcessing}
+                  disabled={isProcessing || shippingCost === 0 || isCalculatingShipping}
                 >
-                  {isProcessing ? 'Processando...' : 'Confirmar Pedido'}
+                  {isProcessing ? 'Processando...' : isCalculatingShipping ? 'Calculando frete...' : 'Confirmar Pedido'}
                 </Button>
 
                 <p className="text-xs text-center text-muted-foreground">

@@ -2,3 +2,6 @@ project_id = "nccyrvfnvjngfyfvgnww"
 
 [functions.create-mercadopago-payment]
 verify_jwt = true
+
+[functions.calculate-shipping]
+verify_jwt = true
