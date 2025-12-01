@@ -94,27 +94,27 @@ serve(async (req) => {
       region = 'sudeste'; // default
     }
 
-    // Tabela de preços por região e peso
+    // Tabela de preços por região e peso (valores mais realistas baseados em dados dos Correios)
     const shippingRates = {
       sudeste: { 
-        pac: { base: 15, perKg: 5, days: 5 },
-        sedex: { base: 25, perKg: 8, days: 2 }
+        pac: { base: 10, perKg: 1.5, days: 5 },
+        sedex: { base: 15, perKg: 2.5, days: 2 }
       },
       sul: { 
-        pac: { base: 20, perKg: 7, days: 7 },
-        sedex: { base: 35, perKg: 12, days: 3 }
+        pac: { base: 12, perKg: 2, days: 7 },
+        sedex: { base: 18, perKg: 3.5, days: 3 }
       },
       'centro-oeste': { 
-        pac: { base: 25, perKg: 8, days: 8 },
-        sedex: { base: 40, perKg: 14, days: 4 }
+        pac: { base: 14, perKg: 2.5, days: 8 },
+        sedex: { base: 22, perKg: 4, days: 4 }
       },
       nordeste: { 
-        pac: { base: 30, perKg: 10, days: 10 },
-        sedex: { base: 50, perKg: 18, days: 5 }
+        pac: { base: 16, perKg: 3, days: 10 },
+        sedex: { base: 25, perKg: 5, days: 5 }
       },
       norte: { 
-        pac: { base: 35, perKg: 12, days: 12 },
-        sedex: { base: 60, perKg: 22, days: 6 }
+        pac: { base: 20, perKg: 4, days: 12 },
+        sedex: { base: 32, perKg: 7, days: 6 }
       },
     };
 
