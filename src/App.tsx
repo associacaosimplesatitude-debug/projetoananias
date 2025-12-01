@@ -241,6 +241,14 @@ const App = () => (
                       } 
                     />
                     <Route 
+                      path="/ebd/escala" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDSchedule />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
                       path="/ebd/catalogo" 
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">

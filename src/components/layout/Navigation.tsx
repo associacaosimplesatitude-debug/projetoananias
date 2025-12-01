@@ -78,6 +78,12 @@ export const Navigation = () => {
     { to: '/ebd/students', label: 'Alunos' },
     { to: '/ebd/teachers', label: 'Professores' },
     { to: '/ebd/turmas', label: 'Turmas' },
+    { action: 'cadastro', label: '+ Novo Cadastro Rápido' },
+  ];
+
+  const ebdPlanejamentoDropdown = [
+    { to: '/ebd/planejamento', label: 'Planejamento Escolar' },
+    { to: '/ebd/escala', label: 'Escala' },
   ];
 
   const ebdAcompanhamentoDropdown = [
@@ -323,6 +329,40 @@ export const Navigation = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background z-50">
                     {ebdMembrosDropdown.map((item) => (
+                      <DropdownMenuItem 
+                        key={item.to || item.action} 
+                        asChild={!!item.to}
+                        onClick={item.action === 'cadastro' ? () => setManualRegOpen(true) : undefined}
+                      >
+                        {item.to ? (
+                          <Link to={item.to} className="cursor-pointer">
+                            {item.label}
+                          </Link>
+                        ) : (
+                          <span className="cursor-pointer">{item.label}</span>
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {/* EBD Planejamento Dropdown */}
+              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    <span className="hidden sm:inline">🗓️ Planejamento</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {ebdPlanejamentoDropdown.map((item) => (
                       <DropdownMenuItem key={item.to} asChild>
                         <Link to={item.to} className="cursor-pointer">
                           {item.label}
@@ -331,32 +371,6 @@ export const Navigation = () => {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )}
-
-              {/* Planejamento - Botão Direto */}
-              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
-                <>
-                  <style>
-                    {`
-                      #nav-item-ebd-planejamento.active {
-                        background-color: ${accentColor} !important;
-                      }
-                    `}
-                  </style>
-                  <NavLink
-                    id="nav-item-ebd-planejamento"
-                    to="/ebd/planejamento"
-                    className={cn(
-                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                      'hover:bg-white/10'
-                    )}
-                    style={{ color: navTextColor, opacity: 0.8 }}
-                    activeClassName="active"
-                  >
-                    <BookOpen className="h-4 w-4" />
-                    <span className="hidden sm:inline">🗓️ Planejamento</span>
-                  </NavLink>
-                </>
               )}
 
               {/* EBD Acompanhamento Dropdown */}
