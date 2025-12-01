@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus, ShoppingBag } from 'lucide-react';
 import logoAnanias from '@/assets/logo_ananias_horizontal.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -104,6 +104,16 @@ export const Navigation = () => {
       },
   ];
 
+  const catalogoMenuItems = [
+    { value: "Jovens e Adultos", label: "Jovens e Adultos" },
+    { value: "Maternal: 2 a 3 Anos", label: "Maternal: 2 a 3 Anos" },
+    { value: "Jardim de Infância: 4 a 6 Anos", label: "Jardim de Infância: 4 a 6 Anos" },
+    { value: "Primários: 7 a 8 Anos", label: "Primários: 7 a 8 Anos" },
+    { value: "Juniores: 9 a 11 Anos", label: "Juniores: 9 a 11 Anos" },
+    { value: "Adolescentes: 12 a 14 Anos", label: "Adolescentes: 12 a 14 Anos" },
+    { value: "Adolescentes+: 15 a 17 Anos", label: "Adolescentes+: 15 a 17 Anos" },
+  ];
+
   const clientNavItems = [
     ...(hasReoboteIgrejas ? [
       {
@@ -181,6 +191,8 @@ export const Navigation = () => {
       },
     ] : []),
   ];
+
+  const shouldShowCatalogo = activeModules?.includes('REOBOTE EBD') && (role === 'client' || role === 'admin');
 
   const accountingMenuItems = [
     {
@@ -360,6 +372,31 @@ export const Navigation = () => {
                     {accountingMenuItems.map((item) => (
                       <DropdownMenuItem key={item.to} asChild>
                         <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {shouldShowCatalogo && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    <span className="hidden sm:inline">Catálogo</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {catalogoMenuItems.map((item) => (
+                      <DropdownMenuItem key={item.value} asChild>
+                        <Link to={`/ebd/catalogo?faixa=${encodeURIComponent(item.value)}`} className="cursor-pointer">
                           {item.label}
                         </Link>
                       </DropdownMenuItem>
