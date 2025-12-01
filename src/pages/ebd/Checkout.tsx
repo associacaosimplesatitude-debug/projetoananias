@@ -401,84 +401,79 @@ export default function Checkout() {
                   <CardTitle>Pagamento</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Payment
-                    initialization={{
-                      amount: total,
-                      preferenceId: orderId,
-                    } as any}
-                    customization={{
-                      visual: {
-                        style: {
-                          theme: 'default',
+                  <div id="payment-brick-container" className="min-h-[400px]">
+                    <Payment
+                      initialization={{
+                        amount: total,
+                      }}
+                      customization={{
+                        paymentMethods: {
+                          creditCard: 'all',
+                          debitCard: 'all',
+                          ticket: 'all',
                         },
-                      },
-                    } as any}
-                    onSubmit={async (formData: any) => {
-                      setIsProcessing(true);
-                      try {
-                        const { data: { user } } = await supabase.auth.getUser();
-                        if (!user) throw new Error('Não autenticado');
+                      }}
+                      onSubmit={async (formData: any) => {
+                        setIsProcessing(true);
+                        try {
+                          console.log('Dados do formulário:', formData);
 
-                        const { data: churchData } = await supabase
-                          .from('churches')
-                          .select('pastor_email')
-                          .eq('user_id', user.id)
-                          .single();
-
-                        const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
-                          'process-transparent-payment',
-                          {
-                            body: {
-                              token: formData.token,
-                              payment_method_id: formData.payment_method_id,
-                              order_id: orderId,
-                              installments: formData.installments || 1,
-                              payer: {
-                                email: churchData?.pastor_email || user.email,
-                                ...(formData.payer?.identification && {
+                          const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+                            'process-transparent-payment',
+                            {
+                              body: {
+                                token: formData.token,
+                                payment_method_id: formData.payment_method_id,
+                                order_id: orderId,
+                                installments: formData.installments || 1,
+                                payer: {
+                                  email: formData.payer.email,
                                   identification: formData.payer.identification,
-                                }),
+                                },
                               },
-                            },
+                            }
+                          );
+
+                          if (paymentError) {
+                            throw paymentError;
                           }
-                        );
 
-                        if (paymentError) {
-                          throw paymentError;
-                        }
-
-                        if (paymentData.status === 'approved') {
-                          localStorage.removeItem('ebd-cart');
-                          navigate(`/ebd/checkout/success?order_id=${orderId}&status=approved`);
-                        } else if (paymentData.status === 'pending' || paymentData.status === 'in_process') {
-                          navigate(`/ebd/checkout/success?order_id=${orderId}&status=pending`);
-                        } else {
+                          if (paymentData.status === 'approved') {
+                            localStorage.removeItem('ebd-cart');
+                            navigate(`/ebd/checkout/success?order_id=${orderId}&status=approved`);
+                          } else if (paymentData.status === 'pending' || paymentData.status === 'in_process') {
+                            navigate(`/ebd/checkout/success?order_id=${orderId}&status=pending`);
+                          } else {
+                            toast({
+                              title: 'Pagamento não aprovado',
+                              description: paymentData.status_detail || 'Tente novamente',
+                              variant: 'destructive',
+                            });
+                          }
+                        } catch (error) {
+                          console.error('Erro ao processar pagamento:', error);
                           toast({
-                            title: 'Pagamento não aprovado',
-                            description: paymentData.status_detail || 'Tente novamente com outro método de pagamento',
+                            title: 'Erro no pagamento',
+                            description: 'Tente novamente',
                             variant: 'destructive',
                           });
+                        } finally {
+                          setIsProcessing(false);
                         }
-                      } catch (error) {
-                        console.error('Erro ao processar pagamento:', error);
+                      }}
+                      onError={(error: any) => {
+                        console.error('Erro no Payment Brick:', error);
                         toast({
-                          title: 'Erro no pagamento',
-                          description: 'Tente novamente',
+                          title: 'Erro no formulário',
+                          description: 'Verifique os dados e tente novamente',
                           variant: 'destructive',
                         });
-                      } finally {
-                        setIsProcessing(false);
-                      }
-                    }}
-                    onError={(error: any) => {
-                      console.error('Erro no Payment Brick:', error);
-                      toast({
-                        title: 'Erro no pagamento',
-                        description: 'Verifique os dados e tente novamente',
-                        variant: 'destructive',
-                      });
-                    }}
-                  />
+                      }}
+                      onReady={() => {
+                        console.log('Payment Brick carregado');
+                      }}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             )}
