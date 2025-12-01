@@ -196,6 +196,20 @@ export default function Checkout() {
         };
       });
 
+      // Adicionar frete como item se houver custo
+      if (shippingCost > 0) {
+        const shippingLabel = shippingMethod === 'sedex' 
+          ? `Frete Sedex (${sedexDays} dias úteis)` 
+          : `Frete PAC (${pacDays} dias úteis)`;
+        
+        items.push({
+          id: 'shipping',
+          title: shippingLabel,
+          quantity: 1,
+          unit_price: shippingCost,
+        });
+      }
+
       // Criar preferência de pagamento no Mercado Pago
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
         'create-mercadopago-payment',
