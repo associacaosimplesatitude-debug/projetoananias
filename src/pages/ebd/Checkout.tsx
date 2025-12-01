@@ -14,7 +14,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
+import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 
 const addressSchema = z.object({
   cep: z.string().min(8, 'CEP inválido').max(9),
@@ -402,33 +402,31 @@ export default function Checkout() {
                 </CardHeader>
                 <CardContent>
                   <div id="payment-brick-container" className="min-h-[400px]">
-                    <Payment
+                    <CardPayment
                       initialization={{
                         amount: total,
                       }}
                       customization={{
                         paymentMethods: {
-                          creditCard: 'all',
-                          debitCard: 'all',
-                          ticket: 'all',
+                          maxInstallments: 12,
                         },
                       }}
-                      onSubmit={async (formData: any) => {
+                      onSubmit={async (cardData: any) => {
                         setIsProcessing(true);
                         try {
-                          console.log('Dados do formulário:', formData);
+                          console.log('Dados do formulário:', cardData);
 
                           const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
                             'process-transparent-payment',
                             {
                               body: {
-                                token: formData.token,
-                                payment_method_id: formData.payment_method_id,
+                                token: cardData.token,
+                                payment_method_id: cardData.payment_method_id,
                                 order_id: orderId,
-                                installments: formData.installments || 1,
+                                installments: cardData.installments || 1,
                                 payer: {
-                                  email: formData.payer.email,
-                                  identification: formData.payer.identification,
+                                  email: cardData.payer?.email,
+                                  identification: cardData.payer?.identification,
                                 },
                               },
                             }
@@ -462,7 +460,7 @@ export default function Checkout() {
                         }
                       }}
                       onError={(error: any) => {
-                        console.error('Erro no Payment Brick:', error);
+                        console.error('Erro no Card Payment Brick:', error);
                         toast({
                           title: 'Erro no formulário',
                           description: 'Verifique os dados e tente novamente',
@@ -470,7 +468,7 @@ export default function Checkout() {
                         });
                       }}
                       onReady={() => {
-                        console.log('Payment Brick carregado');
+                        console.log('Card Payment Brick carregado');
                       }}
                     />
                   </div>
