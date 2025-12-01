@@ -38,6 +38,7 @@ import AdminStageManagement from "./pages/admin/StageManagement";
 import BrandingCustomization from "./pages/admin/BrandingCustomization";
 import ClientModules from "./pages/admin/ClientModules";
 import AdminEBDCurriculo from "./pages/admin/EBDCurriculo";
+import AdminOrders from "./pages/admin/Orders";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 import DashboardRedirect from "./components/DashboardRedirect";
@@ -372,6 +373,14 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <AdminEBDCurriculo />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/orders"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminOrders />
                         </ProtectedRoute>
                       }
                     />
