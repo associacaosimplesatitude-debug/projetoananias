@@ -72,52 +72,24 @@ export const Navigation = () => {
       icon: LayoutDashboard,
       label: 'Dashboard',
     },
-    {
-      to: '/ebd/students',
-      icon: Users,
-      label: 'Alunos',
-    },
-    {
-      to: '/ebd/teachers',
-      icon: UserCog,
-      label: 'Professores',
-    },
-    {
-      to: '/ebd/turmas',
-      icon: Building,
-      label: 'Turmas',
-    },
-    {
-      to: '/ebd/quizzes',
-      icon: FileText,
-      label: 'Quiz',
-    },
-      {
-        to: '/ebd/schedule',
-        icon: Settings,
-        label: 'Escala',
-      },
-      {
-        to: '/ebd/planejamento',
-        icon: BookOpen,
-        label: 'Planejamento',
-      },
-      {
-        to: '/ebd/pedidos',
-        icon: ShoppingBag,
-        label: 'Meus Pedidos',
-      },
   ];
 
-  const catalogoMenuItems = [
-    { value: "Jovens e Adultos", label: "Jovens e Adultos" },
-    { value: "Maternal: 2 a 3 Anos", label: "Maternal: 2 a 3 Anos" },
-    { value: "Jardim de Infância: 4 a 6 Anos", label: "Jardim de Infância: 4 a 6 Anos" },
-    { value: "Primários: 7 a 8 Anos", label: "Primários: 7 a 8 Anos" },
-    { value: "Juniores: 9 a 11 Anos", label: "Juniores: 9 a 11 Anos" },
-    { value: "Adolescentes: 12 a 14 Anos", label: "Adolescentes: 12 a 14 Anos" },
-    { value: "Adolescentes+: 15 a 17 Anos", label: "Adolescentes+: 15 a 17 Anos" },
+  const ebdMembrosDropdown = [
+    { to: '/ebd/students', label: 'Alunos' },
+    { to: '/ebd/teachers', label: 'Professores' },
+    { to: '/ebd/turmas', label: 'Turmas' },
   ];
+
+  const ebdAcompanhamentoDropdown = [
+    { to: '/ebd/quizzes', label: 'Desempenho (Quiz)' },
+    { to: '/ebd/frequencia/relatorio', label: 'Relatórios de Frequência' },
+  ];
+
+  const ebdCatalogoDropdown = [
+    { to: '/ebd/catalogo', label: 'Catálogo (Vitrine)' },
+    { to: '/ebd/pedidos', label: 'Meus Pedidos' },
+  ];
+
 
   const clientNavItems = [
     ...(hasReoboteIgrejas ? [
@@ -163,41 +135,6 @@ export const Navigation = () => {
         to: '/ebd/dashboard',
         icon: LayoutDashboard,
         label: 'Dashboard EBD',
-      },
-      {
-        to: '/ebd/students',
-        icon: Users,
-        label: 'Alunos',
-      },
-      {
-        to: '/ebd/teachers',
-        icon: UserCog,
-        label: 'Professores',
-      },
-      {
-        to: '/ebd/turmas',
-        icon: Building,
-        label: 'Turmas',
-      },
-      {
-        to: '/ebd/quizzes',
-        icon: FileText,
-        label: 'Quiz',
-      },
-      {
-        to: '/ebd/schedule',
-        icon: Settings,
-        label: 'Escala',
-      },
-      {
-        to: '/ebd/planejamento',
-        icon: BookOpen,
-        label: 'Planejamento',
-      },
-      {
-        to: '/ebd/pedidos',
-        icon: ShoppingBag,
-        label: 'Meus Pedidos',
       },
     ] : []),
   ];
@@ -370,6 +307,136 @@ export const Navigation = () => {
                 );
               })}
               
+              {/* EBD Membros e Turmas Dropdown */}
+              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <Users className="h-4 w-4" />
+                    <span className="hidden sm:inline">👥 Membros e Turmas</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {ebdMembrosDropdown.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {/* Planejamento - Botão Direto */}
+              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+                <>
+                  <style>
+                    {`
+                      #nav-item-ebd-planejamento.active {
+                        background-color: ${accentColor} !important;
+                      }
+                    `}
+                  </style>
+                  <NavLink
+                    id="nav-item-ebd-planejamento"
+                    to="/ebd/planejamento"
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                    activeClassName="active"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    <span className="hidden sm:inline">🗓️ Planejamento</span>
+                  </NavLink>
+                </>
+              )}
+
+              {/* EBD Acompanhamento Dropdown */}
+              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="hidden sm:inline">📊 Acompanhamento</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {ebdAcompanhamentoDropdown.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {/* EBD Catálogo Dropdown */}
+              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    <span className="hidden sm:inline">🛒 Catálogo</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {ebdCatalogoDropdown.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {/* Admin - Botão Direto */}
+              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+                <>
+                  <style>
+                    {`
+                      #nav-item-ebd-admin.active {
+                        background-color: ${accentColor} !important;
+                      }
+                    `}
+                  </style>
+                  <NavLink
+                    id="nav-item-ebd-admin"
+                    to="/ebd/admin"
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                    activeClassName="active"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">⚙️ Admin</span>
+                  </NavLink>
+                </>
+              )}
+
               {(role === 'client' || role === 'tesoureiro') && hasReoboteIgrejas && !hasOnlyReoboteEBD && (
                 <DropdownMenu>
                   <DropdownMenuTrigger 
@@ -387,31 +454,6 @@ export const Navigation = () => {
                     {accountingMenuItems.map((item) => (
                       <DropdownMenuItem key={item.to} asChild>
                         <Link to={item.to} className="cursor-pointer">
-                          {item.label}
-                        </Link>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-
-              {shouldShowCatalogo && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger 
-                    className={cn(
-                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                      'hover:bg-white/10'
-                    )}
-                    style={{ color: navTextColor, opacity: 0.8 }}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    <span className="hidden sm:inline">Catálogo</span>
-                    <ChevronDown className="h-3 w-3" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-background z-50">
-                    {catalogoMenuItems.map((item) => (
-                      <DropdownMenuItem key={item.value} asChild>
-                        <Link to={`/ebd/catalogo?faixa=${encodeURIComponent(item.value)}`} className="cursor-pointer">
                           {item.label}
                         </Link>
                       </DropdownMenuItem>

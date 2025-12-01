@@ -57,6 +57,8 @@ import EBDCatalogo from "./pages/ebd/Catalogo";
 import EBDCarrinho from "./pages/ebd/Carrinho";
 import EBDCheckout from "./pages/ebd/Checkout";
 import EBDMyOrders from "./pages/ebd/MyOrders";
+import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
+import EBDAdmin from "./pages/ebd/Admin";
 
 const queryClient = new QueryClient();
 
@@ -275,6 +277,22 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDAgeRanges />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/frequencia/relatorio" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDFrequenciaRelatorio />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/admin" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDAdmin />
                         </ModuleProtectedRoute>
                       } 
                     />
