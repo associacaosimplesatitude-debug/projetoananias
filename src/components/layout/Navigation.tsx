@@ -324,7 +324,7 @@ export const Navigation = () => {
                     style={{ color: navTextColor, opacity: 0.8 }}
                   >
                     <Users className="h-4 w-4" />
-                    <span className="hidden sm:inline">👥 Membros e Turmas</span>
+                    <span className="hidden sm:inline">Membros e Turmas</span>
                     <ChevronDown className="h-3 w-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background z-50">
@@ -358,7 +358,7 @@ export const Navigation = () => {
                     style={{ color: navTextColor, opacity: 0.8 }}
                   >
                     <BookOpen className="h-4 w-4" />
-                    <span className="hidden sm:inline">🗓️ Planejamento</span>
+                    <span className="hidden sm:inline">Planejamento</span>
                     <ChevronDown className="h-3 w-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background z-50">
@@ -384,7 +384,7 @@ export const Navigation = () => {
                     style={{ color: navTextColor, opacity: 0.8 }}
                   >
                     <BarChart3 className="h-4 w-4" />
-                    <span className="hidden sm:inline">📊 Acompanhamento</span>
+                    <span className="hidden sm:inline">Acompanhamento</span>
                     <ChevronDown className="h-3 w-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background z-50">
@@ -410,7 +410,7 @@ export const Navigation = () => {
                     style={{ color: navTextColor, opacity: 0.8 }}
                   >
                     <ShoppingBag className="h-4 w-4" />
-                    <span className="hidden sm:inline">🛒 Catálogo</span>
+                    <span className="hidden sm:inline">Catálogo</span>
                     <ChevronDown className="h-3 w-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background z-50">
@@ -446,7 +446,7 @@ export const Navigation = () => {
                     activeClassName="active"
                   >
                     <Settings className="h-4 w-4" />
-                    <span className="hidden sm:inline">⚙️ Admin</span>
+                    <span className="hidden sm:inline">Admin</span>
                   </NavLink>
                 </>
               )}
@@ -476,19 +476,6 @@ export const Navigation = () => {
                 </DropdownMenu>
               )}
 
-              {activeModules?.includes('REOBOTE EBD') && (role === 'client' || role === 'tesoureiro') && (
-                <button
-                  onClick={() => setManualRegOpen(true)}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                    'hover:bg-white/10'
-                  )}
-                  style={{ color: navTextColor, opacity: 0.8 }}
-                >
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">CADASTRO</span>
-                </button>
-              )}
             </div>
           </div>
           
