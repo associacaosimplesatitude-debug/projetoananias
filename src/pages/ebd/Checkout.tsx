@@ -478,7 +478,10 @@ export default function Checkout() {
                           <div className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-accent bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
                             <RadioGroupItem value="free" id="free" />
                             <Label htmlFor="free" className="cursor-pointer flex-1">
-                              <div className="font-semibold text-green-700 dark:text-green-400">Frete Grátis: R$ 0,00</div>
+                              <div className="flex justify-between">
+                                <span className="font-semibold text-green-700 dark:text-green-400">Frete Grátis: R$ 0,00</span>
+                                <span className="text-xs text-muted-foreground">15 dias úteis</span>
+                              </div>
                             </Label>
                           </div>
                         )}
