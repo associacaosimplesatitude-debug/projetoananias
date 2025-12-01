@@ -102,6 +102,11 @@ export const Navigation = () => {
         icon: BookOpen,
         label: 'Planejamento',
       },
+      {
+        to: '/ebd/pedidos',
+        icon: ShoppingBag,
+        label: 'Meus Pedidos',
+      },
   ];
 
   const catalogoMenuItems = [
@@ -188,6 +193,11 @@ export const Navigation = () => {
         to: '/ebd/planejamento',
         icon: BookOpen,
         label: 'Planejamento',
+      },
+      {
+        to: '/ebd/pedidos',
+        icon: ShoppingBag,
+        label: 'Meus Pedidos',
       },
     ] : []),
   ];
