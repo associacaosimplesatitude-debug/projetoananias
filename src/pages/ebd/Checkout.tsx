@@ -9,11 +9,12 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, CreditCard, FileText, QrCode } from 'lucide-react';
+import { ArrowLeft, ShoppingCart } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 
 const addressSchema = z.object({
   cep: z.string().min(8, 'CEP inválido').max(9),
@@ -34,10 +35,13 @@ interface Revista {
   preco_cheio: number | null;
 }
 
+// Inicializar Mercado Pago
+const PUBLIC_KEY = import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY || 'TEST-f3b9f2e5-3e5a-4d8a-9c5b-7e3b9f2e5a6c';
+initMercadoPago(PUBLIC_KEY, { locale: 'pt-BR' });
+
 export default function Checkout() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [paymentMethod, setPaymentMethod] = useState<'boleto' | 'card' | 'pix'>('pix');
   const [isProcessing, setIsProcessing] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<'free' | 'pac' | 'sedex'>('pac');
   const [pacCost, setPacCost] = useState<number>(0);
@@ -45,6 +49,8 @@ export default function Checkout() {
   const [pacDays, setPacDays] = useState<number>(0);
   const [sedexDays, setSedexDays] = useState<number>(0);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [orderId, setOrderId] = useState<string>('');
   const [cart, setCart] = useState<{ [key: string]: number }>(() => {
     const saved = localStorage.getItem('ebd-cart');
     return saved ? JSON.parse(saved) : {};
@@ -138,7 +144,6 @@ export default function Checkout() {
           setSedexCost(shippingData.sedex.cost);
           setSedexDays(shippingData.sedex.days);
           
-          // Se tiver frete grátis, seleciona automaticamente
           if (subtotal >= 200) {
             setShippingMethod('free');
           }
@@ -156,7 +161,7 @@ export default function Checkout() {
     }
   };
 
-  const onSubmit = async (data: AddressForm) => {
+  const onContinueToPayment = async (data: AddressForm) => {
     setIsProcessing(true);
     
     try {
@@ -164,7 +169,7 @@ export default function Checkout() {
       if (!user) {
         toast({
           title: 'Erro',
-          description: 'Você precisa estar logado para finalizar a compra',
+          description: 'Você precisa estar logado',
           variant: 'destructive',
         });
         return;
@@ -185,7 +190,7 @@ export default function Checkout() {
         return;
       }
 
-      // 1. Criar pedido no banco de dados
+      // Criar pedido
       const { data: pedido, error: pedidoError } = await supabase
         .from('ebd_pedidos')
         .insert({
@@ -210,9 +215,7 @@ export default function Checkout() {
         throw new Error('Erro ao criar pedido');
       }
 
-      console.log('Pedido criado:', pedido.id);
-
-      // 2. Criar itens do pedido
+      // Criar itens do pedido
       const itens = revistaIds.map(revistaId => {
         const revista = revistas?.find(r => r.id === revistaId);
         const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
@@ -230,82 +233,18 @@ export default function Checkout() {
         .insert(itens);
 
       if (itensError) {
-        console.error('Erro ao criar itens:', itensError);
         throw new Error('Erro ao criar itens do pedido');
       }
 
-      // 3. Preparar itens para o Mercado Pago
-      const mpItems = revistaIds.map(revistaId => {
-        const revista = revistas?.find(r => r.id === revistaId);
-        return {
-          id: revistaId,
-          title: revista?.titulo || 'Revista EBD',
-          quantity: cart[revistaId],
-          unit_price: (revista?.preco_cheio || 0) * 0.7,
-        };
+      setOrderId(pedido.id);
+      setShowPayment(true);
+
+      toast({
+        title: 'Pedido criado',
+        description: 'Prossiga com o pagamento',
       });
-
-      // Adicionar frete como item se houver custo
-      if (shippingCost > 0) {
-        const shippingLabel = shippingMethod === 'sedex' 
-          ? `Frete Sedex (${sedexDays} dias úteis)` 
-          : `Frete PAC (${pacDays} dias úteis)`;
-        
-        mpItems.push({
-          id: 'shipping',
-          title: shippingLabel,
-          quantity: 1,
-          unit_price: shippingCost,
-        });
-      }
-
-      // 4. Criar preferência de pagamento no Mercado Pago
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
-        'create-mercadopago-payment',
-        {
-          body: {
-            items: mpItems,
-            payment_method: paymentMethod,
-            payer: {
-              email: churchData.pastor_email,
-              name: churchData.pastor_name || 'Cliente',
-            },
-            address: {
-              street_name: data.rua,
-              street_number: data.numero,
-              zip_code: data.cep.replace(/\D/g, ''),
-            },
-            order_id: pedido.id, // ID do pedido para referência
-          },
-        }
-      );
-
-      if (paymentError) {
-        console.error('Erro ao criar pagamento:', paymentError);
-        throw paymentError;
-      }
-
-      // 5. Atualizar pedido com preference_id
-      if (paymentData?.id) {
-        await supabase
-          .from('ebd_pedidos')
-          .update({ mercadopago_preference_id: paymentData.id })
-          .eq('id', pedido.id);
-      }
-
-      // 6. Redirecionar para página de pagamento do Mercado Pago
-      // NÃO limpar o carrinho aqui - só após confirmação do pagamento
-      if (paymentData?.init_point) {
-        window.location.href = paymentData.init_point;
-      } else {
-        toast({
-          title: 'Erro',
-          description: 'Erro ao gerar link de pagamento',
-          variant: 'destructive',
-        });
-      }
     } catch (error) {
-      console.error('Erro ao processar pedido:', error);
+      console.error('Erro ao criar pedido:', error);
       toast({
         title: 'Erro ao processar pedido',
         description: 'Tente novamente mais tarde',
@@ -338,163 +277,211 @@ export default function Checkout() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Endereço de Entrega</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="cep"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>CEP</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="00000-000"
-                                onBlur={(e) => handleCEPBlur(e.target.value)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="estado"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Estado</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="UF" maxLength={2} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+            {!showPayment ? (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Endereço de Entrega</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(onContinueToPayment)} className="space-y-4">
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="cep"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>CEP</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder="00000-000"
+                                    onBlur={(e) => handleCEPBlur(e.target.value)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="estado"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Estado</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="UF" maxLength={2} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
 
-                    <FormField
-                      control={form.control}
-                      name="rua"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Rua</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Nome da rua" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                        <FormField
+                          control={form.control}
+                          name="rua"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Rua</FormLabel>
+                              <FormControl>
+                                <Input {...field} placeholder="Nome da rua" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                    <div className="grid md:grid-cols-3 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="numero"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Número</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="123" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="complemento"
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel>Complemento (opcional)</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Apto, Bloco, etc." />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                        <div className="grid md:grid-cols-3 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="numero"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Número</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="123" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="complemento"
+                            render={({ field }) => (
+                              <FormItem className="md:col-span-2">
+                                <FormLabel>Complemento (opcional)</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="Apto, Bloco, etc." />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="bairro"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Bairro</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Bairro" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="cidade"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Cidade</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="Cidade" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </form>
-                </Form>
-              </CardContent>
-            </Card>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="bairro"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Bairro</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="Bairro" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="cidade"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Cidade</FormLabel>
+                                <FormControl>
+                                  <Input {...field} placeholder="Cidade" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </form>
+                    </Form>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pagamento</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Payment
+                    initialization={{
+                      amount: total,
+                      preferenceId: orderId,
+                    } as any}
+                    customization={{
+                      visual: {
+                        style: {
+                          theme: 'default',
+                        },
+                      },
+                    } as any}
+                    onSubmit={async (formData: any) => {
+                      setIsProcessing(true);
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (!user) throw new Error('Não autenticado');
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Forma de Pagamento</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RadioGroup value={paymentMethod} onValueChange={(value: any) => setPaymentMethod(value)}>
-                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-accent">
-                    <RadioGroupItem value="pix" id="pix" />
-                    <Label htmlFor="pix" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <QrCode className="w-5 h-5" />
-                      <div>
-                        <div className="font-semibold">PIX</div>
-                        <div className="text-sm text-muted-foreground">Aprovação instantânea</div>
-                      </div>
-                    </Label>
-                  </div>
+                        const { data: churchData } = await supabase
+                          .from('churches')
+                          .select('pastor_email')
+                          .eq('user_id', user.id)
+                          .single();
 
-                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-accent">
-                    <RadioGroupItem value="card" id="card" />
-                    <Label htmlFor="card" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <CreditCard className="w-5 h-5" />
-                      <div>
-                        <div className="font-semibold">Cartão de Crédito</div>
-                        <div className="text-sm text-muted-foreground">Em até 12x sem juros</div>
-                      </div>
-                    </Label>
-                  </div>
+                        const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+                          'process-transparent-payment',
+                          {
+                            body: {
+                              token: formData.token,
+                              payment_method_id: formData.payment_method_id,
+                              order_id: orderId,
+                              installments: formData.installments || 1,
+                              payer: {
+                                email: churchData?.pastor_email || user.email,
+                                ...(formData.payer?.identification && {
+                                  identification: formData.payer.identification,
+                                }),
+                              },
+                            },
+                          }
+                        );
 
-                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-accent">
-                    <RadioGroupItem value="boleto" id="boleto" />
-                    <Label htmlFor="boleto" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <FileText className="w-5 h-5" />
-                      <div>
-                        <div className="font-semibold">Boleto Bancário</div>
-                        <div className="text-sm text-muted-foreground">Vencimento em 3 dias úteis</div>
-                      </div>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </CardContent>
-            </Card>
+                        if (paymentError) {
+                          throw paymentError;
+                        }
+
+                        if (paymentData.status === 'approved') {
+                          localStorage.removeItem('ebd-cart');
+                          navigate(`/ebd/checkout/success?order_id=${orderId}&status=approved`);
+                        } else if (paymentData.status === 'pending' || paymentData.status === 'in_process') {
+                          navigate(`/ebd/checkout/success?order_id=${orderId}&status=pending`);
+                        } else {
+                          toast({
+                            title: 'Pagamento não aprovado',
+                            description: paymentData.status_detail || 'Tente novamente com outro método de pagamento',
+                            variant: 'destructive',
+                          });
+                        }
+                      } catch (error) {
+                        console.error('Erro ao processar pagamento:', error);
+                        toast({
+                          title: 'Erro no pagamento',
+                          description: 'Tente novamente',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    onError={(error: any) => {
+                      console.error('Erro no Payment Brick:', error);
+                      toast({
+                        title: 'Erro no pagamento',
+                        description: 'Verifique os dados e tente novamente',
+                        variant: 'destructive',
+                      });
+                    }}
+                  />
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <div className="lg:col-span-1">
@@ -525,7 +512,7 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {!isCalculatingShipping && pacCost > 0 && (
+                {!showPayment && !isCalculatingShipping && pacCost > 0 && (
                   <>
                     <Separator />
                     <div className="space-y-3">
@@ -536,8 +523,8 @@ export default function Checkout() {
                             <RadioGroupItem value="free" id="free" />
                             <Label htmlFor="free" className="cursor-pointer flex-1">
                               <div className="flex justify-between">
-                                <span className="font-semibold text-green-700 dark:text-green-400">Frete Grátis: R$ 0,00</span>
-                                <span className="text-xs text-muted-foreground">15 dias úteis</span>
+                                <span className="font-semibold text-green-700 dark:text-green-400">Frete Grátis</span>
+                                <span className="text-xs text-muted-foreground">15 dias</span>
                               </div>
                             </Label>
                           </div>
@@ -547,7 +534,7 @@ export default function Checkout() {
                           <Label htmlFor="pac" className="cursor-pointer flex-1">
                             <div className="flex justify-between">
                               <span className="font-semibold">PAC: R$ {pacCost.toFixed(2)}</span>
-                              <span className="text-xs text-muted-foreground">{pacDays} dias úteis</span>
+                              <span className="text-xs text-muted-foreground">{pacDays} dias</span>
                             </div>
                           </Label>
                         </div>
@@ -556,7 +543,7 @@ export default function Checkout() {
                           <Label htmlFor="sedex" className="cursor-pointer flex-1">
                             <div className="flex justify-between">
                               <span className="font-semibold">Sedex: R$ {sedexCost.toFixed(2)}</span>
-                              <span className="text-xs text-muted-foreground">{sedexDays} dias úteis</span>
+                              <span className="text-xs text-muted-foreground">{sedexDays} dias</span>
                             </div>
                           </Label>
                         </div>
@@ -567,11 +554,11 @@ export default function Checkout() {
 
                 {isCalculatingShipping && (
                   <div className="text-sm text-muted-foreground text-center py-2">
-                    Calculando opções de frete...
+                    Calculando frete...
                   </div>
                 )}
 
-                {!isCalculatingShipping && pacCost === 0 && (
+                {!showPayment && !isCalculatingShipping && pacCost === 0 && (
                   <div className="text-sm text-muted-foreground text-center py-2">
                     Informe o CEP para calcular o frete
                   </div>
@@ -584,12 +571,6 @@ export default function Checkout() {
                     <span className="text-muted-foreground">Frete:</span>
                     <span>R$ {shippingCost.toFixed(2)}</span>
                   </div>
-                  {shippingMethod !== 'free' && (
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Prazo de entrega:</span>
-                      <span>{shippingMethod === 'sedex' ? sedexDays : pacDays} dias úteis</span>
-                    </div>
-                  )}
                 </div>
 
                 <Separator />
@@ -599,18 +580,22 @@ export default function Checkout() {
                   <span className="text-primary">R$ {total.toFixed(2)}</span>
                 </div>
 
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={form.handleSubmit(onSubmit)}
-                  disabled={isProcessing || pacCost === 0 || isCalculatingShipping}
-                >
-                  {isProcessing ? 'Processando...' : isCalculatingShipping ? 'Calculando frete...' : 'Confirmar Pedido'}
-                </Button>
+                {!showPayment && (
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={form.handleSubmit(onContinueToPayment)}
+                    disabled={isProcessing || pacCost === 0 || isCalculatingShipping}
+                  >
+                    {isProcessing ? 'Processando...' : 'Continuar para Pagamento'}
+                  </Button>
+                )}
 
-                <p className="text-xs text-center text-muted-foreground">
-                  Ao confirmar, você concorda com nossos termos de uso
-                </p>
+                {showPayment && isProcessing && (
+                  <div className="text-center text-sm text-muted-foreground">
+                    Processando pagamento...
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
