@@ -185,8 +185,57 @@ export default function Checkout() {
         return;
       }
 
-      // Preparar itens para o Mercado Pago
-      const items = revistaIds.map(revistaId => {
+      // 1. Criar pedido no banco de dados
+      const { data: pedido, error: pedidoError } = await supabase
+        .from('ebd_pedidos')
+        .insert({
+          church_id: churchData.id,
+          valor_produtos: subtotal,
+          valor_frete: shippingCost,
+          valor_total: total,
+          metodo_frete: shippingMethod,
+          status: 'pending',
+          endereco_rua: data.rua,
+          endereco_numero: data.numero,
+          endereco_complemento: data.complemento,
+          endereco_bairro: data.bairro,
+          endereco_cidade: data.cidade,
+          endereco_estado: data.estado,
+          endereco_cep: data.cep,
+        })
+        .select()
+        .single();
+
+      if (pedidoError || !pedido) {
+        throw new Error('Erro ao criar pedido');
+      }
+
+      console.log('Pedido criado:', pedido.id);
+
+      // 2. Criar itens do pedido
+      const itens = revistaIds.map(revistaId => {
+        const revista = revistas?.find(r => r.id === revistaId);
+        const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
+        return {
+          pedido_id: pedido.id,
+          revista_id: revistaId,
+          quantidade: cart[revistaId],
+          preco_unitario: precoUnitario,
+          preco_total: precoUnitario * cart[revistaId],
+        };
+      });
+
+      const { error: itensError } = await supabase
+        .from('ebd_pedidos_itens')
+        .insert(itens);
+
+      if (itensError) {
+        console.error('Erro ao criar itens:', itensError);
+        throw new Error('Erro ao criar itens do pedido');
+      }
+
+      // 3. Preparar itens para o Mercado Pago
+      const mpItems = revistaIds.map(revistaId => {
         const revista = revistas?.find(r => r.id === revistaId);
         return {
           id: revistaId,
@@ -202,7 +251,7 @@ export default function Checkout() {
           ? `Frete Sedex (${sedexDays} dias úteis)` 
           : `Frete PAC (${pacDays} dias úteis)`;
         
-        items.push({
+        mpItems.push({
           id: 'shipping',
           title: shippingLabel,
           quantity: 1,
@@ -210,12 +259,12 @@ export default function Checkout() {
         });
       }
 
-      // Criar preferência de pagamento no Mercado Pago
+      // 4. Criar preferência de pagamento no Mercado Pago
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
         'create-mercadopago-payment',
         {
           body: {
-            items,
+            items: mpItems,
             payment_method: paymentMethod,
             payer: {
               email: churchData.pastor_email,
@@ -226,6 +275,7 @@ export default function Checkout() {
               street_number: data.numero,
               zip_code: data.cep.replace(/\D/g, ''),
             },
+            order_id: pedido.id, // ID do pedido para referência
           },
         }
       );
@@ -235,33 +285,24 @@ export default function Checkout() {
         throw paymentError;
       }
 
-      // Registrar compras
-      const purchases = revistaIds.map(revistaId => ({
-        church_id: churchData.id,
-        revista_id: revistaId,
-        preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
-      }));
-
-      const { error: insertError } = await supabase
-        .from('ebd_revistas_compradas')
-        .insert(purchases);
-
-      if (insertError) {
-        console.error('Erro ao registrar compras (continuando para pagamento):', insertError);
+      // 5. Atualizar pedido com preference_id
+      if (paymentData?.id) {
+        await supabase
+          .from('ebd_pedidos')
+          .update({ mercadopago_preference_id: paymentData.id })
+          .eq('id', pedido.id);
       }
 
-      // Limpar carrinho
-      localStorage.removeItem('ebd-cart');
-
-      // Redirecionar para página de pagamento do Mercado Pago
+      // 6. Redirecionar para página de pagamento do Mercado Pago
+      // NÃO limpar o carrinho aqui - só após confirmação do pagamento
       if (paymentData?.init_point) {
         window.location.href = paymentData.init_point;
       } else {
         toast({
-          title: 'Pedido criado!',
-          description: 'Redirecionando para pagamento...',
+          title: 'Erro',
+          description: 'Erro ao gerar link de pagamento',
+          variant: 'destructive',
         });
-        navigate('/ebd/catalogo');
       }
     } catch (error) {
       console.error('Erro ao processar pedido:', error);

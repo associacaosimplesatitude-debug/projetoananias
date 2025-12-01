@@ -56,6 +56,7 @@ import EBDPlanejamento from "./pages/ebd/PlanejamentoEscolar";
 import EBDCatalogo from "./pages/ebd/Catalogo";
 import EBDCarrinho from "./pages/ebd/Carrinho";
 import EBDCheckout from "./pages/ebd/Checkout";
+import EBDCheckoutSuccess from "./pages/ebd/CheckoutSuccess";
 import EBDMyOrders from "./pages/ebd/MyOrders";
 import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
 import EBDAdmin from "./pages/ebd/Admin";
@@ -273,12 +274,20 @@ const App = () => (
                       } 
                     />
                     <Route 
+                      path="/ebd/checkout/success" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDCheckoutSuccess />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
                       path="/ebd/pedidos" 
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDMyOrders />
                         </ModuleProtectedRoute>
-                      } 
+                      }
                     />
                     <Route 
                       path="/ebd/age-ranges" 
