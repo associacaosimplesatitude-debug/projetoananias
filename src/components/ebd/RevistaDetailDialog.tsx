@@ -30,11 +30,12 @@ interface RevistaDetailDialogProps {
     autor: string | null;
     imagem_url: string | null;
     num_licoes: number;
-    preco_cheio: number;
+    preco_cheio: number | null;
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
   churchId?: string;
+  onAddToCart?: () => void;
 }
 
 const diasSemana = [
@@ -47,14 +48,15 @@ const diasSemana = [
   "Sábado",
 ];
 
-export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: RevistaDetailDialogProps) {
+export function RevistaDetailDialog({ revista, open, onOpenChange, churchId, onAddToCart }: RevistaDetailDialogProps) {
   const [diaSemana, setDiaSemana] = useState<string>("");
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
 
   // Calcular preços
-  const precoDesconto = revista.preco_cheio * 0.65; // 35% de desconto
-  const descontoValor = revista.preco_cheio - precoDesconto;
+  const precoDesconto = revista.preco_cheio ? revista.preco_cheio * 0.7 : 0; // 30% de desconto
+  const descontoValor = revista.preco_cheio ? revista.preco_cheio - precoDesconto : 0;
+  const isInCatalogMode = !!onAddToCart;
 
   // Verificar se a igreja já comprou esta revista
   const { data: revistaComprada } = useQuery({
@@ -177,7 +179,7 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
             )}
 
             {/* Seção de Preço */}
-            {revista.preco_cheio > 0 && (
+            {revista.preco_cheio && revista.preco_cheio > 0 && (
               <div className="pt-4 border-t space-y-3">
                 <div className="bg-primary/5 rounded-lg p-4 space-y-2">
                   <div className="flex items-center justify-between">
@@ -187,7 +189,7 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Desconto (35%):</span>
+                    <span className="text-sm font-medium">Desconto (30%):</span>
                     <span className="text-sm text-green-600 font-semibold">
                       -R$ {descontoValor.toFixed(2)}
                     </span>
@@ -200,63 +202,65 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
                   </div>
                   <div className="flex items-center justify-center mt-2">
                     <Badge className="bg-green-600 text-white">
-                      ✓ Você tem 35% de desconto!
+                      ✓ Você tem 30% de desconto!
                     </Badge>
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="space-y-3 pt-4 border-t">
-              <div className="space-y-2">
-                <Label>Dia da Aula</Label>
-                <Select value={diaSemana} onValueChange={setDiaSemana}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o dia" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {diasSemana.map((dia) => (
-                      <SelectItem key={dia} value={dia}>
-                        {dia}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {!isInCatalogMode && (
+              <div className="space-y-3 pt-4 border-t">
+                <div className="space-y-2">
+                  <Label>Dia da Aula</Label>
+                  <Select value={diaSemana} onValueChange={setDiaSemana}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o dia" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {diasSemana.map((dia) => (
+                        <SelectItem key={dia} value={dia}>
+                          {dia}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Data de Início</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dataInicio && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dataInicio ? format(dataInicio, "PPP", { locale: ptBR }) : "Selecione a data"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dataInicio}
-                      onSelect={setDataInicio}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+                <div className="space-y-2">
+                  <Label>Data de Início</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !dataInicio && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dataInicio ? format(dataInicio, "PPP", { locale: ptBR }) : "Selecione a data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={dataInicio}
+                        onSelect={setDataInicio}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-              {dataInicio && (
-                <p className="text-sm text-muted-foreground">
-                  Término previsto: {format(addWeeks(dataInicio, revista.num_licoes - 1), "PPP", { locale: ptBR })}
-                </p>
-              )}
-            </div>
+                {dataInicio && (
+                  <p className="text-sm text-muted-foreground">
+                    Término previsto: {format(addWeeks(dataInicio, revista.num_licoes - 1), "PPP", { locale: ptBR })}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Coluna Direita - Lições */}
@@ -292,21 +296,37 @@ export function RevistaDetailDialog({ revista, open, onOpenChange, churchId }: R
             Cancelar
           </Button>
           
-          {revistaComprada || revista.preco_cheio === 0 ? (
+          {isInCatalogMode ? (
             <Button 
-              onClick={handleUsarRevista} 
-              disabled={salvarPlanejamentoMutation.isPending}
+              onClick={() => {
+                onAddToCart();
+                onOpenChange(false);
+                toast.success('Revista adicionada ao carrinho!');
+              }}
               className="bg-primary"
             >
-              {salvarPlanejamentoMutation.isPending ? 'Salvando...' : 'USAR ESSA REVISTA'}
+              ADICIONAR AO CARRINHO
+              {precoDesconto > 0 && ` - R$ ${precoDesconto.toFixed(2)}`}
             </Button>
           ) : (
-            <Button 
-              onClick={handleComprar}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              COMPRAR AGORA - R$ {precoDesconto.toFixed(2)}
-            </Button>
+            <>
+              {revistaComprada || !revista.preco_cheio || revista.preco_cheio === 0 ? (
+                <Button 
+                  onClick={handleUsarRevista} 
+                  disabled={salvarPlanejamentoMutation.isPending}
+                  className="bg-primary"
+                >
+                  {salvarPlanejamentoMutation.isPending ? 'Salvando...' : 'USAR ESSA REVISTA'}
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleComprar}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  COMPRAR AGORA - R$ {precoDesconto.toFixed(2)}
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>
