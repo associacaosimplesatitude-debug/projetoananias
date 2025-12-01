@@ -39,8 +39,11 @@ export default function Checkout() {
   const { toast } = useToast();
   const [paymentMethod, setPaymentMethod] = useState<'boleto' | 'card' | 'pix'>('pix');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [shippingCost, setShippingCost] = useState<number>(0);
-  const [deliveryDays, setDeliveryDays] = useState<number>(0);
+  const [shippingMethod, setShippingMethod] = useState<'free' | 'pac' | 'sedex'>('pac');
+  const [pacCost, setPacCost] = useState<number>(0);
+  const [sedexCost, setSedexCost] = useState<number>(0);
+  const [pacDays, setPacDays] = useState<number>(0);
+  const [sedexDays, setSedexDays] = useState<number>(0);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [cart, setCart] = useState<{ [key: string]: number }>(() => {
     const saved = localStorage.getItem('ebd-cart');
@@ -86,6 +89,12 @@ export default function Checkout() {
   };
 
   const subtotal = calculateSubtotal();
+  const hasFreeShipping = subtotal >= 200;
+  const shippingCost = hasFreeShipping && shippingMethod === 'free' 
+    ? 0 
+    : shippingMethod === 'sedex' 
+    ? sedexCost 
+    : pacCost;
   const total = subtotal + shippingCost;
 
   const handleCEPBlur = async (cep: string) => {
@@ -124,11 +133,19 @@ export default function Checkout() {
             variant: 'destructive',
           });
         } else if (shippingData) {
-          setShippingCost(shippingData.shipping_cost);
-          setDeliveryDays(shippingData.delivery_days);
+          setPacCost(shippingData.pac.cost);
+          setPacDays(shippingData.pac.days);
+          setSedexCost(shippingData.sedex.cost);
+          setSedexDays(shippingData.sedex.days);
+          
+          // Se tiver frete grátis, seleciona automaticamente
+          if (subtotal >= 200) {
+            setShippingMethod('free');
+          }
+          
           toast({
             title: 'Frete calculado',
-            description: `${shippingData.service}: R$ ${shippingData.shipping_cost.toFixed(2)} - Entrega em ${shippingData.delivery_days} dias úteis`,
+            description: 'Opções de frete disponíveis',
           });
         }
       } catch (error) {
@@ -449,22 +466,68 @@ export default function Checkout() {
                     <span className="text-muted-foreground">Subtotal:</span>
                     <span>R$ {subtotal.toFixed(2)}</span>
                   </div>
+                </div>
+
+                {!isCalculatingShipping && pacCost > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold">Escolha o frete:</Label>
+                      <RadioGroup value={shippingMethod} onValueChange={(value: any) => setShippingMethod(value)}>
+                        {hasFreeShipping && (
+                          <div className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-accent bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+                            <RadioGroupItem value="free" id="free" />
+                            <Label htmlFor="free" className="cursor-pointer flex-1">
+                              <div className="font-semibold text-green-700 dark:text-green-400">Frete Grátis: R$ 0,00</div>
+                            </Label>
+                          </div>
+                        )}
+                        <div className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-accent">
+                          <RadioGroupItem value="pac" id="pac" />
+                          <Label htmlFor="pac" className="cursor-pointer flex-1">
+                            <div className="flex justify-between">
+                              <span className="font-semibold">PAC: R$ {pacCost.toFixed(2)}</span>
+                              <span className="text-xs text-muted-foreground">{pacDays} dias úteis</span>
+                            </div>
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-accent">
+                          <RadioGroupItem value="sedex" id="sedex" />
+                          <Label htmlFor="sedex" className="cursor-pointer flex-1">
+                            <div className="flex justify-between">
+                              <span className="font-semibold">Sedex: R$ {sedexCost.toFixed(2)}</span>
+                              <span className="text-xs text-muted-foreground">{sedexDays} dias úteis</span>
+                            </div>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </>
+                )}
+
+                {isCalculatingShipping && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    Calculando opções de frete...
+                  </div>
+                )}
+
+                {!isCalculatingShipping && pacCost === 0 && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    Informe o CEP para calcular o frete
+                  </div>
+                )}
+
+                <Separator />
+
+                <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Frete:</span>
-                    <span>
-                      {isCalculatingShipping ? (
-                        'Calculando...'
-                      ) : shippingCost > 0 ? (
-                        `R$ ${shippingCost.toFixed(2)}`
-                      ) : (
-                        'Informe o CEP'
-                      )}
-                    </span>
+                    <span>R$ {shippingCost.toFixed(2)}</span>
                   </div>
-                  {deliveryDays > 0 && (
+                  {shippingMethod !== 'free' && (
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Prazo de entrega:</span>
-                      <span>{deliveryDays} dias úteis</span>
+                      <span>{shippingMethod === 'sedex' ? sedexDays : pacDays} dias úteis</span>
                     </div>
                   )}
                 </div>
@@ -480,7 +543,7 @@ export default function Checkout() {
                   className="w-full"
                   size="lg"
                   onClick={form.handleSubmit(onSubmit)}
-                  disabled={isProcessing || shippingCost === 0 || isCalculatingShipping}
+                  disabled={isProcessing || pacCost === 0 || isCalculatingShipping}
                 >
                   {isProcessing ? 'Processando...' : isCalculatingShipping ? 'Calculando frete...' : 'Confirmar Pedido'}
                 </Button>

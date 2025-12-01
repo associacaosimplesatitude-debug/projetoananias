@@ -94,26 +94,46 @@ serve(async (req) => {
       region = 'sudeste'; // default
     }
 
-    // Tabela de preços por região e peso (valores aproximados do PAC)
+    // Tabela de preços por região e peso
     const shippingRates = {
-      sudeste: { base: 15, perKg: 5, days: 5 },
-      sul: { base: 20, perKg: 7, days: 7 },
-      'centro-oeste': { base: 25, perKg: 8, days: 8 },
-      nordeste: { base: 30, perKg: 10, days: 10 },
-      norte: { base: 35, perKg: 12, days: 12 },
+      sudeste: { 
+        pac: { base: 15, perKg: 5, days: 5 },
+        sedex: { base: 25, perKg: 8, days: 2 }
+      },
+      sul: { 
+        pac: { base: 20, perKg: 7, days: 7 },
+        sedex: { base: 35, perKg: 12, days: 3 }
+      },
+      'centro-oeste': { 
+        pac: { base: 25, perKg: 8, days: 8 },
+        sedex: { base: 40, perKg: 14, days: 4 }
+      },
+      nordeste: { 
+        pac: { base: 30, perKg: 10, days: 10 },
+        sedex: { base: 50, perKg: 18, days: 5 }
+      },
+      norte: { 
+        pac: { base: 35, perKg: 12, days: 12 },
+        sedex: { base: 60, perKg: 22, days: 6 }
+      },
     };
 
-    const rate = shippingRates[region];
-    const shippingCost = rate.base + (totalWeight * rate.perKg);
-    const deliveryDays = rate.days;
+    const rates = shippingRates[region];
+    const pacCost = rates.pac.base + (totalWeight * rates.pac.perKg);
+    const sedexCost = rates.sedex.base + (totalWeight * rates.sedex.perKg);
 
-    console.log('Região:', region, 'Frete calculado:', shippingCost, 'Prazo:', deliveryDays, 'dias');
+    console.log('Região:', region, 'PAC:', pacCost, 'SEDEX:', sedexCost);
 
     return new Response(
       JSON.stringify({
-        shipping_cost: Number(shippingCost.toFixed(2)),
-        delivery_days: deliveryDays,
-        service: 'PAC',
+        pac: {
+          cost: Number(pacCost.toFixed(2)),
+          days: rates.pac.days,
+        },
+        sedex: {
+          cost: Number(sedexCost.toFixed(2)),
+          days: rates.sedex.days,
+        },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
