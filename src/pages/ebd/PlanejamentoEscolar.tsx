@@ -341,8 +341,9 @@ export default function PlanejamentoEscolar() {
   const handleEdit = (planejamento: Planejamento) => {
     setSelectedPlanejamento(planejamento);
     setEditDiaSemana(planejamento.dia_semana);
-    setEditDataInicio(new Date(planejamento.data_inicio));
-    setEditDataTermino(new Date(planejamento.data_termino));
+    // Adicionar T12:00:00 para evitar problemas de timezone
+    setEditDataInicio(new Date(planejamento.data_inicio + 'T12:00:00'));
+    setEditDataTermino(new Date(planejamento.data_termino + 'T12:00:00'));
     setEditDialogOpen(true);
   };
 
