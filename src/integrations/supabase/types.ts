@@ -725,6 +725,7 @@ export type Database = {
       }
       ebd_alunos: {
         Row: {
+          avatar_url: string | null
           church_id: string
           created_at: string
           data_nascimento: string | null
@@ -741,6 +742,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          avatar_url?: string | null
           church_id: string
           created_at?: string
           data_nascimento?: string | null
@@ -757,6 +759,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          avatar_url?: string | null
           church_id?: string
           created_at?: string
           data_nascimento?: string | null
@@ -1345,6 +1348,7 @@ export type Database = {
       }
       ebd_professores: {
         Row: {
+          avatar_url: string | null
           church_id: string
           created_at: string
           email: string | null
@@ -1358,6 +1362,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          avatar_url?: string | null
           church_id: string
           created_at?: string
           email?: string | null
@@ -1371,6 +1376,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          avatar_url?: string | null
           church_id?: string
           created_at?: string
           email?: string | null

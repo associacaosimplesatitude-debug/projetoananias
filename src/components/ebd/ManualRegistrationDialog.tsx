@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload, User } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ImageCropDialog } from "@/components/financial/ImageCropDialog";
 
 interface ManualRegistrationDialogProps {
   open: boolean;
@@ -27,10 +29,63 @@ export default function ManualRegistrationDialog({
     email: "",
     whatsapp: "",
     password: "",
+    avatar_url: "",
   });
   const [isAluno, setIsAluno] = useState(false);
   const [isProfessor, setIsProfessor] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showCropDialog, setShowCropDialog] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("A imagem deve ter no máximo 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSelectedImage(reader.result as string);
+        setShowCropDialog(true);
+      };
+      reader.readAsDataURL(file);
+    }
+    // Reset input value to allow re-selecting the same file
+    e.target.value = "";
+  };
+
+  const handleCropComplete = async (croppedImageBlob: Blob) => {
+    setUploadingImage(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const fileName = `ebd/${churchId}/${Date.now()}.jpg`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("profile-avatars")
+        .upload(fileName, croppedImageBlob, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("profile-avatars")
+        .getPublicUrl(fileName);
+
+      setFormData({ ...formData, avatar_url: publicUrl });
+      toast.success("Foto carregada com sucesso!");
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast.error("Erro ao fazer upload da imagem");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +133,7 @@ export default function ManualRegistrationDialog({
           email: formData.email || null,
           telefone: formData.whatsapp,
           data_nascimento: formData.data_nascimento,
+          avatar_url: formData.avatar_url || null,
           is_active: true,
         });
 
@@ -92,6 +148,7 @@ export default function ManualRegistrationDialog({
           nome_completo: formData.nome_completo,
           email: formData.email || null,
           telefone: formData.whatsapp,
+          avatar_url: formData.avatar_url || null,
           is_active: true,
         });
 
@@ -111,6 +168,7 @@ export default function ManualRegistrationDialog({
         email: "",
         whatsapp: "",
         password: "",
+        avatar_url: "",
       });
       setIsAluno(false);
       setIsProfessor(false);
@@ -123,125 +181,165 @@ export default function ManualRegistrationDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Novo Cadastro Manual</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo Cadastro Manual</DialogTitle>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="nome_completo">
-              Nome Completo <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="nome_completo"
-              value={formData.nome_completo}
-              onChange={(e) =>
-                setFormData({ ...formData, nome_completo: e.target.value })
-              }
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="data_nascimento">
-              Data de Nascimento <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="data_nascimento"
-              type="date"
-              value={formData.data_nascimento}
-              onChange={(e) =>
-                setFormData({ ...formData, data_nascimento: e.target.value })
-              }
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="whatsapp">
-              WhatsApp <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="whatsapp"
-              value={formData.whatsapp}
-              onChange={(e) =>
-                setFormData({ ...formData, whatsapp: e.target.value })
-              }
-              required
-            />
-          </div>
-
-          {formData.email && (
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="password">
-                Senha de Acesso <span className="text-destructive">*</span>
+              <Label>Foto de Perfil (Opcional)</Label>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={formData.avatar_url} />
+                  <AvatarFallback>
+                    <User className="h-10 w-10" />
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                    id="ebd-avatar-upload"
+                    disabled={uploadingImage}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById("ebd-avatar-upload")?.click()}
+                    disabled={uploadingImage}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploadingImage ? "Carregando..." : "Escolher Foto"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="nome_completo">
+                Nome Completo <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="password"
-                type="password"
-                value={formData.password}
+                id="nome_completo"
+                value={formData.nome_completo}
                 onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
+                  setFormData({ ...formData, nome_completo: e.target.value })
+                }
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="data_nascimento">
+                Data de Nascimento <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="data_nascimento"
+                type="date"
+                value={formData.data_nascimento}
+                onChange={(e) =>
+                  setFormData({ ...formData, data_nascimento: e.target.value })
+                }
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
                 }
               />
-              <p className="text-xs text-muted-foreground">
-                Necessária para criar credenciais de acesso ao sistema
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-3 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="aluno-toggle-manual">Cadastrar como Aluno EBD</Label>
-              <Switch
-                id="aluno-toggle-manual"
-                checked={isAluno}
-                onCheckedChange={setIsAluno}
-              />
             </div>
 
-            <div className="flex items-center justify-between">
-              <Label htmlFor="professor-toggle-manual">
-                Cadastrar como Professor EBD
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp">
+                WhatsApp <span className="text-destructive">*</span>
               </Label>
-              <Switch
-                id="professor-toggle-manual"
-                checked={isProfessor}
-                onCheckedChange={setIsProfessor}
+              <Input
+                id="whatsapp"
+                value={formData.whatsapp}
+                onChange={(e) =>
+                  setFormData({ ...formData, whatsapp: e.target.value })
+                }
+                required
               />
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isLoading}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Cadastrar
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            {formData.email && (
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  Senha de Acesso <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Necessária para criar credenciais de acesso ao sistema
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="aluno-toggle-manual">Cadastrar como Aluno EBD</Label>
+                <Switch
+                  id="aluno-toggle-manual"
+                  checked={isAluno}
+                  onCheckedChange={setIsAluno}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="professor-toggle-manual">
+                  Cadastrar como Professor EBD
+                </Label>
+                <Switch
+                  id="professor-toggle-manual"
+                  checked={isProfessor}
+                  onCheckedChange={setIsProfessor}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isLoading}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Cadastrar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ImageCropDialog
+        open={showCropDialog}
+        onOpenChange={setShowCropDialog}
+        imageSrc={selectedImage || ""}
+        onCropComplete={handleCropComplete}
+      />
+    </>
   );
 }
