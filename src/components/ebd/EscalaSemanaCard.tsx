@@ -85,23 +85,7 @@ export function EscalaSemanaCard({ churchId }: EscalaSemanaCardProps) {
   }
 
   if (datasComEscala.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="h-5 w-5" />
-            Escala da Semana
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p className="font-medium">Nenhuma escala para esta semana</p>
-            <p className="text-sm">Monte a escala das suas revistas para ver os professores escalados.</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   return (
