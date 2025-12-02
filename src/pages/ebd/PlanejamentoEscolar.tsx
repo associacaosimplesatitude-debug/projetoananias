@@ -246,37 +246,48 @@ export default function PlanejamentoEscolar() {
     return temEscalaSalva;
   }) || [];
 
-  // Função para calcular progresso de aulas ministradas
+  // Função para calcular progresso de aulas ministradas baseado nas datas
   const calcularProgresso = (planejamento: Planejamento) => {
-    const totalLicoes = planejamento.ebd_revistas.num_licoes || 13;
+    const totalLicoes = planejamento.ebd_revistas?.num_licoes || 13;
     
-    if (!escalasSalvas || escalasSalvas.length === 0) {
-      return { ministradas: 0, total: totalLicoes, percentual: 0 };
+    // Mapear dia da semana para número (0 = Domingo, 6 = Sábado)
+    const diasSemanaMap: { [key: string]: number } = {
+      'Domingo': 0,
+      'Segunda-feira': 1,
+      'Terça-feira': 2,
+      'Quarta-feira': 3,
+      'Quinta-feira': 4,
+      'Sexta-feira': 5,
+      'Sábado': 6,
+    };
+    
+    const diaSemanaNum = diasSemanaMap[planejamento.dia_semana] ?? 0;
+    const inicio = new Date(planejamento.data_inicio + 'T12:00:00');
+    const termino = new Date(planejamento.data_termino + 'T12:00:00');
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999); // Considerar todo o dia de hoje
+    
+    // Encontrar a primeira data de aula (primeiro dia da semana >= data início)
+    let primeiraAula = new Date(inicio);
+    while (primeiraAula.getDay() !== diaSemanaNum) {
+      primeiraAula.setDate(primeiraAula.getDate() + 1);
     }
+    
+    // Contar quantas aulas já foram ministradas (datas passadas até hoje)
+    let aulasMinistradas = 0;
+    let dataAula = new Date(primeiraAula);
+    
+    for (let i = 0; i < totalLicoes; i++) {
+      if (dataAula > termino) break;
+      if (dataAula <= hoje) {
+        aulasMinistradas++;
+      }
+      dataAula.setDate(dataAula.getDate() + 7); // Próxima semana
+    }
+    
+    const percentual = Math.min(100, Math.round((aulasMinistradas / totalLicoes) * 100));
 
-    // Contar escalas dentro do período do planejamento
-    const aulasMinistradasCount = escalasSalvas.filter(escala => {
-      const escalaDate = new Date(escala.data);
-      const inicio = new Date(planejamento.data_inicio);
-      const termino = new Date(planejamento.data_termino);
-      return escalaDate >= inicio && escalaDate <= termino;
-    }).length;
-
-    // Contar apenas datas únicas (pode haver múltiplas turmas no mesmo dia)
-    const datasUnicas = new Set(
-      escalasSalvas
-        .filter(escala => {
-          const escalaDate = new Date(escala.data);
-          const inicio = new Date(planejamento.data_inicio);
-          const termino = new Date(planejamento.data_termino);
-          return escalaDate >= inicio && escalaDate <= termino;
-        })
-        .map(escala => escala.data)
-    ).size;
-
-    const percentual = Math.min(100, Math.round((datasUnicas / totalLicoes) * 100));
-
-    return { ministradas: datasUnicas, total: totalLicoes, percentual };
+    return { ministradas: aulasMinistradas, total: totalLicoes, percentual };
   };
 
   // Função para obter a cor do progresso baseada no percentual
