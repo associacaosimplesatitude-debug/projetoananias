@@ -279,6 +279,13 @@ export default function PlanejamentoEscolar() {
     return { ministradas: datasUnicas, total: totalLicoes, percentual };
   };
 
+  // Função para obter a cor do progresso baseada no percentual
+  const getProgressColor = (percentual: number) => {
+    if (percentual >= 80) return "bg-green-500";
+    if (percentual >= 30) return "bg-yellow-500";
+    return "bg-red-500";
+  };
+
   // Mutation para editar planejamento
   const editMutation = useMutation({
     mutationFn: async () => {
@@ -484,7 +491,11 @@ export default function PlanejamentoEscolar() {
                                     <span className="text-muted-foreground">Progresso</span>
                                     <span className="font-medium">{progresso.ministradas}/{progresso.total}</span>
                                   </div>
-                                  <Progress value={progresso.percentual} className="h-1.5" />
+                                  <Progress 
+                                    value={progresso.percentual} 
+                                    className="h-1.5" 
+                                    indicatorClassName={getProgressColor(progresso.percentual)}
+                                  />
                                 </div>
                               );
                             })()}
@@ -568,7 +579,11 @@ export default function PlanejamentoEscolar() {
                         <div className="col-span-2 md:col-span-1">
                           <p className="text-xs text-muted-foreground mb-1">Progresso</p>
                           <div className="flex items-center gap-2">
-                            <Progress value={progresso.percentual} className="h-2 flex-1" />
+                            <Progress 
+                              value={progresso.percentual} 
+                              className="h-2 flex-1" 
+                              indicatorClassName={getProgressColor(progresso.percentual)}
+                            />
                             <span className="text-xs font-medium whitespace-nowrap">
                               {progresso.ministradas}/{progresso.total}
                             </span>
