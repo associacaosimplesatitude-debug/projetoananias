@@ -9,12 +9,19 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, ShoppingCart } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
+import { initMercadoPago } from '@mercadopago/sdk-react';
+
+// Tipo para o objeto global do Mercado Pago
+declare global {
+  interface Window {
+    MercadoPago?: any;
+  }
+}
 
 const addressSchema = z.object({
   cep: z.string().min(8, 'CEP inválido').max(9),
@@ -42,6 +49,7 @@ const PUBLIC_KEY = (import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY as string | und
 export default function Checkout() {
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<'free' | 'pac' | 'sedex'>('pac');
   const [pacCost, setPacCost] = useState<number>(0);
@@ -55,6 +63,8 @@ export default function Checkout() {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('ebd-cart') : null;
     return saved ? JSON.parse(saved) : {};
   });
+  const [preferenceId, setPreferenceId] = useState<string | null>(null);
+  const [isLoadingPaymentOptions, setIsLoadingPaymentOptions] = useState(false);
 
   useEffect(() => {
     // Inicializa o SDK do Mercado Pago no cliente
@@ -103,12 +113,57 @@ export default function Checkout() {
 
   const subtotal = calculateSubtotal();
   const hasFreeShipping = subtotal >= 200;
-  const shippingCost = hasFreeShipping && shippingMethod === 'free' 
-    ? 0 
-    : shippingMethod === 'sedex' 
-    ? sedexCost 
+  const shippingCost = hasFreeShipping && shippingMethod === 'free'
+    ? 0
+    : shippingMethod === 'sedex'
+    ? sedexCost
     : pacCost;
   const total = subtotal + shippingCost;
+
+  useEffect(() => {
+    // Quando já temos a preferência e estamos na etapa de pagamento,
+    // inicializamos o Brick do Mercado Pago
+    if (!showPayment || !preferenceId || typeof window === 'undefined') return;
+
+    try {
+      setIsLoadingPaymentOptions(true);
+
+      const mp = new window.MercadoPago(PUBLIC_KEY, {
+        locale: 'pt-BR',
+      });
+
+      const bricksBuilder = mp.bricks();
+
+      bricksBuilder.create('wallet', 'payment-brick-container', {
+        initialization: {
+          preferenceId,
+        },
+        callbacks: {
+          onReady: () => {
+            console.log('Wallet Brick pronto');
+            setIsLoadingPaymentOptions(false);
+          },
+          onError: (error: any) => {
+            console.error('Erro ao carregar Wallet Brick:', error);
+            setIsLoadingPaymentOptions(false);
+            toast({
+              title: 'Erro ao carregar opções de pagamento',
+              description: 'Tente recarregar a página ou tentar novamente mais tarde.',
+              variant: 'destructive',
+            });
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Erro geral ao inicializar Wallet Brick:', error);
+      setIsLoadingPaymentOptions(false);
+      toast({
+        title: 'Erro ao inicializar pagamento',
+        description: 'Tente novamente mais tarde.',
+        variant: 'destructive',
+      });
+    }
+  }, [showPayment, preferenceId, toast]);
 
   const handleCEPBlur = async (cep: string) => {
     const cleanCEP = cep.replace(/\D/g, '');
@@ -150,11 +205,11 @@ export default function Checkout() {
           setPacDays(shippingData.pac.days);
           setSedexCost(shippingData.sedex.cost);
           setSedexDays(shippingData.sedex.days);
-          
+
           if (subtotal >= 200) {
             setShippingMethod('free');
           }
-          
+
           toast({
             title: 'Frete calculado',
             description: 'Opções de frete disponíveis',
@@ -170,7 +225,7 @@ export default function Checkout() {
 
   const onContinueToPayment = async (data: AddressForm) => {
     setIsProcessing(true);
-    
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -184,7 +239,7 @@ export default function Checkout() {
 
       const { data: churchData } = await supabase
         .from('churches')
-        .select('id, pastor_email, pastor_name')
+        .select('id, pastor_email, pastor_name, church_name')
         .eq('user_id', user.id)
         .single();
 
@@ -204,7 +259,7 @@ export default function Checkout() {
           church_id: churchData.id,
           valor_produtos: subtotal,
           valor_frete: shippingCost,
-          valor_total: total,
+          valor_total: subtotal + shippingCost,
           metodo_frete: shippingMethod,
           status: 'pending',
           endereco_rua: data.rua,
@@ -243,20 +298,61 @@ export default function Checkout() {
         throw new Error('Erro ao criar itens do pedido');
       }
 
+      // Criar preferência de pagamento no backend (Checkout Transparente)
+      setIsLoadingPaymentOptions(true);
+
+      const mpItems = revistaIds.map(revistaId => {
+        const revista = revistas?.find(r => r.id === revistaId);
+        const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
+        return {
+          id: revistaId,
+          title: revista?.titulo || 'Revista',
+          quantity: cart[revistaId],
+          unit_price: precoUnitario,
+        };
+      });
+
+      const { data: prefData, error: prefError } = await supabase.functions.invoke(
+        'create-mercadopago-payment',
+        {
+          body: {
+            items: mpItems,
+            payment_method: 'card',
+            payer: {
+              email: churchData.pastor_email,
+              name: churchData.pastor_name || churchData.church_name || 'Cliente',
+            },
+            address: {
+              street_name: data.rua,
+              street_number: data.numero,
+              zip_code: data.cep,
+            },
+            order_id: pedido.id,
+          },
+        }
+      );
+
+      if (prefError || !prefData?.id) {
+        console.error('Erro ao criar preferência:', prefError, prefData);
+        throw new Error('Erro ao criar preferência de pagamento');
+      }
+
       setOrderId(pedido.id);
+      setPreferenceId(prefData.id as string);
       setShowPayment(true);
 
       toast({
         title: 'Pedido criado',
-        description: 'Prossiga com o pagamento',
+        description: 'Opções de pagamento carregadas. Conclua o pagamento abaixo.',
       });
     } catch (error) {
-      console.error('Erro ao criar pedido:', error);
+      console.error('Erro ao criar pedido/pagamento:', error);
       toast({
         title: 'Erro ao processar pedido',
         description: 'Tente novamente mais tarde',
         variant: 'destructive',
       });
+      setIsLoadingPaymentOptions(false);
     } finally {
       setIsProcessing(false);
     }
@@ -397,6 +493,15 @@ export default function Checkout() {
                             )}
                           />
                         </div>
+
+                        <Button
+                          type="submit"
+                          className="w-full mt-4"
+                          size="lg"
+                          disabled={isProcessing || pacCost === 0 || isCalculatingShipping}
+                        >
+                          {isProcessing ? 'Processando...' : 'Continuar para Pagamento'}
+                        </Button>
                       </form>
                     </Form>
                   </CardContent>
@@ -408,77 +513,12 @@ export default function Checkout() {
                   <CardTitle>Pagamento</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div id="payment-brick-container" className="min-h-[400px]">
-                    <CardPayment
-                      initialization={{
-                        amount: total,
-                      }}
-                      customization={{
-                        paymentMethods: {
-                          maxInstallments: 12,
-                        },
-                      }}
-                      onSubmit={async (cardData: any) => {
-                        setIsProcessing(true);
-                        try {
-                          console.log('Dados do formulário:', cardData);
-
-                          const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
-                            'process-transparent-payment',
-                            {
-                              body: {
-                                token: cardData.token,
-                                payment_method_id: cardData.payment_method_id,
-                                order_id: orderId,
-                                installments: cardData.installments || 1,
-                                payer: {
-                                  email: cardData.payer?.email,
-                                  identification: cardData.payer?.identification,
-                                },
-                              },
-                            }
-                          );
-
-                          if (paymentError) {
-                            throw paymentError;
-                          }
-
-                          if (paymentData.status === 'approved') {
-                            localStorage.removeItem('ebd-cart');
-                            navigate(`/ebd/checkout/success?order_id=${orderId}&status=approved`);
-                          } else if (paymentData.status === 'pending' || paymentData.status === 'in_process') {
-                            navigate(`/ebd/checkout/success?order_id=${orderId}&status=pending`);
-                          } else {
-                            toast({
-                              title: 'Pagamento não aprovado',
-                              description: paymentData.status_detail || 'Tente novamente',
-                              variant: 'destructive',
-                            });
-                          }
-                        } catch (error) {
-                          console.error('Erro ao processar pagamento:', error);
-                          toast({
-                            title: 'Erro no pagamento',
-                            description: 'Tente novamente',
-                            variant: 'destructive',
-                          });
-                        } finally {
-                          setIsProcessing(false);
-                        }
-                      }}
-                      onError={(error: any) => {
-                        console.error('Erro no Card Payment Brick:', error);
-                        toast({
-                          title: 'Erro no formulário',
-                          description: 'Verifique os dados e tente novamente',
-                          variant: 'destructive',
-                        });
-                      }}
-                      onReady={() => {
-                        console.log('Card Payment Brick carregado');
-                      }}
-                    />
-                  </div>
+                  {isLoadingPaymentOptions && (
+                    <div className="text-sm text-muted-foreground mb-4">
+                      Carregando opções de pagamento...
+                    </div>
+                  )}
+                  <div id="payment-brick-container" className="min-h-[200px]" />
                 </CardContent>
               </Card>
             )}
@@ -577,19 +617,8 @@ export default function Checkout() {
 
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total:</span>
-                  <span className="text-primary">R$ {total.toFixed(2)}</span>
+                  <span className="text-primary">R$ {(subtotal + shippingCost).toFixed(2)}</span>
                 </div>
-
-                {!showPayment && (
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={form.handleSubmit(onContinueToPayment)}
-                    disabled={isProcessing || pacCost === 0 || isCalculatingShipping}
-                  >
-                    {isProcessing ? 'Processando...' : 'Continuar para Pagamento'}
-                  </Button>
-                )}
 
                 {showPayment && isProcessing && (
                   <div className="text-center text-sm text-muted-foreground">
