@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -50,6 +51,12 @@ interface Professor {
   nome_completo: string;
 }
 
+interface Turma {
+  id: string;
+  nome: string;
+  faixa_etaria: string;
+}
+
 const diasSemana = [
   { value: "Domingo", label: "Domingo", dayNumber: 0 },
   { value: "Segunda-feira", label: "Segunda-feira", dayNumber: 1 },
@@ -62,8 +69,10 @@ const diasSemana = [
 
 export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId }: CriarPlanejamentoDialogProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [diaSemana, setDiaSemana] = useState<string>("");
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
+  const [turmaId, setTurmaId] = useState<string>("");
   const [escalas, setEscalas] = useState<Record<number, string>>({});
   const [semAula, setSemAula] = useState<Record<number, boolean>>({});
 
@@ -101,6 +110,24 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
     enabled: !!churchId && open,
   });
 
+  // Buscar turmas ativas
+  const { data: turmas } = useQuery({
+    queryKey: ['ebd-turmas', churchId],
+    queryFn: async () => {
+      if (!churchId) return [];
+      const { data, error } = await supabase
+        .from('ebd_turmas')
+        .select('id, nome, faixa_etaria')
+        .eq('church_id', churchId)
+        .eq('is_active', true)
+        .order('nome');
+
+      if (error) throw error;
+      return data as Turma[];
+    },
+    enabled: !!churchId && open,
+  });
+
   // Calcular datas das lições
   const licoesComDatas = useMemo(() => {
     if (!dataInicio || !diaSemana) return [];
@@ -134,8 +161,8 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
 
   const salvarPlanejamentoMutation = useMutation({
     mutationFn: async () => {
-      if (!churchId || !diaSemana || !dataInicio) {
-        throw new Error("Dados incompletos");
+      if (!churchId || !diaSemana || !dataInicio || !turmaId) {
+        throw new Error("Dados incompletos - selecione a turma");
       }
 
       // Verificar se todas as lições têm professor (exceto as sem aula)
@@ -171,8 +198,8 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
       // Criar escalas
       const escalaData = licoesComDatas.map((licao) => ({
         church_id: churchId,
-        turma_id: null,
-        professor_id: semAula[licao.numero] ? professores?.[0]?.id : escalas[licao.numero],
+        turma_id: turmaId,
+        professor_id: semAula[licao.numero] ? (professores?.[0]?.id || escalas[1]) : escalas[licao.numero],
         data: format(licao.data, 'yyyy-MM-dd'),
         tipo: 'Aula Regular',
         confirmado: false,
@@ -192,13 +219,16 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ebd-planejamentos'] });
       queryClient.invalidateQueries({ queryKey: ['ebd-escalas'] });
-      toast.success('Planejamento e escala criados com sucesso!');
+      toast.success('Escala montada com sucesso!');
       onOpenChange(false);
       // Reset state
       setDiaSemana("");
       setDataInicio(undefined);
+      setTurmaId("");
       setEscalas({});
       setSemAula({});
+      // Redirecionar para a página de escala
+      navigate('/ebd/escala');
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erro ao criar planejamento');
@@ -207,8 +237,8 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
   });
 
   const handleSalvar = () => {
-    if (!diaSemana || !dataInicio) {
-      toast.error('Selecione o dia da semana e a data de início');
+    if (!diaSemana || !dataInicio || !turmaId) {
+      toast.error('Selecione a turma, o dia da semana e a data de início');
       return;
     }
     salvarPlanejamentoMutation.mutate();
@@ -226,7 +256,23 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
 
         <div className="space-y-6">
           {/* Configuração inicial */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/30">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30">
+            <div className="space-y-2">
+              <Label>Turma</Label>
+              <Select value={turmaId} onValueChange={setTurmaId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a turma" />
+                </SelectTrigger>
+                <SelectContent>
+                  {turmas?.map((turma) => (
+                    <SelectItem key={turma.id} value={turma.id}>
+                      {turma.nome} ({turma.faixa_etaria})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label>Dia da Aula</Label>
               <Select value={diaSemana} onValueChange={setDiaSemana}>
@@ -273,7 +319,7 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
           </div>
 
           {/* Lista de lições */}
-          {diaSemana && dataInicio && licoesComDatas.length > 0 && (
+          {turmaId && diaSemana && dataInicio && licoesComDatas.length > 0 && (
             <div className="space-y-3">
               <h3 className="font-semibold text-lg">Lições ({licoesComDatas.length})</h3>
               <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
@@ -353,9 +399,9 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
             </div>
           )}
 
-          {(!diaSemana || !dataInicio) && (
+          {(!turmaId || !diaSemana || !dataInicio) && (
             <div className="text-center py-8 text-muted-foreground">
-              Selecione o dia da semana e a data de início para ver as lições
+              Selecione a turma, o dia da semana e a data de início para ver as lições
             </div>
           )}
         </div>
@@ -366,7 +412,7 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
           </Button>
           <Button
             onClick={handleSalvar}
-            disabled={salvarPlanejamentoMutation.isPending || !diaSemana || !dataInicio}
+            disabled={salvarPlanejamentoMutation.isPending || !turmaId || !diaSemana || !dataInicio}
           >
             {salvarPlanejamentoMutation.isPending ? 'Salvando...' : 'Salvar Escala'}
           </Button>
