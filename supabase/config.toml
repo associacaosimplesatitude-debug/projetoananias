@@ -11,3 +11,21 @@ verify_jwt = true
 
 [functions.mercadopago-webhook]
 verify_jwt = false
+
+[functions.send-order-email]
+verify_jwt = true
+
+[functions.send-welcome-email]
+verify_jwt = true
+
+[functions.create-client]
+verify_jwt = true
+
+[functions.create-ebd-user]
+verify_jwt = true
+
+[functions.delete-user]
+verify_jwt = true
+
+[functions.generate-recurring-bills]
+verify_jwt = true
