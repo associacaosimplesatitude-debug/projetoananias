@@ -61,6 +61,7 @@ export default function Orders() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
       toast.success("Pedido cancelado com sucesso");
     },
     onError: (error) => {
