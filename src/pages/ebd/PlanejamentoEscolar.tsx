@@ -485,10 +485,6 @@ export default function PlanejamentoEscolar() {
           </div>
         </div>
 
-        {/* Escala da Semana */}
-        {churchData?.id && (
-          <EscalaSemanaCard churchId={churchData.id} />
-        )}
 
         {/* Tabs para Revistas Compradas, Em Uso e Finalizadas */}
         {revistasPagas && revistasPagas.length > 0 && (
@@ -731,6 +727,11 @@ export default function PlanejamentoEscolar() {
               </Card>
             </TabsContent>
           </Tabs>
+        )}
+
+        {/* Escala da Semana */}
+        {churchData?.id && (
+          <EscalaSemanaCard churchId={churchData.id} />
         )}
 
         {/* Planejamentos Existentes */}
