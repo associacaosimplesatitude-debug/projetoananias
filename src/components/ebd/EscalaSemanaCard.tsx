@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CalendarDays, User } from "lucide-react";
-import { format, startOfWeek, endOfWeek, parseISO } from "date-fns";
+import { format, endOfWeek, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface EscalaSemana {
@@ -28,11 +28,10 @@ interface EscalaSemanaCardProps {
 
 export function EscalaSemanaCard({ churchId }: EscalaSemanaCardProps) {
   const hoje = new Date();
-  const inicioSemana = startOfWeek(hoje, { weekStartsOn: 0 }); // Domingo
-  const fimSemana = endOfWeek(hoje, { weekStartsOn: 0 }); // Sábado
+  const fimPeriodo = endOfWeek(hoje, { weekStartsOn: 0 }); // Fim da semana atual (sábado)
 
   const { data: escalasSemana, isLoading } = useQuery({
-    queryKey: ['ebd-escala-semana', churchId, format(inicioSemana, 'yyyy-MM-dd')],
+    queryKey: ['ebd-escala-semana', churchId, format(hoje, 'yyyy-MM-dd')],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ebd_escalas')
@@ -45,8 +44,8 @@ export function EscalaSemanaCard({ churchId }: EscalaSemanaCardProps) {
           turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .eq('church_id', churchId)
-        .gte('data', format(inicioSemana, 'yyyy-MM-dd'))
-        .lte('data', format(fimSemana, 'yyyy-MM-dd'))
+        .gte('data', format(hoje, 'yyyy-MM-dd'))
+        .lte('data', format(fimPeriodo, 'yyyy-MM-dd'))
         .order('data');
 
       if (error) throw error;
