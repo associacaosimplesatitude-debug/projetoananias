@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,22 @@ import { toast } from "sonner";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { FAIXAS_ETARIAS } from "@/constants/ebdFaixasEtarias";
 
+interface Turma {
+  id: string;
+  nome: string;
+  faixa_etaria: string;
+  descricao?: string | null;
+  ebd_professores_turmas?: {
+    professor_id: string;
+    ebd_professores: { id: string; nome_completo: string } | null;
+  }[];
+}
+
 interface ClassroomDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   churchId: string;
+  turma?: Turma | null;
 }
 
 interface FormData {
@@ -24,9 +36,10 @@ interface FormData {
   nome_turma: string;
 }
 
-export default function ClassroomDialog({ open, onOpenChange, churchId }: ClassroomDialogProps) {
+export default function ClassroomDialog({ open, onOpenChange, churchId, turma }: ClassroomDialogProps) {
   const [selectedProfessores, setSelectedProfessores] = useState<string[]>([]);
   const queryClient = useQueryClient();
+  const isEditing = !!turma;
 
   const form = useForm<FormData>({
     defaultValues: {
@@ -34,7 +47,23 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
       nome_turma: "",
     }
   });
-  const { handleSubmit, reset } = form;
+  const { handleSubmit, reset, setValue } = form;
+
+  // Carregar dados da turma ao editar
+  useEffect(() => {
+    if (turma && open) {
+      setValue("nome_turma", turma.nome);
+      setValue("faixa_etaria_id", turma.faixa_etaria);
+      
+      const professorIds = turma.ebd_professores_turmas
+        ?.map(pt => pt.professor_id)
+        .filter(Boolean) || [];
+      setSelectedProfessores(professorIds);
+    } else if (!open) {
+      reset();
+      setSelectedProfessores([]);
+    }
+  }, [turma, open, setValue, reset]);
 
   // Buscar professores ativos
   const { data: professores, isLoading: loadingProfessores } = useQuery({
@@ -53,7 +82,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
     enabled: open && !!churchId,
   });
 
-  const createTurmaMutation = useMutation({
+  const saveTurmaMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       if (!formData.faixa_etaria_id) {
         throw new Error("Faixa etária não selecionada");
@@ -63,48 +92,83 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
         throw new Error("Nome da turma é obrigatório");
       }
 
-      // 1. Criar a turma
-      const { data: turma, error: turmaError } = await supabase
-        .from("ebd_turmas")
-        .insert({
-          church_id: churchId,
-          nome: formData.nome_turma.trim(),
-          faixa_etaria: formData.faixa_etaria_id,
-        })
-        .select()
-        .single();
+      if (isEditing && turma) {
+        // Atualizar turma existente
+        const { error: turmaError } = await supabase
+          .from("ebd_turmas")
+          .update({
+            nome: formData.nome_turma.trim(),
+            faixa_etaria: formData.faixa_etaria_id,
+          })
+          .eq("id", turma.id);
 
-      if (turmaError) throw turmaError;
+        if (turmaError) throw turmaError;
 
-      // 2. Criar os vínculos com professores
-      if (selectedProfessores.length > 0) {
-        const vinculos = selectedProfessores.map(professorId => ({
-          turma_id: turma.id,
-          professor_id: professorId,
-        }));
-
-        const { error: vinculosError } = await supabase
+        // Remover vínculos antigos
+        await supabase
           .from("ebd_professores_turmas")
-          .insert(vinculos);
+          .delete()
+          .eq("turma_id", turma.id);
 
-        if (vinculosError) throw vinculosError;
+        // Criar novos vínculos
+        if (selectedProfessores.length > 0) {
+          const vinculos = selectedProfessores.map(professorId => ({
+            turma_id: turma.id,
+            professor_id: professorId,
+          }));
+
+          const { error: vinculosError } = await supabase
+            .from("ebd_professores_turmas")
+            .insert(vinculos);
+
+          if (vinculosError) throw vinculosError;
+        }
+
+        return turma;
+      } else {
+        // Criar nova turma
+        const { data: novaTurma, error: turmaError } = await supabase
+          .from("ebd_turmas")
+          .insert({
+            church_id: churchId,
+            nome: formData.nome_turma.trim(),
+            faixa_etaria: formData.faixa_etaria_id,
+          })
+          .select()
+          .single();
+
+        if (turmaError) throw turmaError;
+
+        // Criar vínculos com professores
+        if (selectedProfessores.length > 0) {
+          const vinculos = selectedProfessores.map(professorId => ({
+            turma_id: novaTurma.id,
+            professor_id: professorId,
+          }));
+
+          const { error: vinculosError } = await supabase
+            .from("ebd_professores_turmas")
+            .insert(vinculos);
+
+          if (vinculosError) throw vinculosError;
+        }
+
+        return novaTurma;
       }
-
-      return turma;
     },
     onSuccess: () => {
-      toast.success("Turma cadastrada com sucesso!");
+      toast.success(isEditing ? "Turma atualizada com sucesso!" : "Turma cadastrada com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["ebd-turmas"] });
       handleClose();
     },
     onError: (error: any) => {
-      console.error("Erro ao criar turma:", error);
-      toast.error("Erro ao cadastrar turma: " + error.message);
+      console.error("Erro ao salvar turma:", error);
+      toast.error("Erro ao salvar turma: " + error.message);
     },
   });
 
   const onSubmit = (data: FormData) => {
-    createTurmaMutation.mutate(data);
+    saveTurmaMutation.mutate(data);
   };
 
   const handleClose = () => {
@@ -128,7 +192,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Nova Turma</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar Turma" : "Nova Turma"}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -223,8 +287,8 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
               <Button type="button" variant="outline" onClick={handleClose}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createTurmaMutation.isPending}>
-                {createTurmaMutation.isPending ? "Salvando..." : "Salvar Turma"}
+              <Button type="submit" disabled={saveTurmaMutation.isPending}>
+                {saveTurmaMutation.isPending ? "Salvando..." : isEditing ? "Salvar Alterações" : "Salvar Turma"}
               </Button>
             </div>
           </form>

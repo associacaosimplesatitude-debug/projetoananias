@@ -4,15 +4,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, School, Users } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Plus, Search, School, Users, Pencil, Trash2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import ClassroomDialog from "@/components/ebd/ClassroomDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+interface Turma {
+  id: string;
+  nome: string;
+  faixa_etaria: string;
+  descricao?: string | null;
+  ebd_professores_turmas?: {
+    professor_id: string;
+    ebd_professores: { id: string; nome_completo: string } | null;
+  }[];
+}
 
 export default function EBDClassrooms() {
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedTurma, setSelectedTurma] = useState<Turma | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [turmaToDelete, setTurmaToDelete] = useState<Turma | null>(null);
   const { clientId } = useParams();
+  const queryClient = useQueryClient();
 
   // Buscar church_id
   const { data: churchData, isLoading: loadingChurch, error: churchError } = useQuery({
@@ -71,6 +97,57 @@ export default function EBDClassrooms() {
     enabled: !!churchData?.id,
   });
 
+  const deleteTurmaMutation = useMutation({
+    mutationFn: async (turmaId: string) => {
+      // Primeiro remove os vínculos com professores
+      await supabase
+        .from("ebd_professores_turmas")
+        .delete()
+        .eq("turma_id", turmaId);
+
+      // Depois desativa a turma (soft delete)
+      const { error } = await supabase
+        .from("ebd_turmas")
+        .update({ is_active: false })
+        .eq("id", turmaId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Turma excluída com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["ebd-turmas"] });
+      setDeleteDialogOpen(false);
+      setTurmaToDelete(null);
+    },
+    onError: (error: any) => {
+      console.error("Erro ao excluir turma:", error);
+      toast.error("Erro ao excluir turma: " + error.message);
+    },
+  });
+
+  const handleEdit = (turma: Turma) => {
+    setSelectedTurma(turma);
+    setDialogOpen(true);
+  };
+
+  const handleDelete = (turma: Turma) => {
+    setTurmaToDelete(turma);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (turmaToDelete) {
+      deleteTurmaMutation.mutate(turmaToDelete.id);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setSelectedTurma(null);
+    }
+  };
+
   const filteredTurmas = turmas || [];
 
   // Loading state
@@ -111,7 +188,7 @@ export default function EBDClassrooms() {
             <h1 className="text-3xl font-bold">Turmas</h1>
             <p className="text-muted-foreground">Gerencie as turmas da EBD</p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
+          <Button onClick={() => { setSelectedTurma(null); setDialogOpen(true); }}>
             <Plus className="w-4 h-4 mr-2" />
             Nova Turma
           </Button>
@@ -157,9 +234,31 @@ export default function EBDClassrooms() {
 
                   return (
                     <Card key={turma.id} className="hover:shadow-md transition-shadow">
-                      <CardHeader>
-                        <CardTitle className="text-lg">{turma.nome}</CardTitle>
-                        <CardDescription>{turma.faixa_etaria}</CardDescription>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{turma.nome}</CardTitle>
+                            <CardDescription>{turma.faixa_etaria}</CardDescription>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleEdit(turma)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(turma)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </CardHeader>
                       <CardContent className="space-y-3">
                         {turma.descricao && (
@@ -194,9 +293,31 @@ export default function EBDClassrooms() {
 
       <ClassroomDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={handleDialogClose}
         churchId={churchData.id}
+        turma={selectedTurma}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Turma</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a turma "{turmaToDelete?.nome}"? 
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteTurmaMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
