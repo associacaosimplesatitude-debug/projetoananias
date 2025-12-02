@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, BookOpen, ShoppingBag, Pencil, Trash2, CheckCircle2 } from "lucide-react";
+import { Calendar, BookOpen, ShoppingBag, Pencil, Trash2, CheckCircle2, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RevistaDetailDialog } from "@/components/ebd/RevistaDetailDialog";
 import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
 import { CriarPlanejamentoDialog } from "@/components/ebd/CriarPlanejamentoDialog";
-import { format } from "date-fns";
+import { EditarEscalaDialog } from "@/components/ebd/EditarEscalaDialog";
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import {
@@ -37,6 +38,24 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface Escala {
+  id: string;
+  data: string;
+  sem_aula: boolean;
+  professor_id: string | null;
+  turma_id: string;
+  tipo: string;
+  observacao: string | null;
+  professor: {
+    nome_completo: string;
+  } | null;
+  turma: {
+    id: string;
+    nome: string;
+    faixa_etaria: string;
+  };
+}
 
 const FAIXAS_ETARIAS = [
   "Jovens e Adultos",
@@ -98,6 +117,12 @@ export default function PlanejamentoEscolar() {
   const [editDiaSemana, setEditDiaSemana] = useState("");
   const [editDataInicio, setEditDataInicio] = useState<Date | undefined>(undefined);
   const [editDataTermino, setEditDataTermino] = useState<Date | undefined>(undefined);
+
+  // Estados para visualização do calendário da escala
+  const [viewEscalaPlanejamento, setViewEscalaPlanejamento] = useState<Planejamento | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [escalaToEdit, setEscalaToEdit] = useState<Escala | null>(null);
+  const [escalaToDelete, setEscalaToDelete] = useState<Escala | null>(null);
 
   // Buscar church_id do usuário
   const { data: churchData } = useQuery({
@@ -205,6 +230,76 @@ export default function PlanejamentoEscolar() {
     },
     enabled: !!churchData?.id,
   });
+
+  // Buscar escalas do planejamento selecionado para visualização
+  const { data: escalasView } = useQuery({
+    queryKey: ['ebd-escalas-view', viewEscalaPlanejamento?.id, churchData?.id],
+    queryFn: async () => {
+      if (!churchData?.id || !viewEscalaPlanejamento) return [];
+      
+      const { data, error } = await supabase
+        .from('ebd_escalas')
+        .select(`
+          id,
+          data,
+          sem_aula,
+          professor_id,
+          turma_id,
+          tipo,
+          observacao,
+          professor:ebd_professores(nome_completo),
+          turma:ebd_turmas(id, nome, faixa_etaria)
+        `)
+        .eq('church_id', churchData.id)
+        .gte('data', viewEscalaPlanejamento.data_inicio)
+        .lte('data', viewEscalaPlanejamento.data_termino)
+        .order('data');
+
+      if (error) throw error;
+      return data as unknown as Escala[];
+    },
+    enabled: !!churchData?.id && !!viewEscalaPlanejamento,
+  });
+
+  // Mutation para excluir escala
+  const deleteEscalaMutation = useMutation({
+    mutationFn: async (escalaId: string) => {
+      const { error } = await supabase
+        .from('ebd_escalas')
+        .delete()
+        .eq('id', escalaId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-escalas'] });
+      queryClient.invalidateQueries({ queryKey: ['ebd-escalas-view'] });
+      queryClient.invalidateQueries({ queryKey: ['ebd-escalas-salvas'] });
+      toast.success('Escala excluída com sucesso!');
+      setEscalaToDelete(null);
+    },
+    onError: () => {
+      toast.error('Erro ao excluir escala');
+    },
+  });
+
+  // Funções para navegação do calendário
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startDayOfWeek = getDay(monthStart);
+  const emptyDays = Array(startDayOfWeek).fill(null);
+
+  const getEscalaForDay = (day: Date) => {
+    return escalasView?.find(e => isSameDay(parseISO(e.data), day));
+  };
+
+  const previousMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  };
+
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
 
   // Separar planejamentos em pendentes e com escala salva
   const planejamentosComEscala = planejamentos?.filter(p => {
@@ -516,7 +611,7 @@ export default function PlanejamentoEscolar() {
                                 size="sm" 
                                 variant="outline"
                                 className="text-xs h-7 px-2"
-                                onClick={() => setPlanejamentoEscala(planejamento)}
+                                onClick={() => setViewEscalaPlanejamento(planejamento)}
                               >
                                 VER ESCALA
                               </Button>
@@ -624,9 +719,9 @@ export default function PlanejamentoEscolar() {
                     </Button>
                     <Button 
                       size="sm"
-                      onClick={() => setPlanejamentoEscala(planejamento)}
+                      onClick={() => setViewEscalaPlanejamento(planejamento)}
                     >
-                      <Calendar className="w-4 h-4 mr-2" />
+                      <Eye className="w-4 h-4 mr-2" />
                       Ver Escala
                     </Button>
                   </div>
@@ -837,6 +932,153 @@ export default function PlanejamentoEscolar() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Dialog do Calendário de Visualização da Escala */}
+        <Dialog open={!!viewEscalaPlanejamento} onOpenChange={() => setViewEscalaPlanejamento(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Escala - {viewEscalaPlanejamento?.ebd_revistas?.titulo}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Navegação do mês */}
+              <div className="flex items-center justify-between">
+                <Button variant="outline" size="sm" onClick={previousMonth}>
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Anterior
+                </Button>
+                <h3 className="font-semibold text-lg capitalize">
+                  {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
+                </h3>
+                <Button variant="outline" size="sm" onClick={nextMonth}>
+                  Próximo
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+
+              {/* Cabeçalho dos dias da semana */}
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
+                  <div key={dia} className="p-2 font-medium text-sm text-muted-foreground">
+                    {dia}
+                  </div>
+                ))}
+              </div>
+
+              {/* Dias do mês */}
+              <div className="grid grid-cols-7 gap-1">
+                {emptyDays.map((_, index) => (
+                  <div key={`empty-${index}`} className="p-2 min-h-[100px]" />
+                ))}
+                {daysInMonth.map((day) => {
+                  const escala = getEscalaForDay(day);
+                  const hasClass = escala && !escala.sem_aula;
+                  const noClass = escala?.sem_aula;
+
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className={cn(
+                        "p-2 min-h-[100px] border rounded-lg text-sm relative group",
+                        !isSameMonth(day, currentMonth) && "opacity-50",
+                        hasClass && "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800",
+                        noClass && "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
+                      )}
+                    >
+                      <div className="font-medium">{format(day, 'd')}</div>
+                      {escala && (
+                        <>
+                          <div className="mt-1">
+                            {noClass ? (
+                              <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                                Sem aula
+                              </span>
+                            ) : (
+                              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2">
+                                {escala.professor?.nome_completo}
+                              </span>
+                            )}
+                          </div>
+                          {/* Botões de ação */}
+                          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEscalaToEdit(escala);
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEscalaToDelete(escala);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legenda */}
+              <div className="flex items-center gap-6 justify-center pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800" />
+                  <span className="text-sm">Aula</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800" />
+                  <span className="text-sm">Sem aula</span>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de edição de escala */}
+        <EditarEscalaDialog
+          escala={escalaToEdit}
+          open={!!escalaToEdit}
+          onOpenChange={(open) => !open && setEscalaToEdit(null)}
+          churchId={churchData?.id}
+        />
+
+        {/* Dialog de confirmação de exclusão de escala */}
+        <AlertDialog open={!!escalaToDelete} onOpenChange={() => setEscalaToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir esta escala do dia{' '}
+                {escalaToDelete && format(parseISO(escalaToDelete.data), "dd/MM/yyyy")}?
+                Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => escalaToDelete && deleteEscalaMutation.mutate(escalaToDelete.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
