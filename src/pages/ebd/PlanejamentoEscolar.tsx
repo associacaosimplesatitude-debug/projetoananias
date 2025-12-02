@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, BookOpen, ShoppingBag, Pencil, Trash2, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RevistaDetailDialog } from "@/components/ebd/RevistaDetailDialog";
 import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
@@ -245,6 +246,39 @@ export default function PlanejamentoEscolar() {
     return temEscalaSalva;
   }) || [];
 
+  // Função para calcular progresso de aulas ministradas
+  const calcularProgresso = (planejamento: Planejamento) => {
+    const totalLicoes = planejamento.ebd_revistas.num_licoes || 13;
+    
+    if (!escalasSalvas || escalasSalvas.length === 0) {
+      return { ministradas: 0, total: totalLicoes, percentual: 0 };
+    }
+
+    // Contar escalas dentro do período do planejamento
+    const aulasMinistradasCount = escalasSalvas.filter(escala => {
+      const escalaDate = new Date(escala.data);
+      const inicio = new Date(planejamento.data_inicio);
+      const termino = new Date(planejamento.data_termino);
+      return escalaDate >= inicio && escalaDate <= termino;
+    }).length;
+
+    // Contar apenas datas únicas (pode haver múltiplas turmas no mesmo dia)
+    const datasUnicas = new Set(
+      escalasSalvas
+        .filter(escala => {
+          const escalaDate = new Date(escala.data);
+          const inicio = new Date(planejamento.data_inicio);
+          const termino = new Date(planejamento.data_termino);
+          return escalaDate >= inicio && escalaDate <= termino;
+        })
+        .map(escala => escala.data)
+    ).size;
+
+    const percentual = Math.min(100, Math.round((datasUnicas / totalLicoes) * 100));
+
+    return { ministradas: datasUnicas, total: totalLicoes, percentual };
+  };
+
   // Mutation para editar planejamento
   const editMutation = useMutation({
     mutationFn: async () => {
@@ -442,6 +476,18 @@ export default function PlanejamentoEscolar() {
                             </div>
                             <p className="text-xs text-center font-medium line-clamp-2">{item.revista.titulo}</p>
                             <p className="text-xs text-muted-foreground">{item.revista.faixa_etaria_alvo}</p>
+                            {planejamento && (() => {
+                              const progresso = calcularProgresso(planejamento);
+                              return (
+                                <div className="w-full space-y-1">
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-muted-foreground">Progresso</span>
+                                    <span className="font-medium">{progresso.ministradas}/{progresso.total}</span>
+                                  </div>
+                                  <Progress value={progresso.percentual} className="h-1.5" />
+                                </div>
+                              );
+                            })()}
                             {planejamento && (
                               <Button 
                                 size="sm" 
@@ -492,7 +538,7 @@ export default function PlanejamentoEscolar() {
                   </div>
 
                   {/* Informações em linha */}
-                  <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 items-center">
+                  <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-4 items-center">
                     <div>
                       <p className="text-xs text-muted-foreground">Faixa Etária</p>
                       <p className="font-medium text-sm truncate">
@@ -515,6 +561,21 @@ export default function PlanejamentoEscolar() {
                         {format(new Date(planejamento.data_termino), "dd/MM/yyyy")}
                       </p>
                     </div>
+                    {/* Progresso */}
+                    {(() => {
+                      const progresso = calcularProgresso(planejamento);
+                      return (
+                        <div className="col-span-2 md:col-span-1">
+                          <p className="text-xs text-muted-foreground mb-1">Progresso</p>
+                          <div className="flex items-center gap-2">
+                            <Progress value={progresso.percentual} className="h-2 flex-1" />
+                            <span className="text-xs font-medium whitespace-nowrap">
+                              {progresso.ministradas}/{progresso.total}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Botões de ação */}
