@@ -110,9 +110,9 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
     enabled: !!churchId && open,
   });
 
-  // Buscar turmas ativas
+  // Buscar turmas ativas que correspondem à faixa etária da revista
   const { data: turmas } = useQuery({
-    queryKey: ['ebd-turmas', churchId],
+    queryKey: ['ebd-turmas', churchId, revista.faixa_etaria_alvo],
     queryFn: async () => {
       if (!churchId) return [];
       const { data, error } = await supabase
@@ -120,6 +120,7 @@ export function CriarPlanejamentoDialog({ revista, open, onOpenChange, churchId 
         .select('id, nome, faixa_etaria')
         .eq('church_id', churchId)
         .eq('is_active', true)
+        .eq('faixa_etaria', revista.faixa_etaria_alvo)
         .order('nome');
 
       if (error) throw error;
