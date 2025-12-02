@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, BookOpen, ShoppingBag, Pencil, Trash2 } from "lucide-react";
+import { Calendar, BookOpen, ShoppingBag, Pencil, Trash2, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RevistaDetailDialog } from "@/components/ebd/RevistaDetailDialog";
 import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
@@ -188,6 +189,62 @@ export default function PlanejamentoEscolar() {
     enabled: !!churchData?.id,
   });
 
+  // Buscar escalas salvas para verificar quais revistas já foram utilizadas
+  const { data: escalasSalvas } = useQuery({
+    queryKey: ['ebd-escalas-salvas', churchData?.id],
+    queryFn: async () => {
+      if (!churchData?.id) return [];
+      const { data, error } = await supabase
+        .from('ebd_escalas')
+        .select('turma_id, data')
+        .eq('church_id', churchData.id);
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!churchData?.id,
+  });
+
+  // Separar planejamentos em pendentes e com escala salva
+  const planejamentosComEscala = planejamentos?.filter(p => {
+    if (!escalasSalvas || escalasSalvas.length === 0) return false;
+    // Verificar se existe alguma escala dentro do período do planejamento
+    return escalasSalvas.some(escala => {
+      const escalaDate = new Date(escala.data);
+      const inicio = new Date(p.data_inicio);
+      const termino = new Date(p.data_termino);
+      return escalaDate >= inicio && escalaDate <= termino;
+    });
+  }) || [];
+
+  const planejamentosSemEscala = planejamentos?.filter(p => {
+    if (!escalasSalvas || escalasSalvas.length === 0) return true;
+    // Verificar se NÃO existe escala dentro do período do planejamento
+    return !escalasSalvas.some(escala => {
+      const escalaDate = new Date(escala.data);
+      const inicio = new Date(p.data_inicio);
+      const termino = new Date(p.data_termino);
+      return escalaDate >= inicio && escalaDate <= termino;
+    });
+  }) || [];
+
+  // Filtrar revistas pagas - mostrar apenas as que não têm planejamento com escala
+  const revistasPendentesPlanejamento = revistasPagas?.filter(item => {
+    // Verificar se esta revista NÃO tem planejamento com escala salva
+    const temEscalaSalva = planejamentosComEscala.some(
+      p => p.revista_id === item.revista.id
+    );
+    return !temEscalaSalva;
+  }) || [];
+
+  // Revistas que já foram utilizadas (têm escala salva)
+  const revistasUtilizadas = revistasPagas?.filter(item => {
+    const temEscalaSalva = planejamentosComEscala.some(
+      p => p.revista_id === item.revista.id
+    );
+    return temEscalaSalva;
+  }) || [];
+
   // Mutation para editar planejamento
   const editMutation = useMutation({
     mutationFn: async () => {
@@ -263,50 +320,147 @@ export default function PlanejamentoEscolar() {
           </div>
         </div>
 
-        {/* Revistas de Pedidos Pagos */}
+        {/* Tabs para Revistas Compradas e Utilizadas */}
         {revistasPagas && revistasPagas.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShoppingBag className="h-5 w-5" />
+          <Tabs defaultValue="pendentes" className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="pendentes" className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4" />
                 Revistas Compradas
-              </CardTitle>
-              <CardDescription>Revistas dos seus pedidos pagos prontas para uso</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {revistasPagas.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex flex-col items-center gap-2 p-3 border rounded-lg bg-card"
-                  >
-                    <div className="w-16 h-20 bg-muted rounded overflow-hidden">
-                      {item.revista.imagem_url ? (
-                        <img
-                          src={item.revista.imagem_url}
-                          alt={item.revista.titulo}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <BookOpen className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                      )}
+                {revistasPendentesPlanejamento.length > 0 && (
+                  <span className="ml-1 bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full">
+                    {revistasPendentesPlanejamento.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="utilizadas" className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                Revistas Utilizadas
+                {revistasUtilizadas.length > 0 && (
+                  <span className="ml-1 bg-green-500/20 text-green-600 text-xs px-2 py-0.5 rounded-full">
+                    {revistasUtilizadas.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pendentes">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShoppingBag className="h-5 w-5" />
+                    Revistas Pendentes de Planejamento
+                  </CardTitle>
+                  <CardDescription>Revistas que ainda não possuem escala montada e salva</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {revistasPendentesPlanejamento.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
+                      <p className="font-medium">Todas as revistas já foram planejadas!</p>
+                      <p className="text-sm">Veja suas revistas utilizadas na aba ao lado.</p>
                     </div>
-                    <p className="text-xs text-center font-medium line-clamp-2">{item.revista.titulo}</p>
-                    <p className="text-xs text-muted-foreground">{item.revista.faixa_etaria_alvo}</p>
-                    <Button 
-                      size="sm" 
-                      className="text-xs h-7 px-2"
-                      onClick={() => setRevistaDialog(item.revista)}
-                    >
-                      MONTAR ESCALA
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {revistasPendentesPlanejamento.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex flex-col items-center gap-2 p-3 border rounded-lg bg-card"
+                        >
+                          <div className="w-16 h-20 bg-muted rounded overflow-hidden">
+                            {item.revista.imagem_url ? (
+                              <img
+                                src={item.revista.imagem_url}
+                                alt={item.revista.titulo}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <BookOpen className="w-6 h-6 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-xs text-center font-medium line-clamp-2">{item.revista.titulo}</p>
+                          <p className="text-xs text-muted-foreground">{item.revista.faixa_etaria_alvo}</p>
+                          <Button 
+                            size="sm" 
+                            className="text-xs h-7 px-2"
+                            onClick={() => setRevistaDialog(item.revista)}
+                          >
+                            MONTAR ESCALA
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="utilizadas">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    Revistas Utilizadas
+                  </CardTitle>
+                  <CardDescription>Revistas com escala montada e salva</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {revistasUtilizadas.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="font-medium">Nenhuma revista utilizada ainda</p>
+                      <p className="text-sm">Monte a escala das suas revistas compradas para vê-las aqui.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {revistasUtilizadas.map((item) => {
+                        const planejamento = planejamentosComEscala.find(
+                          p => p.revista_id === item.revista.id
+                        );
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex flex-col items-center gap-2 p-3 border rounded-lg bg-card border-green-500/30"
+                          >
+                            <div className="relative w-16 h-20 bg-muted rounded overflow-hidden">
+                              {item.revista.imagem_url ? (
+                                <img
+                                  src={item.revista.imagem_url}
+                                  alt={item.revista.titulo}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <BookOpen className="w-6 h-6 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="absolute top-1 right-1 bg-green-500 rounded-full p-0.5">
+                                <CheckCircle2 className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
+                            <p className="text-xs text-center font-medium line-clamp-2">{item.revista.titulo}</p>
+                            <p className="text-xs text-muted-foreground">{item.revista.faixa_etaria_alvo}</p>
+                            {planejamento && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-xs h-7 px-2"
+                                onClick={() => setPlanejamentoEscala(planejamento)}
+                              >
+                                VER ESCALA
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         )}
 
         {/* Planejamentos Existentes */}
