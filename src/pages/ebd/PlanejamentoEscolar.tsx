@@ -333,12 +333,28 @@ export default function PlanejamentoEscolar() {
     return !temEscalaSalva;
   }) || [];
 
-  // Revistas que já foram utilizadas (têm escala salva)
-  const revistasUtilizadas = revistasPagas?.filter(item => {
-    const temEscalaSalva = planejamentosComEscala.some(
+  // Revistas que estão em uso (têm escala salva e progresso < 100%)
+  const revistasEmUso = revistasPagas?.filter(item => {
+    const planejamento = planejamentosComEscala.find(
       p => p.revista_id === item.revista.id
     );
-    return temEscalaSalva;
+    if (!planejamento) return false;
+    // Verificar se ainda não finalizou (progresso < 100%)
+    const hoje = new Date();
+    const termino = new Date(planejamento.data_termino + 'T12:00:00');
+    return hoje <= termino;
+  }) || [];
+
+  // Revistas finalizadas (têm escala salva e data de término já passou)
+  const revistasFinalizadas = revistasPagas?.filter(item => {
+    const planejamento = planejamentosComEscala.find(
+      p => p.revista_id === item.revista.id
+    );
+    if (!planejamento) return false;
+    // Verificar se já finalizou (data de término passou)
+    const hoje = new Date();
+    const termino = new Date(planejamento.data_termino + 'T12:00:00');
+    return hoje > termino;
   }) || [];
 
   // Função para calcular progresso de aulas ministradas baseado nas datas
@@ -468,10 +484,10 @@ export default function PlanejamentoEscolar() {
           </div>
         </div>
 
-        {/* Tabs para Revistas Compradas e Utilizadas */}
+        {/* Tabs para Revistas Compradas, Em Uso e Finalizadas */}
         {revistasPagas && revistasPagas.length > 0 && (
           <Tabs defaultValue="pendentes" className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-3">
               <TabsTrigger value="pendentes" className="flex items-center gap-2">
                 <ShoppingBag className="h-4 w-4" />
                 Revistas Compradas
@@ -481,12 +497,21 @@ export default function PlanejamentoEscolar() {
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="utilizadas" className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                Revistas Utilizadas
-                {revistasUtilizadas.length > 0 && (
+              <TabsTrigger value="emuso" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Revistas em Uso
+                {revistasEmUso.length > 0 && (
                   <span className="ml-1 bg-green-500/20 text-green-600 text-xs px-2 py-0.5 rounded-full">
-                    {revistasUtilizadas.length}
+                    {revistasEmUso.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="finalizadas" className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                Finalizadas
+                {revistasFinalizadas.length > 0 && (
+                  <span className="ml-1 bg-blue-500/20 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                    {revistasFinalizadas.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -506,7 +531,7 @@ export default function PlanejamentoEscolar() {
                     <div className="text-center py-8 text-muted-foreground">
                       <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
                       <p className="font-medium">Todas as revistas já foram planejadas!</p>
-                      <p className="text-sm">Veja suas revistas utilizadas na aba ao lado.</p>
+                      <p className="text-sm">Veja suas revistas em uso na aba ao lado.</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -545,25 +570,25 @@ export default function PlanejamentoEscolar() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="utilizadas">
+            <TabsContent value="emuso">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    Revistas Utilizadas
+                    <BookOpen className="h-5 w-5 text-green-500" />
+                    Revistas em Uso
                   </CardTitle>
-                  <CardDescription>Revistas com escala montada e salva</CardDescription>
+                  <CardDescription>Revistas com escala montada em andamento</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {revistasUtilizadas.length === 0 ? (
+                  {revistasEmUso.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p className="font-medium">Nenhuma revista utilizada ainda</p>
+                      <p className="font-medium">Nenhuma revista em uso</p>
                       <p className="text-sm">Monte a escala das suas revistas compradas para vê-las aqui.</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {revistasUtilizadas.map((item) => {
+                      {revistasEmUso.map((item) => {
                         const planejamento = planejamentosComEscala.find(
                           p => p.revista_id === item.revista.id
                         );
@@ -606,6 +631,81 @@ export default function PlanejamentoEscolar() {
                                 </div>
                               );
                             })()}
+                            {planejamento && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-xs h-7 px-2"
+                                onClick={() => setViewEscalaPlanejamento(planejamento)}
+                              >
+                                VER ESCALA
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="finalizadas">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-blue-500" />
+                    Revistas Finalizadas
+                  </CardTitle>
+                  <CardDescription>Revistas que já completaram todas as aulas</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {revistasFinalizadas.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CheckCircle2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="font-medium">Nenhuma revista finalizada</p>
+                      <p className="text-sm">Revistas aparecerão aqui quando completarem todas as aulas.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {revistasFinalizadas.map((item) => {
+                        const planejamento = planejamentosComEscala.find(
+                          p => p.revista_id === item.revista.id
+                        );
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex flex-col items-center gap-2 p-3 border rounded-lg bg-card border-blue-500/30"
+                          >
+                            <div className="relative w-16 h-20 bg-muted rounded overflow-hidden">
+                              {item.revista.imagem_url ? (
+                                <img
+                                  src={item.revista.imagem_url}
+                                  alt={item.revista.titulo}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <BookOpen className="w-6 h-6 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="absolute top-1 right-1 bg-blue-500 rounded-full p-0.5">
+                                <CheckCircle2 className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
+                            <p className="text-xs text-center font-medium line-clamp-2">{item.revista.titulo}</p>
+                            <p className="text-xs text-muted-foreground">{item.revista.faixa_etaria_alvo}</p>
+                            <div className="w-full space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Concluído</span>
+                                <span className="font-medium text-blue-600">100%</span>
+                              </div>
+                              <Progress 
+                                value={100} 
+                                className="h-1.5" 
+                                indicatorClassName="bg-blue-500"
+                              />
+                            </div>
                             {planejamento && (
                               <Button 
                                 size="sm" 
