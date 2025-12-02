@@ -35,6 +35,17 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
   });
   const { register, handleSubmit, reset, formState: { errors }, watch } = form;
 
+  // Faixas etárias educacionais válidas (mesmas do catálogo)
+  const validFaixasEtarias = [
+    "Maternal: 2 a 3 Anos",
+    "Jardim de Infância: 4 a 6 Anos",
+    "Primários: 7 a 8 Anos",
+    "Juniores: 9 a 11 Anos",
+    "Adolescentes: 12 a 14 Anos",
+    "Adolescentes+: 15 a 17 Anos",
+    "Jovens e Adultos"
+  ];
+
   // Buscar faixas etárias das revistas cadastradas
   const { data: ageRanges, isLoading: loadingAgeRanges } = useQuery({
     queryKey: ["ebd-revistas-faixas"],
@@ -45,9 +56,14 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
       
       if (error) throw error;
       
-      // Extrair valores únicos
-      const uniqueFaixas = [...new Set(data.map(r => r.faixa_etaria_alvo))];
-      return uniqueFaixas.sort();
+      // Extrair valores únicos e filtrar apenas faixas educacionais válidas
+      const uniqueFaixas = [...new Set(data.map(r => r.faixa_etaria_alvo))]
+        .filter(faixa => validFaixasEtarias.includes(faixa));
+      
+      // Ordenar conforme a ordem definida
+      return uniqueFaixas.sort((a, b) => 
+        validFaixasEtarias.indexOf(a) - validFaixasEtarias.indexOf(b)
+      );
     },
     enabled: open,
   });
@@ -165,14 +181,14 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
                           <SelectValue placeholder="Selecione a faixa etária" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent className="bg-background z-50">
+                      <SelectContent className="bg-background z-[100]" position="popper">
                         {loadingAgeRanges ? (
                           <div className="p-4 text-center text-sm text-muted-foreground">
                             Carregando...
                           </div>
                         ) : !ageRanges || ageRanges.length === 0 ? (
                           <div className="p-4 text-center text-sm text-muted-foreground">
-                            Nenhuma faixa etária disponível.
+                            Nenhuma faixa etária disponível. Cadastre revistas primeiro.
                           </div>
                         ) : (
                           ageRanges.map((faixa) => (
