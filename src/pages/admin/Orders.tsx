@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Table,
@@ -9,21 +9,33 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { X } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Orders() {
+  const queryClient = useQueryClient();
+
   const { data: orders, isLoading } = useQuery({
     queryKey: ["admin-orders"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ebd_revistas_compradas")
+        .from("ebd_pedidos")
         .select(`
           *,
-          revista:ebd_revistas(titulo, imagem_url),
+          ebd_pedidos_itens(
+            quantidade,
+            preco_unitario,
+            preco_total,
+            revista:ebd_revistas(titulo, imagem_url)
+          ),
           church:churches(church_name, pastor_email, pastor_whatsapp)
         `)
+        .neq("status", "cancelled")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -31,7 +43,25 @@ export default function Orders() {
     },
   });
 
-  const totalRevenue = orders?.reduce((sum, order) => sum + Number(order.preco_pago), 0) || 0;
+  const cancelOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from("ebd_pedidos")
+        .update({ status: "cancelled" })
+        .eq("id", orderId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      toast.success("Pedido cancelado com sucesso");
+    },
+    onError: (error) => {
+      toast.error("Erro ao cancelar pedido: " + error.message);
+    },
+  });
+
+  const totalRevenue = orders?.reduce((sum, order) => sum + Number(order.valor_total), 0) || 0;
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -87,32 +117,29 @@ export default function Orders() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Data</TableHead>
-                  <TableHead>Revista</TableHead>
+                  <TableHead>Pedido</TableHead>
                   <TableHead>Igreja</TableHead>
                   <TableHead>Contato</TableHead>
-                  <TableHead className="text-right">Valor Pago</TableHead>
+                  <TableHead className="text-right">Valor Total</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders.map((order) => (
                   <TableRow key={order.id}>
                     <TableCell>
-                      {order.data_compra
-                        ? format(new Date(order.data_compra), "dd/MM/yyyy HH:mm", {
+                      {order.created_at
+                        ? format(new Date(order.created_at), "dd/MM/yyyy HH:mm", {
                             locale: ptBR,
                           })
                         : "-"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {order.revista?.imagem_url && (
-                          <img
-                            src={order.revista.imagem_url}
-                            alt={order.revista.titulo}
-                            className="w-10 h-10 object-cover rounded"
-                          />
-                        )}
-                        <span className="font-medium">{order.revista?.titulo || "-"}</span>
+                      <div className="space-y-1">
+                        <div className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {order.ebd_pedidos_itens?.length || 0} item(s)
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>{order.church?.church_name || "-"}</TableCell>
@@ -128,7 +155,35 @@ export default function Orders() {
                       {new Intl.NumberFormat("pt-BR", {
                         style: "currency",
                         currency: "BRL",
-                      }).format(Number(order.preco_pago))}
+                      }).format(Number(order.valor_total))}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm">
+                            <X className="w-4 h-4 mr-1" />
+                            Cancelar
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancelar Pedido</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja cancelar este pedido? Esta ação é irreversível 
+                              e o pedido será removido do painel do cliente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Não, manter pedido</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => cancelOrderMutation.mutate(order.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Sim, cancelar pedido
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}
