@@ -83,7 +83,6 @@ export const Navigation = () => {
 
   const ebdPlanejamentoDropdown = [
     { to: '/ebd/planejamento', label: 'Planejamento Escolar' },
-    { to: '/ebd/escala', label: 'Escala' },
   ];
 
   const ebdAcompanhamentoDropdown = [
@@ -324,7 +323,7 @@ export const Navigation = () => {
                     style={{ color: navTextColor, opacity: 0.8 }}
                   >
                     <Users className="h-4 w-4" />
-                    <span className="hidden sm:inline">Membros e Turmas</span>
+                    <span className="hidden sm:inline">Alunos e Turmas</span>
                     <ChevronDown className="h-3 w-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background z-50">
