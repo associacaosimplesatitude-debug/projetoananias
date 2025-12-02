@@ -488,7 +488,7 @@ export default function PlanejamentoEscolar() {
 
         {/* Tabs para Revistas Compradas, Em Uso e Finalizadas */}
         {revistasPagas && revistasPagas.length > 0 && (
-          <Tabs defaultValue="pendentes" className="w-full">
+          <Tabs defaultValue={revistasPendentesPlanejamento.length > 0 ? "pendentes" : "emuso"} className="w-full">
             <TabsList className="grid w-full max-w-2xl grid-cols-3">
               <TabsTrigger value="pendentes" className="flex items-center gap-2">
                 <ShoppingBag className="h-4 w-4" />
