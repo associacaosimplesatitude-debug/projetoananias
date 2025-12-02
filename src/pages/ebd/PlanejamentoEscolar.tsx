@@ -12,6 +12,7 @@ import { RevistaDetailDialog } from "@/components/ebd/RevistaDetailDialog";
 import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
 import { CriarPlanejamentoDialog } from "@/components/ebd/CriarPlanejamentoDialog";
 import { EditarEscalaDialog } from "@/components/ebd/EditarEscalaDialog";
+import { EscalaSemanaCard } from "@/components/ebd/EscalaSemanaCard";
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -483,6 +484,11 @@ export default function PlanejamentoEscolar() {
             <p className="text-muted-foreground">Selecione revistas e monte a escala de professores</p>
           </div>
         </div>
+
+        {/* Escala da Semana */}
+        {churchData?.id && (
+          <EscalaSemanaCard churchId={churchData.id} />
+        )}
 
         {/* Tabs para Revistas Compradas, Em Uso e Finalizadas */}
         {revistasPagas && revistasPagas.length > 0 && (
