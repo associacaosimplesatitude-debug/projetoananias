@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FAIXAS_ETARIAS } from "@/constants/ebdFaixasEtarias";
 
 interface ClassroomDialogProps {
   open: boolean;
@@ -33,42 +34,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
       nome_turma: "",
     }
   });
-  const { register, handleSubmit, reset, formState: { errors }, watch } = form;
-
-  // Faixas etárias educacionais válidas (mesmas do catálogo)
-  const validFaixasEtarias = [
-    "Maternal: 2 a 3 Anos",
-    "Jardim de Infância: 4 a 6 Anos",
-    "Primários: 7 a 8 Anos",
-    "Juniores: 9 a 11 Anos",
-    "Adolescentes: 12 a 14 Anos",
-    "Adolescentes+: 15 a 17 Anos",
-    "Jovens e Adultos"
-  ];
-
-  // Buscar faixas etárias das revistas cadastradas
-  const { data: ageRanges, isLoading: loadingAgeRanges } = useQuery({
-    queryKey: ["ebd-revistas-faixas"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_revistas")
-        .select("faixa_etaria_alvo");
-      
-      if (error) throw error;
-      
-      // Extrair valores únicos e filtrar apenas faixas educacionais válidas
-      const uniqueFaixas = [...new Set(data.map(r => r.faixa_etaria_alvo))]
-        .filter(faixa => validFaixasEtarias.includes(faixa));
-      
-      // Ordenar conforme a ordem definida
-      return uniqueFaixas.sort((a, b) => 
-        validFaixasEtarias.indexOf(a) - validFaixasEtarias.indexOf(b)
-      );
-    },
-    enabled: open,
-  });
-
-  const selectedFaixaEtaria = watch("faixa_etaria_id");
+  const { handleSubmit, reset } = form;
 
   // Buscar professores ativos
   const { data: professores, isLoading: loadingProfessores } = useQuery({
@@ -159,14 +125,14 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
   if (!churchId) return null;
 
   return (
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Nova Turma</DialogTitle>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Nova Turma</DialogTitle>
+        </DialogHeader>
 
-          <Form {...form}>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <Form {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="faixa_etaria_id"
@@ -174,32 +140,20 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Faixa Etária *</FormLabel>
-                  <div className="flex gap-2">
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Selecione a faixa etária" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="bg-background z-[100]" position="popper">
-                        {loadingAgeRanges ? (
-                          <div className="p-4 text-center text-sm text-muted-foreground">
-                            Carregando...
-                          </div>
-                        ) : !ageRanges || ageRanges.length === 0 ? (
-                          <div className="p-4 text-center text-sm text-muted-foreground">
-                            Nenhuma faixa etária disponível. Cadastre revistas primeiro.
-                          </div>
-                        ) : (
-                          ageRanges.map((faixa) => (
-                            <SelectItem key={faixa} value={faixa}>
-                              {faixa}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a faixa etária" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-background z-[100]" position="popper">
+                      {FAIXAS_ETARIAS.map((faixa) => (
+                        <SelectItem key={faixa} value={faixa}>
+                          {faixa}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -274,8 +228,8 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
               </Button>
             </div>
           </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
