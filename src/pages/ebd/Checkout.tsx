@@ -18,6 +18,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const addressSchema = z.object({
+  nome: z.string().min(3, 'Nome é obrigatório'),
+  sobrenome: z.string().min(2, 'Sobrenome é obrigatório'),
+  cpf: z.string().min(11, 'CPF inválido').max(14),
+  email: z.string().email('Email inválido'),
   cep: z.string().min(8, 'CEP inválido').max(9),
   rua: z.string().min(3, 'Rua é obrigatória'),
   numero: z.string().min(1, 'Número é obrigatório'),
@@ -64,6 +68,10 @@ export default function Checkout() {
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
     defaultValues: {
+      nome: '',
+      sobrenome: '',
+      cpf: '',
+      email: '',
       cep: '',
       rua: '',
       numero: '',
@@ -193,7 +201,7 @@ export default function Checkout() {
 
       const { data: churchData } = await supabase
         .from('churches')
-        .select('id, pastor_email, pastor_name, pastor_cpf')
+        .select('id')
         .eq('user_id', user.id)
         .single();
 
@@ -214,12 +222,12 @@ export default function Checkout() {
             transaction_amount: total,
             description: `Compra de ${revistaIds.length} revista(s) EBD`,
             payer: {
-              email: churchData.pastor_email,
-              first_name: churchData.pastor_name?.split(' ')[0] || 'Cliente',
-              last_name: churchData.pastor_name?.split(' ').slice(1).join(' ') || '',
+              email: data.email,
+              first_name: data.nome,
+              last_name: data.sobrenome,
               identification: {
                 type: 'CPF',
-                number: churchData.pastor_cpf?.replace(/\D/g, '') || '',
+                number: data.cpf.replace(/\D/g, ''),
               },
             },
             items: revistaIds.map(revistaId => {
