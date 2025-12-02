@@ -54,6 +54,12 @@ interface EscalaItem {
   data: string;
 }
 
+interface Turma {
+  id: string;
+  nome: string;
+  faixa_etaria: string;
+}
+
 const diasSemanaMap: Record<string, number> = {
   "Domingo": 0,
   "Segunda-feira": 1,
@@ -68,6 +74,25 @@ export function MontarEscalaDialog({ planejamento, open, onOpenChange, churchId 
   const queryClient = useQueryClient();
   const [escalas, setEscalas] = useState<Record<string, string>>({});
   const [semAula, setSemAula] = useState<Record<string, boolean>>({});
+  const [selectedTurmaId, setSelectedTurmaId] = useState<string>("");
+
+  // Buscar turmas cadastradas
+  const { data: turmas, isLoading: loadingTurmas } = useQuery({
+    queryKey: ['ebd-turmas', churchId],
+    queryFn: async () => {
+      if (!churchId) return [];
+      const { data, error } = await supabase
+        .from('ebd_turmas')
+        .select('id, nome, faixa_etaria')
+        .eq('church_id', churchId)
+        .eq('is_active', true)
+        .order('nome');
+
+      if (error) throw error;
+      return data as Turma[];
+    },
+    enabled: !!churchId && open,
+  });
 
   // Buscar lições da revista
   const { data: licoes } = useQuery({
@@ -140,10 +165,14 @@ export function MontarEscalaDialog({ planejamento, open, onOpenChange, churchId 
         throw new Error("Selecione um professor para todas as lições ou marque como 'Sem aula'");
       }
 
+      if (!selectedTurmaId) {
+        throw new Error("Selecione uma turma");
+      }
+
       // Criar registros de escala
       const escalaData = licoes.map((licao, index) => ({
         church_id: churchId,
-        turma_id: null, // Pode ser ajustado futuramente para associar a uma turma
+        turma_id: selectedTurmaId,
         professor_id: semAula[licao.id] ? null : escalas[licao.id],
         data: format(datasAulas[index], 'yyyy-MM-dd'),
         tipo: 'Aula Regular',
@@ -183,6 +212,38 @@ export function MontarEscalaDialog({ planejamento, open, onOpenChange, churchId 
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Seleção de Turma */}
+          <div className="border rounded-lg p-4 bg-muted/30">
+            <Label htmlFor="turma-select" className="text-sm font-medium mb-2 block">
+              Turma *
+            </Label>
+            <Select
+              value={selectedTurmaId}
+              onValueChange={setSelectedTurmaId}
+            >
+              <SelectTrigger id="turma-select" className="bg-background">
+                <SelectValue placeholder="Selecione a turma" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-[100]" position="popper">
+                {loadingTurmas ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    Carregando turmas...
+                  </div>
+                ) : !turmas || turmas.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    Nenhuma turma cadastrada. Cadastre turmas primeiro.
+                  </div>
+                ) : (
+                  turmas.map((turma) => (
+                    <SelectItem key={turma.id} value={turma.id}>
+                      {turma.nome} - {turma.faixa_etaria}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="text-sm text-muted-foreground">
             Selecione um professor para cada lição:
           </div>
