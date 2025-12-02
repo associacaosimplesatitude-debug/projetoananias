@@ -275,6 +275,23 @@ export default function MyOrders() {
                       </div>
                     ))}
                     <Separator />
+                    
+                    {/* Código de Rastreio */}
+                    {order.codigo_rastreio && (
+                      <>
+                        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Truck className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-medium">Código de Rastreio:</span>
+                          </div>
+                          <Badge variant="outline" className="font-mono text-sm">
+                            {order.codigo_rastreio}
+                          </Badge>
+                        </div>
+                        <Separator />
+                      </>
+                    )}
+                    
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Valor Total:</span>
                       <span className="text-lg font-bold text-green-600 dark:text-green-400">

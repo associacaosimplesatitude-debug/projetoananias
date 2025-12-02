@@ -1,0 +1,1 @@
+ALTER TABLE public.ebd_pedidos ADD COLUMN codigo_rastreio VARCHAR(100);
