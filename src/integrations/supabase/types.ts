@@ -1176,6 +1176,7 @@ export type Database = {
           approved_at: string | null
           church_id: string
           created_at: string | null
+          email_cliente: string | null
           endereco_bairro: string
           endereco_cep: string
           endereco_cidade: string
@@ -1199,6 +1200,7 @@ export type Database = {
           approved_at?: string | null
           church_id: string
           created_at?: string | null
+          email_cliente?: string | null
           endereco_bairro: string
           endereco_cep: string
           endereco_cidade: string
@@ -1222,6 +1224,7 @@ export type Database = {
           approved_at?: string | null
           church_id?: string
           created_at?: string | null
+          email_cliente?: string | null
           endereco_bairro?: string
           endereco_cep?: string
           endereco_cidade?: string

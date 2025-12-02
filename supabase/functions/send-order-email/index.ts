@@ -293,9 +293,12 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("id", orderData.church_id)
       .single();
 
-    if (!churchData?.pastor_email) {
-      console.error("Church email not found");
-      throw new Error("Email da igreja não encontrado");
+    // Usar email_cliente do pedido, fallback para pastor_email
+    const recipientEmail = orderData.email_cliente || churchData?.pastor_email;
+    
+    if (!recipientEmail) {
+      console.error("No recipient email found");
+      throw new Error("Email do destinatário não encontrado");
     }
 
     const { subject, html } = getEmailContent(
@@ -305,11 +308,11 @@ const handler = async (req: Request): Promise<Response> => {
       orderData.ebd_pedidos_itens || []
     );
 
-    console.log(`Sending email to ${churchData.pastor_email}`);
+    console.log(`Sending email to ${recipientEmail}`);
 
     const emailResponse = await resend.emails.send({
       from: "Projeto Ananias <noreply@projetoananias.com.br>",
-      to: [churchData.pastor_email],
+      to: [recipientEmail],
       subject,
       html,
     });

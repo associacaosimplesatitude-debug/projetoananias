@@ -270,6 +270,7 @@ export default function Checkout() {
             endereco_bairro: data.bairro,
             endereco_cidade: data.cidade,
             endereco_estado: data.estado,
+            email_cliente: data.email,
           })
           .select()
           .single();
@@ -413,6 +414,7 @@ export default function Checkout() {
             endereco_bairro: data.bairro,
             endereco_cidade: data.cidade,
             endereco_estado: data.estado,
+            email_cliente: data.email,
             approved_at: new Date().toISOString(),
           })
           .select()
@@ -562,6 +564,7 @@ export default function Checkout() {
             endereco_bairro: data.bairro,
             endereco_cidade: data.cidade,
             endereco_estado: data.estado,
+            email_cliente: data.email,
           })
           .select()
           .single();
