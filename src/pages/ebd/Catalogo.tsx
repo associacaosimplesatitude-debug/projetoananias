@@ -70,19 +70,27 @@ export default function Catalogo() {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">🛒 Catálogo de Revistas</h1>
-        <Button 
-          variant="outline" 
-          onClick={() => navigate('/ebd/carrinho')}
-          className="relative"
-        >
-          <ShoppingCart className="w-4 h-4 mr-2" />
-          Carrinho
-          {cartItemCount > 0 && (
-            <Badge variant="destructive" className="ml-2">
-              {cartItemCount}
-            </Badge>
-          )}
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/ebd/my-orders')}
+          >
+            Meus Pedidos
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/ebd/carrinho')}
+            className="relative"
+          >
+            <ShoppingCart className="w-4 h-4 mr-2" />
+            Carrinho
+            {cartItemCount > 0 && (
+              <Badge variant="destructive" className="ml-2">
+                {cartItemCount}
+              </Badge>
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="mb-6">

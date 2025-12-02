@@ -80,10 +80,15 @@ export default function Carrinho() {
           <p className="text-muted-foreground mb-6">
             Você ainda não adicionou nenhuma revista ao carrinho.
           </p>
-          <Button onClick={() => navigate('/ebd/catalogo')}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Ir para o Catálogo
-          </Button>
+          <div className="flex justify-center gap-3">
+            <Button onClick={() => navigate('/ebd/catalogo')}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Ir para o Catálogo
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/ebd/my-orders')}>
+              Ver Meus Pedidos
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -92,7 +97,15 @@ export default function Carrinho() {
   return (
     <div className="container mx-auto p-6">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">🛒 Seu Carrinho</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">🛒 Seu Carrinho</h1>
+          <Button 
+            variant="outline" 
+            onClick={() => navigate('/ebd/my-orders')}
+          >
+            Meus Pedidos
+          </Button>
+        </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
