@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RevistaDetailDialog } from "@/components/ebd/RevistaDetailDialog";
 import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
+import { CriarPlanejamentoDialog } from "@/components/ebd/CriarPlanejamentoDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -312,7 +313,7 @@ export default function PlanejamentoEscolar() {
         </Card>
 
         {revistaDialog && (
-          <RevistaDetailDialog
+          <CriarPlanejamentoDialog
             revista={revistaDialog}
             open={!!revistaDialog}
             onOpenChange={(open) => !open && setRevistaDialog(null)}
