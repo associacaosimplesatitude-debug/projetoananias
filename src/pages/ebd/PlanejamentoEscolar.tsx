@@ -631,8 +631,8 @@ export default function PlanejamentoEscolar() {
         {planejamentos && planejamentos.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Planejamentos Ativos</CardTitle>
-              <CardDescription>Revistas em uso neste período</CardDescription>
+              <CardTitle>Revistas Ativas</CardTitle>
+              <CardDescription>Revistas em uso neste Trimestre</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {planejamentos.map((planejamento) => (
