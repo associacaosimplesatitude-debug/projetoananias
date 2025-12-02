@@ -57,6 +57,7 @@ import EBDCatalogo from "./pages/ebd/Catalogo";
 import EBDCarrinho from "./pages/ebd/Carrinho";
 import EBDCheckout from "./pages/ebd/Checkout";
 import EBDMyOrders from "./pages/ebd/MyOrders";
+import EBDOrderSuccess from "./pages/ebd/OrderSuccess";
 import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
 import EBDAdmin from "./pages/ebd/Admin";
 
@@ -277,6 +278,22 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDMyOrders />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/my-orders" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDMyOrders />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/order-success" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDOrderSuccess />
                         </ModuleProtectedRoute>
                       } 
                     />
