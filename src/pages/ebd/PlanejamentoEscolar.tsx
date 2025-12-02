@@ -185,14 +185,13 @@ export default function PlanejamentoEscolar() {
                       )}
                     </div>
                     <p className="text-xs text-center font-medium line-clamp-2">{item.revista.titulo}</p>
-                    <p className="text-xs text-muted-foreground">Qtd: {item.quantidade}</p>
+                    <p className="text-xs text-muted-foreground">{item.revista.faixa_etaria_alvo}</p>
                     <Button 
                       size="sm" 
-                      variant="outline"
                       className="text-xs h-7 px-2"
                       onClick={() => setRevistaDialog(item.revista)}
                     >
-                      Usar essa revista
+                      MONTAR ESCALA
                     </Button>
                   </div>
                 ))}
