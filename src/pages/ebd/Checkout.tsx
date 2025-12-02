@@ -383,24 +383,69 @@ export default function Checkout() {
         throw cardError;
       }
 
-      if (cardData?.status === 'approved') {
-        // Registrar compras
-        const purchases = revistaIds.map(revistaId => ({
-          church_id: churchData.id,
-          revista_id: revistaId,
-          preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
-        }));
+      if (cardData?.status === 'approved' && cardData?.id) {
+        // Criar pedido
+        const { data: pedido, error: pedidoError } = await supabase
+          .from('ebd_pedidos')
+          .insert({
+            church_id: churchData.id,
+            mercadopago_payment_id: cardData.id,
+            status: 'PAGO',
+            payment_status: 'approved',
+            status_logistico: 'AGUARDANDO_ENVIO',
+            valor_produtos: calculateSubtotal(),
+            valor_frete: shippingCost,
+            valor_total: total,
+            metodo_frete: shippingMethod,
+            endereco_cep: data.cep,
+            endereco_rua: data.rua,
+            endereco_numero: data.numero,
+            endereco_complemento: data.complemento,
+            endereco_bairro: data.bairro,
+            endereco_cidade: data.cidade,
+            endereco_estado: data.estado,
+            approved_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
 
-        await supabase.from('ebd_revistas_compradas').insert(purchases);
+        if (pedidoError) {
+          console.error('Erro ao criar pedido:', pedidoError);
+        } else if (pedido) {
+          // Criar itens do pedido
+          const itens = revistaIds.map(revistaId => {
+            const revista = revistas?.find(r => r.id === revistaId);
+            const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
+            return {
+              pedido_id: pedido.id,
+              revista_id: revistaId,
+              quantidade: cart[revistaId],
+              preco_unitario: precoUnitario,
+              preco_total: precoUnitario * cart[revistaId],
+            };
+          });
+
+          const { error: itensError } = await supabase
+            .from('ebd_pedidos_itens')
+            .insert(itens);
+
+          if (itensError) {
+            console.error('Erro ao criar itens do pedido:', itensError);
+          }
+
+          // Ativar revistas compradas
+          const purchases = revistaIds.map(revistaId => ({
+            church_id: churchData.id,
+            revista_id: revistaId,
+            preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
+          }));
+
+          await supabase.from('ebd_revistas_compradas').insert(purchases);
+        }
         
         localStorage.removeItem('ebd-cart');
         
-        toast({
-          title: 'Pagamento aprovado!',
-          description: 'Seu pedido foi confirmado com sucesso.',
-        });
-        
-        navigate('/ebd/catalogo?status=success');
+        navigate(`/ebd/order-success?pedido=${pedido?.id || ''}`);
       } else {
         toast({
           title: 'Pagamento não aprovado',
@@ -478,26 +523,61 @@ export default function Checkout() {
         throw boletoError;
       }
 
-      if (boletoData?.external_resource_url) {
-        // Registrar compras
-        const purchases = revistaIds.map(revistaId => ({
-          church_id: churchData.id,
-          revista_id: revistaId,
-          preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
-        }));
+      if (boletoData?.external_resource_url && boletoData?.id) {
+        // Criar pedido
+        const { data: pedido, error: pedidoError } = await supabase
+          .from('ebd_pedidos')
+          .insert({
+            church_id: churchData.id,
+            mercadopago_payment_id: boletoData.id,
+            status: 'pending',
+            payment_status: 'pending',
+            status_logistico: 'AGUARDANDO_ENVIO',
+            valor_produtos: calculateSubtotal(),
+            valor_frete: shippingCost,
+            valor_total: total,
+            metodo_frete: shippingMethod,
+            endereco_cep: data.cep,
+            endereco_rua: data.rua,
+            endereco_numero: data.numero,
+            endereco_complemento: data.complemento,
+            endereco_bairro: data.bairro,
+            endereco_cidade: data.cidade,
+            endereco_estado: data.estado,
+          })
+          .select()
+          .single();
 
-        await supabase.from('ebd_revistas_compradas').insert(purchases);
+        if (pedidoError) {
+          console.error('Erro ao criar pedido:', pedidoError);
+        } else if (pedido) {
+          // Criar itens do pedido
+          const itens = revistaIds.map(revistaId => {
+            const revista = revistas?.find(r => r.id === revistaId);
+            const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
+            return {
+              pedido_id: pedido.id,
+              revista_id: revistaId,
+              quantidade: cart[revistaId],
+              preco_unitario: precoUnitario,
+              preco_total: precoUnitario * cart[revistaId],
+            };
+          });
+
+          const { error: itensError } = await supabase
+            .from('ebd_pedidos_itens')
+            .insert(itens);
+
+          if (itensError) {
+            console.error('Erro ao criar itens do pedido:', itensError);
+          }
+        }
         
         localStorage.removeItem('ebd-cart');
         
         window.open(boletoData.external_resource_url, '_blank');
         
-        toast({
-          title: 'Boleto gerado!',
-          description: 'O boleto foi aberto em uma nova aba.',
-        });
-        
-        navigate('/ebd/catalogo?status=pending');
+        navigate(`/ebd/order-success?pedido=${pedido?.id || ''}`);
       }
     } catch (error) {
       console.error('Erro ao processar boleto:', error);
