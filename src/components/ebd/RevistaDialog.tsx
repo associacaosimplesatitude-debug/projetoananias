@@ -17,17 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2 } from "lucide-react";
-
-const FAIXAS_ETARIAS = [
-  "Jovens e Adultos",
-  "Maternal: 2 a 3 Anos",
-  "Jardim de Infância: 4 a 6 Anos",
-  "Primários: 7 a 8 Anos",
-  "Juniores: 9 a 11 Anos",
-  "Adolescentes: 12 a 14 Anos",
-  "Adolescentes+: 15 a 17 Anos",
-] as const;
+import { FAIXAS_ETARIAS } from "@/constants/ebdFaixasEtarias";
 
 interface RevistaDialogProps {
   open: boolean;
