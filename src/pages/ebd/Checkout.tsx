@@ -219,7 +219,7 @@ export default function Checkout() {
         {
           body: {
             payment_method: 'pix',
-            transaction_amount: total,
+            transaction_amount: Math.round(total * 100) / 100,
             description: `Compra de ${revistaIds.length} revista(s) EBD`,
             payer: {
               email: data.email,
@@ -346,7 +346,7 @@ export default function Checkout() {
         {
           body: {
             payment_method: 'card',
-            transaction_amount: total,
+            transaction_amount: Math.round(total * 100) / 100,
             description: `Compra de ${revistaIds.length} revista(s) EBD`,
             installments: parseInt(installments),
             payer: {
@@ -486,7 +486,7 @@ export default function Checkout() {
         {
           body: {
             payment_method: 'boleto',
-            transaction_amount: total,
+            transaction_amount: Math.round(total * 100) / 100,
             description: `Compra de ${revistaIds.length} revista(s) EBD`,
             payer: {
               email: data.email,
