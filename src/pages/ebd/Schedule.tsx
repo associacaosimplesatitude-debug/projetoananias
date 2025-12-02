@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Eye, BookOpen } from "lucide-react";
+import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { EditarEscalaDialog } from "@/components/ebd/EditarEscalaDialog";
 
 interface Planejamento {
   id: string;
@@ -21,21 +24,38 @@ interface Planejamento {
     imagem_url: string | null;
     faixa_etaria_alvo: string;
   };
+  turma?: {
+    id: string;
+    nome: string;
+    faixa_etaria: string;
+  };
 }
 
 interface Escala {
   id: string;
   data: string;
   sem_aula: boolean;
+  professor_id: string | null;
+  turma_id: string;
+  tipo: string;
+  observacao: string | null;
   professor: {
     nome_completo: string;
+  } | null;
+  turma: {
+    id: string;
+    nome: string;
+    faixa_etaria: string;
   };
 }
 
 export default function EBDSchedule() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedPlanejamento, setSelectedPlanejamento] = useState<Planejamento | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [escalaToEdit, setEscalaToEdit] = useState<Escala | null>(null);
+  const [escalaToDelete, setEscalaToDelete] = useState<Escala | null>(null);
 
   // Buscar dados da igreja
   const { data: churchData } = useQuery({
@@ -53,12 +73,14 @@ export default function EBDSchedule() {
     enabled: !!user?.id,
   });
 
-  // Buscar planejamentos
+  // Buscar planejamentos com turma via escalas
   const { data: planejamentos } = useQuery({
-    queryKey: ['ebd-planejamentos', churchData?.id],
+    queryKey: ['ebd-planejamentos-with-turmas', churchData?.id],
     queryFn: async () => {
       if (!churchData?.id) return [];
-      const { data, error } = await supabase
+      
+      // Buscar planejamentos
+      const { data: planejamentosData, error: planError } = await supabase
         .from('ebd_planejamento')
         .select(`
           id,
@@ -70,8 +92,32 @@ export default function EBDSchedule() {
         .eq('church_id', churchData.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as unknown as Planejamento[];
+      if (planError) throw planError;
+
+      // Buscar escalas para obter turmas associadas
+      const { data: escalasData, error: escError } = await supabase
+        .from('ebd_escalas')
+        .select(`
+          data,
+          turma:ebd_turmas(id, nome, faixa_etaria)
+        `)
+        .eq('church_id', churchData.id);
+
+      if (escError) throw escError;
+
+      // Mapear turmas para planejamentos baseado nas datas
+      const result = planejamentosData?.map(plan => {
+        const escalasDoPlan = escalasData?.filter(e => 
+          e.data >= plan.data_inicio && e.data <= plan.data_termino
+        );
+        const turma = escalasDoPlan?.[0]?.turma;
+        return {
+          ...plan,
+          turma
+        };
+      });
+
+      return result as unknown as Planejamento[];
     },
     enabled: !!churchData?.id,
   });
@@ -88,7 +134,12 @@ export default function EBDSchedule() {
           id,
           data,
           sem_aula,
-          professor:ebd_professores(nome_completo)
+          professor_id,
+          turma_id,
+          tipo,
+          observacao,
+          professor:ebd_professores(nome_completo),
+          turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .eq('church_id', churchData.id)
         .gte('data', selectedPlanejamento.data_inicio)
@@ -101,11 +152,30 @@ export default function EBDSchedule() {
     enabled: !!churchData?.id && !!selectedPlanejamento,
   });
 
+  // Mutation para excluir escala
+  const deleteEscalaMutation = useMutation({
+    mutationFn: async (escalaId: string) => {
+      const { error } = await supabase
+        .from('ebd_escalas')
+        .delete()
+        .eq('id', escalaId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-escalas'] });
+      queryClient.invalidateQueries({ queryKey: ['ebd-escalas-planejamento'] });
+      toast.success('Escala excluída com sucesso!');
+      setEscalaToDelete(null);
+    },
+    onError: () => {
+      toast.error('Erro ao excluir escala');
+    },
+  });
+
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-  // Preencher dias vazios no início do mês
   const startDayOfWeek = getDay(monthStart);
   const emptyDays = Array(startDayOfWeek).fill(null);
 
@@ -127,49 +197,75 @@ export default function EBDSchedule() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Escalas</h1>
-            <p className="text-muted-foreground">Visualize as escalas de professores</p>
+            <p className="text-muted-foreground">Visualize e gerencie as escalas de professores</p>
           </div>
         </div>
 
         {planejamentos && planejamentos.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-3">
             {planejamentos.map((planejamento) => (
-              <Card key={planejamento.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="aspect-[3/2] relative bg-muted">
-                  {planejamento.revista?.imagem_url ? (
-                    <img
-                      src={planejamento.revista.imagem_url}
-                      alt={planejamento.revista.titulo}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <BookOpen className="w-16 h-16 text-muted-foreground/50" />
-                    </div>
-                  )}
-                </div>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg line-clamp-2">
-                    {planejamento.revista?.titulo || 'Revista'}
-                  </CardTitle>
-                  <CardDescription>
-                    {planejamento.revista?.faixa_etaria_alvo}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground mb-4">
-                    <p>Início: {format(parseISO(planejamento.data_inicio), "dd/MM/yyyy")}</p>
-                    <p>Término: {format(parseISO(planejamento.data_termino), "dd/MM/yyyy")}</p>
-                    <p>Dia: {planejamento.dia_semana}</p>
+              <Card 
+                key={planejamento.id} 
+                className="overflow-hidden hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center gap-4 p-4">
+                  {/* Thumbnail */}
+                  <div className="w-16 h-20 flex-shrink-0 bg-muted rounded-lg overflow-hidden">
+                    {planejamento.revista?.imagem_url ? (
+                      <img
+                        src={planejamento.revista.imagem_url}
+                        alt={planejamento.revista.titulo}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <BookOpen className="w-6 h-6 text-muted-foreground/50" />
+                      </div>
+                    )}
                   </div>
+
+                  {/* Informações em linha */}
+                  <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-4 items-center">
+                    <div className="col-span-2 md:col-span-1">
+                      <p className="text-xs text-muted-foreground">Turma</p>
+                      <p className="font-medium text-sm truncate">
+                        {planejamento.turma?.nome || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Faixa Etária</p>
+                      <p className="font-medium text-sm truncate">
+                        {planejamento.revista?.faixa_etaria_alvo || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Dia</p>
+                      <p className="font-medium text-sm">{planejamento.dia_semana}</p>
+                    </div>
+                    <div className="hidden md:block">
+                      <p className="text-xs text-muted-foreground">Início</p>
+                      <p className="font-medium text-sm">
+                        {format(parseISO(planejamento.data_inicio), "dd/MM/yyyy")}
+                      </p>
+                    </div>
+                    <div className="hidden md:block">
+                      <p className="text-xs text-muted-foreground">Término</p>
+                      <p className="font-medium text-sm">
+                        {format(parseISO(planejamento.data_termino), "dd/MM/yyyy")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Botão */}
                   <Button 
-                    className="w-full"
+                    size="sm"
                     onClick={() => setSelectedPlanejamento(planejamento)}
+                    className="flex-shrink-0"
                   >
                     <Eye className="w-4 h-4 mr-2" />
                     Ver Escala
                   </Button>
-                </CardContent>
+                </div>
               </Card>
             ))}
           </div>
@@ -194,9 +290,10 @@ export default function EBDSchedule() {
 
         {/* Dialog do Calendário */}
         <Dialog open={!!selectedPlanejamento} onOpenChange={() => setSelectedPlanejamento(null)}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
                 Escala - {selectedPlanejamento?.revista?.titulo}
               </DialogTitle>
             </DialogHeader>
@@ -205,13 +302,15 @@ export default function EBDSchedule() {
               {/* Navegação do mês */}
               <div className="flex items-center justify-between">
                 <Button variant="outline" size="sm" onClick={previousMonth}>
+                  <ChevronLeft className="w-4 h-4 mr-1" />
                   Anterior
                 </Button>
-                <h3 className="font-semibold text-lg">
+                <h3 className="font-semibold text-lg capitalize">
                   {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
                 </h3>
                 <Button variant="outline" size="sm" onClick={nextMonth}>
                   Próximo
+                  <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
 
@@ -227,7 +326,7 @@ export default function EBDSchedule() {
               {/* Dias do mês */}
               <div className="grid grid-cols-7 gap-1">
                 {emptyDays.map((_, index) => (
-                  <div key={`empty-${index}`} className="p-2 min-h-[80px]" />
+                  <div key={`empty-${index}`} className="p-2 min-h-[100px]" />
                 ))}
                 {daysInMonth.map((day) => {
                   const escala = getEscalaForDay(day);
@@ -238,25 +337,52 @@ export default function EBDSchedule() {
                     <div
                       key={day.toISOString()}
                       className={cn(
-                        "p-2 min-h-[80px] border rounded-lg text-sm",
+                        "p-2 min-h-[100px] border rounded-lg text-sm relative group",
                         !isSameMonth(day, currentMonth) && "opacity-50",
-                        hasClass && "bg-blue-100 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700",
-                        noClass && "bg-red-100 border-red-300 dark:bg-red-900/30 dark:border-red-700"
+                        hasClass && "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800",
+                        noClass && "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
                       )}
                     >
                       <div className="font-medium">{format(day, 'd')}</div>
                       {escala && (
-                        <div className="mt-1">
-                          {noClass ? (
-                            <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                              Sem aula
-                            </span>
-                          ) : (
-                            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2">
-                              {escala.professor?.nome_completo}
-                            </span>
-                          )}
-                        </div>
+                        <>
+                          <div className="mt-1">
+                            {noClass ? (
+                              <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                                Sem aula
+                              </span>
+                            ) : (
+                              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2">
+                                {escala.professor?.nome_completo}
+                              </span>
+                            )}
+                          </div>
+                          {/* Botões de ação */}
+                          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEscalaToEdit(escala);
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEscalaToDelete(escala);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </>
                       )}
                     </div>
                   );
@@ -266,17 +392,48 @@ export default function EBDSchedule() {
               {/* Legenda */}
               <div className="flex items-center gap-6 justify-center pt-4 border-t">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-blue-100 border border-blue-300 dark:bg-blue-900/30 dark:border-blue-700" />
+                  <div className="w-4 h-4 rounded bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800" />
                   <span className="text-sm">Aula</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-red-100 border border-red-300 dark:bg-red-900/30 dark:border-red-700" />
+                  <div className="w-4 h-4 rounded bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800" />
                   <span className="text-sm">Sem aula</span>
                 </div>
               </div>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog de edição */}
+        <EditarEscalaDialog
+          escala={escalaToEdit}
+          open={!!escalaToEdit}
+          onOpenChange={(open) => !open && setEscalaToEdit(null)}
+          churchId={churchData?.id}
+        />
+
+        {/* Dialog de confirmação de exclusão */}
+        <AlertDialog open={!!escalaToDelete} onOpenChange={() => setEscalaToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir esta escala do dia{' '}
+                {escalaToDelete && format(parseISO(escalaToDelete.data), "dd/MM/yyyy")}?
+                Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => escalaToDelete && deleteEscalaMutation.mutate(escalaToDelete.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

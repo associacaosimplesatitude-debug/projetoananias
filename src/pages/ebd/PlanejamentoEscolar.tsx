@@ -208,38 +208,64 @@ export default function PlanejamentoEscolar() {
               <CardTitle>Planejamentos Ativos</CardTitle>
               <CardDescription>Revistas em uso neste período</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {planejamentos.map((planejamento) => (
-                  <div
-                    key={planejamento.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="flex gap-4 items-center">
-                      {planejamento.ebd_revistas.imagem_url && (
-                        <img
-                          src={planejamento.ebd_revistas.imagem_url}
-                          alt={planejamento.ebd_revistas.titulo}
-                          className="w-16 h-20 object-cover rounded"
-                        />
-                      )}
-                      <div>
-                        <h3 className="font-semibold">{planejamento.ebd_revistas.titulo}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {planejamento.dia_semana}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(planejamento.data_inicio), "dd 'de' MMMM", { locale: ptBR })} até{' '}
-                          {format(new Date(planejamento.data_termino), "dd 'de' MMMM", { locale: ptBR })}
-                        </p>
+            <CardContent className="space-y-3">
+              {planejamentos.map((planejamento) => (
+                <div
+                  key={planejamento.id}
+                  className="flex items-center gap-4 p-4 border rounded-lg hover:shadow-sm transition-shadow"
+                >
+                  {/* Thumbnail */}
+                  <div className="w-14 h-18 flex-shrink-0 bg-muted rounded-lg overflow-hidden">
+                    {planejamento.ebd_revistas.imagem_url ? (
+                      <img
+                        src={planejamento.ebd_revistas.imagem_url}
+                        alt={planejamento.ebd_revistas.titulo}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <BookOpen className="w-5 h-5 text-muted-foreground/50" />
                       </div>
-                    </div>
-                    <Button onClick={() => setPlanejamentoEscala(planejamento)}>
-                      Montar Escala
-                    </Button>
+                    )}
                   </div>
-                ))}
-              </div>
+
+                  {/* Informações em linha */}
+                  <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 items-center">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Faixa Etária</p>
+                      <p className="font-medium text-sm truncate">
+                        {planejamento.ebd_revistas.faixa_etaria_alvo}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Dia</p>
+                      <p className="font-medium text-sm">{planejamento.dia_semana}</p>
+                    </div>
+                    <div className="hidden md:block">
+                      <p className="text-xs text-muted-foreground">Início</p>
+                      <p className="font-medium text-sm">
+                        {format(new Date(planejamento.data_inicio), "dd/MM/yyyy")}
+                      </p>
+                    </div>
+                    <div className="hidden md:block">
+                      <p className="text-xs text-muted-foreground">Término</p>
+                      <p className="font-medium text-sm">
+                        {format(new Date(planejamento.data_termino), "dd/MM/yyyy")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Botão */}
+                  <Button 
+                    size="sm"
+                    onClick={() => setPlanejamentoEscala(planejamento)}
+                    className="flex-shrink-0"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Montar Escala
+                  </Button>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}
