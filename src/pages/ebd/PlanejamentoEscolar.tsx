@@ -566,8 +566,17 @@ export default function PlanejamentoEscolar() {
             </TabsContent>
 
             <TabsContent value="escala">
-              {churchData?.id && (
+              {churchData?.id ? (
                 <EscalaSemanaCard churchId={churchData.id} />
+              ) : (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="text-center text-muted-foreground">
+                      <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="font-medium">Carregando dados da igreja...</p>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </TabsContent>
 
