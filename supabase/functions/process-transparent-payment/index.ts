@@ -27,14 +27,17 @@ serve(async (req) => {
       shipping_cost = 0
     } = await req.json();
 
+    // Arredondar para 2 casas decimais (Mercado Pago exige exatamente 2 casas)
+    const roundedAmount = Math.round(transaction_amount * 100) / 100;
+
     console.log('Processando pagamento transparente:', {
       payment_method,
-      transaction_amount,
+      transaction_amount: roundedAmount,
       payer_email: payer.email,
     });
 
     let paymentData: any = {
-      transaction_amount,
+      transaction_amount: roundedAmount,
       description,
       payer: {
         email: payer.email,
