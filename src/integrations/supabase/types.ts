@@ -1175,6 +1175,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           church_id: string
+          codigo_rastreio: string | null
           created_at: string | null
           email_cliente: string | null
           endereco_bairro: string
@@ -1199,6 +1200,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           church_id: string
+          codigo_rastreio?: string | null
           created_at?: string | null
           email_cliente?: string | null
           endereco_bairro: string
@@ -1223,6 +1225,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           church_id?: string
+          codigo_rastreio?: string | null
           created_at?: string | null
           email_cliente?: string | null
           endereco_bairro?: string
