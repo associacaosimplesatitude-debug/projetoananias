@@ -1187,7 +1187,9 @@ export type Database = {
           mercadopago_payment_id: string | null
           mercadopago_preference_id: string | null
           metodo_frete: string | null
+          payment_status: string | null
           status: string
+          status_logistico: string | null
           updated_at: string | null
           valor_frete: number
           valor_produtos: number
@@ -1208,7 +1210,9 @@ export type Database = {
           mercadopago_payment_id?: string | null
           mercadopago_preference_id?: string | null
           metodo_frete?: string | null
+          payment_status?: string | null
           status?: string
+          status_logistico?: string | null
           updated_at?: string | null
           valor_frete?: number
           valor_produtos?: number
@@ -1229,7 +1233,9 @@ export type Database = {
           mercadopago_payment_id?: string | null
           mercadopago_preference_id?: string | null
           metodo_frete?: string | null
+          payment_status?: string | null
           status?: string
+          status_logistico?: string | null
           updated_at?: string | null
           valor_frete?: number
           valor_produtos?: number
