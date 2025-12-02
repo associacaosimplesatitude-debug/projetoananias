@@ -670,13 +670,13 @@ export default function PlanejamentoEscolar() {
                     <div className="hidden md:block">
                       <p className="text-xs text-muted-foreground">Início</p>
                       <p className="font-medium text-sm">
-                        {format(new Date(planejamento.data_inicio), "dd/MM/yyyy")}
+                        {format(new Date(planejamento.data_inicio + 'T12:00:00'), "dd/MM/yyyy")}
                       </p>
                     </div>
                     <div className="hidden md:block">
                       <p className="text-xs text-muted-foreground">Término</p>
                       <p className="font-medium text-sm">
-                        {format(new Date(planejamento.data_termino), "dd/MM/yyyy")}
+                        {format(new Date(planejamento.data_termino + 'T12:00:00'), "dd/MM/yyyy")}
                       </p>
                     </div>
                     {/* Progresso */}
