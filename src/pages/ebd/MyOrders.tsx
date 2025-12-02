@@ -23,46 +23,24 @@ export default function MyOrders() {
       if (!churchData) throw new Error('Igreja não encontrada');
 
       const { data, error } = await supabase
-        .from('ebd_pedidos')
+        .from('ebd_revistas_compradas')
         .select(`
           *,
-          ebd_pedidos_itens (
-            quantidade,
-            preco_unitario,
-            preco_total,
-            ebd_revistas (
-              titulo,
-              imagem_url,
-              faixa_etaria_alvo
-            )
+          revista:ebd_revistas(
+            titulo,
+            imagem_url,
+            faixa_etaria_alvo
           )
         `)
         .eq('church_id', churchData.id)
-        .order('created_at', { ascending: false });
+        .order('data_compra', { ascending: false });
 
       if (error) throw error;
       return data;
     },
   });
 
-  const totalSpent = orders?.reduce((sum, order) => sum + Number(order.valor_total), 0) || 0;
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <Badge className="bg-green-500">Aprovado</Badge>;
-      case 'pending':
-        return <Badge variant="secondary">Aguardando Pagamento</Badge>;
-      case 'processing':
-        return <Badge className="bg-blue-500">Processando</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive">Recusado</Badge>;
-      case 'cancelled':
-        return <Badge variant="outline">Cancelado</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
+  const totalSpent = orders?.reduce((sum, order) => sum + Number(order.preco_pago), 0) || 0;
 
   if (isLoading) {
     return (
@@ -122,9 +100,9 @@ export default function MyOrders() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Último Pedido</p>
-                   <p className="text-sm font-medium">
+                  <p className="text-sm font-medium">
                     {orders && orders.length > 0
-                      ? format(new Date(orders[0].created_at), 'dd/MM/yyyy', { locale: ptBR })
+                      ? format(new Date(orders[0].data_compra || orders[0].created_at), 'dd/MM/yyyy', { locale: ptBR })
                       : '-'}
                   </p>
                 </div>
@@ -159,79 +137,44 @@ export default function MyOrders() {
                         <Calendar className="w-4 h-4" />
                         <span>
                           {format(
-                            new Date(order.created_at),
+                            new Date(order.data_compra || order.created_at),
                             "dd 'de' MMMM 'de' yyyy 'às' HH:mm",
                             { locale: ptBR }
                           )}
                         </span>
                       </div>
                     </div>
-                    {getStatusBadge(order.status)}
+                    <Badge variant="secondary">
+                      Processado
+                    </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    {order.ebd_pedidos_itens?.map((item: any, index: number) => (
-                      <div key={index} className="flex gap-4">
-                        {item.ebd_revistas?.imagem_url && (
-                          <img
-                            src={item.ebd_revistas.imagem_url}
-                            alt={item.ebd_revistas.titulo}
-                            className="w-20 h-28 object-cover rounded-lg border"
-                          />
-                        )}
-                        <div className="flex-1 space-y-1">
-                          <h4 className="font-semibold text-base">
-                            {item.ebd_revistas?.titulo}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {item.ebd_revistas?.faixa_etaria_alvo}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Quantidade: {item.quantidade} x R$ {item.preco_unitario.toFixed(2)}
-                          </p>
-                          <p className="text-sm font-semibold">
-                            Subtotal: R$ {item.preco_total.toFixed(2)}
-                          </p>
-                        </div>
+                <CardContent>
+                  <div className="flex gap-4">
+                    {order.revista?.imagem_url && (
+                      <img
+                        src={order.revista.imagem_url}
+                        alt={order.revista.titulo}
+                        className="w-24 h-32 object-cover rounded-lg border"
+                      />
+                    )}
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <h4 className="font-semibold text-base mb-1">
+                          {order.revista?.titulo}
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          {order.revista?.faixa_etaria_alvo}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Subtotal (produtos):</span>
-                      <span>R$ {order.valor_produtos.toFixed(2)}</span>
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Valor pago:</span>
+                        <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                          R$ {Number(order.preco_pago).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Frete:</span>
-                      <span>R$ {order.valor_frete.toFixed(2)}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total:</span>
-                      <span className="text-green-600 dark:text-green-400">
-                        R$ {order.valor_total.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="bg-muted p-3 rounded-lg space-y-1">
-                    <p className="text-sm font-semibold">Endereço de Entrega:</p>
-                    <p className="text-sm text-muted-foreground">
-                      {order.endereco_rua}, {order.endereco_numero}
-                      {order.endereco_complemento && ` - ${order.endereco_complemento}`}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {order.endereco_bairro} - {order.endereco_cidade}/{order.endereco_estado}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      CEP: {order.endereco_cep}
-                    </p>
                   </div>
                 </CardContent>
               </Card>

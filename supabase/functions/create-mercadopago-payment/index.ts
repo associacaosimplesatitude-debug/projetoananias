@@ -24,7 +24,6 @@ interface PaymentRequest {
     street_number: string;
     zip_code: string;
   };
-  order_id: string; // ID do pedido no nosso sistema
 }
 
 serve(async (req) => {
@@ -39,16 +38,13 @@ serve(async (req) => {
       throw new Error('MERCADO_PAGO_ACCESS_TOKEN não configurado');
     }
 
-    const { items, payment_method, payer, address, order_id }: PaymentRequest = await req.json();
+    const { items, payment_method, payer, address }: PaymentRequest = await req.json();
     
     console.log('Criando preferência de pagamento Mercado Pago:', {
       items: items.length,
       payment_method,
       payer_email: payer.email,
-      order_id,
     });
-
-    const origin = req.headers.get('origin') || 'https://lovableproject.com';
 
     // Criar preferência de pagamento no Mercado Pago
     const preferenceData = {
@@ -68,15 +64,14 @@ serve(async (req) => {
           zip_code: address.zip_code,
         },
       },
-      external_reference: order_id, // Referência ao nosso pedido
       payment_methods: {
         excluded_payment_types: [] as Array<{ id: string }>,
         installments: 12,
       },
       back_urls: {
-        success: `${origin}/ebd/checkout/success?order_id=${order_id}`,
-        failure: `${origin}/ebd/checkout?status=failure`,
-        pending: `${origin}/ebd/checkout/success?order_id=${order_id}&status=pending`,
+        success: `${req.headers.get('origin')}/ebd/catalogo?status=success`,
+        failure: `${req.headers.get('origin')}/ebd/checkout?status=failure`,
+        pending: `${req.headers.get('origin')}/ebd/catalogo?status=pending`,
       },
       auto_return: 'approved',
       notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mercadopago-webhook`,

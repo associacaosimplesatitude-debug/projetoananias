@@ -9,19 +9,11 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CreditCard, FileText, QrCode } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { initMercadoPago } from '@mercadopago/sdk-react';
-
-// Tipo para o objeto global do Mercado Pago
-declare global {
-  interface Window {
-    MercadoPago?: any;
-  }
-}
 
 const addressSchema = z.object({
   cep: z.string().min(8, 'CEP inválido').max(9),
@@ -42,14 +34,10 @@ interface Revista {
   preco_cheio: number | null;
 }
 
-// Chave pública do Mercado Pago (pode ser sobrescrita via env)
-const PUBLIC_KEY = (import.meta.env.VITE_MERCADO_PAGO_PUBLIC_KEY as string | undefined) ||
-  'TEST-f3b9f2e5-3e5a-4d8a-9c5b-7e3b9f2e5a6c';
-
 export default function Checkout() {
   const navigate = useNavigate();
   const { toast } = useToast();
-
+  const [paymentMethod, setPaymentMethod] = useState<'boleto' | 'card' | 'pix'>('pix');
   const [isProcessing, setIsProcessing] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<'free' | 'pac' | 'sedex'>('pac');
   const [pacCost, setPacCost] = useState<number>(0);
@@ -57,21 +45,10 @@ export default function Checkout() {
   const [pacDays, setPacDays] = useState<number>(0);
   const [sedexDays, setSedexDays] = useState<number>(0);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [orderId, setOrderId] = useState<string>('');
   const [cart, setCart] = useState<{ [key: string]: number }>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('ebd-cart') : null;
+    const saved = localStorage.getItem('ebd-cart');
     return saved ? JSON.parse(saved) : {};
   });
-  const [preferenceId, setPreferenceId] = useState<string | null>(null);
-  const [isLoadingPaymentOptions, setIsLoadingPaymentOptions] = useState(false);
-
-  useEffect(() => {
-    // Inicializa o SDK do Mercado Pago no cliente
-    if (typeof window !== 'undefined') {
-      initMercadoPago(PUBLIC_KEY, { locale: 'pt-BR' });
-    }
-  }, []);
 
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -113,57 +90,12 @@ export default function Checkout() {
 
   const subtotal = calculateSubtotal();
   const hasFreeShipping = subtotal >= 200;
-  const shippingCost = hasFreeShipping && shippingMethod === 'free'
-    ? 0
-    : shippingMethod === 'sedex'
-    ? sedexCost
+  const shippingCost = hasFreeShipping && shippingMethod === 'free' 
+    ? 0 
+    : shippingMethod === 'sedex' 
+    ? sedexCost 
     : pacCost;
   const total = subtotal + shippingCost;
-
-  useEffect(() => {
-    // Quando já temos a preferência e estamos na etapa de pagamento,
-    // inicializamos o Brick do Mercado Pago
-    if (!showPayment || !preferenceId || typeof window === 'undefined') return;
-
-    try {
-      setIsLoadingPaymentOptions(true);
-
-      const mp = new window.MercadoPago(PUBLIC_KEY, {
-        locale: 'pt-BR',
-      });
-
-      const bricksBuilder = mp.bricks();
-
-      bricksBuilder.create('wallet', 'payment-brick-container', {
-        initialization: {
-          preferenceId,
-        },
-        callbacks: {
-          onReady: () => {
-            console.log('Wallet Brick pronto');
-            setIsLoadingPaymentOptions(false);
-          },
-          onError: (error: any) => {
-            console.error('Erro ao carregar Wallet Brick:', error);
-            setIsLoadingPaymentOptions(false);
-            toast({
-              title: 'Erro ao carregar opções de pagamento',
-              description: 'Tente recarregar a página ou tentar novamente mais tarde.',
-              variant: 'destructive',
-            });
-          },
-        },
-      });
-    } catch (error) {
-      console.error('Erro geral ao inicializar Wallet Brick:', error);
-      setIsLoadingPaymentOptions(false);
-      toast({
-        title: 'Erro ao inicializar pagamento',
-        description: 'Tente novamente mais tarde.',
-        variant: 'destructive',
-      });
-    }
-  }, [showPayment, preferenceId, toast]);
 
   const handleCEPBlur = async (cep: string) => {
     const cleanCEP = cep.replace(/\D/g, '');
@@ -205,11 +137,12 @@ export default function Checkout() {
           setPacDays(shippingData.pac.days);
           setSedexCost(shippingData.sedex.cost);
           setSedexDays(shippingData.sedex.days);
-
+          
+          // Se tiver frete grátis, seleciona automaticamente
           if (subtotal >= 200) {
             setShippingMethod('free');
           }
-
+          
           toast({
             title: 'Frete calculado',
             description: 'Opções de frete disponíveis',
@@ -223,15 +156,15 @@ export default function Checkout() {
     }
   };
 
-  const onContinueToPayment = async (data: AddressForm) => {
+  const onSubmit = async (data: AddressForm) => {
     setIsProcessing(true);
-
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast({
           title: 'Erro',
-          description: 'Você precisa estar logado',
+          description: 'Você precisa estar logado para finalizar a compra',
           variant: 'destructive',
         });
         return;
@@ -239,7 +172,7 @@ export default function Checkout() {
 
       const { data: churchData } = await supabase
         .from('churches')
-        .select('id, pastor_email, pastor_name, church_name')
+        .select('id, pastor_email, pastor_name')
         .eq('user_id', user.id)
         .single();
 
@@ -252,107 +185,91 @@ export default function Checkout() {
         return;
       }
 
-      // Criar pedido
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('ebd_pedidos')
-        .insert({
-          church_id: churchData.id,
-          valor_produtos: subtotal,
-          valor_frete: shippingCost,
-          valor_total: subtotal + shippingCost,
-          metodo_frete: shippingMethod,
-          status: 'pending',
-          endereco_rua: data.rua,
-          endereco_numero: data.numero,
-          endereco_complemento: data.complemento,
-          endereco_bairro: data.bairro,
-          endereco_cidade: data.cidade,
-          endereco_estado: data.estado,
-          endereco_cep: data.cep,
-        })
-        .select()
-        .single();
-
-      if (pedidoError || !pedido) {
-        throw new Error('Erro ao criar pedido');
-      }
-
-      // Criar itens do pedido
-      const itens = revistaIds.map(revistaId => {
+      // Preparar itens para o Mercado Pago
+      const items = revistaIds.map(revistaId => {
         const revista = revistas?.find(r => r.id === revistaId);
-        const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
-        return {
-          pedido_id: pedido.id,
-          revista_id: revistaId,
-          quantidade: cart[revistaId],
-          preco_unitario: precoUnitario,
-          preco_total: precoUnitario * cart[revistaId],
-        };
-      });
-
-      const { error: itensError } = await supabase
-        .from('ebd_pedidos_itens')
-        .insert(itens);
-
-      if (itensError) {
-        throw new Error('Erro ao criar itens do pedido');
-      }
-
-      // Criar preferência de pagamento no backend (Checkout Transparente)
-      setIsLoadingPaymentOptions(true);
-
-      const mpItems = revistaIds.map(revistaId => {
-        const revista = revistas?.find(r => r.id === revistaId);
-        const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
         return {
           id: revistaId,
-          title: revista?.titulo || 'Revista',
+          title: revista?.titulo || 'Revista EBD',
           quantity: cart[revistaId],
-          unit_price: precoUnitario,
+          unit_price: (revista?.preco_cheio || 0) * 0.7,
         };
       });
 
-      const { data: prefData, error: prefError } = await supabase.functions.invoke(
+      // Adicionar frete como item se houver custo
+      if (shippingCost > 0) {
+        const shippingLabel = shippingMethod === 'sedex' 
+          ? `Frete Sedex (${sedexDays} dias úteis)` 
+          : `Frete PAC (${pacDays} dias úteis)`;
+        
+        items.push({
+          id: 'shipping',
+          title: shippingLabel,
+          quantity: 1,
+          unit_price: shippingCost,
+        });
+      }
+
+      // Criar preferência de pagamento no Mercado Pago
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
         'create-mercadopago-payment',
         {
           body: {
-            items: mpItems,
-            payment_method: 'card',
+            items,
+            payment_method: paymentMethod,
             payer: {
               email: churchData.pastor_email,
-              name: churchData.pastor_name || churchData.church_name || 'Cliente',
+              name: churchData.pastor_name || 'Cliente',
             },
             address: {
               street_name: data.rua,
               street_number: data.numero,
-              zip_code: data.cep,
+              zip_code: data.cep.replace(/\D/g, ''),
             },
-            order_id: pedido.id,
           },
         }
       );
 
-      if (prefError || !prefData?.id) {
-        console.error('Erro ao criar preferência:', prefError, prefData);
-        throw new Error('Erro ao criar preferência de pagamento');
+      if (paymentError) {
+        console.error('Erro ao criar pagamento:', paymentError);
+        throw paymentError;
       }
 
-      setOrderId(pedido.id);
-      setPreferenceId(prefData.id as string);
-      setShowPayment(true);
+      // Registrar compras
+      const purchases = revistaIds.map(revistaId => ({
+        church_id: churchData.id,
+        revista_id: revistaId,
+        preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
+      }));
 
-      toast({
-        title: 'Pedido criado',
-        description: 'Opções de pagamento carregadas. Conclua o pagamento abaixo.',
-      });
+      const { error: insertError } = await supabase
+        .from('ebd_revistas_compradas')
+        .insert(purchases);
+
+      if (insertError) {
+        console.error('Erro ao registrar compras (continuando para pagamento):', insertError);
+      }
+
+      // Limpar carrinho
+      localStorage.removeItem('ebd-cart');
+
+      // Redirecionar para página de pagamento do Mercado Pago
+      if (paymentData?.init_point) {
+        window.location.href = paymentData.init_point;
+      } else {
+        toast({
+          title: 'Pedido criado!',
+          description: 'Redirecionando para pagamento...',
+        });
+        navigate('/ebd/catalogo');
+      }
     } catch (error) {
-      console.error('Erro ao criar pedido/pagamento:', error);
+      console.error('Erro ao processar pedido:', error);
       toast({
         title: 'Erro ao processar pedido',
         description: 'Tente novamente mais tarde',
         variant: 'destructive',
       });
-      setIsLoadingPaymentOptions(false);
     } finally {
       setIsProcessing(false);
     }
@@ -380,148 +297,163 @@ export default function Checkout() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {!showPayment ? (
-              <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Endereço de Entrega</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onContinueToPayment)} className="space-y-4">
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="cep"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>CEP</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    placeholder="00000-000"
-                                    onBlur={(e) => handleCEPBlur(e.target.value)}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="estado"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Estado</FormLabel>
-                                <FormControl>
-                                  <Input {...field} placeholder="UF" maxLength={2} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-
-                        <FormField
-                          control={form.control}
-                          name="rua"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Rua</FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="Nome da rua" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <div className="grid md:grid-cols-3 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="numero"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Número</FormLabel>
-                                <FormControl>
-                                  <Input {...field} placeholder="123" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="complemento"
-                            render={({ field }) => (
-                              <FormItem className="md:col-span-2">
-                                <FormLabel>Complemento (opcional)</FormLabel>
-                                <FormControl>
-                                  <Input {...field} placeholder="Apto, Bloco, etc." />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="bairro"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Bairro</FormLabel>
-                                <FormControl>
-                                  <Input {...field} placeholder="Bairro" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="cidade"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Cidade</FormLabel>
-                                <FormControl>
-                                  <Input {...field} placeholder="Cidade" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-
-                        <Button
-                          type="submit"
-                          className="w-full mt-4"
-                          size="lg"
-                          disabled={isProcessing || pacCost === 0 || isCalculatingShipping}
-                        >
-                          {isProcessing ? 'Processando...' : 'Continuar para Pagamento'}
-                        </Button>
-                      </form>
-                    </Form>
-                  </CardContent>
-                </Card>
-              </>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Pagamento</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingPaymentOptions && (
-                    <div className="text-sm text-muted-foreground mb-4">
-                      Carregando opções de pagamento...
+            <Card>
+              <CardHeader>
+                <CardTitle>Endereço de Entrega</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="cep"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CEP</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="00000-000"
+                                onBlur={(e) => handleCEPBlur(e.target.value)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="estado"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Estado</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="UF" maxLength={2} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                  )}
-                  <div id="payment-brick-container" className="min-h-[200px]" />
-                </CardContent>
-              </Card>
-            )}
+
+                    <FormField
+                      control={form.control}
+                      name="rua"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rua</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Nome da rua" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="numero"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Número</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="123" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="complemento"
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-2">
+                            <FormLabel>Complemento (opcional)</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Apto, Bloco, etc." />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="bairro"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Bairro</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Bairro" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="cidade"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cidade</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Cidade" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Forma de Pagamento</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup value={paymentMethod} onValueChange={(value: any) => setPaymentMethod(value)}>
+                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-accent">
+                    <RadioGroupItem value="pix" id="pix" />
+                    <Label htmlFor="pix" className="flex items-center gap-2 cursor-pointer flex-1">
+                      <QrCode className="w-5 h-5" />
+                      <div>
+                        <div className="font-semibold">PIX</div>
+                        <div className="text-sm text-muted-foreground">Aprovação instantânea</div>
+                      </div>
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-accent">
+                    <RadioGroupItem value="card" id="card" />
+                    <Label htmlFor="card" className="flex items-center gap-2 cursor-pointer flex-1">
+                      <CreditCard className="w-5 h-5" />
+                      <div>
+                        <div className="font-semibold">Cartão de Crédito</div>
+                        <div className="text-sm text-muted-foreground">Em até 12x sem juros</div>
+                      </div>
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-accent">
+                    <RadioGroupItem value="boleto" id="boleto" />
+                    <Label htmlFor="boleto" className="flex items-center gap-2 cursor-pointer flex-1">
+                      <FileText className="w-5 h-5" />
+                      <div>
+                        <div className="font-semibold">Boleto Bancário</div>
+                        <div className="text-sm text-muted-foreground">Vencimento em 3 dias úteis</div>
+                      </div>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="lg:col-span-1">
@@ -552,7 +484,7 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {!showPayment && !isCalculatingShipping && pacCost > 0 && (
+                {!isCalculatingShipping && pacCost > 0 && (
                   <>
                     <Separator />
                     <div className="space-y-3">
@@ -563,8 +495,8 @@ export default function Checkout() {
                             <RadioGroupItem value="free" id="free" />
                             <Label htmlFor="free" className="cursor-pointer flex-1">
                               <div className="flex justify-between">
-                                <span className="font-semibold text-green-700 dark:text-green-400">Frete Grátis</span>
-                                <span className="text-xs text-muted-foreground">15 dias</span>
+                                <span className="font-semibold text-green-700 dark:text-green-400">Frete Grátis: R$ 0,00</span>
+                                <span className="text-xs text-muted-foreground">15 dias úteis</span>
                               </div>
                             </Label>
                           </div>
@@ -574,7 +506,7 @@ export default function Checkout() {
                           <Label htmlFor="pac" className="cursor-pointer flex-1">
                             <div className="flex justify-between">
                               <span className="font-semibold">PAC: R$ {pacCost.toFixed(2)}</span>
-                              <span className="text-xs text-muted-foreground">{pacDays} dias</span>
+                              <span className="text-xs text-muted-foreground">{pacDays} dias úteis</span>
                             </div>
                           </Label>
                         </div>
@@ -583,7 +515,7 @@ export default function Checkout() {
                           <Label htmlFor="sedex" className="cursor-pointer flex-1">
                             <div className="flex justify-between">
                               <span className="font-semibold">Sedex: R$ {sedexCost.toFixed(2)}</span>
-                              <span className="text-xs text-muted-foreground">{sedexDays} dias</span>
+                              <span className="text-xs text-muted-foreground">{sedexDays} dias úteis</span>
                             </div>
                           </Label>
                         </div>
@@ -594,11 +526,11 @@ export default function Checkout() {
 
                 {isCalculatingShipping && (
                   <div className="text-sm text-muted-foreground text-center py-2">
-                    Calculando frete...
+                    Calculando opções de frete...
                   </div>
                 )}
 
-                {!showPayment && !isCalculatingShipping && pacCost === 0 && (
+                {!isCalculatingShipping && pacCost === 0 && (
                   <div className="text-sm text-muted-foreground text-center py-2">
                     Informe o CEP para calcular o frete
                   </div>
@@ -611,20 +543,33 @@ export default function Checkout() {
                     <span className="text-muted-foreground">Frete:</span>
                     <span>R$ {shippingCost.toFixed(2)}</span>
                   </div>
+                  {shippingMethod !== 'free' && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Prazo de entrega:</span>
+                      <span>{shippingMethod === 'sedex' ? sedexDays : pacDays} dias úteis</span>
+                    </div>
+                  )}
                 </div>
 
                 <Separator />
 
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total:</span>
-                  <span className="text-primary">R$ {(subtotal + shippingCost).toFixed(2)}</span>
+                  <span className="text-primary">R$ {total.toFixed(2)}</span>
                 </div>
 
-                {showPayment && isProcessing && (
-                  <div className="text-center text-sm text-muted-foreground">
-                    Processando pagamento...
-                  </div>
-                )}
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={form.handleSubmit(onSubmit)}
+                  disabled={isProcessing || pacCost === 0 || isCalculatingShipping}
+                >
+                  {isProcessing ? 'Processando...' : isCalculatingShipping ? 'Calculando frete...' : 'Confirmar Pedido'}
+                </Button>
+
+                <p className="text-xs text-center text-muted-foreground">
+                  Ao confirmar, você concorda com nossos termos de uso
+                </p>
               </CardContent>
             </Card>
           </div>
