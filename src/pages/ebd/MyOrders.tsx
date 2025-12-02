@@ -45,6 +45,7 @@ export default function MyOrders() {
           )
         `)
         .eq('church_id', churchData.id)
+        .neq('status', 'cancelled')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
