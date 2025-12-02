@@ -249,19 +249,59 @@ export default function Checkout() {
         throw pixError;
       }
 
-      if (pixData?.qr_code && pixData?.qr_code_base64) {
+      if (pixData?.qr_code && pixData?.qr_code_base64 && pixData?.id) {
+        // Criar pedido
+        const { data: pedido, error: pedidoError } = await supabase
+          .from('ebd_pedidos')
+          .insert({
+            church_id: churchData.id,
+            mercadopago_payment_id: pixData.id,
+            status: 'pending',
+            payment_status: 'pending',
+            status_logistico: 'AGUARDANDO_ENVIO',
+            valor_produtos: calculateSubtotal(),
+            valor_frete: shippingCost,
+            valor_total: total,
+            metodo_frete: shippingMethod,
+            endereco_cep: data.cep,
+            endereco_rua: data.rua,
+            endereco_numero: data.numero,
+            endereco_complemento: data.complemento,
+            endereco_bairro: data.bairro,
+            endereco_cidade: data.cidade,
+            endereco_estado: data.estado,
+          })
+          .select()
+          .single();
+
+        if (pedidoError) {
+          console.error('Erro ao criar pedido:', pedidoError);
+        } else if (pedido) {
+          // Criar itens do pedido
+          const itens = revistaIds.map(revistaId => {
+            const revista = revistas?.find(r => r.id === revistaId);
+            const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
+            return {
+              pedido_id: pedido.id,
+              revista_id: revistaId,
+              quantidade: cart[revistaId],
+              preco_unitario: precoUnitario,
+              preco_total: precoUnitario * cart[revistaId],
+            };
+          });
+
+          const { error: itensError } = await supabase
+            .from('ebd_pedidos_itens')
+            .insert(itens);
+
+          if (itensError) {
+            console.error('Erro ao criar itens do pedido:', itensError);
+          }
+        }
+
         setPixCode(pixData.qr_code);
         setPixQrCode(pixData.qr_code_base64);
         setShowPixDialog(true);
-        
-        // Registrar compras
-        const purchases = revistaIds.map(revistaId => ({
-          church_id: churchData.id,
-          revista_id: revistaId,
-          preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
-        }));
-
-        await supabase.from('ebd_revistas_compradas').insert(purchases);
       }
     } catch (error) {
       console.error('Erro ao processar PIX:', error);
@@ -275,7 +315,7 @@ export default function Checkout() {
     }
   };
 
-  const processCardPayment = async () => {
+  const processCardPayment = async (data: AddressForm) => {
     if (!cardNumber || !cardHolder || !cardExpiry || !cardCvv) {
       toast({
         title: 'Erro',
@@ -293,7 +333,7 @@ export default function Checkout() {
 
       const { data: churchData } = await supabase
         .from('churches')
-        .select('id, pastor_email, pastor_name, pastor_cpf')
+        .select('id')
         .eq('user_id', user.id)
         .single();
 
@@ -310,12 +350,12 @@ export default function Checkout() {
             description: `Compra de ${revistaIds.length} revista(s) EBD`,
             installments: parseInt(installments),
             payer: {
-              email: churchData.pastor_email,
-              first_name: churchData.pastor_name?.split(' ')[0] || 'Cliente',
-              last_name: churchData.pastor_name?.split(' ').slice(1).join(' ') || '',
+              email: data.email,
+              first_name: data.nome,
+              last_name: data.sobrenome,
               identification: {
                 type: 'CPF',
-                number: churchData.pastor_cpf?.replace(/\D/g, '') || '',
+                number: data.cpf.replace(/\D/g, ''),
               },
             },
             card: {
@@ -390,7 +430,7 @@ export default function Checkout() {
 
       const { data: churchData } = await supabase
         .from('churches')
-        .select('id, pastor_email, pastor_name, pastor_cpf')
+        .select('id')
         .eq('user_id', user.id)
         .single();
 
@@ -404,12 +444,12 @@ export default function Checkout() {
             transaction_amount: total,
             description: `Compra de ${revistaIds.length} revista(s) EBD`,
             payer: {
-              email: churchData.pastor_email,
-              first_name: churchData.pastor_name?.split(' ')[0] || 'Cliente',
-              last_name: churchData.pastor_name?.split(' ').slice(1).join(' ') || '',
+              email: data.email,
+              first_name: data.nome,
+              last_name: data.sobrenome,
               identification: {
                 type: 'CPF',
-                number: churchData.pastor_cpf?.replace(/\D/g, '') || '',
+                number: data.cpf.replace(/\D/g, ''),
               },
               address: {
                 zip_code: data.cep.replace(/\D/g, ''),
@@ -504,6 +544,64 @@ export default function Checkout() {
               <CardContent>
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="nome"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="João" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="sobrenome"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Sobrenome</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="Silva" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="cpf"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CPF</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="000.000.000-00" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input {...field} type="email" placeholder="email@exemplo.com" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
                     <div className="grid md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
@@ -923,7 +1021,10 @@ export default function Checkout() {
                 Cancelar
               </Button>
               <Button
-                onClick={processCardPayment}
+                onClick={() => {
+                  const formData = form.getValues();
+                  processCardPayment(formData);
+                }}
                 className="flex-1"
                 disabled={isProcessing}
               >
