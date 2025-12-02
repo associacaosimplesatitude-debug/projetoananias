@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay } from "date-fns";
@@ -41,6 +42,7 @@ interface Escala {
   observacao: string | null;
   professor: {
     nome_completo: string;
+    avatar_url: string | null;
   } | null;
   turma: {
     id: string;
@@ -138,7 +140,7 @@ export default function EBDSchedule() {
           turma_id,
           tipo,
           observacao,
-          professor:ebd_professores(nome_completo),
+          professor:ebd_professores(nome_completo, avatar_url),
           turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .eq('church_id', churchData.id)
@@ -352,9 +354,17 @@ export default function EBDSchedule() {
                                 Sem aula
                               </span>
                             ) : (
-                              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2">
-                                {escala.professor?.nome_completo}
-                              </span>
+                              <div className="flex flex-col items-center gap-1">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={escala.professor?.avatar_url || undefined} />
+                                  <AvatarFallback className="text-[10px]">
+                                    <User className="h-4 w-4" />
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2 text-center">
+                                  {escala.professor?.nome_completo}
+                                </span>
+                              </div>
                             )}
                           </div>
                           {/* Botões de ação */}
