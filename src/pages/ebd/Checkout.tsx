@@ -14,6 +14,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const addressSchema = z.object({
   cep: z.string().min(8, 'CEP inválido').max(9),
@@ -49,6 +51,15 @@ export default function Checkout() {
     const saved = localStorage.getItem('ebd-cart');
     return saved ? JSON.parse(saved) : {};
   });
+  const [showPixDialog, setShowPixDialog] = useState(false);
+  const [pixQrCode, setPixQrCode] = useState('');
+  const [pixCode, setPixCode] = useState('');
+  const [showCardForm, setShowCardForm] = useState(false);
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [installments, setInstallments] = useState('1');
 
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -156,7 +167,17 @@ export default function Checkout() {
     }
   };
 
-  const onSubmit = async (data: AddressForm) => {
+  const processPayment = async (data: AddressForm) => {
+    if (paymentMethod === 'pix') {
+      await processPixPayment(data);
+    } else if (paymentMethod === 'card') {
+      setShowCardForm(true);
+    } else {
+      await processBoletoPayment(data);
+    }
+  };
+
+  const processPixPayment = async (data: AddressForm) => {
     setIsProcessing(true);
     
     try {
@@ -172,7 +193,7 @@ export default function Checkout() {
 
       const { data: churchData } = await supabase
         .from('churches')
-        .select('id, pastor_email, pastor_name')
+        .select('id, pastor_email, pastor_name, pastor_cpf')
         .eq('user_id', user.id)
         .single();
 
@@ -185,94 +206,265 @@ export default function Checkout() {
         return;
       }
 
-      // Preparar itens para o Mercado Pago
-      const items = revistaIds.map(revistaId => {
-        const revista = revistas?.find(r => r.id === revistaId);
-        return {
-          id: revistaId,
-          title: revista?.titulo || 'Revista EBD',
-          quantity: cart[revistaId],
-          unit_price: (revista?.preco_cheio || 0) * 0.7,
-        };
-      });
-
-      // Adicionar frete como item se houver custo
-      if (shippingCost > 0) {
-        const shippingLabel = shippingMethod === 'sedex' 
-          ? `Frete Sedex (${sedexDays} dias úteis)` 
-          : `Frete PAC (${pacDays} dias úteis)`;
-        
-        items.push({
-          id: 'shipping',
-          title: shippingLabel,
-          quantity: 1,
-          unit_price: shippingCost,
-        });
-      }
-
-      // Criar preferência de pagamento no Mercado Pago
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
-        'create-mercadopago-payment',
+      const { data: pixData, error: pixError } = await supabase.functions.invoke(
+        'process-transparent-payment',
         {
           body: {
-            items,
-            payment_method: paymentMethod,
+            payment_method: 'pix',
+            transaction_amount: total,
+            description: `Compra de ${revistaIds.length} revista(s) EBD`,
             payer: {
               email: churchData.pastor_email,
-              name: churchData.pastor_name || 'Cliente',
+              first_name: churchData.pastor_name?.split(' ')[0] || 'Cliente',
+              last_name: churchData.pastor_name?.split(' ').slice(1).join(' ') || '',
+              identification: {
+                type: 'CPF',
+                number: churchData.pastor_cpf?.replace(/\D/g, '') || '',
+              },
             },
-            address: {
-              street_name: data.rua,
-              street_number: data.numero,
-              zip_code: data.cep.replace(/\D/g, ''),
-            },
+            items: revistaIds.map(revistaId => {
+              const revista = revistas?.find(r => r.id === revistaId);
+              return {
+                id: revistaId,
+                title: revista?.titulo || 'Revista EBD',
+                quantity: cart[revistaId],
+                unit_price: (revista?.preco_cheio || 0) * 0.7,
+              };
+            }),
+            shipping_cost: shippingCost,
           },
         }
       );
 
-      if (paymentError) {
-        console.error('Erro ao criar pagamento:', paymentError);
-        throw paymentError;
+      if (pixError) {
+        console.error('Erro ao processar PIX:', pixError);
+        throw pixError;
       }
 
-      // Registrar compras
-      const purchases = revistaIds.map(revistaId => ({
-        church_id: churchData.id,
-        revista_id: revistaId,
-        preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
-      }));
+      if (pixData?.qr_code && pixData?.qr_code_base64) {
+        setPixCode(pixData.qr_code);
+        setPixQrCode(pixData.qr_code_base64);
+        setShowPixDialog(true);
+        
+        // Registrar compras
+        const purchases = revistaIds.map(revistaId => ({
+          church_id: churchData.id,
+          revista_id: revistaId,
+          preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
+        }));
 
-      const { error: insertError } = await supabase
-        .from('ebd_revistas_compradas')
-        .insert(purchases);
-
-      if (insertError) {
-        console.error('Erro ao registrar compras (continuando para pagamento):', insertError);
-      }
-
-      // Limpar carrinho
-      localStorage.removeItem('ebd-cart');
-
-      // Redirecionar para página de pagamento do Mercado Pago
-      if (paymentData?.init_point) {
-        window.location.href = paymentData.init_point;
-      } else {
-        toast({
-          title: 'Pedido criado!',
-          description: 'Redirecionando para pagamento...',
-        });
-        navigate('/ebd/catalogo');
+        await supabase.from('ebd_revistas_compradas').insert(purchases);
       }
     } catch (error) {
-      console.error('Erro ao processar pedido:', error);
+      console.error('Erro ao processar PIX:', error);
       toast({
-        title: 'Erro ao processar pedido',
+        title: 'Erro ao processar PIX',
         description: 'Tente novamente mais tarde',
         variant: 'destructive',
       });
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const processCardPayment = async () => {
+    if (!cardNumber || !cardHolder || !cardExpiry || !cardCvv) {
+      toast({
+        title: 'Erro',
+        description: 'Preencha todos os dados do cartão',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: churchData } = await supabase
+        .from('churches')
+        .select('id, pastor_email, pastor_name, pastor_cpf')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!churchData) return;
+
+      const [expMonth, expYear] = cardExpiry.split('/');
+
+      const { data: cardData, error: cardError } = await supabase.functions.invoke(
+        'process-transparent-payment',
+        {
+          body: {
+            payment_method: 'card',
+            transaction_amount: total,
+            description: `Compra de ${revistaIds.length} revista(s) EBD`,
+            installments: parseInt(installments),
+            payer: {
+              email: churchData.pastor_email,
+              first_name: churchData.pastor_name?.split(' ')[0] || 'Cliente',
+              last_name: churchData.pastor_name?.split(' ').slice(1).join(' ') || '',
+              identification: {
+                type: 'CPF',
+                number: churchData.pastor_cpf?.replace(/\D/g, '') || '',
+              },
+            },
+            card: {
+              card_number: cardNumber.replace(/\s/g, ''),
+              cardholder_name: cardHolder,
+              expiration_month: expMonth,
+              expiration_year: `20${expYear}`,
+              security_code: cardCvv,
+            },
+            items: revistaIds.map(revistaId => {
+              const revista = revistas?.find(r => r.id === revistaId);
+              return {
+                id: revistaId,
+                title: revista?.titulo || 'Revista EBD',
+                quantity: cart[revistaId],
+                unit_price: (revista?.preco_cheio || 0) * 0.7,
+              };
+            }),
+            shipping_cost: shippingCost,
+          },
+        }
+      );
+
+      if (cardError) {
+        throw cardError;
+      }
+
+      if (cardData?.status === 'approved') {
+        // Registrar compras
+        const purchases = revistaIds.map(revistaId => ({
+          church_id: churchData.id,
+          revista_id: revistaId,
+          preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
+        }));
+
+        await supabase.from('ebd_revistas_compradas').insert(purchases);
+        
+        localStorage.removeItem('ebd-cart');
+        
+        toast({
+          title: 'Pagamento aprovado!',
+          description: 'Seu pedido foi confirmado com sucesso.',
+        });
+        
+        navigate('/ebd/catalogo?status=success');
+      } else {
+        toast({
+          title: 'Pagamento não aprovado',
+          description: cardData?.status_detail || 'Tente novamente ou use outro método',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao processar cartão:', error);
+      toast({
+        title: 'Erro ao processar pagamento',
+        description: 'Tente novamente mais tarde',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+      setShowCardForm(false);
+    }
+  };
+
+  const processBoletoPayment = async (data: AddressForm) => {
+    setIsProcessing(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: churchData } = await supabase
+        .from('churches')
+        .select('id, pastor_email, pastor_name, pastor_cpf')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!churchData) return;
+
+      const { data: boletoData, error: boletoError } = await supabase.functions.invoke(
+        'process-transparent-payment',
+        {
+          body: {
+            payment_method: 'boleto',
+            transaction_amount: total,
+            description: `Compra de ${revistaIds.length} revista(s) EBD`,
+            payer: {
+              email: churchData.pastor_email,
+              first_name: churchData.pastor_name?.split(' ')[0] || 'Cliente',
+              last_name: churchData.pastor_name?.split(' ').slice(1).join(' ') || '',
+              identification: {
+                type: 'CPF',
+                number: churchData.pastor_cpf?.replace(/\D/g, '') || '',
+              },
+              address: {
+                zip_code: data.cep.replace(/\D/g, ''),
+                street_name: data.rua,
+                street_number: data.numero,
+                neighborhood: data.bairro,
+                city: data.cidade,
+                federal_unit: data.estado,
+              },
+            },
+            items: revistaIds.map(revistaId => {
+              const revista = revistas?.find(r => r.id === revistaId);
+              return {
+                id: revistaId,
+                title: revista?.titulo || 'Revista EBD',
+                quantity: cart[revistaId],
+                unit_price: (revista?.preco_cheio || 0) * 0.7,
+              };
+            }),
+            shipping_cost: shippingCost,
+          },
+        }
+      );
+
+      if (boletoError) {
+        throw boletoError;
+      }
+
+      if (boletoData?.external_resource_url) {
+        // Registrar compras
+        const purchases = revistaIds.map(revistaId => ({
+          church_id: churchData.id,
+          revista_id: revistaId,
+          preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
+        }));
+
+        await supabase.from('ebd_revistas_compradas').insert(purchases);
+        
+        localStorage.removeItem('ebd-cart');
+        
+        window.open(boletoData.external_resource_url, '_blank');
+        
+        toast({
+          title: 'Boleto gerado!',
+          description: 'O boleto foi aberto em uma nova aba.',
+        });
+        
+        navigate('/ebd/catalogo?status=pending');
+      }
+    } catch (error) {
+      console.error('Erro ao processar boleto:', error);
+      toast({
+        title: 'Erro ao processar boleto',
+        description: 'Tente novamente mais tarde',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const onSubmit = async (data: AddressForm) => {
+    await processPayment(data);
   };
 
   if (revistaIds.length === 0) {
@@ -575,6 +767,164 @@ export default function Checkout() {
           </div>
         </div>
       </div>
+
+      {/* PIX Dialog */}
+      <Dialog open={showPixDialog} onOpenChange={setShowPixDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pagamento via PIX</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col items-center gap-4">
+              <p className="text-sm text-muted-foreground text-center">
+                Escaneie o QR Code ou copie o código PIX para realizar o pagamento
+              </p>
+              {pixQrCode && (
+                <img
+                  src={`data:image/png;base64,${pixQrCode}`}
+                  alt="QR Code PIX"
+                  className="w-64 h-64"
+                />
+              )}
+              <div className="w-full space-y-2">
+                <Label>Código PIX Copia e Cola</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={pixCode}
+                    readOnly
+                    className="flex-1 text-xs"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(pixCode);
+                      toast({
+                        title: 'Código copiado!',
+                        description: 'Cole no seu aplicativo de pagamentos',
+                      });
+                    }}
+                  >
+                    Copiar
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Após o pagamento, você receberá a confirmação por email
+              </p>
+              <Button
+                onClick={() => {
+                  setShowPixDialog(false);
+                  localStorage.removeItem('ebd-cart');
+                  navigate('/ebd/catalogo?status=pending');
+                }}
+                className="w-full"
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Card Form Dialog */}
+      <Dialog open={showCardForm} onOpenChange={setShowCardForm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dados do Cartão</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cardNumber">Número do Cartão</Label>
+              <Input
+                id="cardNumber"
+                placeholder="0000 0000 0000 0000"
+                value={cardNumber}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, '');
+                  const formatted = value.match(/.{1,4}/g)?.join(' ') || value;
+                  setCardNumber(formatted);
+                }}
+                maxLength={19}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cardHolder">Nome no Cartão</Label>
+              <Input
+                id="cardHolder"
+                placeholder="Nome como está no cartão"
+                value={cardHolder}
+                onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cardExpiry">Validade</Label>
+                <Input
+                  id="cardExpiry"
+                  placeholder="MM/AA"
+                  value={cardExpiry}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    const formatted = value.length >= 2 
+                      ? `${value.slice(0, 2)}/${value.slice(2, 4)}`
+                      : value;
+                    setCardExpiry(formatted);
+                  }}
+                  maxLength={5}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cardCvv">CVV</Label>
+                <Input
+                  id="cardCvv"
+                  placeholder="000"
+                  value={cardCvv}
+                  onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, ''))}
+                  maxLength={4}
+                  type="password"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="installments">Parcelas</Label>
+              <Select value={installments} onValueChange={setInstallments}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
+                    <SelectItem key={num} value={num.toString()}>
+                      {num}x de R$ {(total / num).toFixed(2)} {num === 1 ? '' : 'sem juros'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowCardForm(false)}
+                className="flex-1"
+                disabled={isProcessing}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={processCardPayment}
+                className="flex-1"
+                disabled={isProcessing}
+              >
+                {isProcessing ? 'Processando...' : 'Pagar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

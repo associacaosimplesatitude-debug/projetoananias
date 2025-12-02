@@ -1171,6 +1171,125 @@ export type Database = {
           },
         ]
       }
+      ebd_pedidos: {
+        Row: {
+          approved_at: string | null
+          church_id: string
+          created_at: string | null
+          endereco_bairro: string
+          endereco_cep: string
+          endereco_cidade: string
+          endereco_complemento: string | null
+          endereco_estado: string
+          endereco_numero: string
+          endereco_rua: string
+          id: string
+          mercadopago_payment_id: string | null
+          mercadopago_preference_id: string | null
+          metodo_frete: string | null
+          status: string
+          updated_at: string | null
+          valor_frete: number
+          valor_produtos: number
+          valor_total: number
+        }
+        Insert: {
+          approved_at?: string | null
+          church_id: string
+          created_at?: string | null
+          endereco_bairro: string
+          endereco_cep: string
+          endereco_cidade: string
+          endereco_complemento?: string | null
+          endereco_estado: string
+          endereco_numero: string
+          endereco_rua: string
+          id?: string
+          mercadopago_payment_id?: string | null
+          mercadopago_preference_id?: string | null
+          metodo_frete?: string | null
+          status?: string
+          updated_at?: string | null
+          valor_frete?: number
+          valor_produtos?: number
+          valor_total?: number
+        }
+        Update: {
+          approved_at?: string | null
+          church_id?: string
+          created_at?: string | null
+          endereco_bairro?: string
+          endereco_cep?: string
+          endereco_cidade?: string
+          endereco_complemento?: string | null
+          endereco_estado?: string
+          endereco_numero?: string
+          endereco_rua?: string
+          id?: string
+          mercadopago_payment_id?: string | null
+          mercadopago_preference_id?: string | null
+          metodo_frete?: string | null
+          status?: string
+          updated_at?: string | null
+          valor_frete?: number
+          valor_produtos?: number
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_pedidos_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_pedidos_itens: {
+        Row: {
+          created_at: string | null
+          id: string
+          pedido_id: string
+          preco_total: number
+          preco_unitario: number
+          quantidade: number
+          revista_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pedido_id: string
+          preco_total: number
+          preco_unitario: number
+          quantidade: number
+          revista_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pedido_id?: string
+          preco_total?: number
+          preco_unitario?: number
+          quantidade?: number
+          revista_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_pedidos_itens_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_pedidos_itens_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_revistas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_planejamento: {
         Row: {
           church_id: string
