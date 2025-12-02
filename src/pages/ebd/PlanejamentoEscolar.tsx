@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, BookOpen, ShoppingBag } from "lucide-react";
+import { Calendar, BookOpen, ShoppingBag, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RevistaDetailDialog } from "@/components/ebd/RevistaDetailDialog";
@@ -11,6 +11,30 @@ import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
 import { CriarPlanejamentoDialog } from "@/components/ebd/CriarPlanejamentoDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const FAIXAS_ETARIAS = [
   "Jovens e Adultos",
@@ -21,6 +45,16 @@ const FAIXAS_ETARIAS = [
   "Adolescentes: 12 a 14 Anos",
   "Adolescentes+: 15 a 17 Anos",
 ] as const;
+
+const diasSemana = [
+  { value: "Domingo", label: "Domingo" },
+  { value: "Segunda-feira", label: "Segunda-feira" },
+  { value: "Terça-feira", label: "Terça-feira" },
+  { value: "Quarta-feira", label: "Quarta-feira" },
+  { value: "Quinta-feira", label: "Quinta-feira" },
+  { value: "Sexta-feira", label: "Sexta-feira" },
+  { value: "Sábado", label: "Sábado" },
+];
 
 interface Revista {
   id: string;
@@ -50,9 +84,18 @@ interface PedidoItem {
 
 export default function PlanejamentoEscolar() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [faixaEtariaSelecionada, setFaixaEtariaSelecionada] = useState<string>("");
   const [revistaDialog, setRevistaDialog] = useState<Revista | null>(null);
   const [planejamentoEscala, setPlanejamentoEscala] = useState<Planejamento | null>(null);
+  
+  // Estados para edição e exclusão
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedPlanejamento, setSelectedPlanejamento] = useState<Planejamento | null>(null);
+  const [editDiaSemana, setEditDiaSemana] = useState("");
+  const [editDataInicio, setEditDataInicio] = useState<Date | undefined>(undefined);
+  const [editDataTermino, setEditDataTermino] = useState<Date | undefined>(undefined);
 
   // Buscar church_id do usuário
   const { data: churchData } = useQuery({
@@ -144,6 +187,71 @@ export default function PlanejamentoEscolar() {
     },
     enabled: !!churchData?.id,
   });
+
+  // Mutation para editar planejamento
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPlanejamento || !editDiaSemana || !editDataInicio || !editDataTermino) {
+        throw new Error("Dados incompletos");
+      }
+
+      const { error } = await supabase
+        .from('ebd_planejamento')
+        .update({
+          dia_semana: editDiaSemana,
+          data_inicio: format(editDataInicio, 'yyyy-MM-dd'),
+          data_termino: format(editDataTermino, 'yyyy-MM-dd'),
+        })
+        .eq('id', selectedPlanejamento.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-planejamentos'] });
+      toast.success('Planejamento atualizado com sucesso!');
+      setEditDialogOpen(false);
+      setSelectedPlanejamento(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao atualizar planejamento');
+    },
+  });
+
+  // Mutation para excluir planejamento
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPlanejamento) throw new Error("Planejamento não selecionado");
+
+      const { error } = await supabase
+        .from('ebd_planejamento')
+        .delete()
+        .eq('id', selectedPlanejamento.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-planejamentos'] });
+      toast.success('Planejamento excluído com sucesso!');
+      setDeleteDialogOpen(false);
+      setSelectedPlanejamento(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao excluir planejamento');
+    },
+  });
+
+  const handleEdit = (planejamento: Planejamento) => {
+    setSelectedPlanejamento(planejamento);
+    setEditDiaSemana(planejamento.dia_semana);
+    setEditDataInicio(new Date(planejamento.data_inicio));
+    setEditDataTermino(new Date(planejamento.data_termino));
+    setEditDialogOpen(true);
+  };
+
+  const handleDelete = (planejamento: Planejamento) => {
+    setSelectedPlanejamento(planejamento);
+    setDeleteDialogOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -255,15 +363,31 @@ export default function PlanejamentoEscolar() {
                     </div>
                   </div>
 
-                  {/* Botão */}
-                  <Button 
-                    size="sm"
-                    onClick={() => setPlanejamentoEscala(planejamento)}
-                    className="flex-shrink-0"
-                  >
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Montar Escala
-                  </Button>
+                  {/* Botões de ação */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button 
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEdit(planejamento)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => handleDelete(planejamento)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      size="sm"
+                      onClick={() => setPlanejamentoEscala(planejamento)}
+                    >
+                      <Calendar className="w-4 h-4 mr-2" />
+                      Ver Escala
+                    </Button>
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -355,6 +479,126 @@ export default function PlanejamentoEscolar() {
             churchId={churchData?.id}
           />
         )}
+
+        {/* Dialog de Edição */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Planejamento</DialogTitle>
+              <DialogDescription>
+                {selectedPlanejamento?.ebd_revistas.titulo}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Dia da Aula</Label>
+                <Select value={editDiaSemana} onValueChange={setEditDiaSemana}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o dia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {diasSemana.map((dia) => (
+                      <SelectItem key={dia.value} value={dia.value}>
+                        {dia.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data de Início</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !editDataInicio && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editDataInicio ? format(editDataInicio, "PPP", { locale: ptBR }) : "Selecione a data"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={editDataInicio}
+                      onSelect={setEditDataInicio}
+                      initialFocus
+                      locale={ptBR}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data de Término</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !editDataTermino && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editDataTermino ? format(editDataTermino, "PPP", { locale: ptBR }) : "Selecione a data"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={editDataTermino}
+                      onSelect={setEditDataTermino}
+                      initialFocus
+                      locale={ptBR}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={() => editMutation.mutate()}
+                disabled={editMutation.isPending}
+              >
+                {editMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Confirmação de Exclusão */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Planejamento</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o planejamento da revista "{selectedPlanejamento?.ebd_revistas.titulo}"? 
+                Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteMutation.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
