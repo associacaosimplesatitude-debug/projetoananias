@@ -11,8 +11,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus } from "lucide-react";
-import AgeRangeDialog from "./AgeRangeDialog";
 
 interface ClassroomDialogProps {
   open: boolean;
@@ -27,7 +25,6 @@ interface FormData {
 
 export default function ClassroomDialog({ open, onOpenChange, churchId }: ClassroomDialogProps) {
   const [selectedProfessores, setSelectedProfessores] = useState<string[]>([]);
-  const [ageRangeDialogOpen, setAgeRangeDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const form = useForm<FormData>({
@@ -38,24 +35,24 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
   });
   const { register, handleSubmit, reset, formState: { errors }, watch } = form;
 
-  // Buscar faixas etárias
+  // Buscar faixas etárias das revistas cadastradas
   const { data: ageRanges, isLoading: loadingAgeRanges } = useQuery({
-    queryKey: ["ebd-age-ranges", churchId],
+    queryKey: ["ebd-revistas-faixas"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ebd_faixas_etarias")
-        .select("*")
-        .eq("church_id", churchId)
-        .order("idade_min", { ascending: true });
+        .from("ebd_revistas")
+        .select("faixa_etaria_alvo");
       
       if (error) throw error;
-      return data;
+      
+      // Extrair valores únicos
+      const uniqueFaixas = [...new Set(data.map(r => r.faixa_etaria_alvo))];
+      return uniqueFaixas.sort();
     },
-    enabled: open && !!churchId,
+    enabled: open,
   });
 
-  const selectedAgeRangeId = watch("faixa_etaria_id");
-  const selectedAgeRange = ageRanges?.find(range => range.id === selectedAgeRangeId);
+  const selectedFaixaEtaria = watch("faixa_etaria_id");
 
   // Buscar professores ativos
   const { data: professores, isLoading: loadingProfessores } = useQuery({
@@ -76,7 +73,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
 
   const createTurmaMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      if (!selectedAgeRange) {
+      if (!formData.faixa_etaria_id) {
         throw new Error("Faixa etária não selecionada");
       }
 
@@ -90,7 +87,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
         .insert({
           church_id: churchId,
           nome: formData.nome_turma.trim(),
-          faixa_etaria: `${selectedAgeRange.idade_min}-${selectedAgeRange.idade_max} anos`,
+          faixa_etaria: formData.faixa_etaria_id,
         })
         .select()
         .single();
@@ -146,7 +143,6 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
   if (!churchId) return null;
 
   return (
-    <>
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -176,26 +172,17 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
                           </div>
                         ) : !ageRanges || ageRanges.length === 0 ? (
                           <div className="p-4 text-center text-sm text-muted-foreground">
-                            Nenhuma faixa etária cadastrada. Clique em "+ Nova Faixa".
+                            Nenhuma faixa etária disponível.
                           </div>
                         ) : (
-                          ageRanges.map((range) => (
-                            <SelectItem key={range.id} value={range.id}>
-                              {range.nome_faixa} ({range.idade_min}-{range.idade_max} anos)
+                          ageRanges.map((faixa) => (
+                            <SelectItem key={faixa} value={faixa}>
+                              {faixa}
                             </SelectItem>
                           ))
                         )}
                       </SelectContent>
                     </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setAgeRangeDialogOpen(true)}
-                      title="Nova Faixa Etária"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
                   </div>
                   <FormMessage />
                 </FormItem>
@@ -274,12 +261,5 @@ export default function ClassroomDialog({ open, onOpenChange, churchId }: Classr
           </Form>
         </DialogContent>
       </Dialog>
-
-      <AgeRangeDialog
-        open={ageRangeDialogOpen}
-        onOpenChange={setAgeRangeDialogOpen}
-        churchId={churchId}
-      />
-    </>
   );
 }
