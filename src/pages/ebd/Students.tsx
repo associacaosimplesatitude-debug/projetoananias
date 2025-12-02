@@ -3,12 +3,13 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Users, UserPlus } from "lucide-react";
+import { Search, Users, UserPlus, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import MemberSearchDialog from "@/components/ebd/MemberSearchDialog";
 import ActivateMemberDialog from "@/components/ebd/ActivateMemberDialog";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function EBDStudents() {
   const { clientId } = useParams();
@@ -134,8 +135,14 @@ export default function EBDStudents() {
                 {alunos.map((record) => (
                   <Card key={record.id}>
                     <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
+                      <div className="flex items-start gap-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={record.avatar_url} />
+                          <AvatarFallback>
+                            <User className="h-6 w-6" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold">{record.nome_completo}</h3>
                             <Badge variant="default">
