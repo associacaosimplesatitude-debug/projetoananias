@@ -51,6 +51,7 @@ export default function MyOrders() {
       if (error) throw error;
       return data;
     },
+    refetchInterval: 30000, // Refetch a cada 30 segundos
   });
 
   // Apply filters
