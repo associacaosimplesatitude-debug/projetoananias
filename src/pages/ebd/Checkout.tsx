@@ -297,6 +297,15 @@ export default function Checkout() {
           if (itensError) {
             console.error('Erro ao criar itens do pedido:', itensError);
           }
+
+          // Enviar email de confirmação de pedido
+          try {
+            await supabase.functions.invoke('send-order-email', {
+              body: { orderId: pedido.id, emailType: 'order_created' },
+            });
+          } catch (emailError) {
+            console.error('Erro ao enviar email:', emailError);
+          }
         }
 
         setPixCode(pixData.qr_code);
@@ -441,6 +450,15 @@ export default function Checkout() {
           }));
 
           await supabase.from('ebd_revistas_compradas').insert(purchases);
+
+          // Enviar email de pagamento aprovado
+          try {
+            await supabase.functions.invoke('send-order-email', {
+              body: { orderId: pedido.id, emailType: 'payment_approved' },
+            });
+          } catch (emailError) {
+            console.error('Erro ao enviar email:', emailError);
+          }
         }
         
         localStorage.removeItem('ebd-cart');
@@ -570,6 +588,15 @@ export default function Checkout() {
 
           if (itensError) {
             console.error('Erro ao criar itens do pedido:', itensError);
+          }
+
+          // Enviar email de confirmação de pedido
+          try {
+            await supabase.functions.invoke('send-order-email', {
+              body: { orderId: pedido.id, emailType: 'order_created' },
+            });
+          } catch (emailError) {
+            console.error('Erro ao enviar email:', emailError);
           }
         }
         

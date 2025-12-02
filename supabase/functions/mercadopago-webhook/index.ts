@@ -65,9 +65,11 @@ serve(async (req) => {
       // Atualizar status do pedido baseado no status do pagamento
       let newStatus = pedido.status;
       let paymentStatus = payment.status;
+      let emailType = '';
 
       if (payment.status === 'approved') {
         newStatus = 'PAGO';
+        emailType = 'payment_approved';
         
         // Ativar revistas compradas
         const { data: itens } = await supabase
@@ -87,6 +89,9 @@ serve(async (req) => {
         }
       } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
         newStatus = 'CANCELADO';
+        emailType = 'payment_rejected';
+      } else if (payment.status === 'pending' || payment.status === 'in_process') {
+        emailType = 'payment_pending';
       }
 
       // Atualizar pedido
@@ -100,6 +105,33 @@ serve(async (req) => {
         .eq('id', pedido.id);
 
       console.log('Pedido atualizado:', pedido.id, 'Novo status:', newStatus);
+
+      // Enviar email de notificação
+      if (emailType) {
+        try {
+          console.log('Enviando email:', emailType, 'para pedido:', pedido.id);
+          const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-order-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({
+              orderId: pedido.id,
+              emailType: emailType,
+            }),
+          });
+
+          if (!emailResponse.ok) {
+            const errorText = await emailResponse.text();
+            console.error('Erro ao enviar email:', errorText);
+          } else {
+            console.log('Email enviado com sucesso');
+          }
+        } catch (emailError) {
+          console.error('Erro ao chamar função de email:', emailError);
+        }
+      }
     }
 
     return new Response(
