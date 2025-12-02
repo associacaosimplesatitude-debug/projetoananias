@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, BookOpen } from "lucide-react";
+import { Calendar, BookOpen, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RevistaDetailDialog } from "@/components/ebd/RevistaDetailDialog";
@@ -41,6 +41,12 @@ interface Planejamento {
   ebd_revistas: Revista;
 }
 
+interface PedidoItem {
+  id: string;
+  quantidade: number;
+  revista: Revista;
+}
+
 export default function PlanejamentoEscolar() {
   const { user } = useAuth();
   const [faixaEtariaSelecionada, setFaixaEtariaSelecionada] = useState<string>("");
@@ -62,6 +68,44 @@ export default function PlanejamentoEscolar() {
       return data;
     },
     enabled: !!user,
+  });
+
+  // Buscar revistas de pedidos pagos
+  const { data: revistasPagas, isLoading: loadingPagas } = useQuery({
+    queryKey: ['ebd-revistas-pagas', churchData?.id],
+    queryFn: async () => {
+      if (!churchData?.id) return [];
+      const { data, error } = await supabase
+        .from('ebd_pedidos')
+        .select(`
+          id,
+          ebd_pedidos_itens(
+            id,
+            quantidade,
+            revista:ebd_revistas(*)
+          )
+        `)
+        .eq('church_id', churchData.id)
+        .eq('payment_status', 'approved');
+
+      if (error) throw error;
+      
+      // Flatten items from all orders
+      const items: PedidoItem[] = [];
+      data?.forEach(pedido => {
+        pedido.ebd_pedidos_itens?.forEach(item => {
+          if (item.revista) {
+            items.push({
+              id: item.id,
+              quantidade: item.quantidade,
+              revista: item.revista as Revista
+            });
+          }
+        });
+      });
+      return items;
+    },
+    enabled: !!churchData?.id,
   });
 
   // Buscar revistas por faixa etária
@@ -109,6 +153,53 @@ export default function PlanejamentoEscolar() {
             <p className="text-muted-foreground">Selecione revistas e monte a escala de professores</p>
           </div>
         </div>
+
+        {/* Revistas de Pedidos Pagos */}
+        {revistasPagas && revistasPagas.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingBag className="h-5 w-5" />
+                Revistas Compradas
+              </CardTitle>
+              <CardDescription>Revistas dos seus pedidos pagos prontas para uso</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {revistasPagas.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-col items-center gap-2 p-3 border rounded-lg bg-card"
+                  >
+                    <div className="w-16 h-20 bg-muted rounded overflow-hidden">
+                      {item.revista.imagem_url ? (
+                        <img
+                          src={item.revista.imagem_url}
+                          alt={item.revista.titulo}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <BookOpen className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-center font-medium line-clamp-2">{item.revista.titulo}</p>
+                    <p className="text-xs text-muted-foreground">Qtd: {item.quantidade}</p>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="text-xs h-7 px-2"
+                      onClick={() => setRevistaDialog(item.revista)}
+                    >
+                      Usar essa revista
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Planejamentos Existentes */}
         {planejamentos && planejamentos.length > 0 && (
