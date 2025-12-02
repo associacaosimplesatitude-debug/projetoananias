@@ -485,32 +485,43 @@ export default function PlanejamentoEscolar() {
           </div>
         </div>
 
-        {/* Tabs para Pendentes, Escala da Semana e Ativas */}
-        <Tabs defaultValue="pendentes" className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-3">
-            <TabsTrigger value="pendentes" className="flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4" />
-              Pendentes
-              {revistasPendentesPlanejamento.length > 0 && (
-                <span className="ml-1 bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full">
-                  {revistasPendentesPlanejamento.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="escala" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Escala da Semana
-            </TabsTrigger>
-            <TabsTrigger value="ativas" className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              Revistas Ativas
-              {revistasEmUso.length > 0 && (
-                <span className="ml-1 bg-green-500/20 text-green-600 text-xs px-2 py-0.5 rounded-full">
-                  {revistasEmUso.length}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
+        {/* Escala da Semana */}
+        {churchData?.id && (
+          <EscalaSemanaCard churchId={churchData.id} />
+        )}
+
+        {/* Tabs para Revistas Compradas, Em Uso e Finalizadas */}
+        {revistasPagas && revistasPagas.length > 0 && (
+          <Tabs defaultValue="pendentes" className="w-full">
+            <TabsList className="grid w-full max-w-2xl grid-cols-3">
+              <TabsTrigger value="pendentes" className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4" />
+                Revistas Compradas
+                {revistasPendentesPlanejamento.length > 0 && (
+                  <span className="ml-1 bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full">
+                    {revistasPendentesPlanejamento.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="emuso" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Revistas em Uso
+                {revistasEmUso.length > 0 && (
+                  <span className="ml-1 bg-green-500/20 text-green-600 text-xs px-2 py-0.5 rounded-full">
+                    {revistasEmUso.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="finalizadas" className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                Finalizadas
+                {revistasFinalizadas.length > 0 && (
+                  <span className="ml-1 bg-blue-500/20 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                    {revistasFinalizadas.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
 
             <TabsContent value="pendentes">
               <Card>
@@ -565,27 +576,12 @@ export default function PlanejamentoEscolar() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="escala">
-              {churchData?.id ? (
-                <EscalaSemanaCard churchId={churchData.id} />
-              ) : (
-                <Card>
-                  <CardContent className="py-8">
-                    <div className="text-center text-muted-foreground">
-                      <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p className="font-medium">Carregando dados da igreja...</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="ativas">
+            <TabsContent value="emuso">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BookOpen className="h-5 w-5 text-green-500" />
-                    Revistas Ativas
+                    Revistas em Uso
                   </CardTitle>
                   <CardDescription>Revistas com escala montada em andamento</CardDescription>
                 </CardHeader>
@@ -593,7 +589,7 @@ export default function PlanejamentoEscolar() {
                   {revistasEmUso.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p className="font-medium">Nenhuma revista ativa</p>
+                      <p className="font-medium">Nenhuma revista em uso</p>
                       <p className="text-sm">Monte a escala das suas revistas compradas para vê-las aqui.</p>
                     </div>
                   ) : (
@@ -659,7 +655,83 @@ export default function PlanejamentoEscolar() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="finalizadas">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-blue-500" />
+                    Revistas Finalizadas
+                  </CardTitle>
+                  <CardDescription>Revistas que já completaram todas as aulas</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {revistasFinalizadas.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CheckCircle2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="font-medium">Nenhuma revista finalizada</p>
+                      <p className="text-sm">Revistas aparecerão aqui quando completarem todas as aulas.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {revistasFinalizadas.map((item) => {
+                        const planejamento = planejamentosComEscala.find(
+                          p => p.revista_id === item.revista.id
+                        );
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex flex-col items-center gap-2 p-3 border rounded-lg bg-card border-blue-500/30"
+                          >
+                            <div className="relative w-16 h-20 bg-muted rounded overflow-hidden">
+                              {item.revista.imagem_url ? (
+                                <img
+                                  src={item.revista.imagem_url}
+                                  alt={item.revista.titulo}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <BookOpen className="w-6 h-6 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="absolute top-1 right-1 bg-blue-500 rounded-full p-0.5">
+                                <CheckCircle2 className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
+                            <p className="text-xs text-center font-medium line-clamp-2">{item.revista.titulo}</p>
+                            <p className="text-xs text-muted-foreground">{item.revista.faixa_etaria_alvo}</p>
+                            <div className="w-full space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Concluído</span>
+                                <span className="font-medium text-blue-600">100%</span>
+                              </div>
+                              <Progress 
+                                value={100} 
+                                className="h-1.5" 
+                                indicatorClassName="bg-blue-500"
+                              />
+                            </div>
+                            {planejamento && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-xs h-7 px-2"
+                                onClick={() => setViewEscalaPlanejamento(planejamento)}
+                              >
+                                VER ESCALA
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
+        )}
 
         {/* Planejamentos Existentes */}
         {planejamentos && planejamentos.length > 0 && (
