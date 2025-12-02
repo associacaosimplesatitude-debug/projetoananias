@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search, Users, UserPlus } from "lucide-react";
+import { Search, Users, UserPlus, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function EBDTeachers() {
   const { clientId } = useParams();
@@ -105,8 +106,14 @@ export default function EBDTeachers() {
                 {professores.map((professor) => (
                   <Card key={professor.id}>
                     <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
+                      <div className="flex items-start gap-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={professor.avatar_url} />
+                          <AvatarFallback>
+                            <User className="h-6 w-6" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold">{professor.nome_completo}</h3>
                             <Badge variant="secondary">
