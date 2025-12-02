@@ -25,7 +25,7 @@ export default function MyOrders() {
         .from('churches')
         .select('id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (!churchData) throw new Error('Igreja não encontrada');
 
@@ -49,9 +49,11 @@ export default function MyOrders() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data || [];
     },
-    refetchInterval: 30000, // Refetch a cada 30 segundos
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   // Apply filters
