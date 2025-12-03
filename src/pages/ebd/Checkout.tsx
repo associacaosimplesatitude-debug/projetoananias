@@ -17,17 +17,115 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+// Função para validar CPF
+const validateCPF = (cpf: string): boolean => {
+  const cleanCPF = cpf.replace(/\D/g, '');
+  
+  if (cleanCPF.length !== 11) return false;
+  
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
+  
+  // Validação do primeiro dígito verificador
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cleanCPF[i]) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF[9])) return false;
+  
+  // Validação do segundo dígito verificador
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cleanCPF[i]) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF[10])) return false;
+  
+  return true;
+};
+
+// Função para validar CNPJ
+const validateCNPJ = (cnpj: string): boolean => {
+  const cleanCNPJ = cnpj.replace(/\D/g, '');
+  
+  if (cleanCNPJ.length !== 14) return false;
+  
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false;
+  
+  // Validação do primeiro dígito verificador
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += parseInt(cleanCNPJ[i]) * weights1[i];
+  }
+  let remainder = sum % 11;
+  const digit1 = remainder < 2 ? 0 : 11 - remainder;
+  if (digit1 !== parseInt(cleanCNPJ[12])) return false;
+  
+  // Validação do segundo dígito verificador
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  sum = 0;
+  for (let i = 0; i < 13; i++) {
+    sum += parseInt(cleanCNPJ[i]) * weights2[i];
+  }
+  remainder = sum % 11;
+  const digit2 = remainder < 2 ? 0 : 11 - remainder;
+  if (digit2 !== parseInt(cleanCNPJ[13])) return false;
+  
+  return true;
+};
+
+// Função para validar CPF ou CNPJ
+const validateCPFOrCNPJ = (value: string): boolean => {
+  const cleanValue = value.replace(/\D/g, '');
+  
+  if (cleanValue.length === 11) {
+    return validateCPF(cleanValue);
+  } else if (cleanValue.length === 14) {
+    return validateCNPJ(cleanValue);
+  }
+  
+  return false;
+};
+
+// Função para formatar CPF/CNPJ
+const formatCPFOrCNPJ = (value: string): string => {
+  const cleanValue = value.replace(/\D/g, '');
+  
+  if (cleanValue.length <= 11) {
+    // Formato CPF: 000.000.000-00
+    return cleanValue
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  } else {
+    // Formato CNPJ: 00.000.000/0000-00
+    return cleanValue
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1/$2')
+      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+  }
+};
+
 const addressSchema = z.object({
-  nome: z.string().min(3, 'Nome é obrigatório'),
-  sobrenome: z.string().min(2, 'Sobrenome é obrigatório'),
-  cpf: z.string().min(11, 'CPF inválido').max(14),
-  email: z.string().email('Email inválido'),
+  nome: z.string().min(3, 'Nome é obrigatório').max(100, 'Nome muito longo'),
+  sobrenome: z.string().min(2, 'Sobrenome é obrigatório').max(100, 'Sobrenome muito longo'),
+  cpf: z.string()
+    .min(11, 'CPF/CNPJ inválido')
+    .max(18, 'CPF/CNPJ inválido')
+    .refine(validateCPFOrCNPJ, { message: 'CPF ou CNPJ inválido' }),
+  email: z.string().email('Email inválido').max(255, 'Email muito longo'),
   cep: z.string().min(8, 'CEP inválido').max(9),
-  rua: z.string().min(3, 'Rua é obrigatória'),
-  numero: z.string().min(1, 'Número é obrigatório'),
-  complemento: z.string().optional(),
-  bairro: z.string().min(2, 'Bairro é obrigatório'),
-  cidade: z.string().min(2, 'Cidade é obrigatória'),
+  rua: z.string().min(3, 'Rua é obrigatória').max(200, 'Endereço muito longo'),
+  numero: z.string().min(1, 'Número é obrigatório').max(20, 'Número muito longo'),
+  complemento: z.string().max(100, 'Complemento muito longo').optional(),
+  bairro: z.string().min(2, 'Bairro é obrigatório').max(100, 'Bairro muito longo'),
+  cidade: z.string().min(2, 'Cidade é obrigatória').max(100, 'Cidade muito longa'),
   estado: z.string().length(2, 'Estado deve ter 2 letras'),
 });
 
@@ -872,9 +970,17 @@ export default function Checkout() {
                         name="cpf"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>CPF</FormLabel>
+                            <FormLabel>CPF/CNPJ</FormLabel>
                             <FormControl>
-                              <Input {...field} placeholder="000.000.000-00" />
+                              <Input 
+                                {...field} 
+                                placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                                maxLength={18}
+                                onChange={(e) => {
+                                  const formatted = formatCPFOrCNPJ(e.target.value);
+                                  field.onChange(formatted);
+                                }}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
