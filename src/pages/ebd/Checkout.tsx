@@ -1022,8 +1022,12 @@ export default function Checkout() {
                                 onChange={(e) => {
                                   const formatted = formatCEP(e.target.value);
                                   field.onChange(formatted);
+                                  // Busca automática quando CEP estiver completo (8 dígitos)
+                                  const cleanCEP = formatted.replace(/\D/g, '');
+                                  if (cleanCEP.length === 8) {
+                                    handleCEPBlur(formatted);
+                                  }
                                 }}
-                                onBlur={(e) => handleCEPBlur(e.target.value)}
                               />
                             </FormControl>
                             <FormMessage />
