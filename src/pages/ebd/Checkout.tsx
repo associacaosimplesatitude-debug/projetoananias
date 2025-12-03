@@ -171,6 +171,7 @@ export default function Checkout() {
   const [pacDays, setPacDays] = useState<number>(0);
   const [sedexDays, setSedexDays] = useState<number>(0);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [isCepValid, setIsCepValid] = useState<boolean | null>(null);
   const [cart, setCart] = useState<{ [key: string]: number }>(() => {
     const saved = localStorage.getItem('ebd-cart');
     return saved ? JSON.parse(saved) : {};
@@ -325,18 +326,32 @@ export default function Checkout() {
     const cleanCEP = cep.replace(/\D/g, '');
     if (cleanCEP.length === 8) {
       try {
+        setIsCalculatingShipping(true);
+        setIsCepValid(null);
+        
         // Buscar endereço
         const response = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
         const data = await response.json();
-        if (!data.erro) {
-          form.setValue('rua', data.logradouro);
-          form.setValue('bairro', data.bairro);
-          form.setValue('cidade', data.localidade);
-          form.setValue('estado', data.uf);
+        
+        if (data.erro) {
+          setIsCepValid(false);
+          setPacCost(0);
+          setSedexCost(0);
+          toast({
+            title: 'CEP não encontrado',
+            description: 'Verifique se o CEP está correto e tente novamente.',
+            variant: 'destructive',
+          });
+          return;
         }
+        
+        setIsCepValid(true);
+        form.setValue('rua', data.logradouro || '');
+        form.setValue('bairro', data.bairro || '');
+        form.setValue('cidade', data.localidade || '');
+        form.setValue('estado', data.uf || '');
 
         // Calcular frete
-        setIsCalculatingShipping(true);
         const items = revistaIds.map(revistaId => ({
           id: revistaId,
           quantity: cart[revistaId],
@@ -374,9 +389,17 @@ export default function Checkout() {
         }
       } catch (error) {
         console.error('Erro ao processar CEP:', error);
+        setIsCepValid(false);
+        toast({
+          title: 'Erro ao buscar CEP',
+          description: 'Verifique sua conexão e tente novamente.',
+          variant: 'destructive',
+        });
       } finally {
         setIsCalculatingShipping(false);
       }
+    } else {
+      setIsCepValid(null);
     }
   };
 
@@ -1275,9 +1298,9 @@ export default function Checkout() {
                   className="w-full"
                   size="lg"
                   onClick={form.handleSubmit(onSubmit)}
-                  disabled={isProcessing || pacCost === 0 || isCalculatingShipping}
+                  disabled={isProcessing || pacCost === 0 || isCalculatingShipping || isCepValid === false}
                 >
-                  {isProcessing ? 'Processando...' : isCalculatingShipping ? 'Calculando frete...' : 'Confirmar Pedido'}
+                  {isProcessing ? 'Processando...' : isCalculatingShipping ? 'Calculando frete...' : isCepValid === false ? 'CEP inválido' : 'Confirmar Pedido'}
                 </Button>
 
                 <p className="text-xs text-center text-muted-foreground">
