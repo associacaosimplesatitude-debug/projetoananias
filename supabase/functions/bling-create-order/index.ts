@@ -62,6 +62,7 @@ const {
       numeroDocumento: documento,
       email: cliente.email || '',
       telefone: cliente.telefone?.replace(/\D/g, '') || '',
+      situacao: 'A', // A = Ativo (obrigatório para Bling API v3)
     };
 
     console.log('Criando contato do Cliente no Bling:', JSON.stringify(contatoData, null, 2));
@@ -112,6 +113,7 @@ const {
       const genericContatoData = {
         nome: nomeCompleto || 'Consumidor Final',
         tipo: 'F',
+        situacao: 'A', // A = Ativo (obrigatório para Bling API v3)
       };
 
       const genericResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
