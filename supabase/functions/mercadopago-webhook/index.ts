@@ -100,17 +100,17 @@ serve(async (req) => {
           try {
             console.log('Criando pedido no Bling para pedido:', pedido.id);
             
-            // Dados da Igreja (cliente principal)
-            const igreja = {
-              nome: pedido.church?.church_name || 'Cliente',
-              email: pedido.church?.pastor_email || pedido.email_cliente,
-              telefone: pedido.church?.pastor_whatsapp,
-              cnpj: pedido.church?.cnpj,
+            // Dados do Cliente (do formulário de checkout)
+            const cliente = {
+              nome: pedido.nome_cliente || pedido.email_cliente?.split('@')[0] || 'Cliente',
+              sobrenome: pedido.sobrenome_cliente || '',
+              cpf_cnpj: pedido.cpf_cnpj_cliente || pedido.church?.cnpj || '',
+              email: pedido.email_cliente || '',
+              telefone: pedido.telefone_cliente || pedido.church?.pastor_whatsapp || '',
             };
 
             // Endereço de entrega (do formulário de checkout)
             const endereco_entrega = {
-              nome: pedido.email_cliente?.split('@')[0] || 'Destinatário',
               rua: pedido.endereco_rua,
               numero: pedido.endereco_numero,
               complemento: pedido.endereco_complemento,
@@ -118,7 +118,6 @@ serve(async (req) => {
               cep: pedido.endereco_cep,
               cidade: pedido.endereco_cidade,
               estado: pedido.endereco_estado,
-              telefone: pedido.church?.pastor_whatsapp,
             };
 
             // Preparar itens com preço já com desconto (30% off)
@@ -148,7 +147,7 @@ serve(async (req) => {
                 'Authorization': `Bearer ${supabaseKey}`,
               },
               body: JSON.stringify({
-                igreja,
+                cliente,
                 endereco_entrega,
                 itens: itensBling,
                 pedido_id: pedido.id.slice(0, 8).toUpperCase(),
