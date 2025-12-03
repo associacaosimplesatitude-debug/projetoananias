@@ -1216,6 +1216,7 @@ export type Database = {
       ebd_pedidos: {
         Row: {
           approved_at: string | null
+          bling_order_id: number | null
           church_id: string
           codigo_rastreio: string | null
           created_at: string | null
@@ -1241,6 +1242,7 @@ export type Database = {
         }
         Insert: {
           approved_at?: string | null
+          bling_order_id?: number | null
           church_id: string
           codigo_rastreio?: string | null
           created_at?: string | null
@@ -1266,6 +1268,7 @@ export type Database = {
         }
         Update: {
           approved_at?: string | null
+          bling_order_id?: number | null
           church_id?: string
           codigo_rastreio?: string | null
           created_at?: string | null
