@@ -32,12 +32,16 @@ function stripHtmlTags(html: string | null | undefined): string | null {
   return text;
 }
 
-async function refreshTokenIfNeeded(supabase: any, config: any) {
+async function refreshTokenIfNeeded(supabase: any, config: any, forceRefresh: boolean = false) {
   const now = new Date();
   const expiresAt = config.token_expires_at ? new Date(config.token_expires_at) : null;
   
-  // Se o token expira em menos de 30 minutos, renova
-  if (expiresAt && expiresAt.getTime() - now.getTime() < 30 * 60 * 1000) {
+  // Renova se: forçado, token expirado, ou expira em menos de 30 minutos
+  const isExpired = !expiresAt || expiresAt.getTime() <= now.getTime();
+  const isNearExpiration = expiresAt && expiresAt.getTime() - now.getTime() < 30 * 60 * 1000;
+  
+  if (forceRefresh || isExpired || isNearExpiration) {
+    console.log('Renovando token Bling...');
     console.log('Token próximo de expirar, renovando...');
     
     const credentials = btoa(`${config.client_id}:${config.client_secret}`);
@@ -133,8 +137,8 @@ serve(async (req) => {
       throw new Error('Token de acesso não configurado');
     }
 
-    // Renovar token se necessário
-    const accessToken = await refreshTokenIfNeeded(supabase, config);
+    // Renovar token - sempre força refresh para garantir token válido
+    const accessToken = await refreshTokenIfNeeded(supabase, config, true);
 
     // Buscar produtos do Bling (sem filtro)
     let allProducts: any[] = [];
