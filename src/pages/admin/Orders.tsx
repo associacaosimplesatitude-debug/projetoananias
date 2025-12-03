@@ -58,6 +58,33 @@ export default function Orders() {
 
   const cancelOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
+      // Buscar o pedido para verificar se tem bling_order_id
+      const { data: order, error: fetchError } = await supabase
+        .from("ebd_pedidos")
+        .select("bling_order_id")
+        .eq("id", orderId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Se o pedido já foi criado no Bling, atualizar o status para Cancelado
+      if (order?.bling_order_id) {
+        try {
+          const { error: blingError } = await supabase.functions.invoke('bling-update-order', {
+            body: { 
+              bling_order_id: order.bling_order_id,
+              status: 'cancelled'
+            }
+          });
+          if (blingError) {
+            console.error('Erro ao cancelar no Bling:', blingError);
+          }
+        } catch (err) {
+          console.error('Erro ao chamar bling-update-order:', err);
+        }
+      }
+
+      // Atualizar status no banco local
       const { error } = await supabase
         .from("ebd_pedidos")
         .update({ status: "cancelled" })
@@ -77,6 +104,88 @@ export default function Orders() {
 
   const confirmPaymentMutation = useMutation({
     mutationFn: async (orderId: string) => {
+      // Buscar dados completos do pedido para criar no Bling
+      const { data: order, error: fetchError } = await supabase
+        .from("ebd_pedidos")
+        .select(`
+          *,
+          ebd_pedidos_itens(
+            quantidade,
+            preco_unitario,
+            revista:ebd_revistas(titulo, bling_produto_id)
+          ),
+          church:churches(church_name, pastor_email, pastor_whatsapp, cnpj)
+        `)
+        .eq("id", orderId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Se o pedido ainda não foi criado no Bling, criar agora
+      if (!order.bling_order_id) {
+        try {
+          // Preparar dados do cliente
+          const cliente = {
+            nome: order.church?.church_name || 'Cliente',
+            email: order.email_cliente || order.church?.pastor_email,
+            telefone: order.church?.pastor_whatsapp,
+            cnpj: order.church?.cnpj,
+            endereco: {
+              rua: order.endereco_rua,
+              numero: order.endereco_numero,
+              complemento: order.endereco_complemento,
+              bairro: order.endereco_bairro,
+              cep: order.endereco_cep,
+              cidade: order.endereco_cidade,
+              estado: order.endereco_estado,
+            }
+          };
+
+          // Preparar itens
+          const itens = order.ebd_pedidos_itens?.map((item: any) => ({
+            codigo: item.revista?.bling_produto_id?.toString() || '0',
+            descricao: item.revista?.titulo || 'Revista EBD',
+            unidade: 'UN',
+            quantidade: item.quantidade,
+            valor: item.preco_unitario,
+          })) || [];
+
+          // Criar pedido no Bling
+          const { data: blingResponse, error: blingError } = await supabase.functions.invoke('bling-create-order', {
+            body: { 
+              cliente,
+              itens,
+              pedido_id: orderId.slice(0, 8).toUpperCase()
+            }
+          });
+
+          if (blingError) {
+            console.error('Erro ao criar pedido no Bling:', blingError);
+          } else if (blingResponse?.bling_order_id) {
+            // Salvar o bling_order_id no pedido
+            await supabase
+              .from("ebd_pedidos")
+              .update({ bling_order_id: blingResponse.bling_order_id })
+              .eq("id", orderId);
+          }
+        } catch (err) {
+          console.error('Erro ao chamar bling-create-order:', err);
+        }
+      } else {
+        // Se já existe no Bling, atualizar status para Atendido
+        try {
+          await supabase.functions.invoke('bling-update-order', {
+            body: { 
+              bling_order_id: order.bling_order_id,
+              status: 'approved'
+            }
+          });
+        } catch (err) {
+          console.error('Erro ao atualizar status no Bling:', err);
+        }
+      }
+
+      // Atualizar status no banco local
       const { error } = await supabase
         .from("ebd_pedidos")
         .update({ 
@@ -90,7 +199,7 @@ export default function Orders() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
       queryClient.invalidateQueries({ queryKey: ["my-orders"] });
-      toast.success("Pagamento confirmado com sucesso");
+      toast.success("Pagamento confirmado e pedido criado no Bling");
     },
     onError: (error) => {
       toast.error("Erro ao confirmar pagamento: " + error.message);

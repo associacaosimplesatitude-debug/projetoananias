@@ -44,3 +44,6 @@ verify_jwt = true
 
 [functions.bling-create-order]
 verify_jwt = true
+
+[functions.bling-update-order]
+verify_jwt = true
