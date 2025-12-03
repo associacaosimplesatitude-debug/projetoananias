@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
-import { X, Clock, CheckCircle, XCircle, Truck, Package } from "lucide-react";
+import { X, Clock, CheckCircle, XCircle, Truck, Package, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Orders() {
@@ -39,9 +39,9 @@ export default function Orders() {
             quantidade,
             preco_unitario,
             preco_total,
-            revista:ebd_revistas(titulo, imagem_url)
+            revista:ebd_revistas(titulo, imagem_url, bling_produto_id)
           ),
-          church:churches(church_name, pastor_email, pastor_whatsapp)
+          church:churches(church_name, pastor_email, pastor_whatsapp, cnpj)
         `)
         .order("created_at", { ascending: false });
 
@@ -203,6 +203,88 @@ export default function Orders() {
     },
     onError: (error) => {
       toast.error("Erro ao confirmar pagamento: " + error.message);
+    },
+  });
+
+  // Mutation para reenviar pedido ao Bling
+  const resendToBlingMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      // Buscar dados completos do pedido
+      const { data: order, error: fetchError } = await supabase
+        .from("ebd_pedidos")
+        .select(`
+          *,
+          ebd_pedidos_itens(
+            quantidade,
+            preco_unitario,
+            revista:ebd_revistas(titulo, bling_produto_id)
+          ),
+          church:churches(church_name, pastor_email, pastor_whatsapp, cnpj)
+        `)
+        .eq("id", orderId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Preparar dados do cliente
+      const cliente = {
+        nome: order.church?.church_name || 'Cliente',
+        email: order.email_cliente || order.church?.pastor_email,
+        telefone: order.church?.pastor_whatsapp,
+        cnpj: order.church?.cnpj,
+        endereco: {
+          rua: order.endereco_rua,
+          numero: order.endereco_numero,
+          complemento: order.endereco_complemento,
+          bairro: order.endereco_bairro,
+          cep: order.endereco_cep,
+          cidade: order.endereco_cidade,
+          estado: order.endereco_estado,
+        }
+      };
+
+      // Preparar itens
+      const itens = order.ebd_pedidos_itens?.map((item: any) => ({
+        codigo: item.revista?.bling_produto_id?.toString() || '0',
+        descricao: item.revista?.titulo || 'Revista EBD',
+        unidade: 'UN',
+        quantidade: item.quantidade,
+        valor: item.preco_unitario,
+      })) || [];
+
+      // Criar pedido no Bling
+      const { data: blingResponse, error: blingError } = await supabase.functions.invoke('bling-create-order', {
+        body: { 
+          cliente,
+          itens,
+          pedido_id: orderId.slice(0, 8).toUpperCase()
+        }
+      });
+
+      if (blingError) {
+        throw new Error(blingError.message || 'Erro ao criar pedido no Bling');
+      }
+
+      if (!blingResponse?.bling_order_id) {
+        throw new Error(blingResponse?.error || 'Bling não retornou ID do pedido');
+      }
+
+      // Salvar o bling_order_id no pedido
+      const { error: updateError } = await supabase
+        .from("ebd_pedidos")
+        .update({ bling_order_id: blingResponse.bling_order_id })
+        .eq("id", orderId);
+
+      if (updateError) throw updateError;
+
+      return blingResponse.bling_order_id;
+    },
+    onSuccess: (blingOrderId) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      toast.success(`Pedido criado no Bling com sucesso! ID: ${blingOrderId}`);
+    },
+    onError: (error) => {
+      toast.error("Erro ao criar pedido no Bling: " + error.message);
     },
   });
 
@@ -375,6 +457,7 @@ export default function Orders() {
             <TableHead>Data</TableHead>
             <TableHead>Pedido</TableHead>
             <TableHead>Igreja</TableHead>
+            <TableHead>Bling</TableHead>
             <TableHead>Rastreio</TableHead>
             <TableHead className="text-right">Valor Total</TableHead>
             <TableHead className="text-right">Ações</TableHead>
@@ -399,6 +482,23 @@ export default function Orders() {
                 </div>
               </TableCell>
               <TableCell>{order.church?.church_name || "-"}</TableCell>
+              <TableCell>
+                {order.bling_order_id ? (
+                  <Badge variant="secondary" className="font-mono">
+                    #{order.bling_order_id}
+                  </Badge>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => resendToBlingMutation.mutate(order.id)}
+                    disabled={resendToBlingMutation.isPending}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-1 ${resendToBlingMutation.isPending ? 'animate-spin' : ''}`} />
+                    Enviar ao Bling
+                  </Button>
+                )}
+              </TableCell>
               <TableCell>
                 {order.codigo_rastreio ? (
                   <div className="flex items-center gap-2">

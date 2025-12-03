@@ -47,10 +47,18 @@ serve(async (req) => {
       const payment = await paymentResponse.json();
       console.log('Pagamento:', payment.id, 'Status:', payment.status);
 
-      // Buscar pedido pelo mercadopago_payment_id
+      // Buscar pedido pelo mercadopago_payment_id com dados completos
       const { data: pedido, error: pedidoError } = await supabase
         .from('ebd_pedidos')
-        .select('*')
+        .select(`
+          *,
+          ebd_pedidos_itens(
+            quantidade,
+            preco_unitario,
+            revista:ebd_revistas(titulo, bling_produto_id)
+          ),
+          church:churches(church_name, pastor_email, pastor_whatsapp, cnpj)
+        `)
         .eq('mercadopago_payment_id', paymentId)
         .single();
 
@@ -66,6 +74,7 @@ serve(async (req) => {
       let newStatus = pedido.status;
       let paymentStatus = payment.status;
       let emailType = '';
+      let blingOrderId = pedido.bling_order_id;
 
       if (payment.status === 'approved') {
         newStatus = 'PAGO';
@@ -87,6 +96,68 @@ serve(async (req) => {
             });
           }
         }
+
+        // CRIAR PEDIDO NO BLING se ainda não foi criado
+        if (!pedido.bling_order_id) {
+          try {
+            console.log('Criando pedido no Bling para pedido:', pedido.id);
+            
+            // Preparar dados do cliente
+            const cliente = {
+              nome: pedido.church?.church_name || 'Cliente',
+              email: pedido.email_cliente || pedido.church?.pastor_email,
+              telefone: pedido.church?.pastor_whatsapp,
+              cnpj: pedido.church?.cnpj,
+              endereco: {
+                rua: pedido.endereco_rua,
+                numero: pedido.endereco_numero,
+                complemento: pedido.endereco_complemento,
+                bairro: pedido.endereco_bairro,
+                cep: pedido.endereco_cep,
+                cidade: pedido.endereco_cidade,
+                estado: pedido.endereco_estado,
+              }
+            };
+
+            // Preparar itens
+            const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => ({
+              codigo: item.revista?.bling_produto_id?.toString() || '0',
+              descricao: item.revista?.titulo || 'Revista EBD',
+              unidade: 'UN',
+              quantidade: item.quantidade,
+              valor: item.preco_unitario,
+            })) || [];
+
+            // Chamar função bling-create-order
+            const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                cliente,
+                itens: itensBling,
+                pedido_id: pedido.id.slice(0, 8).toUpperCase()
+              }),
+            });
+
+            if (blingResponse.ok) {
+              const blingData = await blingResponse.json();
+              console.log('Resposta do Bling:', blingData);
+              
+              if (blingData.bling_order_id) {
+                blingOrderId = blingData.bling_order_id;
+                console.log('Pedido criado no Bling com ID:', blingOrderId);
+              }
+            } else {
+              const errorText = await blingResponse.text();
+              console.error('Erro ao criar pedido no Bling:', errorText);
+            }
+          } catch (blingError) {
+            console.error('Erro ao chamar bling-create-order:', blingError);
+          }
+        }
       } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
         newStatus = 'CANCELADO';
         emailType = 'payment_rejected';
@@ -94,17 +165,18 @@ serve(async (req) => {
         emailType = 'payment_pending';
       }
 
-      // Atualizar pedido
+      // Atualizar pedido incluindo bling_order_id
       await supabase
         .from('ebd_pedidos')
         .update({
           status: newStatus,
           payment_status: paymentStatus,
           approved_at: payment.status === 'approved' ? new Date().toISOString() : null,
+          bling_order_id: blingOrderId,
         })
         .eq('id', pedido.id);
 
-      console.log('Pedido atualizado:', pedido.id, 'Novo status:', newStatus);
+      console.log('Pedido atualizado:', pedido.id, 'Novo status:', newStatus, 'Bling ID:', blingOrderId);
 
       // Enviar email de notificação
       if (emailType) {
