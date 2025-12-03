@@ -142,6 +142,7 @@ interface Revista {
   titulo: string;
   imagem_url: string | null;
   preco_cheio: number | null;
+  bling_produto_id: number | null;
 }
 
 interface SavedAddress {
@@ -296,7 +297,7 @@ export default function Checkout() {
       if (revistaIds.length === 0) return [];
       const { data, error } = await supabase
         .from('ebd_revistas')
-        .select('id, titulo, imagem_url, preco_cheio')
+        .select('id, titulo, imagem_url, preco_cheio, bling_produto_id')
         .in('id', revistaIds);
 
       if (error) throw error;
@@ -304,6 +305,62 @@ export default function Checkout() {
     },
     enabled: revistaIds.length > 0,
   });
+
+  const [isValidatingStock, setIsValidatingStock] = useState(false);
+  const [stockValidated, setStockValidated] = useState(false);
+  const [stockError, setStockError] = useState<string | null>(null);
+
+  // Validar estoque no Bling
+  const validateStock = async (): Promise<boolean> => {
+    if (!revistas || revistas.length === 0) return true;
+    
+    setIsValidatingStock(true);
+    setStockError(null);
+    
+    try {
+      const produtos = revistas.map(revista => ({
+        bling_produto_id: revista.bling_produto_id,
+        quantidade: cart[revista.id] || 1,
+        titulo: revista.titulo,
+      }));
+
+      const { data, error } = await supabase.functions.invoke('bling-check-stock', {
+        body: { produtos },
+      });
+
+      if (error) {
+        console.error('Erro ao validar estoque:', error);
+        // Em caso de erro na API, permitir prosseguir mas avisar
+        toast({
+          title: 'Aviso',
+          description: 'Não foi possível verificar o estoque. O pedido será validado manualmente.',
+          variant: 'default',
+        });
+        return true;
+      }
+
+      if (!data.estoqueDisponivel) {
+        const produtosSemEstoque = data.produtosSemEstoque || [];
+        const nomes = produtosSemEstoque.map((p: any) => p.titulo || `Produto ${p.bling_produto_id}`).join(', ');
+        
+        setStockError(`Estoque insuficiente para: ${nomes}`);
+        toast({
+          title: 'Estoque insuficiente',
+          description: `Os seguintes produtos não têm estoque suficiente: ${nomes}`,
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      setStockValidated(true);
+      return true;
+    } catch (err) {
+      console.error('Erro ao validar estoque:', err);
+      return true; // Em caso de erro, permitir prosseguir
+    } finally {
+      setIsValidatingStock(false);
+    }
+  };
 
   const calculateSubtotal = () => {
     if (!revistas) return 0;
@@ -404,6 +461,12 @@ export default function Checkout() {
   };
 
   const processPayment = async (data: AddressForm) => {
+    // Validar estoque antes de processar pagamento
+    const hasStock = await validateStock();
+    if (!hasStock) {
+      return;
+    }
+
     if (paymentMethod === 'pix') {
       await processPixPayment(data);
     } else if (paymentMethod === 'card') {
@@ -1294,13 +1357,19 @@ export default function Checkout() {
                   <span className="text-primary">R$ {total.toFixed(2)}</span>
                 </div>
 
+                {stockError && (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                    <p className="text-sm text-destructive font-medium">{stockError}</p>
+                  </div>
+                )}
+
                 <Button
                   className="w-full"
                   size="lg"
                   onClick={form.handleSubmit(onSubmit)}
-                  disabled={isProcessing || pacCost === 0 || isCalculatingShipping || isCepValid === false}
+                  disabled={isProcessing || isValidatingStock || pacCost === 0 || isCalculatingShipping || isCepValid === false}
                 >
-                  {isProcessing ? 'Processando...' : isCalculatingShipping ? 'Calculando frete...' : isCepValid === false ? 'CEP inválido' : 'Confirmar Pedido'}
+                  {isProcessing ? 'Processando...' : isValidatingStock ? 'Verificando estoque...' : isCalculatingShipping ? 'Calculando frete...' : isCepValid === false ? 'CEP inválido' : 'Confirmar Pedido'}
                 </Button>
 
                 <p className="text-xs text-center text-muted-foreground">
