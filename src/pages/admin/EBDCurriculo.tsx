@@ -198,12 +198,20 @@ export default function EBDCurriculo() {
                     </p>
                   )}
                   {revista.autor && (
-                    <p className="text-sm text-muted-foreground mb-2">
+                    <p className="text-xs text-muted-foreground mb-1">
                       Autor: {revista.autor}
                     </p>
                   )}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs text-muted-foreground line-through">
+                      R$ {(revista.preco_cheio || 0).toFixed(2).replace('.', ',')}
+                    </span>
+                    <span className="text-sm font-semibold text-green-600">
+                      R$ {((revista.preco_cheio || 0) * 0.9).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
                   {revista.sinopse && (
-                    <p className="text-sm line-clamp-3 mb-4">{revista.sinopse}</p>
+                    <p className="text-xs line-clamp-3 mb-4 text-muted-foreground">{revista.sinopse}</p>
                   )}
                   <div className="flex gap-2">
                     <Button
