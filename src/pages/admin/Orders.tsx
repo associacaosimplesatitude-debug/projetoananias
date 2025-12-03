@@ -161,9 +161,29 @@ export default function Orders() {
 
           if (blingError) {
             console.error('Erro ao criar pedido no Bling:', blingError);
+            // Tentar extrair erro do body da resposta ou da mensagem de erro
+            let errorMsg = '';
+            
+            // Verificar se o erro está no blingResponse
+            if (blingResponse?.error) {
+              errorMsg = blingResponse.error;
+            } else if (blingError.message) {
+              // Tentar extrair JSON da mensagem de erro (formato: "Edge function returned 400: Error, {...}")
+              const jsonMatch = blingError.message.match(/\{.*\}/);
+              if (jsonMatch) {
+                try {
+                  const parsedError = JSON.parse(jsonMatch[0]);
+                  errorMsg = parsedError.error || '';
+                } catch {
+                  errorMsg = blingError.message;
+                }
+              } else {
+                errorMsg = blingError.message;
+              }
+            }
+            
             // Verificar se é erro de estoque
-            const errorBody = blingResponse?.error || blingError.message || '';
-            if (errorBody.toLowerCase().includes('estoque') && errorBody.toLowerCase().includes('insuficiente')) {
+            if (errorMsg.toLowerCase().includes('estoque') && errorMsg.toLowerCase().includes('insuficiente')) {
               throw new Error('Estoque insuficiente no Bling para um ou mais produtos. Verifique o estoque antes de confirmar.');
             }
             // Para outros erros do Bling, continuar mas avisar
@@ -174,12 +194,6 @@ export default function Orders() {
               .from("ebd_pedidos")
               .update({ bling_order_id: blingResponse.bling_order_id })
               .eq("id", orderId);
-          } else if (blingResponse?.error) {
-            // Erro retornado no body da resposta
-            const errorMsg = blingResponse.error;
-            if (errorMsg.toLowerCase().includes('estoque') && errorMsg.toLowerCase().includes('insuficiente')) {
-              throw new Error('Estoque insuficiente no Bling para um ou mais produtos. Verifique o estoque antes de confirmar.');
-            }
           }
         } catch (err: any) {
           // Re-throw erros de estoque para parar a operação
@@ -278,16 +292,33 @@ export default function Orders() {
         }
       });
 
-      if (blingError) {
-        throw new Error(blingError.message || 'Erro ao criar pedido no Bling');
-      }
-
-      if (blingResponse?.error) {
-        const errorMsg = blingResponse.error;
+      if (blingError || blingResponse?.error) {
+        // Tentar extrair erro do body da resposta ou da mensagem de erro
+        let errorMsg = '';
+        
+        if (blingResponse?.error) {
+          errorMsg = blingResponse.error;
+        } else if (blingError?.message) {
+          // Tentar extrair JSON da mensagem de erro (formato: "Edge function returned 400: Error, {...}")
+          const jsonMatch = blingError.message.match(/\{.*\}/);
+          if (jsonMatch) {
+            try {
+              const parsedError = JSON.parse(jsonMatch[0]);
+              errorMsg = parsedError.error || blingError.message;
+            } catch {
+              errorMsg = blingError.message;
+            }
+          } else {
+            errorMsg = blingError.message;
+          }
+        }
+        
+        // Verificar se é erro de estoque
         if (errorMsg.toLowerCase().includes('estoque') && errorMsg.toLowerCase().includes('insuficiente')) {
           throw new Error('Estoque insuficiente no Bling para um ou mais produtos. Verifique o estoque antes de reenviar.');
         }
-        throw new Error(errorMsg);
+        
+        throw new Error(errorMsg || 'Erro ao criar pedido no Bling');
       }
 
       if (!blingResponse?.bling_order_id) {
