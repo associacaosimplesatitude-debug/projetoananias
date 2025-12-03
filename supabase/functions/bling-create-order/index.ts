@@ -122,18 +122,22 @@ serve(async (req) => {
       }
     }
 
+    // Gerar identificadores únicos
+    const timestamp = Date.now();
+    const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
     // Aplicar desconto de 30% nos itens
-    const itensComDesconto = itens.map((item: any) => ({
+    const itensComDesconto = itens.map((item: any, index: number) => ({
       codigo: item.codigo,
-      descricao: item.descricao,
+      descricao: `${item.descricao}`,
       unidade: item.unidade || 'UN',
       quantidade: item.quantidade,
       valor: Number((item.valor * 0.7).toFixed(2)), // 30% de desconto
       tipo: 'P', // Produto
     }));
 
-    // Gerar número único para o pedido
-    const numeroPedido = `EBD-${pedido_id?.substring(0, 8).toUpperCase() || ''}-${Date.now()}`;
+    // Gerar número único para o pedido (formato mais curto e único)
+    const numeroPedido = `${timestamp}-${randomSuffix}`;
 
     // Criar pedido no Bling
     const pedidoData = {
@@ -149,7 +153,7 @@ serve(async (req) => {
       situacao: {
         id: 15, // Em Aberto
       },
-      observacoes: `Pedido do módulo EBD - ${pedido_id}`,
+      observacoes: `Pedido EBD #${pedido_id} - Gerado em ${new Date().toISOString()} - Ref: ${randomSuffix}`,
     };
 
     console.log('Criando pedido no Bling:', JSON.stringify(pedidoData, null, 2));
