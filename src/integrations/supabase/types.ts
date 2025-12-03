@@ -1650,10 +1650,14 @@ export type Database = {
       ebd_revistas: {
         Row: {
           autor: string | null
+          bling_produto_id: number | null
+          categoria: string | null
           created_at: string
+          estoque: number | null
           faixa_etaria_alvo: string
           id: string
           imagem_url: string | null
+          last_sync_at: string | null
           num_licoes: number
           preco_cheio: number | null
           sinopse: string | null
@@ -1662,10 +1666,14 @@ export type Database = {
         }
         Insert: {
           autor?: string | null
+          bling_produto_id?: number | null
+          categoria?: string | null
           created_at?: string
+          estoque?: number | null
           faixa_etaria_alvo: string
           id?: string
           imagem_url?: string | null
+          last_sync_at?: string | null
           num_licoes?: number
           preco_cheio?: number | null
           sinopse?: string | null
@@ -1674,10 +1682,14 @@ export type Database = {
         }
         Update: {
           autor?: string | null
+          bling_produto_id?: number | null
+          categoria?: string | null
           created_at?: string
+          estoque?: number | null
           faixa_etaria_alvo?: string
           id?: string
           imagem_url?: string | null
+          last_sync_at?: string | null
           num_licoes?: number
           preco_cheio?: number | null
           sinopse?: string | null

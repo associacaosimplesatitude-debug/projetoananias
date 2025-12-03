@@ -50,6 +50,39 @@ async function refreshTokenIfNeeded(supabase: any, config: any) {
   return config.access_token;
 }
 
+async function getProductStock(accessToken: string, productId: number): Promise<number> {
+  try {
+    const response = await fetch(
+      `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${productId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.log(`Erro ao buscar estoque do produto ${productId}`);
+      return 0;
+    }
+
+    const data = await response.json();
+    const stockData = data.data || [];
+    
+    // Soma o saldo de todos os depósitos
+    let totalStock = 0;
+    for (const item of stockData) {
+      totalStock += item.saldoFisicoTotal || 0;
+    }
+    
+    return totalStock;
+  } catch (error) {
+    console.error(`Erro ao buscar estoque do produto ${productId}:`, error);
+    return 0;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -119,22 +152,36 @@ serve(async (req) => {
 
     console.log(`Total de produtos encontrados: ${allProducts.length}`);
 
-    // Atualizar tabela ebd_revistas com os produtos
+    const syncTimestamp = new Date().toISOString();
     let updatedCount = 0;
 
     for (const product of allProducts) {
-      // Verificar se é uma revista (você pode ajustar este critério)
+      // Por enquanto, sincroniza todos os produtos
       const isRevista = product.nome?.toLowerCase().includes('revista') || 
                         product.tipo === 'P' || 
-                        true; // Por enquanto, sincroniza todos
+                        true;
 
       if (isRevista) {
-        // Verificar se já existe pelo título
-        const { data: existing } = await supabase
+        // Buscar estoque do produto
+        const estoque = await getProductStock(accessToken, product.id);
+
+        // Verificar se já existe pelo bling_produto_id ou título
+        const { data: existingById } = await supabase
+          .from('ebd_revistas')
+          .select('id')
+          .eq('bling_produto_id', product.id)
+          .single();
+
+        const { data: existingByTitle } = await supabase
           .from('ebd_revistas')
           .select('id')
           .eq('titulo', product.nome)
           .single();
+
+        const existing = existingById || existingByTitle;
+
+        // Extrair categoria do produto
+        const categoria = product.categoria?.descricao || product.tipo || 'Geral';
 
         const revistaData = {
           titulo: product.nome || 'Sem título',
@@ -142,6 +189,10 @@ serve(async (req) => {
           faixa_etaria_alvo: product.observacoes || 'Geral',
           imagem_url: product.imagemURL || null,
           sinopse: product.descricaoCurta || null,
+          estoque: estoque,
+          categoria: categoria,
+          bling_produto_id: product.id,
+          last_sync_at: syncTimestamp,
         };
 
         if (existing) {
@@ -167,7 +218,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         count: updatedCount,
-        total_bling: allProducts.length 
+        total_bling: allProducts.length,
+        sync_timestamp: syncTimestamp
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

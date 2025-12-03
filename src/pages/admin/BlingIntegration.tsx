@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { ArrowLeft, Link2, RefreshCw, CheckCircle2, XCircle, Save, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Link2, RefreshCw, CheckCircle2, XCircle, Save, ExternalLink, Package, Clock, PackageCheck, PackageX, FolderOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface BlingConfig {
@@ -18,6 +18,14 @@ interface BlingConfig {
   refresh_token: string | null;
   loja_id: number | null;
   token_expires_at: string | null;
+}
+
+interface SyncSummary {
+  totalProducts: number;
+  lastSync: string | null;
+  withStock: number;
+  outOfStock: number;
+  topCategories: { categoria: string; count: number }[];
 }
 
 const BlingIntegration = () => {
@@ -42,6 +50,62 @@ const BlingIntegration = () => {
 
       if (error) throw error;
       return data as unknown as BlingConfig;
+    },
+  });
+
+  // Query para resumo da sincronização
+  const { data: syncSummary, isLoading: loadingSummary } = useQuery({
+    queryKey: ['bling-sync-summary'],
+    queryFn: async () => {
+      // Total de produtos
+      const { count: totalProducts } = await supabase
+        .from('ebd_revistas')
+        .select('*', { count: 'exact', head: true });
+
+      // Última sincronização
+      const { data: lastSyncData } = await supabase
+        .from('ebd_revistas')
+        .select('last_sync_at')
+        .not('last_sync_at', 'is', null)
+        .order('last_sync_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // Produtos com estoque > 0
+      const { count: withStock } = await supabase
+        .from('ebd_revistas')
+        .select('*', { count: 'exact', head: true })
+        .gt('estoque', 0);
+
+      // Produtos com estoque = 0
+      const { count: outOfStock } = await supabase
+        .from('ebd_revistas')
+        .select('*', { count: 'exact', head: true })
+        .eq('estoque', 0);
+
+      // Top categorias
+      const { data: allProducts } = await supabase
+        .from('ebd_revistas')
+        .select('categoria');
+
+      const categoryCount: Record<string, number> = {};
+      (allProducts || []).forEach((p: any) => {
+        const cat = p.categoria || 'Sem categoria';
+        categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+      });
+
+      const topCategories = Object.entries(categoryCount)
+        .map(([categoria, count]) => ({ categoria, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      return {
+        totalProducts: totalProducts || 0,
+        lastSync: lastSyncData?.last_sync_at || null,
+        withStock: withStock || 0,
+        outOfStock: outOfStock || 0,
+        topCategories,
+      } as SyncSummary;
     },
   });
 
@@ -130,6 +194,7 @@ const BlingIntegration = () => {
       const { data, error } = await supabase.functions.invoke('bling-sync-products');
       if (error) throw error;
       
+      queryClient.invalidateQueries({ queryKey: ['bling-sync-summary'] });
       toast.success(`Sincronização concluída! ${data?.count || 0} produtos atualizados.`);
     } catch (error) {
       console.error('Erro ao sincronizar:', error);
@@ -209,6 +274,90 @@ const BlingIntegration = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Painel de Resumo da Sincronização */}
+      {isConnected && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Resumo da Sincronização
+            </CardTitle>
+            <CardDescription>
+              Informações sobre os produtos sincronizados do Bling
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingSummary ? (
+              <div className="animate-pulse space-y-4">
+                <div className="h-20 bg-muted rounded"></div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Grid de métricas */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-muted/50 rounded-lg p-4 text-center">
+                    <div className="flex items-center justify-center mb-2">
+                      <Package className="h-5 w-5 text-primary" />
+                    </div>
+                    <p className="text-2xl font-bold">{syncSummary?.totalProducts || 0}</p>
+                    <p className="text-sm text-muted-foreground">Total de Produtos</p>
+                  </div>
+
+                  <div className="bg-muted/50 rounded-lg p-4 text-center">
+                    <div className="flex items-center justify-center mb-2">
+                      <Clock className="h-5 w-5 text-primary" />
+                    </div>
+                    <p className="text-sm font-bold">
+                      {syncSummary?.lastSync 
+                        ? new Date(syncSummary.lastSync).toLocaleString('pt-BR')
+                        : 'Nunca'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Última Sincronização</p>
+                  </div>
+
+                  <div className="bg-green-500/10 rounded-lg p-4 text-center">
+                    <div className="flex items-center justify-center mb-2">
+                      <PackageCheck className="h-5 w-5 text-green-600" />
+                    </div>
+                    <p className="text-2xl font-bold text-green-600">{syncSummary?.withStock || 0}</p>
+                    <p className="text-sm text-muted-foreground">Com Estoque</p>
+                  </div>
+
+                  <div className="bg-red-500/10 rounded-lg p-4 text-center">
+                    <div className="flex items-center justify-center mb-2">
+                      <PackageX className="h-5 w-5 text-red-600" />
+                    </div>
+                    <p className="text-2xl font-bold text-red-600">{syncSummary?.outOfStock || 0}</p>
+                    <p className="text-sm text-muted-foreground">Esgotados</p>
+                  </div>
+                </div>
+
+                {/* Top Categorias */}
+                {syncSummary?.topCategories && syncSummary.topCategories.length > 0 && (
+                  <div className="border-t pt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                      <h4 className="font-semibold text-sm">Categorias Principais</h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2">
+                      {syncSummary.topCategories.map((cat, index) => (
+                        <div 
+                          key={index} 
+                          className="flex items-center justify-between bg-muted/30 rounded-md px-3 py-2"
+                        >
+                          <span className="text-sm truncate">{cat.categoria}</span>
+                          <span className="text-sm font-semibold text-primary ml-2">{cat.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Redirect URI */}
       <Card className="border-primary/50 bg-primary/5">
