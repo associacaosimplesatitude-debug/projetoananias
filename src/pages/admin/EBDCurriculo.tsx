@@ -207,7 +207,7 @@ export default function EBDCurriculo() {
                       R$ {(revista.preco_cheio || 0).toFixed(2).replace('.', ',')}
                     </span>
                     <span className="text-sm font-semibold text-green-600">
-                      R$ {((revista.preco_cheio || 0) * 0.9).toFixed(2).replace('.', ',')}
+                      R$ {((revista.preco_cheio || 0) * 0.7).toFixed(2).replace('.', ',')}
                     </span>
                   </div>
                   {revista.sinopse && (
