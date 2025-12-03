@@ -141,14 +141,27 @@ const {
     const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
     
     // Preparar itens (já vêm com preço com desconto)
-    const itensBling = itens.map((item: any) => ({
-      codigo: item.codigo,
-      descricao: item.descricao,
-      unidade: item.unidade || 'UN',
-      quantidade: item.quantidade,
-      valor: Number(item.valor.toFixed(2)), // Preço já com desconto
-      tipo: 'P',
-    }));
+    // IMPORTANTE: Bling API v3 usa estrutura { produto: { id: number } } para identificar produtos
+    // O bling_produto_id armazenado é o ID interno do produto no Bling
+    const itensBling = itens.map((item: any) => {
+      const blingProdutoId = parseInt(item.codigo, 10);
+      
+      console.log(`Item: ${item.descricao}, bling_produto_id recebido: ${item.codigo}, parsed: ${blingProdutoId}`);
+      
+      if (!blingProdutoId || isNaN(blingProdutoId)) {
+        console.error(`ERRO: bling_produto_id inválido para item: ${item.descricao}`);
+      }
+      
+      return {
+        produto: {
+          id: blingProdutoId, // ID interno do produto no Bling
+        },
+        descricao: item.descricao,
+        unidade: item.unidade || 'UN',
+        quantidade: item.quantidade,
+        valor: Number(item.valor.toFixed(2)), // Preço já com desconto
+      };
+    });
 
     // Gerar número único para o pedido
     const numeroPedido = `${timestamp}-${randomSuffix}`;
