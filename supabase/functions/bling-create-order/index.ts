@@ -36,42 +36,118 @@ serve(async (req) => {
       throw new Error('Token de acesso não configurado');
     }
 
+    // Primeiro, criar ou buscar o contato no Bling
+    const contatoData = {
+      nome: cliente.nome,
+      tipo: cliente.cpf?.length === 11 ? 'F' : 'J',
+      numeroDocumento: cliente.cpf || cliente.cnpj || '',
+      email: cliente.email || '',
+      telefone: cliente.telefone || '',
+      endereco: {
+        endereco: cliente.endereco?.rua || '',
+        numero: cliente.endereco?.numero || 'S/N',
+        complemento: cliente.endereco?.complemento || '',
+        bairro: cliente.endereco?.bairro || '',
+        cep: cliente.endereco?.cep?.replace(/\D/g, '') || '',
+        municipio: cliente.endereco?.cidade || '',
+        uf: cliente.endereco?.estado || '',
+      },
+    };
+
+    console.log('Criando contato no Bling:', JSON.stringify(contatoData, null, 2));
+
+    const contatoResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.access_token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(contatoData),
+    });
+
+    const contatoResult = await contatoResponse.json();
+    let contatoId: number | null = null;
+
+    if (contatoResponse.ok && contatoResult.data?.id) {
+      contatoId = contatoResult.data.id;
+      console.log('Contato criado com sucesso, ID:', contatoId);
+    } else if (contatoResult.error?.fields) {
+      // Se o contato já existe, tentar buscar pelo documento
+      console.log('Contato pode já existir, buscando...');
+      
+      const searchResponse = await fetch(
+        `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${cliente.cpf || cliente.cnpj || ''}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${config.access_token}`,
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      const searchResult = await searchResponse.json();
+      if (searchResult.data && searchResult.data.length > 0) {
+        contatoId = searchResult.data[0].id;
+        console.log('Contato encontrado, ID:', contatoId);
+      }
+    }
+
+    // Se não conseguiu criar ou encontrar contato, criar um genérico
+    if (!contatoId) {
+      console.log('Não foi possível criar/encontrar contato, criando consumidor genérico...');
+      
+      const genericContatoData = {
+        nome: cliente.nome || 'Consumidor Final',
+        tipo: 'F',
+      };
+
+      const genericResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.access_token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(genericContatoData),
+      });
+
+      const genericResult = await genericResponse.json();
+      if (genericResponse.ok && genericResult.data?.id) {
+        contatoId = genericResult.data.id;
+        console.log('Contato genérico criado, ID:', contatoId);
+      } else {
+        console.error('Erro ao criar contato genérico:', genericResult);
+        throw new Error('Não foi possível criar contato no Bling');
+      }
+    }
+
     // Aplicar desconto de 30% nos itens
     const itensComDesconto = itens.map((item: any) => ({
       codigo: item.codigo,
       descricao: item.descricao,
       unidade: item.unidade || 'UN',
       quantidade: item.quantidade,
-      valor: item.valor * 0.7, // 30% de desconto
+      valor: Number((item.valor * 0.7).toFixed(2)), // 30% de desconto
       tipo: 'P', // Produto
     }));
 
+    // Gerar número único para o pedido
+    const numeroPedido = `EBD-${pedido_id?.substring(0, 8).toUpperCase() || ''}-${Date.now()}`;
+
     // Criar pedido no Bling
     const pedidoData = {
-      numero: pedido_id || `EBD-${Date.now()}`,
+      numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
       loja: {
         id: config.loja_id || 205797806,
       },
       contato: {
-        nome: cliente.nome,
-        tipoPessoa: cliente.cpf?.length === 11 ? 'F' : 'J',
-        numeroDocumento: cliente.cpf || cliente.cnpj,
-        email: cliente.email,
-        telefone: cliente.telefone,
-        endereco: {
-          endereco: cliente.endereco?.rua,
-          numero: cliente.endereco?.numero,
-          complemento: cliente.endereco?.complemento,
-          bairro: cliente.endereco?.bairro,
-          cep: cliente.endereco?.cep,
-          municipio: cliente.endereco?.cidade,
-          uf: cliente.endereco?.estado,
-        },
+        id: contatoId,
       },
       itens: itensComDesconto,
       situacao: {
-        id: 15, // Em Aberto (você pode ajustar conforme suas situações no Bling)
+        id: 15, // Em Aberto
       },
       observacoes: `Pedido do módulo EBD - ${pedido_id}`,
     };
@@ -91,7 +167,7 @@ serve(async (req) => {
     const responseData = await orderResponse.json();
 
     if (!orderResponse.ok) {
-      console.error('Erro ao criar pedido:', responseData);
+      console.error('Erro ao criar pedido:', JSON.stringify(responseData, null, 2));
       throw new Error(responseData.error?.message || 'Erro ao criar pedido no Bling');
     }
 
