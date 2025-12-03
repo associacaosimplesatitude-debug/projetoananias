@@ -1,0 +1,183 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+async function refreshTokenIfNeeded(supabase: any, config: any) {
+  const now = new Date();
+  const expiresAt = config.token_expires_at ? new Date(config.token_expires_at) : null;
+  
+  // Se o token expira em menos de 30 minutos, renova
+  if (expiresAt && expiresAt.getTime() - now.getTime() < 30 * 60 * 1000) {
+    console.log('Token próximo de expirar, renovando...');
+    
+    const credentials = btoa(`${config.client_id}:${config.client_secret}`);
+    
+    const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: config.refresh_token,
+      }),
+    });
+
+    const tokenData = await tokenResponse.json();
+
+    if (tokenResponse.ok && !tokenData.error) {
+      const newExpiresAt = new Date();
+      newExpiresAt.setSeconds(newExpiresAt.getSeconds() + (tokenData.expires_in || 21600));
+
+      await supabase
+        .from('bling_config')
+        .update({
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          token_expires_at: newExpiresAt.toISOString(),
+        })
+        .eq('id', config.id);
+
+      return tokenData.access_token;
+    }
+  }
+  
+  return config.access_token;
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Buscar configuração
+    const { data: config, error: configError } = await supabase
+      .from('bling_config')
+      .select('*')
+      .single();
+
+    if (configError || !config) {
+      throw new Error('Configuração não encontrada');
+    }
+
+    if (!config.access_token) {
+      throw new Error('Token de acesso não configurado');
+    }
+
+    // Renovar token se necessário
+    const accessToken = await refreshTokenIfNeeded(supabase, config);
+
+    // Buscar produtos do Bling (sem filtro)
+    let allProducts: any[] = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      console.log(`Buscando página ${page} de produtos...`);
+      
+      const productsResponse = await fetch(
+        `https://www.bling.com.br/Api/v3/produtos?pagina=${page}&limite=100`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (!productsResponse.ok) {
+        const errorText = await productsResponse.text();
+        console.error('Erro na API Bling:', productsResponse.status, errorText);
+        throw new Error(`Erro ao buscar produtos: ${productsResponse.status}`);
+      }
+
+      const data = await productsResponse.json();
+      const products = data.data || [];
+      
+      allProducts = [...allProducts, ...products];
+      
+      // Verificar se há mais páginas
+      hasMore = products.length === 100;
+      page++;
+
+      // Limite de segurança
+      if (page > 50) {
+        console.log('Limite de páginas atingido');
+        break;
+      }
+    }
+
+    console.log(`Total de produtos encontrados: ${allProducts.length}`);
+
+    // Atualizar tabela ebd_revistas com os produtos
+    let updatedCount = 0;
+
+    for (const product of allProducts) {
+      // Verificar se é uma revista (você pode ajustar este critério)
+      const isRevista = product.nome?.toLowerCase().includes('revista') || 
+                        product.tipo === 'P' || 
+                        true; // Por enquanto, sincroniza todos
+
+      if (isRevista) {
+        // Verificar se já existe pelo título
+        const { data: existing } = await supabase
+          .from('ebd_revistas')
+          .select('id')
+          .eq('titulo', product.nome)
+          .single();
+
+        const revistaData = {
+          titulo: product.nome || 'Sem título',
+          preco_cheio: product.preco || 0,
+          faixa_etaria_alvo: product.observacoes || 'Geral',
+          imagem_url: product.imagemURL || null,
+          sinopse: product.descricaoCurta || null,
+        };
+
+        if (existing) {
+          // Atualizar
+          await supabase
+            .from('ebd_revistas')
+            .update(revistaData)
+            .eq('id', existing.id);
+        } else {
+          // Inserir
+          await supabase
+            .from('ebd_revistas')
+            .insert(revistaData);
+        }
+        
+        updatedCount++;
+      }
+    }
+
+    console.log(`Produtos atualizados: ${updatedCount}`);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        count: updatedCount,
+        total_bling: allProducts.length 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Erro:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
