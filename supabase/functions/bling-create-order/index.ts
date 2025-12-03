@@ -12,8 +12,8 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      igreja,           // Dados da igreja (cliente principal)
+const { 
+      cliente,          // Dados do cliente do formulário (nome, sobrenome, cpf_cnpj, email)
       endereco_entrega, // Endereço de entrega do checkout
       itens,            // Itens com preço já com desconto
       pedido_id,
@@ -24,8 +24,8 @@ serve(async (req) => {
       valor_total
     } = await req.json();
 
-    if (!igreja || !itens || itens.length === 0) {
-      throw new Error('Igreja e itens são obrigatórios');
+    if (!cliente || !itens || itens.length === 0) {
+      throw new Error('Dados do cliente e itens são obrigatórios');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -46,16 +46,25 @@ serve(async (req) => {
       throw new Error('Token de acesso não configurado');
     }
 
-    // Criar ou buscar o contato da Igreja no Bling
+    // Determinar se é CPF ou CNPJ
+    const documento = cliente.cpf_cnpj?.replace(/\D/g, '') || '';
+    const tipoDocumento = documento.length > 11 ? 'J' : 'F';
+    
+    // Nome completo do cliente
+    const nomeCompleto = cliente.sobrenome 
+      ? `${cliente.nome} ${cliente.sobrenome}` 
+      : cliente.nome;
+
+    // Criar ou buscar o contato do Cliente no Bling
     const contatoData = {
-      nome: igreja.nome,
-      tipo: igreja.cnpj ? 'J' : 'F',
-      numeroDocumento: igreja.cnpj?.replace(/\D/g, '') || '',
-      email: igreja.email || '',
-      telefone: igreja.telefone?.replace(/\D/g, '') || '',
+      nome: nomeCompleto,
+      tipo: tipoDocumento,
+      numeroDocumento: documento,
+      email: cliente.email || '',
+      telefone: cliente.telefone?.replace(/\D/g, '') || '',
     };
 
-    console.log('Criando contato da Igreja no Bling:', JSON.stringify(contatoData, null, 2));
+    console.log('Criando contato do Cliente no Bling:', JSON.stringify(contatoData, null, 2));
 
     const contatoResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
       method: 'POST',
@@ -77,10 +86,9 @@ serve(async (req) => {
       // Se o contato já existe, tentar buscar pelo documento
       console.log('Contato pode já existir, buscando...');
       
-      const searchDoc = igreja.cnpj?.replace(/\D/g, '') || '';
-      if (searchDoc) {
+      if (documento) {
         const searchResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${searchDoc}`,
+          `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`,
           {
             headers: {
               'Authorization': `Bearer ${config.access_token}`,
@@ -102,7 +110,7 @@ serve(async (req) => {
       console.log('Não foi possível criar/encontrar contato, criando consumidor genérico...');
       
       const genericContatoData = {
-        nome: igreja.nome || 'Consumidor Final',
+        nome: nomeCompleto || 'Consumidor Final',
         tipo: 'F',
       };
 
@@ -192,8 +200,8 @@ serve(async (req) => {
       pedidoData.transporte = {
         frete: valor_frete || 0,
         contato: {
-          nome: endereco_entrega.nome || igreja.nome,
-          telefone: endereco_entrega.telefone || igreja.telefone || '',
+          nome: nomeCompleto,
+          telefone: cliente.telefone?.replace(/\D/g, '') || '',
         },
         endereco: {
           endereco: endereco_entrega.rua || '',
