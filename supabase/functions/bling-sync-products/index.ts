@@ -59,6 +59,7 @@ async function refreshTokenIfNeeded(supabase: any, config: any, forceRefresh: bo
     });
 
     const tokenData = await tokenResponse.json();
+    console.log('Resposta do refresh token:', JSON.stringify(tokenData));
 
     if (tokenResponse.ok && !tokenData.error) {
       const newExpiresAt = new Date();
@@ -73,7 +74,11 @@ async function refreshTokenIfNeeded(supabase: any, config: any, forceRefresh: bo
         })
         .eq('id', config.id);
 
+      console.log('Token renovado com sucesso!');
       return tokenData.access_token;
+    } else {
+      console.error('Erro ao renovar token:', JSON.stringify(tokenData));
+      throw new Error(`Falha ao renovar token: ${tokenData.error?.message || tokenData.error_description || 'Token inválido. Reconecte ao Bling.'}`);
     }
   }
   
