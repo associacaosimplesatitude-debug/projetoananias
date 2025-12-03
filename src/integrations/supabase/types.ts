@@ -1219,6 +1219,7 @@ export type Database = {
           bling_order_id: number | null
           church_id: string
           codigo_rastreio: string | null
+          cpf_cnpj_cliente: string | null
           created_at: string | null
           email_cliente: string | null
           endereco_bairro: string
@@ -1232,9 +1233,12 @@ export type Database = {
           mercadopago_payment_id: string | null
           mercadopago_preference_id: string | null
           metodo_frete: string | null
+          nome_cliente: string | null
           payment_status: string | null
+          sobrenome_cliente: string | null
           status: string
           status_logistico: string | null
+          telefone_cliente: string | null
           updated_at: string | null
           valor_frete: number
           valor_produtos: number
@@ -1245,6 +1249,7 @@ export type Database = {
           bling_order_id?: number | null
           church_id: string
           codigo_rastreio?: string | null
+          cpf_cnpj_cliente?: string | null
           created_at?: string | null
           email_cliente?: string | null
           endereco_bairro: string
@@ -1258,9 +1263,12 @@ export type Database = {
           mercadopago_payment_id?: string | null
           mercadopago_preference_id?: string | null
           metodo_frete?: string | null
+          nome_cliente?: string | null
           payment_status?: string | null
+          sobrenome_cliente?: string | null
           status?: string
           status_logistico?: string | null
+          telefone_cliente?: string | null
           updated_at?: string | null
           valor_frete?: number
           valor_produtos?: number
@@ -1271,6 +1279,7 @@ export type Database = {
           bling_order_id?: number | null
           church_id?: string
           codigo_rastreio?: string | null
+          cpf_cnpj_cliente?: string | null
           created_at?: string | null
           email_cliente?: string | null
           endereco_bairro?: string
@@ -1284,9 +1293,12 @@ export type Database = {
           mercadopago_payment_id?: string | null
           mercadopago_preference_id?: string | null
           metodo_frete?: string | null
+          nome_cliente?: string | null
           payment_status?: string | null
+          sobrenome_cliente?: string | null
           status?: string
           status_logistico?: string | null
+          telefone_cliente?: string | null
           updated_at?: string | null
           valor_frete?: number
           valor_produtos?: number

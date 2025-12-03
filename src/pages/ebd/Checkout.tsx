@@ -271,6 +271,9 @@ export default function Checkout() {
             endereco_cidade: data.cidade,
             endereco_estado: data.estado,
             email_cliente: data.email,
+            nome_cliente: data.nome,
+            sobrenome_cliente: data.sobrenome,
+            cpf_cnpj_cliente: data.cpf,
           })
           .select()
           .single();
@@ -415,6 +418,9 @@ export default function Checkout() {
             endereco_cidade: data.cidade,
             endereco_estado: data.estado,
             email_cliente: data.email,
+            nome_cliente: data.nome,
+            sobrenome_cliente: data.sobrenome,
+            cpf_cnpj_cliente: data.cpf,
             approved_at: new Date().toISOString(),
           })
           .select()
@@ -565,6 +571,9 @@ export default function Checkout() {
             endereco_cidade: data.cidade,
             endereco_estado: data.estado,
             email_cliente: data.email,
+            nome_cliente: data.nome,
+            sobrenome_cliente: data.sobrenome,
+            cpf_cnpj_cliente: data.cpf,
           })
           .select()
           .single();
