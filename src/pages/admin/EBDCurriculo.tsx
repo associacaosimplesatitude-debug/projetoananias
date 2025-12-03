@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BookOpen, Edit, Trash2, FileUp } from "lucide-react";
+import { Plus, BookOpen, Edit, Trash2, FileUp, Package } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { RevistaDialog } from "@/components/ebd/RevistaDialog";
 import { ImportXMLDialog } from "@/components/ebd/ImportXMLDialog";
@@ -27,6 +28,8 @@ interface Revista {
   imagem_url: string | null;
   num_licoes: number;
   preco_cheio: number;
+  estoque: number | null;
+  categoria: string | null;
 }
 
 export default function EBDCurriculo() {
@@ -121,7 +124,7 @@ export default function EBDCurriculo() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Gestão de Currículo EBD</h1>
+            <h1 className="text-3xl font-bold">Gestão de Catálogo EBD</h1>
             <p className="text-muted-foreground">Cadastre revistas e suas lições</p>
           </div>
           <div className="flex gap-2">
@@ -172,12 +175,28 @@ export default function EBDCurriculo() {
                   </div>
                 )}
                 <CardHeader>
-                  <CardTitle className="text-lg">{revista.titulo}</CardTitle>
-                  <CardDescription>
-                    {revista.faixa_etaria_alvo} • {revista.num_licoes} lições
-                  </CardDescription>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{revista.titulo}</CardTitle>
+                      <CardDescription>
+                        {revista.faixa_etaria_alvo} • {revista.num_licoes} lições
+                      </CardDescription>
+                    </div>
+                    <Badge 
+                      variant={revista.estoque && revista.estoque > 0 ? "default" : "destructive"}
+                      className="flex items-center gap-1"
+                    >
+                      <Package className="w-3 h-3" />
+                      {revista.estoque ?? 0}
+                    </Badge>
+                  </div>
                 </CardHeader>
                 <CardContent>
+                  {revista.categoria && (
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Categoria: {revista.categoria}
+                    </p>
+                  )}
                   {revista.autor && (
                     <p className="text-sm text-muted-foreground mb-2">
                       Autor: {revista.autor}
