@@ -12,9 +12,9 @@ serve(async (req) => {
   }
 
   try {
-const { 
-      cliente,          // Dados do cliente do formulário (nome, sobrenome, cpf_cnpj, email)
-      endereco_entrega, // Endereço de entrega do checkout
+    const { 
+      cliente,          // Dados do cliente do formulário (nome, sobrenome, cpf_cnpj, email, telefone)
+      endereco_entrega, // Endereço de entrega do checkout (rua, numero, complemento, bairro, cep, cidade, estado)
       itens,            // Itens com preço já com desconto
       pedido_id,
       valor_frete,
@@ -55,8 +55,8 @@ const {
       ? `${cliente.nome} ${cliente.sobrenome}` 
       : cliente.nome;
 
-    // Criar ou buscar o contato do Cliente no Bling
-    const contatoData = {
+    // Criar ou buscar o contato do Cliente no Bling com endereço completo para NF
+    const contatoData: any = {
       nome: nomeCompleto,
       tipo: tipoDocumento,
       numeroDocumento: documento,
@@ -65,7 +65,21 @@ const {
       situacao: 'A', // A = Ativo (obrigatório para Bling API v3)
     };
 
-    console.log('Criando contato do Cliente no Bling:', JSON.stringify(contatoData, null, 2));
+    // Adicionar endereço ao contato (obrigatório para emissão de NF)
+    if (endereco_entrega) {
+      contatoData.endereco = {
+        endereco: endereco_entrega.rua || '',
+        numero: endereco_entrega.numero || 'S/N',
+        complemento: endereco_entrega.complemento || '',
+        bairro: endereco_entrega.bairro || '',
+        cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
+        municipio: endereco_entrega.cidade || '',
+        uf: endereco_entrega.estado || '',
+        pais: 'Brasil',
+      };
+    }
+
+    console.log('Criando contato do Cliente no Bling com endereço:', JSON.stringify(contatoData, null, 2));
 
     const contatoResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
       method: 'POST',
@@ -84,7 +98,7 @@ const {
       contatoId = contatoResult.data.id;
       console.log('Contato criado com sucesso, ID:', contatoId);
     } else if (contatoResult.error?.fields) {
-      // Se o contato já existe, tentar buscar pelo documento
+      // Se o contato já existe, tentar buscar pelo documento e atualizar
       console.log('Contato pode já existir, buscando...');
       
       if (documento) {
@@ -102,19 +116,51 @@ const {
         if (searchResult.data && searchResult.data.length > 0) {
           contatoId = searchResult.data[0].id;
           console.log('Contato encontrado, ID:', contatoId);
+          
+          // Atualizar o contato existente com os dados de endereço
+          console.log('Atualizando contato existente com endereço...');
+          const updateResponse = await fetch(`https://www.bling.com.br/Api/v3/contatos/${contatoId}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${config.access_token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(contatoData),
+          });
+          
+          if (updateResponse.ok) {
+            console.log('Contato atualizado com sucesso');
+          } else {
+            console.log('Não foi possível atualizar contato, continuando...');
+          }
         }
       }
     }
 
-    // Se não conseguiu criar ou encontrar contato, criar um genérico
+    // Se não conseguiu criar ou encontrar contato, criar um genérico com endereço
     if (!contatoId) {
-      console.log('Não foi possível criar/encontrar contato, criando consumidor genérico...');
+      console.log('Não foi possível criar/encontrar contato, criando consumidor genérico com endereço...');
       
-      const genericContatoData = {
+      const genericContatoData: any = {
         nome: nomeCompleto || 'Consumidor Final',
         tipo: 'F',
         situacao: 'A', // A = Ativo (obrigatório para Bling API v3)
       };
+
+      // Adicionar endereço mesmo para contato genérico
+      if (endereco_entrega) {
+        genericContatoData.endereco = {
+          endereco: endereco_entrega.rua || '',
+          numero: endereco_entrega.numero || 'S/N',
+          complemento: endereco_entrega.complemento || '',
+          bairro: endereco_entrega.bairro || '',
+          cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
+          municipio: endereco_entrega.cidade || '',
+          uf: endereco_entrega.estado || '',
+          pais: 'Brasil',
+        };
+      }
 
       const genericResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
         method: 'POST',
