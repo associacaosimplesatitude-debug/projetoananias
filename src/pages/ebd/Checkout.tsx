@@ -112,6 +112,12 @@ const formatCPFOrCNPJ = (value: string): string => {
   }
 };
 
+// Função para formatar CEP
+const formatCEP = (value: string): string => {
+  const cleanValue = value.replace(/\D/g, '').slice(0, 8);
+  return cleanValue.replace(/(\d{5})(\d)/, '$1-$2');
+};
+
 const addressSchema = z.object({
   nome: z.string().min(3, 'Nome é obrigatório').max(100, 'Nome muito longo'),
   sobrenome: z.string().min(2, 'Sobrenome é obrigatório').max(100, 'Sobrenome muito longo'),
@@ -1012,6 +1018,11 @@ export default function Checkout() {
                               <Input
                                 {...field}
                                 placeholder="00000-000"
+                                maxLength={9}
+                                onChange={(e) => {
+                                  const formatted = formatCEP(e.target.value);
+                                  field.onChange(formatted);
+                                }}
                                 onBlur={(e) => handleCEPBlur(e.target.value)}
                               />
                             </FormControl>
