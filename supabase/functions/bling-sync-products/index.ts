@@ -6,6 +6,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Função para remover tags HTML e limpar o texto
+function stripHtmlTags(html: string | null | undefined): string | null {
+  if (!html) return null;
+  
+  // Remove todas as tags HTML
+  let text = html.replace(/<[^>]*>/g, '');
+  
+  // Decodifica entidades HTML comuns
+  text = text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'");
+  
+  // Remove espaços múltiplos e quebras de linha extras
+  text = text.replace(/\s+/g, ' ').trim();
+  
+  // Se o texto resultante for vazio ou muito curto, retorna null
+  if (!text || text.length < 3) return null;
+  
+  return text;
+}
+
 async function refreshTokenIfNeeded(supabase: any, config: any) {
   const now = new Date();
   const expiresAt = config.token_expires_at ? new Date(config.token_expires_at) : null;
@@ -188,7 +214,7 @@ serve(async (req) => {
           preco_cheio: product.preco || 0,
           faixa_etaria_alvo: product.observacoes || 'Geral',
           imagem_url: product.imagemURL || null,
-          sinopse: product.descricaoCurta || null,
+          sinopse: stripHtmlTags(product.descricaoCurta),
           estoque: estoque,
           categoria: categoria,
           bling_produto_id: product.id,
