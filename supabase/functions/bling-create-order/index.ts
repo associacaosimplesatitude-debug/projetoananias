@@ -168,7 +168,21 @@ serve(async (req) => {
 
     if (!orderResponse.ok) {
       console.error('Erro ao criar pedido:', JSON.stringify(responseData, null, 2));
-      throw new Error(responseData.error?.message || 'Erro ao criar pedido no Bling');
+      
+      // Extrair mensagem de erro detalhada
+      let errorMsg = responseData.error?.message || 'Erro ao criar pedido no Bling';
+      
+      // Verificar se há erros de validação específicos
+      if (responseData.error?.fields) {
+        const fieldErrors = Object.values(responseData.error.fields) as any[];
+        const errorMessages = fieldErrors.map((f: any) => f.msg).filter(Boolean);
+        if (errorMessages.length > 0) {
+          // Limpar HTML das mensagens
+          errorMsg = errorMessages.map((m: string) => m.replace(/<[^>]*>/g, ' ').trim()).join('; ');
+        }
+      }
+      
+      throw new Error(errorMsg);
     }
 
     console.log('Pedido criado com sucesso:', responseData);
