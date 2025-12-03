@@ -950,6 +950,63 @@ export type Database = {
           },
         ]
       }
+      ebd_endereco_entrega: {
+        Row: {
+          bairro: string
+          cep: string
+          cidade: string
+          complemento: string | null
+          cpf_cnpj: string | null
+          created_at: string
+          email: string | null
+          estado: string
+          id: string
+          nome: string
+          numero: string
+          rua: string
+          sobrenome: string | null
+          telefone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bairro: string
+          cep: string
+          cidade: string
+          complemento?: string | null
+          cpf_cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          estado: string
+          id?: string
+          nome: string
+          numero: string
+          rua: string
+          sobrenome?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bairro?: string
+          cep?: string
+          cidade?: string
+          complemento?: string | null
+          cpf_cnpj?: string | null
+          created_at?: string
+          email?: string | null
+          estado?: string
+          id?: string
+          nome?: string
+          numero?: string
+          rua?: string
+          sobrenome?: string | null
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ebd_escalas: {
         Row: {
           church_id: string

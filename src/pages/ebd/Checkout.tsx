@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, CreditCard, FileText, QrCode } from 'lucide-react';
+import { ArrowLeft, CreditCard, FileText, QrCode, MapPin, Check, Edit } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -40,6 +40,22 @@ interface Revista {
   preco_cheio: number | null;
 }
 
+interface SavedAddress {
+  id: string;
+  nome: string;
+  sobrenome: string | null;
+  cpf_cnpj: string | null;
+  email: string | null;
+  telefone: string | null;
+  cep: string;
+  estado: string;
+  rua: string;
+  numero: string;
+  complemento: string | null;
+  bairro: string;
+  cidade: string;
+}
+
 export default function Checkout() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -64,6 +80,8 @@ export default function Checkout() {
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [installments, setInstallments] = useState('1');
+  const [useSavedAddress, setUseSavedAddress] = useState<boolean | null>(null);
+  const [showAddressForm, setShowAddressForm] = useState(false);
 
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -81,6 +99,89 @@ export default function Checkout() {
       estado: '',
     },
   });
+
+  // Buscar endereço salvo do usuário
+  const { data: savedAddress, isLoading: isLoadingAddress } = useQuery({
+    queryKey: ['saved-address'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('ebd_endereco_entrega')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao buscar endereço salvo:', error);
+        return null;
+      }
+
+      return data as SavedAddress | null;
+    },
+  });
+
+  // Efeito para decidir se mostra o formulário ou endereço salvo
+  useEffect(() => {
+    if (!isLoadingAddress) {
+      if (savedAddress) {
+        setUseSavedAddress(true);
+        // Preenche o formulário com os dados salvos
+        form.reset({
+          nome: savedAddress.nome,
+          sobrenome: savedAddress.sobrenome || '',
+          cpf: savedAddress.cpf_cnpj || '',
+          email: savedAddress.email || '',
+          cep: savedAddress.cep,
+          rua: savedAddress.rua,
+          numero: savedAddress.numero,
+          complemento: savedAddress.complemento || '',
+          bairro: savedAddress.bairro,
+          cidade: savedAddress.cidade,
+          estado: savedAddress.estado,
+        });
+        // Calcular frete automaticamente se tiver endereço salvo
+        handleCEPBlur(savedAddress.cep);
+      } else {
+        setUseSavedAddress(false);
+        setShowAddressForm(true);
+      }
+    }
+  }, [savedAddress, isLoadingAddress]);
+
+  // Função para salvar/atualizar endereço
+  const saveAddress = async (data: AddressForm) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const addressData = {
+        user_id: user.id,
+        nome: data.nome,
+        sobrenome: data.sobrenome,
+        cpf_cnpj: data.cpf,
+        email: data.email,
+        cep: data.cep,
+        estado: data.estado,
+        rua: data.rua,
+        numero: data.numero,
+        complemento: data.complemento || null,
+        bairro: data.bairro,
+        cidade: data.cidade,
+      };
+
+      const { error } = await supabase
+        .from('ebd_endereco_entrega')
+        .upsert(addressData, { onConflict: 'user_id' });
+
+      if (error) {
+        console.error('Erro ao salvar endereço:', error);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar endereço:', error);
+    }
+  };
 
   const revistaIds = Object.keys(cart);
 
@@ -631,7 +732,34 @@ export default function Checkout() {
   };
 
   const onSubmit = async (data: AddressForm) => {
+    // Salvar endereço para reutilização futura
+    await saveAddress(data);
     await processPayment(data);
+  };
+
+  const handleUseSavedAddress = () => {
+    setUseSavedAddress(true);
+    setShowAddressForm(false);
+    if (savedAddress) {
+      form.reset({
+        nome: savedAddress.nome,
+        sobrenome: savedAddress.sobrenome || '',
+        cpf: savedAddress.cpf_cnpj || '',
+        email: savedAddress.email || '',
+        cep: savedAddress.cep,
+        rua: savedAddress.rua,
+        numero: savedAddress.numero,
+        complemento: savedAddress.complemento || '',
+        bairro: savedAddress.bairro,
+        cidade: savedAddress.cidade,
+        estado: savedAddress.estado,
+      });
+    }
+  };
+
+  const handleChangeAddress = () => {
+    setUseSavedAddress(false);
+    setShowAddressForm(true);
   };
 
   if (revistaIds.length === 0) {
@@ -658,9 +786,55 @@ export default function Checkout() {
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Endereço de Entrega</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Endereço de Entrega
+                </CardTitle>
               </CardHeader>
               <CardContent>
+                {/* Opção de usar endereço salvo */}
+                {savedAddress && useSavedAddress && !showAddressForm && (
+                  <div className="space-y-4">
+                    <div className="p-4 border rounded-lg bg-muted/30">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2 text-primary font-medium">
+                          <Check className="w-5 h-5" />
+                          <span>Usar este endereço de entrega?</span>
+                        </div>
+                      </div>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p className="font-medium text-foreground">{savedAddress.nome} {savedAddress.sobrenome}</p>
+                        {savedAddress.email && <p>{savedAddress.email}</p>}
+                        {savedAddress.cpf_cnpj && <p>CPF/CNPJ: {savedAddress.cpf_cnpj}</p>}
+                        <p>{savedAddress.rua}, {savedAddress.numero}{savedAddress.complemento ? ` - ${savedAddress.complemento}` : ''}</p>
+                        <p>{savedAddress.bairro} - {savedAddress.cidade}/{savedAddress.estado}</p>
+                        <p>CEP: {savedAddress.cep}</p>
+                      </div>
+                      <div className="flex gap-3 mt-4">
+                        <Button
+                          type="button"
+                          onClick={handleUseSavedAddress}
+                          className="flex-1"
+                        >
+                          <Check className="w-4 h-4 mr-2" />
+                          Sim, usar este endereço
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleChangeAddress}
+                          className="flex-1"
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Mudar Endereço
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulário de endereço */}
+                {(showAddressForm || !savedAddress) && (
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
@@ -827,6 +1001,7 @@ export default function Checkout() {
                     </div>
                   </form>
                 </Form>
+                )}
               </CardContent>
             </Card>
 
