@@ -161,14 +161,31 @@ export default function Orders() {
 
           if (blingError) {
             console.error('Erro ao criar pedido no Bling:', blingError);
+            // Verificar se é erro de estoque
+            const errorBody = blingResponse?.error || blingError.message || '';
+            if (errorBody.toLowerCase().includes('estoque') && errorBody.toLowerCase().includes('insuficiente')) {
+              throw new Error('Estoque insuficiente no Bling para um ou mais produtos. Verifique o estoque antes de confirmar.');
+            }
+            // Para outros erros do Bling, continuar mas avisar
+            console.warn('Pedido será confirmado localmente, mas não foi criado no Bling');
           } else if (blingResponse?.bling_order_id) {
             // Salvar o bling_order_id no pedido
             await supabase
               .from("ebd_pedidos")
               .update({ bling_order_id: blingResponse.bling_order_id })
               .eq("id", orderId);
+          } else if (blingResponse?.error) {
+            // Erro retornado no body da resposta
+            const errorMsg = blingResponse.error;
+            if (errorMsg.toLowerCase().includes('estoque') && errorMsg.toLowerCase().includes('insuficiente')) {
+              throw new Error('Estoque insuficiente no Bling para um ou mais produtos. Verifique o estoque antes de confirmar.');
+            }
           }
-        } catch (err) {
+        } catch (err: any) {
+          // Re-throw erros de estoque para parar a operação
+          if (err.message?.includes('Estoque insuficiente')) {
+            throw err;
+          }
           console.error('Erro ao chamar bling-create-order:', err);
         }
       } else {
@@ -265,8 +282,16 @@ export default function Orders() {
         throw new Error(blingError.message || 'Erro ao criar pedido no Bling');
       }
 
+      if (blingResponse?.error) {
+        const errorMsg = blingResponse.error;
+        if (errorMsg.toLowerCase().includes('estoque') && errorMsg.toLowerCase().includes('insuficiente')) {
+          throw new Error('Estoque insuficiente no Bling para um ou mais produtos. Verifique o estoque antes de reenviar.');
+        }
+        throw new Error(errorMsg);
+      }
+
       if (!blingResponse?.bling_order_id) {
-        throw new Error(blingResponse?.error || 'Bling não retornou ID do pedido');
+        throw new Error('Bling não retornou ID do pedido');
       }
 
       // Salvar o bling_order_id no pedido

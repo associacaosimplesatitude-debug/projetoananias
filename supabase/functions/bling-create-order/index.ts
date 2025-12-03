@@ -235,16 +235,26 @@ const {
       console.error('Erro ao criar pedido:', JSON.stringify(responseData, null, 2));
       
       let errorMsg = responseData.error?.message || 'Erro ao criar pedido no Bling';
+      let errorType = 'UNKNOWN_ERROR';
       
       if (responseData.error?.fields) {
         const fieldErrors = Object.values(responseData.error.fields) as any[];
         const errorMessages = fieldErrors.map((f: any) => f.msg).filter(Boolean);
         if (errorMessages.length > 0) {
           errorMsg = errorMessages.map((m: string) => m.replace(/<[^>]*>/g, ' ').trim()).join('; ');
+          
+          // Detectar erro de estoque insuficiente
+          if (errorMsg.toLowerCase().includes('estoque') && errorMsg.toLowerCase().includes('insuficiente')) {
+            errorType = 'INSUFFICIENT_STOCK';
+          }
         }
       }
       
-      throw new Error(errorMsg);
+      // Retornar 400 para erros de validação (como estoque)
+      return new Response(
+        JSON.stringify({ error: errorMsg, errorType }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('Pedido criado com sucesso:', responseData);
