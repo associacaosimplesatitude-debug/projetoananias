@@ -247,7 +247,7 @@ export const Navigation = () => {
     {
       to: '/admin/curriculo-ebd',
       icon: BookOpen,
-      label: 'Currículo EBD',
+      label: 'Catálogo',
     },
     {
       to: '/admin/orders',
