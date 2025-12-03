@@ -24,7 +24,6 @@ serve(async (req) => {
     const body = await req.json();
     console.log('Webhook recebido:', body);
 
-    // Mercado Pago envia notificações em formato específico
     const { type, data } = body;
 
     if (type === 'payment') {
@@ -45,7 +44,7 @@ serve(async (req) => {
       }
 
       const payment = await paymentResponse.json();
-      console.log('Pagamento:', payment.id, 'Status:', payment.status);
+      console.log('Pagamento:', payment.id, 'Status:', payment.status, 'Método:', payment.payment_type_id);
 
       // Buscar pedido pelo mercadopago_payment_id com dados completos
       const { data: pedido, error: pedidoError } = await supabase
@@ -70,7 +69,6 @@ serve(async (req) => {
         );
       }
 
-      // Atualizar status do pedido baseado no status do pagamento
       let newStatus = pedido.status;
       let paymentStatus = payment.status;
       let emailType = '';
@@ -102,33 +100,47 @@ serve(async (req) => {
           try {
             console.log('Criando pedido no Bling para pedido:', pedido.id);
             
-            // Preparar dados do cliente
-            const cliente = {
+            // Dados da Igreja (cliente principal)
+            const igreja = {
               nome: pedido.church?.church_name || 'Cliente',
-              email: pedido.email_cliente || pedido.church?.pastor_email,
+              email: pedido.church?.pastor_email || pedido.email_cliente,
               telefone: pedido.church?.pastor_whatsapp,
               cnpj: pedido.church?.cnpj,
-              endereco: {
-                rua: pedido.endereco_rua,
-                numero: pedido.endereco_numero,
-                complemento: pedido.endereco_complemento,
-                bairro: pedido.endereco_bairro,
-                cep: pedido.endereco_cep,
-                cidade: pedido.endereco_cidade,
-                estado: pedido.endereco_estado,
-              }
             };
 
-            // Preparar itens
+            // Endereço de entrega (do formulário de checkout)
+            const endereco_entrega = {
+              nome: pedido.email_cliente?.split('@')[0] || 'Destinatário',
+              rua: pedido.endereco_rua,
+              numero: pedido.endereco_numero,
+              complemento: pedido.endereco_complemento,
+              bairro: pedido.endereco_bairro,
+              cep: pedido.endereco_cep,
+              cidade: pedido.endereco_cidade,
+              estado: pedido.endereco_estado,
+              telefone: pedido.church?.pastor_whatsapp,
+            };
+
+            // Preparar itens com preço já com desconto (30% off)
             const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => ({
               codigo: item.revista?.bling_produto_id?.toString() || '0',
               descricao: item.revista?.titulo || 'Revista EBD',
               unidade: 'UN',
               quantidade: item.quantidade,
-              valor: item.preco_unitario,
+              valor: Number(item.preco_unitario.toFixed(2)), // Já vem com desconto do checkout
             })) || [];
 
-            // Chamar função bling-create-order
+            // Mapear forma de pagamento do Mercado Pago
+            const paymentTypeMap: { [key: string]: string } = {
+              'credit_card': 'card',
+              'debit_card': 'card',
+              'account_money': 'pix',
+              'bank_transfer': 'pix',
+              'ticket': 'boleto',
+            };
+            const formaPagamento = paymentTypeMap[payment.payment_type_id] || 'pix';
+
+            // Chamar função bling-create-order com dados completos
             const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
               method: 'POST',
               headers: {
@@ -136,9 +148,15 @@ serve(async (req) => {
                 'Authorization': `Bearer ${supabaseKey}`,
               },
               body: JSON.stringify({
-                cliente,
+                igreja,
+                endereco_entrega,
                 itens: itensBling,
-                pedido_id: pedido.id.slice(0, 8).toUpperCase()
+                pedido_id: pedido.id.slice(0, 8).toUpperCase(),
+                valor_frete: pedido.valor_frete || 0,
+                metodo_frete: pedido.metodo_frete || 'pac',
+                forma_pagamento: formaPagamento,
+                valor_produtos: pedido.valor_produtos || 0,
+                valor_total: pedido.valor_total || 0,
               }),
             });
 
