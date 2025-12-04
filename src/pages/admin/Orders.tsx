@@ -112,7 +112,7 @@ export default function Orders() {
           ebd_pedidos_itens(
             quantidade,
             preco_unitario,
-            revista:ebd_revistas(titulo, bling_produto_id)
+            revista:ebd_revistas(titulo, bling_produto_id, preco_cheio)
           ),
           church:churches(church_name, pastor_email, pastor_whatsapp, cnpj)
         `)
@@ -144,13 +144,14 @@ export default function Orders() {
             estado: order.endereco_estado,
           };
 
-          // Preparar itens
+          // Preparar itens com preço de lista e preço com desconto
           const itens = order.ebd_pedidos_itens?.map((item: any) => ({
             codigo: item.revista?.bling_produto_id?.toString() || '0',
             descricao: item.revista?.titulo || 'Revista EBD',
             unidade: 'UN',
             quantidade: item.quantidade,
-            valor: item.preco_unitario,
+            valor: item.preco_unitario, // Preço com desconto
+            preco_cheio: item.revista?.preco_cheio || item.preco_unitario, // Preço de lista (tabela)
           })) || [];
 
           // Criar pedido no Bling
@@ -256,7 +257,7 @@ export default function Orders() {
           ebd_pedidos_itens(
             quantidade,
             preco_unitario,
-            revista:ebd_revistas(titulo, bling_produto_id)
+            revista:ebd_revistas(titulo, bling_produto_id, preco_cheio)
           ),
           church:churches(church_name, pastor_email, pastor_whatsapp, cnpj)
         `)
@@ -285,13 +286,14 @@ export default function Orders() {
         estado: order.endereco_estado,
       };
 
-      // Preparar itens
+      // Preparar itens com preço de lista e preço com desconto
       const itens = order.ebd_pedidos_itens?.map((item: any) => ({
         codigo: item.revista?.bling_produto_id?.toString() || '0',
         descricao: item.revista?.titulo || 'Revista EBD',
         unidade: 'UN',
         quantidade: item.quantidade,
-        valor: item.preco_unitario,
+        valor: item.preco_unitario, // Preço com desconto
+        preco_cheio: item.revista?.preco_cheio || item.preco_unitario, // Preço de lista (tabela)
       })) || [];
 
       // Criar pedido no Bling

@@ -78,13 +78,13 @@ serve(async (req) => {
     const { 
       cliente,          // Dados do cliente do formulário (nome, sobrenome, cpf_cnpj, email, telefone)
       endereco_entrega, // Endereço de entrega do checkout (rua, numero, complemento, bairro, cep, cidade, estado)
-      itens,            // Itens com preço já com desconto
+      itens,            // Itens com preço de lista (preco_cheio) e preço com desconto (valor)
       pedido_id,
       valor_frete,
       metodo_frete,     // PAC, SEDEX, FREE
       forma_pagamento,  // PIX, CARTAO, BOLETO
-      valor_produtos,
-      valor_total
+      valor_produtos,   // Total dos produtos com desconto
+      valor_total       // Total final (produtos + frete)
     } = await req.json();
 
     if (!cliente || !itens || itens.length === 0) {
@@ -256,39 +256,70 @@ serve(async (req) => {
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
     
-    // Preparar itens (já vêm com preço com desconto)
-    // IMPORTANTE: Bling API v3 usa estrutura { produto: { id: number } } para identificar produtos
-    // O bling_produto_id armazenado é o ID interno do produto no Bling
+    // Calcular desconto total da venda
+    let descontoTotalVenda = 0;
+    
+    // Preparar itens com Preço de Lista e Desconto separados
+    // Bling API v3: valor = preço de lista, desconto = valor do desconto por unidade
     const itensBling = itens.map((item: any) => {
       const blingProdutoId = parseInt(item.codigo, 10);
       
-      console.log(`Item: ${item.descricao}, bling_produto_id recebido: ${item.codigo}, parsed: ${blingProdutoId}`);
+      // preco_cheio = preço de tabela (sem desconto)
+      // valor = preço com desconto aplicado
+      const precoLista = Number(item.preco_cheio || item.valor);
+      const precoComDesconto = Number(item.valor);
+      const quantidade = Number(item.quantidade);
+      
+      // Calcular desconto por unidade
+      const descontoUnidade = precoLista > precoComDesconto ? Number((precoLista - precoComDesconto).toFixed(2)) : 0;
+      
+      // Acumular desconto total
+      descontoTotalVenda += descontoUnidade * quantidade;
+      
+      console.log(`Item: ${item.descricao}`);
+      console.log(`  - bling_produto_id: ${item.codigo} -> ${blingProdutoId}`);
+      console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
+      console.log(`  - Preço com Desconto: R$ ${precoComDesconto.toFixed(2)}`);
+      console.log(`  - Desconto por Unidade: R$ ${descontoUnidade.toFixed(2)}`);
+      console.log(`  - Quantidade: ${quantidade}`);
       
       if (!blingProdutoId || isNaN(blingProdutoId)) {
         console.error(`ERRO: bling_produto_id inválido para item: ${item.descricao}`);
       }
       
-      return {
+      const itemBling: any = {
         produto: {
           id: blingProdutoId, // ID interno do produto no Bling
         },
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
-        quantidade: item.quantidade,
-        valor: Number(item.valor.toFixed(2)), // Preço já com desconto
+        quantidade: quantidade,
+        valor: precoLista, // Preço de Lista (sem desconto)
       };
+      
+      // Adicionar desconto apenas se houver
+      if (descontoUnidade > 0) {
+        itemBling.desconto = {
+          valor: descontoUnidade, // Desconto por unidade em valor absoluto
+          tipo: 'VALOR', // Tipo de desconto: VALOR ou PERCENTUAL
+        };
+      }
+      
+      return itemBling;
     });
+
+    console.log(`Desconto Total da Venda: R$ ${descontoTotalVenda.toFixed(2)}`);
 
     // Gerar número único para o pedido
     const numeroPedido = `${timestamp}-${randomSuffix}`;
 
-    // Mapear tipo de frete
-    const tipoFreteMap: { [key: string]: string } = {
-      'pac': 'PAC',
-      'sedex': 'SEDEX',
-      'free': 'Frete Grátis',
+    // Mapear tipo de frete para nome do transportador
+    const tipoFreteMap: { [key: string]: { nome: string; servico: string } } = {
+      'pac': { nome: 'Correios', servico: 'PAC' },
+      'sedex': { nome: 'Correios', servico: 'SEDEX' },
+      'free': { nome: 'Frete Grátis', servico: 'FRETE GRATIS' },
     };
-    const tipoFreteDescricao = tipoFreteMap[metodo_frete?.toLowerCase()] || metodo_frete || 'A Combinar';
+    const freteInfo = tipoFreteMap[metodo_frete?.toLowerCase()] || { nome: 'Correios', servico: metodo_frete || 'A Combinar' };
 
     // Mapear forma de pagamento
     const formaPagamentoMap: { [key: string]: string } = {
@@ -298,18 +329,32 @@ serve(async (req) => {
     };
     const formaPagamentoDescricao = formaPagamentoMap[forma_pagamento?.toLowerCase()] || forma_pagamento || 'Outros';
 
+    // Calcular valores corretos
+    const valorFreteNum = Number(valor_frete || 0);
+    const valorProdutosNum = Number(valor_produtos || 0);
+    const valorTotalCorreto = valorProdutosNum + valorFreteNum;
+
+    console.log('=== RESUMO DO PEDIDO ===');
+    console.log(`Valor Produtos (com desconto): R$ ${valorProdutosNum.toFixed(2)}`);
+    console.log(`Valor Frete: R$ ${valorFreteNum.toFixed(2)}`);
+    console.log(`Valor Total: R$ ${valorTotalCorreto.toFixed(2)}`);
+    console.log(`Desconto Total: R$ ${descontoTotalVenda.toFixed(2)}`);
+    console.log(`Transportador: ${freteInfo.nome} - ${freteInfo.servico}`);
+
     // Montar observações detalhadas
     const observacoes = [
       `Pedido EBD #${pedido_id}`,
       `Forma de Pagamento: ${formaPagamentoDescricao}`,
-      `Tipo de Frete: ${tipoFreteDescricao}`,
-      `Valor Produtos: R$ ${(valor_produtos || 0).toFixed(2)}`,
-      `Valor Frete: R$ ${(valor_frete || 0).toFixed(2)}`,
-      `Valor Total: R$ ${(valor_total || 0).toFixed(2)}`,
+      `Transportador: ${freteInfo.nome}`,
+      `Serviço: ${freteInfo.servico}`,
+      `Valor Produtos: R$ ${valorProdutosNum.toFixed(2)}`,
+      `Desconto Total: R$ ${descontoTotalVenda.toFixed(2)}`,
+      `Valor Frete: R$ ${valorFreteNum.toFixed(2)}`,
+      `Valor Total: R$ ${valorTotalCorreto.toFixed(2)}`,
       `Gerado em: ${new Date().toISOString()}`,
     ].join(' | ');
 
-    // Criar pedido no Bling com dados de transporte
+    // Criar pedido no Bling com dados de transporte corretos
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
@@ -326,10 +371,20 @@ serve(async (req) => {
       observacoes: observacoes,
     };
 
+    // Adicionar desconto total da venda se houver
+    if (descontoTotalVenda > 0) {
+      pedidoData.desconto = {
+        valor: Number(descontoTotalVenda.toFixed(2)),
+        tipo: 'VALOR',
+      };
+    }
+
     // Adicionar transporte/endereço de entrega se disponível
     if (endereco_entrega) {
       pedidoData.transporte = {
-        frete: valor_frete || 0,
+        frete: valorFreteNum,
+        transportador: freteInfo.nome, // Nome do transportador (Correios)
+        volumes: 1,
         contato: {
           nome: nomeCompleto,
           telefone: cliente.telefone?.replace(/\D/g, '') || '',
