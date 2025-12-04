@@ -6,6 +6,69 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Função para renovar o token do Bling
+async function refreshBlingToken(supabase: any, config: any): Promise<string> {
+  if (!config.refresh_token) {
+    throw new Error('Refresh token não disponível');
+  }
+
+  console.log('Renovando token do Bling...');
+  
+  const credentials = btoa(`${config.client_id}:${config.client_secret}`);
+  
+  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': `Basic ${credentials}`,
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: config.refresh_token,
+    }),
+  });
+
+  const tokenData = await tokenResponse.json();
+
+  if (!tokenResponse.ok || tokenData.error) {
+    console.error('Erro ao renovar token:', tokenData);
+    throw new Error(tokenData.error_description || 'Erro ao renovar token do Bling');
+  }
+
+  // Calcular nova expiração
+  const expiresAt = new Date();
+  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 21600));
+
+  // Atualizar tokens no banco
+  const { error: updateError } = await supabase
+    .from('bling_config')
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      token_expires_at: expiresAt.toISOString(),
+    })
+    .eq('id', config.id);
+
+  if (updateError) {
+    console.error('Erro ao salvar tokens:', updateError);
+    throw new Error('Erro ao salvar tokens renovados');
+  }
+
+  console.log('Token renovado com sucesso! Expira em:', expiresAt.toISOString());
+  return tokenData.access_token;
+}
+
+// Função para verificar se o token está expirado ou próximo de expirar
+function isTokenExpired(tokenExpiresAt: string | null): boolean {
+  if (!tokenExpiresAt) return true;
+  
+  const expiresAt = new Date(tokenExpiresAt);
+  const now = new Date();
+  // Considera expirado se faltam menos de 5 minutos
+  const bufferMs = 5 * 60 * 1000;
+  return now.getTime() >= expiresAt.getTime() - bufferMs;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -39,6 +102,13 @@ serve(async (req) => {
       throw new Error('Token de acesso não configurado');
     }
 
+    // Verificar se o token está expirado e renovar se necessário
+    let accessToken = config.access_token;
+    if (isTokenExpired(config.token_expires_at)) {
+      console.log('Token expirado ou próximo de expirar, renovando...');
+      accessToken = await refreshBlingToken(supabase, config);
+    }
+
     // Filtrar produtos com bling_produto_id válido
     const produtosValidos = produtos.filter((p: any) => p.bling_produto_id && p.bling_produto_id > 0);
     
@@ -54,66 +124,110 @@ serve(async (req) => {
       );
     }
 
-    // Buscar estoque de todos os produtos em uma única chamada
-    const produtoIds = produtosValidos.map((p: any) => p.bling_produto_id);
-    const idsQuery = produtoIds.map((id: number) => `idsProdutos[]=${id}`).join('&');
+    // Buscar estoque de cada produto individualmente para garantir precisão
+    const resultados = [];
     
-    console.log(`Verificando estoque dos produtos: ${produtoIds.join(', ')}`);
-
-    const stockResponse = await fetch(
-      `https://www.bling.com.br/Api/v3/estoques/saldos?${idsQuery}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${config.access_token}`,
-          'Accept': 'application/json',
-        },
-      }
-    );
-
-    if (!stockResponse.ok) {
-      const errorText = await stockResponse.text();
-      console.error('Erro na API Bling:', stockResponse.status, errorText);
-      throw new Error(`Erro ao verificar estoque: ${stockResponse.status}`);
-    }
-
-    const data = await stockResponse.json();
-    const estoques = data.data || [];
-
-    // Mapear estoque por produto
-    const estoqueMap: { [key: number]: number } = {};
-    for (const item of estoques) {
-      const produtoId = item.produto?.id;
-      if (produtoId) {
-        // Calcular estoque geral (soma de todos os depósitos)
-        let estoqueGeral = 0;
-        if (item.saldos) {
-          estoqueGeral = item.saldos.reduce((acc: number, saldo: any) => {
-            return acc + (saldo.saldoFisicoTotal || 0);
-          }, 0);
+    for (const produto of produtosValidos) {
+      const produtoId = produto.bling_produto_id;
+      const quantidadeSolicitada = produto.quantidade || 1;
+      
+      console.log(`Verificando estoque do produto ID: ${produtoId}`);
+      
+      // Primeiro, buscar informações do produto para confirmar que existe
+      const productResponse = await fetch(
+        `https://www.bling.com.br/Api/v3/produtos/${produtoId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
         }
-        estoqueMap[produtoId] = estoqueGeral;
+      );
+      
+      if (!productResponse.ok) {
+        console.error(`Produto ${produtoId} não encontrado no Bling:`, productResponse.status);
+        resultados.push({
+          bling_produto_id: produtoId,
+          titulo: produto.titulo || '',
+          estoque_disponivel: 0,
+          quantidade_solicitada: quantidadeSolicitada,
+          tem_estoque: false,
+          erro: 'Produto não encontrado no Bling'
+        });
+        continue;
       }
-    }
+      
+      const productData = await productResponse.json();
+      console.log(`Produto encontrado: ${productData.data?.nome || 'sem nome'}`);
+      
+      // Agora buscar o estoque do produto
+      const stockResponse = await fetch(
+        `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        }
+      );
 
-    // Verificar se todos os produtos têm estoque suficiente
-    const resultados = produtosValidos.map((p: any) => {
-      const estoqueDisponivel = estoqueMap[p.bling_produto_id] || 0;
-      const quantidadeSolicitada = p.quantidade || 1;
-      const temEstoque = estoqueDisponivel >= quantidadeSolicitada;
+      if (!stockResponse.ok) {
+        const errorText = await stockResponse.text();
+        console.error(`Erro ao buscar estoque do produto ${produtoId}:`, stockResponse.status, errorText);
+        
+        // Tentar usar o estoque do próprio produto
+        const estoqueFromProduct = productData.data?.estoque?.saldoVirtualTotal || 0;
+        console.log(`Usando estoque do produto: ${estoqueFromProduct}`);
+        
+        resultados.push({
+          bling_produto_id: produtoId,
+          titulo: produto.titulo || productData.data?.nome || '',
+          estoque_disponivel: estoqueFromProduct,
+          quantidade_solicitada: quantidadeSolicitada,
+          tem_estoque: estoqueFromProduct >= quantidadeSolicitada,
+        });
+        continue;
+      }
+
+      const stockData = await stockResponse.json();
+      console.log(`Resposta de estoque para ${produtoId}:`, JSON.stringify(stockData));
       
-      console.log(`Produto ${p.bling_produto_id}: estoque=${estoqueDisponivel}, solicitado=${quantidadeSolicitada}, ok=${temEstoque}`);
+      // Calcular estoque total
+      let estoqueTotal = 0;
+      const estoques = stockData.data || [];
       
-      return {
-        bling_produto_id: p.bling_produto_id,
-        titulo: p.titulo || '',
-        estoque_disponivel: estoqueDisponivel,
+      for (const item of estoques) {
+        if (item.produto?.id === produtoId || item.produto?.id === Number(produtoId)) {
+          if (item.saldos && Array.isArray(item.saldos)) {
+            for (const saldo of item.saldos) {
+              estoqueTotal += (saldo.saldoFisicoTotal || 0);
+            }
+          }
+        }
+      }
+      
+      // Se não encontrou no endpoint de estoques, usar o estoque do produto
+      if (estoqueTotal === 0 && productData.data?.estoque) {
+        estoqueTotal = productData.data.estoque.saldoVirtualTotal || 
+                       productData.data.estoque.saldoFisicoTotal || 0;
+        console.log(`Usando estoque alternativo do produto: ${estoqueTotal}`);
+      }
+      
+      console.log(`Produto ${produtoId}: estoque=${estoqueTotal}, solicitado=${quantidadeSolicitada}`);
+      
+      resultados.push({
+        bling_produto_id: produtoId,
+        titulo: produto.titulo || productData.data?.nome || '',
+        estoque_disponivel: estoqueTotal,
         quantidade_solicitada: quantidadeSolicitada,
-        tem_estoque: temEstoque,
-      };
-    });
+        tem_estoque: estoqueTotal >= quantidadeSolicitada,
+      });
+    }
 
     const todosTemEstoque = resultados.every((r: any) => r.tem_estoque);
     const produtosSemEstoque = resultados.filter((r: any) => !r.tem_estoque);
+
+    console.log(`Resultado final: todosTemEstoque=${todosTemEstoque}, produtosSemEstoque=${produtosSemEstoque.length}`);
 
     return new Response(
       JSON.stringify({ 
