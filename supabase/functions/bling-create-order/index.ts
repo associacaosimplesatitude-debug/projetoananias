@@ -383,8 +383,12 @@ serve(async (req) => {
     if (endereco_entrega) {
       pedidoData.transporte = {
         frete: valorFreteNum,
-        transportador: freteInfo.nome, // Nome do transportador (Correios)
+        transportador: {
+          nome: freteInfo.nome, // Nome do transportador (Correios, Frete Grátis)
+        },
+        fretePorConta: 'R', // R = Remetente (CIF), D = Destinatário (FOB)
         volumes: 1,
+        servico: freteInfo.servico, // Serviço logístico (PAC, SEDEX, FRETE GRATIS)
         contato: {
           nome: nomeCompleto,
           telefone: cliente.telefone?.replace(/\D/g, '') || '',
