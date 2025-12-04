@@ -364,13 +364,6 @@ serve(async (req) => {
       observacoes: `Pedido EBD #${pedido_id} | Desconto 30% | ${pagamentoInfo.descricao}`,
     };
 
-    if (descontoTotalVenda > 0) {
-      pedidoData.desconto = {
-        valor: Number(descontoTotalVenda.toFixed(2)),
-        unidade: 'REAL',
-      };
-    }
-
     console.log('=== PEDIDO BLING COMPLETO ===');
     console.log(JSON.stringify(pedidoData, null, 2));
 
