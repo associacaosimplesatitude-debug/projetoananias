@@ -426,25 +426,53 @@ serve(async (req) => {
 
     console.log('Criando pedido no Bling:', JSON.stringify(pedidoData, null, 2));
 
-    const orderResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(pedidoData),
-    });
+    // Função para fazer request com retry em caso de rate limit
+    const makeRequestWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const response = await fetch(url, options);
+        
+        if (response.status === 429) {
+          if (attempt < maxRetries) {
+            const waitTime = attempt * 2000; // 2s, 4s, 6s
+            console.log(`Rate limit atingido. Tentativa ${attempt}/${maxRetries}. Aguardando ${waitTime}ms...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          }
+        }
+        
+        return response;
+      }
+      
+      throw new Error('Máximo de tentativas excedido');
+    };
+
+    const orderResponse = await makeRequestWithRetry(
+      'https://www.bling.com.br/Api/v3/pedidos/vendas',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(pedidoData),
+      }
+    );
 
     const responseData = await orderResponse.json();
 
     if (!orderResponse.ok) {
       console.error('Erro ao criar pedido:', JSON.stringify(responseData, null, 2));
+      console.error('Status HTTP:', orderResponse.status);
       
       let errorMsg = responseData.error?.message || 'Erro ao criar pedido no Bling';
       let errorType = 'UNKNOWN_ERROR';
       
-      if (responseData.error?.fields) {
+      // Detectar erro de rate limit (429 Too Many Requests)
+      if (orderResponse.status === 429 || errorMsg.toLowerCase().includes('limite')) {
+        errorMsg = 'Limite de requisições do Bling atingido. Aguarde alguns segundos e tente novamente.';
+        errorType = 'RATE_LIMIT';
+      } else if (responseData.error?.fields) {
         const fieldErrors = Object.values(responseData.error.fields) as any[];
         const errorMessages = fieldErrors.map((f: any) => f.msg).filter(Boolean);
         if (errorMessages.length > 0) {
@@ -457,10 +485,11 @@ serve(async (req) => {
         }
       }
       
-      // Retornar 400 para erros de validação (como estoque)
+      // Retornar 429 para rate limit, 400 para outros erros
+      const statusCode = errorType === 'RATE_LIMIT' ? 429 : 400;
       return new Response(
         JSON.stringify({ error: errorMsg, errorType }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
