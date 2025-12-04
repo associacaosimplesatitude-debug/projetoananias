@@ -46,7 +46,7 @@ serve(async (req) => {
       const payment = await paymentResponse.json();
       console.log('Pagamento:', payment.id, 'Status:', payment.status, 'Método:', payment.payment_type_id);
 
-      // Buscar pedido pelo mercadopago_payment_id com dados completos
+      // Buscar pedido com dados completos incluindo igreja
       const { data: pedido, error: pedidoError } = await supabase
         .from('ebd_pedidos')
         .select(`
@@ -54,9 +54,20 @@ serve(async (req) => {
           ebd_pedidos_itens(
             quantidade,
             preco_unitario,
-            revista:ebd_revistas(titulo, bling_produto_id)
+            preco_total,
+            revista:ebd_revistas(titulo, bling_produto_id, preco_cheio)
           ),
-          church:churches(church_name, pastor_email, pastor_whatsapp, cnpj)
+          church:churches(
+            church_name,
+            pastor_email,
+            pastor_whatsapp,
+            cnpj,
+            address,
+            neighborhood,
+            city,
+            state,
+            postal_code
+          )
         `)
         .eq('mercadopago_payment_id', paymentId)
         .single();
@@ -100,36 +111,79 @@ serve(async (req) => {
           try {
             console.log('Criando pedido no Bling para pedido:', pedido.id);
             
-            // Dados do Cliente (do formulário de checkout)
-            const cliente = {
-              nome: pedido.nome_cliente || pedido.email_cliente?.split('@')[0] || 'Cliente',
-              sobrenome: pedido.sobrenome_cliente || '',
-              cpf_cnpj: pedido.cpf_cnpj_cliente || pedido.church?.cnpj || '',
-              email: pedido.email_cliente || '',
-              telefone: pedido.telefone_cliente || pedido.church?.pastor_whatsapp || '',
+            // =============================================
+            // 1. DADOS DA IGREJA (Para Nota Fiscal)
+            // =============================================
+            const igreja = {
+              nome: pedido.church?.church_name || 'Igreja',
+              cnpj: pedido.church?.cnpj || '',
+              ie: '', // Inscrição Estadual
+              // Endereço da Igreja (extrair número se estiver junto)
+              endereco: pedido.church?.address || '',
+              numero: 'S/N', // Será extraído ou S/N
+              complemento: '',
+              bairro: pedido.church?.neighborhood || '',
+              cep: pedido.church?.postal_code || '',
+              cidade: pedido.church?.city || '',
+              uf: pedido.church?.state || '',
+              email: pedido.church?.pastor_email || '',
+              telefone: pedido.church?.pastor_whatsapp || '',
             };
+            
+            console.log('Dados da Igreja (NF):', JSON.stringify(igreja, null, 2));
 
-            // Endereço de entrega (do formulário de checkout)
+            // =============================================
+            // 2. ENDEREÇO DE ENTREGA (Do formulário de checkout)
+            // =============================================
+            const nomeDestinatario = pedido.sobrenome_cliente 
+              ? `${pedido.nome_cliente} ${pedido.sobrenome_cliente}` 
+              : pedido.nome_cliente || 'Destinatário';
+              
             const endereco_entrega = {
-              rua: pedido.endereco_rua,
-              numero: pedido.endereco_numero,
-              complemento: pedido.endereco_complemento,
-              bairro: pedido.endereco_bairro,
-              cep: pedido.endereco_cep,
-              cidade: pedido.endereco_cidade,
-              estado: pedido.endereco_estado,
+              nome: nomeDestinatario, // Nome do destinatário
+              rua: pedido.endereco_rua || '',
+              numero: pedido.endereco_numero || 'S/N', // NÚMERO SEPARADO
+              complemento: pedido.endereco_complemento || '',
+              bairro: pedido.endereco_bairro || '',
+              cep: pedido.endereco_cep || '',
+              cidade: pedido.endereco_cidade || '',
+              estado: pedido.endereco_estado || '',
             };
+            
+            console.log('Endereço de Entrega:', JSON.stringify(endereco_entrega, null, 2));
 
-            // Preparar itens com preço já com desconto (30% off)
-            const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => ({
-              codigo: item.revista?.bling_produto_id?.toString() || '0',
-              descricao: item.revista?.titulo || 'Revista EBD',
-              unidade: 'UN',
-              quantidade: item.quantidade,
-              valor: Number(item.preco_unitario.toFixed(2)), // Já vem com desconto do checkout
-            })) || [];
+            // =============================================
+            // 3. ITENS COM PREÇO DE LISTA E DESCONTO
+            // =============================================
+            const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => {
+              // Código do produto no Bling (não ID interno)
+              const codigoBling = item.revista?.bling_produto_id?.toString() || '0';
+              
+              // Preço de Lista (sem desconto) - da tabela ebd_revistas
+              const precoLista = Number(item.revista?.preco_cheio || item.preco_unitario);
+              
+              // Preço com desconto (30% off) - do pedido
+              const precoComDesconto = Number(item.preco_unitario);
+              
+              console.log(`Item: ${item.revista?.titulo}`);
+              console.log(`  - Código Bling: ${codigoBling}`);
+              console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
+              console.log(`  - Preço Desconto: R$ ${precoComDesconto.toFixed(2)}`);
+              console.log(`  - Quantidade: ${item.quantidade}`);
+              
+              return {
+                codigo: codigoBling, // CÓDIGO DO PRODUTO NO BLING
+                descricao: item.revista?.titulo || 'Revista EBD',
+                unidade: 'UN',
+                quantidade: item.quantidade,
+                preco_cheio: precoLista, // PREÇO DE LISTA (sem desconto)
+                valor: precoComDesconto, // PREÇO COM DESCONTO (30% off)
+              };
+            }) || [];
 
-            // Mapear forma de pagamento do Mercado Pago
+            // =============================================
+            // 4. FORMA DE PAGAMENTO
+            // =============================================
             const paymentTypeMap: { [key: string]: string } = {
               'credit_card': 'card',
               'debit_card': 'card',
@@ -139,7 +193,11 @@ serve(async (req) => {
             };
             const formaPagamento = paymentTypeMap[payment.payment_type_id] || 'pix';
 
-            // Chamar função bling-create-order com dados completos
+            // =============================================
+            // 5. CHAMAR BLING-CREATE-ORDER
+            // =============================================
+            console.log('Enviando para bling-create-order...');
+            
             const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
               method: 'POST',
               headers: {
@@ -147,9 +205,13 @@ serve(async (req) => {
                 'Authorization': `Bearer ${supabaseKey}`,
               },
               body: JSON.stringify({
-                cliente,
-                endereco_entrega,
+                // Dados da Igreja (para NF)
+                igreja: igreja,
+                // Endereço de Entrega (do formulário)
+                endereco_entrega: endereco_entrega,
+                // Itens com preço de lista e desconto
                 itens: itensBling,
+                // Dados do pedido
                 pedido_id: pedido.id.slice(0, 8).toUpperCase(),
                 valor_frete: pedido.valor_frete || 0,
                 metodo_frete: pedido.metodo_frete || 'pac',
