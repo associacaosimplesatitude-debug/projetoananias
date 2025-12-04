@@ -260,11 +260,6 @@ export const Navigation = () => {
       label: 'Relatório Vendas',
     },
     {
-      to: '/admin/sales-dashboard',
-      icon: TrendingUp,
-      label: 'Vendas EBD',
-    },
-    {
       to: '/admin/vendedores',
       icon: UserCheck,
       label: 'Vendedores',
