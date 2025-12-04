@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus, ShoppingBag, ShoppingCart, Link2 } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus, ShoppingBag, ShoppingCart, Link2, UserCheck } from 'lucide-react';
 import logoAnanias from '@/assets/logo_ananias_horizontal.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -258,6 +258,16 @@ export const Navigation = () => {
       to: '/admin/sales-report',
       icon: BarChart3,
       label: 'Relatório Vendas',
+    },
+    {
+      to: '/admin/sales-dashboard',
+      icon: TrendingUp,
+      label: 'Vendas EBD',
+    },
+    {
+      to: '/admin/vendedores',
+      icon: UserCheck,
+      label: 'Vendedores',
     },
     {
       to: '/admin/bling',

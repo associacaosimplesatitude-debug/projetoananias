@@ -677,6 +677,7 @@ export type Database = {
           state: string | null
           updated_at: string
           user_id: string
+          vendedor_id: string | null
         }
         Insert: {
           address?: string | null
@@ -700,6 +701,7 @@ export type Database = {
           state?: string | null
           updated_at?: string
           user_id: string
+          vendedor_id?: string | null
         }
         Update: {
           address?: string | null
@@ -723,8 +725,17 @@ export type Database = {
           state?: string | null
           updated_at?: string
           user_id?: string
+          vendedor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "churches_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ebd_aluno_badges: {
         Row: {
@@ -2247,6 +2258,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vendedores: {
+        Row: {
+          comissao_percentual: number
+          created_at: string
+          email: string
+          foto_url: string | null
+          id: string
+          meta_mensal_valor: number
+          nome: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          comissao_percentual?: number
+          created_at?: string
+          email: string
+          foto_url?: string | null
+          id?: string
+          meta_mensal_valor?: number
+          nome: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          comissao_percentual?: number
+          created_at?: string
+          email?: string
+          foto_url?: string | null
+          id?: string
+          meta_mensal_valor?: number
+          nome?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
