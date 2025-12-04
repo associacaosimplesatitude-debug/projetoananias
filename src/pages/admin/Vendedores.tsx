@@ -5,13 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Pencil, Trash2, UserPlus, ArrowRightLeft, Upload, User, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, UserPlus, ArrowRightLeft, Upload, User, Loader2, Eye, EyeOff } from 'lucide-react';
 import { ImageCropDialog } from '@/components/financial/ImageCropDialog';
 
 interface Vendedor {
@@ -42,10 +41,12 @@ export default function Vendedores() {
   const [showCropDialog, setShowCropDialog] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
+    senha: '',
     foto_url: '',
     comissao_percentual: 5,
     status: 'Ativo',
@@ -123,10 +124,21 @@ export default function Vendedores() {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const { error } = await supabase
-        .from('vendedores')
-        .insert([data]);
+      const { data: result, error } = await supabase.functions.invoke('create-vendedor', {
+        body: {
+          email: data.email,
+          password: data.senha,
+          nome: data.nome,
+          foto_url: data.foto_url || null,
+          comissao_percentual: data.comissao_percentual,
+          status: data.status,
+          meta_mensal_valor: data.meta_mensal_valor,
+        },
+      });
+      
       if (error) throw error;
+      if (result.error) throw new Error(result.error);
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendedores'] });
@@ -140,10 +152,17 @@ export default function Vendedores() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Omit<typeof formData, 'senha'> }) => {
       const { error } = await supabase
         .from('vendedores')
-        .update(data)
+        .update({
+          nome: data.nome,
+          email: data.email,
+          foto_url: data.foto_url || null,
+          comissao_percentual: data.comissao_percentual,
+          status: data.status,
+          meta_mensal_valor: data.meta_mensal_valor,
+        })
         .eq('id', id);
       if (error) throw error;
     },
@@ -199,12 +218,14 @@ export default function Vendedores() {
     setFormData({
       nome: '',
       email: '',
+      senha: '',
       foto_url: '',
       comissao_percentual: 5,
       status: 'Ativo',
       meta_mensal_valor: 0,
     });
     setEditingVendedor(null);
+    setShowPassword(false);
   };
 
   const handleEdit = (vendedor: Vendedor) => {
@@ -212,6 +233,7 @@ export default function Vendedores() {
     setFormData({
       nome: vendedor.nome,
       email: vendedor.email,
+      senha: '',
       foto_url: vendedor.foto_url || '',
       comissao_percentual: vendedor.comissao_percentual,
       status: vendedor.status,
@@ -232,11 +254,22 @@ export default function Vendedores() {
       toast.error("Preencha o email");
       return;
     }
+
+    if (!editingVendedor && !formData.senha.trim()) {
+      toast.error("Preencha a senha de acesso");
+      return;
+    }
+
+    if (!editingVendedor && formData.senha.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
     
     setIsSubmitting(true);
     try {
       if (editingVendedor) {
-        await updateMutation.mutateAsync({ id: editingVendedor.id, data: formData });
+        const { senha, ...dataWithoutPassword } = formData;
+        await updateMutation.mutateAsync({ id: editingVendedor.id, data: dataWithoutPassword });
       } else {
         await createMutation.mutateAsync(formData);
       }
@@ -262,11 +295,8 @@ export default function Vendedores() {
     return vendedor?.nome || 'Desconhecido';
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
+  const getClientCount = (vendedorId: string) => {
+    return churches?.filter(c => c.vendedor_id === vendedorId).length || 0;
   };
 
   if (isLoading) {
@@ -411,6 +441,33 @@ export default function Vendedores() {
                   />
                 </div>
 
+                {!editingVendedor && (
+                  <div className="space-y-2">
+                    <Label htmlFor="vendedor-senha">
+                      Senha de Acesso <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="vendedor-senha"
+                        type={showPassword ? "text" : "password"}
+                        value={formData.senha}
+                        onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                        placeholder="Mínimo 6 caracteres"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="vendedor-comissao">Comissão (%)</Label>
@@ -473,78 +530,64 @@ export default function Vendedores() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Vendedores ({vendedores?.length || 0})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Vendedor</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Comissão</TableHead>
-                <TableHead>Meta Mensal</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Clientes</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {vendedores?.map((vendedor) => {
-                const clientCount = churches?.filter(c => c.vendedor_id === vendedor.id).length || 0;
-                return (
-                  <TableRow key={vendedor.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={vendedor.foto_url || undefined} />
-                          <AvatarFallback>{vendedor.nome.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{vendedor.nome}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{vendedor.email}</TableCell>
-                    <TableCell>{vendedor.comissao_percentual}%</TableCell>
-                    <TableCell>{formatCurrency(vendedor.meta_mensal_valor)}</TableCell>
-                    <TableCell>
-                      <Badge variant={vendedor.status === 'Ativo' ? 'default' : 'secondary'}>
-                        {vendedor.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{clientCount}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(vendedor)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => {
-                            if (confirm('Tem certeza que deseja remover este vendedor?')) {
-                              deleteMutation.mutate(vendedor.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {(!vendedores || vendedores.length === 0) && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Nenhum vendedor cadastrado
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Cards dos Vendedores */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {vendedores?.map((vendedor) => (
+          <Card key={vendedor.id} className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={vendedor.foto_url || undefined} />
+                  <AvatarFallback className="text-2xl">
+                    {vendedor.nome.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-lg">{vendedor.nome}</h3>
+                  <p className="text-sm text-muted-foreground">{vendedor.email}</p>
+                </div>
+                <Badge variant={vendedor.status === 'Ativo' ? 'default' : 'secondary'}>
+                  {vendedor.status}
+                </Badge>
+                <p className="text-sm text-muted-foreground">
+                  {getClientCount(vendedor.id)} cliente(s)
+                </p>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" size="sm" onClick={() => handleEdit(vendedor)}>
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Editar
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      if (confirm('Tem certeza que deseja remover este vendedor?')) {
+                        deleteMutation.mutate(vendedor.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Excluir
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {(!vendedores || vendedores.length === 0) && (
+          <Card className="col-span-full">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <User className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Nenhum vendedor cadastrado</p>
+              <Button className="mt-4" onClick={() => setDialogOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Cadastrar Vendedor
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
       <ImageCropDialog
         open={showCropDialog}
         onOpenChange={setShowCropDialog}
