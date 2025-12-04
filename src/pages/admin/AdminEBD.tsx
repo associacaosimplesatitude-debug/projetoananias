@@ -261,6 +261,18 @@ export default function AdminEBD() {
     },
   });
 
+  const { data: totalTurmas } = useQuery({
+    queryKey: ['total-turmas'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('ebd_turmas')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
   // Date range calculation
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -650,41 +662,56 @@ export default function AdminEBD() {
 
         {/* VENDAS TAB */}
         <TabsContent value="vendas" className="space-y-6">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Clientes EBD</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalEbdClients}</div>
-                <p className="text-xs text-muted-foreground mt-1">Igrejas com módulo ativo</p>
+          {/* EBD Overview Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <Users className="h-8 w-8 text-blue-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Clientes EBD</p>
+                    <p className="text-2xl font-bold">{totalEbdClients}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total de Alunos</CardTitle>
-                <GraduationCap className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalAlunos ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Alunos ativos cadastrados</p>
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <GraduationCap className="h-8 w-8 text-green-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total de Alunos</p>
+                    <p className="text-2xl font-bold">{totalAlunos ?? 0}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total de Professores</CardTitle>
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalProfessores ?? 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Professores ativos</p>
+            <Card className="border-l-4 border-l-purple-500">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <BookOpen className="h-8 w-8 text-purple-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total de Professores</p>
+                    <p className="text-2xl font-bold">{totalProfessores ?? 0}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
+            <Card className="border-l-4 border-l-orange-500">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <Church className="h-8 w-8 text-orange-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total de Turmas</p>
+                    <p className="text-2xl font-bold">{totalTurmas ?? 0}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
+          {/* Sales KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Faturamento</CardTitle>
@@ -693,7 +720,7 @@ export default function AdminEBD() {
               <CardContent>
                 <div className="text-2xl font-bold text-primary">{formatCurrency(totalRevenue)}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Produtos: {formatCurrency(totalProducts)}
+                  Produtos: {formatCurrency(totalProducts)} | Frete: {formatCurrency(totalShipping)}
                 </p>
               </CardContent>
             </Card>
@@ -729,43 +756,6 @@ export default function AdminEBD() {
                 <div className="flex items-center gap-2">
                   <Badge variant="default" className="bg-green-500">{deliveryStats.shipped} Enviados</Badge>
                   <Badge variant="secondary">{deliveryStats.awaitingShipment} Aguardando</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Status Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="border-l-4 border-l-yellow-500">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-8 w-8 text-yellow-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pendentes</p>
-                    <p className="text-2xl font-bold">{pendingOrders.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="h-8 w-8 text-green-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pagos</p>
-                    <p className="text-2xl font-bold">{paidOrders.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-red-500">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <XCircle className="h-8 w-8 text-red-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Cancelados</p>
-                    <p className="text-2xl font-bold">{cancelledOrders.length}</p>
-                  </div>
                 </div>
               </CardContent>
             </Card>
