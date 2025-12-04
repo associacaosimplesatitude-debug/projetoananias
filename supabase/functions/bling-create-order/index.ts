@@ -381,24 +381,31 @@ serve(async (req) => {
 
     // Adicionar transporte/endereço de entrega se disponível
     // Estrutura correta para Bling API v3:
-    // - transportador.nome = "Correios" (nome da transportadora)
+    // - transportador.nome = "Correios"
     // - transportador.servico_logistico = "PAC" / "SEDEX" / "FRETE GRATIS"
-    // - etiqueta = dados do destinatário e endereço de entrega (NÃO usar endereco/contato)
-    // - volumes = número de volumes (inteiro, não array)
+    // - volumes = array com detalhes do frete
     if (endereco_entrega) {
       pedidoData.transporte = {
         fretePorConta: 'R', // R = Remetente (CIF), D = Destinatário (FOB)
-        frete: valorFreteNum, // Valor do frete
         transportador: {
-          nome: 'Correios', // Nome fixo da transportadora
+          nome: 'Correios', // Nome fixo do transportador
+          servico_logistico: freteInfo.servico, // PAC, SEDEX, FRETE GRATIS
         },
-        volumes: 1, // Número de volumes (inteiro)
-        // Etiqueta contém os dados do destinatário e endereço de entrega
-        etiqueta: {
-          nome: nomeCompleto, // Nome do destinatário
-          endereco: endereco_entrega.rua || '', // Apenas o nome da rua
-          numero: endereco_entrega.numero || 'S/N', // Número obrigatório separado
-          complemento: endereco_entrega.complemento || '', // Complemento separado
+        volumes: [
+          {
+            servico: freteInfo.servico, // PAC, SEDEX, FRETE GRATIS
+            codigoRastreamento: '', // Será preenchido depois
+          }
+        ],
+        frete: valorFreteNum, // Valor do frete
+        contato: {
+          nome: nomeCompleto,
+          telefone: cliente.telefone?.replace(/\D/g, '') || '',
+        },
+        endereco: {
+          endereco: endereco_entrega.rua || '',
+          numero: endereco_entrega.numero || 'S/N',
+          complemento: endereco_entrega.complemento || '',
           bairro: endereco_entrega.bairro || '',
           cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
           municipio: endereco_entrega.cidade || '',
