@@ -264,7 +264,24 @@ serve(async (req) => {
     // 3. TRANSPORTE - DO FORMULÁRIO
     // =========================================
     const valorFreteNum = Number(valor_frete || 0);
-    const valorTotalNum = Number(valor_produtos || 0) + valorFreteNum;
+    
+    // Calcular total correto para o Bling:
+    // Total = soma(precoLista * qtd) - descontoTotal + frete
+    let totalItensLista = 0;
+    itens.forEach((item: any) => {
+      const precoLista = Number(item.preco_cheio || item.valor);
+      const quantidade = Number(item.quantidade || 1);
+      totalItensLista += precoLista * quantidade;
+    });
+    
+    // Total da venda = itens com preço de lista - desconto + frete
+    const valorTotalVenda = Number((totalItensLista - descontoTotalVenda + valorFreteNum).toFixed(2));
+    
+    console.log('=== CÁLCULO DO TOTAL ===');
+    console.log(`Total Itens (Lista): R$ ${totalItensLista.toFixed(2)}`);
+    console.log(`Desconto Total: R$ ${descontoTotalVenda.toFixed(2)}`);
+    console.log(`Frete: R$ ${valorFreteNum.toFixed(2)}`);
+    console.log(`TOTAL VENDA: R$ ${valorTotalVenda.toFixed(2)}`);
 
     const tipoFreteMap: { [key: string]: string } = {
       'pac': 'PAC',
@@ -339,7 +356,7 @@ serve(async (req) => {
       parcelas: [
         {
           dataVencimento: dataAtual,
-          valor: valorTotalNum,
+          valor: valorTotalVenda,
           observacoes: `Pagamento via ${pagamentoInfo.descricao}`,
           formaPagamento: { id: pagamentoInfo.id },
         }
