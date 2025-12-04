@@ -274,14 +274,15 @@ serve(async (req) => {
       totalItensLista += precoLista * quantidade;
     });
     
-    // Total da venda = itens com preço de lista - desconto + frete
-    const valorTotalVenda = Number((totalItensLista - descontoTotalVenda + valorFreteNum).toFixed(2));
+    // Total para parcelas = apenas itens (preço lista - desconto), SEM frete
+    // O Bling NÃO inclui o frete no cálculo do total da venda para validação de parcelas
+    const valorTotalParcelas = Number((totalItensLista - descontoTotalVenda).toFixed(2));
     
     console.log('=== CÁLCULO DO TOTAL ===');
     console.log(`Total Itens (Lista): R$ ${totalItensLista.toFixed(2)}`);
     console.log(`Desconto Total: R$ ${descontoTotalVenda.toFixed(2)}`);
-    console.log(`Frete: R$ ${valorFreteNum.toFixed(2)}`);
-    console.log(`TOTAL VENDA: R$ ${valorTotalVenda.toFixed(2)}`);
+    console.log(`Frete (separado): R$ ${valorFreteNum.toFixed(2)}`);
+    console.log(`TOTAL PARCELAS (sem frete): R$ ${valorTotalParcelas.toFixed(2)}`);
 
     const tipoFreteMap: { [key: string]: string } = {
       'pac': 'PAC',
@@ -356,7 +357,7 @@ serve(async (req) => {
       parcelas: [
         {
           dataVencimento: dataAtual,
-          valor: valorTotalVenda,
+          valor: valorTotalParcelas,
           observacoes: `Pagamento via ${pagamentoDescricao}`,
         }
       ],
