@@ -111,14 +111,17 @@ serve(async (req) => {
 
             // Endereço de entrega (do formulário de checkout)
             const endereco_entrega = {
-              rua: pedido.endereco_rua,
-              numero: pedido.endereco_numero,
-              complemento: pedido.endereco_complemento,
-              bairro: pedido.endereco_bairro,
-              cep: pedido.endereco_cep,
-              cidade: pedido.endereco_cidade,
-              estado: pedido.endereco_estado,
+              rua: pedido.endereco_rua || '',
+              numero: pedido.endereco_numero || '', // Garantir que seja string
+              complemento: pedido.endereco_complemento || '',
+              bairro: pedido.endereco_bairro || '',
+              cep: pedido.endereco_cep || '',
+              cidade: pedido.endereco_cidade || '',
+              estado: pedido.endereco_estado || '',
             };
+            
+            console.log('Endereço de entrega para Bling:', JSON.stringify(endereco_entrega, null, 2));
+            console.log('Número do endereço:', pedido.endereco_numero);
 
             // Preparar itens com preço já com desconto (30% off)
             const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => ({
