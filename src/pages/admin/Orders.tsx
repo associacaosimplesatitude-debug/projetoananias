@@ -124,21 +124,24 @@ export default function Orders() {
       // Se o pedido ainda não foi criado no Bling, criar agora
       if (!order.bling_order_id) {
         try {
-          // Preparar dados do cliente
+          // Preparar dados do cliente (usar dados preenchidos no pedido, não da igreja)
           const cliente = {
-            nome: order.church?.church_name || 'Cliente',
-            email: order.email_cliente || order.church?.pastor_email,
-            telefone: order.church?.pastor_whatsapp,
-            cnpj: order.church?.cnpj,
-            endereco: {
-              rua: order.endereco_rua,
-              numero: order.endereco_numero,
-              complemento: order.endereco_complemento,
-              bairro: order.endereco_bairro,
-              cep: order.endereco_cep,
-              cidade: order.endereco_cidade,
-              estado: order.endereco_estado,
-            }
+            nome: order.nome_cliente || 'Cliente',
+            sobrenome: order.sobrenome_cliente || '',
+            cpf_cnpj: order.cpf_cnpj_cliente || '',
+            email: order.email_cliente || order.church?.pastor_email || '',
+            telefone: order.telefone_cliente || order.church?.pastor_whatsapp || '',
+          };
+
+          // Endereço de entrega
+          const endereco_entrega = {
+            rua: order.endereco_rua,
+            numero: order.endereco_numero,
+            complemento: order.endereco_complemento,
+            bairro: order.endereco_bairro,
+            cep: order.endereco_cep,
+            cidade: order.endereco_cidade,
+            estado: order.endereco_estado,
           };
 
           // Preparar itens
@@ -154,8 +157,13 @@ export default function Orders() {
           const { data: blingResponse, error: blingError } = await supabase.functions.invoke('bling-create-order', {
             body: { 
               cliente,
+              endereco_entrega,
               itens,
-              pedido_id: orderId.slice(0, 8).toUpperCase()
+              pedido_id: orderId.slice(0, 8).toUpperCase(),
+              valor_frete: order.valor_frete || 0,
+              metodo_frete: order.metodo_frete || 'PAC',
+              valor_produtos: order.valor_produtos || 0,
+              valor_total: order.valor_total || 0,
             }
           });
 
@@ -257,21 +265,24 @@ export default function Orders() {
 
       if (fetchError) throw fetchError;
 
-      // Preparar dados do cliente
+      // Preparar dados do cliente (usar dados preenchidos no pedido, não da igreja)
       const cliente = {
-        nome: order.church?.church_name || 'Cliente',
-        email: order.email_cliente || order.church?.pastor_email,
-        telefone: order.church?.pastor_whatsapp,
-        cnpj: order.church?.cnpj,
-        endereco: {
-          rua: order.endereco_rua,
-          numero: order.endereco_numero,
-          complemento: order.endereco_complemento,
-          bairro: order.endereco_bairro,
-          cep: order.endereco_cep,
-          cidade: order.endereco_cidade,
-          estado: order.endereco_estado,
-        }
+        nome: order.nome_cliente || 'Cliente',
+        sobrenome: order.sobrenome_cliente || '',
+        cpf_cnpj: order.cpf_cnpj_cliente || '',
+        email: order.email_cliente || order.church?.pastor_email || '',
+        telefone: order.telefone_cliente || order.church?.pastor_whatsapp || '',
+      };
+
+      // Endereço de entrega
+      const endereco_entrega = {
+        rua: order.endereco_rua,
+        numero: order.endereco_numero,
+        complemento: order.endereco_complemento,
+        bairro: order.endereco_bairro,
+        cep: order.endereco_cep,
+        cidade: order.endereco_cidade,
+        estado: order.endereco_estado,
       };
 
       // Preparar itens
@@ -287,8 +298,13 @@ export default function Orders() {
       const { data: blingResponse, error: blingError } = await supabase.functions.invoke('bling-create-order', {
         body: { 
           cliente,
+          endereco_entrega,
           itens,
-          pedido_id: orderId.slice(0, 8).toUpperCase()
+          pedido_id: orderId.slice(0, 8).toUpperCase(),
+          valor_frete: order.valor_frete || 0,
+          metodo_frete: order.metodo_frete || 'PAC',
+          valor_produtos: order.valor_produtos || 0,
+          valor_total: order.valor_total || 0,
         }
       });
 
