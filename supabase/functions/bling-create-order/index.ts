@@ -380,15 +380,24 @@ serve(async (req) => {
     }
 
     // Adicionar transporte/endereço de entrega se disponível
+    // Estrutura correta para Bling API v3:
+    // - transportador.nome = "Correios"
+    // - transportador.servico_logistico = "PAC" / "SEDEX" / "FRETE GRATIS"
+    // - volumes = array com detalhes do frete
     if (endereco_entrega) {
       pedidoData.transporte = {
-        frete: valorFreteNum,
-        transportador: {
-          nome: freteInfo.nome, // Nome do transportador (Correios, Frete Grátis)
-        },
         fretePorConta: 'R', // R = Remetente (CIF), D = Destinatário (FOB)
-        volumes: 1,
-        servico: freteInfo.servico, // Serviço logístico (PAC, SEDEX, FRETE GRATIS)
+        transportador: {
+          nome: 'Correios', // Nome fixo do transportador
+          servico_logistico: freteInfo.servico, // PAC, SEDEX, FRETE GRATIS
+        },
+        volumes: [
+          {
+            servico: freteInfo.servico, // PAC, SEDEX, FRETE GRATIS
+            codigoRastreamento: '', // Será preenchido depois
+          }
+        ],
+        frete: valorFreteNum, // Valor do frete
         contato: {
           nome: nomeCompleto,
           telefone: cliente.telefone?.replace(/\D/g, '') || '',
