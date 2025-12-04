@@ -1002,7 +1002,29 @@ export default function AdminEBD() {
                       <TableCell>{client.church?.pastor_email || '-'}</TableCell>
                       <TableCell>{client.church?.city && client.church?.state ? `${client.church.city}/${client.church.state}` : '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{getVendedorName(client.church?.vendedor_id || null)}</Badge>
+                        <Select
+                          value={client.church?.vendedor_id || "sem_vendedor"}
+                          onValueChange={(value) => {
+                            if (client.church?.id) {
+                              transferMutation.mutate({
+                                churchId: client.church.id,
+                                vendedorId: value === "sem_vendedor" ? null : value,
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[160px]">
+                            <SelectValue placeholder="Selecionar vendedor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sem_vendedor">Sem vendedor</SelectItem>
+                            {vendedores?.map((vendedor) => (
+                              <SelectItem key={vendedor.id} value={vendedor.id}>
+                                {vendedor.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                     </TableRow>
                   ))}
