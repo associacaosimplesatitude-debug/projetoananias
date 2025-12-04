@@ -87,12 +87,6 @@ serve(async (req) => {
       valor_total       // Total final (produtos + frete)
     } = await req.json();
 
-    // Log dos dados recebidos para debug
-    console.log('=== DADOS RECEBIDOS ===');
-    console.log('Cliente:', JSON.stringify(cliente, null, 2));
-    console.log('Endereço de entrega:', JSON.stringify(endereco_entrega, null, 2));
-    console.log('Número do endereço recebido:', endereco_entrega?.numero);
-
     if (!cliente || !itens || itens.length === 0) {
       throw new Error('Dados do cliente e itens são obrigatórios');
     }
@@ -143,13 +137,9 @@ serve(async (req) => {
 
     // Adicionar endereço ao contato (obrigatório para emissão de NF)
     if (endereco_entrega) {
-      // Garantir que o número seja extraído corretamente
-      const numeroEndereco = String(endereco_entrega.numero || '').trim() || 'S/N';
-      console.log('Número do endereço para contato:', numeroEndereco);
-      
       contatoData.endereco = {
         endereco: endereco_entrega.rua || '',
-        numero: numeroEndereco,
+        numero: endereco_entrega.numero || 'S/N',
         complemento: endereco_entrega.complemento || '',
         bairro: endereco_entrega.bairro || '',
         cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
@@ -230,10 +220,9 @@ serve(async (req) => {
 
       // Adicionar endereço mesmo para contato genérico
       if (endereco_entrega) {
-        const numeroEndereco = String(endereco_entrega.numero || '').trim() || 'S/N';
         genericContatoData.endereco = {
           endereco: endereco_entrega.rua || '',
-          numero: numeroEndereco,
+          numero: endereco_entrega.numero || 'S/N',
           complemento: endereco_entrega.complemento || '',
           bairro: endereco_entrega.bairro || '',
           cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
@@ -390,10 +379,11 @@ serve(async (req) => {
       };
     }
 
-    // Adicionar transporte conforme estrutura esperada pelo Bling API v3
-    // transportador.nome = "Correios" (fixo)
-    // transportador.servico_logistico = "PAC" / "SEDEX" / "FRETE GRATIS"
-    // volumes[] com servico, codigo_rastreamento e valor_frete
+    // Adicionar transporte/endereço de entrega se disponível
+    // Estrutura correta para Bling API v3:
+    // - transportador.nome = "Correios"
+    // - transportador.servico_logistico = "PAC" / "SEDEX" / "FRETE GRATIS"
+    // - volumes = array com detalhes do frete
     if (endereco_entrega) {
       pedidoData.transporte = {
         fretePorConta: 'R', // R = Remetente (CIF), D = Destinatário (FOB)
@@ -404,17 +394,17 @@ serve(async (req) => {
         volumes: [
           {
             servico: freteInfo.servico, // PAC, SEDEX, FRETE GRATIS
-            codigo_rastreamento: '', // Será preenchido depois
-            valor_frete: valorFreteNum, // Valor do frete dentro do volume
+            codigoRastreamento: '', // Será preenchido depois
           }
         ],
+        frete: valorFreteNum, // Valor do frete
         contato: {
           nome: nomeCompleto,
           telefone: cliente.telefone?.replace(/\D/g, '') || '',
         },
         endereco: {
           endereco: endereco_entrega.rua || '',
-          numero: String(endereco_entrega.numero || '').trim() || 'S/N',
+          numero: endereco_entrega.numero || 'S/N',
           complemento: endereco_entrega.complemento || '',
           bairro: endereco_entrega.bairro || '',
           cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
@@ -426,53 +416,25 @@ serve(async (req) => {
 
     console.log('Criando pedido no Bling:', JSON.stringify(pedidoData, null, 2));
 
-    // Função para fazer request com retry em caso de rate limit
-    const makeRequestWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        const response = await fetch(url, options);
-        
-        if (response.status === 429) {
-          if (attempt < maxRetries) {
-            const waitTime = attempt * 2000; // 2s, 4s, 6s
-            console.log(`Rate limit atingido. Tentativa ${attempt}/${maxRetries}. Aguardando ${waitTime}ms...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            continue;
-          }
-        }
-        
-        return response;
-      }
-      
-      throw new Error('Máximo de tentativas excedido');
-    };
-
-    const orderResponse = await makeRequestWithRetry(
-      'https://www.bling.com.br/Api/v3/pedidos/vendas',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(pedidoData),
-      }
-    );
+    const orderResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(pedidoData),
+    });
 
     const responseData = await orderResponse.json();
 
     if (!orderResponse.ok) {
       console.error('Erro ao criar pedido:', JSON.stringify(responseData, null, 2));
-      console.error('Status HTTP:', orderResponse.status);
       
       let errorMsg = responseData.error?.message || 'Erro ao criar pedido no Bling';
       let errorType = 'UNKNOWN_ERROR';
       
-      // Detectar erro de rate limit (429 Too Many Requests)
-      if (orderResponse.status === 429 || errorMsg.toLowerCase().includes('limite')) {
-        errorMsg = 'Limite de requisições do Bling atingido. Aguarde alguns segundos e tente novamente.';
-        errorType = 'RATE_LIMIT';
-      } else if (responseData.error?.fields) {
+      if (responseData.error?.fields) {
         const fieldErrors = Object.values(responseData.error.fields) as any[];
         const errorMessages = fieldErrors.map((f: any) => f.msg).filter(Boolean);
         if (errorMessages.length > 0) {
@@ -485,11 +447,10 @@ serve(async (req) => {
         }
       }
       
-      // Retornar 429 para rate limit, 400 para outros erros
-      const statusCode = errorType === 'RATE_LIMIT' ? 429 : 400;
+      // Retornar 400 para erros de validação (como estoque)
       return new Response(
         JSON.stringify({ error: errorMsg, errorType }),
-        { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
