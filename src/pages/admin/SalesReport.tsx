@@ -23,7 +23,8 @@ import {
   CheckCircle,
   XCircle,
   Users,
-  Trophy
+  Trophy,
+  LineChartIcon
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -38,6 +39,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
 } from "recharts";
 import { Link } from "react-router-dom";
 
@@ -305,7 +307,53 @@ export default function SalesReport() {
     }).sort((a, b) => b.totalValue - a.totalValue);
   }, [vendedores, paidOrders]);
 
-  const formatCurrency = (value: number) => 
+  // Sales evolution by seller over time
+  const salesEvolutionBySeller = useMemo(() => {
+    if (!vendedores || !paidOrders) return [];
+    
+    // Group sales by date
+    const dateMap: Record<string, Record<string, number>> = {};
+    
+    paidOrders.forEach((order) => {
+      if (!order.approved_at && !order.created_at) return;
+      const date = format(parseISO(order.approved_at || order.created_at!), "dd/MM");
+      const vendedorId = order.church?.vendedor_id || 'sem_vendedor';
+      
+      if (!dateMap[date]) {
+        dateMap[date] = {};
+      }
+      dateMap[date][vendedorId] = (dateMap[date][vendedorId] || 0) + Number(order.valor_total);
+    });
+
+    // Convert to array format for recharts
+    const result = Object.entries(dateMap).map(([date, sellers]) => {
+      const entry: Record<string, string | number> = { date };
+      vendedores.forEach(v => {
+        entry[v.nome] = sellers[v.id] || 0;
+      });
+      return entry;
+    }).sort((a, b) => {
+      const [dayA, monthA] = (a.date as string).split("/").map(Number);
+      const [dayB, monthB] = (b.date as string).split("/").map(Number);
+      if (monthA !== monthB) return monthA - monthB;
+      return dayA - dayB;
+    });
+
+    return result;
+  }, [vendedores, paidOrders]);
+
+  // Colors for each seller
+  const SELLER_COLORS = [
+    "hsl(221, 83%, 53%)", // blue
+    "hsl(142, 76%, 36%)", // green
+    "hsl(38, 92%, 50%)",  // orange
+    "hsl(280, 67%, 50%)", // purple
+    "hsl(0, 84%, 60%)",   // red
+    "hsl(180, 67%, 40%)", // cyan
+    "hsl(330, 70%, 50%)", // pink
+  ];
+
+  const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
   if (isLoading) {
@@ -634,6 +682,66 @@ export default function SalesReport() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sales Evolution by Seller Chart */}
+      {vendedores && vendedores.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LineChartIcon className="h-5 w-5 text-primary" />
+              Evolução de Vendas por Vendedor
+            </CardTitle>
+            <CardDescription>
+              Acompanhe o desempenho de cada vendedor ao longo do tempo
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {salesEvolutionBySeller.length > 0 ? (
+              <ResponsiveContainer width="100%" height={350}>
+                <LineChart data={salesEvolutionBySeller}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="date" className="text-xs" />
+                  <YAxis 
+                    tickFormatter={(value) => `R$${(value / 1000).toFixed(0)}k`}
+                    className="text-xs"
+                  />
+                  <Tooltip 
+                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                    labelFormatter={(label) => `Data: ${label}`}
+                  />
+                  {vendedores.map((vendedor, index) => (
+                    <Line
+                      key={vendedor.id}
+                      type="monotone"
+                      dataKey={vendedor.nome}
+                      stroke={SELLER_COLORS[index % SELLER_COLORS.length]}
+                      strokeWidth={2}
+                      dot={{ fill: SELLER_COLORS[index % SELLER_COLORS.length], r: 4 }}
+                      connectNulls
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+                Sem dados de vendas por vendedor no período selecionado
+              </div>
+            )}
+            {/* Legend */}
+            <div className="flex flex-wrap gap-4 mt-4 justify-center">
+              {vendedores.map((vendedor, index) => (
+                <div key={vendedor.id} className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: SELLER_COLORS[index % SELLER_COLORS.length] }}
+                  />
+                  <span className="text-sm text-muted-foreground">{vendedor.nome}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Ranking de Vendedores */}
       <Card>
