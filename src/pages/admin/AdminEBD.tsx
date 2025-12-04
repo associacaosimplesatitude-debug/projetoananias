@@ -38,6 +38,8 @@ import {
   EyeOff,
   Church,
   CalendarDays,
+  GraduationCap,
+  BookOpen,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -232,6 +234,30 @@ export default function AdminEBD() {
         .eq('status', 'Ativo');
       if (error) throw error;
       return data?.filter((a: any) => a.modulos?.nome_modulo === 'REOBOTE EBD') as EBDClient[];
+    },
+  });
+
+  const { data: totalAlunos } = useQuery({
+    queryKey: ['total-alunos'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('ebd_alunos')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  const { data: totalProfessores } = useQuery({
+    queryKey: ['total-professores'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('ebd_professores')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+      if (error) throw error;
+      return count || 0;
     },
   });
 
@@ -625,7 +651,7 @@ export default function AdminEBD() {
         {/* VENDAS TAB */}
         <TabsContent value="vendas" className="space-y-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Clientes EBD</CardTitle>
@@ -633,7 +659,29 @@ export default function AdminEBD() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{totalEbdClients}</div>
-                <p className="text-xs text-muted-foreground mt-1">Igrejas com módulo EBD ativo</p>
+                <p className="text-xs text-muted-foreground mt-1">Igrejas com módulo ativo</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total de Alunos</CardTitle>
+                <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalAlunos ?? 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">Alunos ativos cadastrados</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total de Professores</CardTitle>
+                <BookOpen className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalProfessores ?? 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">Professores ativos</p>
               </CardContent>
             </Card>
 
@@ -645,7 +693,7 @@ export default function AdminEBD() {
               <CardContent>
                 <div className="text-2xl font-bold text-primary">{formatCurrency(totalRevenue)}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Produtos: {formatCurrency(totalProducts)} | Frete: {formatCurrency(totalShipping)}
+                  Produtos: {formatCurrency(totalProducts)}
                 </p>
               </CardContent>
             </Card>
