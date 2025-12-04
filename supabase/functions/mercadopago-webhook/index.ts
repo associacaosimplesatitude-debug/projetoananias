@@ -46,7 +46,7 @@ serve(async (req) => {
       const payment = await paymentResponse.json();
       console.log('Pagamento:', payment.id, 'Status:', payment.status, 'Método:', payment.payment_type_id);
 
-      // Buscar pedido com dados completos
+      // Buscar pedido pelo mercadopago_payment_id com dados completos
       const { data: pedido, error: pedidoError } = await supabase
         .from('ebd_pedidos')
         .select(`
@@ -54,9 +54,9 @@ serve(async (req) => {
           ebd_pedidos_itens(
             quantidade,
             preco_unitario,
-            preco_total,
-            revista:ebd_revistas(titulo, bling_produto_id, preco_cheio)
-          )
+            revista:ebd_revistas(titulo, bling_produto_id)
+          ),
+          church:churches(church_name, pastor_email, pastor_whatsapp, cnpj)
         `)
         .eq('mercadopago_payment_id', paymentId)
         .single();
@@ -100,70 +100,36 @@ serve(async (req) => {
           try {
             console.log('Criando pedido no Bling para pedido:', pedido.id);
             
-            // =============================================
-            // TODOS OS DADOS VÊM DO FORMULÁRIO DO PEDIDO
-            // =============================================
-            
-            // Nome completo do cliente (do formulário)
-            const nomeCompleto = pedido.sobrenome_cliente 
-              ? `${pedido.nome_cliente} ${pedido.sobrenome_cliente}` 
-              : pedido.nome_cliente || 'Cliente';
-            
-            // Dados do CONTATO (para NF) - DO FORMULÁRIO
-            const contato = {
-              nome: nomeCompleto,
-              tipoPessoa: (pedido.cpf_cnpj_cliente || '').replace(/\D/g, '').length > 11 ? 'J' : 'F',
-              cpf_cnpj: pedido.cpf_cnpj_cliente || '',
+            // Dados do Cliente (do formulário de checkout)
+            const cliente = {
+              nome: pedido.nome_cliente || pedido.email_cliente?.split('@')[0] || 'Cliente',
+              sobrenome: pedido.sobrenome_cliente || '',
+              cpf_cnpj: pedido.cpf_cnpj_cliente || pedido.church?.cnpj || '',
               email: pedido.email_cliente || '',
-              telefone: pedido.telefone_cliente || '',
-              // Endereço do CONTATO (mesmo do formulário)
-              endereco: pedido.endereco_rua || '',
-              numero: pedido.endereco_numero || 'S/N',
-              complemento: pedido.endereco_complemento || '',
-              bairro: pedido.endereco_bairro || '',
-              cep: pedido.endereco_cep || '',
-              cidade: pedido.endereco_cidade || '',
-              uf: pedido.endereco_estado || '',
+              telefone: pedido.telefone_cliente || pedido.church?.pastor_whatsapp || '',
             };
-            
-            console.log('Contato (NF) - DO FORMULÁRIO:', JSON.stringify(contato, null, 2));
 
-            // Endereço de ENTREGA - DO FORMULÁRIO
+            // Endereço de entrega (do formulário de checkout)
             const endereco_entrega = {
-              nome: nomeCompleto,
-              rua: pedido.endereco_rua || '',
-              numero: pedido.endereco_numero || 'S/N',
-              complemento: pedido.endereco_complemento || '',
-              bairro: pedido.endereco_bairro || '',
-              cep: pedido.endereco_cep || '',
-              cidade: pedido.endereco_cidade || '',
-              estado: pedido.endereco_estado || '',
+              rua: pedido.endereco_rua,
+              numero: pedido.endereco_numero,
+              complemento: pedido.endereco_complemento,
+              bairro: pedido.endereco_bairro,
+              cep: pedido.endereco_cep,
+              cidade: pedido.endereco_cidade,
+              estado: pedido.endereco_estado,
             };
-            
-            console.log('Endereço Entrega - DO FORMULÁRIO:', JSON.stringify(endereco_entrega, null, 2));
 
-            // ITENS com preço de lista e desconto
-            const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => {
-              const codigoBling = item.revista?.bling_produto_id?.toString() || '0';
-              const precoLista = Number(item.revista?.preco_cheio || item.preco_unitario);
-              const precoComDesconto = Number(item.preco_unitario);
-              
-              console.log(`Item: ${item.revista?.titulo}`);
-              console.log(`  - Código Bling: ${codigoBling}`);
-              console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
-              console.log(`  - Preço Desconto: R$ ${precoComDesconto.toFixed(2)}`);
-              
-              return {
-                codigo: codigoBling,
-                descricao: item.revista?.titulo || 'Revista EBD',
-                unidade: 'UN',
-                quantidade: item.quantidade,
-                preco_cheio: precoLista,
-                valor: precoComDesconto,
-              };
-            }) || [];
+            // Preparar itens com preço já com desconto (30% off)
+            const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => ({
+              codigo: item.revista?.bling_produto_id?.toString() || '0',
+              descricao: item.revista?.titulo || 'Revista EBD',
+              unidade: 'UN',
+              quantidade: item.quantidade,
+              valor: Number(item.preco_unitario.toFixed(2)), // Já vem com desconto do checkout
+            })) || [];
 
-            // Forma de pagamento
+            // Mapear forma de pagamento do Mercado Pago
             const paymentTypeMap: { [key: string]: string } = {
               'credit_card': 'card',
               'debit_card': 'card',
@@ -173,9 +139,7 @@ serve(async (req) => {
             };
             const formaPagamento = paymentTypeMap[payment.payment_type_id] || 'pix';
 
-            // CHAMAR BLING-CREATE-ORDER
-            console.log('Enviando para bling-create-order...');
-            
+            // Chamar função bling-create-order com dados completos
             const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
               method: 'POST',
               headers: {
@@ -183,13 +147,9 @@ serve(async (req) => {
                 'Authorization': `Bearer ${supabaseKey}`,
               },
               body: JSON.stringify({
-                // Dados do CONTATO para NF (do formulário)
-                contato: contato,
-                // Endereço de ENTREGA (do formulário)
-                endereco_entrega: endereco_entrega,
-                // Itens
+                cliente,
+                endereco_entrega,
                 itens: itensBling,
-                // Dados do pedido
                 pedido_id: pedido.id.slice(0, 8).toUpperCase(),
                 valor_frete: pedido.valor_frete || 0,
                 metodo_frete: pedido.metodo_frete || 'pac',
@@ -222,7 +182,7 @@ serve(async (req) => {
         emailType = 'payment_pending';
       }
 
-      // Atualizar pedido
+      // Atualizar pedido incluindo bling_order_id
       await supabase
         .from('ebd_pedidos')
         .update({
@@ -233,11 +193,12 @@ serve(async (req) => {
         })
         .eq('id', pedido.id);
 
-      console.log('Pedido atualizado:', pedido.id, 'Status:', newStatus, 'Bling ID:', blingOrderId);
+      console.log('Pedido atualizado:', pedido.id, 'Novo status:', newStatus, 'Bling ID:', blingOrderId);
 
-      // Enviar email
+      // Enviar email de notificação
       if (emailType) {
         try {
+          console.log('Enviando email:', emailType, 'para pedido:', pedido.id);
           const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-order-email`, {
             method: 'POST',
             headers: {
@@ -251,7 +212,10 @@ serve(async (req) => {
           });
 
           if (!emailResponse.ok) {
-            console.error('Erro ao enviar email:', await emailResponse.text());
+            const errorText = await emailResponse.text();
+            console.error('Erro ao enviar email:', errorText);
+          } else {
+            console.log('Email enviado com sucesso');
           }
         } catch (emailError) {
           console.error('Erro ao chamar função de email:', emailError);
@@ -261,13 +225,20 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
     );
   } catch (error) {
     console.error('Erro no webhook:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({ error: errorMessage }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
     );
   }
 });
