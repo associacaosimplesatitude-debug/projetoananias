@@ -6,6 +6,69 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Função para renovar o token do Bling
+async function refreshBlingToken(supabase: any, config: any): Promise<string> {
+  if (!config.refresh_token) {
+    throw new Error('Refresh token não disponível');
+  }
+
+  console.log('Renovando token do Bling...');
+  
+  const credentials = btoa(`${config.client_id}:${config.client_secret}`);
+  
+  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': `Basic ${credentials}`,
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: config.refresh_token,
+    }),
+  });
+
+  const tokenData = await tokenResponse.json();
+
+  if (!tokenResponse.ok || tokenData.error) {
+    console.error('Erro ao renovar token:', tokenData);
+    throw new Error(tokenData.error_description || 'Erro ao renovar token do Bling');
+  }
+
+  // Calcular nova expiração
+  const expiresAt = new Date();
+  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 21600));
+
+  // Atualizar tokens no banco
+  const { error: updateError } = await supabase
+    .from('bling_config')
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      token_expires_at: expiresAt.toISOString(),
+    })
+    .eq('id', config.id);
+
+  if (updateError) {
+    console.error('Erro ao salvar tokens:', updateError);
+    throw new Error('Erro ao salvar tokens renovados');
+  }
+
+  console.log('Token renovado com sucesso! Expira em:', expiresAt.toISOString());
+  return tokenData.access_token;
+}
+
+// Função para verificar se o token está expirado ou próximo de expirar
+function isTokenExpired(tokenExpiresAt: string | null): boolean {
+  if (!tokenExpiresAt) return true;
+  
+  const expiresAt = new Date(tokenExpiresAt);
+  const now = new Date();
+  // Considera expirado se faltam menos de 5 minutos
+  const bufferMs = 5 * 60 * 1000;
+  return now.getTime() >= expiresAt.getTime() - bufferMs;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -46,6 +109,13 @@ serve(async (req) => {
       throw new Error('Token de acesso não configurado');
     }
 
+    // Verificar se o token está expirado e renovar se necessário
+    let accessToken = config.access_token;
+    if (isTokenExpired(config.token_expires_at)) {
+      console.log('Token expirado ou próximo de expirar, renovando...');
+      accessToken = await refreshBlingToken(supabase, config);
+    }
+
     // Determinar se é CPF ou CNPJ
     const documento = cliente.cpf_cnpj?.replace(/\D/g, '') || '';
     const tipoDocumento = documento.length > 11 ? 'J' : 'F';
@@ -84,7 +154,7 @@ serve(async (req) => {
     const contatoResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${config.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
@@ -106,7 +176,7 @@ serve(async (req) => {
           `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`,
           {
             headers: {
-              'Authorization': `Bearer ${config.access_token}`,
+              'Authorization': `Bearer ${accessToken}`,
               'Accept': 'application/json',
             },
           }
@@ -122,7 +192,7 @@ serve(async (req) => {
           const updateResponse = await fetch(`https://www.bling.com.br/Api/v3/contatos/${contatoId}`, {
             method: 'PUT',
             headers: {
-              'Authorization': `Bearer ${config.access_token}`,
+              'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
@@ -165,7 +235,7 @@ serve(async (req) => {
       const genericResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${config.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
@@ -281,7 +351,7 @@ serve(async (req) => {
     const orderResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${config.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
