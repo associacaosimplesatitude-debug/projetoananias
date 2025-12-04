@@ -1,6 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, Eye } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ShoppingCart, Eye, Package } from 'lucide-react';
 
 interface RevistaCardProps {
   revista: {
@@ -9,6 +10,7 @@ interface RevistaCardProps {
     imagem_url: string | null;
     preco_cheio: number | null;
     autor: string | null;
+    estoque?: number | null;
   };
   onVerConteudo: () => void;
   onAddToCart: () => void;
@@ -17,6 +19,8 @@ interface RevistaCardProps {
 export function RevistaCard({ revista, onVerConteudo, onAddToCart }: RevistaCardProps) {
   const precoNormal = revista.preco_cheio || 0;
   const precoComDesconto = precoNormal * 0.7; // 30% de desconto
+  const estoque = revista.estoque ?? 0;
+  const semEstoque = estoque <= 0;
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
@@ -33,6 +37,14 @@ export function RevistaCard({ revista, onVerConteudo, onAddToCart }: RevistaCard
               Sem imagem
             </div>
           )}
+          {/* Badge de estoque */}
+          <Badge 
+            variant={semEstoque ? "destructive" : "secondary"} 
+            className="absolute top-2 right-2 flex items-center gap-1"
+          >
+            <Package className="w-3 h-3" />
+            {estoque}
+          </Badge>
         </div>
       </CardHeader>
       
@@ -77,9 +89,10 @@ export function RevistaCard({ revista, onVerConteudo, onAddToCart }: RevistaCard
           size="sm"
           onClick={onAddToCart}
           className="flex-1"
+          disabled={semEstoque}
         >
           <ShoppingCart className="w-4 h-4 mr-1" />
-          Adicionar
+          {semEstoque ? 'Sem Estoque' : 'Adicionar'}
         </Button>
       </CardFooter>
     </Card>
