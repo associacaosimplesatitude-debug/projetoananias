@@ -41,6 +41,8 @@ import AdminEBDCurriculo from "./pages/admin/EBDCurriculo";
 import AdminOrders from "./pages/admin/Orders";
 import AdminSalesReport from "./pages/admin/SalesReport";
 import BlingIntegration from "./pages/admin/BlingIntegration";
+import AdminVendedores from "./pages/admin/Vendedores";
+import AdminSalesDashboard from "./pages/admin/SalesDashboard";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 import DashboardRedirect from "./components/DashboardRedirect";
@@ -459,6 +461,22 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <BlingIntegration />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/vendedores"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminVendedores />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/sales-dashboard"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminSalesDashboard />
                         </ProtectedRoute>
                       }
                     />
