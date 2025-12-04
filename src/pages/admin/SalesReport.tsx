@@ -4,6 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, parseISO, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,31 +22,28 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle
+  Users,
+  Trophy
 } from "lucide-react";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
   LineChart,
   Line,
-  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip,
 } from "recharts";
+import { Link } from "react-router-dom";
 
 type Order = {
   id: string;
+  church_id: string;
   created_at: string | null;
   approved_at: string | null;
   status: string;
@@ -55,12 +58,23 @@ type Order = {
   endereco_estado: string;
   church: {
     church_name: string;
+    vendedor_id: string | null;
   } | null;
   ebd_pedidos_itens: {
     quantidade: number;
     preco_total: number;
   }[] | null;
 };
+
+interface Vendedor {
+  id: string;
+  nome: string;
+  email: string;
+  foto_url: string | null;
+  comissao_percentual: number;
+  status: string;
+  meta_mensal_valor: number;
+}
 
 const COLORS = {
   primary: "hsl(var(--primary))",
@@ -78,7 +92,9 @@ const COLORS = {
 const PIE_COLORS = [COLORS.chart1, COLORS.chart2, COLORS.chart3, COLORS.chart4, COLORS.chart5];
 
 export default function SalesReport() {
-  const [period, setPeriod] = useState("30");
+  const [period, setPeriod] = useState("thisMonth");
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["sales-report-orders"],
@@ -87,6 +103,7 @@ export default function SalesReport() {
         .from("ebd_pedidos")
         .select(`
           id,
+          church_id,
           created_at,
           approved_at,
           status,
@@ -99,13 +116,41 @@ export default function SalesReport() {
           codigo_rastreio,
           nome_cliente,
           endereco_estado,
-          church:churches(church_name),
+          church:churches(church_name, vendedor_id),
           ebd_pedidos_itens(quantidade, preco_total)
         `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Order[];
+    },
+  });
+
+  const { data: vendedores } = useQuery({
+    queryKey: ['vendedores-dashboard'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vendedores')
+        .select('*')
+        .eq('status', 'Ativo')
+        .order('nome');
+      if (error) throw error;
+      return data as Vendedor[];
+    },
+  });
+
+  const { data: assinaturas } = useQuery({
+    queryKey: ['assinaturas-ebd'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('assinaturas')
+        .select(`
+          cliente_id,
+          modulos!inner(nome_modulo)
+        `)
+        .eq('status', 'Ativo');
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -129,11 +174,17 @@ export default function SalesReport() {
       case "lastMonth":
         start = startOfMonth(subMonths(end, 1));
         return { start, end: endOfMonth(subMonths(end, 1)) };
+      case "custom":
+        if (customStartDate && customEndDate) {
+          return { start: parseISO(customStartDate), end: parseISO(customEndDate) };
+        }
+        start = startOfMonth(end);
+        break;
       default:
-        start = subDays(end, 30);
+        start = startOfMonth(end);
     }
     return { start, end };
-  }, [period]);
+  }, [period, customStartDate, customEndDate]);
 
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
@@ -157,6 +208,16 @@ export default function SalesReport() {
   const totalItems = paidOrders.reduce((sum, o) => 
     sum + (o.ebd_pedidos_itens?.reduce((s, item) => s + item.quantidade, 0) || 0), 0
   );
+
+  // EBD Clients
+  const totalEbdClients = useMemo(() => {
+    const ebdClientIds = new Set(
+      assinaturas
+        ?.filter((a: any) => a.modulos?.nome_modulo === 'REOBOTE EBD')
+        .map((a: any) => a.cliente_id) || []
+    );
+    return ebdClientIds.size;
+  }, [assinaturas]);
 
   // Delivery status
   const deliveryStats = useMemo(() => {
@@ -217,6 +278,33 @@ export default function SalesReport() {
       .slice(0, 10);
   }, [paidOrders]);
 
+  // Vendedor stats
+  const vendedorStats = useMemo(() => {
+    if (!vendedores || !paidOrders) return [];
+    
+    return vendedores.map(vendedor => {
+      const vendedorOrders = paidOrders.filter(order => 
+        order.church?.vendedor_id === vendedor.id
+      );
+
+      const totalSales = vendedorOrders.length;
+      const totalValue = vendedorOrders.reduce((sum, o) => sum + Number(o.valor_total), 0);
+      const commission = totalValue * (vendedor.comissao_percentual / 100);
+      const goalProgress = vendedor.meta_mensal_valor > 0 
+        ? (totalValue / vendedor.meta_mensal_valor) * 100 
+        : 0;
+
+      return {
+        ...vendedor,
+        totalSales,
+        totalValue,
+        commission,
+        goalProgress: Math.min(goalProgress, 100),
+        goalProgressRaw: goalProgress,
+      };
+    }).sort((a, b) => b.totalValue - a.totalValue);
+  }, [vendedores, paidOrders]);
+
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
@@ -224,8 +312,8 @@ export default function SalesReport() {
     return (
       <div className="container mx-auto py-6 space-y-6">
         <Skeleton className="h-10 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
@@ -242,27 +330,75 @@ export default function SalesReport() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Relatório de Vendas</h1>
+          <h1 className="text-2xl font-bold">Relatório de Vendas EBD</h1>
           <p className="text-muted-foreground">
-            Análise consolidada de pedidos e faturamento
+            Análise consolidada de vendas, métricas e performance da equipe
           </p>
         </div>
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Últimos 7 dias</SelectItem>
-            <SelectItem value="30">Últimos 30 dias</SelectItem>
-            <SelectItem value="90">Últimos 90 dias</SelectItem>
-            <SelectItem value="thisMonth">Este mês</SelectItem>
-            <SelectItem value="lastMonth">Mês passado</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/admin/vendedores">
+              <Users className="h-4 w-4 mr-2" />
+              Gerenciar Vendedores
+            </Link>
+          </Button>
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="thisMonth">Este mês</SelectItem>
+              <SelectItem value="lastMonth">Mês passado</SelectItem>
+              <SelectItem value="custom">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
+      {/* Custom Date Range */}
+      {period === 'custom' && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-end gap-4">
+              <div className="space-y-2">
+                <Label>Data Inicial</Label>
+                <Input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Data Final</Label>
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Clientes EBD</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalEbdClients}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Igrejas com módulo EBD ativo
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Faturamento</CardTitle>
@@ -498,6 +634,115 @@ export default function SalesReport() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Ranking de Vendedores */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-yellow-500" />
+            Ranking de Vendedores
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[60px]">Rank</TableHead>
+                <TableHead>Vendedor</TableHead>
+                <TableHead className="text-center">Vendas</TableHead>
+                <TableHead className="text-right">Valor Total</TableHead>
+                <TableHead className="text-right">Comissão</TableHead>
+                <TableHead className="w-[200px]">Progresso da Meta</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {vendedorStats.map((vendedor, index) => (
+                <TableRow key={vendedor.id}>
+                  <TableCell>
+                    <div className="flex items-center justify-center">
+                      {index === 0 && <span className="text-2xl">🥇</span>}
+                      {index === 1 && <span className="text-2xl">🥈</span>}
+                      {index === 2 && <span className="text-2xl">🥉</span>}
+                      {index > 2 && <span className="text-lg font-medium text-muted-foreground">{index + 1}</span>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={vendedor.foto_url || undefined} />
+                        <AvatarFallback>{vendedor.nome.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-medium">{vendedor.nome}</div>
+                        <div className="text-xs text-muted-foreground">{vendedor.comissao_percentual}% comissão</div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="secondary">{vendedor.totalSales}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(vendedor.totalValue)}
+                  </TableCell>
+                  <TableCell className="text-right text-green-600 font-medium">
+                    {formatCurrency(vendedor.commission)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <Progress value={vendedor.goalProgress} className="h-2" />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{vendedor.goalProgressRaw.toFixed(0)}%</span>
+                        <span>Meta: {formatCurrency(vendedor.meta_mensal_valor)}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(!vendedorStats || vendedorStats.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    Nenhum vendedor ativo cadastrado
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Resumo de Comissões */}
+      {vendedorStats.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              Resumo de Comissões
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="text-sm text-muted-foreground">Total a Pagar</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(vendedorStats.reduce((sum, v) => sum + v.commission, 0))}
+                </div>
+              </div>
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="text-sm text-muted-foreground">Média por Vendedor</div>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(vendedorStats.reduce((sum, v) => sum + v.totalValue, 0) / (vendedorStats.length || 1))}
+                </div>
+              </div>
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="text-sm text-muted-foreground">Vendedores que Bateram Meta</div>
+                <div className="text-2xl font-bold">
+                  {vendedorStats.filter(v => v.goalProgressRaw >= 100).length} / {vendedorStats.length}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Table */}
       <Card>
