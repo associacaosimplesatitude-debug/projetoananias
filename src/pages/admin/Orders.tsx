@@ -412,8 +412,9 @@ export default function Orders() {
           <TableRow>
             <TableHead>Data</TableHead>
             <TableHead>Pedido</TableHead>
-            <TableHead>Igreja</TableHead>
+            <TableHead>Cliente</TableHead>
             <TableHead>Contato</TableHead>
+            <TableHead>Endereço</TableHead>
             <TableHead className="text-right">Valor Total</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
@@ -436,13 +437,32 @@ export default function Orders() {
                   </div>
                 </div>
               </TableCell>
-              <TableCell>{order.church?.church_name || "-"}</TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <div className="font-medium">
+                    {order.nome_cliente} {order.sobrenome_cliente}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {order.cpf_cnpj_cliente || "-"}
+                  </div>
+                </div>
+              </TableCell>
               <TableCell>
                 <div className="text-sm">
-                  <div>{order.church?.pastor_email || "-"}</div>
+                  <div>{order.email_cliente || "-"}</div>
                   <div className="text-muted-foreground">
-                    {order.church?.pastor_whatsapp || "-"}
+                    {order.telefone_cliente || "-"}
                   </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm text-muted-foreground">
+                  {order.endereco_rua}, {order.endereco_numero}
+                  {order.endereco_complemento && ` - ${order.endereco_complemento}`}
+                  <br />
+                  {order.endereco_bairro} - {order.endereco_cidade}/{order.endereco_estado}
+                  <br />
+                  CEP: {order.endereco_cep}
                 </div>
               </TableCell>
               <TableCell className="text-right font-semibold">
@@ -528,7 +548,7 @@ export default function Orders() {
           <TableRow>
             <TableHead>Data</TableHead>
             <TableHead>Pedido</TableHead>
-            <TableHead>Igreja</TableHead>
+            <TableHead>Cliente</TableHead>
             <TableHead>Bling</TableHead>
             <TableHead>Rastreio</TableHead>
             <TableHead className="text-right">Valor Total</TableHead>
@@ -553,7 +573,16 @@ export default function Orders() {
                   </div>
                 </div>
               </TableCell>
-              <TableCell>{order.church?.church_name || "-"}</TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <div className="font-medium">
+                    {order.nome_cliente} {order.sobrenome_cliente}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {order.email_cliente || "-"}
+                  </div>
+                </div>
+              </TableCell>
               <TableCell>
                 {order.bling_order_id ? (
                   <Badge variant="secondary" className="font-mono">
@@ -620,7 +649,7 @@ export default function Orders() {
           <TableRow>
             <TableHead>Data</TableHead>
             <TableHead>Pedido</TableHead>
-            <TableHead>Igreja</TableHead>
+            <TableHead>Cliente</TableHead>
             <TableHead>Contato</TableHead>
             <TableHead className="text-right">Valor Total</TableHead>
           </TableRow>
@@ -643,12 +672,21 @@ export default function Orders() {
                   </div>
                 </div>
               </TableCell>
-              <TableCell>{order.church?.church_name || "-"}</TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <div className="font-medium">
+                    {order.nome_cliente} {order.sobrenome_cliente}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {order.cpf_cnpj_cliente || "-"}
+                  </div>
+                </div>
+              </TableCell>
               <TableCell>
                 <div className="text-sm">
-                  <div>{order.church?.pastor_email || "-"}</div>
+                  <div>{order.email_cliente || "-"}</div>
                   <div className="text-muted-foreground">
-                    {order.church?.pastor_whatsapp || "-"}
+                    {order.telefone_cliente || "-"}
                   </div>
                 </div>
               </TableCell>
