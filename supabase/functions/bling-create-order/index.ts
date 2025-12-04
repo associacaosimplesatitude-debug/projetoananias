@@ -87,6 +87,12 @@ serve(async (req) => {
       valor_total       // Total final (produtos + frete)
     } = await req.json();
 
+    // Log dos dados recebidos para debug
+    console.log('=== DADOS RECEBIDOS ===');
+    console.log('Cliente:', JSON.stringify(cliente, null, 2));
+    console.log('Endereço de entrega:', JSON.stringify(endereco_entrega, null, 2));
+    console.log('Número do endereço recebido:', endereco_entrega?.numero);
+
     if (!cliente || !itens || itens.length === 0) {
       throw new Error('Dados do cliente e itens são obrigatórios');
     }
@@ -137,9 +143,13 @@ serve(async (req) => {
 
     // Adicionar endereço ao contato (obrigatório para emissão de NF)
     if (endereco_entrega) {
+      // Garantir que o número seja extraído corretamente
+      const numeroEndereco = String(endereco_entrega.numero || '').trim() || 'S/N';
+      console.log('Número do endereço para contato:', numeroEndereco);
+      
       contatoData.endereco = {
         endereco: endereco_entrega.rua || '',
-        numero: endereco_entrega.numero || 'S/N',
+        numero: numeroEndereco,
         complemento: endereco_entrega.complemento || '',
         bairro: endereco_entrega.bairro || '',
         cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
@@ -220,9 +230,10 @@ serve(async (req) => {
 
       // Adicionar endereço mesmo para contato genérico
       if (endereco_entrega) {
+        const numeroEndereco = String(endereco_entrega.numero || '').trim() || 'S/N';
         genericContatoData.endereco = {
           endereco: endereco_entrega.rua || '',
-          numero: endereco_entrega.numero || 'S/N',
+          numero: numeroEndereco,
           complemento: endereco_entrega.complemento || '',
           bairro: endereco_entrega.bairro || '',
           cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
@@ -403,7 +414,7 @@ serve(async (req) => {
         },
         endereco: {
           endereco: endereco_entrega.rua || '',
-          numero: endereco_entrega.numero || 'S/N',
+          numero: String(endereco_entrega.numero || '').trim() || 'S/N',
           complemento: endereco_entrega.complemento || '',
           bairro: endereco_entrega.bairro || '',
           cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
