@@ -52,7 +52,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
     throw new Error('Erro ao salvar tokens renovados');
   }
 
-  console.log('Token renovado com sucesso! Expira em:', expiresAt.toISOString());
+  console.log('Token renovado com sucesso!');
   return tokenData.access_token;
 }
 
@@ -60,8 +60,7 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
   if (!tokenExpiresAt) return true;
   const expiresAt = new Date(tokenExpiresAt);
   const now = new Date();
-  const bufferMs = 5 * 60 * 1000;
-  return now.getTime() >= expiresAt.getTime() - bufferMs;
+  return now.getTime() >= expiresAt.getTime() - 5 * 60 * 1000;
 }
 
 serve(async (req) => {
@@ -71,21 +70,19 @@ serve(async (req) => {
 
   try {
     const { 
-      // Dados do Cliente (Igreja - para Nota Fiscal)
-      igreja,           // { nome, cnpj, ie, endereco, numero, complemento, bairro, cep, cidade, uf, email, telefone }
-      // Dados do Endereço de Entrega (Superintendente)
+      // Dados do CONTATO (para NF) - DO FORMULÁRIO
+      contato,          // { nome, tipoPessoa, cpf_cnpj, email, telefone, endereco, numero, complemento, bairro, cep, cidade, uf }
+      // Endereço de ENTREGA - DO FORMULÁRIO
       endereco_entrega, // { nome, rua, numero, complemento, bairro, cep, cidade, estado }
-      // Itens do pedido
-      itens,            // [{ codigo (Bling), descricao, unidade, quantidade, preco_cheio, valor }]
+      // Itens
+      itens,            // [{ codigo, descricao, unidade, quantidade, preco_cheio, valor }]
       // Dados do pedido
       pedido_id,
       valor_frete,
-      metodo_frete,     // PAC, SEDEX, FREE
-      forma_pagamento,  // PIX, CARTAO, BOLETO
-      valor_produtos,   // Total dos produtos com desconto
-      valor_total,      // Total final (produtos + frete)
-      // Fallback: dados do cliente do checkout (se igreja não vier)
-      cliente,
+      metodo_frete,
+      forma_pagamento,
+      valor_produtos,
+      valor_total,
     } = await req.json();
 
     if (!itens || itens.length === 0) {
@@ -113,57 +110,40 @@ serve(async (req) => {
     // Verificar e renovar token se necessário
     let accessToken = config.access_token;
     if (isTokenExpired(config.token_expires_at)) {
-      console.log('Token expirado, renovando...');
       accessToken = await refreshBlingToken(supabase, config);
     }
 
     // =========================================
-    // 1. DADOS DO CLIENTE (IGREJA - Para NF)
+    // 1. CRIAR/BUSCAR CONTATO NO BLING
     // =========================================
-    // Usar dados da igreja se disponível, senão usar dados do cliente do checkout
-    const dadosContato = igreja || cliente || {};
-    
-    const cnpjCpf = (dadosContato.cnpj || dadosContato.cpf_cnpj || '').replace(/\D/g, '');
+    const cnpjCpf = (contato?.cpf_cnpj || '').replace(/\D/g, '');
     const tipoPessoa = cnpjCpf.length > 11 ? 'J' : 'F';
-    const nomeContato = dadosContato.nome || (cliente?.nome ? `${cliente.nome} ${cliente.sobrenome || ''}`.trim() : 'Consumidor Final');
+    const nomeContato = contato?.nome || 'Consumidor Final';
 
-    // Construir dados do contato para Bling
     const contatoData: any = {
       nome: nomeContato,
       tipo: tipoPessoa,
       numeroDocumento: cnpjCpf,
-      email: dadosContato.email || cliente?.email || '',
-      telefone: (dadosContato.telefone || cliente?.telefone || '').replace(/\D/g, ''),
+      email: contato?.email || '',
+      telefone: (contato?.telefone || '').replace(/\D/g, ''),
       situacao: 'A',
     };
 
-    // Adicionar endereço da Igreja (para NF)
-    if (dadosContato.endereco || dadosContato.rua) {
+    // Endereço do CONTATO (do formulário) para NF
+    if (contato?.endereco || contato?.rua) {
       contatoData.endereco = {
-        endereco: dadosContato.endereco || dadosContato.rua || '',
-        numero: dadosContato.numero || 'S/N',
-        complemento: dadosContato.complemento || '',
-        bairro: dadosContato.bairro || '',
-        cep: (dadosContato.cep || '').replace(/\D/g, ''),
-        municipio: dadosContato.cidade || dadosContato.municipio || '',
-        uf: dadosContato.uf || dadosContato.estado || '',
-        pais: 'Brasil',
-      };
-    } else if (endereco_entrega) {
-      // Fallback: usar endereço de entrega se não tiver endereço da igreja
-      contatoData.endereco = {
-        endereco: endereco_entrega.rua || '',
-        numero: endereco_entrega.numero || 'S/N',
-        complemento: endereco_entrega.complemento || '',
-        bairro: endereco_entrega.bairro || '',
-        cep: (endereco_entrega.cep || '').replace(/\D/g, ''),
-        municipio: endereco_entrega.cidade || '',
-        uf: endereco_entrega.estado || '',
+        endereco: contato.endereco || contato.rua || '',
+        numero: contato.numero || 'S/N',
+        complemento: contato.complemento || '',
+        bairro: contato.bairro || '',
+        cep: (contato.cep || '').replace(/\D/g, ''),
+        municipio: contato.cidade || '',
+        uf: contato.uf || contato.estado || '',
         pais: 'Brasil',
       };
     }
 
-    console.log('=== DADOS DO CONTATO (IGREJA) ===');
+    console.log('=== CONTATO (NF) - DO FORMULÁRIO ===');
     console.log(JSON.stringify(contatoData, null, 2));
 
     // Criar ou buscar contato no Bling
@@ -184,35 +164,33 @@ serve(async (req) => {
     if (contatoResponse.ok && contatoResult.data?.id) {
       contatoId = contatoResult.data.id;
       console.log('Contato criado, ID:', contatoId);
-    } else {
-      // Tentar buscar contato existente
-      console.log('Contato pode existir, buscando...');
-      if (cnpjCpf) {
-        const searchResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${cnpjCpf}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/json',
-            },
-          }
-        );
-        const searchResult = await searchResponse.json();
-        if (searchResult.data?.length > 0) {
-          contatoId = searchResult.data[0].id;
-          console.log('Contato encontrado, ID:', contatoId);
-          
-          // Atualizar contato existente
-          await fetch(`https://www.bling.com.br/Api/v3/contatos/${contatoId}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify(contatoData),
-          });
+    } else if (cnpjCpf) {
+      // Buscar contato existente
+      console.log('Buscando contato existente...');
+      const searchResponse = await fetch(
+        `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${cnpjCpf}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
         }
+      );
+      const searchResult = await searchResponse.json();
+      if (searchResult.data?.length > 0) {
+        contatoId = searchResult.data[0].id;
+        console.log('Contato encontrado, ID:', contatoId);
+        
+        // Atualizar contato com dados do formulário
+        await fetch(`https://www.bling.com.br/Api/v3/contatos/${contatoId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(contatoData),
+        });
       }
     }
 
@@ -242,63 +220,52 @@ serve(async (req) => {
     }
 
     // =========================================
-    // 2. ITENS DO PEDIDO
+    // 2. PREPARAR ITENS
     // =========================================
     let descontoTotalVenda = 0;
 
     const itensBling = itens.map((item: any) => {
-      // CÓDIGO do produto no Bling (não o ID interno do Lovable)
-      const codigoProduto = String(item.codigo || item.bling_produto_id || '');
-      
-      // Preço de Lista (sem desconto)
+      const codigoProduto = String(item.codigo || '');
       const precoLista = Number(item.preco_cheio || item.valor);
-      // Preço com desconto
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade || 1);
-      
-      // Calcular desconto por unidade
       const descontoUnidade = precoLista > precoComDesconto 
         ? Number((precoLista - precoComDesconto).toFixed(2)) 
         : 0;
       
       descontoTotalVenda += descontoUnidade * quantidade;
       
-      console.log(`Item: ${item.descricao || item.titulo}`);
-      console.log(`  - Código Bling: ${codigoProduto}`);
+      console.log(`Item: ${item.descricao}`);
+      console.log(`  - Código: ${codigoProduto}`);
       console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
-      console.log(`  - Preço Desconto: R$ ${precoComDesconto.toFixed(2)}`);
-      console.log(`  - Desconto/Unidade: R$ ${descontoUnidade.toFixed(2)}`);
-      console.log(`  - Quantidade: ${quantidade}`);
+      console.log(`  - Desconto/Un: R$ ${descontoUnidade.toFixed(2)}`);
 
       const itemBling: any = {
-        codigo: codigoProduto, // CÓDIGO DO PRODUTO NO BLING
-        descricao: item.descricao || item.titulo || '',
+        codigo: codigoProduto,
+        descricao: item.descricao || '',
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        valor: precoLista, // PREÇO DE LISTA (sem desconto)
+        valor: precoLista,
       };
 
-      // Adicionar desconto se houver
       if (descontoUnidade > 0) {
         itemBling.desconto = {
           valor: descontoUnidade,
-          unidade: 'REAL', // REAL para valor absoluto
+          unidade: 'REAL',
         };
       }
 
       return itemBling;
     });
 
-    console.log(`Desconto Total da Venda: R$ ${descontoTotalVenda.toFixed(2)}`);
+    console.log(`Desconto Total: R$ ${descontoTotalVenda.toFixed(2)}`);
 
     // =========================================
-    // 3. TRANSPORTE (Frete e Endereço de Entrega)
+    // 3. TRANSPORTE - DO FORMULÁRIO
     // =========================================
     const valorFreteNum = Number(valor_frete || 0);
-    const valorProdutosNum = Number(valor_produtos || 0);
-    const valorTotalNum = valorProdutosNum + valorFreteNum;
+    const valorTotalNum = Number(valor_produtos || 0) + valorFreteNum;
 
-    // Mapear tipo de frete
     const tipoFreteMap: { [key: string]: string } = {
       'pac': 'PAC',
       'sedex': 'SEDEX',
@@ -306,11 +273,9 @@ serve(async (req) => {
     };
     const servicoFrete = tipoFreteMap[metodo_frete?.toLowerCase()] || metodo_frete || 'PAC';
 
-    // Nome do destinatário (do endereço de entrega)
-    const nomeDestinatario = endereco_entrega?.nome || 
-      (cliente?.nome ? `${cliente.nome} ${cliente.sobrenome || ''}`.trim() : nomeContato);
+    // Nome do destinatário (do formulário)
+    const nomeDestinatario = endereco_entrega?.nome || nomeContato;
 
-    // Dados de transporte seguindo estrutura correta do Bling API v3
     const transporteData: any = {
       volumes: [
         {
@@ -324,12 +289,12 @@ serve(async (req) => {
       },
     };
 
-    // ENDEREÇO DE ENTREGA (Superintendente)
+    // ENDEREÇO DE ENTREGA - DO FORMULÁRIO
     if (endereco_entrega) {
       transporteData.enderecoEntrega = {
         nome: nomeDestinatario,
         endereco: endereco_entrega.rua || '',
-        numero: endereco_entrega.numero || 'S/N', // NÚMERO SEPARADO
+        numero: endereco_entrega.numero || 'S/N',
         complemento: endereco_entrega.complemento || '',
         bairro: endereco_entrega.bairro || '',
         cep: (endereco_entrega.cep || '').replace(/\D/g, ''),
@@ -338,18 +303,21 @@ serve(async (req) => {
       };
     }
 
+    console.log('=== ENDEREÇO ENTREGA - DO FORMULÁRIO ===');
+    console.log(JSON.stringify(transporteData.enderecoEntrega, null, 2));
+
     // =========================================
     // 4. PAGAMENTO
     // =========================================
     const formaPagamentoMap: { [key: string]: { id: number; descricao: string } } = {
       'pix': { id: 1, descricao: 'PIX' },
-      'card': { id: 2, descricao: 'Cartão de Crédito' },
-      'boleto': { id: 3, descricao: 'Boleto Bancário' },
+      'card': { id: 2, descricao: 'Cartão' },
+      'boleto': { id: 3, descricao: 'Boleto' },
     };
     const pagamentoInfo = formaPagamentoMap[forma_pagamento?.toLowerCase()] || { id: 1, descricao: 'PIX' };
 
     // =========================================
-    // 5. MONTAR PEDIDO COMPLETO
+    // 5. MONTAR PEDIDO
     // =========================================
     const dataAtual = new Date().toISOString().split('T')[0];
     const dataPrevista = new Date();
@@ -363,15 +331,9 @@ serve(async (req) => {
       numero: numeroPedido,
       data: dataAtual,
       dataPrevista: dataPrevista.toISOString().split('T')[0],
-      situacao: {
-        id: 15, // Em Aberto
-      },
-      loja: {
-        id: config.loja_id || 205797806,
-      },
-      contato: {
-        id: contatoId,
-      },
+      situacao: { id: 15 },
+      loja: { id: config.loja_id || 205797806 },
+      contato: { id: contatoId },
       itens: itensBling,
       transporte: transporteData,
       parcelas: [
@@ -379,15 +341,12 @@ serve(async (req) => {
           dataVencimento: dataAtual,
           valor: valorTotalNum,
           observacoes: `Pagamento via ${pagamentoInfo.descricao}`,
-          formaPagamento: {
-            id: pagamentoInfo.id,
-          },
+          formaPagamento: { id: pagamentoInfo.id },
         }
       ],
-      observacoes: `Pedido EBD #${pedido_id} | Desconto Parceiro 30% | Pagamento: ${pagamentoInfo.descricao}`,
+      observacoes: `Pedido EBD #${pedido_id} | Desconto 30% | ${pagamentoInfo.descricao}`,
     };
 
-    // Adicionar desconto total se houver
     if (descontoTotalVenda > 0) {
       pedidoData.desconto = {
         valor: Number(descontoTotalVenda.toFixed(2)),
@@ -399,7 +358,7 @@ serve(async (req) => {
     console.log(JSON.stringify(pedidoData, null, 2));
 
     // =========================================
-    // 6. ENVIAR PEDIDO PARA BLING
+    // 6. ENVIAR PARA BLING
     // =========================================
     const orderResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas', {
       method: 'POST',
@@ -424,7 +383,6 @@ serve(async (req) => {
         const errorMessages = fieldErrors.map((f: any) => f.msg).filter(Boolean);
         if (errorMessages.length > 0) {
           errorMsg = errorMessages.map((m: string) => m.replace(/<[^>]*>/g, ' ').trim()).join('; ');
-          
           if (errorMsg.toLowerCase().includes('estoque') && errorMsg.toLowerCase().includes('insuficiente')) {
             errorType = 'INSUFFICIENT_STOCK';
           }
@@ -450,9 +408,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Erro:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

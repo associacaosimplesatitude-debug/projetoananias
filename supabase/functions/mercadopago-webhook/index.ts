@@ -46,7 +46,7 @@ serve(async (req) => {
       const payment = await paymentResponse.json();
       console.log('Pagamento:', payment.id, 'Status:', payment.status, 'Método:', payment.payment_type_id);
 
-      // Buscar pedido com dados completos incluindo igreja
+      // Buscar pedido com dados completos
       const { data: pedido, error: pedidoError } = await supabase
         .from('ebd_pedidos')
         .select(`
@@ -56,17 +56,6 @@ serve(async (req) => {
             preco_unitario,
             preco_total,
             revista:ebd_revistas(titulo, bling_produto_id, preco_cheio)
-          ),
-          church:churches(
-            church_name,
-            pastor_email,
-            pastor_whatsapp,
-            cnpj,
-            address,
-            neighborhood,
-            city,
-            state,
-            postal_code
           )
         `)
         .eq('mercadopago_payment_id', paymentId)
@@ -112,37 +101,38 @@ serve(async (req) => {
             console.log('Criando pedido no Bling para pedido:', pedido.id);
             
             // =============================================
-            // 1. DADOS DA IGREJA (Para Nota Fiscal)
+            // TODOS OS DADOS VÊM DO FORMULÁRIO DO PEDIDO
             // =============================================
-            const igreja = {
-              nome: pedido.church?.church_name || 'Igreja',
-              cnpj: pedido.church?.cnpj || '',
-              ie: '', // Inscrição Estadual
-              // Endereço da Igreja (extrair número se estiver junto)
-              endereco: pedido.church?.address || '',
-              numero: 'S/N', // Será extraído ou S/N
-              complemento: '',
-              bairro: pedido.church?.neighborhood || '',
-              cep: pedido.church?.postal_code || '',
-              cidade: pedido.church?.city || '',
-              uf: pedido.church?.state || '',
-              email: pedido.church?.pastor_email || '',
-              telefone: pedido.church?.pastor_whatsapp || '',
+            
+            // Nome completo do cliente (do formulário)
+            const nomeCompleto = pedido.sobrenome_cliente 
+              ? `${pedido.nome_cliente} ${pedido.sobrenome_cliente}` 
+              : pedido.nome_cliente || 'Cliente';
+            
+            // Dados do CONTATO (para NF) - DO FORMULÁRIO
+            const contato = {
+              nome: nomeCompleto,
+              tipoPessoa: (pedido.cpf_cnpj_cliente || '').replace(/\D/g, '').length > 11 ? 'J' : 'F',
+              cpf_cnpj: pedido.cpf_cnpj_cliente || '',
+              email: pedido.email_cliente || '',
+              telefone: pedido.telefone_cliente || '',
+              // Endereço do CONTATO (mesmo do formulário)
+              endereco: pedido.endereco_rua || '',
+              numero: pedido.endereco_numero || 'S/N',
+              complemento: pedido.endereco_complemento || '',
+              bairro: pedido.endereco_bairro || '',
+              cep: pedido.endereco_cep || '',
+              cidade: pedido.endereco_cidade || '',
+              uf: pedido.endereco_estado || '',
             };
             
-            console.log('Dados da Igreja (NF):', JSON.stringify(igreja, null, 2));
+            console.log('Contato (NF) - DO FORMULÁRIO:', JSON.stringify(contato, null, 2));
 
-            // =============================================
-            // 2. ENDEREÇO DE ENTREGA (Do formulário de checkout)
-            // =============================================
-            const nomeDestinatario = pedido.sobrenome_cliente 
-              ? `${pedido.nome_cliente} ${pedido.sobrenome_cliente}` 
-              : pedido.nome_cliente || 'Destinatário';
-              
+            // Endereço de ENTREGA - DO FORMULÁRIO
             const endereco_entrega = {
-              nome: nomeDestinatario, // Nome do destinatário
+              nome: nomeCompleto,
               rua: pedido.endereco_rua || '',
-              numero: pedido.endereco_numero || 'S/N', // NÚMERO SEPARADO
+              numero: pedido.endereco_numero || 'S/N',
               complemento: pedido.endereco_complemento || '',
               bairro: pedido.endereco_bairro || '',
               cep: pedido.endereco_cep || '',
@@ -150,40 +140,30 @@ serve(async (req) => {
               estado: pedido.endereco_estado || '',
             };
             
-            console.log('Endereço de Entrega:', JSON.stringify(endereco_entrega, null, 2));
+            console.log('Endereço Entrega - DO FORMULÁRIO:', JSON.stringify(endereco_entrega, null, 2));
 
-            // =============================================
-            // 3. ITENS COM PREÇO DE LISTA E DESCONTO
-            // =============================================
+            // ITENS com preço de lista e desconto
             const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => {
-              // Código do produto no Bling (não ID interno)
               const codigoBling = item.revista?.bling_produto_id?.toString() || '0';
-              
-              // Preço de Lista (sem desconto) - da tabela ebd_revistas
               const precoLista = Number(item.revista?.preco_cheio || item.preco_unitario);
-              
-              // Preço com desconto (30% off) - do pedido
               const precoComDesconto = Number(item.preco_unitario);
               
               console.log(`Item: ${item.revista?.titulo}`);
               console.log(`  - Código Bling: ${codigoBling}`);
               console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
               console.log(`  - Preço Desconto: R$ ${precoComDesconto.toFixed(2)}`);
-              console.log(`  - Quantidade: ${item.quantidade}`);
               
               return {
-                codigo: codigoBling, // CÓDIGO DO PRODUTO NO BLING
+                codigo: codigoBling,
                 descricao: item.revista?.titulo || 'Revista EBD',
                 unidade: 'UN',
                 quantidade: item.quantidade,
-                preco_cheio: precoLista, // PREÇO DE LISTA (sem desconto)
-                valor: precoComDesconto, // PREÇO COM DESCONTO (30% off)
+                preco_cheio: precoLista,
+                valor: precoComDesconto,
               };
             }) || [];
 
-            // =============================================
-            // 4. FORMA DE PAGAMENTO
-            // =============================================
+            // Forma de pagamento
             const paymentTypeMap: { [key: string]: string } = {
               'credit_card': 'card',
               'debit_card': 'card',
@@ -193,9 +173,7 @@ serve(async (req) => {
             };
             const formaPagamento = paymentTypeMap[payment.payment_type_id] || 'pix';
 
-            // =============================================
-            // 5. CHAMAR BLING-CREATE-ORDER
-            // =============================================
+            // CHAMAR BLING-CREATE-ORDER
             console.log('Enviando para bling-create-order...');
             
             const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
@@ -205,11 +183,11 @@ serve(async (req) => {
                 'Authorization': `Bearer ${supabaseKey}`,
               },
               body: JSON.stringify({
-                // Dados da Igreja (para NF)
-                igreja: igreja,
-                // Endereço de Entrega (do formulário)
+                // Dados do CONTATO para NF (do formulário)
+                contato: contato,
+                // Endereço de ENTREGA (do formulário)
                 endereco_entrega: endereco_entrega,
-                // Itens com preço de lista e desconto
+                // Itens
                 itens: itensBling,
                 // Dados do pedido
                 pedido_id: pedido.id.slice(0, 8).toUpperCase(),
@@ -244,7 +222,7 @@ serve(async (req) => {
         emailType = 'payment_pending';
       }
 
-      // Atualizar pedido incluindo bling_order_id
+      // Atualizar pedido
       await supabase
         .from('ebd_pedidos')
         .update({
@@ -255,12 +233,11 @@ serve(async (req) => {
         })
         .eq('id', pedido.id);
 
-      console.log('Pedido atualizado:', pedido.id, 'Novo status:', newStatus, 'Bling ID:', blingOrderId);
+      console.log('Pedido atualizado:', pedido.id, 'Status:', newStatus, 'Bling ID:', blingOrderId);
 
-      // Enviar email de notificação
+      // Enviar email
       if (emailType) {
         try {
-          console.log('Enviando email:', emailType, 'para pedido:', pedido.id);
           const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-order-email`, {
             method: 'POST',
             headers: {
@@ -274,10 +251,7 @@ serve(async (req) => {
           });
 
           if (!emailResponse.ok) {
-            const errorText = await emailResponse.text();
-            console.error('Erro ao enviar email:', errorText);
-          } else {
-            console.log('Email enviado com sucesso');
+            console.error('Erro ao enviar email:', await emailResponse.text());
           }
         } catch (emailError) {
           console.error('Erro ao chamar função de email:', emailError);
@@ -287,20 +261,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   } catch (error) {
     console.error('Erro no webhook:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
