@@ -369,6 +369,14 @@ serve(async (req) => {
         id: 15, // Em Aberto
       },
       observacoes: observacoes,
+      // Parcelas - OBRIGATÓRIO: soma deve ser igual ao total da venda (produtos + frete)
+      parcelas: [
+        {
+          dataVencimento: new Date().toISOString().split('T')[0],
+          valor: valorTotalCorreto, // Total = produtos com desconto + frete
+          observacoes: `Pagamento via ${formaPagamentoDescricao}`,
+        }
+      ],
     };
 
     // Adicionar desconto total da venda se houver
