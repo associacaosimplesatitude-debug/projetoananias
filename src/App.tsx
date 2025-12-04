@@ -39,6 +39,7 @@ import BrandingCustomization from "./pages/admin/BrandingCustomization";
 import ClientModules from "./pages/admin/ClientModules";
 import AdminEBDCurriculo from "./pages/admin/EBDCurriculo";
 import AdminOrders from "./pages/admin/Orders";
+import AdminSalesReport from "./pages/admin/SalesReport";
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
@@ -442,6 +443,14 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <AdminOrders />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/sales-report"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminSalesReport />
                         </ProtectedRoute>
                       }
                     />
