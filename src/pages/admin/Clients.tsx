@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,13 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Eye, Calendar, Settings, Package, Trash2 } from 'lucide-react';
+import { Plus, Eye, Calendar, Settings, Package, Trash2, Search, X } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useModulos } from '@/hooks/useModulos';
 import { useCreateAssinaturas, useDeleteClient } from '@/hooks/useAssinaturas';
+import { useQuery } from '@tanstack/react-query';
 
 const churchSchema = z.object({
   church_name: z.string().trim().min(1, 'Nome é obrigatório').max(200),
@@ -76,6 +77,14 @@ export default function AdminClients() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedChurch, setSelectedChurch] = useState<Church | null>(null);
   const [selectedModulos, setSelectedModulos] = useState<string[]>([]);
+  
+  // Filter states
+  const [searchName, setSearchName] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterState, setFilterState] = useState<string>('all');
+  const [searchCnpj, setSearchCnpj] = useState('');
+  const [filterModule, setFilterModule] = useState<string>('all');
+  
   const [mandateData, setMandateData] = useState({
     start_date: '',
     end_date: '',
@@ -107,6 +116,64 @@ export default function AdminClients() {
   const { data: modulos, isLoading: modulosLoading } = useModulos();
   const createAssinaturas = useCreateAssinaturas();
   const deleteClient = useDeleteClient();
+
+  // Fetch assinaturas for filtering by module
+  const { data: assinaturas } = useQuery({
+    queryKey: ['all-assinaturas'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('assinaturas')
+        .select('cliente_id, modulo_id, modulos:modulo_id(nome_modulo)')
+        .eq('status', 'Ativo');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Get unique states from churches
+  const uniqueStates = useMemo(() => {
+    const states = [...new Set(churches.map(c => c.state).filter(Boolean))];
+    return states.sort();
+  }, [churches]);
+
+  // Filter churches
+  const filteredChurches = useMemo(() => {
+    return churches.filter((church) => {
+      // Filter by name
+      if (searchName && !church.church_name.toLowerCase().includes(searchName.toLowerCase())) {
+        return false;
+      }
+      // Filter by type
+      if (filterType !== 'all' && church.client_type !== filterType) {
+        return false;
+      }
+      // Filter by state
+      if (filterState !== 'all' && church.state !== filterState) {
+        return false;
+      }
+      // Filter by CNPJ
+      if (searchCnpj && (!church.cnpj || !church.cnpj.includes(searchCnpj))) {
+        return false;
+      }
+      // Filter by module
+      if (filterModule !== 'all' && assinaturas) {
+        const churchModules = assinaturas.filter(a => a.cliente_id === church.id);
+        const hasModule = churchModules.some(a => a.modulo_id === filterModule);
+        if (!hasModule) return false;
+      }
+      return true;
+    });
+  }, [churches, searchName, filterType, filterState, searchCnpj, filterModule, assinaturas]);
+
+  const clearFilters = () => {
+    setSearchName('');
+    setFilterType('all');
+    setFilterState('all');
+    setSearchCnpj('');
+    setFilterModule('all');
+  };
+
+  const hasActiveFilters = searchName || filterType !== 'all' || filterState !== 'all' || searchCnpj || filterModule !== 'all';
 
   useEffect(() => {
     fetchChurches();
@@ -744,9 +811,93 @@ export default function AdminClients() {
       
         <Card>
           <CardHeader>
-            <CardTitle>Lista de Clientes ({churches.length})</CardTitle>
+            <CardTitle>Lista de Clientes ({filteredChurches.length} de {churches.length})</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Filters */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 p-4 bg-muted/50 rounded-lg">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Nome</Label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome..."
+                    value={searchName}
+                    onChange={(e) => setSearchName(e.target.value)}
+                    className="pl-8 h-9"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Tipo</Label>
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="igreja">Igreja</SelectItem>
+                    <SelectItem value="associacao">Associação</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Estado</Label>
+                <Select value={filterState} onValueChange={setFilterState}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {uniqueStates.map((state) => (
+                      <SelectItem key={state} value={state}>{state}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">CNPJ</Label>
+                <Input
+                  placeholder="Buscar CNPJ..."
+                  value={searchCnpj}
+                  onChange={(e) => setSearchCnpj(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Módulo</Label>
+                <Select value={filterModule} onValueChange={setFilterModule}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {modulos?.map((modulo) => (
+                      <SelectItem key={modulo.id} value={modulo.id}>{modulo.nome_modulo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-1 flex items-end">
+                {hasActiveFilters && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={clearFilters}
+                    className="h-9 w-full"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Limpar
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -759,14 +910,17 @@ export default function AdminClients() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {churches.length === 0 ? (
+                {filteredChurches.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Nenhum cliente cadastrado ainda. Clique em "Cadastrar Cliente" para adicionar o primeiro.
+                      {hasActiveFilters 
+                        ? 'Nenhum cliente encontrado com os filtros aplicados.'
+                        : 'Nenhum cliente cadastrado ainda. Clique em "Cadastrar Cliente" para adicionar o primeiro.'
+                      }
                     </TableCell>
                   </TableRow>
                 ) : (
-                  churches.map((church) => (
+                  filteredChurches.map((church) => (
                   <TableRow key={church.id}>
                     <TableCell className="font-medium">
                       <Link 
