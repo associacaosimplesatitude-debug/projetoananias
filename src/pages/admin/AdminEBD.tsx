@@ -40,6 +40,7 @@ import {
   CalendarDays,
   GraduationCap,
   BookOpen,
+  Target,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -272,6 +273,113 @@ export default function AdminEBD() {
       return count || 0;
     },
   });
+
+  // Query to fetch churches with their lesson progress
+  const { data: churchProgress } = useQuery({
+    queryKey: ['church-lesson-progress'],
+    queryFn: async () => {
+      // Get all active EBD clients
+      const { data: assinaturas, error: assError } = await supabase
+        .from('assinaturas')
+        .select(`
+          cliente_id,
+          church:churches(id, church_name, vendedor_id)
+        `)
+        .eq('status', 'Ativo');
+      if (assError) throw assError;
+
+      // Filter only EBD module subscriptions
+      const { data: ebdModulo } = await supabase
+        .from('modulos')
+        .select('id')
+        .eq('nome_modulo', 'REOBOTE EBD')
+        .single();
+
+      const { data: ebdAssinaturas } = await supabase
+        .from('assinaturas')
+        .select('cliente_id')
+        .eq('modulo_id', ebdModulo?.id || '')
+        .eq('status', 'Ativo');
+
+      const ebdClienteIds = new Set(ebdAssinaturas?.map(a => a.cliente_id) || []);
+
+      // Get planejamento for each church
+      const { data: planejamentos, error: planError } = await supabase
+        .from('ebd_planejamento')
+        .select(`
+          id,
+          church_id,
+          data_inicio,
+          data_termino,
+          dia_semana,
+          revista:ebd_revistas(id, titulo, num_licoes)
+        `);
+      if (planError) throw planError;
+
+      // Calculate progress for each church
+      const today = new Date();
+      const churchProgressMap: Record<string, { 
+        church_id: string; 
+        church_name: string; 
+        vendedor_id: string | null;
+        progress: number;
+        total: number;
+      }> = {};
+
+      const filteredAssinaturas = assinaturas?.filter(a => ebdClienteIds.has(a.cliente_id)) || [];
+
+      filteredAssinaturas.forEach(a => {
+        if (a.church) {
+          const churchPlanejamentos = planejamentos?.filter(p => p.church_id === a.church.id) || [];
+          
+          let totalLessons = 0;
+          let completedLessons = 0;
+
+          churchPlanejamentos.forEach(plan => {
+            const revista = plan.revista as any;
+            if (revista) {
+              totalLessons = Math.max(totalLessons, revista.num_licoes || 13);
+              
+              // Calculate completed lessons based on date progress
+              const startDate = new Date(plan.data_inicio);
+              const endDate = new Date(plan.data_termino);
+              
+              if (today >= startDate) {
+                const totalWeeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+                const elapsedWeeks = Math.ceil((Math.min(today.getTime(), endDate.getTime()) - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+                completedLessons = Math.max(completedLessons, Math.min(elapsedWeeks, revista.num_licoes || 13));
+              }
+            }
+          });
+
+          if (!churchProgressMap[a.church.id] || churchProgressMap[a.church.id].progress < completedLessons) {
+            churchProgressMap[a.church.id] = {
+              church_id: a.church.id,
+              church_name: a.church.church_name,
+              vendedor_id: a.church.vendedor_id,
+              progress: completedLessons,
+              total: totalLessons || 13,
+            };
+          }
+        }
+      });
+
+      return Object.values(churchProgressMap);
+    },
+  });
+
+  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
+  const [selectedProgressRange, setSelectedProgressRange] = useState<'high' | 'medium' | 'low' | null>(null);
+
+  const progressGroups = useMemo(() => {
+    if (!churchProgress) return { high: [], medium: [], low: [] };
+    
+    return {
+      high: churchProgress.filter(c => c.progress >= 9 && c.progress <= 13),
+      medium: churchProgress.filter(c => c.progress >= 5 && c.progress <= 8),
+      low: churchProgress.filter(c => c.progress >= 0 && c.progress <= 4),
+    };
+  }, [churchProgress]);
 
   // Date range calculation
   const dateRange = useMemo(() => {
@@ -709,6 +817,109 @@ export default function AdminEBD() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Church Progress Cards */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                Progresso das Igrejas nas Aulas
+              </CardTitle>
+              <CardDescription>Clique em cada faixa para ver as igrejas e seus vendedores</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <button
+                  onClick={() => { setSelectedProgressRange('high'); setProgressDialogOpen(true); }}
+                  className="p-4 rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-950 hover:bg-green-100 dark:hover:bg-green-900 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-green-700 dark:text-green-300">9 a 13 aulas</span>
+                    <Badge className="bg-green-500 hover:bg-green-600">{progressGroups.high.length}</Badge>
+                  </div>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">Igrejas com bom progresso</p>
+                  <Progress value={100} className="mt-2 h-2 [&>div]:bg-green-500" />
+                </button>
+
+                <button
+                  onClick={() => { setSelectedProgressRange('medium'); setProgressDialogOpen(true); }}
+                  className="p-4 rounded-lg border-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-950 hover:bg-yellow-100 dark:hover:bg-yellow-900 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">5 a 8 aulas</span>
+                    <Badge className="bg-yellow-500 hover:bg-yellow-600">{progressGroups.medium.length}</Badge>
+                  </div>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">Igrejas com progresso médio</p>
+                  <Progress value={60} className="mt-2 h-2 [&>div]:bg-yellow-500" />
+                </button>
+
+                <button
+                  onClick={() => { setSelectedProgressRange('low'); setProgressDialogOpen(true); }}
+                  className="p-4 rounded-lg border-2 border-orange-500 bg-orange-50 dark:bg-orange-950 hover:bg-orange-100 dark:hover:bg-orange-900 transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-orange-700 dark:text-orange-300">0 a 4 aulas</span>
+                    <Badge className="bg-orange-500 hover:bg-orange-600">{progressGroups.low.length}</Badge>
+                  </div>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Igrejas com baixo progresso</p>
+                  <Progress value={30} className="mt-2 h-2 [&>div]:bg-orange-500" />
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Progress Dialog */}
+          <Dialog open={progressDialogOpen} onOpenChange={setProgressDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  {selectedProgressRange === 'high' && <Badge className="bg-green-500">9 a 13 aulas</Badge>}
+                  {selectedProgressRange === 'medium' && <Badge className="bg-yellow-500">5 a 8 aulas</Badge>}
+                  {selectedProgressRange === 'low' && <Badge className="bg-orange-500">0 a 4 aulas</Badge>}
+                  Igrejas nesta faixa de progresso
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                {selectedProgressRange && progressGroups[selectedProgressRange].length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Nenhuma igreja nesta faixa</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Igreja</TableHead>
+                        <TableHead>Progresso</TableHead>
+                        <TableHead>Vendedor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedProgressRange && progressGroups[selectedProgressRange].map((church) => (
+                        <TableRow key={church.church_id}>
+                          <TableCell className="font-medium">{church.church_name}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress 
+                                value={(church.progress / church.total) * 100} 
+                                className={`w-20 h-2 ${
+                                  selectedProgressRange === 'high' ? '[&>div]:bg-green-500' :
+                                  selectedProgressRange === 'medium' ? '[&>div]:bg-yellow-500' : '[&>div]:bg-orange-500'
+                                }`} 
+                              />
+                              <span className="text-sm text-muted-foreground">{church.progress}/{church.total}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={church.vendedor_id ? "default" : "secondary"}>
+                              {getVendedorName(church.vendedor_id)}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Sales KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
