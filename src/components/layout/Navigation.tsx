@@ -255,14 +255,9 @@ export const Navigation = () => {
       label: 'Pedidos',
     },
     {
-      to: '/admin/sales-report',
+      to: '/admin/ebd',
       icon: BarChart3,
-      label: 'Relatório Vendas',
-    },
-    {
-      to: '/admin/vendedores',
-      icon: UserCheck,
-      label: 'Vendedores',
+      label: 'Admin EBD',
     },
     {
       to: '/admin/bling',
