@@ -6,12 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, UserPlus, ArrowRightLeft } from 'lucide-react';
+import { Pencil, Trash2, UserPlus, ArrowRightLeft, Upload, User, Loader2 } from 'lucide-react';
+import { ImageCropDialog } from '@/components/financial/ImageCropDialog';
 
 interface Vendedor {
   id: string;
@@ -37,6 +38,10 @@ export default function Vendedores() {
   const [editingVendedor, setEditingVendedor] = useState<Vendedor | null>(null);
   const [selectedChurch, setSelectedChurch] = useState<string>('');
   const [targetVendedor, setTargetVendedor] = useState<string>('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showCropDialog, setShowCropDialog] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     nome: '',
@@ -46,6 +51,51 @@ export default function Vendedores() {
     status: 'Ativo',
     meta_mensal_valor: 0,
   });
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("A imagem deve ter no máximo 5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSelectedImage(reader.result as string);
+        setShowCropDialog(true);
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = "";
+  };
+
+  const handleCropComplete = async (croppedImageBlob: Blob) => {
+    setUploadingImage(true);
+    try {
+      const fileName = `vendedores/${Date.now()}.jpg`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("profile-avatars")
+        .upload(fileName, croppedImageBlob, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("profile-avatars")
+        .getPublicUrl(fileName);
+
+      setFormData({ ...formData, foto_url: publicUrl });
+      toast.success("Foto carregada com sucesso!");
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast.error("Erro ao fazer upload da imagem");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const { data: vendedores, isLoading } = useQuery({
     queryKey: ['vendedores'],
@@ -170,12 +220,28 @@ export default function Vendedores() {
     setDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingVendedor) {
-      updateMutation.mutate({ id: editingVendedor.id, data: formData });
-    } else {
-      createMutation.mutate(formData);
+    
+    if (!formData.nome.trim()) {
+      toast.error("Preencha o nome completo");
+      return;
+    }
+    
+    if (!formData.email.trim()) {
+      toast.error("Preencha o email");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      if (editingVendedor) {
+        await updateMutation.mutateAsync({ id: editingVendedor.id, data: formData });
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -288,58 +354,89 @@ export default function Vendedores() {
                   {editingVendedor ? 'Editar Vendedor' : 'Novo Vendedor'}
                 </DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Nome</Label>
+                  <Label>Foto de Perfil</Label>
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-20 w-20">
+                      <AvatarImage src={formData.foto_url} />
+                      <AvatarFallback>
+                        <User className="h-10 w-10" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                        id="vendedor-avatar-upload"
+                        disabled={uploadingImage}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById("vendedor-avatar-upload")?.click()}
+                        disabled={uploadingImage}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {uploadingImage ? "Carregando..." : "Escolher Foto"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vendedor-nome">
+                    Nome Completo <span className="text-destructive">*</span>
+                  </Label>
                   <Input
+                    id="vendedor-nome"
                     value={formData.nome}
                     onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                     required
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label htmlFor="vendedor-email">
+                    Email <span className="text-destructive">*</span>
+                  </Label>
                   <Input
+                    id="vendedor-email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>URL da Foto</Label>
-                  <Input
-                    type="url"
-                    value={formData.foto_url}
-                    onChange={(e) => setFormData({ ...formData, foto_url: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Comissão (%)</Label>
+                    <Label htmlFor="vendedor-comissao">Comissão (%)</Label>
                     <Input
+                      id="vendedor-comissao"
                       type="number"
                       step="0.01"
                       min="0"
                       max="100"
                       value={formData.comissao_percentual}
-                      onChange={(e) => setFormData({ ...formData, comissao_percentual: parseFloat(e.target.value) })}
-                      required
+                      onChange={(e) => setFormData({ ...formData, comissao_percentual: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Meta Mensal (R$)</Label>
+                    <Label htmlFor="vendedor-meta">Meta Mensal (R$)</Label>
                     <Input
+                      id="vendedor-meta"
                       type="number"
                       step="0.01"
                       min="0"
                       value={formData.meta_mensal_valor}
-                      onChange={(e) => setFormData({ ...formData, meta_mensal_valor: parseFloat(e.target.value) })}
-                      required
+                      onChange={(e) => setFormData({ ...formData, meta_mensal_valor: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                 </div>
+
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select 
@@ -355,9 +452,21 @@ export default function Vendedores() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button type="submit" className="w-full">
-                  {editingVendedor ? 'Atualizar' : 'Criar'}
-                </Button>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setDialogOpen(false)}
+                    disabled={isSubmitting}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting || uploadingImage}>
+                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    {editingVendedor ? 'Atualizar' : 'Cadastrar'}
+                  </Button>
+                </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
@@ -436,6 +545,12 @@ export default function Vendedores() {
           </Table>
         </CardContent>
       </Card>
+      <ImageCropDialog
+        open={showCropDialog}
+        onOpenChange={setShowCropDialog}
+        imageSrc={selectedImage || ""}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 }
