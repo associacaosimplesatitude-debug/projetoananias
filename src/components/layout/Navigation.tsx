@@ -255,6 +255,11 @@ export const Navigation = () => {
       label: 'Pedidos',
     },
     {
+      to: '/admin/sales-report',
+      icon: BarChart3,
+      label: 'Relatório Vendas',
+    },
+    {
       to: '/admin/bling',
       icon: Link2,
       label: 'Bling',
