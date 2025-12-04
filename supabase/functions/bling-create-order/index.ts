@@ -324,14 +324,14 @@ serve(async (req) => {
     console.log(JSON.stringify(transporteData.enderecoEntrega, null, 2));
 
     // =========================================
-    // 4. PAGAMENTO
+    // 4. PAGAMENTO (descrição apenas - formaPagamento é opcional no Bling)
     // =========================================
-    const formaPagamentoMap: { [key: string]: { id: number; descricao: string } } = {
-      'pix': { id: 1, descricao: 'PIX' },
-      'card': { id: 2, descricao: 'Cartão' },
-      'boleto': { id: 3, descricao: 'Boleto' },
+    const pagamentoDescMap: { [key: string]: string } = {
+      'pix': 'PIX',
+      'card': 'Cartão',
+      'boleto': 'Boleto',
     };
-    const pagamentoInfo = formaPagamentoMap[forma_pagamento?.toLowerCase()] || { id: 1, descricao: 'PIX' };
+    const pagamentoDescricao = pagamentoDescMap[forma_pagamento?.toLowerCase()] || 'PIX';
 
     // =========================================
     // 5. MONTAR PEDIDO
@@ -357,11 +357,10 @@ serve(async (req) => {
         {
           dataVencimento: dataAtual,
           valor: valorTotalVenda,
-          observacoes: `Pagamento via ${pagamentoInfo.descricao}`,
-          formaPagamento: { id: pagamentoInfo.id },
+          observacoes: `Pagamento via ${pagamentoDescricao}`,
         }
       ],
-      observacoes: `Pedido EBD #${pedido_id} | Desconto 30% | ${pagamentoInfo.descricao}`,
+      observacoes: `Pedido EBD #${pedido_id} | Desconto 30% | ${pagamentoDescricao}`,
     };
 
     console.log('=== PEDIDO BLING COMPLETO ===');
