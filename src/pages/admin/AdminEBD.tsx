@@ -311,8 +311,10 @@ export default function AdminEBD() {
         `);
       if (planError) throw planError;
 
-      // Calculate REMAINING lessons for each church
+      // Calculate REMAINING lessons for each church - ONLY from ACTIVE planejamentos
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
       const churchProgressMap: Record<string, { 
         church_id: string; 
         church_name: string; 
@@ -320,40 +322,47 @@ export default function AdminEBD() {
         remaining: number;
         total: number;
         data_termino: string;
+        completed: number;
       }> = {};
 
       ebdAssinaturas?.forEach(a => {
         if (a.church) {
           const churchPlanejamentos = planejamentos?.filter(p => p.church_id === a.church.id) || [];
           
-          // Get the most recent/active planejamento
+          // Filter ONLY ACTIVE planejamentos (data_termino >= today)
+          const activePlans = churchPlanejamentos.filter(plan => {
+            if (!plan.data_termino) return false;
+            const endDate = new Date(plan.data_termino + 'T23:59:59');
+            return endDate >= today;
+          });
+
+          // Get the first active planejamento (closest to ending)
           let bestPlan: any = null;
           let minRemaining = Infinity;
 
-          churchPlanejamentos.forEach(plan => {
+          activePlans.forEach(plan => {
             const revista = plan.revista as any;
             if (revista && plan.data_termino) {
               const startDate = new Date(plan.data_inicio);
-              const endDate = new Date(plan.data_termino);
+              const endDate = new Date(plan.data_termino + 'T23:59:59');
               const totalLessons = revista.num_licoes || 13;
-              
-              // Calculate total weeks between start and end
-              const totalWeeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
               
               // Calculate elapsed weeks since start
               let elapsedWeeks = 0;
               if (today >= startDate) {
-                elapsedWeeks = Math.floor((Math.min(today.getTime(), endDate.getTime()) - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+                elapsedWeeks = Math.floor((today.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
               }
               
-              // Remaining lessons = total - elapsed (but not negative)
-              const remainingLessons = Math.max(0, totalLessons - elapsedWeeks);
+              const completedLessons = Math.min(elapsedWeeks, totalLessons);
+              // Remaining lessons = total - completed (but not negative)
+              const remainingLessons = Math.max(0, totalLessons - completedLessons);
               
               if (remainingLessons < minRemaining) {
                 minRemaining = remainingLessons;
                 bestPlan = {
                   remaining: remainingLessons,
                   total: totalLessons,
+                  completed: completedLessons,
                   data_termino: plan.data_termino,
                 };
               }
@@ -367,6 +376,7 @@ export default function AdminEBD() {
               vendedor_id: a.church.vendedor_id,
               remaining: bestPlan.remaining,
               total: bestPlan.total,
+              completed: bestPlan.completed,
               data_termino: bestPlan.data_termino,
             };
           }
@@ -948,17 +958,17 @@ export default function AdminEBD() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Progress 
-                                value={((church.total - church.remaining) / church.total) * 100} 
+                                value={(church.completed / church.total) * 100} 
                                 className={`w-20 h-2 ${
                                   selectedProgressRange === 'high' ? '[&>div]:bg-red-500' :
                                   selectedProgressRange === 'medium' ? '[&>div]:bg-yellow-500' : '[&>div]:bg-green-500'
                                 }`} 
                               />
-                              <span className="text-sm font-medium">{church.remaining} de {church.total}</span>
+                              <span className="text-sm font-medium">{church.completed} de {church.total}</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {church.data_termino ? format(new Date(church.data_termino), 'dd/MM/yyyy') : '-'}
+                            {church.data_termino ? format(new Date(church.data_termino + 'T12:00:00'), 'dd/MM/yyyy') : '-'}
                           </TableCell>
                           <TableCell>
                             <Badge variant={church.vendedor_id ? "default" : "secondary"}>
