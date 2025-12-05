@@ -215,55 +215,32 @@ export const Navigation = () => {
       exact: true,
     },
     {
-      to: '/admin/clients',
-      icon: Building,
-      label: 'Clientes',
-    },
-    {
-      to: '/admin/processos',
-      icon: Settings,
-      label: 'Etapas',
-    },
-    {
-      to: '/admin/receivable',
-      icon: DollarSign,
-      label: 'A Receber',
-    },
-    {
-      to: '/admin/payable',
-      icon: DollarSign,
-      label: 'A Pagar',
-    },
-    {
-      to: '/admin/reports',
-      icon: BarChart3,
-      label: 'Relatórios',
-    },
-    {
       to: '/admin/branding',
       icon: Palette,
       label: 'Aparência',
-    },
-    {
-      to: '/admin/curriculo-ebd',
-      icon: BookOpen,
-      label: 'Catálogo',
-    },
-    {
-      to: '/admin/orders',
-      icon: ShoppingCart,
-      label: 'Pedidos',
     },
     {
       to: '/admin/ebd',
       icon: BarChart3,
       label: 'Admin EBD',
     },
-    {
-      to: '/admin/bling',
-      icon: Link2,
-      label: 'Bling',
-    },
+  ];
+
+  const adminClientesDropdown = [
+    { to: '/admin/clients', label: 'Clientes' },
+    { to: '/admin/processos', label: 'Etapas' },
+  ];
+
+  const adminFinanceiroDropdown = [
+    { to: '/admin/receivable', label: 'A Receber' },
+    { to: '/admin/payable', label: 'A Pagar' },
+    { to: '/admin/reports', label: 'Relatórios' },
+  ];
+
+  const adminCatalogosDropdown = [
+    { to: '/admin/curriculo-ebd', label: 'Catálogo' },
+    { to: '/admin/orders', label: 'Pedidos' },
+    { to: '/admin/bling', label: 'Bling' },
   ];
 
   const navItems = 
@@ -315,6 +292,84 @@ export const Navigation = () => {
                   </React.Fragment>
                 );
               })}
+
+              {/* Admin Clientes Dropdown */}
+              {role === 'admin' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <Building className="h-4 w-4" />
+                    <span className="hidden sm:inline">Clientes</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {adminClientesDropdown.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {/* Admin Financeiro Dropdown */}
+              {role === 'admin' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    <span className="hidden sm:inline">Financeiro</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {adminFinanceiroDropdown.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              {/* Admin Catálogos Dropdown */}
+              {role === 'admin' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    <span className="hidden sm:inline">Catálogos</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {adminCatalogosDropdown.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               
               {/* EBD Membros e Turmas Dropdown */}
               {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
