@@ -239,8 +239,8 @@ export default function EBDSchedule() {
             </TabsList>
 
             <TabsContent value="ativas" className="space-y-3 mt-4">
-              {planejamentos.filter(p => (p as any).progresso?.percentual < 100).length > 0 ? (
-                planejamentos.filter(p => (p as any).progresso?.percentual < 100).map((planejamento) => (
+              {planejamentos.filter(p => !isBefore(parseISO(p.data_termino), startOfDay(new Date()))).length > 0 ? (
+                planejamentos.filter(p => !isBefore(parseISO(p.data_termino), startOfDay(new Date()))).map((planejamento) => (
                   <Card 
                     key={planejamento.id} 
                     className="overflow-hidden hover:shadow-md transition-shadow"
@@ -310,8 +310,8 @@ export default function EBDSchedule() {
             </TabsContent>
 
             <TabsContent value="finalizadas" className="space-y-3 mt-4">
-              {planejamentos.filter(p => (p as any).progresso?.percentual >= 100).length > 0 ? (
-                planejamentos.filter(p => (p as any).progresso?.percentual >= 100).map((planejamento) => (
+              {planejamentos.filter(p => isBefore(parseISO(p.data_termino), startOfDay(new Date()))).length > 0 ? (
+                planejamentos.filter(p => isBefore(parseISO(p.data_termino), startOfDay(new Date()))).map((planejamento) => (
                   <Card 
                     key={planejamento.id} 
                     className="overflow-hidden hover:shadow-md transition-shadow border-green-200 dark:border-green-800"
