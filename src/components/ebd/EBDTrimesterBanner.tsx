@@ -68,12 +68,17 @@ export const EBDTrimesterBanner = () => {
     enabled: !!user?.id && !!profile?.church_id && isEBDRoute && role !== 'admin',
   });
 
-  // Fetch planejamentos to calculate remaining lessons
+  // Fetch planejamentos and escalas to calculate remaining lessons
   const { data: remainingLessons, isLoading: lessonsLoading } = useQuery({
     queryKey: ['remaining-lessons-banner', profile?.church_id],
     queryFn: async () => {
       if (!profile?.church_id) return null;
       
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+      
+      // Get active planejamentos (not finished yet)
       const { data: planejamentos, error } = await supabase
         .from('ebd_planejamento')
         .select(`
@@ -86,44 +91,51 @@ export const EBDTrimesterBanner = () => {
             num_licoes
           )
         `)
-        .eq('church_id', profile.church_id);
+        .eq('church_id', profile.church_id)
+        .gte('data_termino', todayStr);
       
       if (error) throw error;
       if (!planejamentos || planejamentos.length === 0) return null;
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Get all escalas for this church to count completed lessons
+      const { data: escalas, error: escalasError } = await supabase
+        .from('ebd_escalas')
+        .select('id, data, turma_id, sem_aula')
+        .eq('church_id', profile.church_id)
+        .lte('data', todayStr);
+      
+      if (escalasError) throw escalasError;
 
-      // Find active planejamentos and calculate remaining lessons
+      // Find active planejamentos and calculate remaining lessons based on escalas
       let minRemaining = Infinity;
       let activePlanWithMinRemaining: any = null;
 
-      planejamentos.forEach((plan: any) => {
-        if (!plan.data_termino || !plan.revista) return;
+      for (const plan of planejamentos) {
+        if (!plan.revista) continue;
         
-        const endDate = new Date(plan.data_termino + 'T23:59:59');
-        if (endDate < today) return; // Skip finished plans
-        
-        const startDate = new Date(plan.data_inicio);
         const totalLessons = plan.revista.num_licoes || 13;
+        const startDate = plan.data_inicio;
+        const endDate = plan.data_termino;
         
-        let elapsedWeeks = 0;
-        if (today >= startDate) {
-          elapsedWeeks = Math.floor((today.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-        }
+        // Count escalas within this plan's date range (excluding sem_aula)
+        const planEscalas = (escalas || []).filter((e: any) => 
+          e.data >= startDate && 
+          e.data <= endDate && 
+          !e.sem_aula
+        );
         
-        const completedLessons = Math.min(elapsedWeeks, totalLessons);
-        const remainingLessons = Math.max(0, totalLessons - completedLessons);
+        const completedLessons = planEscalas.length;
+        const remaining = Math.max(0, totalLessons - completedLessons);
         
-        if (remainingLessons < minRemaining) {
-          minRemaining = remainingLessons;
+        if (remaining < minRemaining) {
+          minRemaining = remaining;
           activePlanWithMinRemaining = {
             ...plan,
-            remaining: remainingLessons,
+            remaining: remaining,
             total: totalLessons,
           };
         }
-      });
+      }
 
       return activePlanWithMinRemaining ? {
         remaining: activePlanWithMinRemaining.remaining,
