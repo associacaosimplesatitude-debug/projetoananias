@@ -97,6 +97,11 @@ export const Navigation = () => {
     { to: '/bank-transfers', label: 'Transferências' },
   ];
 
+  const clientCatalogosDropdown = [
+    { to: '/ebd/catalogo', label: 'Catálogo' },
+    { to: '/ebd/pedidos', label: 'Meus Pedidos' },
+  ];
+
   const clientNavItems = [
     ...(hasReoboteIgrejas ? [
       {
@@ -445,56 +450,30 @@ export const Navigation = () => {
                 </DropdownMenu>
               )}
 
-              {/* EBD Catálogo - Link direto */}
+              {/* EBD Catálogos Dropdown */}
               {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
-                <>
-                  <style>
-                    {`
-                      #nav-item-ebd-catalogo.active {
-                        background-color: ${accentColor} !important;
-                      }
-                    `}
-                  </style>
-                  <NavLink
-                    id="nav-item-ebd-catalogo"
-                    to="/ebd/catalogo"
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
                     className={cn(
                       'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
                       'hover:bg-white/10'
                     )}
                     style={{ color: navTextColor, opacity: 0.8 }}
-                    activeClassName="active"
                   >
                     <ShoppingBag className="h-4 w-4" />
-                    <span className="hidden sm:inline">Catálogo</span>
-                  </NavLink>
-                </>
-              )}
-
-              {/* EBD Meus Pedidos - Link direto */}
-              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
-                <>
-                  <style>
-                    {`
-                      #nav-item-ebd-pedidos.active {
-                        background-color: ${accentColor} !important;
-                      }
-                    `}
-                  </style>
-                  <NavLink
-                    id="nav-item-ebd-pedidos"
-                    to="/ebd/pedidos"
-                    className={cn(
-                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                      'hover:bg-white/10'
-                    )}
-                    style={{ color: navTextColor, opacity: 0.8 }}
-                    activeClassName="active"
-                  >
-                    <ShoppingCart className="h-4 w-4" />
-                    <span className="hidden sm:inline">Meus Pedidos</span>
-                  </NavLink>
-                </>
+                    <span className="hidden sm:inline">Catálogos</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {clientCatalogosDropdown.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
 
               {/* Admin - Botão Direto */}
