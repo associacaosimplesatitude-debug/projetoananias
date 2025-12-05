@@ -90,6 +90,13 @@ export const Navigation = () => {
     { to: '/ebd/frequencia/relatorio', label: 'Relatórios de Frequência' },
   ];
 
+  const clientFinanceiroDropdown = [
+    { to: '/entries', label: 'Entradas' },
+    { to: '/expenses', label: 'Despesas' },
+    { to: '/bank-accounts', label: 'Contas Bancárias' },
+    { to: '/bank-transfers', label: 'Transferências' },
+  ];
+
   const clientNavItems = [
     ...(hasReoboteIgrejas ? [
       {
@@ -101,26 +108,6 @@ export const Navigation = () => {
         to: '/members',
         icon: Users,
         label: membersLabel,
-      },
-      {
-        to: '/entries',
-        icon: TrendingUp,
-        label: 'Entradas',
-      },
-      {
-        to: '/expenses',
-        icon: TrendingDown,
-        label: 'Despesas',
-      },
-      {
-        to: '/bank-accounts',
-        icon: Building2,
-        label: 'Contas Bancárias',
-      },
-      {
-        to: '/bank-transfers',
-        icon: ArrowLeftRight,
-        label: 'Transferências',
       },
       ...(processStatus === 'in_progress' ? [{
         to: '/abertura',
@@ -170,26 +157,6 @@ export const Navigation = () => {
         to: '/members',
         icon: Users,
         label: membersLabel,
-      },
-      {
-        to: '/entries',
-        icon: TrendingUp,
-        label: 'Entradas',
-      },
-      {
-        to: '/expenses',
-        icon: TrendingDown,
-        label: 'Despesas',
-      },
-      {
-        to: '/bank-accounts',
-        icon: Building2,
-        label: 'Contas Bancárias',
-      },
-      {
-        to: '/bank-transfers',
-        icon: ArrowLeftRight,
-        label: 'Transferências',
       },
     ] : []),
   ];
@@ -356,6 +323,32 @@ export const Navigation = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-background z-50">
                     {adminCatalogosDropdown.map((item) => (
+                      <DropdownMenuItem key={item.to} asChild>
+                        <Link to={item.to} className="cursor-pointer">
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+              </DropdownMenu>
+              )}
+
+              {/* Client Financeiro Dropdown */}
+              {(role === 'client' || role === 'tesoureiro') && hasReoboteIgrejas && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger 
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    <span className="hidden sm:inline">Financeiro</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-background z-50">
+                    {clientFinanceiroDropdown.map((item) => (
                       <DropdownMenuItem key={item.to} asChild>
                         <Link to={item.to} className="cursor-pointer">
                           {item.label}
