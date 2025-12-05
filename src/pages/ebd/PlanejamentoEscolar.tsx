@@ -50,6 +50,7 @@ interface Escala {
   observacao: string | null;
   professor: {
     nome_completo: string;
+    avatar_url: string | null;
   } | null;
   turma: {
     id: string;
@@ -248,7 +249,7 @@ export default function PlanejamentoEscolar() {
           turma_id,
           tipo,
           observacao,
-          professor:ebd_professores(nome_completo),
+          professor:ebd_professores(nome_completo, avatar_url),
           turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .eq('church_id', churchData.id)
@@ -1108,9 +1109,18 @@ export default function PlanejamentoEscolar() {
                                 Sem aula
                               </span>
                             ) : (
-                              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2">
-                                {escala.professor?.nome_completo}
-                              </span>
+                              <div className="flex flex-col items-start gap-1">
+                                {escala.professor?.avatar_url && (
+                                  <img 
+                                    src={escala.professor.avatar_url} 
+                                    alt={escala.professor.nome_completo || ''} 
+                                    className="w-8 h-8 rounded-full object-cover border-2 border-blue-200"
+                                  />
+                                )}
+                                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2">
+                                  {escala.professor?.nome_completo}
+                                </span>
+                              </div>
                             )}
                           </div>
                           {/* Botões de ação */}
