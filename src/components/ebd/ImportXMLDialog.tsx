@@ -91,8 +91,16 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
     if (searchText.includes("adulto") || searchText.includes("jovens e adultos")) {
       return "Jovens e Adultos";
     }
+    // Check for specific adolescent age ranges first
+    if (searchText.includes("15 a 17") || searchText.includes("15-17") || searchText.includes("adolescentes+")) {
+      return "Adolescentes+: 15 a 17 Anos";
+    }
+    if (searchText.includes("12 a 14") || searchText.includes("12-14")) {
+      return "Adolescentes: 12 a 14 Anos";
+    }
+    // Generic adolescent check
     if (searchText.includes("adolescente") || searchText.includes("teen")) {
-      return "Adolescentes";
+      return "Adolescentes: 12 a 14 Anos";
     }
     if (searchText.includes("juvenis") || searchText.includes("juvenil")) {
       return "Juvenis";
@@ -100,17 +108,17 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
     if (searchText.includes("pré-adolescente") || searchText.includes("pre-adolescente")) {
       return "Pré-Adolescentes";
     }
-    if (searchText.includes("juniores") || searchText.includes("junior")) {
-      return "Juniores";
+    if (searchText.includes("juniores") || searchText.includes("junior") || searchText.includes("9 a 11") || searchText.includes("9-11")) {
+      return "Juniores: 9 a 11 Anos";
     }
-    if (searchText.includes("primários") || searchText.includes("primarios")) {
-      return "Primários";
+    if (searchText.includes("primários") || searchText.includes("primarios") || searchText.includes("7 a 8") || searchText.includes("7-8")) {
+      return "Primários: 7 a 8 Anos";
     }
-    if (searchText.includes("jardim de infância") || searchText.includes("jardim de infancia")) {
-      return "Jardim de Infância";
+    if (searchText.includes("jardim de infância") || searchText.includes("jardim de infancia") || searchText.includes("4 a 6") || searchText.includes("4-6")) {
+      return "Jardim de Infância: 4 a 6 Anos";
     }
-    if (searchText.includes("maternal") || searchText.includes("berçário") || searchText.includes("bercario")) {
-      return "Maternal";
+    if (searchText.includes("maternal") || searchText.includes("berçário") || searchText.includes("bercario") || searchText.includes("2 a 3") || searchText.includes("2-3")) {
+      return "Maternal: 2 a 3 Anos";
     }
     if (searchText.includes("infantil") || searchText.includes("criança")) {
       return "Infantil";
