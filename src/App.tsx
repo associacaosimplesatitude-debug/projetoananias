@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { Navigation } from "@/components/layout/Navigation";
 import { PaymentBanner } from "@/components/layout/PaymentBanner";
+import { EBDTrimesterBanner } from "@/components/ebd/EBDTrimesterBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ModuleProtectedRoute from "@/components/ModuleProtectedRoute";
 import Index from "./pages/Index";
@@ -81,6 +82,7 @@ const App = () => (
                 <ProtectedRoute>
                   <Navigation />
                   <PaymentBanner />
+                  <EBDTrimesterBanner />
                   <Routes>
                     <Route 
                       path="/" 

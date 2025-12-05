@@ -890,6 +890,41 @@ export type Database = {
           },
         ]
       }
+      ebd_banner_dismissals: {
+        Row: {
+          church_id: string
+          created_at: string
+          dismissed_at: string
+          id: string
+          trimester_start: string
+          user_id: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          dismissed_at?: string
+          id?: string
+          trimester_start: string
+          user_id: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          dismissed_at?: string
+          id?: string
+          trimester_start?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_banner_dismissals_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_devocionais: {
         Row: {
           church_id: string
