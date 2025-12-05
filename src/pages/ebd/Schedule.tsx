@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, User, CheckCircle2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -225,87 +226,164 @@ export default function EBDSchedule() {
         </div>
 
         {planejamentos && planejamentos.length > 0 ? (
-          <div className="space-y-3">
-            {planejamentos.map((planejamento) => (
-              <Card 
-                key={planejamento.id} 
-                className="overflow-hidden hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center gap-4 p-4">
-                  {/* Thumbnail */}
-                  <div className="w-16 h-20 flex-shrink-0 bg-muted rounded-lg overflow-hidden">
-                    {planejamento.revista?.imagem_url ? (
-                      <img
-                        src={planejamento.revista.imagem_url}
-                        alt={planejamento.revista.titulo}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <BookOpen className="w-6 h-6 text-muted-foreground/50" />
-                      </div>
-                    )}
-                  </div>
+          <Tabs defaultValue="ativas" className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="ativas" className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                Revistas Ativas
+              </TabsTrigger>
+              <TabsTrigger value="finalizadas" className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Revistas Finalizadas
+              </TabsTrigger>
+            </TabsList>
 
-                  {/* Informações em linha */}
-                  <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4 items-center">
-                    <div className="col-span-2 md:col-span-1">
-                      <p className="text-xs text-muted-foreground">Turma</p>
-                      <p className="font-medium text-sm truncate">
-                        {planejamento.turma?.nome || '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Faixa Etária</p>
-                      <p className="font-medium text-sm truncate">
-                        {planejamento.revista?.faixa_etaria_alvo || '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Dia</p>
-                      <p className="font-medium text-sm">{planejamento.dia_semana}</p>
-                    </div>
-                    <div className="hidden md:block">
-                      <p className="text-xs text-muted-foreground">Início</p>
-                      <p className="font-medium text-sm">
-                        {format(parseISO(planejamento.data_inicio), "dd/MM/yyyy")}
-                      </p>
-                    </div>
-                    <div className="hidden md:block">
-                      <p className="text-xs text-muted-foreground">Término</p>
-                      <p className="font-medium text-sm">
-                        {format(parseISO(planejamento.data_termino), "dd/MM/yyyy")}
-                      </p>
-                    </div>
-                    {/* Progresso das aulas */}
-                    <div className="col-span-2 md:col-span-1">
-                      <p className="text-xs text-muted-foreground mb-1">Progresso</p>
-                      <div className="flex items-center gap-2">
-                        <Progress 
-                          value={(planejamento as any).progresso?.percentual || 0} 
-                          className="h-2 flex-1" 
-                          indicatorClassName={getProgressColor((planejamento as any).progresso?.percentual || 0)}
-                        />
-                        <span className="text-xs font-medium whitespace-nowrap">
-                          {(planejamento as any).progresso?.ministradas || 0}/{(planejamento as any).progresso?.total || 13}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Botão */}
-                  <Button 
-                    size="sm"
-                    onClick={() => setSelectedPlanejamento(planejamento)}
-                    className="flex-shrink-0"
+            <TabsContent value="ativas" className="space-y-3 mt-4">
+              {planejamentos.filter(p => (p as any).progresso?.percentual < 100).length > 0 ? (
+                planejamentos.filter(p => (p as any).progresso?.percentual < 100).map((planejamento) => (
+                  <Card 
+                    key={planejamento.id} 
+                    className="overflow-hidden hover:shadow-md transition-shadow"
                   >
-                    <Eye className="w-4 h-4 mr-2" />
-                    Ver Escala
-                  </Button>
+                    <div className="flex items-center gap-4 p-4">
+                      <div className="w-16 h-20 flex-shrink-0 bg-muted rounded-lg overflow-hidden">
+                        {planejamento.revista?.imagem_url ? (
+                          <img
+                            src={planejamento.revista.imagem_url}
+                            alt={planejamento.revista.titulo}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <BookOpen className="w-6 h-6 text-muted-foreground/50" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4 items-center">
+                        <div className="col-span-2 md:col-span-1">
+                          <p className="text-xs text-muted-foreground">Turma</p>
+                          <p className="font-medium text-sm truncate">{planejamento.turma?.nome || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Faixa Etária</p>
+                          <p className="font-medium text-sm truncate">{planejamento.revista?.faixa_etaria_alvo || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Dia</p>
+                          <p className="font-medium text-sm">{planejamento.dia_semana}</p>
+                        </div>
+                        <div className="hidden md:block">
+                          <p className="text-xs text-muted-foreground">Início</p>
+                          <p className="font-medium text-sm">{format(parseISO(planejamento.data_inicio), "dd/MM/yyyy")}</p>
+                        </div>
+                        <div className="hidden md:block">
+                          <p className="text-xs text-muted-foreground">Término</p>
+                          <p className="font-medium text-sm">{format(parseISO(planejamento.data_termino), "dd/MM/yyyy")}</p>
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                          <p className="text-xs text-muted-foreground mb-1">Progresso</p>
+                          <div className="flex items-center gap-2">
+                            <Progress 
+                              value={(planejamento as any).progresso?.percentual || 0} 
+                              className="h-2 flex-1" 
+                              indicatorClassName={getProgressColor((planejamento as any).progresso?.percentual || 0)}
+                            />
+                            <span className="text-xs font-medium whitespace-nowrap">
+                              {(planejamento as any).progresso?.ministradas || 0}/{(planejamento as any).progresso?.total || 13}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button size="sm" onClick={() => setSelectedPlanejamento(planejamento)} className="flex-shrink-0">
+                        <Eye className="w-4 h-4 mr-2" />
+                        Ver Escala
+                      </Button>
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhuma revista ativa</p>
                 </div>
-              </Card>
-            ))}
-          </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="finalizadas" className="space-y-3 mt-4">
+              {planejamentos.filter(p => (p as any).progresso?.percentual >= 100).length > 0 ? (
+                planejamentos.filter(p => (p as any).progresso?.percentual >= 100).map((planejamento) => (
+                  <Card 
+                    key={planejamento.id} 
+                    className="overflow-hidden hover:shadow-md transition-shadow border-green-200 dark:border-green-800"
+                  >
+                    <div className="flex items-center gap-4 p-4">
+                      <div className="w-16 h-20 flex-shrink-0 bg-muted rounded-lg overflow-hidden relative">
+                        {planejamento.revista?.imagem_url ? (
+                          <img
+                            src={planejamento.revista.imagem_url}
+                            alt={planejamento.revista.titulo}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <BookOpen className="w-6 h-6 text-muted-foreground/50" />
+                          </div>
+                        )}
+                        <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
+                          <CheckCircle2 className="w-4 h-4 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4 items-center">
+                        <div className="col-span-2 md:col-span-1">
+                          <p className="text-xs text-muted-foreground">Turma</p>
+                          <p className="font-medium text-sm truncate">{planejamento.turma?.nome || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Faixa Etária</p>
+                          <p className="font-medium text-sm truncate">{planejamento.revista?.faixa_etaria_alvo || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Dia</p>
+                          <p className="font-medium text-sm">{planejamento.dia_semana}</p>
+                        </div>
+                        <div className="hidden md:block">
+                          <p className="text-xs text-muted-foreground">Início</p>
+                          <p className="font-medium text-sm">{format(parseISO(planejamento.data_inicio), "dd/MM/yyyy")}</p>
+                        </div>
+                        <div className="hidden md:block">
+                          <p className="text-xs text-muted-foreground">Término</p>
+                          <p className="font-medium text-sm">{format(parseISO(planejamento.data_termino), "dd/MM/yyyy")}</p>
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                          <p className="text-xs text-muted-foreground mb-1">Progresso</p>
+                          <div className="flex items-center gap-2">
+                            <Progress 
+                              value={100} 
+                              className="h-2 flex-1" 
+                              indicatorClassName="bg-green-500"
+                            />
+                            <span className="text-xs font-medium whitespace-nowrap text-green-600">
+                              {(planejamento as any).progresso?.ministradas || 0}/{(planejamento as any).progresso?.total || 13}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setSelectedPlanejamento(planejamento)} className="flex-shrink-0">
+                        <Eye className="w-4 h-4 mr-2" />
+                        Ver Escala
+                      </Button>
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhuma revista finalizada</p>
+                  <p className="text-sm">As revistas com 100% de progresso aparecerão aqui</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         ) : (
           <Card>
             <CardHeader>
