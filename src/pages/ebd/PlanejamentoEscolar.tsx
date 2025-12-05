@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, BookOpen, ShoppingBag, Pencil, Trash2, CheckCircle2, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { Calendar, BookOpen, ShoppingBag, Pencil, Trash2, CheckCircle2, ChevronLeft, ChevronRight, Eye, User } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -1109,14 +1110,13 @@ export default function PlanejamentoEscolar() {
                                 Sem aula
                               </span>
                             ) : (
-                              <div className="flex flex-col items-start gap-1">
-                                {escala.professor?.avatar_url && (
-                                  <img 
-                                    src={escala.professor.avatar_url} 
-                                    alt={escala.professor.nome_completo || ''} 
-                                    className="w-8 h-8 rounded-full object-cover border-2 border-blue-200"
-                                  />
-                                )}
+                              <div className="flex flex-col items-center gap-1">
+                                <Avatar className="h-8 w-8 border-2 border-blue-200">
+                                  <AvatarImage src={escala.professor?.avatar_url || undefined} />
+                                  <AvatarFallback className="text-[10px] bg-blue-100">
+                                    <User className="h-4 w-4 text-blue-600" />
+                                  </AvatarFallback>
+                                </Avatar>
                                 <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2">
                                   {escala.professor?.nome_completo}
                                 </span>
