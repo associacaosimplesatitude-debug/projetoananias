@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Settings, Users } from 'lucide-react';
+import { User, Settings, Users, Palette, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -64,6 +64,10 @@ export function UserProfileDropdown() {
     navigate('/settings/users');
   };
 
+  const handleBranding = () => {
+    navigate('/admin/branding');
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="focus:outline-none">
@@ -84,6 +88,12 @@ export function UserProfileDropdown() {
           <User className="mr-2 h-4 w-4" />
           Meu Perfil
         </DropdownMenuItem>
+        {role === 'admin' && (
+          <DropdownMenuItem onClick={handleBranding} className="cursor-pointer">
+            <Palette className="mr-2 h-4 w-4" />
+            Aparência
+          </DropdownMenuItem>
+        )}
         {role === 'client' && (
           <DropdownMenuItem onClick={handleManageUsers} className="cursor-pointer">
             <Users className="mr-2 h-4 w-4" />
@@ -92,7 +102,7 @@ export function UserProfileDropdown() {
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive">
-          <Settings className="mr-2 h-4 w-4" />
+          <LogOut className="mr-2 h-4 w-4" />
           Sair
         </DropdownMenuItem>
       </DropdownMenuContent>
