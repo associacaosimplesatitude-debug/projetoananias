@@ -844,14 +844,14 @@ export default function AdminEBD() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button
                   onClick={() => { setSelectedProgressRange('high'); setProgressDialogOpen(true); }}
-                  className="p-4 rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-950 hover:bg-green-100 dark:hover:bg-green-900 transition-colors text-left"
+                  className="p-4 rounded-lg border-2 border-red-500 bg-red-50 dark:bg-red-950 hover:bg-red-100 dark:hover:bg-red-900 transition-colors text-left"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-green-700 dark:text-green-300">9 a 13 restantes</span>
-                    <Badge className="bg-green-500 hover:bg-green-600">{progressGroups.high.length}</Badge>
+                    <span className="text-sm font-medium text-red-700 dark:text-red-300">9 a 13 restantes</span>
+                    <Badge className="bg-red-500 hover:bg-red-600">{progressGroups.high.length}</Badge>
                   </div>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">Muitas aulas ainda</p>
-                  <Progress value={30} className="mt-2 h-2 [&>div]:bg-green-500" />
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">Muitas aulas ainda</p>
+                  <Progress value={30} className="mt-2 h-2 [&>div]:bg-red-500" />
                 </button>
 
                 <button
@@ -868,14 +868,14 @@ export default function AdminEBD() {
 
                 <button
                   onClick={() => { setSelectedProgressRange('low'); setProgressDialogOpen(true); }}
-                  className="p-4 rounded-lg border-2 border-orange-500 bg-orange-50 dark:bg-orange-950 hover:bg-orange-100 dark:hover:bg-orange-900 transition-colors text-left"
+                  className="p-4 rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-950 hover:bg-green-100 dark:hover:bg-green-900 transition-colors text-left"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-orange-700 dark:text-orange-300">0 a 4 restantes</span>
-                    <Badge className="bg-orange-500 hover:bg-orange-600">{progressGroups.low.length}</Badge>
+                    <span className="text-sm font-medium text-green-700 dark:text-green-300">0 a 4 restantes</span>
+                    <Badge className="bg-green-500 hover:bg-green-600">{progressGroups.low.length}</Badge>
                   </div>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">🛒 Prontas para comprar revistas!</p>
-                  <Progress value={90} className="mt-2 h-2 [&>div]:bg-orange-500" />
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">🛒 Prontas para comprar revistas!</p>
+                  <Progress value={90} className="mt-2 h-2 [&>div]:bg-green-500" />
                 </button>
               </div>
             </CardContent>
@@ -886,9 +886,9 @@ export default function AdminEBD() {
             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  {selectedProgressRange === 'high' && <Badge className="bg-green-500">9 a 13 restantes</Badge>}
+                  {selectedProgressRange === 'high' && <Badge className="bg-red-500">9 a 13 restantes</Badge>}
                   {selectedProgressRange === 'medium' && <Badge className="bg-yellow-500">5 a 8 restantes</Badge>}
-                  {selectedProgressRange === 'low' && <Badge className="bg-orange-500">0 a 4 restantes</Badge>}
+                  {selectedProgressRange === 'low' && <Badge className="bg-green-500">0 a 4 restantes</Badge>}
                   Igrejas com aulas restantes
                 </DialogTitle>
               </DialogHeader>
@@ -914,8 +914,8 @@ export default function AdminEBD() {
                               <Progress 
                                 value={((church.total - church.remaining) / church.total) * 100} 
                                 className={`w-20 h-2 ${
-                                  selectedProgressRange === 'high' ? '[&>div]:bg-green-500' :
-                                  selectedProgressRange === 'medium' ? '[&>div]:bg-yellow-500' : '[&>div]:bg-orange-500'
+                                  selectedProgressRange === 'high' ? '[&>div]:bg-red-500' :
+                                  selectedProgressRange === 'medium' ? '[&>div]:bg-yellow-500' : '[&>div]:bg-green-500'
                                 }`} 
                               />
                               <span className="text-sm font-medium">{church.remaining} de {church.total}</span>
