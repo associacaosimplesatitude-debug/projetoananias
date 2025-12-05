@@ -379,6 +379,41 @@ export default function AdminEBD() {
 
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const [selectedProgressRange, setSelectedProgressRange] = useState<'high' | 'medium' | 'low' | null>(null);
+  const [escalasDialogOpen, setEscalasDialogOpen] = useState(false);
+  const [selectedChurchForEscalas, setSelectedChurchForEscalas] = useState<{ id: string; name: string } | null>(null);
+
+  // Query to fetch planejamentos for selected church
+  const { data: churchPlanejamentos } = useQuery({
+    queryKey: ['church-planejamentos', selectedChurchForEscalas?.id],
+    queryFn: async () => {
+      if (!selectedChurchForEscalas?.id) return [];
+      const { data, error } = await supabase
+        .from('ebd_planejamento')
+        .select(`
+          id,
+          church_id,
+          data_inicio,
+          data_termino,
+          dia_semana,
+          revista:ebd_revistas(id, titulo, num_licoes, faixa_etaria_alvo, imagem_url)
+        `)
+        .eq('church_id', selectedChurchForEscalas.id)
+        .order('data_inicio', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedChurchForEscalas?.id,
+  });
+
+  // Filter active planejamentos
+  const activePlanejamentos = useMemo(() => {
+    if (!churchPlanejamentos) return [];
+    const today = new Date();
+    return churchPlanejamentos.filter(p => {
+      const endDate = new Date(p.data_termino + 'T23:59:59');
+      return endDate >= today;
+    });
+  }, [churchPlanejamentos]);
 
   // Group by REMAINING lessons (not completed)
   const progressGroups = useMemo(() => {
@@ -883,13 +918,13 @@ export default function AdminEBD() {
 
           {/* Progress Dialog */}
           <Dialog open={progressDialogOpen} onOpenChange={setProgressDialogOpen}>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   {selectedProgressRange === 'high' && <Badge className="bg-red-500">9 a 13 restantes</Badge>}
                   {selectedProgressRange === 'medium' && <Badge className="bg-yellow-500">5 a 8 restantes</Badge>}
                   {selectedProgressRange === 'low' && <Badge className="bg-green-500">0 a 4 restantes</Badge>}
-                  Igrejas com aulas restantes
+                  Igrejas com turmas terminando
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-2">
@@ -903,6 +938,7 @@ export default function AdminEBD() {
                         <TableHead>Aulas Restantes</TableHead>
                         <TableHead>Término</TableHead>
                         <TableHead>Vendedor</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -929,10 +965,99 @@ export default function AdminEBD() {
                               {getVendedorName(church.vendedor_id)}
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedChurchForEscalas({ id: church.church_id, name: church.church_name });
+                                setEscalasDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Ver Escalas
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Escalas Dialog */}
+          <Dialog open={escalasDialogOpen} onOpenChange={setEscalasDialogOpen}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  Revistas Ativas - {selectedChurchForEscalas?.name}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {activePlanejamentos.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Nenhuma revista ativa para esta igreja</p>
+                ) : (
+                  activePlanejamentos.map((plan) => {
+                    const revista = plan.revista as any;
+                    const startDate = new Date(plan.data_inicio);
+                    const endDate = new Date(plan.data_termino);
+                    const today = new Date();
+                    const totalLessons = revista?.num_licoes || 13;
+                    
+                    // Calculate progress
+                    let elapsedWeeks = 0;
+                    if (today >= startDate) {
+                      elapsedWeeks = Math.floor((Math.min(today.getTime(), endDate.getTime()) - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+                    }
+                    const completedLessons = Math.min(elapsedWeeks, totalLessons);
+                    const progress = (completedLessons / totalLessons) * 100;
+
+                    return (
+                      <Card key={plan.id} className="border">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-4">
+                            {revista?.imagem_url && (
+                              <img 
+                                src={revista.imagem_url} 
+                                alt={revista.titulo}
+                                className="w-16 h-20 object-cover rounded"
+                              />
+                            )}
+                            <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Revista</p>
+                                <p className="font-medium">{revista?.titulo || 'Sem título'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Faixa Etária</p>
+                                <p className="text-sm">{revista?.faixa_etaria_alvo || '-'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Dia</p>
+                                <p className="text-sm">{plan.dia_semana}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Período</p>
+                                <p className="text-sm">
+                                  {format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Progresso</p>
+                                <div className="flex items-center gap-2">
+                                  <Progress value={progress} className="w-20 h-2" />
+                                  <span className="text-sm">{completedLessons}/{totalLessons}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
                 )}
               </div>
             </DialogContent>
