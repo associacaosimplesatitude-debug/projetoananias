@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BookOpen, Edit, Trash2, FileUp, Package } from "lucide-react";
+import { Plus, BookOpen, Edit, Trash2, FileUp, Package, Filter, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { RevistaDialog } from "@/components/ebd/RevistaDialog";
 import { ImportXMLDialog } from "@/components/ebd/ImportXMLDialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,8 @@ export default function EBDCurriculo() {
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [revistaToDelete, setRevistaToDelete] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [filterCategoria, setFilterCategoria] = useState<string>("all");
+  const [filterSubcategoria, setFilterSubcategoria] = useState<string>("all");
   const queryClient = useQueryClient();
 
   const { data: revistas, isLoading } = useQuery({
@@ -53,6 +56,63 @@ export default function EBDCurriculo() {
       return data as Revista[];
     },
   });
+
+  // Extract unique categories and subcategories
+  const { categorias, subcategorias, categoriaCounts, subcategoriaCounts } = useMemo(() => {
+    if (!revistas) return { categorias: [], subcategorias: [], categoriaCounts: {}, subcategoriaCounts: {} };
+    
+    const catSet = new Set<string>();
+    const subSet = new Set<string>();
+    const catCounts: Record<string, number> = {};
+    const subCounts: Record<string, number> = {};
+    
+    revistas.forEach(r => {
+      const cat = r.categoria || 'Sem Categoria';
+      const sub = r.faixa_etaria_alvo || 'Sem Subcategoria';
+      
+      catSet.add(cat);
+      catCounts[cat] = (catCounts[cat] || 0) + 1;
+      
+      // Only count subcategories that match current category filter
+      if (filterCategoria === "all" || cat === filterCategoria) {
+        subSet.add(sub);
+        subCounts[sub] = (subCounts[sub] || 0) + 1;
+      }
+    });
+    
+    return {
+      categorias: Array.from(catSet).sort(),
+      subcategorias: Array.from(subSet).sort(),
+      categoriaCounts: catCounts,
+      subcategoriaCounts: subCounts
+    };
+  }, [revistas, filterCategoria]);
+
+  // Filter revistas based on selected filters
+  const filteredRevistas = useMemo(() => {
+    if (!revistas) return [];
+    
+    return revistas.filter(r => {
+      const cat = r.categoria || 'Sem Categoria';
+      const sub = r.faixa_etaria_alvo || 'Sem Subcategoria';
+      
+      const matchCategoria = filterCategoria === "all" || cat === filterCategoria;
+      const matchSubcategoria = filterSubcategoria === "all" || sub === filterSubcategoria;
+      
+      return matchCategoria && matchSubcategoria;
+    });
+  }, [revistas, filterCategoria, filterSubcategoria]);
+
+  // Reset subcategoria filter when categoria changes
+  const handleCategoriaChange = (value: string) => {
+    setFilterCategoria(value);
+    setFilterSubcategoria("all");
+  };
+
+  const clearFilters = () => {
+    setFilterCategoria("all");
+    setFilterSubcategoria("all");
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -147,6 +207,71 @@ export default function EBDCurriculo() {
           </div>
         </div>
 
+        {/* Filter Section */}
+        {revistas && revistas.length > 0 && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Filtros:</span>
+                </div>
+                
+                <div className="flex flex-wrap gap-3 flex-1">
+                  {/* Categoria Filter */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground">Categoria</label>
+                    <Select value={filterCategoria} onValueChange={handleCategoriaChange}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Todas as categorias" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas ({revistas.length})</SelectItem>
+                        {categorias.map(cat => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat} ({categoriaCounts[cat] || 0})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Subcategoria Filter */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-muted-foreground">Subcategoria (Faixa Etária)</label>
+                    <Select value={filterSubcategoria} onValueChange={setFilterSubcategoria}>
+                      <SelectTrigger className="w-[220px]">
+                        <SelectValue placeholder="Todas as subcategorias" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        {subcategorias.map(sub => (
+                          <SelectItem key={sub} value={sub}>
+                            {sub} ({subcategoriaCounts[sub] || 0})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Clear Filters */}
+                {(filterCategoria !== "all" || filterSubcategoria !== "all") && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    <X className="w-4 h-4 mr-1" />
+                    Limpar
+                  </Button>
+                )}
+
+                {/* Results Count */}
+                <div className="text-sm text-muted-foreground">
+                  {filteredRevistas.length} de {revistas.length} produto(s)
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {isLoading ? (
           <Card>
             <CardContent className="flex items-center justify-center py-12">
@@ -161,9 +286,17 @@ export default function EBDCurriculo() {
               <p className="text-sm">Comece criando uma revista e suas lições</p>
             </CardContent>
           </Card>
+        ) : filteredRevistas.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12 text-muted-foreground">
+              <Filter className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Nenhum produto encontrado com os filtros selecionados</p>
+              <Button variant="link" onClick={clearFilters}>Limpar filtros</Button>
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {revistas.map((revista) => (
+            {filteredRevistas.map((revista) => (
               <Card key={revista.id} className="overflow-hidden">
                 {revista.imagem_url && (
                   <div className="aspect-[3/4] bg-muted relative overflow-hidden">
