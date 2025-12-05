@@ -190,9 +190,8 @@ export const EBDTrimesterBanner = () => {
   // Don't show if no remaining lessons data or more than 4 lessons remaining
   if (!remainingLessons || remainingLessons.remaining > 4) return null;
 
-  // Get the user's display name
-  const userName = profile?.full_name || 'Superintendente';
-  const firstName = userName.split(' ')[0];
+  // Get the user's full name
+  const fullName = profile?.full_name || 'Superintendente';
 
   return (
     <Alert className="rounded-none border-x-0 border-t-0 bg-orange-500 border-orange-600">
@@ -200,7 +199,7 @@ export const EBDTrimesterBanner = () => {
         <div className="flex items-center gap-3">
           <BookOpen className="h-5 w-5 text-white" />
           <AlertDescription className="text-white font-medium">
-            Paz do Senhor, <span className="font-bold">{firstName}</span>! 
+            Paz do Senhor, <span className="font-bold">{fullName}</span>! 
             O trimestre está chegando ao fim. Sua turma tem{' '}
             <span className="font-bold">{remainingLessons.remaining} {remainingLessons.remaining === 1 ? 'lição restante' : 'lições restantes'}</span>. 
             Não perca tempo, garanta o material para o próximo ciclo!
