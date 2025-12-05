@@ -188,24 +188,86 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
 
         // Extrair títulos das lições (para revistas EBD)
         const licoes: { numero_licao: number; titulo: string }[] = [];
-        const titulosMatch = description.match(/Títulos das Lições:([\s\S]*?)(?:Sobre o Autor:|Especificação|ISBN:|Sobre a autora:|$)/i);
         
-        if (titulosMatch) {
-          const titulosTexto = titulosMatch[1];
-          const linhas = titulosTexto
-            .split('\n')
-            .map(l => l.trim())
-            .filter(l => l.length > 3 && !l.match(/^\d+\.?\s*$/) && !l.match(/^&#xD;$/));
+        // Clean description for processing
+        const cleanDescription = description
+          .replace(/&#xD;/g, '\n')
+          .replace(/&#xA;/g, '\n')
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&');
+        
+        // Method 1: Extract using "Lição X: Título" pattern (primary method)
+        const licaoRegex = /Li[çc][aã]o\s*(\d+)\s*[:\-–—]\s*([^\n\r]+)/gi;
+        let match;
+        const foundLicoes = new Map<number, string>();
+        
+        while ((match = licaoRegex.exec(cleanDescription)) !== null) {
+          const numero = parseInt(match[1], 10);
+          let titulo = match[2]
+            .trim()
+            .replace(/\s+/g, ' ')
+            .replace(/Li[çc][aã]o\s*\d+.*$/i, '') // Remove if another lição starts
+            .trim();
           
-          linhas.forEach((linha, index) => {
-            if (linha && index < 13) {
-              licoes.push({
-                numero_licao: index + 1,
-                titulo: linha.substring(0, 200)
+          // Clean common suffixes
+          titulo = titulo
+            .replace(/Sobre o Autor.*$/i, '')
+            .replace(/Especifica[çc][aã]o.*$/i, '')
+            .replace(/ISBN.*$/i, '')
+            .trim();
+          
+          if (numero >= 1 && numero <= 13 && titulo.length > 2 && !foundLicoes.has(numero)) {
+            foundLicoes.set(numero, titulo.substring(0, 200));
+          }
+        }
+        
+        // Method 2: If method 1 didn't find lessons, try "Títulos das Lições:" section
+        if (foundLicoes.size === 0) {
+          const titulosMatch = cleanDescription.match(/T[ií]tulos?\s*(?:das?\s*)?Li[çc][oõ]es?:?([\s\S]*?)(?:Sobre\s*o\s*Autor|Especifica[çc][aã]o|ISBN|Sobre\s*a\s*autora|$)/i);
+          
+          if (titulosMatch) {
+            const titulosTexto = titulosMatch[1];
+            // Try numbered pattern first: "1. Título" or "1 - Título" or "1: Título"
+            const numberedRegex = /(\d+)\s*[.\-–—:)]\s*([^\n\r\d][^\n\r]*)/g;
+            let numberedMatch;
+            
+            while ((numberedMatch = numberedRegex.exec(titulosTexto)) !== null) {
+              const numero = parseInt(numberedMatch[1], 10);
+              const titulo = numberedMatch[2].trim();
+              
+              if (numero >= 1 && numero <= 13 && titulo.length > 2 && !foundLicoes.has(numero)) {
+                foundLicoes.set(numero, titulo.substring(0, 200));
+              }
+            }
+            
+            // If still nothing, try line by line
+            if (foundLicoes.size === 0) {
+              const linhas = titulosTexto
+                .split(/[\n\r]+/)
+                .map(l => l.trim())
+                .filter(l => l.length > 3 && !l.match(/^\d+\.?\s*$/) && !l.match(/^(sobre|especifica|isbn)/i));
+              
+              linhas.forEach((linha, index) => {
+                if (linha && index < 13 && !foundLicoes.has(index + 1)) {
+                  // Remove leading numbers if present
+                  const cleanLinha = linha.replace(/^\d+\s*[.\-–—:)]\s*/, '').trim();
+                  if (cleanLinha.length > 2) {
+                    foundLicoes.set(index + 1, cleanLinha.substring(0, 200));
+                  }
+                }
               });
             }
-          });
+          }
         }
+        
+        // Convert map to array sorted by lesson number
+        foundLicoes.forEach((titulo, numero) => {
+          licoes.push({ numero_licao: numero, titulo });
+        });
+        licoes.sort((a, b) => a.numero_licao - b.numero_licao);
+        
+        console.log(`Produto "${title}": encontradas ${licoes.length} lições`, licoes);
 
         // Limpar sinopse
         let sinopse = description
