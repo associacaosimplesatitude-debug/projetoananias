@@ -8,11 +8,12 @@ import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, Use
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { EditarEscalaDialog } from "@/components/ebd/EditarEscalaDialog";
+import { Progress } from "@/components/ui/progress";
 
 interface Planejamento {
   id: string;
@@ -89,23 +90,26 @@ export default function EBDSchedule() {
           data_inicio,
           data_termino,
           dia_semana,
-          revista:ebd_revistas(id, titulo, imagem_url, faixa_etaria_alvo)
+          revista:ebd_revistas(id, titulo, imagem_url, faixa_etaria_alvo, num_licoes)
         `)
         .eq('church_id', churchData.id)
         .order('created_at', { ascending: false });
 
       if (planError) throw planError;
 
-      // Buscar escalas para obter turmas associadas
+      // Buscar escalas para obter turmas associadas e contagem
       const { data: escalasData, error: escError } = await supabase
         .from('ebd_escalas')
         .select(`
           data,
+          sem_aula,
           turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .eq('church_id', churchData.id);
 
       if (escError) throw escError;
+
+      const hoje = startOfDay(new Date());
 
       // Mapear turmas para planejamentos baseado nas datas
       const result = planejamentosData?.map(plan => {
@@ -113,16 +117,33 @@ export default function EBDSchedule() {
           e.data >= plan.data_inicio && e.data <= plan.data_termino
         );
         const turma = escalasDoPlan?.[0]?.turma;
+        
+        // Calcular progresso: aulas ministradas (datas passadas sem sem_aula)
+        const aulasMinistradas = escalasDoPlan?.filter(e => 
+          !e.sem_aula && isBefore(parseISO(e.data), hoje)
+        ).length || 0;
+        
+        const totalLicoes = (plan.revista as any)?.num_licoes || 13;
+        const percentual = Math.min(100, Math.round((aulasMinistradas / totalLicoes) * 100));
+        
         return {
           ...plan,
-          turma
+          turma,
+          progresso: { ministradas: aulasMinistradas, total: totalLicoes, percentual }
         };
       });
 
-      return result as unknown as Planejamento[];
+      return result as unknown as (Planejamento & { progresso: { ministradas: number; total: number; percentual: number } })[];
     },
     enabled: !!churchData?.id,
   });
+
+  // Função para obter a cor do progresso baseada no percentual
+  const getProgressColor = (percentual: number) => {
+    if (percentual >= 80) return "bg-green-500";
+    if (percentual >= 30) return "bg-yellow-500";
+    return "bg-red-500";
+  };
 
   // Buscar escalas do planejamento selecionado
   const { data: escalas } = useQuery({
@@ -227,7 +248,7 @@ export default function EBDSchedule() {
                   </div>
 
                   {/* Informações em linha */}
-                  <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-4 items-center">
+                  <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4 items-center">
                     <div className="col-span-2 md:col-span-1">
                       <p className="text-xs text-muted-foreground">Turma</p>
                       <p className="font-medium text-sm truncate">
@@ -255,6 +276,20 @@ export default function EBDSchedule() {
                       <p className="font-medium text-sm">
                         {format(parseISO(planejamento.data_termino), "dd/MM/yyyy")}
                       </p>
+                    </div>
+                    {/* Progresso das aulas */}
+                    <div className="col-span-2 md:col-span-1">
+                      <p className="text-xs text-muted-foreground mb-1">Progresso</p>
+                      <div className="flex items-center gap-2">
+                        <Progress 
+                          value={(planejamento as any).progresso?.percentual || 0} 
+                          className="h-2 flex-1" 
+                          indicatorClassName={getProgressColor((planejamento as any).progresso?.percentual || 0)}
+                        />
+                        <span className="text-xs font-medium whitespace-nowrap">
+                          {(planejamento as any).progresso?.ministradas || 0}/{(planejamento as any).progresso?.total || 13}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
