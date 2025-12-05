@@ -215,11 +215,6 @@ export const Navigation = () => {
       exact: true,
     },
     {
-      to: '/admin/branding',
-      icon: Palette,
-      label: 'Aparência',
-    },
-    {
       to: '/admin/ebd',
       icon: BarChart3,
       label: 'Admin EBD',
