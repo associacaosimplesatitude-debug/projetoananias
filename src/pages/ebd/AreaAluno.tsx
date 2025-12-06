@@ -163,7 +163,7 @@ export default function AreaAluno() {
         </TabsContent>
 
         <TabsContent value="leituras">
-          <AlunoLeituras alunoId={aluno.id} churchId={aluno.church_id} />
+          <AlunoLeituras alunoId={aluno.id} churchId={aluno.church_id} turmaId={aluno.turma_id || undefined} />
         </TabsContent>
 
         <TabsContent value="materiais">
