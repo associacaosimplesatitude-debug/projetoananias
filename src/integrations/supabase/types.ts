@@ -1722,6 +1722,57 @@ export type Database = {
           },
         ]
       }
+      ebd_pontuacao_manual: {
+        Row: {
+          aluno_id: string
+          church_id: string
+          created_at: string
+          data: string
+          id: string
+          motivo: string
+          pontos: number
+          registrado_por: string | null
+          turma_id: string
+        }
+        Insert: {
+          aluno_id: string
+          church_id: string
+          created_at?: string
+          data?: string
+          id?: string
+          motivo?: string
+          pontos?: number
+          registrado_por?: string | null
+          turma_id: string
+        }
+        Update: {
+          aluno_id?: string
+          church_id?: string
+          created_at?: string
+          data?: string
+          id?: string
+          motivo?: string
+          pontos?: number
+          registrado_por?: string | null
+          turma_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_pontuacao_manual_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_alunos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_pontuacao_manual_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_professores: {
         Row: {
           avatar_url: string | null
@@ -2572,6 +2623,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adicionar_pontos_aluno: {
+        Args: { p_aluno_id: string; p_motivo?: string; p_pontos: number }
+        Returns: number
+      }
       has_church_permission: {
         Args: {
           _church_id: string

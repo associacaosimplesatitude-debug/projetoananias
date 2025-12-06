@@ -15,11 +15,8 @@ import { AlunoDevocionais } from "@/components/ebd/aluno/AlunoDevocionais";
 
 const NIVEIS = [
   { nome: "Bronze", pontos: 0, cor: "bg-amber-700" },
-  { nome: "Prata", pontos: 100, cor: "bg-gray-400" },
-  { nome: "Ouro", pontos: 250, cor: "bg-yellow-500" },
-  { nome: "Safira", pontos: 500, cor: "bg-blue-500" },
-  { nome: "Esmeralda", pontos: 1000, cor: "bg-emerald-500" },
-  { nome: "Diamante", pontos: 2000, cor: "bg-purple-500" },
+  { nome: "Prata", pontos: 501, cor: "bg-gray-400" },
+  { nome: "Safira", pontos: 1001, cor: "bg-blue-500" },
 ];
 
 export default function AreaAluno() {
