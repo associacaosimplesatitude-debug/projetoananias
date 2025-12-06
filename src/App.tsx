@@ -68,6 +68,13 @@ import EBDClassroomForm from "./pages/ebd/ClassroomForm";
 import EBDAreaAluno from "./pages/ebd/AreaAluno";
 import EBDAlunoPerfil from "./pages/ebd/AlunoPerfil";
 
+// Aluno Module Pages
+import AlunoHome from "./pages/ebd/aluno/AlunoHome";
+import AlunoTurma from "./pages/ebd/aluno/AlunoTurma";
+import AlunoAulasPage from "./pages/ebd/aluno/AlunoAulasPage";
+import AlunoLeiturasPage from "./pages/ebd/aluno/AlunoLeiturasPage";
+import AlunoPerfilPage from "./pages/ebd/aluno/AlunoPerfilPage";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -366,6 +373,48 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDAlunoPerfil />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+
+                    {/* Aluno Module Routes */}
+                    <Route 
+                      path="/ebd/aluno" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <AlunoHome />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/aluno/turma" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <AlunoTurma />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/aluno/aulas" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <AlunoAulasPage />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/aluno/leituras" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <AlunoLeiturasPage />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/aluno/perfil" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <AlunoPerfilPage />
                         </ModuleProtectedRoute>
                       } 
                     />
