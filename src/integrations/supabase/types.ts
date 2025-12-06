@@ -1927,6 +1927,9 @@ export type Database = {
           id: string
           is_active: boolean
           nome: string
+          permite_lancamento_biblias: boolean
+          permite_lancamento_ofertas: boolean
+          permite_lancamento_revistas: boolean
           responsavel_chamada: string
           responsavel_dados_aula: string
           responsavel_pontuacao: string
@@ -1940,6 +1943,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           nome: string
+          permite_lancamento_biblias?: boolean
+          permite_lancamento_ofertas?: boolean
+          permite_lancamento_revistas?: boolean
           responsavel_chamada?: string
           responsavel_dados_aula?: string
           responsavel_pontuacao?: string
@@ -1953,6 +1959,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           nome?: string
+          permite_lancamento_biblias?: boolean
+          permite_lancamento_ofertas?: boolean
+          permite_lancamento_revistas?: boolean
           responsavel_chamada?: string
           responsavel_dados_aula?: string
           responsavel_pontuacao?: string
