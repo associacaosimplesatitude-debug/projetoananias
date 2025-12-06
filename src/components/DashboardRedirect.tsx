@@ -1,10 +1,33 @@
 import { Navigate } from 'react-router-dom';
 import { useActiveModules } from '@/hooks/useActiveModules';
 import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function DashboardRedirect() {
-  const { data: activeModules, isLoading } = useActiveModules();
-  const { role } = useAuth();
+  const { data: activeModules, isLoading: modulesLoading } = useActiveModules();
+  const { role, user } = useAuth();
+
+  // Check if the user is a student
+  const { data: aluno, isLoading: alunoLoading } = useQuery({
+    queryKey: ["is-aluno", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from("ebd_alunos")
+        .select("id, turma_id")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const isLoading = modulesLoading || alunoLoading;
 
   if (isLoading) {
     return (
@@ -17,6 +40,11 @@ export default function DashboardRedirect() {
   // Admins always go to admin dashboard
   if (role === 'admin') {
     return <Navigate to="/admin" replace />;
+  }
+
+  // If user is a student, redirect to student module
+  if (aluno) {
+    return <Navigate to="/ebd/aluno" replace />;
   }
 
   // If user has only REOBOTE EBD, redirect to EBD dashboard
