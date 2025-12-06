@@ -1,6 +1,8 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useActiveModules } from '@/hooks/useActiveModules';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ModuleProtectedRouteProps {
   children: React.ReactNode;
@@ -11,7 +13,53 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
   const { user, role, loading } = useAuth();
   const { data: activeModules, isLoading: modulesLoading } = useActiveModules();
 
-  if (loading || modulesLoading) {
+  // Check if user is a student - this bypasses module check for EBD routes
+  const { data: isStudent, isLoading: studentLoading } = useQuery({
+    queryKey: ['is-student-check', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      
+      const { data, error } = await supabase
+        .from('ebd_alunos')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking student status:', error);
+        return false;
+      }
+      return !!data;
+    },
+    enabled: !!user?.id && !loading,
+  });
+
+  // Check if user is a professor
+  const { data: isProfessor, isLoading: professorLoading } = useQuery({
+    queryKey: ['is-professor-check', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      
+      const { data, error } = await supabase
+        .from('ebd_professores')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking professor status:', error);
+        return false;
+      }
+      return !!data;
+    },
+    enabled: !!user?.id && !loading,
+  });
+
+  const isLoading = loading || modulesLoading || studentLoading || professorLoading;
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -25,6 +73,16 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
 
   // Admins have access to everything
   if (role === 'admin') {
+    return <>{children}</>;
+  }
+
+  // Students have access to EBD routes
+  if (isStudent && requiredModule === 'REOBOTE EBD') {
+    return <>{children}</>;
+  }
+
+  // Professors have access to EBD routes
+  if (isProfessor && requiredModule === 'REOBOTE EBD') {
     return <>{children}</>;
   }
 
