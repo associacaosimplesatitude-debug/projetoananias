@@ -73,9 +73,9 @@ export default function DashboardRedirect() {
     return <Navigate to="/ebd/aluno" replace />;
   }
 
-  // If user is a professor, redirect to EBD dashboard
+  // If user is a professor, redirect to Professor module
   if (professor) {
-    return <Navigate to="/ebd/dashboard" replace />;
+    return <Navigate to="/ebd/professor" replace />;
   }
 
   // If user has only REOBOTE EBD, redirect to EBD dashboard
