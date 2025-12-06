@@ -8,19 +8,52 @@ export const useActiveModules = () => {
   return useQuery({
     queryKey: ['active-modules', user?.id],
     queryFn: async () => {
-      if (!user || role === 'admin') {
+      if (!user) return [];
+      
+      if (role === 'admin') {
         // Admins have access to everything
-        return ['REOBOTE IGREJAS', 'REOBOTE ASSOCIAÇÕES'];
+        return ['REOBOTE IGREJAS', 'REOBOTE ASSOCIAÇÕES', 'REOBOTE EBD'];
       }
 
-      const { data: churchData, error: churchError } = await supabase
+      // First, try to find church where user is the owner
+      let churchId: string | null = null;
+
+      const { data: churchData } = await supabase
         .from('churches')
         .select('id')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (churchError || !churchData) {
-        console.error('Error fetching church:', churchError);
+      if (churchData) {
+        churchId = churchData.id;
+      } else {
+        // If not a church owner, check if user is a student (aluno)
+        const { data: alunoData } = await supabase
+          .from('ebd_alunos')
+          .select('church_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (alunoData) {
+          churchId = alunoData.church_id;
+        } else {
+          // Check if user is a professor
+          const { data: professorData } = await supabase
+            .from('ebd_professores')
+            .select('church_id')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .maybeSingle();
+
+          if (professorData) {
+            churchId = professorData.church_id;
+          }
+        }
+      }
+
+      if (!churchId) {
+        console.log('No church found for user');
         return [];
       }
 
@@ -32,7 +65,7 @@ export const useActiveModules = () => {
             nome_modulo
           )
         `)
-        .eq('cliente_id', churchData.id)
+        .eq('cliente_id', churchId)
         .eq('status', 'Ativo');
 
       if (error) {
