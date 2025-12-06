@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Loader2, Upload, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageCropDialog } from "@/components/financial/ImageCropDialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
 
 interface ManualRegistrationDialogProps {
   open: boolean;
@@ -33,10 +35,28 @@ export default function ManualRegistrationDialog({
   });
   const [isAluno, setIsAluno] = useState(false);
   const [isProfessor, setIsProfessor] = useState(false);
+  const [isSecretario, setIsSecretario] = useState(false);
+  const [selectedTurmaId, setSelectedTurmaId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showCropDialog, setShowCropDialog] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Fetch turmas for the church
+  const { data: turmas } = useQuery({
+    queryKey: ["turmas-cadastro", churchId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_turmas")
+        .select("id, nome")
+        .eq("church_id", churchId)
+        .eq("is_active", true)
+        .order("nome");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!churchId && open,
+  });
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -90,8 +110,13 @@ export default function ManualRegistrationDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!isAluno && !isProfessor) {
-      toast.error("Selecione pelo menos uma função (Aluno ou Professor)");
+    if (!isAluno && !isProfessor && !isSecretario) {
+      toast.error("Selecione pelo menos uma função (Aluno, Professor ou Secretário)");
+      return;
+    }
+
+    if (isAluno && !selectedTurmaId) {
+      toast.error("Selecione uma turma para o aluno");
       return;
     }
 
@@ -129,6 +154,7 @@ export default function ManualRegistrationDialog({
         const { error } = await supabase.from("ebd_alunos").insert({
           church_id: churchId,
           user_id: userId,
+          turma_id: selectedTurmaId,
           nome_completo: formData.nome_completo,
           email: formData.email || null,
           telefone: formData.whatsapp,
@@ -155,11 +181,26 @@ export default function ManualRegistrationDialog({
         if (error) throw error;
       }
 
-      toast.success(
-        `Cadastro criado como ${[isAluno && "Aluno", isProfessor && "Professor"]
-          .filter(Boolean)
-          .join(" e ")}!`
-      );
+      // Activate as Secretário - grant permission if user was created
+      if (isSecretario && userId) {
+        const { error } = await supabase.from("church_member_permissions").insert({
+          church_id: churchId,
+          user_id: userId,
+          permission: "manage_ebd" as any,
+        });
+
+        if (error) {
+          console.error("Error granting secretario permission:", error);
+        }
+      }
+
+      const roles = [
+        isAluno && "Aluno",
+        isProfessor && "Professor",
+        isSecretario && "Secretário(a)"
+      ].filter(Boolean);
+
+      toast.success(`Cadastro criado como ${roles.join(" e ")}!`);
       onSuccess();
       onOpenChange(false);
       setFormData({
@@ -172,6 +213,8 @@ export default function ManualRegistrationDialog({
       });
       setIsAluno(false);
       setIsProfessor(false);
+      setIsSecretario(false);
+      setSelectedTurmaId("");
     } catch (error: any) {
       console.error("Error creating registration:", error);
       toast.error(error.message || "Erro ao criar cadastro");
@@ -300,13 +343,36 @@ export default function ManualRegistrationDialog({
                 <Switch
                   id="aluno-toggle-manual"
                   checked={isAluno}
-                  onCheckedChange={setIsAluno}
+                  onCheckedChange={(checked) => {
+                    setIsAluno(checked);
+                    if (!checked) setSelectedTurmaId("");
+                  }}
                 />
               </div>
 
+              {isAluno && (
+                <div className="space-y-2 pl-4 border-l-2 border-primary/20">
+                  <Label htmlFor="turma-select">
+                    Turma <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={selectedTurmaId} onValueChange={setSelectedTurmaId}>
+                    <SelectTrigger id="turma-select">
+                      <SelectValue placeholder="Selecione uma turma" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {turmas?.map((turma) => (
+                        <SelectItem key={turma.id} value={turma.id}>
+                          {turma.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <Label htmlFor="professor-toggle-manual">
-                  Cadastrar como Professor EBD
+                  Cadastrar como Professor(a) EBD
                 </Label>
                 <Switch
                   id="professor-toggle-manual"
@@ -314,6 +380,22 @@ export default function ManualRegistrationDialog({
                   onCheckedChange={setIsProfessor}
                 />
               </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="secretario-toggle-manual">
+                  Cadastrar como Secretário(a) EBD
+                </Label>
+                <Switch
+                  id="secretario-toggle-manual"
+                  checked={isSecretario}
+                  onCheckedChange={setIsSecretario}
+                />
+              </div>
+              {isSecretario && !formData.email && (
+                <p className="text-xs text-amber-600 pl-4">
+                  Informe um email para criar credenciais de acesso ao sistema
+                </p>
+              )}
             </div>
 
             <DialogFooter>
