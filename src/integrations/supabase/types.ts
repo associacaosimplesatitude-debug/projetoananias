@@ -2633,6 +2633,7 @@ export type Database = {
         Args: { p_aluno_id: string; p_motivo?: string; p_pontos: number }
         Returns: number
       }
+      get_student_turma_id: { Args: { _user_id: string }; Returns: string }
       has_church_permission: {
         Args: {
           _church_id: string
