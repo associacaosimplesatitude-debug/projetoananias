@@ -775,14 +775,17 @@ export type Database = {
       }
       ebd_alunos: {
         Row: {
+          aulas_seguidas: number
           avatar_url: string | null
           church_id: string
+          conquistas: Json | null
           created_at: string
           data_nascimento: string | null
           email: string | null
           id: string
           is_active: boolean
           member_id: string | null
+          nivel: string
           nome_completo: string
           pontos_totais: number
           responsavel: string | null
@@ -792,14 +795,17 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          aulas_seguidas?: number
           avatar_url?: string | null
           church_id: string
+          conquistas?: Json | null
           created_at?: string
           data_nascimento?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
           member_id?: string | null
+          nivel?: string
           nome_completo: string
           pontos_totais?: number
           responsavel?: string | null
@@ -809,14 +815,17 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          aulas_seguidas?: number
           avatar_url?: string | null
           church_id?: string
+          conquistas?: Json | null
           created_at?: string
           data_nascimento?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
           member_id?: string | null
+          nivel?: string
           nome_completo?: string
           pontos_totais?: number
           responsavel?: string | null
@@ -845,6 +854,54 @@ export type Database = {
             columns: ["turma_id"]
             isOneToOne: false
             referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_anotacoes: {
+        Row: {
+          aluno_id: string
+          church_id: string
+          conteudo: string | null
+          created_at: string
+          id: string
+          licao_id: string | null
+          titulo: string | null
+          updated_at: string
+        }
+        Insert: {
+          aluno_id: string
+          church_id: string
+          conteudo?: string | null
+          created_at?: string
+          id?: string
+          licao_id?: string | null
+          titulo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aluno_id?: string
+          church_id?: string
+          conteudo?: string | null
+          created_at?: string
+          id?: string
+          licao_id?: string | null
+          titulo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_anotacoes_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_alunos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_anotacoes_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_licoes"
             referencedColumns: ["id"]
           },
         ]
@@ -1273,6 +1330,54 @@ export type Database = {
           },
         ]
       }
+      ebd_leituras: {
+        Row: {
+          aluno_id: string
+          church_id: string
+          created_at: string
+          data_leitura: string
+          id: string
+          licao_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          aluno_id: string
+          church_id: string
+          created_at?: string
+          data_leitura?: string
+          id?: string
+          licao_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          aluno_id?: string
+          church_id?: string
+          created_at?: string
+          data_leitura?: string
+          id?: string
+          licao_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_leituras_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_alunos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_leituras_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_licoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_licoes: {
         Row: {
           arquivo_url: string | null
@@ -1372,6 +1477,60 @@ export type Database = {
             columns: ["licao_id"]
             isOneToOne: false
             referencedRelation: "ebd_licoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_materiais: {
+        Row: {
+          arquivo_url: string | null
+          church_id: string
+          created_at: string
+          descricao: string | null
+          id: string
+          licao_id: string | null
+          tipo: string
+          titulo: string
+          turma_id: string
+          updated_at: string
+        }
+        Insert: {
+          arquivo_url?: string | null
+          church_id: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          licao_id?: string | null
+          tipo?: string
+          titulo: string
+          turma_id: string
+          updated_at?: string
+        }
+        Update: {
+          arquivo_url?: string | null
+          church_id?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          licao_id?: string | null
+          tipo?: string
+          titulo?: string
+          turma_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_materiais_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_licoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_materiais_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
             referencedColumns: ["id"]
           },
         ]
