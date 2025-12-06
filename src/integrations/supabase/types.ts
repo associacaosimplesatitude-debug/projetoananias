@@ -1387,6 +1387,7 @@ export type Database = {
           data_aula: string
           id: string
           numero_licao: number | null
+          plano_leitura_semanal: Json | null
           publicada: boolean
           revista_id: string | null
           titulo: string
@@ -1401,6 +1402,7 @@ export type Database = {
           data_aula: string
           id?: string
           numero_licao?: number | null
+          plano_leitura_semanal?: Json | null
           publicada?: boolean
           revista_id?: string | null
           titulo: string
@@ -1415,6 +1417,7 @@ export type Database = {
           data_aula?: string
           id?: string
           numero_licao?: number | null
+          plano_leitura_semanal?: Json | null
           publicada?: boolean
           revista_id?: string | null
           titulo?: string
@@ -2047,6 +2050,7 @@ export type Database = {
           imagem_url: string | null
           last_sync_at: string | null
           num_licoes: number
+          possui_plano_leitura: boolean
           preco_cheio: number | null
           sinopse: string | null
           titulo: string
@@ -2063,6 +2067,7 @@ export type Database = {
           imagem_url?: string | null
           last_sync_at?: string | null
           num_licoes?: number
+          possui_plano_leitura?: boolean
           preco_cheio?: number | null
           sinopse?: string | null
           titulo: string
@@ -2079,6 +2084,7 @@ export type Database = {
           imagem_url?: string | null
           last_sync_at?: string | null
           num_licoes?: number
+          possui_plano_leitura?: boolean
           preco_cheio?: number | null
           sinopse?: string | null
           titulo?: string

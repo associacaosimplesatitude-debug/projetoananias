@@ -29,6 +29,7 @@ interface Revista {
   num_licoes: number;
   preco_cheio: number | null;
   estoque: number | null;
+  possui_plano_leitura: boolean;
 }
 
 export default function Catalogo() {
@@ -46,7 +47,7 @@ export default function Catalogo() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ebd_revistas')
-        .select('id, titulo, faixa_etaria_alvo, sinopse, autor, imagem_url, num_licoes, preco_cheio, estoque')
+        .select('id, titulo, faixa_etaria_alvo, sinopse, autor, imagem_url, num_licoes, preco_cheio, estoque, possui_plano_leitura')
         .eq('faixa_etaria_alvo', faixaSelecionada)
         .order('titulo');
 

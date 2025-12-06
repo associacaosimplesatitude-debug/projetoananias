@@ -1,7 +1,13 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ShoppingCart, Eye, Package } from 'lucide-react';
+import { ShoppingCart, Eye, Package, BookOpenCheck } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface RevistaCardProps {
   revista: {
@@ -11,6 +17,7 @@ interface RevistaCardProps {
     preco_cheio: number | null;
     autor: string | null;
     estoque?: number | null;
+    possui_plano_leitura?: boolean;
   };
   onVerConteudo: () => void;
   onAddToCart: () => void;
@@ -45,6 +52,28 @@ export function RevistaCard({ revista, onVerConteudo, onAddToCart }: RevistaCard
             <Package className="w-3 h-3" />
             {estoque}
           </Badge>
+          
+          {/* Badge de Plano de Leitura */}
+          {revista.possui_plano_leitura && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge 
+                    className="absolute top-2 left-2 bg-green-600 hover:bg-green-700 cursor-help flex items-center gap-1"
+                  >
+                    <BookOpenCheck className="w-3 h-3" />
+                    Pontuação Diária
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p className="text-sm">
+                    Esta revista possui Plano de Leitura Semanal integrado ao aplicativo do aluno, 
+                    com pontuação diária para incentivar o estudo.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </CardHeader>
       

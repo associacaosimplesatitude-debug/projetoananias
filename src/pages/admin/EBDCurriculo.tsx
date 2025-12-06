@@ -3,10 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BookOpen, Edit, Trash2, FileUp, Package, Filter, X } from "lucide-react";
+import { Plus, BookOpen, Edit, Trash2, FileUp, Package, Filter, X, BookOpenCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { RevistaDialog } from "@/components/ebd/RevistaDialog";
+import { PlanoLeituraDialog } from "@/components/ebd/PlanoLeituraDialog";
 import { ImportXMLDialog } from "@/components/ebd/ImportXMLDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -19,6 +20,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Revista {
   id: string;
@@ -31,6 +38,7 @@ interface Revista {
   preco_cheio: number;
   estoque: number | null;
   categoria: string | null;
+  possui_plano_leitura: boolean;
 }
 
 export default function EBDCurriculo() {
@@ -40,6 +48,8 @@ export default function EBDCurriculo() {
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [revistaToDelete, setRevistaToDelete] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [planoLeituraDialogOpen, setPlanoLeituraDialogOpen] = useState(false);
+  const [revistaForPlano, setRevistaForPlano] = useState<{ id: string; titulo: string } | null>(null);
   const [filterCategoria, setFilterCategoria] = useState<string>("all");
   const [filterSubcategoria, setFilterSubcategoria] = useState<string>("all");
   const queryClient = useQueryClient();
@@ -305,6 +315,27 @@ export default function EBDCurriculo() {
                       alt={revista.titulo}
                       className="w-full h-full object-cover"
                     />
+                    {/* Badge de Plano de Leitura */}
+                    {revista.possui_plano_leitura && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge 
+                              className="absolute top-2 left-2 bg-green-600 hover:bg-green-700 cursor-help flex items-center gap-1"
+                            >
+                              <BookOpenCheck className="w-3 h-3" />
+                              Pontuação Diária
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs">
+                            <p className="text-sm">
+                              Esta revista possui Plano de Leitura Semanal integrado ao aplicativo do aluno, 
+                              com pontuação diária para incentivar o estudo.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                   </div>
                 )}
                 <CardHeader>
@@ -346,23 +377,37 @@ export default function EBDCurriculo() {
                   {revista.sinopse && (
                     <p className="text-xs line-clamp-3 mb-4 text-muted-foreground">{revista.sinopse}</p>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
-                      onClick={() => handleEdit(revista)}
-                      className="flex-1"
+                      onClick={() => {
+                        setRevistaForPlano({ id: revista.id, titulo: revista.titulo });
+                        setPlanoLeituraDialogOpen(true);
+                      }}
+                      className="w-full"
                     >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Editar
+                      <BookOpenCheck className="w-4 h-4 mr-2" />
+                      {revista.possui_plano_leitura ? 'Editar Plano de Leitura' : 'Cadastrar Plano de Leitura'}
                     </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(revista.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(revista)}
+                        className="flex-1"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDelete(revista.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -381,6 +426,15 @@ export default function EBDCurriculo() {
           onOpenChange={setImportDialogOpen}
           onSuccess={() => queryClient.invalidateQueries({ queryKey: ['ebd-revistas'] })}
         />
+
+        {revistaForPlano && (
+          <PlanoLeituraDialog
+            open={planoLeituraDialogOpen}
+            onOpenChange={setPlanoLeituraDialogOpen}
+            revistaId={revistaForPlano.id}
+            revistaTitulo={revistaForPlano.titulo}
+          />
+        )}
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
