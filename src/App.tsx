@@ -63,6 +63,7 @@ import EBDMyOrders from "./pages/ebd/MyOrders";
 import EBDOrderSuccess from "./pages/ebd/OrderSuccess";
 import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
 import EBDAdmin from "./pages/ebd/Admin";
+import EBDLancamentoManual from "./pages/ebd/LancamentoManual";
 
 const queryClient = new QueryClient();
 
@@ -322,6 +323,14 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDAdmin />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/lancamento" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDLancamentoManual />
                         </ModuleProtectedRoute>
                       } 
                     />

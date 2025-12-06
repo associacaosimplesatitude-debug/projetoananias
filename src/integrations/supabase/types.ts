@@ -925,6 +925,66 @@ export type Database = {
           },
         ]
       }
+      ebd_dados_aula: {
+        Row: {
+          church_id: string
+          created_at: string
+          data: string
+          id: string
+          num_biblias: number | null
+          num_revistas: number | null
+          num_visitantes: number | null
+          observacao: string | null
+          registrado_por: string | null
+          turma_id: string
+          updated_at: string
+          valor_ofertas: number | null
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          data: string
+          id?: string
+          num_biblias?: number | null
+          num_revistas?: number | null
+          num_visitantes?: number | null
+          observacao?: string | null
+          registrado_por?: string | null
+          turma_id: string
+          updated_at?: string
+          valor_ofertas?: number | null
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          data?: string
+          id?: string
+          num_biblias?: number | null
+          num_revistas?: number | null
+          num_visitantes?: number | null
+          observacao?: string | null
+          registrado_por?: string | null
+          turma_id?: string
+          updated_at?: string
+          valor_ofertas?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_dados_aula_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_dados_aula_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_devocionais: {
         Row: {
           church_id: string

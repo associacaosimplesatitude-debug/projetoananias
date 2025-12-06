@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,11 +11,13 @@ import {
   AlertCircle,
   BookOpen,
   CheckCircle,
-  XCircle
+  XCircle,
+  ClipboardList
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function EBDDashboard() {
+  const navigate = useNavigate();
   // Dados mockados para demonstração
   const attendanceData = [
     { week: 'Sem 1', presentes: 85 },
@@ -83,6 +86,10 @@ export default function EBDDashboard() {
             <h1 className="text-3xl font-bold">Visão Geral do Superintendente</h1>
             <p className="text-muted-foreground">Dashboard EBD - Escola Bíblica Dominical</p>
           </div>
+          <Button onClick={() => navigate("/ebd/lancamento")} className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Lançamento Manual
+          </Button>
         </div>
 
         {/* Card 1 - Frequência Geral */}
