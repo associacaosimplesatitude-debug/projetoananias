@@ -64,7 +64,7 @@ export default function LancamentoManual() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ebd_turmas")
-        .select("id, nome, faixa_etaria, responsavel_chamada, responsavel_dados_aula")
+        .select("id, nome, faixa_etaria, responsavel_chamada, responsavel_dados_aula, permite_lancamento_ofertas, permite_lancamento_revistas, permite_lancamento_biblias")
         .eq("church_id", churchId!)
         .eq("is_active", true)
         .order("nome");
@@ -74,6 +74,11 @@ export default function LancamentoManual() {
     },
     enabled: !!churchId,
   });
+
+  // Obter turma selecionada
+  const selectedTurma = useMemo(() => {
+    return turmas?.find(t => t.id === selectedTurmaId);
+  }, [turmas, selectedTurmaId]);
 
   // Buscar alunos da turma selecionada
   const { data: alunos, isLoading: loadingAlunos } = useQuery({
@@ -386,7 +391,7 @@ export default function LancamentoManual() {
           )}
 
           {/* Seção de Dados da Aula */}
-          {canRegisterDadosAula && (
+          {canRegisterDadosAula && (selectedTurma?.permite_lancamento_ofertas || selectedTurma?.permite_lancamento_revistas || selectedTurma?.permite_lancamento_biblias) && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -399,19 +404,21 @@ export default function LancamentoManual() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-green-600" />
-                      Ofertas (R$)
-                    </Label>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0,00"
-                      value={valorOfertas}
-                      onChange={(e) => setValorOfertas(e.target.value)}
-                    />
-                  </div>
+                  {selectedTurma?.permite_lancamento_ofertas && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-green-600" />
+                        Ofertas (R$)
+                      </Label>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={valorOfertas}
+                        onChange={(e) => setValorOfertas(e.target.value)}
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
@@ -426,31 +433,35 @@ export default function LancamentoManual() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <BookOpen className="h-4 w-4 text-purple-600" />
-                      Bíblias
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={numBiblias}
-                      onChange={(e) => setNumBiblias(parseInt(e.target.value) || 0)}
-                    />
-                  </div>
+                  {selectedTurma?.permite_lancamento_biblias && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-purple-600" />
+                        Bíblias
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={numBiblias}
+                        onChange={(e) => setNumBiblias(parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                  )}
 
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <BookOpen className="h-4 w-4 text-orange-600" />
-                      Revistas
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={numRevistas}
-                      onChange={(e) => setNumRevistas(parseInt(e.target.value) || 0)}
-                    />
-                  </div>
+                  {selectedTurma?.permite_lancamento_revistas && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-orange-600" />
+                        Revistas
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={numRevistas}
+                        onChange={(e) => setNumRevistas(parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

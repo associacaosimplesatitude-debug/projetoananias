@@ -11,6 +11,9 @@ interface Turma {
   responsavel_chamada: TipoResponsavel;
   responsavel_dados_aula: TipoResponsavel;
   responsavel_pontuacao: TipoResponsavel;
+  permite_lancamento_ofertas: boolean;
+  permite_lancamento_revistas: boolean;
+  permite_lancamento_biblias: boolean;
 }
 
 interface UseClassroomPermissionsProps {
@@ -29,7 +32,7 @@ export function useClassroomPermissions({ turmaId, churchId }: UseClassroomPermi
       
       const { data, error } = await supabase
         .from('ebd_turmas')
-        .select('id, nome, responsavel_chamada, responsavel_dados_aula, responsavel_pontuacao')
+        .select('id, nome, responsavel_chamada, responsavel_dados_aula, responsavel_pontuacao, permite_lancamento_ofertas, permite_lancamento_revistas, permite_lancamento_biblias')
         .eq('id', turmaId)
         .single();
 

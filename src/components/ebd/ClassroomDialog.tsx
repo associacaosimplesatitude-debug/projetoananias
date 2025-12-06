@@ -21,6 +21,9 @@ interface Turma {
   responsavel_chamada?: string;
   responsavel_dados_aula?: string;
   responsavel_pontuacao?: string;
+  permite_lancamento_ofertas?: boolean;
+  permite_lancamento_revistas?: boolean;
+  permite_lancamento_biblias?: boolean;
   ebd_professores_turmas?: {
     professor_id: string;
     ebd_professores: { id: string; nome_completo: string } | null;
@@ -40,6 +43,9 @@ interface FormData {
   responsavel_chamada: string;
   responsavel_dados_aula: string;
   responsavel_pontuacao: string;
+  permite_lancamento_ofertas: boolean;
+  permite_lancamento_revistas: boolean;
+  permite_lancamento_biblias: boolean;
 }
 
 export default function ClassroomDialog({ open, onOpenChange, churchId, turma }: ClassroomDialogProps) {
@@ -54,9 +60,14 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
       responsavel_chamada: "Professor",
       responsavel_dados_aula: "Professor",
       responsavel_pontuacao: "Professor",
+      permite_lancamento_ofertas: true,
+      permite_lancamento_revistas: true,
+      permite_lancamento_biblias: true,
     }
   });
-  const { handleSubmit, reset, setValue } = form;
+  const { handleSubmit, reset, setValue, watch } = form;
+  
+  const responsavelChamada = watch("responsavel_chamada");
 
   // Carregar dados da turma ao editar
   useEffect(() => {
@@ -66,6 +77,9 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
       setValue("responsavel_chamada", turma.responsavel_chamada || "Professor");
       setValue("responsavel_dados_aula", turma.responsavel_dados_aula || "Professor");
       setValue("responsavel_pontuacao", turma.responsavel_pontuacao || "Professor");
+      setValue("permite_lancamento_ofertas", turma.permite_lancamento_ofertas ?? true);
+      setValue("permite_lancamento_revistas", turma.permite_lancamento_revistas ?? true);
+      setValue("permite_lancamento_biblias", turma.permite_lancamento_biblias ?? true);
       
       const professorIds = turma.ebd_professores_turmas
         ?.map(pt => pt.professor_id)
@@ -114,6 +128,9 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
             responsavel_chamada: formData.responsavel_chamada,
             responsavel_dados_aula: formData.responsavel_dados_aula,
             responsavel_pontuacao: formData.responsavel_pontuacao,
+            permite_lancamento_ofertas: formData.permite_lancamento_ofertas,
+            permite_lancamento_revistas: formData.permite_lancamento_revistas,
+            permite_lancamento_biblias: formData.permite_lancamento_biblias,
           })
           .eq("id", turma.id);
 
@@ -151,6 +168,9 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
             responsavel_chamada: formData.responsavel_chamada,
             responsavel_dados_aula: formData.responsavel_dados_aula,
             responsavel_pontuacao: formData.responsavel_pontuacao,
+            permite_lancamento_ofertas: formData.permite_lancamento_ofertas,
+            permite_lancamento_revistas: formData.permite_lancamento_revistas,
+            permite_lancamento_biblias: formData.permite_lancamento_biblias,
           })
           .select()
           .single();
@@ -301,45 +321,125 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
               )}
             </div>
 
-            {/* Seção de Permissões de Lançamento */}
+            {/* Seção de Configurações de Lançamento */}
             <div className="space-y-4 pt-4 border-t">
               <div>
-                <Label className="text-base font-semibold">Permissões de Lançamento</Label>
+                <Label className="text-base font-semibold">Configurações de Lançamento</Label>
                 <p className="text-sm text-muted-foreground">
-                  Defina quem será responsável por cada tipo de lançamento nesta turma
+                  Defina quem será responsável e quais dados serão coletados nesta turma
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Responsável pela Chamada */}
+              <FormField
+                control={form.control}
+                name="responsavel_chamada"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Responsável pela Chamada</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-background z-[100]">
+                        <SelectItem value="Professor">Professor/Secretário (Lançamento Manual)</SelectItem>
+                        <SelectItem value="Aluno">Aluno (Lançamento Automático)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {responsavelChamada === "Aluno" 
+                        ? "O Professor gerará o Código PIN para os alunos registrarem presença automaticamente" 
+                        : "O Professor ou Secretário fará a chamada manualmente"}
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Funcionalidades de Dados da Aula */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Dados da Aula (coletados pelo Professor)</Label>
+                
                 <FormField
                   control={form.control}
-                  name="responsavel_chamada"
+                  name="permite_lancamento_ofertas"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Chamada (Presença)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-background z-[100]">
-                          <SelectItem value="Secretario">Secretário</SelectItem>
-                          <SelectItem value="Professor">Professor</SelectItem>
-                          <SelectItem value="Aluno">Aluno</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="font-normal cursor-pointer">
+                          Lançar Ofertas
+                        </FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                          Permite registrar o valor das ofertas coletadas na aula
+                        </p>
+                      </div>
                     </FormItem>
                   )}
                 />
 
                 <FormField
                   control={form.control}
+                  name="permite_lancamento_revistas"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="font-normal cursor-pointer">
+                          Contar Revistas
+                        </FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                          Permite registrar quantos alunos trouxeram a revista
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="permite_lancamento_biblias"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="font-normal cursor-pointer">
+                          Contar Bíblias
+                        </FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                          Permite registrar quantos alunos trouxeram a Bíblia
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Outros responsáveis */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <FormField
+                  control={form.control}
                   name="responsavel_dados_aula"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Dados da Aula</FormLabel>
+                      <FormLabel>Responsável pelos Dados da Aula</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -351,9 +451,6 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
                           <SelectItem value="Professor">Professor</SelectItem>
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Ofertas, Visitantes, Bíblias, Revistas
-                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -364,7 +461,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
                   name="responsavel_pontuacao"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Pontuação</FormLabel>
+                      <FormLabel>Responsável pela Pontuação</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
