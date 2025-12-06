@@ -28,6 +28,24 @@ export const Navigation = () => {
   const [processStatus, setProcessStatus] = React.useState<string | null>(null);
   const [manualRegOpen, setManualRegOpen] = React.useState(false);
 
+  // Check if current user is a student
+  const { data: isAluno } = useQuery({
+    queryKey: ["is-aluno-nav", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      const { data, error } = await supabase
+        .from("ebd_alunos")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!user?.id,
+  });
+
   // Get church ID for EBD registration
   const { data: churchData } = useQuery({
     queryKey: ["user-church-nav", user?.id],
@@ -41,7 +59,7 @@ export const Navigation = () => {
       if (error) return null;
       return data;
     },
-    enabled: !!user && activeModules?.includes('REOBOTE EBD'),
+    enabled: !!user && activeModules?.includes('REOBOTE EBD') && !isAluno,
   });
 
   const hasReoboteIgrejas = role === 'admin' || activeModules?.includes('REOBOTE IGREJAS');
@@ -221,6 +239,22 @@ export const Navigation = () => {
   const accentColor = brandingSettings?.accent_color || '#c89c5a';
   const navTextColor = brandingSettings?.nav_text_color || '#ffffff';
   const logoUrl = brandingSettings?.nav_logo_url || logoAnanias;
+
+  // If user is a student, don't show main navigation (AlunoNavigation handles it)
+  if (isAluno) {
+    return (
+      <nav className="border-b sticky top-0 z-10" style={{ backgroundColor: navBgColor, color: navTextColor }}>
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <img src={logoUrl} alt="Logo" className="h-10" />
+            </div>
+            <UserProfileDropdown />
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav className="border-b sticky top-0 z-10" style={{ backgroundColor: navBgColor, color: navTextColor }}>
