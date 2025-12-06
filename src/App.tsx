@@ -66,6 +66,7 @@ import EBDAdmin from "./pages/ebd/Admin";
 import EBDLancamentoManual from "./pages/ebd/LancamentoManual";
 import EBDClassroomForm from "./pages/ebd/ClassroomForm";
 import EBDAreaAluno from "./pages/ebd/AreaAluno";
+import EBDAlunoPerfil from "./pages/ebd/AlunoPerfil";
 
 const queryClient = new QueryClient();
 
@@ -357,6 +358,14 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDAreaAluno />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/meu-perfil" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDAlunoPerfil />
                         </ModuleProtectedRoute>
                       } 
                     />
