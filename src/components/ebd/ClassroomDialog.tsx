@@ -18,6 +18,9 @@ interface Turma {
   nome: string;
   faixa_etaria: string;
   descricao?: string | null;
+  responsavel_chamada?: string;
+  responsavel_dados_aula?: string;
+  responsavel_pontuacao?: string;
   ebd_professores_turmas?: {
     professor_id: string;
     ebd_professores: { id: string; nome_completo: string } | null;
@@ -34,6 +37,9 @@ interface ClassroomDialogProps {
 interface FormData {
   faixa_etaria_id: string;
   nome_turma: string;
+  responsavel_chamada: string;
+  responsavel_dados_aula: string;
+  responsavel_pontuacao: string;
 }
 
 export default function ClassroomDialog({ open, onOpenChange, churchId, turma }: ClassroomDialogProps) {
@@ -45,6 +51,9 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
     defaultValues: {
       faixa_etaria_id: "",
       nome_turma: "",
+      responsavel_chamada: "Professor",
+      responsavel_dados_aula: "Professor",
+      responsavel_pontuacao: "Professor",
     }
   });
   const { handleSubmit, reset, setValue } = form;
@@ -54,6 +63,9 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
     if (turma && open) {
       setValue("nome_turma", turma.nome);
       setValue("faixa_etaria_id", turma.faixa_etaria);
+      setValue("responsavel_chamada", turma.responsavel_chamada || "Professor");
+      setValue("responsavel_dados_aula", turma.responsavel_dados_aula || "Professor");
+      setValue("responsavel_pontuacao", turma.responsavel_pontuacao || "Professor");
       
       const professorIds = turma.ebd_professores_turmas
         ?.map(pt => pt.professor_id)
@@ -99,6 +111,9 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
           .update({
             nome: formData.nome_turma.trim(),
             faixa_etaria: formData.faixa_etaria_id,
+            responsavel_chamada: formData.responsavel_chamada,
+            responsavel_dados_aula: formData.responsavel_dados_aula,
+            responsavel_pontuacao: formData.responsavel_pontuacao,
           })
           .eq("id", turma.id);
 
@@ -133,6 +148,9 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
             church_id: churchId,
             nome: formData.nome_turma.trim(),
             faixa_etaria: formData.faixa_etaria_id,
+            responsavel_chamada: formData.responsavel_chamada,
+            responsavel_dados_aula: formData.responsavel_dados_aula,
+            responsavel_pontuacao: formData.responsavel_pontuacao,
           })
           .select()
           .single();
@@ -252,7 +270,7 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                 </div>
               ) : professores && professores.length > 0 ? (
-                <ScrollArea className="h-[200px] border rounded-md p-4">
+                <ScrollArea className="h-[150px] border rounded-md p-4">
                   <div className="space-y-3">
                     {professores.map((professor) => (
                       <div key={professor.id} className="flex items-center space-x-2">
@@ -281,6 +299,90 @@ export default function ClassroomDialog({ open, onOpenChange, churchId, turma }:
                   Nenhum professor cadastrado. Cadastre professores primeiro.
                 </p>
               )}
+            </div>
+
+            {/* Seção de Permissões de Lançamento */}
+            <div className="space-y-4 pt-4 border-t">
+              <div>
+                <Label className="text-base font-semibold">Permissões de Lançamento</Label>
+                <p className="text-sm text-muted-foreground">
+                  Defina quem será responsável por cada tipo de lançamento nesta turma
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="responsavel_chamada"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Chamada (Presença)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-background z-[100]">
+                          <SelectItem value="Secretario">Secretário</SelectItem>
+                          <SelectItem value="Professor">Professor</SelectItem>
+                          <SelectItem value="Aluno">Aluno</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="responsavel_dados_aula"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Dados da Aula</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-background z-[100]">
+                          <SelectItem value="Secretario">Secretário</SelectItem>
+                          <SelectItem value="Professor">Professor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Ofertas, Visitantes, Bíblias, Revistas
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="responsavel_pontuacao"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pontuação</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-background z-[100]">
+                          <SelectItem value="Professor">Professor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Resultado de questionários
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-4">

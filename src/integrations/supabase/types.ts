@@ -1867,6 +1867,9 @@ export type Database = {
           id: string
           is_active: boolean
           nome: string
+          responsavel_chamada: string
+          responsavel_dados_aula: string
+          responsavel_pontuacao: string
           updated_at: string
         }
         Insert: {
@@ -1877,6 +1880,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           nome: string
+          responsavel_chamada?: string
+          responsavel_dados_aula?: string
+          responsavel_pontuacao?: string
           updated_at?: string
         }
         Update: {
@@ -1887,6 +1893,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           nome?: string
+          responsavel_chamada?: string
+          responsavel_dados_aula?: string
+          responsavel_pontuacao?: string
           updated_at?: string
         }
         Relationships: [
