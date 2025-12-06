@@ -64,6 +64,7 @@ import EBDOrderSuccess from "./pages/ebd/OrderSuccess";
 import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
 import EBDAdmin from "./pages/ebd/Admin";
 import EBDLancamentoManual from "./pages/ebd/LancamentoManual";
+import EBDClassroomForm from "./pages/ebd/ClassroomForm";
 
 const queryClient = new QueryClient();
 
@@ -219,6 +220,22 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDClassrooms />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/turmas/nova" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDClassroomForm />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/turmas/editar" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDClassroomForm />
                         </ModuleProtectedRoute>
                       } 
                     />

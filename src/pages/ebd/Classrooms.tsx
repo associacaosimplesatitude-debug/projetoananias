@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,6 @@ import { Plus, Search, School, Users, Pencil, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import ClassroomDialog from "@/components/ebd/ClassroomDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,11 +32,10 @@ interface Turma {
 
 export default function EBDClassrooms() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedTurma, setSelectedTurma] = useState<Turma | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [turmaToDelete, setTurmaToDelete] = useState<Turma | null>(null);
   const { clientId } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   // Buscar church_id
@@ -126,8 +124,8 @@ export default function EBDClassrooms() {
   });
 
   const handleEdit = (turma: Turma) => {
-    setSelectedTurma(turma);
-    setDialogOpen(true);
+    const basePath = clientId ? `/admin/clients/${clientId}/ebd/turmas/editar` : "/ebd/turmas/editar";
+    navigate(`${basePath}?id=${turma.id}`);
   };
 
   const handleDelete = (turma: Turma) => {
@@ -141,11 +139,9 @@ export default function EBDClassrooms() {
     }
   };
 
-  const handleDialogClose = (open: boolean) => {
-    setDialogOpen(open);
-    if (!open) {
-      setSelectedTurma(null);
-    }
+  const handleNewTurma = () => {
+    const path = clientId ? `/admin/clients/${clientId}/ebd/turmas/nova` : "/ebd/turmas/nova";
+    navigate(path);
   };
 
   const filteredTurmas = turmas || [];
@@ -188,7 +184,7 @@ export default function EBDClassrooms() {
             <h1 className="text-3xl font-bold">Turmas</h1>
             <p className="text-muted-foreground">Gerencie as turmas da EBD</p>
           </div>
-          <Button onClick={() => { setSelectedTurma(null); setDialogOpen(true); }}>
+          <Button onClick={handleNewTurma}>
             <Plus className="w-4 h-4 mr-2" />
             Nova Turma
           </Button>
@@ -291,12 +287,6 @@ export default function EBDClassrooms() {
         </Card>
       </div>
 
-      <ClassroomDialog
-        open={dialogOpen}
-        onOpenChange={handleDialogClose}
-        churchId={churchData.id}
-        turma={selectedTurma}
-      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
