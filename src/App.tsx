@@ -85,6 +85,9 @@ import ProfessorLancamentos from "./pages/ebd/professor/ProfessorLancamentos";
 import ProfessorQuizzes from "./pages/ebd/professor/ProfessorQuizzes";
 import ProfessorRelatorios from "./pages/ebd/professor/ProfessorRelatorios";
 
+// Vendedor Pages
+import VendedorDashboard from "./pages/vendedor/VendedorDashboard";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -640,6 +643,12 @@ const App = () => (
                           <BrandingCustomization />
                         </ProtectedRoute>
                       }
+                    />
+                    
+                    {/* Vendedor Routes */}
+                    <Route
+                      path="/vendedor"
+                      element={<VendedorDashboard />}
                     />
                     
                     <Route path="*" element={<NotFound />} />
