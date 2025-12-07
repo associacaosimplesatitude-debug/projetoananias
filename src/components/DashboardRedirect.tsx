@@ -8,6 +8,27 @@ export default function DashboardRedirect() {
   const { data: activeModules, isLoading: modulesLoading } = useActiveModules();
   const { role, user, loading: authLoading } = useAuth();
 
+  // Check if user is a vendedor
+  const { data: vendedor, isLoading: vendedorLoading } = useQuery({
+    queryKey: ["is-vendedor-redirect", user?.email],
+    queryFn: async () => {
+      if (!user?.email) return null;
+      
+      const { data, error } = await supabase
+        .from("vendedores")
+        .select("id")
+        .eq("email", user.email)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error checking vendedor status:", error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!user?.email && !authLoading,
+  });
+
   // Check if the user is a student - using a separate query with its own loading state
   const { data: aluno, isLoading: alunoLoading } = useQuery({
     queryKey: ["is-aluno-redirect", user?.id],
@@ -53,7 +74,7 @@ export default function DashboardRedirect() {
     enabled: !!user?.id && !authLoading,
   });
 
-  const isLoading = modulesLoading || alunoLoading || authLoading || professorLoading;
+  const isLoading = modulesLoading || alunoLoading || authLoading || professorLoading || vendedorLoading;
 
   if (isLoading) {
     return (
@@ -66,6 +87,11 @@ export default function DashboardRedirect() {
   // Admins always go to admin dashboard
   if (role === 'admin') {
     return <Navigate to="/admin" replace />;
+  }
+
+  // If user is a vendedor, redirect to vendedor dashboard
+  if (vendedor) {
+    return <Navigate to="/vendedor" replace />;
   }
 
   // If user is a student, redirect to student module
