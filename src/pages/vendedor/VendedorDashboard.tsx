@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { format, differenceInDays, isThisMonth, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toast } from "sonner";
+import { useState } from "react";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { AtivarClienteDialog } from "@/components/vendedor/AtivarClienteDialog";
 
@@ -45,58 +45,49 @@ interface Cliente {
 }
 
 export default function VendedorDashboard() {
-  const navigate = useNavigate();
-  const [vendedor, setVendedor] = useState<Vendedor | null>(null);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
   const [cadastrarDialogOpen, setCadastrarDialogOpen] = useState(false);
   const [ativarDialogOpen, setAtivarDialogOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
-  useEffect(() => {
-    fetchVendedorData();
-  }, []);
+  const { data: vendedor, isLoading: vendedorLoading, refetch } = useQuery({
+    queryKey: ["vendedor", user?.email],
+    queryFn: async () => {
+      if (!user?.email) return null;
 
-  const fetchVendedorData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-
-      // Get vendedor by email
-      const { data: vendedorData, error: vendedorError } = await supabase
+      const { data, error } = await supabase
         .from("vendedores")
         .select("*")
         .eq("email", user.email)
         .maybeSingle();
 
-      if (vendedorError) throw vendedorError;
-      
-      if (!vendedorData) {
-        toast.error("Você não está cadastrado como vendedor");
-        navigate("/");
-        return;
-      }
+      if (error) throw error;
+      return data as Vendedor | null;
+    },
+    enabled: !!user?.email,
+  });
 
-      setVendedor(vendedorData);
+  const { data: clientes = [], isLoading: clientesLoading } = useQuery({
+    queryKey: ["vendedor-clientes", vendedor?.id],
+    queryFn: async () => {
+      if (!vendedor?.id) return [];
 
-      // Get clientes
-      const { data: clientesData, error: clientesError } = await supabase
+      const { data, error } = await supabase
         .from("ebd_clientes")
         .select("*")
-        .eq("vendedor_id", vendedorData.id)
+        .eq("vendedor_id", vendedor.id)
         .order("created_at", { ascending: false });
 
-      if (clientesError) throw clientesError;
-      setClientes(clientesData || []);
-    } catch (error) {
-      console.error("Error fetching vendedor data:", error);
-      toast.error("Erro ao carregar dados");
-    } finally {
-      setLoading(false);
-    }
+      if (error) throw error;
+      return data as Cliente[];
+    },
+    enabled: !!vendedor?.id,
+  });
+
+  const loading = authLoading || vendedorLoading || clientesLoading;
+
+  const fetchVendedorData = () => {
+    refetch();
   };
 
   const clientesPendentes = clientes.filter(c => !c.status_ativacao_ebd);
@@ -133,6 +124,22 @@ export default function VendedorDashboard() {
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (!vendedor) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Painel do Vendedor</h2>
+            <p className="text-muted-foreground">
+              Você ainda não está cadastrado como vendedor no sistema.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
