@@ -2761,6 +2761,7 @@ export type Database = {
         Args: { start_date: string }
         Returns: string
       }
+      get_auth_email: { Args: never; Returns: string }
       get_student_turma_id: { Args: { _user_id: string }; Returns: string }
       has_church_permission: {
         Args: {
@@ -2777,6 +2778,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_vendedor: { Args: { _user_email: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "client" | "tesoureiro" | "secretario"
