@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
-import { Navigation } from "@/components/layout/Navigation";
+import { ConditionalNavigation } from "@/components/layout/ConditionalNavigation";
 import { PaymentBanner } from "@/components/layout/PaymentBanner";
 import { EBDTrimesterBanner } from "@/components/ebd/EBDTrimesterBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -100,9 +100,9 @@ const App = () => (
               path="/*"
               element={
                 <ProtectedRoute>
-                  <Navigation />
-                  <PaymentBanner />
-                  <EBDTrimesterBanner />
+                  <ConditionalNavigation>
+                    <PaymentBanner />
+                    <EBDTrimesterBanner />
                   <Routes>
                     <Route 
                       path="/" 
@@ -635,6 +635,7 @@ const App = () => (
                     
                     <Route path="*" element={<NotFound />} />
                   </Routes>
+                  </ConditionalNavigation>
                 </ProtectedRoute>
               }
             />
