@@ -189,32 +189,33 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
         // Extrair títulos das lições (para revistas EBD)
         const licoes: { numero_licao: number; titulo: string }[] = [];
         
-        // Clean description for processing
+        // Clean description for processing - decode HTML entities and normalize
         const cleanDescription = description
           .replace(/&#xD;/g, '\n')
           .replace(/&#xA;/g, '\n')
+          .replace(/&#13;/g, '\n')
+          .replace(/&#10;/g, '\n')
+          .replace(/<br\s*\/?>/gi, '\n')
           .replace(/<[^>]*>/g, ' ')
           .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&');
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'")
+          .replace(/\s+/g, ' ');
         
-        // Method 1: Extract using "Lição X: Título" pattern (primary method)
-        const licaoRegex = /Li[çc][aã]o\s*(\d+)\s*[:\-–—]\s*([^\n\r]+)/gi;
-        let match;
         const foundLicoes = new Map<number, string>();
+        
+        // Method 1: Primary regex pattern - "Lição X: Título" with variations
+        // Handles: Lição 1: Título, Lição 1 - Título, Lição 1. Título
+        const licaoRegex = /Li[çc][aã]o\s+(\d{1,2})\s*[:\-–—.]\s*([^;.\n\r]+?)(?=\s*Li[çc][aã]o\s+\d|$|Sobre\s*o|Especifica|ISBN|Autor)/gi;
+        let match;
         
         while ((match = licaoRegex.exec(cleanDescription)) !== null) {
           const numero = parseInt(match[1], 10);
           let titulo = match[2]
             .trim()
             .replace(/\s+/g, ' ')
-            .replace(/Li[çc][aã]o\s*\d+.*$/i, '') // Remove if another lição starts
-            .trim();
-          
-          // Clean common suffixes
-          titulo = titulo
-            .replace(/Sobre o Autor.*$/i, '')
-            .replace(/Especifica[çc][aã]o.*$/i, '')
-            .replace(/ISBN.*$/i, '')
+            .replace(/[,;]$/, '') // Remove trailing punctuation
             .trim();
           
           if (numero >= 1 && numero <= 13 && titulo.length > 2 && !foundLicoes.has(numero)) {
@@ -222,41 +223,40 @@ export function ImportXMLDialog({ open, onOpenChange, onSuccess }: ImportXMLDial
           }
         }
         
-        // Method 2: If method 1 didn't find lessons, try "Títulos das Lições:" section
-        if (foundLicoes.size === 0) {
-          const titulosMatch = cleanDescription.match(/T[ií]tulos?\s*(?:das?\s*)?Li[çc][oõ]es?:?([\s\S]*?)(?:Sobre\s*o\s*Autor|Especifica[çc][aã]o|ISBN|Sobre\s*a\s*autora|$)/i);
+        // Method 2: If method 1 found less than 3 lessons, try alternative pattern
+        // Looks for numbered list patterns like "1. Título" or "1 - Título"
+        if (foundLicoes.size < 3) {
+          // Try to find a "Títulos das Lições" section
+          const titulosMatch = cleanDescription.match(/T[ií]tulos?\s*(?:das?\s*)?Li[çc][oõ]es?:?\s*([\s\S]*?)(?:Sobre\s*o\s*Autor|Especifica[çc][aã]o|ISBN|Sobre\s*a\s*autora|$)/i);
           
           if (titulosMatch) {
             const titulosTexto = titulosMatch[1];
-            // Try numbered pattern first: "1. Título" or "1 - Título" or "1: Título"
-            const numberedRegex = /(\d+)\s*[.\-–—:)]\s*([^\n\r\d][^\n\r]*)/g;
+            // Pattern: "1. Título" or "1 - Título" or "1: Título"
+            const numberedRegex = /(\d{1,2})\s*[.\-–—:)]\s*([^\d\n\r][^\n\r]*?)(?=\s*\d{1,2}\s*[.\-–—:)]|$)/g;
             let numberedMatch;
             
             while ((numberedMatch = numberedRegex.exec(titulosTexto)) !== null) {
               const numero = parseInt(numberedMatch[1], 10);
-              const titulo = numberedMatch[2].trim();
+              const titulo = numberedMatch[2].trim().replace(/[,;]$/, '').trim();
               
               if (numero >= 1 && numero <= 13 && titulo.length > 2 && !foundLicoes.has(numero)) {
                 foundLicoes.set(numero, titulo.substring(0, 200));
               }
             }
+          }
+        }
+        
+        // Method 3: If still no lessons found, try splitting by semicolons or line breaks
+        if (foundLicoes.size === 0) {
+          const licaoSemicolonRegex = /Li[çc][aã]o\s+(\d{1,2})\s*[:\-–—.]\s*([^;]+)/gi;
+          let semiMatch;
+          
+          while ((semiMatch = licaoSemicolonRegex.exec(cleanDescription)) !== null) {
+            const numero = parseInt(semiMatch[1], 10);
+            let titulo = semiMatch[2].trim();
             
-            // If still nothing, try line by line
-            if (foundLicoes.size === 0) {
-              const linhas = titulosTexto
-                .split(/[\n\r]+/)
-                .map(l => l.trim())
-                .filter(l => l.length > 3 && !l.match(/^\d+\.?\s*$/) && !l.match(/^(sobre|especifica|isbn)/i));
-              
-              linhas.forEach((linha, index) => {
-                if (linha && index < 13 && !foundLicoes.has(index + 1)) {
-                  // Remove leading numbers if present
-                  const cleanLinha = linha.replace(/^\d+\s*[.\-–—:)]\s*/, '').trim();
-                  if (cleanLinha.length > 2) {
-                    foundLicoes.set(index + 1, cleanLinha.substring(0, 200));
-                  }
-                }
-              });
+            if (numero >= 1 && numero <= 13 && titulo.length > 2 && !foundLicoes.has(numero)) {
+              foundLicoes.set(numero, titulo.substring(0, 200));
             }
           }
         }
