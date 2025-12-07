@@ -1,0 +1,256 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format, addWeeks } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+interface Cliente {
+  id: string;
+  cnpj: string;
+  nome_igreja: string;
+  nome_superintendente: string | null;
+  email_superintendente: string | null;
+}
+
+interface AtivarClienteDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  cliente: Cliente;
+  onSuccess: () => void;
+}
+
+const DIAS_AULA = [
+  "Domingo",
+  "Segunda-feira",
+  "Terça-feira",
+  "Quarta-feira",
+  "Quinta-feira",
+  "Sexta-feira",
+  "Sábado",
+];
+
+export function AtivarClienteDialog({
+  open,
+  onOpenChange,
+  cliente,
+  onSuccess,
+}: AtivarClienteDialogProps) {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email_superintendente: cliente.email_superintendente || "",
+    nome_superintendente: cliente.nome_superintendente || "",
+    dia_aula: "Domingo",
+    data_inicio_ebd: undefined as Date | undefined,
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.email_superintendente || !formData.data_inicio_ebd) {
+      toast.error("E-mail do Superintendente e Data de Início são obrigatórios");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Calculate next purchase date (13 weeks from start date)
+      const dataProximaCompra = addWeeks(formData.data_inicio_ebd, 13);
+
+      // 1. Create the superintendent user via edge function
+      const { data: userData, error: userError } = await supabase.functions.invoke(
+        "create-ebd-user",
+        {
+          body: {
+            email: formData.email_superintendente,
+            password: Math.random().toString(36).slice(-8) + "A1!", // Temporary password
+            fullName: formData.nome_superintendente || "Superintendente",
+          },
+        }
+      );
+
+      if (userError) {
+        console.error("Error creating user:", userError);
+        // Continue anyway, might already exist
+      }
+
+      // 2. Update the cliente record
+      const { error: updateError } = await supabase
+        .from("ebd_clientes")
+        .update({
+          email_superintendente: formData.email_superintendente,
+          nome_superintendente: formData.nome_superintendente,
+          dia_aula: formData.dia_aula,
+          data_inicio_ebd: format(formData.data_inicio_ebd, "yyyy-MM-dd"),
+          data_proxima_compra: format(dataProximaCompra, "yyyy-MM-dd"),
+          status_ativacao_ebd: true,
+          superintendente_user_id: userData?.userId || null,
+        })
+        .eq("id", cliente.id);
+
+      if (updateError) throw updateError;
+
+      // 3. Send welcome email
+      try {
+        await supabase.functions.invoke("send-welcome-email", {
+          body: {
+            email: formData.email_superintendente,
+            nome: formData.nome_superintendente || "Superintendente",
+            igreja: cliente.nome_igreja,
+          },
+        });
+      } catch (emailError) {
+        console.error("Error sending welcome email:", emailError);
+        // Continue anyway
+      }
+
+      toast.success("Cliente ativado com sucesso! E-mail de boas-vindas enviado.");
+      onOpenChange(false);
+      onSuccess();
+    } catch (error) {
+      console.error("Error activating cliente:", error);
+      toast.error("Erro ao ativar cliente");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Ativar Painel EBD</DialogTitle>
+          <DialogDescription>
+            Ativar o Painel EBD para <strong>{cliente.nome_igreja}</strong>.
+            Um usuário será criado e um e-mail de boas-vindas será enviado.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="nome_superintendente">Nome do Superintendente</Label>
+            <Input
+              id="nome_superintendente"
+              value={formData.nome_superintendente}
+              onChange={(e) =>
+                setFormData({ ...formData, nome_superintendente: e.target.value })
+              }
+              placeholder="Nome completo"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email_superintendente">E-mail do Superintendente *</Label>
+            <Input
+              id="email_superintendente"
+              type="email"
+              value={formData.email_superintendente}
+              onChange={(e) =>
+                setFormData({ ...formData, email_superintendente: e.target.value })
+              }
+              placeholder="email@igreja.com"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Dia da Aula *</Label>
+            <Select
+              value={formData.dia_aula}
+              onValueChange={(value) =>
+                setFormData({ ...formData, dia_aula: value })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o dia" />
+              </SelectTrigger>
+              <SelectContent>
+                {DIAS_AULA.map((dia) => (
+                  <SelectItem key={dia} value={dia}>
+                    {dia}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Data de Início da EBD *</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !formData.data_inicio_ebd && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {formData.data_inicio_ebd ? (
+                    format(formData.data_inicio_ebd, "dd/MM/yyyy", { locale: ptBR })
+                  ) : (
+                    <span>Selecione a data</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={formData.data_inicio_ebd}
+                  onSelect={(date) =>
+                    setFormData({ ...formData, data_inicio_ebd: date })
+                  }
+                  initialFocus
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+            {formData.data_inicio_ebd && (
+              <p className="text-xs text-muted-foreground">
+                Próxima compra prevista: {format(addWeeks(formData.data_inicio_ebd, 13), "dd/MM/yyyy", { locale: ptBR })}
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Ativando..." : "Ativar Painel EBD"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
