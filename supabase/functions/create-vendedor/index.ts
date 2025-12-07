@@ -68,25 +68,40 @@ serve(async (req) => {
 
     console.log('Creating auth user for:', email);
 
-    // Create auth user
-    const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: nome,
-      },
-    });
+    // Check if auth user already exists
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = existingUsers?.users?.find(u => u.email === email);
+    
+    let authUserId: string;
 
-    if (createError) {
-      console.error('Create user error:', createError);
-      if (createError.message?.includes('already been registered')) {
-        throw new Error('Este email já está cadastrado no sistema');
+    if (existingUser) {
+      console.log('Auth user already exists:', existingUser.id);
+      authUserId = existingUser.id;
+      
+      // Update user metadata
+      await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+        user_metadata: { full_name: nome },
+        password: password,
+      });
+    } else {
+      // Create auth user
+      const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: nome,
+        },
+      });
+
+      if (createError) {
+        console.error('Create user error:', createError);
+        throw new Error(createError.message || 'Erro ao criar usuário');
       }
-      throw new Error(createError.message || 'Erro ao criar usuário');
-    }
 
-    console.log('Auth user created:', authData.user.id);
+      console.log('Auth user created:', authData.user.id);
+      authUserId = authData.user.id;
+    }
 
     // Create vendedor
     const { data: vendedorData, error: vendedorError } = await supabaseAdmin
@@ -104,8 +119,10 @@ serve(async (req) => {
 
     if (vendedorError) {
       console.error('Vendedor creation error:', vendedorError);
-      // Rollback: delete the created user
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      // Rollback: delete the created user only if we created a new one
+      if (!existingUser) {
+        await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      }
       
       if (vendedorError.message?.includes('duplicate key')) {
         throw new Error('Já existe um vendedor com este email');
@@ -115,11 +132,11 @@ serve(async (req) => {
 
     console.log('Vendedor created:', vendedorData.id);
 
-    // Create profile linking to vendedor
+    // Create or update profile linking to vendedor
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .insert({
-        id: authData.user.id,
+      .upsert({
+        id: authUserId,
         email,
         full_name: nome,
         avatar_url: foto_url || null,
@@ -133,7 +150,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        userId: authData.user.id,
+        userId: authUserId,
         vendedor: vendedorData,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
