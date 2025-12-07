@@ -982,6 +982,77 @@ export type Database = {
           },
         ]
       }
+      ebd_clientes: {
+        Row: {
+          bling_cliente_id: number | null
+          cnpj: string
+          created_at: string
+          data_aniversario_pastor: string | null
+          data_aniversario_superintendente: string | null
+          data_inicio_ebd: string | null
+          data_proxima_compra: string | null
+          dia_aula: string | null
+          email_superintendente: string | null
+          id: string
+          nome_igreja: string
+          nome_superintendente: string | null
+          status_ativacao_ebd: boolean
+          superintendente_user_id: string | null
+          telefone: string | null
+          ultimo_login: string | null
+          updated_at: string
+          vendedor_id: string | null
+        }
+        Insert: {
+          bling_cliente_id?: number | null
+          cnpj: string
+          created_at?: string
+          data_aniversario_pastor?: string | null
+          data_aniversario_superintendente?: string | null
+          data_inicio_ebd?: string | null
+          data_proxima_compra?: string | null
+          dia_aula?: string | null
+          email_superintendente?: string | null
+          id?: string
+          nome_igreja: string
+          nome_superintendente?: string | null
+          status_ativacao_ebd?: boolean
+          superintendente_user_id?: string | null
+          telefone?: string | null
+          ultimo_login?: string | null
+          updated_at?: string
+          vendedor_id?: string | null
+        }
+        Update: {
+          bling_cliente_id?: number | null
+          cnpj?: string
+          created_at?: string
+          data_aniversario_pastor?: string | null
+          data_aniversario_superintendente?: string | null
+          data_inicio_ebd?: string | null
+          data_proxima_compra?: string | null
+          dia_aula?: string | null
+          email_superintendente?: string | null
+          id?: string
+          nome_igreja?: string
+          nome_superintendente?: string | null
+          status_ativacao_ebd?: boolean
+          superintendente_user_id?: string | null
+          telefone?: string | null
+          ultimo_login?: string | null
+          updated_at?: string
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_clientes_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_dados_aula: {
         Row: {
           church_id: string
@@ -2643,6 +2714,7 @@ export type Database = {
           comissao_percentual: number
           created_at: string
           email: string
+          email_bling: string | null
           foto_url: string | null
           id: string
           meta_mensal_valor: number
@@ -2654,6 +2726,7 @@ export type Database = {
           comissao_percentual?: number
           created_at?: string
           email: string
+          email_bling?: string | null
           foto_url?: string | null
           id?: string
           meta_mensal_valor?: number
@@ -2665,6 +2738,7 @@ export type Database = {
           comissao_percentual?: number
           created_at?: string
           email?: string
+          email_bling?: string | null
           foto_url?: string | null
           id?: string
           meta_mensal_valor?: number
@@ -2682,6 +2756,10 @@ export type Database = {
       adicionar_pontos_aluno: {
         Args: { p_aluno_id: string; p_motivo?: string; p_pontos: number }
         Returns: number
+      }
+      calculate_next_purchase_date: {
+        Args: { start_date: string }
+        Returns: string
       }
       get_student_turma_id: { Args: { _user_id: string }; Returns: string }
       has_church_permission: {
