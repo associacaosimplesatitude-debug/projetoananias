@@ -75,6 +75,18 @@ export default function Auth() {
         return;
       }
 
+      // Verificar se é vendedor (pelo email)
+      const { data: vendedorData } = await supabase
+        .from('vendedores')
+        .select('id')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (vendedorData) {
+        navigate('/vendedor');
+        return;
+      }
+
       // Fallback: vai para página inicial
       navigate('/');
     } catch (error) {
