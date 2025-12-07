@@ -2763,6 +2763,7 @@ export type Database = {
       }
       get_auth_email: { Args: never; Returns: string }
       get_student_turma_id: { Args: { _user_id: string }; Returns: string }
+      get_vendedor_id_by_email: { Args: { _email: string }; Returns: string }
       has_church_permission: {
         Args: {
           _church_id: string
