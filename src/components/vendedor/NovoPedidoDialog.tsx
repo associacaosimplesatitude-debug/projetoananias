@@ -1,0 +1,760 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { 
+  CalendarIcon, 
+  Search, 
+  UserPlus, 
+  ShoppingCart, 
+  ChevronRight,
+  CheckCircle,
+  Package
+} from "lucide-react";
+import { format, addWeeks } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+
+interface Cliente {
+  id: string;
+  cnpj: string;
+  nome_igreja: string;
+  nome_superintendente: string | null;
+  email_superintendente: string | null;
+  telefone: string | null;
+  dia_aula: string | null;
+  status_ativacao_ebd: boolean;
+}
+
+interface Revista {
+  id: string;
+  titulo: string;
+  faixa_etaria_alvo: string;
+  preco_cheio: number | null;
+  estoque: number | null;
+  imagem_url: string | null;
+}
+
+interface CartItem {
+  revista: Revista;
+  quantidade: number;
+}
+
+interface NovoPedidoDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  vendedorId: string;
+  clientes: Cliente[];
+  onSuccess: () => void;
+}
+
+const DIAS_AULA = [
+  "Domingo",
+  "Segunda-feira",
+  "Terça-feira",
+  "Quarta-feira",
+  "Quinta-feira",
+  "Sexta-feira",
+  "Sábado",
+];
+
+export function NovoPedidoDialog({
+  open,
+  onOpenChange,
+  vendedorId,
+  clientes,
+  onSuccess,
+}: NovoPedidoDialogProps) {
+  const [step, setStep] = useState<"cliente" | "catalogo" | "ativacao" | "resumo">("cliente");
+  const [clienteTab, setClienteTab] = useState<"existente" | "novo">("existente");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // New client form
+  const [novoCliente, setNovoCliente] = useState({
+    nome_igreja: "",
+    cnpj: "",
+    nome_superintendente: "",
+    email_superintendente: "",
+    telefone: "",
+  });
+
+  // Activation form
+  const [ativacaoData, setAtivacaoData] = useState({
+    dia_aula: "Domingo",
+    data_inicio_ebd: undefined as Date | undefined,
+  });
+
+  // Fetch magazines
+  const { data: revistas = [] } = useQuery({
+    queryKey: ["revistas-catalogo"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_revistas")
+        .select("*")
+        .gt("estoque", 0)
+        .order("faixa_etaria_alvo");
+
+      if (error) throw error;
+      return data as Revista[];
+    },
+  });
+
+  const filteredClientes = clientes.filter(
+    (c) =>
+      c.nome_igreja.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.cnpj.includes(searchTerm.replace(/\D/g, ""))
+  );
+
+  const formatCNPJ = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    return numbers
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2")
+      .substring(0, 18);
+  };
+
+  const handleSelectCliente = (cliente: Cliente) => {
+    setSelectedCliente(cliente);
+    setStep("catalogo");
+  };
+
+  const handleCreateNovoCliente = async () => {
+    if (!novoCliente.nome_igreja || !novoCliente.cnpj) {
+      toast.error("Nome da Igreja e CNPJ são obrigatórios");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("ebd_clientes")
+        .insert({
+          vendedor_id: vendedorId,
+          nome_igreja: novoCliente.nome_igreja,
+          cnpj: novoCliente.cnpj.replace(/\D/g, ""),
+          nome_superintendente: novoCliente.nome_superintendente || null,
+          email_superintendente: novoCliente.email_superintendente || null,
+          telefone: novoCliente.telefone || null,
+          status_ativacao_ebd: false,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.message.includes("duplicate key")) {
+          toast.error("Já existe um cliente com este CNPJ");
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      setSelectedCliente(data as Cliente);
+      setStep("catalogo");
+      toast.success("Cliente cadastrado!");
+    } catch (error) {
+      console.error("Error creating cliente:", error);
+      toast.error("Erro ao cadastrar cliente");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addToCart = (revista: Revista) => {
+    const existing = cart.find((item) => item.revista.id === revista.id);
+    if (existing) {
+      setCart(
+        cart.map((item) =>
+          item.revista.id === revista.id
+            ? { ...item, quantidade: item.quantidade + 1 }
+            : item
+        )
+      );
+    } else {
+      setCart([...cart, { revista, quantidade: 1 }]);
+    }
+    toast.success(`${revista.titulo} adicionada ao carrinho`);
+  };
+
+  const removeFromCart = (revistaId: string) => {
+    setCart(cart.filter((item) => item.revista.id !== revistaId));
+  };
+
+  const updateQuantity = (revistaId: string, quantidade: number) => {
+    if (quantidade <= 0) {
+      removeFromCart(revistaId);
+      return;
+    }
+    setCart(
+      cart.map((item) =>
+        item.revista.id === revistaId ? { ...item, quantidade } : item
+      )
+    );
+  };
+
+  const cartTotal = cart.reduce(
+    (total, item) => total + (item.revista.preco_cheio || 0) * item.quantidade,
+    0
+  );
+
+  const handleProceedToActivation = () => {
+    if (!selectedCliente?.status_ativacao_ebd) {
+      setStep("ativacao");
+    } else {
+      setStep("resumo");
+    }
+  };
+
+  const handleFinalizar = async () => {
+    if (!selectedCliente) return;
+
+    setLoading(true);
+    try {
+      // 1. If client needs activation, update their data
+      if (!selectedCliente.status_ativacao_ebd && ativacaoData.data_inicio_ebd) {
+        const dataProximaCompra = addWeeks(ativacaoData.data_inicio_ebd, 13);
+
+        // Create superintendent user if email provided
+        if (selectedCliente.email_superintendente) {
+          try {
+            await supabase.functions.invoke("create-ebd-user", {
+              body: {
+                email: selectedCliente.email_superintendente,
+                password: Math.random().toString(36).slice(-8) + "A1!",
+                fullName: selectedCliente.nome_superintendente || "Superintendente",
+              },
+            });
+          } catch (e) {
+            console.error("Error creating user:", e);
+          }
+        }
+
+        await supabase
+          .from("ebd_clientes")
+          .update({
+            dia_aula: ativacaoData.dia_aula,
+            data_inicio_ebd: format(ativacaoData.data_inicio_ebd, "yyyy-MM-dd"),
+            data_proxima_compra: format(dataProximaCompra, "yyyy-MM-dd"),
+            status_ativacao_ebd: true,
+          })
+          .eq("id", selectedCliente.id);
+      }
+
+      // 2. Create order in system (Bling integration would go here)
+      if (cart.length > 0) {
+        // For now just log the order - Bling integration can be added later
+        console.log("Order for client:", selectedCliente.nome_igreja);
+        console.log("Items:", cart);
+        console.log("Total:", cartTotal);
+        
+        // TODO: Call bling-create-order edge function here
+      }
+
+      toast.success("Pedido finalizado com sucesso!");
+      
+      // Reset and close
+      setStep("cliente");
+      setSelectedCliente(null);
+      setCart([]);
+      setNovoCliente({
+        nome_igreja: "",
+        cnpj: "",
+        nome_superintendente: "",
+        email_superintendente: "",
+        telefone: "",
+      });
+      setAtivacaoData({
+        dia_aula: "Domingo",
+        data_inicio_ebd: undefined,
+      });
+      onOpenChange(false);
+      onSuccess();
+    } catch (error) {
+      console.error("Error finalizing order:", error);
+      toast.error("Erro ao finalizar pedido");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setStep("cliente");
+    setSelectedCliente(null);
+    setCart([]);
+    setSearchTerm("");
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Novo Pedido / Ativação EBD
+          </DialogTitle>
+          <DialogDescription>
+            {step === "cliente" && "Selecione ou cadastre um cliente"}
+            {step === "catalogo" && `Cliente: ${selectedCliente?.nome_igreja}`}
+            {step === "ativacao" && "Configure os dados da ativação EBD"}
+            {step === "resumo" && "Confira os dados do pedido"}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Progress Steps */}
+        <div className="flex items-center justify-center gap-2 py-2">
+          <Badge variant={step === "cliente" ? "default" : "secondary"}>1. Cliente</Badge>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <Badge variant={step === "catalogo" ? "default" : "secondary"}>2. Catálogo</Badge>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <Badge variant={step === "ativacao" || step === "resumo" ? "default" : "secondary"}>
+            3. {selectedCliente?.status_ativacao_ebd ? "Resumo" : "Ativação"}
+          </Badge>
+        </div>
+
+        <div className="flex-1 overflow-hidden">
+          {/* Step 1: Select Client */}
+          {step === "cliente" && (
+            <Tabs value={clienteTab} onValueChange={(v) => setClienteTab(v as "existente" | "novo")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="existente">
+                  <Search className="mr-2 h-4 w-4" />
+                  Cliente Existente
+                </TabsTrigger>
+                <TabsTrigger value="novo">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Novo Cliente
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="existente" className="mt-4">
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nome ou CNPJ..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <ScrollArea className="h-[300px]">
+                    <div className="space-y-2">
+                      {filteredClientes.map((cliente) => (
+                        <Card
+                          key={cliente.id}
+                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleSelectCliente(cliente)}
+                        >
+                          <CardContent className="p-4 flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{cliente.nome_igreja}</p>
+                              <p className="text-sm text-muted-foreground">
+                                CNPJ: {cliente.cnpj}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {cliente.status_ativacao_ebd ? (
+                                <Badge variant="default" className="bg-green-500">
+                                  <CheckCircle className="mr-1 h-3 w-3" />
+                                  Ativo
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary">Pendente</Badge>
+                              )}
+                              <ChevronRight className="h-4 w-4" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      {filteredClientes.length === 0 && (
+                        <p className="text-center text-muted-foreground py-8">
+                          Nenhum cliente encontrado
+                        </p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="novo" className="mt-4">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nome da Igreja *</Label>
+                      <Input
+                        value={novoCliente.nome_igreja}
+                        onChange={(e) =>
+                          setNovoCliente({ ...novoCliente, nome_igreja: e.target.value })
+                        }
+                        placeholder="Igreja Assembleia de Deus..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>CNPJ *</Label>
+                      <Input
+                        value={novoCliente.cnpj}
+                        onChange={(e) =>
+                          setNovoCliente({ ...novoCliente, cnpj: formatCNPJ(e.target.value) })
+                        }
+                        placeholder="00.000.000/0000-00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Nome do Superintendente</Label>
+                      <Input
+                        value={novoCliente.nome_superintendente}
+                        onChange={(e) =>
+                          setNovoCliente({ ...novoCliente, nome_superintendente: e.target.value })
+                        }
+                        placeholder="Nome completo"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>E-mail do Superintendente</Label>
+                      <Input
+                        type="email"
+                        value={novoCliente.email_superintendente}
+                        onChange={(e) =>
+                          setNovoCliente({ ...novoCliente, email_superintendente: e.target.value })
+                        }
+                        placeholder="email@igreja.com"
+                      />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label>Telefone</Label>
+                      <Input
+                        value={novoCliente.telefone}
+                        onChange={(e) =>
+                          setNovoCliente({ ...novoCliente, telefone: e.target.value })
+                        }
+                        placeholder="(00) 00000-0000"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleCreateNovoCliente}
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    {loading ? "Cadastrando..." : "Cadastrar e Continuar"}
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+
+          {/* Step 2: Catalog */}
+          {step === "catalogo" && (
+            <div className="flex gap-4 h-[400px]">
+              <div className="flex-1 overflow-hidden">
+                <h3 className="font-medium mb-2">Catálogo de Revistas</h3>
+                <ScrollArea className="h-[350px]">
+                  <div className="grid grid-cols-2 gap-2 pr-4">
+                    {revistas.map((revista) => (
+                      <Card key={revista.id} className="p-3">
+                        <div className="flex gap-2">
+                          {revista.imagem_url ? (
+                            <img
+                              src={revista.imagem_url}
+                              alt={revista.titulo}
+                              className="w-12 h-16 object-cover rounded"
+                            />
+                          ) : (
+                            <div className="w-12 h-16 bg-muted rounded flex items-center justify-center">
+                              <Package className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{revista.titulo}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {revista.faixa_etaria_alvo}
+                            </p>
+                            <p className="text-sm font-bold text-primary">
+                              R$ {(revista.preco_cheio || 0).toFixed(2)}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-1 w-full h-7 text-xs"
+                              onClick={() => addToCart(revista)}
+                            >
+                              Adicionar
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              <div className="w-64 border-l pl-4">
+                <h3 className="font-medium mb-2 flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4" />
+                  Carrinho ({cart.length})
+                </h3>
+                <ScrollArea className="h-[280px]">
+                  <div className="space-y-2 pr-4">
+                    {cart.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Carrinho vazio
+                      </p>
+                    ) : (
+                      cart.map((item) => (
+                        <div key={item.revista.id} className="p-2 border rounded text-sm">
+                          <p className="font-medium truncate">{item.revista.titulo}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 w-6 p-0"
+                                onClick={() =>
+                                  updateQuantity(item.revista.id, item.quantidade - 1)
+                                }
+                              >
+                                -
+                              </Button>
+                              <span className="w-6 text-center">{item.quantidade}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 w-6 p-0"
+                                onClick={() =>
+                                  updateQuantity(item.revista.id, item.quantidade + 1)
+                                }
+                              >
+                                +
+                              </Button>
+                            </div>
+                            <span className="font-medium">
+                              R$ {((item.revista.preco_cheio || 0) * item.quantidade).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between font-bold">
+                    <span>Total:</span>
+                    <span>R$ {cartTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Activation */}
+          {step === "ativacao" && (
+            <div className="space-y-4 py-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Dados de Ativação EBD</CardTitle>
+                  <CardDescription>
+                    Configure os dados para ativar o painel EBD do cliente
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Dia da Aula *</Label>
+                      <Select
+                        value={ativacaoData.dia_aula}
+                        onValueChange={(value) =>
+                          setAtivacaoData({ ...ativacaoData, dia_aula: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o dia" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DIAS_AULA.map((dia) => (
+                            <SelectItem key={dia} value={dia}>
+                              {dia}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data de Início da EBD *</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !ativacaoData.data_inicio_ebd && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {ativacaoData.data_inicio_ebd ? (
+                              format(ativacaoData.data_inicio_ebd, "dd/MM/yyyy", { locale: ptBR })
+                            ) : (
+                              <span>Selecione a data</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={ativacaoData.data_inicio_ebd}
+                            onSelect={(date) =>
+                              setAtivacaoData({ ...ativacaoData, data_inicio_ebd: date })
+                            }
+                            initialFocus
+                            locale={ptBR}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  {ativacaoData.data_inicio_ebd && (
+                    <p className="text-sm text-muted-foreground">
+                      Próxima compra prevista:{" "}
+                      {format(addWeeks(ativacaoData.data_inicio_ebd, 13), "dd/MM/yyyy", {
+                        locale: ptBR,
+                      })}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Step 4: Summary */}
+          {step === "resumo" && (
+            <div className="space-y-4 py-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Resumo do Pedido</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-muted-foreground">Cliente</Label>
+                    <p className="font-medium">{selectedCliente?.nome_igreja}</p>
+                    <p className="text-sm text-muted-foreground">
+                      CNPJ: {selectedCliente?.cnpj}
+                    </p>
+                  </div>
+                  {cart.length > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground">Itens do Pedido</Label>
+                      <div className="space-y-1 mt-1">
+                        {cart.map((item) => (
+                          <div key={item.revista.id} className="flex justify-between text-sm">
+                            <span>
+                              {item.quantidade}x {item.revista.titulo}
+                            </span>
+                            <span>
+                              R$ {((item.revista.preco_cheio || 0) * item.quantidade).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between font-bold border-t pt-1">
+                          <span>Total</span>
+                          <span>R$ {cartTotal.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {!selectedCliente?.status_ativacao_ebd && ativacaoData.data_inicio_ebd && (
+                    <div>
+                      <Label className="text-muted-foreground">Ativação EBD</Label>
+                      <p className="text-sm">
+                        Dia da Aula: <strong>{ativacaoData.dia_aula}</strong>
+                      </p>
+                      <p className="text-sm">
+                        Início:{" "}
+                        <strong>
+                          {format(ativacaoData.data_inicio_ebd, "dd/MM/yyyy", { locale: ptBR })}
+                        </strong>
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex justify-between pt-4 border-t">
+          <Button variant="outline" onClick={handleClose}>
+            Cancelar
+          </Button>
+          <div className="flex gap-2">
+            {step !== "cliente" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (step === "catalogo") setStep("cliente");
+                  else if (step === "ativacao") setStep("catalogo");
+                  else if (step === "resumo") {
+                    if (selectedCliente?.status_ativacao_ebd) setStep("catalogo");
+                    else setStep("ativacao");
+                  }
+                }}
+              >
+                Voltar
+              </Button>
+            )}
+            {step === "catalogo" && (
+              <Button onClick={handleProceedToActivation}>
+                {selectedCliente?.status_ativacao_ebd ? "Ver Resumo" : "Próximo: Ativação"}
+              </Button>
+            )}
+            {step === "ativacao" && (
+              <Button
+                onClick={() => setStep("resumo")}
+                disabled={!ativacaoData.data_inicio_ebd}
+              >
+                Ver Resumo
+              </Button>
+            )}
+            {step === "resumo" && (
+              <Button onClick={handleFinalizar} disabled={loading}>
+                {loading ? "Finalizando..." : "Finalizar Pedido"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

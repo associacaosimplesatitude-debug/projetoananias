@@ -5,20 +5,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { 
   Users, 
-  UserPlus, 
+  ShoppingCart, 
   AlertTriangle, 
   Calendar, 
   Gift,
   Clock,
   CheckCircle,
-  XCircle
+  XCircle,
+  DollarSign,
+  Target
 } from "lucide-react";
-import { format, differenceInDays, isThisMonth, parseISO } from "date-fns";
+import { format, differenceInDays, isThisMonth, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
-import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
+import { NovoPedidoDialog } from "@/components/vendedor/NovoPedidoDialog";
 import { AtivarClienteDialog } from "@/components/vendedor/AtivarClienteDialog";
 
 interface Vendedor {
@@ -26,6 +29,8 @@ interface Vendedor {
   nome: string;
   email: string;
   email_bling: string | null;
+  comissao_percentual: number;
+  meta_mensal_valor: number;
 }
 
 interface Cliente {
@@ -46,7 +51,7 @@ interface Cliente {
 
 export default function VendedorDashboard() {
   const { user, loading: authLoading } = useAuth();
-  const [cadastrarDialogOpen, setCadastrarDialogOpen] = useState(false);
+  const [novoPedidoDialogOpen, setNovoPedidoDialogOpen] = useState(false);
   const [ativarDialogOpen, setAtivarDialogOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
@@ -80,6 +85,31 @@ export default function VendedorDashboard() {
 
       if (error) throw error;
       return data as Cliente[];
+    },
+    enabled: !!vendedor?.id,
+  });
+
+  // Fetch sales data for the current month (simulated with pedidos)
+  const { data: vendasMes = 0 } = useQuery({
+    queryKey: ["vendedor-vendas-mes", vendedor?.id],
+    queryFn: async () => {
+      if (!vendedor?.id) return 0;
+
+      const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd");
+
+      // For now, calculate based on activated clients this month (approximate)
+      const { data, error } = await supabase
+        .from("ebd_clientes")
+        .select("id")
+        .eq("vendedor_id", vendedor.id)
+        .eq("status_ativacao_ebd", true)
+        .gte("data_inicio_ebd", inicioMes)
+        .lte("data_inicio_ebd", fimMes);
+
+      if (error) return 0;
+      // Estimate R$500 per activation for now
+      return (data?.length || 0) * 500;
     },
     enabled: !!vendedor?.id,
   });
@@ -118,6 +148,11 @@ export default function VendedorDashboard() {
     setAtivarDialogOpen(true);
   };
 
+  // Calculate KPIs
+  const comissaoMes = vendasMes * ((vendedor?.comissao_percentual || 0) / 100);
+  const metaMensal = vendedor?.meta_mensal_valor || 0;
+  const progressoMeta = metaMensal > 0 ? Math.min((vendasMes / metaMensal) * 100, 100) : 0;
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -153,13 +188,17 @@ export default function VendedorDashboard() {
             Bem-vindo, {vendedor?.nome}
           </p>
         </div>
-        <Button onClick={() => setCadastrarDialogOpen(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Cadastrar Novo Cliente
+        <Button 
+          size="lg" 
+          className="bg-primary hover:bg-primary/90"
+          onClick={() => setNovoPedidoDialogOpen(true)}
+        >
+          <ShoppingCart className="mr-2 h-5 w-5" />
+          Novo Pedido / Ativação EBD
         </Button>
       </div>
 
-      {/* Dashboard Cards */}
+      {/* Dashboard Cards - Row 1: Client Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -209,6 +248,50 @@ export default function VendedorDashboard() {
             <div className="text-2xl font-bold">{clientesRisco.length}</div>
             <p className="text-xs text-muted-foreground">
               Sem login há mais de 30 dias
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Dashboard Cards - Row 2: Sales KPIs */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">
+              Comissão Acumulada no Mês
+            </CardTitle>
+            <DollarSign className="h-5 w-5 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-green-700 dark:text-green-300">
+              R$ {comissaoMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+              Vendas do mês: R$ {vendasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} 
+              × {vendedor?.comissao_percentual || 0}%
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">
+              Progresso da Meta
+            </CardTitle>
+            <Target className="h-5 w-5 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-2 mb-2">
+              <span className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                {progressoMeta.toFixed(1)}%
+              </span>
+              <span className="text-sm text-blue-600 dark:text-blue-400 mb-1">
+                da meta
+              </span>
+            </div>
+            <Progress value={progressoMeta} className="h-3 bg-blue-100 dark:bg-blue-900" />
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+              R$ {vendasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} de R$ {metaMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </p>
           </CardContent>
         </Card>
@@ -304,8 +387,13 @@ export default function VendedorDashboard() {
                         <div className="space-y-1">
                           <p className="font-medium">{cliente.nome_igreja}</p>
                           <p className="text-sm text-muted-foreground">
-                            {cliente.email_superintendente}
+                            {cliente.nome_superintendente || cliente.email_superintendente || "Sem contato"}
                           </p>
+                          {cliente.telefone && (
+                            <p className="text-sm text-muted-foreground">
+                              {cliente.telefone}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right space-y-1">
                           <Badge
@@ -317,7 +405,7 @@ export default function VendedorDashboard() {
                               ? "Hoje!"
                               : `Em ${diasRestantes} dias`}
                           </Badge>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm font-medium">
                             {format(new Date(cliente.data_proxima_compra!), "dd/MM/yyyy", { locale: ptBR })}
                           </p>
                         </div>
@@ -440,10 +528,11 @@ export default function VendedorDashboard() {
       </Tabs>
 
       {/* Dialogs */}
-      <CadastrarClienteDialog
-        open={cadastrarDialogOpen}
-        onOpenChange={setCadastrarDialogOpen}
+      <NovoPedidoDialog
+        open={novoPedidoDialogOpen}
+        onOpenChange={setNovoPedidoDialogOpen}
         vendedorId={vendedor?.id || ""}
+        clientes={clientes}
         onSuccess={fetchVendedorData}
       />
 
