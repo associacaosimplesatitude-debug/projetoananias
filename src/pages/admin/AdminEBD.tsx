@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,8 @@ import {
   GraduationCap,
   BookOpen,
   Target,
+  HelpCircle,
+  FileQuestion,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -142,6 +145,7 @@ const SELLER_COLORS = [
 
 export default function AdminEBD() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("vendas");
   const [period, setPeriod] = useState("thisMonth");
   const [customStartDate, setCustomStartDate] = useState('');
@@ -820,10 +824,11 @@ export default function AdminEBD() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="vendas">Vendas</TabsTrigger>
           <TabsTrigger value="clientes">Clientes EBD</TabsTrigger>
           <TabsTrigger value="vendedores">Vendedores</TabsTrigger>
+          <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
         </TabsList>
 
         {/* VENDAS TAB */}
@@ -1601,6 +1606,67 @@ export default function AdminEBD() {
               </Card>
             )}
           </div>
+        </TabsContent>
+
+        {/* CATALOGO TAB */}
+        <TabsContent value="catalogo" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate('/admin/curriculo-ebd')}>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-blue-500/10">
+                    <BookOpen className="h-8 w-8 text-blue-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg">Gestão de Catálogo EBD</h3>
+                    <p className="text-sm text-muted-foreground">Cadastre, edite e gerencie revistas e suas lições</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => navigate('/admin/quiz-mestre')}>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg bg-purple-500/10">
+                    <FileQuestion className="h-8 w-8 text-purple-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg">Quiz Mestre</h3>
+                    <p className="text-sm text-muted-foreground">Cadastre as 10 perguntas de cada lição para gamificação</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HelpCircle className="h-5 w-5" />
+                Como funciona o Quiz Mestre?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">
+                O Quiz Mestre é a funcionalidade de gamificação do sistema EBD. Cada lição da revista precisa ter 10 perguntas cadastradas para que os alunos possam responder e ganhar pontos.
+              </p>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="font-medium">1. Selecione a Revista</p>
+                  <p className="text-sm text-muted-foreground">Escolha a revista que deseja cadastrar o quiz</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="font-medium">2. Cadastre as Perguntas</p>
+                  <p className="text-sm text-muted-foreground">10 perguntas por lição com 3 opções de resposta</p>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <p className="font-medium">3. Ative para os Alunos</p>
+                  <p className="text-sm text-muted-foreground">Quando todas as 13 lições estiverem completas, o quiz é ativado automaticamente</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
