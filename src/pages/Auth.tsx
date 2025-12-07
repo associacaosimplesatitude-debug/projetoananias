@@ -39,12 +39,24 @@ export default function Auth() {
     if (!user) return;
     
     try {
+      // PRIMEIRO: Verificar se é vendedor (pelo email) - deve ter prioridade
+      const { data: vendedorData } = await supabase
+        .from('vendedores')
+        .select('id')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (vendedorData) {
+        navigate('/vendedor');
+        return;
+      }
+
       // Buscar role do usuário
       const { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       // Se for admin, vai para o dashboard de admin
       if (roleData?.role === 'admin') {
@@ -64,7 +76,7 @@ export default function Auth() {
           .from('churches')
           .select('process_status')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         // Redirecionar baseado no status
         if (church?.process_status === 'completed') {
@@ -75,23 +87,10 @@ export default function Auth() {
         return;
       }
 
-      // Verificar se é vendedor (pelo email)
-      const { data: vendedorData } = await supabase
-        .from('vendedores')
-        .select('id')
-        .eq('email', user.email)
-        .maybeSingle();
-
-      if (vendedorData) {
-        navigate('/vendedor');
-        return;
-      }
-
       // Fallback: vai para página inicial
       navigate('/');
     } catch (error) {
       console.error('Erro ao redirecionar após login:', error);
-      // Se não encontrar dados, vai para página inicial
       navigate('/');
     }
   };
