@@ -39,6 +39,7 @@ import AdminStageManagement from "./pages/admin/StageManagement";
 import BrandingCustomization from "./pages/admin/BrandingCustomization";
 import ClientModules from "./pages/admin/ClientModules";
 import AdminEBDCurriculo from "./pages/admin/EBDCurriculo";
+import AdminEBDQuizMestre from "./pages/admin/EBDQuizMestre";
 import AdminOrders from "./pages/admin/Orders";
 import AdminEBD from "./pages/admin/AdminEBD";
 import BlingIntegration from "./pages/admin/BlingIntegration";
@@ -597,6 +598,14 @@ const App = () => (
                       element={
                         <ProtectedRoute requireAdmin>
                           <AdminEBDCurriculo />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/quiz-mestre"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <AdminEBDQuizMestre />
                         </ProtectedRoute>
                       }
                     />

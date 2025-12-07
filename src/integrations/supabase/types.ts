@@ -1879,6 +1879,53 @@ export type Database = {
           },
         ]
       }
+      ebd_quiz_mestre_questoes: {
+        Row: {
+          created_at: string
+          id: string
+          licao_id: string
+          opcao_a: string
+          opcao_b: string
+          opcao_c: string
+          ordem: number
+          pergunta: string
+          resposta_correta: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          licao_id: string
+          opcao_a: string
+          opcao_b: string
+          opcao_c: string
+          ordem: number
+          pergunta: string
+          resposta_correta: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          licao_id?: string
+          opcao_a?: string
+          opcao_b?: string
+          opcao_c?: string
+          ordem?: number
+          pergunta?: string
+          resposta_correta?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_quiz_mestre_questoes_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_licoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_quiz_questoes: {
         Row: {
           created_at: string
@@ -2051,6 +2098,7 @@ export type Database = {
           last_sync_at: string | null
           num_licoes: number
           possui_plano_leitura: boolean
+          possui_quiz_mestre: boolean
           preco_cheio: number | null
           sinopse: string | null
           titulo: string
@@ -2068,6 +2116,7 @@ export type Database = {
           last_sync_at?: string | null
           num_licoes?: number
           possui_plano_leitura?: boolean
+          possui_quiz_mestre?: boolean
           preco_cheio?: number | null
           sinopse?: string | null
           titulo: string
@@ -2085,6 +2134,7 @@ export type Database = {
           last_sync_at?: string | null
           num_licoes?: number
           possui_plano_leitura?: boolean
+          possui_quiz_mestre?: boolean
           preco_cheio?: number | null
           sinopse?: string | null
           titulo?: string
