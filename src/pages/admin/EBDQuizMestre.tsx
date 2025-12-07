@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { BookOpen, Search, CheckCircle2, XCircle, Edit, HelpCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BookOpen, CheckCircle2, XCircle, Edit, HelpCircle, Filter, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { QuizMestreDialog } from "@/components/ebd/QuizMestreDialog";
@@ -16,6 +16,7 @@ interface Revista {
   imagem_url: string | null;
   num_licoes: number;
   possui_quiz_mestre: boolean;
+  categoria: string | null;
 }
 
 interface Licao {
@@ -27,10 +28,11 @@ interface Licao {
 }
 
 export default function EBDQuizMestre() {
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedRevista, setSelectedRevista] = useState<Revista | null>(null);
   const [selectedLicao, setSelectedLicao] = useState<Licao | null>(null);
   const [quizDialogOpen, setQuizDialogOpen] = useState(false);
+  const [filterCategoria, setFilterCategoria] = useState<string>("Revista EBD");
+  const [filterSubcategoria, setFilterSubcategoria] = useState<string>("all");
 
   // Buscar todas as revistas
   const { data: revistas, isLoading: loadingRevistas } = useQuery({
@@ -38,7 +40,7 @@ export default function EBDQuizMestre() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ebd_revistas')
-        .select('id, titulo, faixa_etaria_alvo, imagem_url, num_licoes, possui_quiz_mestre')
+        .select('id, titulo, faixa_etaria_alvo, imagem_url, num_licoes, possui_quiz_mestre, categoria')
         .order('titulo');
 
       if (error) throw error;
@@ -81,17 +83,62 @@ export default function EBDQuizMestre() {
     enabled: !!selectedRevista,
   });
 
-  // Filtrar revistas por busca
+  // Extrair categorias e subcategorias únicas
+  const { categorias, subcategorias, categoriaCounts, subcategoriaCounts } = useMemo(() => {
+    if (!revistas) return { categorias: [], subcategorias: [], categoriaCounts: {}, subcategoriaCounts: {} };
+    
+    const catSet = new Set<string>();
+    const subSet = new Set<string>();
+    const catCounts: Record<string, number> = {};
+    const subCounts: Record<string, number> = {};
+    
+    revistas.forEach(r => {
+      const cat = r.categoria || 'Sem Categoria';
+      const sub = r.faixa_etaria_alvo || 'Sem Subcategoria';
+      
+      catSet.add(cat);
+      catCounts[cat] = (catCounts[cat] || 0) + 1;
+      
+      // Contar subcategorias que correspondem ao filtro de categoria atual
+      if (filterCategoria === "all" || cat === filterCategoria) {
+        subSet.add(sub);
+        subCounts[sub] = (subCounts[sub] || 0) + 1;
+      }
+    });
+    
+    return {
+      categorias: Array.from(catSet).sort(),
+      subcategorias: Array.from(subSet).sort(),
+      categoriaCounts: catCounts,
+      subcategoriaCounts: subCounts
+    };
+  }, [revistas, filterCategoria]);
+
+  // Filtrar revistas
   const filteredRevistas = useMemo(() => {
     if (!revistas) return [];
-    if (!searchTerm) return revistas;
     
-    const search = searchTerm.toLowerCase();
-    return revistas.filter(r => 
-      r.titulo.toLowerCase().includes(search) ||
-      r.faixa_etaria_alvo.toLowerCase().includes(search)
-    );
-  }, [revistas, searchTerm]);
+    return revistas.filter(r => {
+      const cat = r.categoria || 'Sem Categoria';
+      const sub = r.faixa_etaria_alvo || 'Sem Subcategoria';
+      
+      const matchCategoria = filterCategoria === "all" || cat === filterCategoria;
+      const matchSubcategoria = filterSubcategoria === "all" || sub === filterSubcategoria;
+      
+      return matchCategoria && matchSubcategoria;
+    });
+  }, [revistas, filterCategoria, filterSubcategoria]);
+
+  // Reset subcategoria quando categoria muda
+  const handleCategoriaChange = (value: string) => {
+    setFilterCategoria(value);
+    setFilterSubcategoria("all");
+  };
+
+  const clearFilters = () => {
+    setFilterCategoria("all");
+    setFilterSubcategoria("all");
+  };
 
   // Calcular progresso do quiz mestre
   const quizProgress = useMemo(() => {
@@ -123,16 +170,70 @@ export default function EBDQuizMestre() {
 
         {!selectedRevista ? (
           <>
-            {/* Barra de pesquisa */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Pesquisar revista por título ou faixa etária..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+            {/* Filtros */}
+            {revistas && revistas.length > 0 && (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Filtros:</span>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-3 flex-1">
+                      {/* Categoria Filter */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-muted-foreground">Categoria</label>
+                        <Select value={filterCategoria} onValueChange={handleCategoriaChange}>
+                          <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Todas as categorias" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todas ({revistas.length})</SelectItem>
+                            {categorias.map(cat => (
+                              <SelectItem key={cat} value={cat}>
+                                {cat} ({categoriaCounts[cat] || 0})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Subcategoria Filter */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-muted-foreground">Subcategoria (Faixa Etária)</label>
+                        <Select value={filterSubcategoria} onValueChange={setFilterSubcategoria}>
+                          <SelectTrigger className="w-[250px]">
+                            <SelectValue placeholder="Todas as subcategorias" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todas</SelectItem>
+                            {subcategorias.map(sub => (
+                              <SelectItem key={sub} value={sub}>
+                                {sub} ({subcategoriaCounts[sub] || 0})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Limpar Filtros */}
+                    {(filterCategoria !== "all" || filterSubcategoria !== "all") && (
+                      <Button variant="ghost" size="sm" onClick={clearFilters}>
+                        <X className="w-4 h-4 mr-1" />
+                        Limpar
+                      </Button>
+                    )}
+
+                    {/* Contagem de Resultados */}
+                    <div className="text-sm text-muted-foreground">
+                      {filteredRevistas.length} de {revistas.length} revista(s)
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Lista de revistas */}
             {loadingRevistas ? (
@@ -146,6 +247,9 @@ export default function EBDQuizMestre() {
                 <CardContent className="text-center py-12 text-muted-foreground">
                   <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>Nenhuma revista encontrada</p>
+                  {(filterCategoria !== "all" || filterSubcategoria !== "all") && (
+                    <Button variant="link" onClick={clearFilters}>Limpar filtros</Button>
+                  )}
                 </CardContent>
               </Card>
             ) : (
