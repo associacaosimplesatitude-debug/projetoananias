@@ -10,7 +10,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { MapPin, User, Building, Lock, Phone } from "lucide-react";
 
 interface CadastrarClienteDialogProps {
   open: boolean;
@@ -18,6 +29,14 @@ interface CadastrarClienteDialogProps {
   vendedorId: string;
   onSuccess: () => void;
 }
+
+const TIPOS_CLIENTE = ["Igreja", "Lojista", "Pessoa Física"] as const;
+
+const ESTADOS_BR = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", 
+  "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", 
+  "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+];
 
 export function CadastrarClienteDialog({
   open,
@@ -27,12 +46,23 @@ export function CadastrarClienteDialog({
 }: CadastrarClienteDialogProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    tipo_cliente: "Igreja" as string,
     nome_igreja: "",
-    cnpj: "",
-    nome_superintendente: "",
+    nome_responsavel: "",
     email_superintendente: "",
+    senha: "",
     telefone: "",
+    possui_cnpj: true,
+    documento: "", // RG/CPF/CNPJ
+    endereco_cep: "",
+    endereco_rua: "",
+    endereco_numero: "",
+    endereco_complemento: "",
+    endereco_bairro: "",
+    endereco_cidade: "",
+    endereco_estado: "",
   });
+  const [loadingCep, setLoadingCep] = useState(false);
 
   const formatCNPJ = (value: string) => {
     const numbers = value.replace(/\D/g, "");
@@ -44,29 +74,128 @@ export function CadastrarClienteDialog({
       .substring(0, 18);
   };
 
+  const formatCPF = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    return numbers
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+      .substring(0, 14);
+  };
+
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    if (numbers.length <= 10) {
+      return numbers
+        .replace(/(\d{2})(\d)/, "($1) $2")
+        .replace(/(\d{4})(\d)/, "$1-$2");
+    }
+    return numbers
+      .replace(/(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{5})(\d)/, "$1-$2")
+      .substring(0, 15);
+  };
+
+  const formatCEP = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    return numbers.replace(/(\d{5})(\d)/, "$1-$2").substring(0, 9);
+  };
+
+  const handleCepChange = async (value: string) => {
+    const formattedCep = formatCEP(value);
+    setFormData({ ...formData, endereco_cep: formattedCep });
+
+    const cepNumbers = value.replace(/\D/g, "");
+    if (cepNumbers.length === 8) {
+      setLoadingCep(true);
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cepNumbers}/json/`);
+        const data = await response.json();
+        
+        if (!data.erro) {
+          setFormData(prev => ({
+            ...prev,
+            endereco_cep: formattedCep,
+            endereco_rua: data.logradouro || "",
+            endereco_bairro: data.bairro || "",
+            endereco_cidade: data.localidade || "",
+            endereco_estado: data.uf || "",
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching CEP:", error);
+      } finally {
+        setLoadingCep(false);
+      }
+    }
+  };
+
+  const handleDocumentoChange = (value: string) => {
+    const formatted = formData.possui_cnpj ? formatCNPJ(value) : formatCPF(value);
+    setFormData({ ...formData, documento: formatted });
+  };
+
+  const resetForm = () => {
+    setFormData({
+      tipo_cliente: "Igreja",
+      nome_igreja: "",
+      nome_responsavel: "",
+      email_superintendente: "",
+      senha: "",
+      telefone: "",
+      possui_cnpj: true,
+      documento: "",
+      endereco_cep: "",
+      endereco_rua: "",
+      endereco_numero: "",
+      endereco_complemento: "",
+      endereco_bairro: "",
+      endereco_cidade: "",
+      endereco_estado: "",
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nome_igreja || !formData.cnpj) {
-      toast.error("Nome da Igreja e CNPJ são obrigatórios");
+    if (!formData.nome_igreja || !formData.documento || !formData.email_superintendente) {
+      toast.error("Nome, Documento e E-mail são obrigatórios");
+      return;
+    }
+
+    if (!formData.endereco_cep || !formData.endereco_numero) {
+      toast.error("CEP e Número do endereço são obrigatórios");
       return;
     }
 
     setLoading(true);
     try {
+      const documentoLimpo = formData.documento.replace(/\D/g, "");
+      
       const { error } = await supabase.from("ebd_clientes").insert({
         vendedor_id: vendedorId,
+        tipo_cliente: formData.tipo_cliente,
         nome_igreja: formData.nome_igreja,
-        cnpj: formData.cnpj.replace(/\D/g, ""),
-        nome_superintendente: formData.nome_superintendente || null,
-        email_superintendente: formData.email_superintendente || null,
-        telefone: formData.telefone || null,
+        nome_responsavel: formData.nome_responsavel || null,
+        email_superintendente: formData.email_superintendente,
+        telefone: formData.telefone.replace(/\D/g, "") || null,
+        possui_cnpj: formData.possui_cnpj,
+        cnpj: formData.possui_cnpj ? documentoLimpo : "",
+        cpf: !formData.possui_cnpj ? documentoLimpo : null,
+        endereco_cep: formData.endereco_cep.replace(/\D/g, ""),
+        endereco_rua: formData.endereco_rua,
+        endereco_numero: formData.endereco_numero,
+        endereco_complemento: formData.endereco_complemento || null,
+        endereco_bairro: formData.endereco_bairro,
+        endereco_cidade: formData.endereco_cidade,
+        endereco_estado: formData.endereco_estado,
         status_ativacao_ebd: false,
+        senha_temporaria: formData.senha || null,
       });
 
       if (error) {
         if (error.message.includes("duplicate key")) {
-          toast.error("Já existe um cliente com este CNPJ");
+          toast.error("Já existe um cliente com este documento");
         } else {
           throw error;
         }
@@ -74,13 +203,7 @@ export function CadastrarClienteDialog({
       }
 
       toast.success("Cliente cadastrado com sucesso!");
-      setFormData({
-        nome_igreja: "",
-        cnpj: "",
-        nome_superintendente: "",
-        email_superintendente: "",
-        telefone: "",
-      });
+      resetForm();
       onOpenChange(false);
       onSuccess();
     } catch (error) {
@@ -92,80 +215,228 @@ export function CadastrarClienteDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={(open) => { if (!open) resetForm(); onOpenChange(open); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Building className="h-5 w-5" />
+            Cadastrar Novo Cliente
+          </DialogTitle>
           <DialogDescription>
             Preencha os dados do novo cliente. O cliente será atribuído automaticamente a você.
+            O módulo padrão será <strong>REOBOTE EBD - Escola Bíblica Dominical</strong>.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="nome_igreja">Nome da Igreja *</Label>
-            <Input
-              id="nome_igreja"
-              value={formData.nome_igreja}
-              onChange={(e) =>
-                setFormData({ ...formData, nome_igreja: e.target.value })
-              }
-              placeholder="Igreja Assembleia de Deus..."
-              required
-            />
-          </div>
+        <form onSubmit={handleSubmit}>
+          <ScrollArea className="h-[60vh] pr-4">
+            <div className="space-y-6">
+              {/* Tipo de Cliente */}
+              <div className="space-y-2">
+                <Label>Tipo de Cliente *</Label>
+                <Select
+                  value={formData.tipo_cliente}
+                  onValueChange={(value) => setFormData({ ...formData, tipo_cliente: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_CLIENTE.map((tipo) => (
+                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cnpj">CNPJ *</Label>
-            <Input
-              id="cnpj"
-              value={formData.cnpj}
-              onChange={(e) =>
-                setFormData({ ...formData, cnpj: formatCNPJ(e.target.value) })
-              }
-              placeholder="00.000.000/0000-00"
-              required
-            />
-          </div>
+              {/* Dados Básicos */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nome_igreja">
+                    {formData.tipo_cliente === "Pessoa Física" ? "Nome *" : "Nome da Igreja/Empresa *"}
+                  </Label>
+                  <Input
+                    id="nome_igreja"
+                    value={formData.nome_igreja}
+                    onChange={(e) => setFormData({ ...formData, nome_igreja: e.target.value })}
+                    placeholder={formData.tipo_cliente === "Pessoa Física" ? "Nome completo" : "Igreja Assembleia de Deus..."}
+                    required
+                  />
+                </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="nome_superintendente">Nome do Superintendente</Label>
-            <Input
-              id="nome_superintendente"
-              value={formData.nome_superintendente}
-              onChange={(e) =>
-                setFormData({ ...formData, nome_superintendente: e.target.value })
-              }
-              placeholder="Nome completo"
-            />
-          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nome_responsavel">
+                    <User className="inline h-4 w-4 mr-1" />
+                    Nome do Responsável
+                  </Label>
+                  <Input
+                    id="nome_responsavel"
+                    value={formData.nome_responsavel}
+                    onChange={(e) => setFormData({ ...formData, nome_responsavel: e.target.value })}
+                    placeholder="Nome do responsável"
+                  />
+                </div>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email_superintendente">E-mail do Superintendente</Label>
-            <Input
-              id="email_superintendente"
-              type="email"
-              value={formData.email_superintendente}
-              onChange={(e) =>
-                setFormData({ ...formData, email_superintendente: e.target.value })
-              }
-              placeholder="email@igreja.com"
-            />
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail (Login) *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email_superintendente}
+                    onChange={(e) => setFormData({ ...formData, email_superintendente: e.target.value })}
+                    placeholder="email@igreja.com"
+                    required
+                  />
+                </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="telefone">Telefone</Label>
-            <Input
-              id="telefone"
-              value={formData.telefone}
-              onChange={(e) =>
-                setFormData({ ...formData, telefone: e.target.value })
-              }
-              placeholder="(00) 00000-0000"
-            />
-          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="senha">
+                    <Lock className="inline h-4 w-4 mr-1" />
+                    Senha de Acesso
+                  </Label>
+                  <Input
+                    id="senha"
+                    type="password"
+                    value={formData.senha}
+                    onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                    placeholder="Senha temporária"
+                  />
+                </div>
+              </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="telefone">
+                  <Phone className="inline h-4 w-4 mr-1" />
+                  WhatsApp
+                </Label>
+                <Input
+                  id="telefone"
+                  value={formData.telefone}
+                  onChange={(e) => setFormData({ ...formData, telefone: formatPhone(e.target.value) })}
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+
+              <Separator />
+
+              {/* Documento */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Possui CNPJ?</Label>
+                  <Switch
+                    checked={formData.possui_cnpj}
+                    onCheckedChange={(checked) => setFormData({ ...formData, possui_cnpj: checked, documento: "" })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="documento">
+                    {formData.possui_cnpj ? "CNPJ *" : "RG / CPF *"}
+                  </Label>
+                  <Input
+                    id="documento"
+                    value={formData.documento}
+                    onChange={(e) => handleDocumentoChange(e.target.value)}
+                    placeholder={formData.possui_cnpj ? "00.000.000/0000-00" : "000.000.000-00"}
+                    required
+                  />
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Endereço de Entrega */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-lg font-semibold">
+                  <MapPin className="h-5 w-5 text-primary" />
+                  Endereço de Entrega
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="cep">CEP * {loadingCep && "(Buscando...)"}</Label>
+                    <Input
+                      id="cep"
+                      value={formData.endereco_cep}
+                      onChange={(e) => handleCepChange(e.target.value)}
+                      placeholder="00000-000"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="numero">Número *</Label>
+                    <Input
+                      id="numero"
+                      value={formData.endereco_numero}
+                      onChange={(e) => setFormData({ ...formData, endereco_numero: e.target.value })}
+                      placeholder="123"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="complemento">Complemento</Label>
+                    <Input
+                      id="complemento"
+                      value={formData.endereco_complemento}
+                      onChange={(e) => setFormData({ ...formData, endereco_complemento: e.target.value })}
+                      placeholder="Apt 101"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="rua">Rua</Label>
+                  <Input
+                    id="rua"
+                    value={formData.endereco_rua}
+                    onChange={(e) => setFormData({ ...formData, endereco_rua: e.target.value })}
+                    placeholder="Rua / Avenida"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bairro">Bairro</Label>
+                    <Input
+                      id="bairro"
+                      value={formData.endereco_bairro}
+                      onChange={(e) => setFormData({ ...formData, endereco_bairro: e.target.value })}
+                      placeholder="Bairro"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cidade">Cidade</Label>
+                    <Input
+                      id="cidade"
+                      value={formData.endereco_cidade}
+                      onChange={(e) => setFormData({ ...formData, endereco_cidade: e.target.value })}
+                      placeholder="Cidade"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="estado">Estado (UF)</Label>
+                    <Select
+                      value={formData.endereco_estado}
+                      onValueChange={(value) => setFormData({ ...formData, endereco_estado: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="UF" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ESTADOS_BR.map((uf) => (
+                          <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+
+          <div className="flex justify-end gap-2 pt-4 border-t mt-4">
             <Button
               type="button"
               variant="outline"
