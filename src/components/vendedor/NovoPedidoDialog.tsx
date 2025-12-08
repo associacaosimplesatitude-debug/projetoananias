@@ -24,7 +24,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
@@ -34,14 +34,15 @@ import {
   ShoppingCart, 
   ChevronRight,
   CheckCircle,
-  Package,
-  SkipForward
+  SkipForward,
+  ExternalLink,
+  BookOpen
 } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
 interface Cliente {
   id: string;
@@ -78,6 +79,7 @@ interface NovoPedidoDialogProps {
   onSuccess: () => void;
   initialMode?: DialogMode;
   preSelectedCliente?: Cliente | null;
+  initialCart?: CartItem[];
 }
 
 const DIAS_AULA = [
@@ -98,7 +100,9 @@ export function NovoPedidoDialog({
   onSuccess,
   initialMode = "full",
   preSelectedCliente = null,
+  initialCart = [],
 }: NovoPedidoDialogProps) {
+  const navigate = useNavigate();
   const [step, setStep] = useState<"cliente" | "catalogo" | "ativacao" | "resumo">("cliente");
   const [clienteTab, setClienteTab] = useState<"existente" | "novo">("existente");
   const [searchTerm, setSearchTerm] = useState("");
@@ -125,6 +129,23 @@ export function NovoPedidoDialog({
   // Handle initial mode and pre-selected client
   useEffect(() => {
     if (open) {
+      // Load cart from sessionStorage if available
+      const savedCart = sessionStorage.getItem('vendedor-cart');
+      if (savedCart) {
+        try {
+          const parsedCart = JSON.parse(savedCart);
+          if (parsedCart.length > 0) {
+            setCart(parsedCart);
+          }
+        } catch (e) {
+          console.error('Error loading cart:', e);
+        }
+      }
+      
+      if (initialCart.length > 0) {
+        setCart(initialCart);
+      }
+      
       if (preSelectedCliente) {
         setSelectedCliente(preSelectedCliente);
         if (initialMode === "ativacao") {
@@ -142,22 +163,7 @@ export function NovoPedidoDialog({
         setStep("cliente");
       }
     }
-  }, [open, preSelectedCliente, initialMode]);
-
-  // Fetch magazines
-  const { data: revistas = [] } = useQuery({
-    queryKey: ["revistas-catalogo"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_revistas")
-        .select("*")
-        .gt("estoque", 0)
-        .order("faixa_etaria_alvo");
-
-      if (error) throw error;
-      return data as Revista[];
-    },
-  });
+  }, [open, preSelectedCliente, initialMode, initialCart]);
 
   const filteredClientes = clientes.filter(
     (c) =>
@@ -229,38 +235,6 @@ export function NovoPedidoDialog({
     }
   };
 
-  const addToCart = (revista: Revista) => {
-    const existing = cart.find((item) => item.revista.id === revista.id);
-    if (existing) {
-      setCart(
-        cart.map((item) =>
-          item.revista.id === revista.id
-            ? { ...item, quantidade: item.quantidade + 1 }
-            : item
-        )
-      );
-    } else {
-      setCart([...cart, { revista, quantidade: 1 }]);
-    }
-    toast.success(`${revista.titulo} adicionada ao carrinho`);
-  };
-
-  const removeFromCart = (revistaId: string) => {
-    setCart(cart.filter((item) => item.revista.id !== revistaId));
-  };
-
-  const updateQuantity = (revistaId: string, quantidade: number) => {
-    if (quantidade <= 0) {
-      removeFromCart(revistaId);
-      return;
-    }
-    setCart(
-      cart.map((item) =>
-        item.revista.id === revistaId ? { ...item, quantidade } : item
-      )
-    );
-  };
-
   const cartTotal = cart.reduce(
     (total, item) => total + (item.revista.preco_cheio || 0) * item.quantidade,
     0
@@ -273,6 +247,14 @@ export function NovoPedidoDialog({
     } else {
       setStep("resumo");
     }
+  };
+
+  const handleGoToCatalog = () => {
+    if (!selectedCliente) return;
+    
+    // Close dialog and navigate to catalog page
+    onOpenChange(false);
+    navigate(`/vendedor/catalogo?clienteId=${selectedCliente.id}&clienteNome=${encodeURIComponent(selectedCliente.nome_igreja)}`);
   };
 
   const handleProceedToActivation = () => {
@@ -327,6 +309,9 @@ export function NovoPedidoDialog({
         
         // TODO: Call bling-create-order edge function here
       }
+
+      // Clear cart from sessionStorage
+      sessionStorage.removeItem('vendedor-cart');
 
       toast.success(
         skippedCatalog && !selectedCliente.status_ativacao_ebd
@@ -547,119 +532,64 @@ export function NovoPedidoDialog({
             </Tabs>
           )}
 
-          {/* Step 2: Catalog */}
+          {/* Step 2: Catalog - Now just shows options */}
           {step === "catalogo" && (
-            <div className="flex gap-4 h-[400px]">
-              <div className="flex-1 overflow-hidden">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium">Catálogo de Revistas</h3>
-                  {!selectedCliente?.status_ativacao_ebd && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleSkipCatalog}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <SkipForward className="mr-1 h-4 w-4" />
-                      Pular Catálogo
-                    </Button>
-                  )}
-                </div>
-                <ScrollArea className="h-[350px]">
-                  <div className="grid grid-cols-2 gap-2 pr-4">
-                    {revistas.map((revista) => (
-                      <Card key={revista.id} className="p-3">
-                        <div className="flex gap-2">
-                          {revista.imagem_url ? (
-                            <img
-                              src={revista.imagem_url}
-                              alt={revista.titulo}
-                              className="w-12 h-16 object-cover rounded"
-                            />
-                          ) : (
-                            <div className="w-12 h-16 bg-muted rounded flex items-center justify-center">
-                              <Package className="h-6 w-6 text-muted-foreground" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{revista.titulo}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {revista.faixa_etaria_alvo}
-                            </p>
-                            <p className="text-sm font-bold text-primary">
-                              R$ {(revista.preco_cheio || 0).toFixed(2)}
-                            </p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="mt-1 w-full h-7 text-xs"
-                              onClick={() => addToCart(revista)}
-                            >
-                              Adicionar
-                            </Button>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </ScrollArea>
+            <div className="flex flex-col items-center justify-center py-8 space-y-6">
+              <div className="text-center space-y-2">
+                <BookOpen className="h-16 w-16 mx-auto text-muted-foreground" />
+                <h3 className="text-lg font-semibold">Selecionar Produtos</h3>
+                <p className="text-muted-foreground max-w-md">
+                  Acesse o catálogo completo para adicionar revistas ao pedido ou pule esta etapa para ativação direta.
+                </p>
               </div>
 
-              <div className="w-64 border-l pl-4">
-                <h3 className="font-medium mb-2 flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4" />
-                  Carrinho ({cart.length})
-                </h3>
-                <ScrollArea className="h-[280px]">
-                  <div className="space-y-2 pr-4">
-                    {cart.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        Carrinho vazio
-                      </p>
-                    ) : (
-                      cart.map((item) => (
-                        <div key={item.revista.id} className="p-2 border rounded text-sm">
-                          <p className="font-medium truncate">{item.revista.titulo}</p>
-                          <div className="flex items-center justify-between mt-1">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 w-6 p-0"
-                                onClick={() =>
-                                  updateQuantity(item.revista.id, item.quantidade - 1)
-                                }
-                              >
-                                -
-                              </Button>
-                              <span className="w-6 text-center">{item.quantidade}</span>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 w-6 p-0"
-                                onClick={() =>
-                                  updateQuantity(item.revista.id, item.quantidade + 1)
-                                }
-                              >
-                                +
-                              </Button>
-                            </div>
-                            <span className="font-medium">
-                              R$ {((item.revista.preco_cheio || 0) * item.quantidade).toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-                <div className="border-t pt-2 mt-2">
-                  <div className="flex justify-between font-bold">
-                    <span>Total:</span>
-                    <span>R$ {cartTotal.toFixed(2)}</span>
-                  </div>
-                </div>
+              {cart.length > 0 && (
+                <Card className="w-full max-w-md">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShoppingCart className="h-5 w-5 text-primary" />
+                        <span className="font-medium">{cart.length} {cart.length === 1 ? 'item' : 'itens'} no pedido</span>
+                      </div>
+                      <span className="font-bold text-primary">R$ {cartTotal.toFixed(2)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
+                <Button 
+                  size="lg" 
+                  className="flex-1"
+                  onClick={handleGoToCatalog}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Ir para o Catálogo
+                </Button>
+                {!selectedCliente?.status_ativacao_ebd && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="flex-1"
+                    onClick={handleSkipCatalog}
+                  >
+                    <SkipForward className="mr-2 h-4 w-4" />
+                    Pular Catálogo
+                  </Button>
+                )}
               </div>
+
+              {cart.length > 0 && (
+                <Button
+                  variant="default"
+                  size="lg"
+                  onClick={handleProceedToActivation}
+                  className="w-full max-w-md"
+                >
+                  Continuar com {cart.length} {cart.length === 1 ? 'item' : 'itens'}
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              )}
             </div>
           )}
 
@@ -805,12 +735,11 @@ export function NovoPedidoDialog({
             Cancelar
           </Button>
           <div className="flex gap-2">
-            {step !== "cliente" && (
+            {step !== "cliente" && step !== "catalogo" && (
               <Button
                 variant="outline"
                 onClick={() => {
-                  if (step === "catalogo") setStep("cliente");
-                  else if (step === "ativacao") {
+                  if (step === "ativacao") {
                     if (skippedCatalog && initialMode === "ativacao") {
                       handleClose();
                     } else {
@@ -828,11 +757,6 @@ export function NovoPedidoDialog({
                 }}
               >
                 Voltar
-              </Button>
-            )}
-            {step === "catalogo" && (
-              <Button onClick={handleProceedToActivation}>
-                {selectedCliente?.status_ativacao_ebd ? "Ver Resumo" : "Próximo: Ativação"}
               </Button>
             )}
             {step === "ativacao" && (

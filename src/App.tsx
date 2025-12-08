@@ -87,6 +87,7 @@ import ProfessorRelatorios from "./pages/ebd/professor/ProfessorRelatorios";
 
 // Vendedor Pages
 import VendedorDashboard from "./pages/vendedor/VendedorDashboard";
+import VendedorCatalogo from "./pages/vendedor/VendedorCatalogo";
 
 const queryClient = new QueryClient();
 
@@ -649,6 +650,10 @@ const App = () => (
                     <Route
                       path="/vendedor"
                       element={<VendedorDashboard />}
+                    />
+                    <Route
+                      path="/vendedor/catalogo"
+                      element={<VendedorCatalogo />}
                     />
                     
                     <Route path="*" element={<NotFound />} />
