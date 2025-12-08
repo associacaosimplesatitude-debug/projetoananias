@@ -209,7 +209,7 @@ export default function VendedorDashboard() {
       if (error) throw error;
 
       toast.success("Cliente excluído com sucesso!");
-      queryClient.invalidateQueries({ queryKey: ["vendedor-clientes"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedor-clientes", vendedor?.id] });
       setClienteParaExcluir(null);
     } catch (error) {
       console.error("Error deleting cliente:", error);

@@ -27,6 +27,7 @@ const CATEGORIAS = [
 
 const FAIXAS_ETARIAS = [
   { value: "all", label: "Todas as Faixas" },
+  { value: "Geral", label: "Geral" },
   { value: "Jovens e Adultos", label: "Jovens e Adultos" },
   { value: "Maternal: 2 a 3 Anos", label: "Maternal: 2 a 3 Anos" },
   { value: "Jardim de Infância: 4 a 6 Anos", label: "Jardim de Infância: 4 a 6 Anos" },
