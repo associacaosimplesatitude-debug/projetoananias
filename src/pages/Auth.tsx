@@ -51,6 +51,19 @@ export default function Auth() {
         return;
       }
 
+      // Verificar se é superintendente (cadastrado via vendedor em ebd_clientes)
+      const { data: superintendenteData } = await supabase
+        .from('ebd_clientes')
+        .select('id, status_ativacao_ebd')
+        .eq('superintendente_user_id', user.id)
+        .eq('status_ativacao_ebd', true)
+        .maybeSingle();
+
+      if (superintendenteData) {
+        navigate('/ebd/dashboard');
+        return;
+      }
+
       // Buscar role do usuário
       const { data: roleData } = await supabase
         .from('user_roles')
