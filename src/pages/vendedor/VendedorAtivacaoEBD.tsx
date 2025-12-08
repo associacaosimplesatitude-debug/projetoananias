@@ -45,6 +45,7 @@ interface Cliente {
   email_superintendente: string | null;
   telefone: string | null;
   status_ativacao_ebd: boolean;
+  senha_temporaria: string | null;
 }
 
 interface Revista {
@@ -84,7 +85,7 @@ export default function VendedorAtivacaoEBD() {
       if (!clienteId) return null;
       const { data, error } = await supabase
         .from("ebd_clientes")
-        .select("*")
+        .select("id, cnpj, nome_igreja, nome_superintendente, email_superintendente, telefone, status_ativacao_ebd, senha_temporaria")
         .eq("id", clienteId)
         .single();
       
@@ -155,7 +156,8 @@ export default function VendedorAtivacaoEBD() {
       const dataProximaCompra = addWeeks(dataInicio, 13);
 
       // 1. Create the superintendent user via edge function
-      const tempPassword = Math.random().toString(36).slice(-8) + "A1!";
+      // Use existing password from ebd_clientes or generate a new one
+      const tempPassword = cliente?.senha_temporaria || (Math.random().toString(36).slice(-8) + "A1!");
       
       try {
         const { data: userData, error: userError } = await supabase.functions.invoke(
@@ -174,7 +176,7 @@ export default function VendedorAtivacaoEBD() {
           // Continue anyway, might already exist
         }
 
-        // 2. Update the cliente record
+        // 2. Update the cliente record with the generated password
         const { error: updateError } = await supabase
           .from("ebd_clientes")
           .update({
@@ -184,6 +186,7 @@ export default function VendedorAtivacaoEBD() {
             data_proxima_compra: format(dataProximaCompra, "yyyy-MM-dd"),
             status_ativacao_ebd: true,
             superintendente_user_id: userData?.userId || null,
+            senha_temporaria: tempPassword, // Save the generated password
           })
           .eq("id", clienteId);
 
