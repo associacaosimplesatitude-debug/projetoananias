@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { 
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { 
   Users, 
   ShoppingCart, 
   AlertTriangle, 
@@ -17,12 +25,14 @@ import {
   DollarSign,
   Target,
   UserPlus,
-  Play
+  Play,
+  MapPin
 } from "lucide-react";
 import { format, differenceInDays, isThisMonth, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
-import { NovoPedidoDialog, DialogMode } from "@/components/vendedor/NovoPedidoDialog";
+import { useNavigate } from "react-router-dom";
+import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 
 interface Vendedor {
   id: string;
@@ -36,7 +46,9 @@ interface Vendedor {
 interface Cliente {
   id: string;
   cnpj: string;
+  cpf: string | null;
   nome_igreja: string;
+  nome_responsavel: string | null;
   nome_superintendente: string | null;
   email_superintendente: string | null;
   telefone: string | null;
@@ -47,13 +59,15 @@ interface Cliente {
   ultimo_login: string | null;
   data_aniversario_pastor: string | null;
   data_aniversario_superintendente: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  tipo_cliente: string | null;
 }
 
 export default function VendedorDashboard() {
   const { user, loading: authLoading } = useAuth();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<DialogMode>("full");
-  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const navigate = useNavigate();
+  const [cadastrarClienteOpen, setCadastrarClienteOpen] = useState(false);
 
   const { data: vendedor, isLoading: vendedorLoading, refetch } = useQuery({
     queryKey: ["vendedor", user?.email],
@@ -89,7 +103,7 @@ export default function VendedorDashboard() {
     enabled: !!vendedor?.id,
   });
 
-  // Fetch sales data for the current month (simulated with pedidos)
+  // Fetch sales data for the current month
   const { data: vendasMes = 0 } = useQuery({
     queryKey: ["vendedor-vendas-mes", vendedor?.id],
     queryFn: async () => {
@@ -98,7 +112,6 @@ export default function VendedorDashboard() {
       const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd");
       const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd");
 
-      // For now, calculate based on activated clients this month (approximate)
       const { data, error } = await supabase
         .from("ebd_clientes")
         .select("id")
@@ -108,7 +121,6 @@ export default function VendedorDashboard() {
         .lte("data_inicio_ebd", fimMes);
 
       if (error) return 0;
-      // Estimate R$500 per activation for now
       return (data?.length || 0) * 500;
     },
     enabled: !!vendedor?.id,
@@ -143,11 +155,31 @@ export default function VendedorDashboard() {
     return diasSemLogin > 30;
   });
 
-  // Open dialog with specific mode
-  const openDialog = (mode: DialogMode, cliente: Cliente | null = null) => {
-    setDialogMode(mode);
-    setSelectedCliente(cliente);
-    setDialogOpen(true);
+  // Navigate to catalog page for order
+  const handleFazerPedido = (cliente: Cliente) => {
+    navigate(`/vendedor/catalogo?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
+  };
+
+  // Navigate to activation page
+  const handleAtivarPainel = (cliente: Cliente) => {
+    navigate(`/vendedor/ativacao?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
+  };
+
+  const formatDocumento = (cliente: Cliente) => {
+    const doc = cliente.cnpj || cliente.cpf || "";
+    if (doc.length === 14) {
+      return doc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    } else if (doc.length === 11) {
+      return doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    }
+    return doc;
+  };
+
+  const getLocalizacao = (cliente: Cliente) => {
+    if (cliente.endereco_cidade && cliente.endereco_estado) {
+      return `${cliente.endereco_cidade}/${cliente.endereco_estado}`;
+    }
+    return "-";
   };
 
   // Calculate KPIs
@@ -183,6 +215,7 @@ export default function VendedorDashboard() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Painel do Vendedor</h1>
@@ -190,23 +223,13 @@ export default function VendedorDashboard() {
             Bem-vindo, {vendedor?.nome}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button 
-            variant="outline"
-            onClick={() => openDialog("cadastro")}
-          >
-            <UserPlus className="mr-2 h-4 w-4" />
-            Cadastrar Novo Cliente
-          </Button>
-          <Button 
-            size="lg" 
-            className="bg-primary hover:bg-primary/90"
-            onClick={() => openDialog("full")}
-          >
-            <ShoppingCart className="mr-2 h-5 w-5" />
-            Novo Pedido / Ativação EBD
-          </Button>
-        </div>
+        <Button 
+          size="lg"
+          onClick={() => setCadastrarClienteOpen(true)}
+        >
+          <UserPlus className="mr-2 h-5 w-5" />
+          Cadastrar Novo Cliente
+        </Button>
       </div>
 
       {/* Dashboard Cards - Row 1: Client Stats */}
@@ -308,24 +331,106 @@ export default function VendedorDashboard() {
         </Card>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="pendentes" className="space-y-4">
+      {/* Tabs with Client Lists */}
+      <Tabs defaultValue="clientes" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="clientes">
+            Clientes ({clientes.length})
+          </TabsTrigger>
           <TabsTrigger value="pendentes">
-            Pendentes de Ativação ({clientesPendentes.length})
+            Pendentes ({clientesPendentes.length})
           </TabsTrigger>
           <TabsTrigger value="proxima-compra">
             Próximas Compras ({clientesProximaCompra.length})
-          </TabsTrigger>
-          <TabsTrigger value="todos">
-            Todos os Clientes ({clientes.length})
           </TabsTrigger>
           <TabsTrigger value="risco">
             Em Risco ({clientesRisco.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pendentes" className="space-y-4">
+        {/* Tab: Todos os Clientes */}
+        <TabsContent value="clientes">
+          <Card>
+            <CardHeader>
+              <CardTitle>Todos os Clientes</CardTitle>
+              <CardDescription>
+                Lista completa de clientes na sua carteira
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {clientes.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  Nenhum cliente cadastrado
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Responsável</TableHead>
+                      <TableHead>Localização</TableHead>
+                      <TableHead>CNPJ/CPF</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientes.map((cliente) => (
+                      <TableRow key={cliente.id}>
+                        <TableCell className="font-medium">{cliente.nome_igreja}</TableCell>
+                        <TableCell>{cliente.nome_responsavel || cliente.nome_superintendente || "-"}</TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            {getLocalizacao(cliente)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{formatDocumento(cliente)}</TableCell>
+                        <TableCell>
+                          {cliente.status_ativacao_ebd ? (
+                            <Badge variant="default" className="bg-green-500">
+                              <CheckCircle className="mr-1 h-3 w-3" />
+                              Ativo
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">
+                              <XCircle className="mr-1 h-3 w-3" />
+                              Pendente
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleFazerPedido(cliente)}
+                            >
+                              <ShoppingCart className="mr-1 h-4 w-4" />
+                              FAZER PEDIDO
+                            </Button>
+                            {!cliente.status_ativacao_ebd && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleAtivarPainel(cliente)}
+                              >
+                                <Play className="mr-1 h-4 w-4" />
+                                ATIVAR PAINEL EBD
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Pendentes de Ativação */}
+        <TabsContent value="pendentes">
           <Card>
             <CardHeader>
               <CardTitle>Clientes Pendentes de Ativação</CardTitle>
@@ -348,7 +453,7 @@ export default function VendedorDashboard() {
                       <div className="space-y-1">
                         <p className="font-medium">{cliente.nome_igreja}</p>
                         <p className="text-sm text-muted-foreground">
-                          CNPJ: {cliente.cnpj}
+                          {cliente.nome_responsavel || cliente.nome_superintendente || "Sem responsável"}
                         </p>
                         {cliente.email_superintendente && (
                           <p className="text-sm text-muted-foreground">
@@ -360,17 +465,17 @@ export default function VendedorDashboard() {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => openDialog("pedido", cliente)}
+                          onClick={() => handleFazerPedido(cliente)}
                         >
                           <ShoppingCart className="mr-1 h-4 w-4" />
-                          Fazer Pedido
+                          FAZER PEDIDO
                         </Button>
                         <Button 
                           size="sm"
-                          onClick={() => openDialog("ativacao", cliente)}
+                          onClick={() => handleAtivarPainel(cliente)}
                         >
                           <Play className="mr-1 h-4 w-4" />
-                          Ativar Painel EBD
+                          ATIVAR PAINEL EBD
                         </Button>
                       </div>
                     </div>
@@ -381,7 +486,8 @@ export default function VendedorDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="proxima-compra" className="space-y-4">
+        {/* Tab: Próximas Compras */}
+        <TabsContent value="proxima-compra">
           <Card>
             <CardHeader>
               <CardTitle>Próximas Compras Previstas</CardTitle>
@@ -437,10 +543,10 @@ export default function VendedorDashboard() {
                           </div>
                           <Button 
                             size="sm"
-                            onClick={() => openDialog("pedido", cliente)}
+                            onClick={() => handleFazerPedido(cliente)}
                           >
                             <ShoppingCart className="mr-1 h-4 w-4" />
-                            Fazer Pedido
+                            FAZER PEDIDO
                           </Button>
                         </div>
                       </div>
@@ -452,78 +558,8 @@ export default function VendedorDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="todos" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Todos os Clientes</CardTitle>
-              <CardDescription>
-                Lista completa de clientes na sua carteira
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {clientes.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  Nenhum cliente cadastrado
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {clientes.map((cliente) => (
-                    <div
-                      key={cliente.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{cliente.nome_igreja}</p>
-                          {cliente.status_ativacao_ebd ? (
-                            <Badge variant="default" className="bg-green-500">
-                              <CheckCircle className="mr-1 h-3 w-3" />
-                              Ativo
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">
-                              <XCircle className="mr-1 h-3 w-3" />
-                              Pendente
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          CNPJ: {cliente.cnpj}
-                        </p>
-                        {cliente.dia_aula && (
-                          <p className="text-sm text-muted-foreground">
-                            Aula: {cliente.dia_aula}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openDialog("pedido", cliente)}
-                        >
-                          <ShoppingCart className="mr-1 h-4 w-4" />
-                          Fazer Pedido
-                        </Button>
-                        {!cliente.status_ativacao_ebd && (
-                          <Button
-                            size="sm"
-                            onClick={() => openDialog("ativacao", cliente)}
-                          >
-                            <Play className="mr-1 h-4 w-4" />
-                            Ativar
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="risco" className="space-y-4">
+        {/* Tab: Em Risco */}
+        <TabsContent value="risco">
           <Card>
             <CardHeader>
               <CardTitle>Clientes em Risco</CardTitle>
@@ -564,10 +600,10 @@ export default function VendedorDashboard() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => openDialog("pedido", cliente)}
+                            onClick={() => handleFazerPedido(cliente)}
                           >
                             <ShoppingCart className="mr-1 h-4 w-4" />
-                            Fazer Pedido
+                            FAZER PEDIDO
                           </Button>
                         </div>
                       </div>
@@ -580,15 +616,12 @@ export default function VendedorDashboard() {
         </TabsContent>
       </Tabs>
 
-      {/* Dialog */}
-      <NovoPedidoDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+      {/* Cadastrar Cliente Dialog */}
+      <CadastrarClienteDialog
+        open={cadastrarClienteOpen}
+        onOpenChange={setCadastrarClienteOpen}
         vendedorId={vendedor?.id || ""}
-        clientes={clientes}
         onSuccess={fetchVendedorData}
-        initialMode={dialogMode}
-        preSelectedCliente={selectedCliente}
       />
     </div>
   );

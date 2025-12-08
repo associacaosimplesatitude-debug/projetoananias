@@ -986,6 +986,7 @@ export type Database = {
         Row: {
           bling_cliente_id: number | null
           cnpj: string
+          cpf: string | null
           created_at: string
           data_aniversario_pastor: string | null
           data_aniversario_superintendente: string | null
@@ -993,12 +994,24 @@ export type Database = {
           data_proxima_compra: string | null
           dia_aula: string | null
           email_superintendente: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_complemento: string | null
+          endereco_estado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
           id: string
           nome_igreja: string
+          nome_responsavel: string | null
           nome_superintendente: string | null
+          possui_cnpj: boolean | null
+          rg: string | null
+          senha_temporaria: string | null
           status_ativacao_ebd: boolean
           superintendente_user_id: string | null
           telefone: string | null
+          tipo_cliente: string | null
           ultimo_login: string | null
           updated_at: string
           vendedor_id: string | null
@@ -1006,6 +1019,7 @@ export type Database = {
         Insert: {
           bling_cliente_id?: number | null
           cnpj: string
+          cpf?: string | null
           created_at?: string
           data_aniversario_pastor?: string | null
           data_aniversario_superintendente?: string | null
@@ -1013,12 +1027,24 @@ export type Database = {
           data_proxima_compra?: string | null
           dia_aula?: string | null
           email_superintendente?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
           id?: string
           nome_igreja: string
+          nome_responsavel?: string | null
           nome_superintendente?: string | null
+          possui_cnpj?: boolean | null
+          rg?: string | null
+          senha_temporaria?: string | null
           status_ativacao_ebd?: boolean
           superintendente_user_id?: string | null
           telefone?: string | null
+          tipo_cliente?: string | null
           ultimo_login?: string | null
           updated_at?: string
           vendedor_id?: string | null
@@ -1026,6 +1052,7 @@ export type Database = {
         Update: {
           bling_cliente_id?: number | null
           cnpj?: string
+          cpf?: string | null
           created_at?: string
           data_aniversario_pastor?: string | null
           data_aniversario_superintendente?: string | null
@@ -1033,12 +1060,24 @@ export type Database = {
           data_proxima_compra?: string | null
           dia_aula?: string | null
           email_superintendente?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
           id?: string
           nome_igreja?: string
+          nome_responsavel?: string | null
           nome_superintendente?: string | null
+          possui_cnpj?: boolean | null
+          rg?: string | null
+          senha_temporaria?: string | null
           status_ativacao_ebd?: boolean
           superintendente_user_id?: string | null
           telefone?: string | null
+          tipo_cliente?: string | null
           ultimo_login?: string | null
           updated_at?: string
           vendedor_id?: string | null
