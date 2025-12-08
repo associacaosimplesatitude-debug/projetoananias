@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   Users, 
   ShoppingCart, 
@@ -26,13 +36,16 @@ import {
   Target,
   UserPlus,
   Play,
-  MapPin
+  MapPin,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { format, differenceInDays, isThisMonth, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
+import { toast } from "sonner";
 
 interface Vendedor {
   id: string;
@@ -62,12 +75,23 @@ interface Cliente {
   endereco_cidade: string | null;
   endereco_estado: string | null;
   tipo_cliente: string | null;
+  possui_cnpj: boolean | null;
+  endereco_cep: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_complemento: string | null;
+  endereco_bairro: string | null;
+  senha_temporaria: string | null;
 }
 
 export default function VendedorDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [cadastrarClienteOpen, setCadastrarClienteOpen] = useState(false);
+  const [clienteParaEditar, setClienteParaEditar] = useState<Cliente | null>(null);
+  const [clienteParaExcluir, setClienteParaExcluir] = useState<Cliente | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   const { data: vendedor, isLoading: vendedorLoading, refetch } = useQuery({
     queryKey: ["vendedor", user?.email],
@@ -163,6 +187,36 @@ export default function VendedorDashboard() {
   // Navigate to activation page
   const handleAtivarPainel = (cliente: Cliente) => {
     navigate(`/vendedor/ativacao?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
+  };
+
+  // Edit client
+  const handleEditarCliente = (cliente: Cliente) => {
+    setClienteParaEditar(cliente);
+    setCadastrarClienteOpen(true);
+  };
+
+  // Delete client
+  const handleExcluirCliente = async () => {
+    if (!clienteParaExcluir) return;
+    
+    setExcluindo(true);
+    try {
+      const { error } = await supabase
+        .from("ebd_clientes")
+        .delete()
+        .eq("id", clienteParaExcluir.id);
+
+      if (error) throw error;
+
+      toast.success("Cliente excluído com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["vendedor-clientes"] });
+      setClienteParaExcluir(null);
+    } catch (error) {
+      console.error("Error deleting cliente:", error);
+      toast.error("Erro ao excluir cliente");
+    } finally {
+      setExcluindo(false);
+    }
   };
 
   const formatDocumento = (cliente: Cliente) => {
@@ -402,6 +456,23 @@ export default function VendedorDashboard() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditarCliente(cliente)}
+                              title="Editar cliente"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setClienteParaExcluir(cliente)}
+                              title="Excluir cliente"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleFazerPedido(cliente)}
@@ -616,13 +687,40 @@ export default function VendedorDashboard() {
         </TabsContent>
       </Tabs>
 
-      {/* Cadastrar Cliente Dialog */}
+      {/* Cadastrar/Editar Cliente Dialog */}
       <CadastrarClienteDialog
         open={cadastrarClienteOpen}
-        onOpenChange={setCadastrarClienteOpen}
+        onOpenChange={(open) => {
+          setCadastrarClienteOpen(open);
+          if (!open) setClienteParaEditar(null);
+        }}
         vendedorId={vendedor?.id || ""}
         onSuccess={fetchVendedorData}
+        clienteParaEditar={clienteParaEditar}
       />
+
+      {/* Confirmação de Exclusão */}
+      <AlertDialog open={!!clienteParaExcluir} onOpenChange={(open) => !open && setClienteParaExcluir(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Cliente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o cliente <strong>{clienteParaExcluir?.nome_igreja}</strong>?
+              Esta ação é irreversível e todos os dados associados serão removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={excluindo}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleExcluirCliente}
+              disabled={excluindo}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {excluindo ? "Excluindo..." : "Excluir Cliente"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
