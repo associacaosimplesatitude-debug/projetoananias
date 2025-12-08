@@ -137,7 +137,7 @@ export default function VendedorCatalogo() {
     setCart({ ...cart, [revistaId]: quantidade });
   };
 
-  const cartItemCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+  const cartItemCount = Object.values(cart).filter(qty => qty > 0).reduce((sum, qty) => sum + qty, 0);
 
   const handleVoltar = () => {
     navigate('/vendedor');
