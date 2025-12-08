@@ -549,13 +549,25 @@ export default function Checkout() {
         return;
       }
 
-      const { data: churchData } = await supabase
-        .from('churches')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
+      // Para pedidos de vendedor, usar o ID do cliente do ebd_clientes
+      // Para pedidos normais, buscar o church do usuário logado
+      let targetChurchId: string | null = null;
+      
+      if (vendedorClienteId) {
+        targetChurchId = vendedorClienteId;
+      } else {
+        const { data: churchData } = await supabase
+          .from('churches')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (churchData) {
+          targetChurchId = churchData.id;
+        }
+      }
 
-      if (!churchData) {
+      if (!targetChurchId) {
         toast({
           title: 'Erro',
           description: 'Igreja não encontrada',
@@ -604,7 +616,7 @@ export default function Checkout() {
         const { data: pedido, error: pedidoError } = await supabase
           .from('ebd_pedidos')
           .insert({
-            church_id: churchData.id,
+            church_id: targetChurchId,
             mercadopago_payment_id: pixData.id,
             status: 'pending',
             payment_status: 'pending',
@@ -694,13 +706,24 @@ export default function Checkout() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: churchData } = await supabase
-        .from('churches')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
+      // Para pedidos de vendedor, usar o ID do cliente do ebd_clientes
+      let targetChurchId: string | null = null;
+      
+      if (vendedorClienteId) {
+        targetChurchId = vendedorClienteId;
+      } else {
+        const { data: churchData } = await supabase
+          .from('churches')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (churchData) {
+          targetChurchId = churchData.id;
+        }
+      }
 
-      if (!churchData) return;
+      if (!targetChurchId) return;
 
       const [expMonth, expYear] = cardExpiry.split('/');
 
@@ -751,7 +774,7 @@ export default function Checkout() {
         const { data: pedido, error: pedidoError } = await supabase
           .from('ebd_pedidos')
           .insert({
-            church_id: churchData.id,
+            church_id: targetChurchId,
             mercadopago_payment_id: cardData.id,
             status: 'PAGO',
             payment_status: 'approved',
@@ -802,7 +825,7 @@ export default function Checkout() {
 
           // Ativar revistas compradas
           const purchases = revistaIds.map(revistaId => ({
-            church_id: churchData.id,
+            church_id: targetChurchId,
             revista_id: revistaId,
             preco_pago: ((revistas?.find(r => r.id === revistaId)?.preco_cheio || 0) * 0.7) * cart[revistaId],
           }));
@@ -849,13 +872,24 @@ export default function Checkout() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: churchData } = await supabase
-        .from('churches')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
+      // Para pedidos de vendedor, usar o ID do cliente do ebd_clientes
+      let targetChurchId: string | null = null;
+      
+      if (vendedorClienteId) {
+        targetChurchId = vendedorClienteId;
+      } else {
+        const { data: churchData } = await supabase
+          .from('churches')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (churchData) {
+          targetChurchId = churchData.id;
+        }
+      }
 
-      if (!churchData) return;
+      if (!targetChurchId) return;
 
       const { data: boletoData, error: boletoError } = await supabase.functions.invoke(
         'process-transparent-payment',
@@ -904,7 +938,7 @@ export default function Checkout() {
         const { data: pedido, error: pedidoError } = await supabase
           .from('ebd_pedidos')
           .insert({
-            church_id: churchData.id,
+            church_id: targetChurchId,
             mercadopago_payment_id: boletoData.id,
             status: 'pending',
             payment_status: 'pending',
