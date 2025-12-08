@@ -10,19 +10,19 @@ import {
   Users, 
   ShoppingCart, 
   AlertTriangle, 
-  Calendar, 
   Gift,
   Clock,
   CheckCircle,
   XCircle,
   DollarSign,
-  Target
+  Target,
+  UserPlus,
+  Play
 } from "lucide-react";
 import { format, differenceInDays, isThisMonth, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
-import { NovoPedidoDialog } from "@/components/vendedor/NovoPedidoDialog";
-import { AtivarClienteDialog } from "@/components/vendedor/AtivarClienteDialog";
+import { NovoPedidoDialog, DialogMode } from "@/components/vendedor/NovoPedidoDialog";
 
 interface Vendedor {
   id: string;
@@ -51,8 +51,8 @@ interface Cliente {
 
 export default function VendedorDashboard() {
   const { user, loading: authLoading } = useAuth();
-  const [novoPedidoDialogOpen, setNovoPedidoDialogOpen] = useState(false);
-  const [ativarDialogOpen, setAtivarDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<DialogMode>("full");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
   const { data: vendedor, isLoading: vendedorLoading, refetch } = useQuery({
@@ -143,9 +143,11 @@ export default function VendedorDashboard() {
     return diasSemLogin > 30;
   });
 
-  const handleAtivarCliente = (cliente: Cliente) => {
+  // Open dialog with specific mode
+  const openDialog = (mode: DialogMode, cliente: Cliente | null = null) => {
+    setDialogMode(mode);
     setSelectedCliente(cliente);
-    setAtivarDialogOpen(true);
+    setDialogOpen(true);
   };
 
   // Calculate KPIs
@@ -188,14 +190,23 @@ export default function VendedorDashboard() {
             Bem-vindo, {vendedor?.nome}
           </p>
         </div>
-        <Button 
-          size="lg" 
-          className="bg-primary hover:bg-primary/90"
-          onClick={() => setNovoPedidoDialogOpen(true)}
-        >
-          <ShoppingCart className="mr-2 h-5 w-5" />
-          Novo Pedido / Ativação EBD
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => openDialog("cadastro")}
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Cadastrar Novo Cliente
+          </Button>
+          <Button 
+            size="lg" 
+            className="bg-primary hover:bg-primary/90"
+            onClick={() => openDialog("full")}
+          >
+            <ShoppingCart className="mr-2 h-5 w-5" />
+            Novo Pedido / Ativação EBD
+          </Button>
+        </div>
       </div>
 
       {/* Dashboard Cards - Row 1: Client Stats */}
@@ -345,9 +356,23 @@ export default function VendedorDashboard() {
                           </p>
                         )}
                       </div>
-                      <Button onClick={() => handleAtivarCliente(cliente)}>
-                        Ativar Painel EBD
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => openDialog("pedido", cliente)}
+                        >
+                          <ShoppingCart className="mr-1 h-4 w-4" />
+                          Fazer Pedido
+                        </Button>
+                        <Button 
+                          size="sm"
+                          onClick={() => openDialog("ativacao", cliente)}
+                        >
+                          <Play className="mr-1 h-4 w-4" />
+                          Ativar Painel EBD
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -395,19 +420,28 @@ export default function VendedorDashboard() {
                             </p>
                           )}
                         </div>
-                        <div className="text-right space-y-1">
-                          <Badge
-                            variant={isUrgent ? "destructive" : isWarning ? "secondary" : "outline"}
+                        <div className="flex items-center gap-3">
+                          <div className="text-right space-y-1">
+                            <Badge
+                              variant={isUrgent ? "destructive" : isWarning ? "secondary" : "outline"}
+                            >
+                              {diasRestantes < 0
+                                ? `${Math.abs(diasRestantes)} dias atrasado`
+                                : diasRestantes === 0
+                                ? "Hoje!"
+                                : `Em ${diasRestantes} dias`}
+                            </Badge>
+                            <p className="text-sm font-medium">
+                              {format(new Date(cliente.data_proxima_compra!), "dd/MM/yyyy", { locale: ptBR })}
+                            </p>
+                          </div>
+                          <Button 
+                            size="sm"
+                            onClick={() => openDialog("pedido", cliente)}
                           >
-                            {diasRestantes < 0
-                              ? `${Math.abs(diasRestantes)} dias atrasado`
-                              : diasRestantes === 0
-                              ? "Hoje!"
-                              : `Em ${diasRestantes} dias`}
-                          </Badge>
-                          <p className="text-sm font-medium">
-                            {format(new Date(cliente.data_proxima_compra!), "dd/MM/yyyy", { locale: ptBR })}
-                          </p>
+                            <ShoppingCart className="mr-1 h-4 w-4" />
+                            Fazer Pedido
+                          </Button>
                         </div>
                       </div>
                     );
@@ -462,14 +496,25 @@ export default function VendedorDashboard() {
                           </p>
                         )}
                       </div>
-                      {!cliente.status_ativacao_ebd && (
+                      <div className="flex gap-2">
                         <Button
                           variant="outline"
-                          onClick={() => handleAtivarCliente(cliente)}
+                          size="sm"
+                          onClick={() => openDialog("pedido", cliente)}
                         >
-                          Ativar
+                          <ShoppingCart className="mr-1 h-4 w-4" />
+                          Fazer Pedido
                         </Button>
-                      )}
+                        {!cliente.status_ativacao_ebd && (
+                          <Button
+                            size="sm"
+                            onClick={() => openDialog("ativacao", cliente)}
+                          >
+                            <Play className="mr-1 h-4 w-4" />
+                            Ativar
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -509,13 +554,21 @@ export default function VendedorDashboard() {
                             {cliente.email_superintendente}
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="flex items-center gap-3">
                           <Badge variant="destructive">
                             <AlertTriangle className="mr-1 h-3 w-3" />
                             {diasSemLogin
                               ? `${diasSemLogin} dias sem login`
                               : "Nunca logou"}
                           </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDialog("pedido", cliente)}
+                          >
+                            <ShoppingCart className="mr-1 h-4 w-4" />
+                            Fazer Pedido
+                          </Button>
                         </div>
                       </div>
                     );
@@ -527,23 +580,16 @@ export default function VendedorDashboard() {
         </TabsContent>
       </Tabs>
 
-      {/* Dialogs */}
+      {/* Dialog */}
       <NovoPedidoDialog
-        open={novoPedidoDialogOpen}
-        onOpenChange={setNovoPedidoDialogOpen}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
         vendedorId={vendedor?.id || ""}
         clientes={clientes}
         onSuccess={fetchVendedorData}
+        initialMode={dialogMode}
+        preSelectedCliente={selectedCliente}
       />
-
-      {selectedCliente && (
-        <AtivarClienteDialog
-          open={ativarDialogOpen}
-          onOpenChange={setAtivarDialogOpen}
-          cliente={selectedCliente}
-          onSuccess={fetchVendedorData}
-        />
-      )}
     </div>
   );
 }

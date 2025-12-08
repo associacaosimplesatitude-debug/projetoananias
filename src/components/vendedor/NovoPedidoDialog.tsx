@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -34,7 +34,8 @@ import {
   ShoppingCart, 
   ChevronRight,
   CheckCircle,
-  Package
+  Package,
+  SkipForward
 } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -67,12 +68,16 @@ interface CartItem {
   quantidade: number;
 }
 
+export type DialogMode = "full" | "pedido" | "ativacao" | "cadastro";
+
 interface NovoPedidoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   vendedorId: string;
   clientes: Cliente[];
   onSuccess: () => void;
+  initialMode?: DialogMode;
+  preSelectedCliente?: Cliente | null;
 }
 
 const DIAS_AULA = [
@@ -91,6 +96,8 @@ export function NovoPedidoDialog({
   vendedorId,
   clientes,
   onSuccess,
+  initialMode = "full",
+  preSelectedCliente = null,
 }: NovoPedidoDialogProps) {
   const [step, setStep] = useState<"cliente" | "catalogo" | "ativacao" | "resumo">("cliente");
   const [clienteTab, setClienteTab] = useState<"existente" | "novo">("existente");
@@ -98,6 +105,7 @@ export function NovoPedidoDialog({
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [skippedCatalog, setSkippedCatalog] = useState(false);
 
   // New client form
   const [novoCliente, setNovoCliente] = useState({
@@ -113,6 +121,28 @@ export function NovoPedidoDialog({
     dia_aula: "Domingo",
     data_inicio_ebd: undefined as Date | undefined,
   });
+
+  // Handle initial mode and pre-selected client
+  useEffect(() => {
+    if (open) {
+      if (preSelectedCliente) {
+        setSelectedCliente(preSelectedCliente);
+        if (initialMode === "ativacao") {
+          setSkippedCatalog(true);
+          setStep("ativacao");
+        } else if (initialMode === "pedido") {
+          setStep("catalogo");
+        } else {
+          setStep("catalogo");
+        }
+      } else if (initialMode === "cadastro") {
+        setClienteTab("novo");
+        setStep("cliente");
+      } else {
+        setStep("cliente");
+      }
+    }
+  }, [open, preSelectedCliente, initialMode]);
 
   // Fetch magazines
   const { data: revistas = [] } = useQuery({
@@ -150,7 +180,7 @@ export function NovoPedidoDialog({
     setStep("catalogo");
   };
 
-  const handleCreateNovoCliente = async () => {
+  const handleCreateNovoCliente = async (continueFlow: boolean = true) => {
     if (!novoCliente.nome_igreja || !novoCliente.cnpj) {
       toast.error("Nome da Igreja e CNPJ são obrigatórios");
       return;
@@ -181,9 +211,16 @@ export function NovoPedidoDialog({
         return;
       }
 
-      setSelectedCliente(data as Cliente);
-      setStep("catalogo");
       toast.success("Cliente cadastrado!");
+      
+      if (continueFlow) {
+        setSelectedCliente(data as Cliente);
+        setStep("catalogo");
+      } else {
+        // Just close and refresh - cadastro only mode
+        handleClose();
+        onSuccess();
+      }
     } catch (error) {
       console.error("Error creating cliente:", error);
       toast.error("Erro ao cadastrar cliente");
@@ -228,6 +265,15 @@ export function NovoPedidoDialog({
     (total, item) => total + (item.revista.preco_cheio || 0) * item.quantidade,
     0
   );
+
+  const handleSkipCatalog = () => {
+    setSkippedCatalog(true);
+    if (!selectedCliente?.status_ativacao_ebd) {
+      setStep("ativacao");
+    } else {
+      setStep("resumo");
+    }
+  };
 
   const handleProceedToActivation = () => {
     if (!selectedCliente?.status_ativacao_ebd) {
@@ -282,28 +328,17 @@ export function NovoPedidoDialog({
         // TODO: Call bling-create-order edge function here
       }
 
-      toast.success("Pedido finalizado com sucesso!");
+      toast.success(
+        skippedCatalog && !selectedCliente.status_ativacao_ebd
+          ? "Cliente ativado com sucesso!"
+          : "Pedido finalizado com sucesso!"
+      );
       
-      // Reset and close
-      setStep("cliente");
-      setSelectedCliente(null);
-      setCart([]);
-      setNovoCliente({
-        nome_igreja: "",
-        cnpj: "",
-        nome_superintendente: "",
-        email_superintendente: "",
-        telefone: "",
-      });
-      setAtivacaoData({
-        dia_aula: "Domingo",
-        data_inicio_ebd: undefined,
-      });
-      onOpenChange(false);
+      handleClose();
       onSuccess();
     } catch (error) {
       console.error("Error finalizing order:", error);
-      toast.error("Erro ao finalizar pedido");
+      toast.error("Erro ao finalizar");
     } finally {
       setLoading(false);
     }
@@ -314,8 +349,30 @@ export function NovoPedidoDialog({
     setSelectedCliente(null);
     setCart([]);
     setSearchTerm("");
+    setSkippedCatalog(false);
+    setNovoCliente({
+      nome_igreja: "",
+      cnpj: "",
+      nome_superintendente: "",
+      email_superintendente: "",
+      telefone: "",
+    });
+    setAtivacaoData({
+      dia_aula: "Domingo",
+      data_inicio_ebd: undefined,
+    });
+    setClienteTab("existente");
     onOpenChange(false);
   };
+
+  const getDialogTitle = () => {
+    if (initialMode === "cadastro") return "Cadastrar Novo Cliente";
+    if (initialMode === "ativacao") return "Ativar Painel EBD";
+    if (initialMode === "pedido") return "Novo Pedido";
+    return "Novo Pedido / Ativação EBD";
+  };
+
+  const showProgressSteps = initialMode !== "cadastro";
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -323,26 +380,30 @@ export function NovoPedidoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
-            Novo Pedido / Ativação EBD
+            {getDialogTitle()}
           </DialogTitle>
           <DialogDescription>
             {step === "cliente" && "Selecione ou cadastre um cliente"}
             {step === "catalogo" && `Cliente: ${selectedCliente?.nome_igreja}`}
             {step === "ativacao" && "Configure os dados da ativação EBD"}
-            {step === "resumo" && "Confira os dados do pedido"}
+            {step === "resumo" && "Confira os dados"}
           </DialogDescription>
         </DialogHeader>
 
         {/* Progress Steps */}
-        <div className="flex items-center justify-center gap-2 py-2">
-          <Badge variant={step === "cliente" ? "default" : "secondary"}>1. Cliente</Badge>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          <Badge variant={step === "catalogo" ? "default" : "secondary"}>2. Catálogo</Badge>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          <Badge variant={step === "ativacao" || step === "resumo" ? "default" : "secondary"}>
-            3. {selectedCliente?.status_ativacao_ebd ? "Resumo" : "Ativação"}
-          </Badge>
-        </div>
+        {showProgressSteps && (
+          <div className="flex items-center justify-center gap-2 py-2">
+            <Badge variant={step === "cliente" ? "default" : "secondary"}>1. Cliente</Badge>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <Badge variant={step === "catalogo" ? "default" : skippedCatalog ? "outline" : "secondary"}>
+              2. Catálogo {skippedCatalog && "(Pulado)"}
+            </Badge>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <Badge variant={step === "ativacao" || step === "resumo" ? "default" : "secondary"}>
+              3. {selectedCliente?.status_ativacao_ebd ? "Resumo" : "Ativação"}
+            </Badge>
+          </div>
+        )}
 
         <div className="flex-1 overflow-hidden">
           {/* Step 1: Select Client */}
@@ -464,13 +525,23 @@ export function NovoPedidoDialog({
                       />
                     </div>
                   </div>
-                  <Button
-                    onClick={handleCreateNovoCliente}
-                    disabled={loading}
-                    className="w-full"
-                  >
-                    {loading ? "Cadastrando..." : "Cadastrar e Continuar"}
-                  </Button>
+                  {initialMode === "cadastro" ? (
+                    <Button
+                      onClick={() => handleCreateNovoCliente(false)}
+                      disabled={loading}
+                      className="w-full"
+                    >
+                      {loading ? "Cadastrando..." : "Cadastrar Cliente"}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleCreateNovoCliente(true)}
+                      disabled={loading}
+                      className="w-full"
+                    >
+                      {loading ? "Cadastrando..." : "Cadastrar e Continuar"}
+                    </Button>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -480,7 +551,20 @@ export function NovoPedidoDialog({
           {step === "catalogo" && (
             <div className="flex gap-4 h-[400px]">
               <div className="flex-1 overflow-hidden">
-                <h3 className="font-medium mb-2">Catálogo de Revistas</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-medium">Catálogo de Revistas</h3>
+                  {!selectedCliente?.status_ativacao_ebd && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSkipCatalog}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <SkipForward className="mr-1 h-4 w-4" />
+                      Pular Catálogo
+                    </Button>
+                  )}
+                </div>
                 <ScrollArea className="h-[350px]">
                   <div className="grid grid-cols-2 gap-2 pr-4">
                     {revistas.map((revista) => (
@@ -662,7 +746,9 @@ export function NovoPedidoDialog({
             <div className="space-y-4 py-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Resumo do Pedido</CardTitle>
+                  <CardTitle className="text-lg">
+                    {skippedCatalog ? "Resumo da Ativação" : "Resumo do Pedido"}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
@@ -724,10 +810,20 @@ export function NovoPedidoDialog({
                 variant="outline"
                 onClick={() => {
                   if (step === "catalogo") setStep("cliente");
-                  else if (step === "ativacao") setStep("catalogo");
+                  else if (step === "ativacao") {
+                    if (skippedCatalog && initialMode === "ativacao") {
+                      handleClose();
+                    } else {
+                      setSkippedCatalog(false);
+                      setStep("catalogo");
+                    }
+                  }
                   else if (step === "resumo") {
-                    if (selectedCliente?.status_ativacao_ebd) setStep("catalogo");
-                    else setStep("ativacao");
+                    if (selectedCliente?.status_ativacao_ebd) {
+                      setStep("catalogo");
+                    } else {
+                      setStep("ativacao");
+                    }
                   }
                 }}
               >
@@ -749,7 +845,7 @@ export function NovoPedidoDialog({
             )}
             {step === "resumo" && (
               <Button onClick={handleFinalizar} disabled={loading}>
-                {loading ? "Finalizando..." : "Finalizar Pedido"}
+                {loading ? "Finalizando..." : skippedCatalog ? "Ativar Cliente" : "Finalizar Pedido"}
               </Button>
             )}
           </div>
