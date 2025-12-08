@@ -588,7 +588,7 @@ export default function Checkout() {
               first_name: data.nome,
               last_name: data.sobrenome,
               identification: {
-                type: 'CPF',
+                type: data.cpf.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF',
                 number: data.cpf.replace(/\D/g, ''),
               },
             },
@@ -740,7 +740,7 @@ export default function Checkout() {
               first_name: data.nome,
               last_name: data.sobrenome,
               identification: {
-                type: 'CPF',
+                type: data.cpf.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF',
                 number: data.cpf.replace(/\D/g, ''),
               },
             },
@@ -903,7 +903,7 @@ export default function Checkout() {
               first_name: data.nome,
               last_name: data.sobrenome,
               identification: {
-                type: 'CPF',
+                type: data.cpf.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF',
                 number: data.cpf.replace(/\D/g, ''),
               },
               address: {
