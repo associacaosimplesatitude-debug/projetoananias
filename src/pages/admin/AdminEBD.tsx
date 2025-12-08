@@ -116,6 +116,7 @@ interface EBDClient {
     state: string | null;
     vendedor_id: string | null;
   } | null;
+  source?: 'churches' | 'ebd_clientes';
 }
 
 const COLORS = {
@@ -229,7 +230,8 @@ export default function AdminEBD() {
   const { data: ebdClients } = useQuery({
     queryKey: ['ebd-clients'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Buscar clientes de assinaturas (tabela churches)
+      const { data: assinaturasData, error: assinaturasError } = await supabase
         .from('assinaturas')
         .select(`
           cliente_id,
@@ -237,8 +239,45 @@ export default function AdminEBD() {
           modulos!inner(nome_modulo)
         `)
         .eq('status', 'Ativo');
-      if (error) throw error;
-      return data?.filter((a: any) => a.modulos?.nome_modulo === 'REOBOTE EBD') as EBDClient[];
+      if (assinaturasError) throw assinaturasError;
+      
+      const fromAssinaturas = (assinaturasData || [])
+        .filter((a: any) => a.modulos?.nome_modulo === 'REOBOTE EBD')
+        .map((a: any) => ({
+          cliente_id: a.cliente_id,
+          church: a.church,
+          source: 'churches' as const,
+        }));
+      
+      // Buscar clientes de ebd_clientes (cadastrados por vendedores)
+      const { data: ebdClientesData, error: ebdClientesError } = await supabase
+        .from('ebd_clientes')
+        .select('*');
+      if (ebdClientesError) throw ebdClientesError;
+      
+      const fromEbdClientes = (ebdClientesData || []).map((c: any) => ({
+        cliente_id: c.id,
+        church: {
+          id: c.id,
+          church_name: c.nome_igreja,
+          pastor_email: c.email_superintendente || '',
+          city: c.endereco_cidade,
+          state: c.endereco_estado,
+          vendedor_id: c.vendedor_id,
+        },
+        source: 'ebd_clientes' as const,
+      }));
+      
+      // Combinar (evitar duplicados pelo cliente_id)
+      const allClients = [...fromAssinaturas, ...fromEbdClientes];
+      const uniqueClients = allClients.reduce((acc: any[], client) => {
+        if (!acc.find(c => c.cliente_id === client.cliente_id)) {
+          acc.push(client);
+        }
+        return acc;
+      }, []);
+      
+      return uniqueClients as EBDClient[];
     },
   });
 

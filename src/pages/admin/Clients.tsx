@@ -67,6 +67,7 @@ interface Church {
   payment_due_day?: number;
   process_status?: string;
   client_type?: 'igreja' | 'associacao';
+  source?: 'churches' | 'ebd_clientes';
 }
 
 export default function AdminClients() {
@@ -180,12 +181,42 @@ export default function AdminClients() {
   }, []);
 
   const fetchChurches = async () => {
-    const { data } = await supabase
+    // Buscar clientes da tabela churches
+    const { data: churchesData } = await supabase
       .from('churches')
       .select('*')
       .order('created_at', { ascending: false });
     
-    setChurches((data || []) as Church[]);
+    // Buscar clientes da tabela ebd_clientes (cadastrados por vendedores)
+    const { data: ebdClientesData } = await supabase
+      .from('ebd_clientes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    // Mapear ebd_clientes para o formato Church
+    const ebdClientesAsChurches: Church[] = (ebdClientesData || []).map((cliente: any) => ({
+      id: cliente.id,
+      church_name: cliente.nome_igreja,
+      pastor_email: cliente.email_superintendente || '',
+      pastor_name: cliente.nome_responsavel || cliente.nome_superintendente,
+      cnpj: cliente.cnpj,
+      current_stage: 0,
+      city: cliente.endereco_cidade || '',
+      state: cliente.endereco_estado || '',
+      address: cliente.endereco_rua || '',
+      neighborhood: cliente.endereco_bairro || '',
+      postal_code: cliente.endereco_cep || '',
+      client_type: 'igreja' as 'igreja' | 'associacao',
+      source: 'ebd_clientes' as const,
+    }));
+    
+    // Combinar e ordenar por nome
+    const allClients = [
+      ...(churchesData || []).map((c: any) => ({ ...c, source: 'churches' as const })),
+      ...ebdClientesAsChurches,
+    ];
+    
+    setChurches(allClients as Church[]);
   };
 
   const loadMandateData = async (churchId: string) => {
@@ -932,9 +963,16 @@ export default function AdminClients() {
                     </TableCell>
                     <TableCell>{church.pastor_email}</TableCell>
                     <TableCell>
-                      <Badge variant={church.client_type === 'igreja' ? 'default' : 'secondary'}>
-                        {church.client_type === 'igreja' ? 'Igreja' : 'Associação'}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={church.client_type === 'igreja' ? 'default' : 'secondary'}>
+                          {church.client_type === 'igreja' ? 'Igreja' : 'Associação'}
+                        </Badge>
+                        {church.source === 'ebd_clientes' && (
+                          <Badge variant="outline" className="text-xs">
+                            Vendedor
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>{church.city}, {church.state}</TableCell>
                     <TableCell>{church.cnpj || '-'}</TableCell>
