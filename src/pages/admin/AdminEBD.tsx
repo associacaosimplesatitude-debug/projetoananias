@@ -44,7 +44,9 @@ import {
   Target,
   HelpCircle,
   FileQuestion,
+  ClipboardList,
 } from "lucide-react";
+import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import {
   ResponsiveContainer,
   PieChart,
@@ -863,8 +865,9 @@ export default function AdminEBD() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="vendas">Vendas</TabsTrigger>
+          <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
           <TabsTrigger value="clientes">Clientes EBD</TabsTrigger>
           <TabsTrigger value="vendedores">Vendedores</TabsTrigger>
           <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
@@ -1418,6 +1421,11 @@ export default function AdminEBD() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* PEDIDOS TAB */}
+        <TabsContent value="pedidos" className="space-y-6">
+          <AdminPedidosTab vendedores={vendedores?.map(v => ({ id: v.id, nome: v.nome })) || []} />
         </TabsContent>
 
         {/* CLIENTES EBD TAB */}

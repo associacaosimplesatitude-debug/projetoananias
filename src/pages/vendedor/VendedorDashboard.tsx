@@ -45,6 +45,7 @@ import { ptBR } from "date-fns/locale";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
+import { VendedorPedidosTab } from "@/components/vendedor/VendedorPedidosTab";
 import { toast } from "sonner";
 
 interface Vendedor {
@@ -389,7 +390,7 @@ export default function VendedorDashboard() {
 
       {/* Tabs with Client Lists */}
       <Tabs defaultValue="clientes" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="clientes">
             Clientes ({clientes.length})
           </TabsTrigger>
@@ -401,6 +402,9 @@ export default function VendedorDashboard() {
           </TabsTrigger>
           <TabsTrigger value="risco">
             Em Risco ({clientesRisco.length})
+          </TabsTrigger>
+          <TabsTrigger value="pedidos">
+            Pedidos
           </TabsTrigger>
         </TabsList>
 
@@ -686,6 +690,11 @@ export default function VendedorDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Tab: Pedidos */}
+        <TabsContent value="pedidos">
+          <VendedorPedidosTab vendedorId={vendedor?.id || ""} />
         </TabsContent>
       </Tabs>
 
