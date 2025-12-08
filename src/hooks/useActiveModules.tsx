@@ -6,13 +6,27 @@ export const useActiveModules = () => {
   const { user, role } = useAuth();
 
   return useQuery({
-    queryKey: ['active-modules', user?.id],
+    queryKey: ['active-modules', user?.id, user?.email],
     queryFn: async () => {
       if (!user) return [];
       
       if (role === 'admin') {
         // Admins have access to everything
         return ['REOBOTE IGREJAS', 'REOBOTE ASSOCIAÇÕES', 'REOBOTE EBD'];
+      }
+
+      // Check if user is a vendedor - they have access to EBD module
+      if (user.email) {
+        const { data: vendedorData } = await supabase
+          .from('vendedores')
+          .select('id')
+          .eq('email', user.email)
+          .maybeSingle();
+
+        if (vendedorData) {
+          // Vendedores have access to EBD module
+          return ['REOBOTE EBD'];
+        }
       }
 
       // First, try to find church where user is the owner

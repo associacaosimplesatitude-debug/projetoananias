@@ -154,6 +154,8 @@ export default function VendedorDashboard() {
 
   const fetchVendedorData = () => {
     refetch();
+    // Also invalidate the clients query to refresh the list
+    queryClient.invalidateQueries({ queryKey: ["vendedor-clientes", vendedor?.id] });
   };
 
   const clientesPendentes = clientes.filter(c => !c.status_ativacao_ebd);
