@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, FileText, User, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, User, Clock, CheckCircle2, XCircle, Key, Loader2 } from 'lucide-react';
 import { initialStages } from '@/data/stages';
 import type { SubTaskStatus } from '@/types/church-opening';
 
@@ -22,6 +22,18 @@ interface Church {
   current_stage: number;
   city: string;
   state: string;
+}
+
+interface EBDCliente {
+  id: string;
+  nome_igreja: string;
+  email_superintendente: string | null;
+  nome_superintendente: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  status_ativacao_ebd: boolean;
+  senha_temporaria: string | null;
+  superintendente_user_id: string | null;
 }
 
 interface BoardMember {
@@ -59,6 +71,7 @@ export default function ClientManagement() {
   const { toast } = useToast();
   
   const [church, setChurch] = useState<Church | null>(null);
+  const [ebdCliente, setEbdCliente] = useState<EBDCliente | null>(null);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [progress, setProgress] = useState<Progress[]>([]);
@@ -66,6 +79,10 @@ export default function ClientManagement() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedSubTask, setSelectedSubTask] = useState<{ stageId: number; subTaskId: string } | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isEbdClient, setIsEbdClient] = useState(false);
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   useEffect(() => {
     if (churchId) {
@@ -76,39 +93,55 @@ export default function ClientManagement() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Buscar igreja
-      const { data: churchData } = await supabase
+      // First try to fetch from churches table
+      const { data: churchData, error: churchError } = await supabase
         .from('churches')
         .select('*')
         .eq('id', churchId)
         .single();
 
-      setChurch(churchData);
+      if (churchData && !churchError) {
+        setChurch(churchData);
+        setIsEbdClient(false);
+        
+        // Buscar membros da diretoria
+        const { data: membersData } = await supabase
+          .from('board_members')
+          .select('*')
+          .eq('church_id', churchId);
+        setBoardMembers(membersData || []);
 
-      // Buscar membros da diretoria
-      const { data: membersData } = await supabase
-        .from('board_members')
-        .select('*')
-        .eq('church_id', churchId);
+        // Buscar documentos
+        const { data: docsData } = await supabase
+          .from('church_documents')
+          .select('*')
+          .eq('church_id', churchId)
+          .order('created_at', { ascending: false });
+        setDocuments(docsData || []);
 
-      setBoardMembers(membersData || []);
+        // Buscar progresso
+        const { data: progressData } = await supabase
+          .from('church_stage_progress')
+          .select('*')
+          .eq('church_id', churchId);
+        setProgress((progressData || []) as Progress[]);
+      } else {
+        // If not found in churches, try ebd_clientes
+        const { data: ebdData, error: ebdError } = await supabase
+          .from('ebd_clientes')
+          .select('*')
+          .eq('id', churchId)
+          .single();
 
-      // Buscar documentos
-      const { data: docsData } = await supabase
-        .from('church_documents')
-        .select('*')
-        .eq('church_id', churchId)
-        .order('created_at', { ascending: false });
-
-      setDocuments(docsData || []);
-
-      // Buscar progresso
-      const { data: progressData } = await supabase
-        .from('church_stage_progress')
-        .select('*')
-        .eq('church_id', churchId);
-
-      setProgress((progressData || []) as Progress[]);
+        if (ebdData && !ebdError) {
+          setEbdCliente(ebdData);
+          setIsEbdClient(true);
+        } else {
+          // Client not found in either table
+          setChurch(null);
+          setEbdCliente(null);
+        }
+      }
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
       toast({
@@ -228,10 +261,125 @@ export default function ClientManagement() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!ebdCliente?.superintendente_user_id || !newPassword) {
+      toast({ title: 'Erro', description: 'Usuário ou senha não informados', variant: 'destructive' });
+      return;
+    }
+    setResettingPassword(true);
+    try {
+      const { error } = await supabase.functions.invoke('update-user-password', {
+        body: { userId: ebdCliente.superintendente_user_id, newPassword }
+      });
+      if (error) throw error;
+      
+      await supabase.from('ebd_clientes').update({ senha_temporaria: newPassword }).eq('id', ebdCliente.id);
+      
+      toast({ title: 'Sucesso', description: 'Senha atualizada!' });
+      setResetPasswordOpen(false);
+      setNewPassword('');
+      fetchData();
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast({ title: 'Erro', description: 'Erro ao resetar senha', variant: 'destructive' });
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
   }
 
+  if (!church && !ebdCliente) {
+    return <div className="flex items-center justify-center min-h-screen">Cliente não encontrado</div>;
+  }
+
+  // Render EBD Client view
+  if (isEbdClient && ebdCliente) {
+    return (
+      <div className="min-h-screen bg-background py-8 px-4">
+        <div className="container max-w-7xl mx-auto">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/admin/clients')}
+            className="mb-6 gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar para Clientes
+          </Button>
+
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-2">{ebdCliente.nome_igreja}</h1>
+            <p className="text-muted-foreground">
+              {ebdCliente.nome_superintendente || 'Sem superintendente'} • {ebdCliente.endereco_cidade || '-'}, {ebdCliente.endereco_estado || '-'}
+            </p>
+            <Badge className={ebdCliente.status_ativacao_ebd ? 'bg-success mt-2' : 'bg-warning mt-2'}>
+              {ebdCliente.status_ativacao_ebd ? 'EBD Ativado' : 'EBD Não Ativado'}
+            </Badge>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Informações do Cliente EBD
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Nome da Igreja</p>
+                  <p className="font-medium">{ebdCliente.nome_igreja}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">E-mail do Superintendente</p>
+                  <p className="font-medium">{ebdCliente.email_superintendente || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Superintendente</p>
+                  <p className="font-medium">{ebdCliente.nome_superintendente || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Localização</p>
+                  <p className="font-medium">{ebdCliente.endereco_cidade || '-'}, {ebdCliente.endereco_estado || '-'}</p>
+                </div>
+              </div>
+              {ebdCliente.superintendente_user_id && (
+                <div className="mt-6 pt-4 border-t">
+                  <Dialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <Key className="h-4 w-4" />
+                        Resetar Senha
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Resetar Senha do Superintendente</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label>Nova Senha</Label>
+                          <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Digite a nova senha" />
+                        </div>
+                        <Button onClick={handleResetPassword} disabled={resettingPassword || !newPassword}>
+                          {resettingPassword ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Confirmar
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Render Church view
   if (!church) {
     return <div className="flex items-center justify-center min-h-screen">Cliente não encontrado</div>;
   }
