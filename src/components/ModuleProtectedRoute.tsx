@@ -57,7 +57,28 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.id && !loading,
   });
 
-  const isLoading = loading || modulesLoading || studentLoading || professorLoading;
+  // Check if user is a vendedor
+  const { data: isVendedor, isLoading: vendedorLoading } = useQuery({
+    queryKey: ['is-vendedor-check', user?.email],
+    queryFn: async () => {
+      if (!user?.email) return false;
+      
+      const { data, error } = await supabase
+        .from('vendedores')
+        .select('id')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking vendedor status:', error);
+        return false;
+      }
+      return !!data;
+    },
+    enabled: !!user?.email && !loading,
+  });
+
+  const isLoading = loading || modulesLoading || studentLoading || professorLoading || vendedorLoading;
 
   if (isLoading) {
     return (
@@ -73,6 +94,11 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
 
   // Admins have access to everything
   if (role === 'admin') {
+    return <>{children}</>;
+  }
+
+  // Vendedores have access to EBD routes (carrinho, checkout, etc.)
+  if (isVendedor && requiredModule === 'REOBOTE EBD') {
     return <>{children}</>;
   }
 
