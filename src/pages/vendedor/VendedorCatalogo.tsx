@@ -12,25 +12,35 @@ import {
   Plus, 
   Minus, 
   Trash2,
-  Check,
   BookOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const CATEGORIAS = [
+  { value: "all", label: "Todos os Produtos" },
+  { value: "Revista EBD", label: "Revista EBD" },
+  { value: "Livros", label: "Livros" },
+  { value: "Devocionais", label: "Devocionais" },
+  { value: "Kits", label: "Kits" },
+  { value: "Outros", label: "Outros" },
+] as const;
+
 const FAIXAS_ETARIAS = [
-  "Jovens e Adultos",
-  "Maternal: 2 a 3 Anos",
-  "Jardim de Infância: 4 a 6 Anos",
-  "Primários: 7 a 8 Anos",
-  "Juniores: 9 a 11 Anos",
-  "Adolescentes: 12 a 14 Anos",
-  "Adolescentes+: 15 a 17 Anos",
+  { value: "all", label: "Todas as Faixas" },
+  { value: "Jovens e Adultos", label: "Jovens e Adultos" },
+  { value: "Maternal: 2 a 3 Anos", label: "Maternal: 2 a 3 Anos" },
+  { value: "Jardim de Infância: 4 a 6 Anos", label: "Jardim de Infância: 4 a 6 Anos" },
+  { value: "Primários: 7 a 8 Anos", label: "Primários: 7 a 8 Anos" },
+  { value: "Juniores: 9 a 11 Anos", label: "Juniores: 9 a 11 Anos" },
+  { value: "Adolescentes: 12 a 14 Anos", label: "Adolescentes: 12 a 14 Anos" },
+  { value: "Adolescentes+: 15 a 17 Anos", label: "Adolescentes+: 15 a 17 Anos" },
 ] as const;
 
 interface Revista {
   id: string;
   titulo: string;
   faixa_etaria_alvo: string;
+  categoria: string | null;
   sinopse: string | null;
   autor: string | null;
   imagem_url: string | null;
@@ -40,76 +50,65 @@ interface Revista {
   possui_plano_leitura: boolean;
 }
 
-interface CartItem {
-  revista: Revista;
-  quantidade: number;
-}
-
-interface Cliente {
-  id: string;
-  nome_igreja: string;
-  cnpj: string;
-}
-
 export default function VendedorCatalogo() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const clienteId = searchParams.get('clienteId');
   const clienteNome = searchParams.get('clienteNome');
   
-  const [faixaSelecionada, setFaixaSelecionada] = useState<string>(FAIXAS_ETARIAS[0]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState<string>("all");
+  const [faixaSelecionada, setFaixaSelecionada] = useState<string>("all");
+  const [cart, setCart] = useState<{ [key: string]: number }>(() => {
+    const saved = localStorage.getItem('ebd-cart');
+    return saved ? JSON.parse(saved) : {};
+  });
 
-  // Load cart from sessionStorage on mount
+  // Save cart to localStorage whenever it changes
   useEffect(() => {
-    const savedCart = sessionStorage.getItem('vendedor-cart');
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch (e) {
-        console.error('Error loading cart:', e);
-      }
-    }
-  }, []);
-
-  // Save cart to sessionStorage whenever it changes
-  useEffect(() => {
-    sessionStorage.setItem('vendedor-cart', JSON.stringify(cart));
+    localStorage.setItem('ebd-cart', JSON.stringify(cart));
   }, [cart]);
 
+  // Also save client info to sessionStorage for checkout
+  useEffect(() => {
+    if (clienteId && clienteNome) {
+      sessionStorage.setItem('vendedor-cliente', JSON.stringify({ id: clienteId, nome: clienteNome }));
+    }
+  }, [clienteId, clienteNome]);
+
   const { data: revistas, isLoading } = useQuery({
-    queryKey: ['ebd-revistas-catalogo-vendedor', faixaSelecionada],
+    queryKey: ['ebd-revistas-catalogo-vendedor', categoriaSelecionada, faixaSelecionada],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('ebd_revistas')
-        .select('id, titulo, faixa_etaria_alvo, sinopse, autor, imagem_url, num_licoes, preco_cheio, estoque, possui_plano_leitura')
-        .eq('faixa_etaria_alvo', faixaSelecionada)
+        .select('id, titulo, faixa_etaria_alvo, categoria, sinopse, autor, imagem_url, num_licoes, preco_cheio, estoque, possui_plano_leitura')
         .gt('estoque', 0)
         .order('titulo');
+
+      if (categoriaSelecionada !== "all") {
+        query = query.eq('categoria', categoriaSelecionada);
+      }
+      
+      if (faixaSelecionada !== "all") {
+        query = query.eq('faixa_etaria_alvo', faixaSelecionada);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as Revista[];
     },
   });
 
-  const addToCart = (revista: Revista) => {
-    const existing = cart.find((item) => item.revista.id === revista.id);
-    if (existing) {
-      setCart(
-        cart.map((item) =>
-          item.revista.id === revista.id
-            ? { ...item, quantidade: item.quantidade + 1 }
-            : item
-        )
-      );
-    } else {
-      setCart([...cart, { revista, quantidade: 1 }]);
-    }
-    toast.success(`${revista.titulo} adicionada ao pedido`);
+  const addToCart = (revistaId: string) => {
+    const newCart = { ...cart, [revistaId]: (cart[revistaId] || 0) + 1 };
+    setCart(newCart);
+    toast.success('Produto adicionado ao carrinho');
   };
 
   const removeFromCart = (revistaId: string) => {
-    setCart(cart.filter((item) => item.revista.id !== revistaId));
+    const newCart = { ...cart };
+    delete newCart[revistaId];
+    setCart(newCart);
   };
 
   const updateQuantity = (revistaId: string, quantidade: number) => {
@@ -117,39 +116,21 @@ export default function VendedorCatalogo() {
       removeFromCart(revistaId);
       return;
     }
-    setCart(
-      cart.map((item) =>
-        item.revista.id === revistaId ? { ...item, quantidade } : item
-      )
-    );
+    setCart({ ...cart, [revistaId]: quantidade });
   };
 
-  const cartTotal = cart.reduce(
-    (total, item) => total + (item.revista.preco_cheio || 0) * item.quantidade,
-    0
-  );
-
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantidade, 0);
-
-  const getCartQuantity = (revistaId: string) => {
-    const item = cart.find((c) => c.revista.id === revistaId);
-    return item ? item.quantidade : 0;
-  };
+  const cartItemCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
 
   const handleVoltar = () => {
-    // Clear cart and go back
-    sessionStorage.removeItem('vendedor-cart');
     navigate('/vendedor');
   };
 
-  const handleFinalizarPedido = () => {
-    if (cart.length === 0) {
-      toast.error('Adicione pelo menos um produto ao pedido');
+  const handleIrParaCarrinho = () => {
+    if (cartItemCount === 0) {
+      toast.error('Adicione pelo menos um produto ao carrinho');
       return;
     }
-    
-    // Navigate to activation step with cart data
-    navigate(`/vendedor?step=ativacao&clienteId=${clienteId}&clienteNome=${encodeURIComponent(clienteNome || '')}`);
+    navigate('/ebd/carrinho');
   };
 
   if (!clienteId || !clienteNome) {
@@ -181,45 +162,66 @@ export default function VendedorCatalogo() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Catálogo de Revistas</h1>
+            <h1 className="text-2xl font-bold">Catálogo de Produtos</h1>
             <p className="text-muted-foreground">
               Cliente: <span className="font-medium text-foreground">{clienteNome}</span>
             </p>
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          <Badge variant="outline" className="text-base px-4 py-2">
-            <ShoppingCart className="w-4 h-4 mr-2" />
-            {cartItemCount} {cartItemCount === 1 ? 'item' : 'itens'} - R$ {cartTotal.toFixed(2)}
-          </Badge>
-          <Button 
-            size="lg"
-            onClick={handleFinalizarPedido}
-            disabled={cart.length === 0}
-          >
-            <Check className="w-4 h-4 mr-2" />
-            Finalizar Pedido e Ativação
-          </Button>
-        </div>
+        <Button 
+          size="lg"
+          onClick={handleIrParaCarrinho}
+          className="relative"
+        >
+          <ShoppingCart className="w-4 h-4 mr-2" />
+          Ir para o Carrinho
+          {cartItemCount > 0 && (
+            <Badge variant="secondary" className="ml-2 bg-background text-foreground">
+              {cartItemCount}
+            </Badge>
+          )}
+        </Button>
       </div>
 
-      {/* Age Range Filter */}
-      <div className="mb-6">
-        <h2 className="text-sm font-medium text-muted-foreground mb-3">
-          Filtrar por Faixa Etária:
-        </h2>
-        <div className="flex flex-wrap gap-2">
-          {FAIXAS_ETARIAS.map((faixa) => (
-            <Button
-              key={faixa}
-              variant={faixaSelecionada === faixa ? 'default' : 'outline'}
-              onClick={() => setFaixaSelecionada(faixa)}
-              size="sm"
-            >
-              {faixa}
-            </Button>
-          ))}
+      {/* Filters */}
+      <div className="mb-6 space-y-4">
+        {/* Category Filter */}
+        <div>
+          <h2 className="text-sm font-medium text-muted-foreground mb-2">
+            Categoria:
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIAS.map((cat) => (
+              <Button
+                key={cat.value}
+                variant={categoriaSelecionada === cat.value ? 'default' : 'outline'}
+                onClick={() => setCategoriaSelecionada(cat.value)}
+                size="sm"
+              >
+                {cat.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Subcategory Filter (Age Range) */}
+        <div>
+          <h2 className="text-sm font-medium text-muted-foreground mb-2">
+            Subcategoria (Faixa Etária):
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {FAIXAS_ETARIAS.map((faixa) => (
+              <Button
+                key={faixa.value}
+                variant={faixaSelecionada === faixa.value ? 'default' : 'outline'}
+                onClick={() => setFaixaSelecionada(faixa.value)}
+                size="sm"
+              >
+                {faixa.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -227,15 +229,15 @@ export default function VendedorCatalogo() {
         {/* Product Grid */}
         <div className="lg:col-span-3">
           {isLoading ? (
-            <div className="text-center py-12">Carregando revistas...</div>
+            <div className="text-center py-12">Carregando produtos...</div>
           ) : !revistas || revistas.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              Nenhuma revista encontrada para esta faixa etária.
+              Nenhum produto encontrado com os filtros selecionados.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {revistas.map((revista) => {
-                const inCart = getCartQuantity(revista.id);
+                const inCart = cart[revista.id] || 0;
                 return (
                   <Card key={revista.id} className="overflow-hidden">
                     <div className="aspect-[3/4] bg-muted relative">
@@ -252,7 +254,7 @@ export default function VendedorCatalogo() {
                       )}
                       {inCart > 0 && (
                         <Badge className="absolute top-2 right-2 bg-primary">
-                          {inCart} no pedido
+                          {inCart} no carrinho
                         </Badge>
                       )}
                     </div>
@@ -261,7 +263,10 @@ export default function VendedorCatalogo() {
                       <p className="text-sm text-muted-foreground mb-2">
                         {revista.faixa_etaria_alvo} • {revista.num_licoes} lições
                       </p>
-                      <div className="flex items-center justify-between">
+                      {revista.categoria && (
+                        <Badge variant="outline" className="mb-2">{revista.categoria}</Badge>
+                      )}
+                      <div className="flex items-center justify-between mt-2">
                         <span className="text-lg font-bold text-primary">
                           R$ {(revista.preco_cheio || 0).toFixed(2)}
                         </span>
@@ -286,7 +291,7 @@ export default function VendedorCatalogo() {
                             </Button>
                           </div>
                         ) : (
-                          <Button size="sm" onClick={() => addToCart(revista)}>
+                          <Button size="sm" onClick={() => addToCart(revista.id)}>
                             <Plus className="h-4 w-4 mr-1" />
                             Adicionar
                           </Button>
@@ -306,10 +311,10 @@ export default function VendedorCatalogo() {
             <CardContent className="p-4">
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
-                Pedido Atual
+                Carrinho
               </h3>
               
-              {cart.length === 0 ? (
+              {cartItemCount === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
                   Nenhum produto adicionado
                 </p>
@@ -317,17 +322,17 @@ export default function VendedorCatalogo() {
                 <>
                   <ScrollArea className="h-[300px] pr-2">
                     <div className="space-y-3">
-                      {cart.map((item) => (
+                      {revistas?.filter(r => cart[r.id] > 0).map((revista) => (
                         <div
-                          key={item.revista.id}
+                          key={revista.id}
                           className="flex items-start gap-3 p-2 rounded-lg bg-muted/50"
                         >
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm line-clamp-1">
-                              {item.revista.titulo}
+                              {revista.titulo}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              R$ {(item.revista.preco_cheio || 0).toFixed(2)} × {item.quantidade}
+                              R$ {(revista.preco_cheio || 0).toFixed(2)} × {cart[revista.id]}
                             </p>
                           </div>
                           <div className="flex items-center gap-1">
@@ -335,16 +340,16 @@ export default function VendedorCatalogo() {
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6"
-                              onClick={() => updateQuantity(item.revista.id, item.quantidade - 1)}
+                              onClick={() => updateQuantity(revista.id, cart[revista.id] - 1)}
                             >
                               <Minus className="h-3 w-3" />
                             </Button>
-                            <span className="w-6 text-center text-sm">{item.quantidade}</span>
+                            <span className="w-6 text-center text-sm">{cart[revista.id]}</span>
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6"
-                              onClick={() => updateQuantity(item.revista.id, item.quantidade + 1)}
+                              onClick={() => updateQuantity(revista.id, cart[revista.id] + 1)}
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
@@ -352,7 +357,7 @@ export default function VendedorCatalogo() {
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 text-destructive hover:text-destructive"
-                              onClick={() => removeFromCart(item.revista.id)}
+                              onClick={() => removeFromCart(revista.id)}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -363,19 +368,16 @@ export default function VendedorCatalogo() {
                   </ScrollArea>
                   
                   <div className="border-t mt-4 pt-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="font-medium">Total:</span>
-                      <span className="text-xl font-bold text-primary">
-                        R$ {cartTotal.toFixed(2)}
-                      </span>
-                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {cartItemCount} {cartItemCount === 1 ? 'item' : 'itens'} no carrinho
+                    </p>
                     <Button 
                       className="w-full" 
                       size="lg"
-                      onClick={handleFinalizarPedido}
+                      onClick={handleIrParaCarrinho}
                     >
-                      <Check className="w-4 h-4 mr-2" />
-                      Finalizar e Ativar
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Ir para o Carrinho
                     </Button>
                   </div>
                 </>
