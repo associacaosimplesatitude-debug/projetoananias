@@ -50,22 +50,37 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Fetch all clients for this vendedor
-  const { data: clientes = [] } = useQuery({
-    queryKey: ["vendedor-clientes-ids", vendedorId],
+  // Fetch all clients for this vendedor from both ebd_clientes and churches
+  const { data: allClients = [] } = useQuery({
+    queryKey: ["vendedor-all-clients", vendedorId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch from ebd_clientes
+      const { data: ebdClientes, error: ebdError } = await supabase
         .from("ebd_clientes")
         .select("id, nome_igreja")
         .eq("vendedor_id", vendedorId);
-      if (error) throw error;
-      return data;
+      if (ebdError) throw ebdError;
+
+      // Fetch from churches
+      const { data: churches, error: churchError } = await supabase
+        .from("churches")
+        .select("id, church_name")
+        .eq("vendedor_id", vendedorId);
+      if (churchError) throw churchError;
+
+      // Combine both sources
+      const combined = [
+        ...(ebdClientes || []).map(c => ({ id: c.id, nome: c.nome_igreja })),
+        ...(churches || []).map(c => ({ id: c.id, nome: c.church_name })),
+      ];
+      
+      return combined;
     },
     enabled: !!vendedorId,
   });
 
-  const clienteIds = clientes.map(c => c.id);
-  const clienteMap = Object.fromEntries(clientes.map(c => [c.id, c.nome_igreja]));
+  const clienteIds = allClients.map(c => c.id);
+  const clienteMap = Object.fromEntries(allClients.map(c => [c.id, c.nome]));
 
   // Fetch orders for all clients of this vendedor
   const { data: pedidos = [], isLoading } = useQuery({
