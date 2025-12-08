@@ -69,12 +69,29 @@ export default function VendedorCatalogo() {
     localStorage.setItem('ebd-cart', JSON.stringify(cart));
   }, [cart]);
 
-  // Also save client info to sessionStorage for checkout
+  // Also save client info to sessionStorage for checkout - save clienteId to fetch full data
   useEffect(() => {
     if (clienteId && clienteNome) {
-      sessionStorage.setItem('vendedor-cliente', JSON.stringify({ id: clienteId, nome: clienteNome }));
+      sessionStorage.setItem('vendedor-cliente-id', clienteId);
+      sessionStorage.setItem('vendedor-cliente-nome', clienteNome);
     }
   }, [clienteId, clienteNome]);
+
+  // Fetch all cart items info for sidebar display
+  const cartItemIds = Object.keys(cart).filter(id => cart[id] > 0);
+  const { data: allCartRevistas } = useQuery({
+    queryKey: ['ebd-revistas-cart-sidebar', cartItemIds],
+    queryFn: async () => {
+      if (cartItemIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('ebd_revistas')
+        .select('id, titulo, preco_cheio')
+        .in('id', cartItemIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: cartItemIds.length > 0,
+  });
 
   const { data: revistas, isLoading } = useQuery({
     queryKey: ['ebd-revistas-catalogo-vendedor', categoriaSelecionada, faixaSelecionada],
@@ -323,7 +340,7 @@ export default function VendedorCatalogo() {
                 <>
                   <ScrollArea className="h-[300px] pr-2">
                     <div className="space-y-3">
-                      {revistas?.filter(r => cart[r.id] > 0).map((revista) => (
+                      {allCartRevistas?.map((revista) => (
                         <div
                           key={revista.id}
                           className="flex items-start gap-3 p-2 rounded-lg bg-muted/50"

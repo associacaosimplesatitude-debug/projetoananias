@@ -206,6 +206,31 @@ export default function Checkout() {
     },
   });
 
+  // Verificar se há cliente de vendedor no sessionStorage
+  const vendedorClienteId = sessionStorage.getItem('vendedor-cliente-id');
+  
+  // Buscar dados do cliente do vendedor se existir
+  const { data: vendedorCliente, isLoading: isLoadingVendedorCliente } = useQuery({
+    queryKey: ['vendedor-cliente-checkout', vendedorClienteId],
+    queryFn: async () => {
+      if (!vendedorClienteId) return null;
+      
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('*')
+        .eq('id', vendedorClienteId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Erro ao buscar cliente do vendedor:', error);
+        return null;
+      }
+      
+      return data;
+    },
+    enabled: !!vendedorClienteId,
+  });
+
   // Buscar endereço salvo do usuário
   const { data: savedAddress, isLoading: isLoadingAddress } = useQuery({
     queryKey: ['saved-address'],
@@ -226,11 +251,45 @@ export default function Checkout() {
 
       return data as SavedAddress | null;
     },
+    enabled: !vendedorClienteId, // Só busca se NÃO for pedido de vendedor
   });
 
-  // Efeito para decidir se mostra o formulário ou endereço salvo
+  // Efeito para preencher dados do cliente do vendedor
   useEffect(() => {
-    if (!isLoadingAddress) {
+    if (vendedorCliente && !isLoadingVendedorCliente) {
+      setUseSavedAddress(true);
+      setShowAddressForm(false);
+      
+      // Extrair nome e sobrenome do nome_responsavel ou nome_superintendente
+      const nomeCompleto = vendedorCliente.nome_responsavel || vendedorCliente.nome_superintendente || vendedorCliente.nome_igreja || '';
+      const partesNome = nomeCompleto.split(' ');
+      const primeiroNome = partesNome[0] || '';
+      const sobrenome = partesNome.slice(1).join(' ') || '';
+      
+      form.reset({
+        nome: primeiroNome,
+        sobrenome: sobrenome,
+        cpf: vendedorCliente.cpf || vendedorCliente.cnpj || '',
+        email: vendedorCliente.email_superintendente || '',
+        cep: vendedorCliente.endereco_cep || '',
+        rua: vendedorCliente.endereco_rua || '',
+        numero: vendedorCliente.endereco_numero || '',
+        complemento: vendedorCliente.endereco_complemento || '',
+        bairro: vendedorCliente.endereco_bairro || '',
+        cidade: vendedorCliente.endereco_cidade || '',
+        estado: vendedorCliente.endereco_estado || '',
+      });
+      
+      // Calcular frete automaticamente se tiver CEP
+      if (vendedorCliente.endereco_cep) {
+        handleCEPBlur(vendedorCliente.endereco_cep);
+      }
+    }
+  }, [vendedorCliente, isLoadingVendedorCliente]);
+
+  // Efeito para decidir se mostra o formulário ou endereço salvo (quando não é pedido de vendedor)
+  useEffect(() => {
+    if (!vendedorClienteId && !isLoadingAddress) {
       if (savedAddress) {
         setUseSavedAddress(true);
         // Preenche o formulário com os dados salvos
@@ -254,7 +313,7 @@ export default function Checkout() {
         setShowAddressForm(true);
       }
     }
-  }, [savedAddress, isLoadingAddress]);
+  }, [savedAddress, isLoadingAddress, vendedorClienteId]);
 
   // Função para salvar/atualizar endereço
   const saveAddress = async (data: AddressForm) => {

@@ -21,6 +21,11 @@ export default function Carrinho() {
     const saved = localStorage.getItem('ebd-cart');
     return saved ? JSON.parse(saved) : {};
   });
+  
+  // Verificar se veio do catálogo do vendedor
+  const vendedorClienteId = sessionStorage.getItem('vendedor-cliente-id');
+  const vendedorClienteNome = sessionStorage.getItem('vendedor-cliente-nome');
+  const isVendedorOrder = !!vendedorClienteId;
 
   const revistaIds = Object.keys(cart);
 
@@ -71,6 +76,14 @@ export default function Carrinho() {
 
   const { subtotal, total } = calculateTotal();
 
+  const handleGoToCatalog = () => {
+    if (isVendedorOrder && vendedorClienteId && vendedorClienteNome) {
+      navigate(`/vendedor/catalogo?clienteId=${vendedorClienteId}&clienteNome=${encodeURIComponent(vendedorClienteNome)}`);
+    } else {
+      navigate('/ebd/catalogo');
+    }
+  };
+
   if (revistaIds.length === 0) {
     return (
       <div className="container mx-auto p-6">
@@ -81,7 +94,7 @@ export default function Carrinho() {
             Você ainda não adicionou nenhuma revista ao carrinho.
           </p>
           <div className="flex justify-center gap-3">
-            <Button onClick={() => navigate('/ebd/catalogo')}>
+            <Button onClick={handleGoToCatalog}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Ir para o Catálogo
             </Button>
@@ -98,7 +111,14 @@ export default function Carrinho() {
     <div className="container mx-auto p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">🛒 Seu Carrinho</h1>
+          <div>
+            <h1 className="text-3xl font-bold">🛒 Seu Carrinho</h1>
+            {isVendedorOrder && vendedorClienteNome && (
+              <p className="text-muted-foreground">
+                Cliente: <span className="font-medium text-foreground">{vendedorClienteNome}</span>
+              </p>
+            )}
+          </div>
           <Button 
             variant="outline" 
             onClick={() => navigate('/ebd/my-orders')}
@@ -218,7 +238,7 @@ export default function Carrinho() {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => navigate('/ebd/catalogo')}
+                  onClick={handleGoToCatalog}
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Escolher Mais Revistas
