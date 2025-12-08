@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   ArrowLeft, 
   ShoppingCart, 
@@ -56,17 +57,27 @@ export default function VendedorCatalogo() {
   const [searchParams] = useSearchParams();
   const clienteId = searchParams.get('clienteId');
   const clienteNome = searchParams.get('clienteNome');
+  const hasCleared = useRef(false);
   
   const [categoriaSelecionada, setCategoriaSelecionada] = useState<string>("all");
   const [faixaSelecionada, setFaixaSelecionada] = useState<string>("all");
-  const [cart, setCart] = useState<{ [key: string]: number }>(() => {
-    const saved = localStorage.getItem('ebd-cart');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [cart, setCart] = useState<{ [key: string]: number }>({});
+
+  // Clear cart when entering from a new order (clienteId changes) and initialize
+  useEffect(() => {
+    if (clienteId && !hasCleared.current) {
+      // Clear cart for new order
+      localStorage.removeItem('ebd-cart');
+      setCart({});
+      hasCleared.current = true;
+    }
+  }, [clienteId]);
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('ebd-cart', JSON.stringify(cart));
+    if (hasCleared.current) {
+      localStorage.setItem('ebd-cart', JSON.stringify(cart));
+    }
   }, [cart]);
 
   // Also save client info to sessionStorage for checkout - save clienteId to fetch full data
@@ -203,43 +214,41 @@ export default function VendedorCatalogo() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 space-y-4">
-        {/* Category Filter */}
-        <div>
-          <h2 className="text-sm font-medium text-muted-foreground mb-2">
-            Categoria:
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {CATEGORIAS.map((cat) => (
-              <Button
-                key={cat.value}
-                variant={categoriaSelecionada === cat.value ? 'default' : 'outline'}
-                onClick={() => setCategoriaSelecionada(cat.value)}
-                size="sm"
-              >
-                {cat.label}
-              </Button>
-            ))}
-          </div>
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="flex-1 max-w-xs">
+          <label className="text-sm font-medium text-muted-foreground mb-2 block">
+            Categoria
+          </label>
+          <Select value={categoriaSelecionada} onValueChange={setCategoriaSelecionada}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione uma categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORIAS.map((cat) => (
+                <SelectItem key={cat.value} value={cat.value}>
+                  {cat.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Subcategory Filter (Age Range) */}
-        <div>
-          <h2 className="text-sm font-medium text-muted-foreground mb-2">
-            Subcategoria (Faixa Etária):
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {FAIXAS_ETARIAS.map((faixa) => (
-              <Button
-                key={faixa.value}
-                variant={faixaSelecionada === faixa.value ? 'default' : 'outline'}
-                onClick={() => setFaixaSelecionada(faixa.value)}
-                size="sm"
-              >
-                {faixa.label}
-              </Button>
-            ))}
-          </div>
+        <div className="flex-1 max-w-xs">
+          <label className="text-sm font-medium text-muted-foreground mb-2 block">
+            Faixa Etária
+          </label>
+          <Select value={faixaSelecionada} onValueChange={setFaixaSelecionada}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione uma faixa etária" />
+            </SelectTrigger>
+            <SelectContent>
+              {FAIXAS_ETARIAS.map((faixa) => (
+                <SelectItem key={faixa.value} value={faixa.value}>
+                  {faixa.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
