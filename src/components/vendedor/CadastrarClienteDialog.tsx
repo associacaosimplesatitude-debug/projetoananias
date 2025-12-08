@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -21,13 +21,34 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { MapPin, User, Building, Lock, Phone } from "lucide-react";
+import { MapPin, User, Building, Lock, Phone, Pencil } from "lucide-react";
+
+interface Cliente {
+  id: string;
+  tipo_cliente: string | null;
+  nome_igreja: string;
+  nome_responsavel: string | null;
+  email_superintendente: string | null;
+  telefone: string | null;
+  possui_cnpj: boolean | null;
+  cnpj: string;
+  cpf: string | null;
+  endereco_cep: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_complemento: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  senha_temporaria: string | null;
+}
 
 interface CadastrarClienteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   vendedorId: string;
   onSuccess: () => void;
+  clienteParaEditar?: Cliente | null;
 }
 
 const TIPOS_CLIENTE = ["Igreja", "Lojista", "Pessoa Física"] as const;
@@ -43,6 +64,7 @@ export function CadastrarClienteDialog({
   onOpenChange,
   vendedorId,
   onSuccess,
+  clienteParaEditar,
 }: CadastrarClienteDialogProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -53,7 +75,7 @@ export function CadastrarClienteDialog({
     senha: "",
     telefone: "",
     possui_cnpj: true,
-    documento: "", // RG/CPF/CNPJ
+    documento: "",
     endereco_cep: "",
     endereco_rua: "",
     endereco_numero: "",
@@ -63,6 +85,35 @@ export function CadastrarClienteDialog({
     endereco_estado: "",
   });
   const [loadingCep, setLoadingCep] = useState(false);
+
+  const isEditMode = !!clienteParaEditar;
+
+  // Populate form when editing
+  useEffect(() => {
+    if (clienteParaEditar && open) {
+      const documento = clienteParaEditar.possui_cnpj 
+        ? formatCNPJ(clienteParaEditar.cnpj || "")
+        : formatCPF(clienteParaEditar.cpf || "");
+      
+      setFormData({
+        tipo_cliente: clienteParaEditar.tipo_cliente || "Igreja",
+        nome_igreja: clienteParaEditar.nome_igreja || "",
+        nome_responsavel: clienteParaEditar.nome_responsavel || "",
+        email_superintendente: clienteParaEditar.email_superintendente || "",
+        senha: "",
+        telefone: formatPhone(clienteParaEditar.telefone || ""),
+        possui_cnpj: clienteParaEditar.possui_cnpj ?? true,
+        documento: documento,
+        endereco_cep: formatCEP(clienteParaEditar.endereco_cep || ""),
+        endereco_rua: clienteParaEditar.endereco_rua || "",
+        endereco_numero: clienteParaEditar.endereco_numero || "",
+        endereco_complemento: clienteParaEditar.endereco_complemento || "",
+        endereco_bairro: clienteParaEditar.endereco_bairro || "",
+        endereco_cidade: clienteParaEditar.endereco_cidade || "",
+        endereco_estado: clienteParaEditar.endereco_estado || "",
+      });
+    }
+  }, [clienteParaEditar, open]);
 
   const formatCNPJ = (value: string) => {
     const numbers = value.replace(/\D/g, "");
@@ -172,8 +223,7 @@ export function CadastrarClienteDialog({
     try {
       const documentoLimpo = formData.documento.replace(/\D/g, "");
       
-      const { error } = await supabase.from("ebd_clientes").insert({
-        vendedor_id: vendedorId,
+      const clienteData = {
         tipo_cliente: formData.tipo_cliente,
         nome_igreja: formData.nome_igreja,
         nome_responsavel: formData.nome_responsavel || null,
@@ -189,26 +239,41 @@ export function CadastrarClienteDialog({
         endereco_bairro: formData.endereco_bairro,
         endereco_cidade: formData.endereco_cidade,
         endereco_estado: formData.endereco_estado,
-        status_ativacao_ebd: false,
-        senha_temporaria: formData.senha || null,
-      });
+        ...(formData.senha ? { senha_temporaria: formData.senha } : {}),
+      };
 
-      if (error) {
-        if (error.message.includes("duplicate key")) {
-          toast.error("Já existe um cliente com este documento");
-        } else {
-          throw error;
+      if (isEditMode && clienteParaEditar) {
+        const { error } = await supabase
+          .from("ebd_clientes")
+          .update(clienteData)
+          .eq("id", clienteParaEditar.id);
+
+        if (error) throw error;
+        toast.success("Cliente atualizado com sucesso!");
+      } else {
+        const { error } = await supabase.from("ebd_clientes").insert({
+          ...clienteData,
+          vendedor_id: vendedorId,
+          status_ativacao_ebd: false,
+        });
+
+        if (error) {
+          if (error.message.includes("duplicate key")) {
+            toast.error("Já existe um cliente com este documento");
+          } else {
+            throw error;
+          }
+          return;
         }
-        return;
+        toast.success("Cliente cadastrado com sucesso!");
       }
 
-      toast.success("Cliente cadastrado com sucesso!");
       resetForm();
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      console.error("Error creating cliente:", error);
-      toast.error("Erro ao cadastrar cliente");
+      console.error("Error saving cliente:", error);
+      toast.error(isEditMode ? "Erro ao atualizar cliente" : "Erro ao cadastrar cliente");
     } finally {
       setLoading(false);
     }
@@ -219,12 +284,24 @@ export function CadastrarClienteDialog({
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Building className="h-5 w-5" />
-            Cadastrar Novo Cliente
+            {isEditMode ? (
+              <>
+                <Pencil className="h-5 w-5" />
+                Editar Cliente
+              </>
+            ) : (
+              <>
+                <Building className="h-5 w-5" />
+                Cadastrar Novo Cliente
+              </>
+            )}
           </DialogTitle>
           <DialogDescription>
-            Preencha os dados do novo cliente. O cliente será atribuído automaticamente a você.
-            O módulo padrão será <strong>REOBOTE EBD - Escola Bíblica Dominical</strong>.
+            {isEditMode 
+              ? "Atualize os dados do cliente conforme necessário."
+              : <>Preencha os dados do novo cliente. O cliente será atribuído automaticamente a você.
+                O módulo padrão será <strong>REOBOTE EBD - Escola Bíblica Dominical</strong>.</>
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -294,14 +371,14 @@ export function CadastrarClienteDialog({
                 <div className="space-y-2">
                   <Label htmlFor="senha">
                     <Lock className="inline h-4 w-4 mr-1" />
-                    Senha de Acesso
+                    {isEditMode ? "Nova Senha (deixe vazio para manter)" : "Senha de Acesso"}
                   </Label>
                   <Input
                     id="senha"
                     type="password"
                     value={formData.senha}
                     onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                    placeholder="Senha temporária"
+                    placeholder={isEditMode ? "Nova senha (opcional)" : "Senha temporária"}
                   />
                 </div>
               </div>
@@ -446,7 +523,10 @@ export function CadastrarClienteDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Cadastrando..." : "Cadastrar Cliente"}
+              {loading 
+                ? (isEditMode ? "Salvando..." : "Cadastrando...") 
+                : (isEditMode ? "Salvar Alterações" : "Cadastrar Cliente")
+              }
             </Button>
           </div>
         </form>
