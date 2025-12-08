@@ -29,6 +29,19 @@ export const useActiveModules = () => {
         }
       }
 
+      // Check if user is a superintendent (from ebd_clientes)
+      const { data: superintendenteData } = await supabase
+        .from('ebd_clientes')
+        .select('id, status_ativacao_ebd')
+        .eq('superintendente_user_id', user.id)
+        .eq('status_ativacao_ebd', true)
+        .maybeSingle();
+
+      if (superintendenteData) {
+        // Superintendents have access to EBD module
+        return ['REOBOTE EBD'];
+      }
+
       // First, try to find church where user is the owner
       let churchId: string | null = null;
 

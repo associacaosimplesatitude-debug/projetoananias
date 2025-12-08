@@ -78,7 +78,29 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.email && !loading,
   });
 
-  const isLoading = loading || modulesLoading || studentLoading || professorLoading || vendedorLoading;
+  // Check if user is a superintendent (from ebd_clientes)
+  const { data: isSuperintendente, isLoading: superintendenteLoading } = useQuery({
+    queryKey: ['is-superintendente-check', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('id')
+        .eq('superintendente_user_id', user.id)
+        .eq('status_ativacao_ebd', true)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking superintendente status:', error);
+        return false;
+      }
+      return !!data;
+    },
+    enabled: !!user?.id && !loading,
+  });
+
+  const isLoading = loading || modulesLoading || studentLoading || professorLoading || vendedorLoading || superintendenteLoading;
 
   if (isLoading) {
     return (
@@ -99,6 +121,11 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
 
   // Vendedores have access to EBD routes (carrinho, checkout, etc.)
   if (isVendedor && requiredModule === 'REOBOTE EBD') {
+    return <>{children}</>;
+  }
+
+  // Superintendents have access to EBD routes
+  if (isSuperintendente && requiredModule === 'REOBOTE EBD') {
     return <>{children}</>;
   }
 
