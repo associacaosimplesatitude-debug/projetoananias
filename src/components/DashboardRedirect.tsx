@@ -51,6 +51,28 @@ export default function DashboardRedirect() {
     enabled: !!user?.id && !authLoading,
   });
 
+  // Check if user is a lead de reativação (superintendent by email)
+  const { data: leadReativacao, isLoading: leadLoading } = useQuery({
+    queryKey: ["is-lead-reativacao-redirect", user?.email],
+    queryFn: async () => {
+      if (!user?.email) return null;
+      
+      const { data, error } = await supabase
+        .from("ebd_leads_reativacao")
+        .select("id, conta_criada")
+        .eq("email", user.email)
+        .eq("conta_criada", true)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error checking lead reativacao status:", error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!user?.email && !authLoading,
+  });
+
   // Check if the user is a student - using a separate query with its own loading state
   const { data: aluno, isLoading: alunoLoading } = useQuery({
     queryKey: ["is-aluno-redirect", user?.id],
@@ -96,7 +118,7 @@ export default function DashboardRedirect() {
     enabled: !!user?.id && !authLoading,
   });
 
-  const isLoading = modulesLoading || alunoLoading || authLoading || professorLoading || vendedorLoading || superintendenteLoading;
+  const isLoading = modulesLoading || alunoLoading || authLoading || professorLoading || vendedorLoading || superintendenteLoading || leadLoading;
 
   if (isLoading) {
     return (
@@ -118,6 +140,11 @@ export default function DashboardRedirect() {
 
   // If user is a superintendent (from ebd_clientes), redirect to EBD dashboard
   if (superintendente) {
+    return <Navigate to="/ebd/dashboard" replace />;
+  }
+
+  // If user is a lead de reativação, redirect to EBD dashboard
+  if (leadReativacao) {
     return <Navigate to="/ebd/dashboard" replace />;
   }
 
