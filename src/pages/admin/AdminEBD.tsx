@@ -581,6 +581,13 @@ export default function AdminEBD() {
     });
   }, [ebdClients, clientSearchTerm, clientVendedorFilter, clientStateFilter, clientPurchaseStatusFilter, vendedores, churchProgress]);
 
+  // Calculate lead score dynamically
+  const getLeadScore = (lead: { ultimo_login_ebd?: string | null; email_aberto?: boolean }): string => {
+    if (lead.ultimo_login_ebd) return 'Quente';
+    if (lead.email_aberto) return 'Morno';
+    return 'Frio';
+  };
+
   // Filter leads
   const filteredLeads = useMemo(() => {
     if (!leadsReativacao) return [];
@@ -612,8 +619,8 @@ export default function AdminEBD() {
         return false;
       }
       
-      // Score filter
-      if (leadScoreFilter !== 'all' && lead.lead_score !== leadScoreFilter) {
+      // Score filter (dynamic)
+      if (leadScoreFilter !== 'all' && getLeadScore(lead) !== leadScoreFilter) {
         return false;
       }
       
@@ -1759,36 +1766,6 @@ export default function AdminEBD() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline"
-                    onClick={async () => {
-                      toast.info('Criando contas em lote...');
-                      const { data: { session } } = await supabase.auth.getSession();
-                      if (!session?.access_token) {
-                        toast.error('Sessão expirada. Faça login novamente.');
-                        return;
-                      }
-                      const { data, error } = await supabase.functions.invoke('ebd-create-lead-accounts', {
-                        headers: {
-                          Authorization: `Bearer ${session.access_token}`,
-                        },
-                      });
-                      if (error) {
-                        toast.error('Erro ao criar contas: ' + error.message);
-                      } else if (data?.success) {
-                        toast.success(data.message || 'Contas criadas com sucesso');
-                        if (data.errors?.length > 0) {
-                          data.errors.forEach((e: string) => toast.warning(e));
-                        }
-                        refetchLeads();
-                      } else {
-                        toast.error(data?.error || 'Erro desconhecido');
-                      }
-                    }}
-                  >
-                    <Users className="h-4 w-4 mr-2" />
-                    Criar Contas em Lote
-                  </Button>
                   <Button onClick={() => setImportLeadsDialogOpen(true)}>
                     <Upload className="h-4 w-4 mr-2" />
                     Importar CSV
@@ -1914,18 +1891,23 @@ export default function AdminEBD() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            lead.lead_score === 'Quente'
-                              ? 'bg-orange-50 text-orange-700 border-orange-200'
-                              : lead.lead_score === 'Morno'
-                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                              : 'bg-blue-50 text-blue-700 border-blue-200'
-                          }
-                        >
-                          {lead.lead_score}
-                        </Badge>
+                        {(() => {
+                          const score = getLeadScore(lead);
+                          return (
+                            <Badge
+                              variant="outline"
+                              className={
+                                score === 'Quente'
+                                  ? 'bg-orange-50 text-orange-700 border-orange-200'
+                                  : score === 'Morno'
+                                  ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                              }
+                            >
+                              {score}
+                            </Badge>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <Badge

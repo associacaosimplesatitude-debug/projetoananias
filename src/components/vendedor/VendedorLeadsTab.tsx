@@ -77,18 +77,30 @@ export function VendedorLeadsTab({ vendedorId }: VendedorLeadsTabProps) {
     enabled: !!vendedorId,
   });
 
+  // Calculate score dynamically based on criteria
+  const getCalculatedScore = (lead: Lead): string => {
+    if (lead.ultimo_login_ebd) {
+      return "Quente";
+    } else if (lead.email_aberto) {
+      return "Morno";
+    }
+    return "Frio";
+  };
+
   const filteredLeads = leads.filter((lead) => {
     const matchesSearch = 
       lead.nome_igreja.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
     
     const matchesStatus = statusFilter === "all" || lead.status_lead === statusFilter;
-    const matchesScore = scoreFilter === "all" || lead.lead_score === scoreFilter;
+    const calculatedScore = getCalculatedScore(lead);
+    const matchesScore = scoreFilter === "all" || calculatedScore === scoreFilter;
 
     return matchesSearch && matchesStatus && matchesScore;
   });
 
-  const getScoreBadge = (score: string) => {
+  const getScoreBadge = (lead: Lead) => {
+    const score = getCalculatedScore(lead);
     switch (score) {
       case "Quente":
         return (
@@ -259,7 +271,7 @@ export function VendedorLeadsTab({ vendedorId }: VendedorLeadsTabProps) {
                           {getLocalizacao(lead)}
                         </span>
                       </TableCell>
-                      <TableCell>{getScoreBadge(lead.lead_score)}</TableCell>
+                      <TableCell>{getScoreBadge(lead)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2" title={lead.email_aberto ? "Email aberto" : "Email não aberto"}>
                           {lead.email_aberto ? (

@@ -28,7 +28,7 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
   const { data: leadStats, isLoading: statsLoading } = useQuery({
     queryKey: ["lead-scoring-stats", vendedorId],
     queryFn: async (): Promise<LeadStats> => {
-      let query = supabase.from("ebd_leads_reativacao").select("email_aberto, conta_criada");
+      let query = supabase.from("ebd_leads_reativacao").select("email_aberto, conta_criada, ultimo_login_ebd");
       
       if (vendedorId) {
         query = query.eq("vendedor_id", vendedorId);
@@ -40,15 +40,15 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
       const leads = data || [];
       
       // Calculate scores based on criteria:
-      // Frio: email_aberto = FALSE AND conta_criada = FALSE
-      // Morno: email_aberto = TRUE AND conta_criada = FALSE
-      // Quente: conta_criada = TRUE (regardless of email_aberto)
+      // Frio: conta_criada = TRUE, email_aberto = FALSE, ultimo_login_ebd = NULL
+      // Morno: conta_criada = TRUE, email_aberto = TRUE, ultimo_login_ebd = NULL
+      // Quente: ultimo_login_ebd IS NOT NULL (user logged in)
       let frio = 0;
       let morno = 0;
       let quente = 0;
 
       leads.forEach((lead) => {
-        if (lead.conta_criada === true) {
+        if (lead.ultimo_login_ebd) {
           quente++;
         } else if (lead.email_aberto === true) {
           morno++;
@@ -73,7 +73,7 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
       // First get all leads with vendedor_id
       const { data: leads, error: leadsError } = await supabase
         .from("ebd_leads_reativacao")
-        .select("vendedor_id, email_aberto, conta_criada")
+        .select("vendedor_id, email_aberto, conta_criada, ultimo_login_ebd")
         .not("vendedor_id", "is", null);
 
       if (leadsError) throw leadsError;
@@ -94,7 +94,7 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
       // Group by vendedor and count morno and quente
       const performanceMap = new Map<string, { morno: number; quente: number }>();
 
-      leads?.forEach((lead) => {
+      leads?.forEach((lead: any) => {
         if (!lead.vendedor_id) return;
         
         if (!performanceMap.has(lead.vendedor_id)) {
@@ -103,7 +103,7 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
 
         const stats = performanceMap.get(lead.vendedor_id)!;
         
-        if (lead.conta_criada === true) {
+        if (lead.ultimo_login_ebd) {
           stats.quente++;
         } else if (lead.email_aberto === true) {
           stats.morno++;
@@ -197,7 +197,7 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
-              Não abriu email, sem painel
+              Conta criada, não abriu email
             </p>
           </CardContent>
         </Card>
@@ -233,7 +233,7 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
-              Painel ativado
+              Logou no painel
             </p>
           </CardContent>
         </Card>
