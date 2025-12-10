@@ -57,16 +57,18 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.id && !loading,
   });
 
-  // Check if user is a vendedor
+  // Check if user is a vendedor - CASE INSENSITIVE
   const { data: isVendedor, isLoading: vendedorLoading } = useQuery({
-    queryKey: ['is-vendedor-check', user?.email],
+    queryKey: ['is-vendedor-check', user?.email?.toLowerCase()],
     queryFn: async () => {
       if (!user?.email) return false;
+      
+      const userEmail = user.email.toLowerCase().trim();
       
       const { data, error } = await supabase
         .from('vendedores')
         .select('id')
-        .eq('email', user.email)
+        .ilike('email', userEmail)
         .maybeSingle();
 
       if (error) {
@@ -100,17 +102,18 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.id && !loading,
   });
 
-  // Check if user is a lead de reativação
+  // Check if user is a lead de reativação - CASE INSENSITIVE
   const { data: isLeadReativacao, isLoading: leadLoading } = useQuery({
-    queryKey: ['is-lead-reativacao-check', user?.email],
+    queryKey: ['is-lead-reativacao-check', user?.email?.toLowerCase()],
     queryFn: async () => {
       if (!user?.email) return false;
+      
+      const userEmail = user.email.toLowerCase().trim();
       
       const { data, error } = await supabase
         .from('ebd_leads_reativacao')
         .select('id')
-        .eq('email', user.email)
-        .eq('conta_criada', true)
+        .ilike('email', userEmail)
         .maybeSingle();
 
       if (error) {

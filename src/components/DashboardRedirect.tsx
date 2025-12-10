@@ -8,16 +8,18 @@ export default function DashboardRedirect() {
   const { data: activeModules, isLoading: modulesLoading } = useActiveModules();
   const { role, user, loading: authLoading } = useAuth();
 
-  // Check if user is a vendedor
+  // Check if user is a vendedor - CASE INSENSITIVE
   const { data: vendedor, isLoading: vendedorLoading } = useQuery({
-    queryKey: ["is-vendedor-redirect", user?.email],
+    queryKey: ["is-vendedor-redirect", user?.email?.toLowerCase()],
     queryFn: async () => {
       if (!user?.email) return null;
+      
+      const userEmail = user.email.toLowerCase().trim();
       
       const { data, error } = await supabase
         .from("vendedores")
         .select("id")
-        .eq("email", user.email)
+        .ilike("email", userEmail)
         .maybeSingle();
 
       if (error) {
@@ -51,23 +53,29 @@ export default function DashboardRedirect() {
     enabled: !!user?.id && !authLoading,
   });
 
-  // Check if user is a lead de reativação (superintendent by email)
+  // Check if user is a lead de reativação (superintendent by email) - CASE INSENSITIVE
   const { data: leadReativacao, isLoading: leadLoading } = useQuery({
-    queryKey: ["is-lead-reativacao-redirect", user?.email],
+    queryKey: ["is-lead-reativacao-redirect", user?.email?.toLowerCase()],
     queryFn: async () => {
       if (!user?.email) return null;
       
+      const userEmail = user.email.toLowerCase().trim();
+      console.log('DashboardRedirect - Checking lead for email:', userEmail);
+      
       const { data, error } = await supabase
         .from("ebd_leads_reativacao")
-        .select("id, conta_criada")
-        .eq("email", user.email)
-        .eq("conta_criada", true)
+        .select("id, conta_criada, email")
+        .ilike("email", userEmail)
         .maybeSingle();
+
+      console.log('DashboardRedirect - Lead query result:', { data, error });
 
       if (error) {
         console.error("Error checking lead reativacao status:", error);
         return null;
       }
+      
+      // Return data regardless of conta_criada - we'll check in the redirect logic
       return data;
     },
     enabled: !!user?.email && !authLoading,

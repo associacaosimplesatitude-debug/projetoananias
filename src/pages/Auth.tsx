@@ -36,82 +36,99 @@ export default function Auth() {
   }, [user]);
 
   const handlePostLoginRedirect = async () => {
-    if (!user) return;
+    if (!user || !user.email) return;
+    
+    const userEmail = user.email.toLowerCase().trim();
+    console.log('=== POST LOGIN REDIRECT ===');
+    console.log('User ID:', user.id);
+    console.log('User Email:', userEmail);
     
     try {
-      // PRIMEIRO: Verificar se é vendedor (pelo email) - deve ter prioridade
-      const { data: vendedorData } = await supabase
+      // 1. VENDEDOR - verificar pelo email
+      const { data: vendedorData, error: vendedorError } = await supabase
         .from('vendedores')
         .select('id')
-        .eq('email', user.email)
+        .eq('email', userEmail)
         .maybeSingle();
 
+      console.log('Vendedor check:', { vendedorData, vendedorError });
+
       if (vendedorData) {
+        console.log('Redirecting to /vendedor');
         navigate('/vendedor');
         return;
       }
 
-      // Verificar se é superintendente (cadastrado via vendedor em ebd_clientes)
-      const { data: superintendenteData } = await supabase
+      // 2. SUPERINTENDENTE (ebd_clientes) - verificar pelo user_id
+      const { data: superintendenteData, error: superintendenteError } = await supabase
         .from('ebd_clientes')
         .select('id, status_ativacao_ebd')
         .eq('superintendente_user_id', user.id)
         .eq('status_ativacao_ebd', true)
         .maybeSingle();
 
+      console.log('Superintendente check:', { superintendenteData, superintendenteError });
+
       if (superintendenteData) {
-        // Atualizar ultimo_login
         await supabase
           .from('ebd_clientes')
           .update({ ultimo_login: new Date().toISOString() })
           .eq('id', superintendenteData.id);
+        console.log('Redirecting to /ebd/dashboard (superintendente)');
         navigate('/ebd/dashboard');
         return;
       }
 
-      // Verificar se é um lead de reativação (superintendente pelo email)
+      // 3. LEAD DE REATIVAÇÃO - verificar pelo email (CRÍTICO!)
+      // Usar RPC ou query direta sem filtro de conta_criada primeiro
       const { data: leadData, error: leadError } = await supabase
         .from('ebd_leads_reativacao')
-        .select('id, conta_criada, email')
-        .eq('email', user.email)
+        .select('id, conta_criada, email, lead_score')
+        .ilike('email', userEmail)
         .maybeSingle();
 
-      console.log('Lead check:', { leadData, leadError, userEmail: user.email });
+      console.log('Lead check:', { leadData, leadError, userEmail });
 
-      if (leadData && leadData.conta_criada === true) {
-        // Atualizar login e score para Quente
-        await supabase
+      if (leadData) {
+        // Atualizar lead_score para Quente e ultimo_login_ebd
+        const { error: updateError } = await supabase
           .from('ebd_leads_reativacao')
           .update({ 
             ultimo_login_ebd: new Date().toISOString(),
-            lead_score: 'Quente'
+            lead_score: 'Quente',
+            conta_criada: true
           })
           .eq('id', leadData.id);
         
+        console.log('Lead update result:', { updateError });
+        console.log('Redirecting to /ebd/dashboard (lead reativacao)');
         navigate('/ebd/dashboard');
         return;
       }
 
-      // Buscar role do usuário
-      const { data: roleData } = await supabase
+      // 4. ADMIN - verificar pela role
+      const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      // Se for admin, vai para o dashboard de admin
+      console.log('Role check:', { roleData, roleError });
+
       if (roleData?.role === 'admin') {
+        console.log('Redirecting to /admin');
         navigate('/admin');
         return;
       }
 
-      // Se for tesoureiro ou secretário, vai direto para o dashboard
+      // 5. TESOUREIRO/SECRETÁRIO
       if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
+        console.log('Redirecting to /dashboard (tesoureiro/secretario)');
         navigate('/dashboard');
         return;
       }
 
-      // Se for client, verifica o status da igreja
+      // 6. CLIENT - verificar igreja
       if (roleData?.role === 'client') {
         const { data: church } = await supabase
           .from('churches')
@@ -119,16 +136,17 @@ export default function Auth() {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        // Redirecionar baseado no status
         if (church?.process_status === 'completed') {
+          console.log('Redirecting to /dashboard (client completed)');
           navigate('/dashboard');
         } else {
+          console.log('Redirecting to / (client in progress)');
           navigate('/');
         }
         return;
       }
 
-      // Verificar se é professor (antes de aluno para prioridade)
+      // 7. PROFESSOR
       const { data: professorData } = await supabase
         .from('ebd_professores')
         .select('id')
@@ -137,11 +155,12 @@ export default function Auth() {
         .maybeSingle();
 
       if (professorData) {
+        console.log('Redirecting to /ebd/professor');
         navigate('/ebd/professor');
         return;
       }
 
-      // Verificar se é aluno
+      // 8. ALUNO
       const { data: alunoData } = await supabase
         .from('ebd_alunos')
         .select('id')
@@ -150,11 +169,13 @@ export default function Auth() {
         .maybeSingle();
 
       if (alunoData) {
+        console.log('Redirecting to /ebd/aluno');
         navigate('/ebd/aluno');
         return;
       }
 
-      // Fallback: vai para página inicial
+      // 9. FALLBACK - ir para página inicial
+      console.log('No specific role found, redirecting to /');
       navigate('/');
     } catch (error) {
       console.error('Erro ao redirecionar após login:', error);
