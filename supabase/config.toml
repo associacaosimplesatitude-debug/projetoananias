@@ -56,3 +56,6 @@ verify_jwt = true
 
 [functions.ebd-brevo-webhook]
 verify_jwt = false
+
+[functions.ebd-send-activation-batch]
+verify_jwt = true
