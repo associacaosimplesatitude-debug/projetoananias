@@ -49,14 +49,36 @@ export function ConditionalNavigation({ children }: ConditionalNavigationProps) 
     enabled: !!user?.id,
   });
 
-  // Check if we're on aluno or professor routes
+  // Check if current user is a vendedor
+  const { data: isVendedor } = useQuery({
+    queryKey: ["is-vendedor-conditional", user?.email],
+    queryFn: async () => {
+      if (!user?.email) return false;
+      const { data, error } = await supabase
+        .from("vendedores")
+        .select("id")
+        .eq("email", user.email)
+        .maybeSingle();
+      
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!user?.email,
+  });
+
+  // Check if we're on aluno, professor or vendedor routes
   const isAlunoRoute = location.pathname.startsWith('/ebd/aluno');
   const isProfessorRoute = location.pathname.startsWith('/ebd/professor');
+  const isVendedorRoute = location.pathname.startsWith('/vendedor');
 
   // Hide main navigation if:
   // 1. User is aluno and on aluno routes
   // 2. User is professor and on professor routes
-  const shouldHideNavigation = (isAluno && isAlunoRoute) || (isProfessor && isProfessorRoute);
+  // 3. User is vendedor and on vendedor routes
+  const shouldHideNavigation = 
+    (isAluno && isAlunoRoute) || 
+    (isProfessor && isProfessorRoute) ||
+    (isVendedor && isVendedorRoute);
 
   if (shouldHideNavigation) {
     return <>{children}</>;
