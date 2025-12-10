@@ -18,25 +18,31 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Verify admin role
-    const authHeader = req.headers.get('Authorization')!;
-    const token = authHeader.replace('Bearer ', '');
+    // Check if called by cron (no auth header) or by admin user
+    const authHeader = req.headers.get('Authorization');
+    const isCronJob = !authHeader || authHeader === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`;
     
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      throw new Error('Unauthorized');
+    if (!isCronJob) {
+      // Verify admin role for manual calls
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+      
+      if (authError || !user) {
+        throw new Error('Unauthorized');
+      }
+
+      const { data: roleData } = await supabaseAdmin
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (roleData?.role !== 'admin') {
+        throw new Error('Only admins can create lead accounts');
+      }
     }
 
-    // Check if user is admin
-    const { data: roleData } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-
-    if (roleData?.role !== 'admin') {
-      throw new Error('Only admins can create lead accounts');
-    }
+    console.log(`[ebd-create-lead-accounts] Starting account creation. Is cron job: ${isCronJob}`);
 
     // Get leads without accounts created
     const { data: leads, error: leadsError } = await supabaseAdmin
@@ -48,6 +54,7 @@ serve(async (req) => {
     if (leadsError) throw leadsError;
 
     if (!leads || leads.length === 0) {
+      console.log('[ebd-create-lead-accounts] No leads to create accounts for');
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -57,6 +64,8 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`[ebd-create-lead-accounts] Found ${leads.length} leads to process`);
 
     const results = {
       created: 0,
@@ -70,6 +79,8 @@ serve(async (req) => {
           continue;
         }
 
+        console.log(`[ebd-create-lead-accounts] Processing lead: ${lead.nome_igreja} (${lead.email})`);
+
         // Create user in auth
         const { data: authData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
           email: lead.email,
@@ -81,6 +92,17 @@ serve(async (req) => {
         });
 
         if (createUserError) {
+          // Check if user already exists
+          if (createUserError.message.includes('already been registered')) {
+            // User exists, just update conta_criada
+            console.log(`[ebd-create-lead-accounts] User already exists for ${lead.email}, updating conta_criada`);
+            await supabaseAdmin
+              .from('ebd_leads_reativacao')
+              .update({ conta_criada: true })
+              .eq('id', lead.id);
+            results.created++;
+            continue;
+          }
           results.errors.push(`Lead ${lead.nome_igreja}: ${createUserError.message}`);
           continue;
         }
@@ -127,13 +149,16 @@ serve(async (req) => {
         }
 
         results.created++;
-        console.log(`Created account for lead: ${lead.nome_igreja}`);
+        console.log(`[ebd-create-lead-accounts] Created account for lead: ${lead.nome_igreja}`);
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         results.errors.push(`Lead ${lead.nome_igreja}: ${errorMessage}`);
+        console.error(`[ebd-create-lead-accounts] Error processing lead ${lead.nome_igreja}:`, errorMessage);
       }
     }
+
+    console.log(`[ebd-create-lead-accounts] Finished. Created: ${results.created}, Errors: ${results.errors.length}`);
 
     return new Response(
       JSON.stringify({ 

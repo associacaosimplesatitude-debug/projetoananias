@@ -12,7 +12,8 @@ interface LeadScoringKPIsProps {
 
 interface LeadStats {
   total: number;
-  frio: number;
+  frioComEmail: number;
+  frioSemEmail: number;
   morno: number;
   quente: number;
 }
@@ -28,7 +29,7 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
   const { data: leadStats, isLoading: statsLoading } = useQuery({
     queryKey: ["lead-scoring-stats", vendedorId],
     queryFn: async (): Promise<LeadStats> => {
-      let query = supabase.from("ebd_leads_reativacao").select("email_aberto, conta_criada, ultimo_login_ebd");
+      let query = supabase.from("ebd_leads_reativacao").select("email, email_aberto, conta_criada, ultimo_login_ebd");
       
       if (vendedorId) {
         query = query.eq("vendedor_id", vendedorId);
@@ -40,10 +41,12 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
       const leads = data || [];
       
       // Calculate scores based on criteria:
-      // Frio: conta_criada = TRUE, email_aberto = FALSE, ultimo_login_ebd = NULL
-      // Morno: conta_criada = TRUE, email_aberto = TRUE, ultimo_login_ebd = NULL
+      // Frio com email: tem email, email_aberto = FALSE, ultimo_login_ebd = NULL
+      // Frio sem email: não tem email
+      // Morno: email_aberto = TRUE, ultimo_login_ebd = NULL
       // Quente: ultimo_login_ebd IS NOT NULL (user logged in)
-      let frio = 0;
+      let frioComEmail = 0;
+      let frioSemEmail = 0;
       let morno = 0;
       let quente = 0;
 
@@ -52,14 +55,17 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
           quente++;
         } else if (lead.email_aberto === true) {
           morno++;
+        } else if (lead.email) {
+          frioComEmail++;
         } else {
-          frio++;
+          frioSemEmail++;
         }
       });
 
       return {
         total: leads.length,
-        frio,
+        frioComEmail,
+        frioSemEmail,
         morno,
         quente,
       };
@@ -145,11 +151,12 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
     );
   }
 
-  const stats = leadStats || { total: 0, frio: 0, morno: 0, quente: 0 };
+  const stats = leadStats || { total: 0, frioComEmail: 0, frioSemEmail: 0, morno: 0, quente: 0 };
+  const totalFrio = stats.frioComEmail + stats.frioSemEmail;
 
   // Pie chart data
   const pieData = [
-    { name: "Frio", value: stats.frio, color: "hsl(210, 70%, 60%)" },
+    { name: "Frio", value: totalFrio, color: "hsl(210, 70%, 60%)" },
     { name: "Morno", value: stats.morno, color: "hsl(40, 90%, 55%)" },
     { name: "Quente", value: stats.quente, color: "hsl(0, 80%, 55%)" },
   ].filter((d) => d.value > 0);
@@ -191,13 +198,13 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-blue-600">{stats.frio}</span>
+              <span className="text-2xl font-bold text-blue-600">{totalFrio}</span>
               <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                {calcPercentage(stats.frio)}%
+                {calcPercentage(totalFrio)}%
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
-              Conta criada, não abriu email
+              <span className="text-green-600 font-medium">{stats.frioComEmail}</span> com email, <span className="text-red-500 font-medium">{stats.frioSemEmail}</span> sem email
             </p>
           </CardContent>
         </Card>
