@@ -48,6 +48,7 @@ import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDi
 import { VendedorPedidosTab } from "@/components/vendedor/VendedorPedidosTab";
 import { VendedorLeadsTab } from "@/components/vendedor/VendedorLeadsTab";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
+import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import { toast } from "sonner";
 
 interface Vendedor {
@@ -392,6 +393,9 @@ export default function VendedorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lead Scoring KPIs */}
+      <LeadScoringKPIs vendedorId={vendedor.id} />
 
       {/* Tabs with Client Lists */}
       <Tabs defaultValue="clientes" className="space-y-4">
