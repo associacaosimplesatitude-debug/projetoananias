@@ -1443,6 +1443,7 @@ export type Database = {
       ebd_leads_reativacao: {
         Row: {
           cnpj: string | null
+          conta_criada: boolean | null
           created_at: string
           data_followup: string | null
           email: string | null
@@ -1472,6 +1473,7 @@ export type Database = {
         }
         Insert: {
           cnpj?: string | null
+          conta_criada?: boolean | null
           created_at?: string
           data_followup?: string | null
           email?: string | null
@@ -1501,6 +1503,7 @@ export type Database = {
         }
         Update: {
           cnpj?: string | null
+          conta_criada?: boolean | null
           created_at?: string
           data_followup?: string | null
           email?: string | null
@@ -2680,6 +2683,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          senha_padrao_usada: boolean | null
           updated_at: string
         }
         Insert: {
@@ -2689,6 +2693,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          senha_padrao_usada?: boolean | null
           updated_at?: string
         }
         Update: {
@@ -2698,6 +2703,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          senha_padrao_usada?: boolean | null
           updated_at?: string
         }
         Relationships: [

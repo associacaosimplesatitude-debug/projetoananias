@@ -47,3 +47,9 @@ verify_jwt = true
 
 [functions.bling-update-order]
 verify_jwt = true
+
+[functions.ebd-create-lead-accounts]
+verify_jwt = true
+
+[functions.update-user-password]
+verify_jwt = true

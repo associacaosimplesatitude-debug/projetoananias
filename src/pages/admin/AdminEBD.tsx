@@ -1737,7 +1737,7 @@ export default function AdminEBD() {
           <Card>
             <CardHeader>
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div>
+              <div>
                   <CardTitle className="flex items-center gap-2">
                     <UserX className="h-5 w-5" />
                     Leads de Reativação (Churn)
@@ -1746,10 +1746,42 @@ export default function AdminEBD() {
                     {filteredLeads.length} leads encontrados
                   </CardDescription>
                 </div>
-                <Button onClick={() => setImportLeadsDialogOpen(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar CSV
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline"
+                    onClick={async () => {
+                      toast.info('Criando contas em lote...');
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session?.access_token) {
+                        toast.error('Sessão expirada. Faça login novamente.');
+                        return;
+                      }
+                      const { data, error } = await supabase.functions.invoke('ebd-create-lead-accounts', {
+                        headers: {
+                          Authorization: `Bearer ${session.access_token}`,
+                        },
+                      });
+                      if (error) {
+                        toast.error('Erro ao criar contas: ' + error.message);
+                      } else if (data?.success) {
+                        toast.success(data.message || 'Contas criadas com sucesso');
+                        if (data.errors?.length > 0) {
+                          data.errors.forEach((e: string) => toast.warning(e));
+                        }
+                        refetchLeads();
+                      } else {
+                        toast.error(data?.error || 'Erro desconhecido');
+                      }
+                    }}
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Criar Contas em Lote
+                  </Button>
+                  <Button onClick={() => setImportLeadsDialogOpen(true)}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Importar CSV
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
