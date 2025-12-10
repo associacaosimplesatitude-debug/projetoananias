@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { DollarSign, Users, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { LeadScoringKPIs } from '@/components/leads/LeadScoringKPIs';
 
 interface FunnelData {
   stage: string;
@@ -333,6 +334,9 @@ export default function AdminDashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* Lead Scoring KPIs */}
+        <LeadScoringKPIs isAdmin />
       </div>
     </div>
   );
