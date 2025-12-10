@@ -47,8 +47,13 @@ import {
   ClipboardList,
   Search,
   Filter,
+  UserX,
+  Phone,
+  Mail,
+  Calendar,
 } from "lucide-react";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
+import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
 import {
   ResponsiveContainer,
   PieChart,
@@ -184,6 +189,13 @@ export default function AdminEBD() {
   const [clientPurchaseStatusFilter, setClientPurchaseStatusFilter] = useState('all');
   const [clientStateFilter, setClientStateFilter] = useState('all');
 
+  // Leads state
+  const [importLeadsDialogOpen, setImportLeadsDialogOpen] = useState(false);
+  const [leadSearchTerm, setLeadSearchTerm] = useState('');
+  const [leadVendedorFilter, setLeadVendedorFilter] = useState('all');
+  const [leadStatusFilter, setLeadStatusFilter] = useState('all');
+  const [leadScoreFilter, setLeadScoreFilter] = useState('all');
+
   // Data fetching
   const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: ["sales-report-orders"],
@@ -289,6 +301,19 @@ export default function AdminEBD() {
       }, []);
       
       return uniqueClients as EBDClient[];
+    },
+  });
+
+  // Query leads de reativação
+  const { data: leadsReativacao, refetch: refetchLeads } = useQuery({
+    queryKey: ['leads-reativacao'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ebd_leads_reativacao')
+        .select('*, vendedor:vendedores(nome)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -552,6 +577,46 @@ export default function AdminEBD() {
       return true;
     });
   }, [ebdClients, clientSearchTerm, clientVendedorFilter, clientStateFilter, clientPurchaseStatusFilter, vendedores, churchProgress]);
+
+  // Filter leads
+  const filteredLeads = useMemo(() => {
+    if (!leadsReativacao) return [];
+    
+    return leadsReativacao.filter(lead => {
+      // Search filter
+      if (leadSearchTerm) {
+        const searchLower = leadSearchTerm.toLowerCase();
+        const nome = lead.nome_igreja?.toLowerCase() || '';
+        const email = lead.email?.toLowerCase() || '';
+        const vendedorName = (lead.vendedor as any)?.nome?.toLowerCase() || '';
+        
+        if (!nome.includes(searchLower) && !email.includes(searchLower) && !vendedorName.includes(searchLower)) {
+          return false;
+        }
+      }
+      
+      // Vendedor filter
+      if (leadVendedorFilter !== 'all') {
+        if (leadVendedorFilter === 'none') {
+          if (lead.vendedor_id) return false;
+        } else if (lead.vendedor_id !== leadVendedorFilter) {
+          return false;
+        }
+      }
+      
+      // Status filter
+      if (leadStatusFilter !== 'all' && lead.status_lead !== leadStatusFilter) {
+        return false;
+      }
+      
+      // Score filter
+      if (leadScoreFilter !== 'all' && lead.lead_score !== leadScoreFilter) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [leadsReativacao, leadSearchTerm, leadVendedorFilter, leadStatusFilter, leadScoreFilter]);
 
   // Date range calculation
   const dateRange = useMemo(() => {
@@ -934,10 +999,11 @@ export default function AdminEBD() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="vendas">Vendas</TabsTrigger>
           <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
           <TabsTrigger value="clientes">Clientes EBD</TabsTrigger>
+          <TabsTrigger value="leads">Leads Churn</TabsTrigger>
           <TabsTrigger value="vendedores">Vendedores</TabsTrigger>
           <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
         </TabsList>
@@ -1665,6 +1731,191 @@ export default function AdminEBD() {
           </Card>
         </TabsContent>
 
+        {/* LEADS CHURN TAB */}
+        <TabsContent value="leads" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserX className="h-5 w-5" />
+                    Leads de Reativação (Churn)
+                  </CardTitle>
+                  <CardDescription>
+                    {filteredLeads.length} leads encontrados
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setImportLeadsDialogOpen(true)}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar CSV
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Filters */}
+              <div className="flex flex-col lg:flex-row gap-4 mb-6">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome, email ou vendedor..."
+                    value={leadSearchTerm}
+                    onChange={(e) => setLeadSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Select value={leadVendedorFilter} onValueChange={setLeadVendedorFilter}>
+                    <SelectTrigger className="w-[160px]">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Vendedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Vendedores</SelectItem>
+                      <SelectItem value="none">Sem Vendedor</SelectItem>
+                      {vendedores?.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={leadStatusFilter} onValueChange={setLeadStatusFilter}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Status</SelectItem>
+                      <SelectItem value="Não Contatado">Não Contatado</SelectItem>
+                      <SelectItem value="Em Negociação">Em Negociação</SelectItem>
+                      <SelectItem value="Reativado">Reativado</SelectItem>
+                      <SelectItem value="Perdido">Perdido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={leadScoreFilter} onValueChange={setLeadScoreFilter}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Score" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Scores</SelectItem>
+                      <SelectItem value="Quente">Quente</SelectItem>
+                      <SelectItem value="Morno">Morno</SelectItem>
+                      <SelectItem value="Frio">Frio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Leads Table */}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Igreja</TableHead>
+                    <TableHead>Contato</TableHead>
+                    <TableHead>Cidade/UF</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Vendedor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLeads.map((lead) => (
+                    <TableRow key={lead.id}>
+                      <TableCell className="font-medium">{lead.nome_igreja}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-sm">
+                          {lead.email && (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Mail className="h-3 w-3" />
+                              {lead.email}
+                            </span>
+                          )}
+                          {lead.telefone && (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Phone className="h-3 w-3" />
+                              {lead.telefone}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {lead.endereco_cidade && lead.endereco_estado
+                          ? `${lead.endereco_cidade}/${lead.endereco_estado}`
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            lead.status_lead === 'Reativado'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : lead.status_lead === 'Em Negociação'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : lead.status_lead === 'Perdido'
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }
+                        >
+                          {lead.status_lead}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            lead.lead_score === 'Quente'
+                              ? 'bg-orange-50 text-orange-700 border-orange-200'
+                              : lead.lead_score === 'Morno'
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }
+                        >
+                          {lead.lead_score}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={lead.vendedor_id || "sem_vendedor"}
+                          onValueChange={async (value) => {
+                            const { error } = await supabase
+                              .from('ebd_leads_reativacao')
+                              .update({ vendedor_id: value === "sem_vendedor" ? null : value })
+                              .eq('id', lead.id);
+                            if (error) {
+                              toast.error('Erro ao atribuir vendedor');
+                            } else {
+                              toast.success('Vendedor atribuído');
+                              refetchLeads();
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[160px]">
+                            <SelectValue placeholder="Selecionar vendedor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sem_vendedor">Sem vendedor</SelectItem>
+                            {vendedores?.map((vendedor) => (
+                              <SelectItem key={vendedor.id} value={vendedor.id}>
+                                {vendedor.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredLeads.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        {leadsReativacao && leadsReativacao.length > 0
+                          ? "Nenhum lead encontrado com os filtros aplicados"
+                          : "Nenhum lead cadastrado. Importe um arquivo CSV para começar."}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* VENDEDORES TAB */}
         <TabsContent value="vendedores" className="space-y-6">
           <div className="flex justify-end gap-2">
@@ -1896,6 +2147,14 @@ export default function AdminEBD() {
         onOpenChange={(open) => { if (!open) { setShowCropDialog(false); setSelectedImage(null); } }}
         imageSrc={selectedImage || ""}
         onCropComplete={handleCropComplete}
+      />
+
+      {/* Import Leads Dialog */}
+      <ImportLeadsDialog
+        open={importLeadsDialogOpen}
+        onOpenChange={setImportLeadsDialogOpen}
+        vendedores={vendedores || []}
+        onImportComplete={() => refetchLeads()}
       />
     </div>
   );
