@@ -47,6 +47,7 @@ import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { VendedorPedidosTab } from "@/components/vendedor/VendedorPedidosTab";
 import { VendedorLeadsTab } from "@/components/vendedor/VendedorLeadsTab";
+import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { toast } from "sonner";
 
 interface Vendedor {
@@ -281,13 +282,16 @@ export default function VendedorDashboard() {
             Bem-vindo, {vendedor?.nome}
           </p>
         </div>
-        <Button 
-          size="lg"
-          onClick={() => setCadastrarClienteOpen(true)}
-        >
-          <UserPlus className="mr-2 h-5 w-5" />
-          Cadastrar Novo Cliente
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button 
+            size="lg"
+            onClick={() => setCadastrarClienteOpen(true)}
+          >
+            <UserPlus className="mr-2 h-5 w-5" />
+            Cadastrar Novo Cliente
+          </Button>
+          <UserProfileDropdown />
+        </div>
       </div>
 
       {/* Dashboard Cards - Row 1: Client Stats */}
