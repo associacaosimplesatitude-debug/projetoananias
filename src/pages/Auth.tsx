@@ -39,17 +39,6 @@ export default function Auth() {
     if (!user) return;
     
     try {
-      // Track lead login - update ultimo_login_ebd e lead_score para 'Quente'
-      if (user.email) {
-        await supabase
-          .from('ebd_leads_reativacao')
-          .update({ 
-            ultimo_login_ebd: new Date().toISOString(),
-            lead_score: 'Quente'
-          })
-          .eq('email', user.email);
-      }
-
       // PRIMEIRO: Verificar se é vendedor (pelo email) - deve ter prioridade
       const { data: vendedorData } = await supabase
         .from('vendedores')
@@ -71,19 +60,34 @@ export default function Auth() {
         .maybeSingle();
 
       if (superintendenteData) {
+        // Atualizar ultimo_login
+        await supabase
+          .from('ebd_clientes')
+          .update({ ultimo_login: new Date().toISOString() })
+          .eq('id', superintendenteData.id);
         navigate('/ebd/dashboard');
         return;
       }
 
       // Verificar se é um lead de reativação (superintendente pelo email)
-      const { data: leadData } = await supabase
+      const { data: leadData, error: leadError } = await supabase
         .from('ebd_leads_reativacao')
-        .select('id, conta_criada')
+        .select('id, conta_criada, email')
         .eq('email', user.email)
-        .eq('conta_criada', true)
         .maybeSingle();
 
-      if (leadData) {
+      console.log('Lead check:', { leadData, leadError, userEmail: user.email });
+
+      if (leadData && leadData.conta_criada === true) {
+        // Atualizar login e score para Quente
+        await supabase
+          .from('ebd_leads_reativacao')
+          .update({ 
+            ultimo_login_ebd: new Date().toISOString(),
+            lead_score: 'Quente'
+          })
+          .eq('id', leadData.id);
+        
         navigate('/ebd/dashboard');
         return;
       }
@@ -121,6 +125,32 @@ export default function Auth() {
         } else {
           navigate('/');
         }
+        return;
+      }
+
+      // Verificar se é professor (antes de aluno para prioridade)
+      const { data: professorData } = await supabase
+        .from('ebd_professores')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (professorData) {
+        navigate('/ebd/professor');
+        return;
+      }
+
+      // Verificar se é aluno
+      const { data: alunoData } = await supabase
+        .from('ebd_alunos')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (alunoData) {
+        navigate('/ebd/aluno');
         return;
       }
 

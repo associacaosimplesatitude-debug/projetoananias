@@ -138,24 +138,24 @@ export default function DashboardRedirect() {
     return <Navigate to="/vendedor" replace />;
   }
 
-  // If user is a superintendent (from ebd_clientes), redirect to EBD dashboard
+  // PRIORITY 1: If user is a superintendent (from ebd_clientes), redirect to EBD dashboard
   if (superintendente) {
     return <Navigate to="/ebd/dashboard" replace />;
   }
 
-  // If user is a lead de reativação, redirect to EBD dashboard
+  // PRIORITY 2: If user is a lead de reativação (superintendente by email), redirect to EBD dashboard
   if (leadReativacao) {
     return <Navigate to="/ebd/dashboard" replace />;
   }
 
-  // If user is a student, redirect to student module
-  if (aluno) {
-    return <Navigate to="/ebd/aluno" replace />;
-  }
-
-  // If user is a professor, redirect to Professor module
+  // PRIORITY 3: If user is a professor, redirect to Professor module
   if (professor) {
     return <Navigate to="/ebd/professor" replace />;
+  }
+
+  // PRIORITY 4: If user is a student, redirect to student module
+  if (aluno) {
+    return <Navigate to="/ebd/aluno" replace />;
   }
 
   // If user has only REOBOTE EBD, redirect to EBD dashboard
