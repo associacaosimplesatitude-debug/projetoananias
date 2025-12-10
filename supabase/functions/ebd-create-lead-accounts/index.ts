@@ -143,12 +143,12 @@ serve(async (req) => {
           console.error('[ebd-create-lead-accounts] Profile error:', profileError);
         }
 
-        // Assign superintendente role (upsert to avoid duplicates)
+        // Assign client role (upsert to avoid duplicates)
         const { error: roleError } = await supabaseAdmin
           .from('user_roles')
           .upsert({
             user_id: userId,
-            role: 'superintendente',
+            role: 'client',
           }, { onConflict: 'user_id,role' });
 
         if (roleError) {
@@ -183,7 +183,7 @@ serve(async (req) => {
               city: lead.endereco_cidade,
               state: lead.endereco_estado,
               postal_code: lead.endereco_cep,
-              client_type: 'EBD',
+              client_type: 'igreja',
               process_status: 'active',
             })
             .select('id')
