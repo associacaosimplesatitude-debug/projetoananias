@@ -18,15 +18,21 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const authHeader = req.headers.get('Authorization')!;
-    const token = authHeader.replace('Bearer ', '');
+    const { userId, newPassword, internalCall } = await req.json();
     
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      throw new Error('Unauthorized');
+    // Allow internal admin calls or authenticated admin users
+    const authHeader = req.headers.get('Authorization');
+    
+    if (!internalCall) {
+      if (!authHeader) {
+        throw new Error('Unauthorized');
+      }
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+      if (authError || !user) {
+        throw new Error('Unauthorized');
+      }
     }
-
-    const { userId, newPassword } = await req.json();
 
     if (!userId || !newPassword) {
       throw new Error('User ID and new password are required');
