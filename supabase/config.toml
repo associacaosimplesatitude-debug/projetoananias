@@ -52,7 +52,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.update-user-password]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ebd-brevo-webhook]
 verify_jwt = false
