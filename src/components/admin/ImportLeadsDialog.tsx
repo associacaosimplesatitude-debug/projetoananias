@@ -51,7 +51,7 @@ export function ImportLeadsDialog({ open, onOpenChange, vendedores, onImportComp
   const [sheetColumns, setSheetColumns] = useState<string[]>([]);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [importProgress, setImportProgress] = useState(0);
-  const [importResult, setImportResult] = useState<{ success: number; errors: number; messages: string[] }>({ success: 0, errors: 0, messages: [] });
+  const [importResult, setImportResult] = useState<{ success: number; errors: number; accountsCreated: number; messages: string[] }>({ success: 0, errors: 0, accountsCreated: 0, messages: [] });
 
   const systemFields = [
     { key: 'nome_igreja', label: 'Nome da Igreja *', required: true },
@@ -168,14 +168,17 @@ export function ImportLeadsDialog({ open, onOpenChange, vendedores, onImportComp
 
     setStep('importing');
     setImportProgress(0);
-    const results = { success: 0, errors: 0, messages: [] as string[] };
+    const results = { success: 0, errors: 0, accountsCreated: 0, messages: [] as string[] };
 
     // Create vendedor email map
     const vendedorMap = new Map(vendedores.map(v => [v.email.toLowerCase(), v.id]));
 
+    // Collect all leads to create accounts for
+    const leadsToCreateAccounts: string[] = [];
+
     for (let i = 0; i < sheetData.length; i++) {
       const row = sheetData[i];
-      setImportProgress(Math.round(((i + 1) / sheetData.length) * 100));
+      setImportProgress(Math.round(((i + 1) / sheetData.length) * 50)); // 0-50% for insert
 
       try {
         const nomeIgreja = row[columnMapping['nome_igreja']]?.toString().trim();
@@ -192,10 +195,12 @@ export function ImportLeadsDialog({ open, onOpenChange, vendedores, onImportComp
           vendedorId = vendedorMap.get(vendedorEmail) || null;
         }
 
+        const leadEmail = row[columnMapping['email']]?.toString().trim() || null;
+
         const leadData = {
           nome_igreja: nomeIgreja,
           cnpj: row[columnMapping['cnpj']]?.toString().trim() || null,
-          email: row[columnMapping['email']]?.toString().trim() || null,
+          email: leadEmail,
           email_nota: row[columnMapping['email_nota']]?.toString().trim() || null,
           telefone: row[columnMapping['telefone']]?.toString().trim() || null,
           nome_responsavel: row[columnMapping['nome_responsavel']]?.toString().trim() || null,
@@ -213,18 +218,55 @@ export function ImportLeadsDialog({ open, onOpenChange, vendedores, onImportComp
           vendedor_id: vendedorId,
           status_lead: 'Não Contatado',
           lead_score: 'Frio',
+          conta_criada: false,
         };
 
-        const { error } = await supabase.from('ebd_leads_reativacao').insert(leadData);
+        const { data: insertedLead, error } = await supabase
+          .from('ebd_leads_reativacao')
+          .insert(leadData)
+          .select('id, email')
+          .single();
+
         if (error) {
           results.errors++;
           results.messages.push(`Linha ${i + 2}: ${error.message}`);
         } else {
           results.success++;
+          // Only add leads with email to create accounts
+          if (insertedLead?.email) {
+            leadsToCreateAccounts.push(insertedLead.id);
+          }
         }
       } catch (err: any) {
         results.errors++;
         results.messages.push(`Linha ${i + 2}: ${err.message || 'Erro desconhecido'}`);
+      }
+    }
+
+    // Now create accounts for all leads with email
+    if (leadsToCreateAccounts.length > 0) {
+      console.log(`[ImportLeads] Creating accounts for ${leadsToCreateAccounts.length} leads`);
+      
+      for (let i = 0; i < leadsToCreateAccounts.length; i++) {
+        setImportProgress(50 + Math.round(((i + 1) / leadsToCreateAccounts.length) * 50)); // 50-100% for account creation
+
+        try {
+          const { data, error } = await supabase.functions.invoke('ebd-create-lead-accounts', {
+            body: { leadIds: [leadsToCreateAccounts[i]] }
+          });
+
+          if (error) {
+            console.error(`[ImportLeads] Error creating account for lead ${leadsToCreateAccounts[i]}:`, error);
+            results.messages.push(`Erro ao criar conta para lead: ${error.message}`);
+          } else if (data?.results?.[0]?.success) {
+            results.accountsCreated++;
+          } else if (data?.results?.[0]?.error) {
+            results.messages.push(`Conta não criada: ${data.results[0].error}`);
+          }
+        } catch (err: any) {
+          console.error(`[ImportLeads] Exception creating account:`, err);
+          results.messages.push(`Exceção ao criar conta: ${err.message}`);
+        }
       }
     }
 
@@ -240,7 +282,7 @@ export function ImportLeadsDialog({ open, onOpenChange, vendedores, onImportComp
     setSheetColumns([]);
     setColumnMapping({});
     setImportProgress(0);
-    setImportResult({ success: 0, errors: 0, messages: [] });
+    setImportResult({ success: 0, errors: 0, accountsCreated: 0, messages: [] });
     onOpenChange(false);
   };
 
@@ -332,11 +374,16 @@ export function ImportLeadsDialog({ open, onOpenChange, vendedores, onImportComp
 
         {step === 'result' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="p-4 rounded-lg bg-green-50 border border-green-200 text-center">
                 <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
                 <p className="text-2xl font-bold text-green-700">{importResult.success}</p>
-                <p className="text-sm text-green-600">Importados com sucesso</p>
+                <p className="text-sm text-green-600">Leads importados</p>
+              </div>
+              <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 text-center">
+                <CheckCircle className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                <p className="text-2xl font-bold text-blue-700">{importResult.accountsCreated}</p>
+                <p className="text-sm text-blue-600">Contas criadas</p>
               </div>
               <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-center">
                 <XCircle className="h-8 w-8 text-red-600 mx-auto mb-2" />
