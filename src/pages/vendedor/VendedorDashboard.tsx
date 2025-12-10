@@ -46,6 +46,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { VendedorPedidosTab } from "@/components/vendedor/VendedorPedidosTab";
+import { VendedorLeadsTab } from "@/components/vendedor/VendedorLeadsTab";
 import { toast } from "sonner";
 
 interface Vendedor {
@@ -403,6 +404,9 @@ export default function VendedorDashboard() {
           <TabsTrigger value="risco">
             Em Risco ({clientesRisco.length})
           </TabsTrigger>
+          <TabsTrigger value="leads">
+            Leads
+          </TabsTrigger>
           <TabsTrigger value="pedidos">
             Pedidos
           </TabsTrigger>
@@ -690,6 +694,11 @@ export default function VendedorDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Tab: Leads */}
+        <TabsContent value="leads">
+          <VendedorLeadsTab vendedorId={vendedor?.id || ""} />
         </TabsContent>
 
         {/* Tab: Pedidos */}

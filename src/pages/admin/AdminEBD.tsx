@@ -51,6 +51,7 @@ import {
   Phone,
   Mail,
   Calendar,
+  Play,
 } from "lucide-react";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
@@ -1813,6 +1814,7 @@ export default function AdminEBD() {
                     <TableHead>Status</TableHead>
                     <TableHead>Score</TableHead>
                     <TableHead>Vendedor</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1899,11 +1901,24 @@ export default function AdminEBD() {
                           </SelectContent>
                         </Select>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Navigate to activation with lead data
+                            navigate(`/vendedor/ativacao?leadId=${lead.id}&leadNome=${encodeURIComponent(lead.nome_igreja)}`);
+                          }}
+                        >
+                          <Play className="h-4 w-4 mr-1" />
+                          Ativar Painel
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {filteredLeads.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         {leadsReativacao && leadsReativacao.length > 0
                           ? "Nenhum lead encontrado com os filtros aplicados"
                           : "Nenhum lead cadastrado. Importe um arquivo CSV para começar."}
