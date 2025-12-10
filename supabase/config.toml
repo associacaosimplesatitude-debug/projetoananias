@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.update-user-password]
 verify_jwt = true
+
+[functions.ebd-brevo-webhook]
+verify_jwt = false
