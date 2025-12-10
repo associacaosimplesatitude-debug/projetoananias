@@ -39,6 +39,14 @@ export default function Auth() {
     if (!user) return;
     
     try {
+      // Track lead login - update ultimo_login_ebd for leads
+      if (user.email) {
+        await supabase
+          .from('ebd_leads_reativacao')
+          .update({ ultimo_login_ebd: new Date().toISOString() })
+          .eq('email', user.email);
+      }
+
       // PRIMEIRO: Verificar se é vendedor (pelo email) - deve ter prioridade
       const { data: vendedorData } = await supabase
         .from('vendedores')
