@@ -1440,6 +1440,104 @@ export type Database = {
           },
         ]
       }
+      ebd_leads_reativacao: {
+        Row: {
+          cnpj: string | null
+          created_at: string
+          data_followup: string | null
+          email: string | null
+          email_aberto: boolean
+          email_nota: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_complemento: string | null
+          endereco_estado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          id: string
+          lead_score: string
+          motivo_perda: string | null
+          nome_igreja: string
+          nome_responsavel: string | null
+          observacoes: string | null
+          status_lead: string
+          telefone: string | null
+          total_compras_historico: number | null
+          ultima_compra: string | null
+          ultimo_login_ebd: string | null
+          updated_at: string
+          valor_ultima_compra: number | null
+          vendedor_id: string | null
+        }
+        Insert: {
+          cnpj?: string | null
+          created_at?: string
+          data_followup?: string | null
+          email?: string | null
+          email_aberto?: boolean
+          email_nota?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          id?: string
+          lead_score?: string
+          motivo_perda?: string | null
+          nome_igreja: string
+          nome_responsavel?: string | null
+          observacoes?: string | null
+          status_lead?: string
+          telefone?: string | null
+          total_compras_historico?: number | null
+          ultima_compra?: string | null
+          ultimo_login_ebd?: string | null
+          updated_at?: string
+          valor_ultima_compra?: number | null
+          vendedor_id?: string | null
+        }
+        Update: {
+          cnpj?: string | null
+          created_at?: string
+          data_followup?: string | null
+          email?: string | null
+          email_aberto?: boolean
+          email_nota?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          id?: string
+          lead_score?: string
+          motivo_perda?: string | null
+          nome_igreja?: string
+          nome_responsavel?: string | null
+          observacoes?: string | null
+          status_lead?: string
+          telefone?: string | null
+          total_compras_historico?: number | null
+          ultima_compra?: string | null
+          ultimo_login_ebd?: string | null
+          updated_at?: string
+          valor_ultima_compra?: number | null
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_leads_reativacao_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_leituras: {
         Row: {
           aluno_id: string
