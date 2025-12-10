@@ -45,6 +45,8 @@ import {
   HelpCircle,
   FileQuestion,
   ClipboardList,
+  Search,
+  Filter,
 } from "lucide-react";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import {
@@ -174,6 +176,13 @@ export default function AdminEBD() {
     status: 'Ativo',
     meta_mensal_valor: 0,
   });
+
+  // Clientes EBD filter states
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
+  const [clientVendedorFilter, setClientVendedorFilter] = useState('all');
+  const [clientStatusFilter, setClientStatusFilter] = useState('all');
+  const [clientPurchaseStatusFilter, setClientPurchaseStatusFilter] = useState('all');
+  const [clientStateFilter, setClientStateFilter] = useState('all');
 
   // Data fetching
   const { data: orders, isLoading: ordersLoading } = useQuery({
@@ -483,6 +492,66 @@ export default function AdminEBD() {
       low: churchProgress.filter(c => c.remaining >= 0 && c.remaining <= 4),
     };
   }, [churchProgress]);
+
+  // Get unique states from clients
+  const uniqueStates = useMemo(() => {
+    if (!ebdClients) return [];
+    const states = ebdClients
+      .map(c => c.church?.state)
+      .filter((state): state is string => !!state);
+    return [...new Set(states)].sort();
+  }, [ebdClients]);
+
+  // Get purchase status for a client
+  const getClientPurchaseStatus = (clientId: string) => {
+    const progress = churchProgress?.find(p => p.church_id === clientId);
+    if (!progress) return null;
+    if (progress.remaining >= 0 && progress.remaining <= 4) return 'ready'; // Pronta para Comprar
+    if (progress.remaining >= 5 && progress.remaining <= 8) return 'soon'; // Próxima
+    if (progress.remaining >= 9 && progress.remaining <= 13) return 'full'; // Estoque Cheio
+    return null;
+  };
+
+  // Filter clients
+  const filteredEbdClients = useMemo(() => {
+    if (!ebdClients) return [];
+    
+    return ebdClients.filter(client => {
+      // Search filter
+      if (clientSearchTerm) {
+        const searchLower = clientSearchTerm.toLowerCase();
+        const churchName = client.church?.church_name?.toLowerCase() || '';
+        const email = client.church?.pastor_email?.toLowerCase() || '';
+        const vendedorName = vendedores?.find(v => v.id === client.church?.vendedor_id)?.nome?.toLowerCase() || '';
+        
+        if (!churchName.includes(searchLower) && !email.includes(searchLower) && !vendedorName.includes(searchLower)) {
+          return false;
+        }
+      }
+      
+      // Vendedor filter
+      if (clientVendedorFilter !== 'all') {
+        if (clientVendedorFilter === 'none') {
+          if (client.church?.vendedor_id) return false;
+        } else if (client.church?.vendedor_id !== clientVendedorFilter) {
+          return false;
+        }
+      }
+      
+      // State filter
+      if (clientStateFilter !== 'all' && client.church?.state !== clientStateFilter) {
+        return false;
+      }
+      
+      // Purchase status filter
+      if (clientPurchaseStatusFilter !== 'all') {
+        const purchaseStatus = getClientPurchaseStatus(client.cliente_id);
+        if (purchaseStatus !== clientPurchaseStatusFilter) return false;
+      }
+      
+      return true;
+    });
+  }, [ebdClients, clientSearchTerm, clientVendedorFilter, clientStateFilter, clientPurchaseStatusFilter, vendedores, churchProgress]);
 
   // Date range calculation
   const dateRange = useMemo(() => {
@@ -1434,56 +1503,160 @@ export default function AdminEBD() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Church className="h-5 w-5" />
-                Clientes com Módulo EBD ({totalEbdClients})
+                Clientes com Módulo EBD ({filteredEbdClients.length} de {totalEbdClients})
               </CardTitle>
               <CardDescription>Igrejas com assinatura ativa do módulo REOBOTE EBD</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Search and Filters */}
+              <div className="flex flex-col gap-4">
+                {/* Search Bar */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome da igreja, email ou vendedor..."
+                    value={clientSearchTerm}
+                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                {/* Filters */}
+                <div className="flex flex-wrap gap-3">
+                  <Select value={clientVendedorFilter} onValueChange={setClientVendedorFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Vendedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Vendedores</SelectItem>
+                      <SelectItem value="none">Sem Vendedor</SelectItem>
+                      {vendedores?.map((vendedor) => (
+                        <SelectItem key={vendedor.id} value={vendedor.id}>
+                          {vendedor.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={clientPurchaseStatusFilter} onValueChange={setClientPurchaseStatusFilter}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Status de Compra" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Status</SelectItem>
+                      <SelectItem value="ready">🟠 Pronta para Comprar (0-4)</SelectItem>
+                      <SelectItem value="soon">🟡 Próxima (5-8)</SelectItem>
+                      <SelectItem value="full">🟢 Estoque Cheio (9-13)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={clientStateFilter} onValueChange={setClientStateFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Estados</SelectItem>
+                      {uniqueStates.map((state) => (
+                        <SelectItem key={state} value={state}>
+                          {state}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {(clientSearchTerm || clientVendedorFilter !== 'all' || clientPurchaseStatusFilter !== 'all' || clientStateFilter !== 'all') && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setClientSearchTerm('');
+                        setClientVendedorFilter('all');
+                        setClientPurchaseStatusFilter('all');
+                        setClientStateFilter('all');
+                      }}
+                    >
+                      Limpar filtros
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Igreja</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Cidade/Estado</TableHead>
+                    <TableHead>Status de Compra</TableHead>
                     <TableHead>Vendedor</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ebdClients?.map((client) => (
-                    <TableRow key={client.cliente_id}>
-                      <TableCell className="font-medium">{client.church?.church_name || '-'}</TableCell>
-                      <TableCell>{client.church?.pastor_email || '-'}</TableCell>
-                      <TableCell>{client.church?.city && client.church?.state ? `${client.church.city}/${client.church.state}` : '-'}</TableCell>
-                      <TableCell>
-                        <Select
-                          value={client.church?.vendedor_id || "sem_vendedor"}
-                          onValueChange={(value) => {
-                            if (client.church?.id) {
-                              transferMutation.mutate({
-                                churchId: client.church.id,
-                                vendedorId: value === "sem_vendedor" ? null : value,
-                              });
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="w-[160px]">
-                            <SelectValue placeholder="Selecionar vendedor" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sem_vendedor">Sem vendedor</SelectItem>
-                            {vendedores?.map((vendedor) => (
-                              <SelectItem key={vendedor.id} value={vendedor.id}>
-                                {vendedor.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {(!ebdClients || ebdClients.length === 0) && (
+                  {filteredEbdClients.map((client) => {
+                    const purchaseStatus = getClientPurchaseStatus(client.cliente_id);
+                    const progress = churchProgress?.find(p => p.church_id === client.cliente_id);
+                    
+                    return (
+                      <TableRow key={client.cliente_id}>
+                        <TableCell className="font-medium">{client.church?.church_name || '-'}</TableCell>
+                        <TableCell>{client.church?.pastor_email || '-'}</TableCell>
+                        <TableCell>{client.church?.city && client.church?.state ? `${client.church.city}/${client.church.state}` : '-'}</TableCell>
+                        <TableCell>
+                          {purchaseStatus === 'ready' && (
+                            <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                              Pronta ({progress?.remaining || 0} aulas)
+                            </Badge>
+                          )}
+                          {purchaseStatus === 'soon' && (
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                              Próxima ({progress?.remaining || 0} aulas)
+                            </Badge>
+                          )}
+                          {purchaseStatus === 'full' && (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              Estoque ({progress?.remaining || 0} aulas)
+                            </Badge>
+                          )}
+                          {!purchaseStatus && (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={client.church?.vendedor_id || "sem_vendedor"}
+                            onValueChange={(value) => {
+                              if (client.church?.id) {
+                                transferMutation.mutate({
+                                  churchId: client.church.id,
+                                  vendedorId: value === "sem_vendedor" ? null : value,
+                                });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-[160px]">
+                              <SelectValue placeholder="Selecionar vendedor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="sem_vendedor">Sem vendedor</SelectItem>
+                              {vendedores?.map((vendedor) => (
+                                <SelectItem key={vendedor.id} value={vendedor.id}>
+                                  {vendedor.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {filteredEbdClients.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum cliente EBD encontrado</TableCell>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        {ebdClients && ebdClients.length > 0 
+                          ? "Nenhum cliente encontrado com os filtros aplicados" 
+                          : "Nenhum cliente EBD encontrado"}
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
