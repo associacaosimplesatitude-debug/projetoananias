@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
+import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import {
   ResponsiveContainer,
   PieChart,
@@ -997,6 +998,9 @@ export default function AdminEBD() {
           </CardContent>
         </Card>
       )}
+
+      {/* Lead Scoring KPIs */}
+      <LeadScoringKPIs isAdmin />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
