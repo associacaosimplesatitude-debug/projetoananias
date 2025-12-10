@@ -100,7 +100,29 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.id && !loading,
   });
 
-  const isLoading = loading || modulesLoading || studentLoading || professorLoading || vendedorLoading || superintendenteLoading;
+  // Check if user is a lead de reativação
+  const { data: isLeadReativacao, isLoading: leadLoading } = useQuery({
+    queryKey: ['is-lead-reativacao-check', user?.email],
+    queryFn: async () => {
+      if (!user?.email) return false;
+      
+      const { data, error } = await supabase
+        .from('ebd_leads_reativacao')
+        .select('id')
+        .eq('email', user.email)
+        .eq('conta_criada', true)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking lead reativacao status:', error);
+        return false;
+      }
+      return !!data;
+    },
+    enabled: !!user?.email && !loading,
+  });
+
+  const isLoading = loading || modulesLoading || studentLoading || professorLoading || vendedorLoading || superintendenteLoading || leadLoading;
 
   if (isLoading) {
     return (
@@ -126,6 +148,11 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
 
   // Superintendents have access to EBD routes
   if (isSuperintendente && requiredModule === 'REOBOTE EBD') {
+    return <>{children}</>;
+  }
+
+  // Leads de reativação have access to EBD routes
+  if (isLeadReativacao && requiredModule === 'REOBOTE EBD') {
     return <>{children}</>;
   }
 

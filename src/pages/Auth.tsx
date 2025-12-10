@@ -39,11 +39,14 @@ export default function Auth() {
     if (!user) return;
     
     try {
-      // Track lead login - update ultimo_login_ebd for leads
+      // Track lead login - update ultimo_login_ebd e lead_score para 'Quente'
       if (user.email) {
         await supabase
           .from('ebd_leads_reativacao')
-          .update({ ultimo_login_ebd: new Date().toISOString() })
+          .update({ 
+            ultimo_login_ebd: new Date().toISOString(),
+            lead_score: 'Quente'
+          })
           .eq('email', user.email);
       }
 
@@ -68,6 +71,19 @@ export default function Auth() {
         .maybeSingle();
 
       if (superintendenteData) {
+        navigate('/ebd/dashboard');
+        return;
+      }
+
+      // Verificar se é um lead de reativação (superintendente pelo email)
+      const { data: leadData } = await supabase
+        .from('ebd_leads_reativacao')
+        .select('id, conta_criada')
+        .eq('email', user.email)
+        .eq('conta_criada', true)
+        .maybeSingle();
+
+      if (leadData) {
         navigate('/ebd/dashboard');
         return;
       }
