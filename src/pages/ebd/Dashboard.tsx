@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,12 +19,37 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ForcePasswordChangeDialog } from "@/components/ebd/ForcePasswordChangeDialog";
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 export default function EBDDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+
+  // Check if user needs to change default password
+  const { data: profileData } = useQuery({
+    queryKey: ['profile-password-check', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('senha_padrao_usada')
+        .eq('id', user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Show password dialog when senha_padrao_usada is true
+  useEffect(() => {
+    if (profileData?.senha_padrao_usada === true) {
+      setShowPasswordDialog(true);
+    }
+  }, [profileData]);
 
   // Get the client/church ID for the superintendent
   const { data: clienteData } = useQuery({
@@ -530,6 +556,11 @@ export default function EBDDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <ForcePasswordChangeDialog 
+        open={showPasswordDialog} 
+        onOpenChange={setShowPasswordDialog} 
+      />
     </div>
   );
 }

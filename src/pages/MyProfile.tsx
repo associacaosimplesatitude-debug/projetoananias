@@ -6,16 +6,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Upload, Loader2 } from 'lucide-react';
+import { Upload, Loader2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function MyProfile() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -97,6 +100,44 @@ export default function MyProfile() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!user) return;
+
+    if (newPassword.length < 6) {
+      toast.error('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      // Update password using Supabase Auth
+      const { error: authError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (authError) throw authError;
+
+      // Reset senha_padrao_usada flag
+      await supabase
+        .from('profiles')
+        .update({ senha_padrao_usada: false })
+        .eq('id', user.id);
+
+      setNewPassword('');
+      setConfirmPassword('');
+      toast.success('Senha alterada com sucesso!');
+    } catch (error: any) {
+      toast.error('Erro ao alterar senha: ' + error.message);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   const getInitials = () => {
     if (fullName) {
       return fullName
@@ -111,8 +152,8 @@ export default function MyProfile() {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-foreground">Meu Perfil</h1>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <h1 className="text-3xl font-bold text-foreground">Meu Perfil</h1>
 
         <Card>
           <CardHeader>
@@ -182,6 +223,55 @@ export default function MyProfile() {
                 </>
               ) : (
                 'Salvar Alterações'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Password Change Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Alterar Senha
+            </CardTitle>
+            <CardDescription>Atualize sua senha de acesso</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="newPassword">Nova Senha</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Digite a nova senha"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirme a nova senha"
+              />
+            </div>
+
+            <Button 
+              onClick={handleChangePassword} 
+              disabled={changingPassword || !newPassword || !confirmPassword} 
+              className="w-full"
+            >
+              {changingPassword ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Alterando...
+                </>
+              ) : (
+                'Alterar Senha'
               )}
             </Button>
           </CardContent>
