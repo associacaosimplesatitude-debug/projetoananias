@@ -44,6 +44,20 @@ serve(async (req) => {
 
     console.log(`[ebd-create-lead-accounts] Starting account creation. Is cron job: ${isCronJob}`);
 
+    // Get the EBD module ID
+    const { data: ebdModule, error: moduleError } = await supabaseAdmin
+      .from('modulos')
+      .select('id')
+      .eq('nome_modulo', 'REOBOTE EBD')
+      .single();
+
+    if (moduleError || !ebdModule) {
+      console.error('[ebd-create-lead-accounts] Could not find REOBOTE EBD module:', moduleError);
+      throw new Error('REOBOTE EBD module not found');
+    }
+
+    console.log(`[ebd-create-lead-accounts] Found EBD module: ${ebdModule.id}`);
+
     // Get leads without accounts created
     const { data: leads, error: leadsError } = await supabaseAdmin
       .from('ebd_leads_reativacao')
@@ -81,75 +95,152 @@ serve(async (req) => {
 
         console.log(`[ebd-create-lead-accounts] Processing lead: ${lead.nome_igreja} (${lead.email})`);
 
-        // Create user in auth
-        const { data: authData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
-          email: lead.email,
-          password: 'mudar123',
-          email_confirm: true,
-          user_metadata: {
-            full_name: lead.nome_responsavel || lead.nome_igreja,
-          }
-        });
+        // Check if user already exists
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === lead.email.toLowerCase());
 
-        if (createUserError) {
-          // Check if user already exists
-          if (createUserError.message.includes('already been registered')) {
-            // User exists, just update conta_criada
-            console.log(`[ebd-create-lead-accounts] User already exists for ${lead.email}, updating conta_criada`);
-            await supabaseAdmin
-              .from('ebd_leads_reativacao')
-              .update({ conta_criada: true })
-              .eq('id', lead.id);
-            results.created++;
+        let userId: string;
+
+        if (existingUser) {
+          console.log(`[ebd-create-lead-accounts] User already exists for ${lead.email}, using existing user`);
+          userId = existingUser.id;
+        } else {
+          // Create user in auth
+          const { data: authData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+            email: lead.email,
+            password: 'mudar123',
+            email_confirm: true,
+            user_metadata: {
+              full_name: lead.nome_responsavel || lead.nome_igreja,
+            }
+          });
+
+          if (createUserError) {
+            results.errors.push(`Lead ${lead.nome_igreja}: ${createUserError.message}`);
             continue;
           }
-          results.errors.push(`Lead ${lead.nome_igreja}: ${createUserError.message}`);
-          continue;
-        }
 
-        if (!authData.user) {
-          results.errors.push(`Lead ${lead.nome_igreja}: usuário não criado`);
-          continue;
+          if (!authData.user) {
+            results.errors.push(`Lead ${lead.nome_igreja}: usuário não criado`);
+            continue;
+          }
+
+          userId = authData.user.id;
+          console.log(`[ebd-create-lead-accounts] Created auth user: ${userId}`);
         }
 
         // Create/update profile with senha_padrao_usada = true
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
           .upsert({
-            id: authData.user.id,
+            id: userId,
             email: lead.email,
             full_name: lead.nome_responsavel || lead.nome_igreja,
             senha_padrao_usada: true,
           });
 
         if (profileError) {
-          console.error('Profile error:', profileError);
+          console.error('[ebd-create-lead-accounts] Profile error:', profileError);
         }
 
-        // Assign superintendente role
+        // Assign superintendente role (upsert to avoid duplicates)
         const { error: roleError } = await supabaseAdmin
           .from('user_roles')
-          .insert({
-            user_id: authData.user.id,
+          .upsert({
+            user_id: userId,
             role: 'superintendente',
-          });
+          }, { onConflict: 'user_id,role' });
 
         if (roleError) {
-          console.error('Role error:', roleError);
+          console.error('[ebd-create-lead-accounts] Role error:', roleError);
         }
 
-        // Update lead with conta_criada = true
+        // Check if church already exists for this user
+        const { data: existingChurch } = await supabaseAdmin
+          .from('churches')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
+
+        let churchId: string;
+
+        if (existingChurch) {
+          churchId = existingChurch.id;
+          console.log(`[ebd-create-lead-accounts] Using existing church: ${churchId}`);
+        } else {
+          // Create church record for the lead
+          const { data: churchData, error: churchError } = await supabaseAdmin
+            .from('churches')
+            .insert({
+              user_id: userId,
+              church_name: lead.nome_igreja,
+              pastor_email: lead.email,
+              pastor_name: lead.nome_responsavel,
+              pastor_whatsapp: lead.telefone,
+              cnpj: lead.cnpj,
+              address: lead.endereco_rua ? `${lead.endereco_rua}, ${lead.endereco_numero || 'S/N'}` : null,
+              neighborhood: lead.endereco_bairro,
+              city: lead.endereco_cidade,
+              state: lead.endereco_estado,
+              postal_code: lead.endereco_cep,
+              client_type: 'EBD',
+              process_status: 'active',
+            })
+            .select('id')
+            .single();
+
+          if (churchError) {
+            console.error('[ebd-create-lead-accounts] Church creation error:', churchError);
+            results.errors.push(`Lead ${lead.nome_igreja}: erro ao criar igreja - ${churchError.message}`);
+            continue;
+          }
+
+          churchId = churchData.id;
+          console.log(`[ebd-create-lead-accounts] Created church: ${churchId}`);
+        }
+
+        // Check if subscription already exists
+        const { data: existingSubscription } = await supabaseAdmin
+          .from('assinaturas')
+          .select('id')
+          .eq('cliente_id', churchId)
+          .eq('modulo_id', ebdModule.id)
+          .single();
+
+        if (!existingSubscription) {
+          // Create subscription for REOBOTE EBD module
+          const { error: subscriptionError } = await supabaseAdmin
+            .from('assinaturas')
+            .insert({
+              cliente_id: churchId,
+              modulo_id: ebdModule.id,
+              status: 'Ativo',
+            });
+
+          if (subscriptionError) {
+            console.error('[ebd-create-lead-accounts] Subscription error:', subscriptionError);
+          } else {
+            console.log(`[ebd-create-lead-accounts] Created EBD subscription for church: ${churchId}`);
+          }
+        } else {
+          console.log(`[ebd-create-lead-accounts] Subscription already exists for church: ${churchId}`);
+        }
+
+        // Update lead with conta_criada = true and lead_score = 'Quente'
         const { error: updateLeadError } = await supabaseAdmin
           .from('ebd_leads_reativacao')
-          .update({ conta_criada: true })
+          .update({ 
+            conta_criada: true,
+            lead_score: 'Quente',
+          })
           .eq('id', lead.id);
 
         if (updateLeadError) {
-          console.error('Update lead error:', updateLeadError);
+          console.error('[ebd-create-lead-accounts] Update lead error:', updateLeadError);
         }
 
         results.created++;
-        console.log(`[ebd-create-lead-accounts] Created account for lead: ${lead.nome_igreja}`);
+        console.log(`[ebd-create-lead-accounts] Successfully processed lead: ${lead.nome_igreja} (user: ${userId}, church: ${churchId})`);
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
