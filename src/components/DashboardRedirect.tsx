@@ -64,7 +64,7 @@ export default function DashboardRedirect() {
       
       const { data, error } = await supabase
         .from("ebd_leads_reativacao")
-        .select("id, conta_criada, email")
+        .select("id, conta_criada, email, lead_score")
         .ilike("email", userEmail)
         .maybeSingle();
 
@@ -75,7 +75,19 @@ export default function DashboardRedirect() {
         return null;
       }
       
-      // Return data regardless of conta_criada - we'll check in the redirect logic
+      // If lead found, update lead_score to 'Quente' and ultimo_login_ebd
+      if (data) {
+        console.log('DashboardRedirect - Lead found, updating score to Quente');
+        await supabase
+          .from("ebd_leads_reativacao")
+          .update({ 
+            lead_score: 'Quente', 
+            ultimo_login_ebd: new Date().toISOString(),
+            conta_criada: true 
+          })
+          .eq("id", data.id);
+      }
+      
       return data;
     },
     enabled: !!user?.email && !authLoading,
@@ -136,23 +148,40 @@ export default function DashboardRedirect() {
     );
   }
 
+  // Debug logs para identificar o problema
+  console.log('DashboardRedirect - Final decision:', {
+    role,
+    vendedor: !!vendedor,
+    superintendente: !!superintendente,
+    leadReativacao: !!leadReativacao,
+    leadReativacaoData: leadReativacao,
+    professor: !!professor,
+    aluno: !!aluno,
+    activeModules,
+    userEmail: user?.email
+  });
+
   // Admins always go to admin dashboard
   if (role === 'admin') {
+    console.log('DashboardRedirect - Redirecting admin to /admin');
     return <Navigate to="/admin" replace />;
   }
 
   // If user is a vendedor, redirect to vendedor dashboard
   if (vendedor) {
+    console.log('DashboardRedirect - Redirecting vendedor to /vendedor');
     return <Navigate to="/vendedor" replace />;
   }
 
   // PRIORITY 1: If user is a superintendent (from ebd_clientes), redirect to EBD dashboard
   if (superintendente) {
+    console.log('DashboardRedirect - Redirecting superintendente to /ebd/dashboard');
     return <Navigate to="/ebd/dashboard" replace />;
   }
 
   // PRIORITY 2: If user is a lead de reativação (superintendente by email), redirect to EBD dashboard
   if (leadReativacao) {
+    console.log('DashboardRedirect - Redirecting lead reativacao to /ebd/dashboard');
     return <Navigate to="/ebd/dashboard" replace />;
   }
 
