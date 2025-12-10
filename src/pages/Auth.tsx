@@ -44,11 +44,11 @@ export default function Auth() {
     console.log('User Email:', userEmail);
     
     try {
-      // 1. VENDEDOR - verificar pelo email
+      // 1. VENDEDOR - verificar pelo email (CASE INSENSITIVE)
       const { data: vendedorData, error: vendedorError } = await supabase
         .from('vendedores')
         .select('id')
-        .eq('email', userEmail)
+        .ilike('email', userEmail)
         .maybeSingle();
 
       console.log('Vendedor check:', { vendedorData, vendedorError });

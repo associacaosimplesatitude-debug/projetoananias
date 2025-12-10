@@ -42,6 +42,21 @@ export const useActiveModules = () => {
         return ['REOBOTE EBD'];
       }
 
+      // Check if user is a lead de reativação (by email) - CASE INSENSITIVE
+      if (user.email) {
+        const userEmail = user.email.toLowerCase().trim();
+        const { data: leadData } = await supabase
+          .from('ebd_leads_reativacao')
+          .select('id')
+          .ilike('email', userEmail)
+          .maybeSingle();
+
+        if (leadData) {
+          console.log('useActiveModules: User is a lead de reativação, granting EBD access');
+          return ['REOBOTE EBD'];
+        }
+      }
+
       // First, try to find church where user is the owner
       let churchId: string | null = null;
 
