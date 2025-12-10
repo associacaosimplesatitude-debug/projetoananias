@@ -197,6 +197,7 @@ export default function AdminEBD() {
   const [leadVendedorFilter, setLeadVendedorFilter] = useState('all');
   const [leadStatusFilter, setLeadStatusFilter] = useState('all');
   const [leadScoreFilter, setLeadScoreFilter] = useState('all');
+  const [leadContaFilter, setLeadContaFilter] = useState('all');
 
   // Data fetching
   const { data: orders, isLoading: ordersLoading } = useQuery({
@@ -616,9 +617,16 @@ export default function AdminEBD() {
         return false;
       }
       
+      // Conta criada filter
+      if (leadContaFilter !== 'all') {
+        const contaCriada = lead.conta_criada === true;
+        if (leadContaFilter === 'criada' && !contaCriada) return false;
+        if (leadContaFilter === 'pendente' && contaCriada) return false;
+      }
+      
       return true;
     });
-  }, [leadsReativacao, leadSearchTerm, leadVendedorFilter, leadStatusFilter, leadScoreFilter]);
+  }, [leadsReativacao, leadSearchTerm, leadVendedorFilter, leadStatusFilter, leadScoreFilter, leadContaFilter]);
 
   // Date range calculation
   const dateRange = useMemo(() => {
@@ -1837,6 +1845,16 @@ export default function AdminEBD() {
                       <SelectItem value="Frio">Frio</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={leadContaFilter} onValueChange={setLeadContaFilter}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Conta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Contas</SelectItem>
+                      <SelectItem value="criada">Criada</SelectItem>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -1849,6 +1867,7 @@ export default function AdminEBD() {
                     <TableHead>Cidade/UF</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Score</TableHead>
+                    <TableHead>Conta</TableHead>
                     <TableHead>Vendedor</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -1909,6 +1928,18 @@ export default function AdminEBD() {
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            lead.conta_criada
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }
+                        >
+                          {lead.conta_criada ? 'Criada' : 'Pendente'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         <Select
                           value={lead.vendedor_id || "sem_vendedor"}
                           onValueChange={async (value) => {
@@ -1954,7 +1985,7 @@ export default function AdminEBD() {
                   ))}
                   {filteredLeads.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         {leadsReativacao && leadsReativacao.length > 0
                           ? "Nenhum lead encontrado com os filtros aplicados"
                           : "Nenhum lead cadastrado. Importe um arquivo CSV para começar."}
