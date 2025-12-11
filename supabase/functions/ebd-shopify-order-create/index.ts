@@ -191,11 +191,15 @@ serve(async (req) => {
       noteAttributes.push({ name: "cliente_id", value: cliente.id });
     }
 
+    // Build tags - Shopify has a 40 character limit per tag
+    // Use only "ebd_order" as tag, vendedor_id will be in note_attributes
+    const orderTags = "ebd_order";
+
     const draftOrderPayload: Record<string, unknown> = {
       draft_order: {
         line_items: lineItems,
-        note: `Pedido criado via EBD - Cliente: ${cliente.nome_igreja}`,
-        tags: finalVendedorId ? `ebd_order,vendedor_${finalVendedorId}` : "ebd_order",
+        note: `Pedido criado via EBD - Cliente: ${cliente.nome_igreja}${finalVendedorId ? ` | Vendedor: ${finalVendedorId}` : ''}`,
+        tags: orderTags,
         note_attributes: noteAttributes,
         ...(customerId && { customer: { id: customerId } }),
         use_customer_default_address: !!customerId,
