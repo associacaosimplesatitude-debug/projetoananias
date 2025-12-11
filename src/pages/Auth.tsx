@@ -121,7 +121,14 @@ export default function Auth() {
         return;
       }
 
-      // 5. TESOUREIRO/SECRETÁRIO
+      // 5. GERENTE EBD - redirecionar para Admin EBD
+      if (roleData?.role === 'gerente_ebd') {
+        console.log('Redirecting to /admin/ebd (gerente_ebd)');
+        navigate('/admin/ebd');
+        return;
+      }
+
+      // 6. TESOUREIRO/SECRETÁRIO
       if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
         console.log('Redirecting to /dashboard (tesoureiro/secretario)');
         navigate('/dashboard');
