@@ -191,10 +191,6 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
           {/* Shopify Orders Section */}
           {shopifyPedidos.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4" />
-                Pedidos Shopify
-              </h3>
               <Table>
                 <TableHeader>
                   <TableRow>

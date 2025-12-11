@@ -229,6 +229,20 @@ export default function AdminEBD() {
     },
   });
 
+  // Fetch Shopify orders for ranking calculations
+  const { data: shopifyOrders = [] } = useQuery({
+    queryKey: ["admin-shopify-orders"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("*")
+        .eq("status_pagamento", "paid")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: vendedores, isLoading: vendedoresLoading } = useQuery({
     queryKey: ['vendedores'],
     queryFn: async () => {
@@ -743,12 +757,32 @@ export default function AdminEBD() {
 
   const vendedorStats = useMemo(() => {
     if (!vendedores || !paidOrders) return [];
+    
+    // Filter Shopify orders within date range
+    const filteredShopifyOrders = shopifyOrders.filter((order) => {
+      if (!order.created_at) return false;
+      const orderDate = parseISO(order.created_at);
+      return isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end });
+    });
+    
     return vendedores.map(vendedor => {
+      // Internal orders
       const vendedorOrders = paidOrders.filter(order => 
         order.church?.vendedor_id === vendedor.id
       );
-      const totalSales = vendedorOrders.length;
-      const totalValue = vendedorOrders.reduce((sum, o) => sum + Number(o.valor_total), 0);
+      const internalSales = vendedorOrders.length;
+      const internalValue = vendedorOrders.reduce((sum, o) => sum + Number(o.valor_total), 0);
+      
+      // Shopify orders
+      const vendedorShopifyOrders = filteredShopifyOrders.filter(order => 
+        order.vendedor_id === vendedor.id
+      );
+      const shopifySales = vendedorShopifyOrders.length;
+      const shopifyValue = vendedorShopifyOrders.reduce((sum, o) => sum + Number(o.valor_para_meta || 0), 0);
+      
+      // Combined totals
+      const totalSales = internalSales + shopifySales;
+      const totalValue = internalValue + shopifyValue;
       const commission = totalValue * (vendedor.comissao_percentual / 100);
       const goalProgress = vendedor.meta_mensal_valor > 0 
         ? (totalValue / vendedor.meta_mensal_valor) * 100 
@@ -762,7 +796,7 @@ export default function AdminEBD() {
         goalProgressRaw: goalProgress,
       };
     }).sort((a, b) => b.totalValue - a.totalValue);
-  }, [vendedores, paidOrders]);
+  }, [vendedores, paidOrders, shopifyOrders, dateRange]);
 
   const salesEvolutionBySeller = useMemo(() => {
     if (!vendedores || !paidOrders) return [];

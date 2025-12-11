@@ -37,21 +37,33 @@ export default function VendedorDashboard() {
     enabled: !!vendedor?.id,
   });
 
+  // Fetch Shopify orders for this vendedor in current month
   const { data: vendasMes = 0 } = useQuery({
     queryKey: ["vendedor-vendas-mes", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return 0;
-      const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd");
-      const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd");
-      const { data, error } = await supabase
-        .from("ebd_clientes")
-        .select("id")
+      const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd'T'00:00:00");
+      const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd'T'23:59:59");
+      
+      // Fetch Shopify orders (paid) for this vendedor in current month
+      const { data: shopifyOrders, error: shopifyError } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("valor_para_meta")
         .eq("vendedor_id", vendedor.id)
-        .eq("status_ativacao_ebd", true)
-        .gte("data_inicio_ebd", inicioMes)
-        .lte("data_inicio_ebd", fimMes);
-      if (error) return 0;
-      return (data?.length || 0) * 500;
+        .eq("status_pagamento", "paid")
+        .gte("created_at", inicioMes)
+        .lte("created_at", fimMes);
+      
+      if (shopifyError) {
+        console.error("Error fetching shopify orders:", shopifyError);
+      }
+      
+      // Sum the valor_para_meta from all Shopify orders
+      const totalShopify = (shopifyOrders || []).reduce((sum, order) => 
+        sum + Number(order.valor_para_meta || 0), 0
+      );
+      
+      return totalShopify;
     },
     enabled: !!vendedor?.id,
   });
