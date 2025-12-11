@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Users, Flame, Thermometer, Snowflake, Mail } from "lucide-react";
+import { Users, Flame, Thermometer, Snowflake, Mail, UserX, TrendingDown } from "lucide-react";
 
 interface LeadScoringKPIsProps {
   vendedorId?: string; // If provided, shows individual vendor stats
@@ -24,6 +24,19 @@ interface VendedorPerformance {
   quente: number;
 }
 
+interface StatusStats {
+  naoContatado: number;
+  emNegociacao: number;
+  reativado: number;
+  perdido: number;
+  total: number;
+}
+
+interface MotivoPerdaStats {
+  motivo: string;
+  count: number;
+}
+
 export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIsProps) {
   // Fetch lead stats
   const { data: leadStats, isLoading: statsLoading } = useQuery({
@@ -40,11 +53,6 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
 
       const leads = data || [];
       
-      // Calculate scores based on criteria:
-      // Frio com email: tem email, email_aberto = FALSE, ultimo_login_ebd = NULL
-      // Frio sem email: não tem email
-      // Morno: email_aberto = TRUE, ultimo_login_ebd = NULL
-      // Quente: ultimo_login_ebd IS NOT NULL (user logged in)
       let frioComEmail = 0;
       let frioSemEmail = 0;
       let morno = 0;
@@ -72,11 +80,98 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
     },
   });
 
+  // Fetch status distribution stats
+  const { data: statusStats, isLoading: statusLoading } = useQuery({
+    queryKey: ["lead-status-stats", vendedorId],
+    queryFn: async (): Promise<StatusStats> => {
+      let query = supabase.from("ebd_leads_reativacao").select("status_lead");
+      
+      if (vendedorId) {
+        query = query.eq("vendedor_id", vendedorId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const leads = data || [];
+      
+      let naoContatado = 0;
+      let emNegociacao = 0;
+      let reativado = 0;
+      let perdido = 0;
+
+      leads.forEach((lead) => {
+        const status = lead.status_lead?.toLowerCase() || '';
+        if (status === 'não contatado' || status === 'nao contatado') {
+          naoContatado++;
+        } else if (status === 'em negociação' || status === 'em negociacao') {
+          emNegociacao++;
+        } else if (status === 'reativado') {
+          reativado++;
+        } else if (status === 'perdido') {
+          perdido++;
+        } else {
+          // Default to não contatado for unknown statuses
+          naoContatado++;
+        }
+      });
+
+      return {
+        naoContatado,
+        emNegociacao,
+        reativado,
+        perdido,
+        total: leads.length,
+      };
+    },
+  });
+
+  // Fetch motivo da perda stats
+  const { data: motivoPerdaStats, isLoading: motivoLoading } = useQuery({
+    queryKey: ["lead-motivo-perda-stats", vendedorId],
+    queryFn: async (): Promise<MotivoPerdaStats[]> => {
+      let query = supabase
+        .from("ebd_leads_reativacao")
+        .select("motivo_perda")
+        .eq("status_lead", "Perdido")
+        .not("motivo_perda", "is", null);
+      
+      if (vendedorId) {
+        query = query.eq("vendedor_id", vendedorId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const leads = data || [];
+      
+      // Count by motivo
+      const motivoMap = new Map<string, number>();
+      const validMotivos = ['Concorrência', 'Preço', 'Logística', 'Igreja Fechou', 'Sem Interesse', 'Outro'];
+      
+      leads.forEach((lead) => {
+        const motivo = lead.motivo_perda || 'Outro';
+        const normalizedMotivo = validMotivos.find(m => 
+          m.toLowerCase() === motivo.toLowerCase()
+        ) || 'Outro';
+        
+        motivoMap.set(normalizedMotivo, (motivoMap.get(normalizedMotivo) || 0) + 1);
+      });
+
+      // Convert to array and sort by count
+      const result: MotivoPerdaStats[] = [];
+      motivoMap.forEach((count, motivo) => {
+        result.push({ motivo, count });
+      });
+
+      return result.sort((a, b) => b.count - a.count);
+    },
+  });
+
   // Fetch vendor performance (only for admin)
   const { data: vendorPerformance, isLoading: perfLoading } = useQuery({
     queryKey: ["lead-scoring-vendor-performance"],
     queryFn: async (): Promise<VendedorPerformance[]> => {
-      // First get all leads with vendedor_id
       const { data: leads, error: leadsError } = await supabase
         .from("ebd_leads_reativacao")
         .select("vendedor_id, email_aberto, conta_criada, ultimo_login_ebd")
@@ -84,20 +179,17 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
 
       if (leadsError) throw leadsError;
 
-      // Get vendedor names
       const { data: vendedores, error: vendError } = await supabase
         .from("vendedores")
         .select("id, nome");
 
       if (vendError) throw vendError;
 
-      // Create a map of vendedor_id to nome
       const vendedorMap = new Map<string, string>();
       vendedores?.forEach((v) => {
         vendedorMap.set(v.id, v.nome);
       });
 
-      // Group by vendedor and count morno and quente
       const performanceMap = new Map<string, { morno: number; quente: number }>();
 
       leads?.forEach((lead: any) => {
@@ -116,7 +208,6 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
         }
       });
 
-      // Convert to array with names
       const result: VendedorPerformance[] = [];
       performanceMap.forEach((stats, vendedorId) => {
         const nome = vendedorMap.get(vendedorId) || "Desconhecido";
@@ -129,13 +220,12 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
         }
       });
 
-      // Sort by total (morno + quente) descending
       return result.sort((a, b) => (b.morno + b.quente) - (a.morno + a.quente));
     },
     enabled: isAdmin,
   });
 
-  const isLoading = statsLoading || (isAdmin && perfLoading);
+  const isLoading = statsLoading || statusLoading || motivoLoading || (isAdmin && perfLoading);
 
   if (isLoading) {
     return (
@@ -153,17 +243,39 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
 
   const stats = leadStats || { total: 0, frioComEmail: 0, frioSemEmail: 0, morno: 0, quente: 0 };
   const totalFrio = stats.frioComEmail + stats.frioSemEmail;
+  const status = statusStats || { naoContatado: 0, emNegociacao: 0, reativado: 0, perdido: 0, total: 0 };
 
-  // Pie chart data
+  // Pie chart data for score distribution
   const pieData = [
     { name: "Frio", value: totalFrio, color: "hsl(210, 70%, 60%)" },
     { name: "Morno", value: stats.morno, color: "hsl(40, 90%, 55%)" },
     { name: "Quente", value: stats.quente, color: "hsl(0, 80%, 55%)" },
   ].filter((d) => d.value > 0);
 
-  const calcPercentage = (value: number) => {
-    if (stats.total === 0) return 0;
-    return ((value / stats.total) * 100).toFixed(1);
+  // Pie chart data for status distribution
+  const statusPieData = [
+    { name: "Não Contatado", value: status.naoContatado, color: "hsl(210, 15%, 60%)" },
+    { name: "Em Negociação", value: status.emNegociacao, color: "hsl(210, 70%, 55%)" },
+    { name: "Reativado", value: status.reativado, color: "hsl(142, 70%, 45%)" },
+    { name: "Perdido", value: status.perdido, color: "hsl(0, 70%, 55%)" },
+  ].filter((d) => d.value > 0);
+
+  // Bar chart data for motivo da perda
+  const motivoPerdaData = motivoPerdaStats || [];
+
+  // Colors for motivo da perda
+  const motivoColors: Record<string, string> = {
+    'Concorrência': 'hsl(0, 70%, 55%)',
+    'Preço': 'hsl(30, 80%, 55%)',
+    'Logística': 'hsl(210, 70%, 55%)',
+    'Igreja Fechou': 'hsl(270, 60%, 55%)',
+    'Sem Interesse': 'hsl(180, 60%, 45%)',
+    'Outro': 'hsl(0, 0%, 50%)',
+  };
+
+  const calcPercentage = (value: number, total: number = stats.total) => {
+    if (total === 0) return 0;
+    return ((value / total) * 100).toFixed(1);
   };
 
   return (
@@ -246,7 +358,7 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
         </Card>
       </div>
 
-      {/* Charts Row */}
+      {/* Charts Row 1 - Score Distribution and Vendor Performance / Action Card */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Pie Chart - Score Distribution */}
         <Card>
@@ -340,6 +452,108 @@ export function LeadScoringKPIs({ vendedorId, isAdmin = false }: LeadScoringKPIs
             </CardContent>
           </Card>
         )}
+      </div>
+
+      {/* Charts Row 2 - Status Distribution and Motivo da Perda */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Pie Chart - Status Distribution */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserX className="h-4 w-4" />
+              Status do Lead
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {status.total === 0 ? (
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                Nenhum lead encontrado
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={statusPieData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value }) => `${value} (${calcPercentage(value, status.total)}%)`}
+                    outerRadius={80}
+                    dataKey="value"
+                  >
+                    {statusPieData.map((entry, index) => (
+                      <Cell key={`cell-status-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => [`${value} leads`, '']}
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--background))', 
+                      border: '1px solid hsl(var(--border))' 
+                    }} 
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Bar Chart - Motivo da Perda */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-red-500" />
+              Motivo da Perda
+            </CardTitle>
+            <Badge variant="outline" className="text-red-600 border-red-300">
+              {status.perdido} perdidos
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            {motivoPerdaData.length === 0 ? (
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                <div className="text-center">
+                  <UserX className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                  <p>Nenhum lead perdido</p>
+                </div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={motivoPerdaData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis type="number" stroke="hsl(var(--foreground))" />
+                  <YAxis 
+                    type="category" 
+                    dataKey="motivo" 
+                    width={100} 
+                    stroke="hsl(var(--foreground))"
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => [`${value} leads`, 'Quantidade']}
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--background))', 
+                      border: '1px solid hsl(var(--border))' 
+                    }} 
+                  />
+                  <Bar 
+                    dataKey="count" 
+                    name="Leads Perdidos"
+                    radius={[0, 4, 4, 0]}
+                  >
+                    {motivoPerdaData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-motivo-${index}`} 
+                        fill={motivoColors[entry.motivo] || motivoColors['Outro']} 
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
