@@ -89,7 +89,13 @@ import ProfessorRelatorios from "./pages/ebd/professor/ProfessorRelatorios";
 import VendedorDashboard from "./pages/vendedor/VendedorDashboard";
 import VendedorCatalogo from "./pages/vendedor/VendedorCatalogo";
 import VendedorAtivacaoEBD from "./pages/vendedor/VendedorAtivacaoEBD";
-
+import VendedorClientes from "./pages/vendedor/VendedorClientes";
+import VendedorPendentes from "./pages/vendedor/VendedorPendentes";
+import VendedorProximasCompras from "./pages/vendedor/VendedorProximasCompras";
+import VendedorEmRisco from "./pages/vendedor/VendedorEmRisco";
+import VendedorLeadsPage from "./pages/vendedor/VendedorLeadsPage";
+import VendedorPedidosPage from "./pages/vendedor/VendedorPedidosPage";
+import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -647,19 +653,18 @@ const App = () => (
                       }
                     />
                     
-                    {/* Vendedor Routes */}
-                    <Route
-                      path="/vendedor"
-                      element={<VendedorDashboard />}
-                    />
-                    <Route
-                      path="/vendedor/catalogo"
-                      element={<VendedorCatalogo />}
-                    />
-                    <Route
-                      path="/vendedor/ativacao"
-                      element={<VendedorAtivacaoEBD />}
-                    />
+                    {/* Vendedor Routes with Layout */}
+                    <Route path="/vendedor" element={<VendedorLayout />}>
+                      <Route index element={<VendedorDashboard />} />
+                      <Route path="clientes" element={<VendedorClientes />} />
+                      <Route path="pendentes" element={<VendedorPendentes />} />
+                      <Route path="proximas-compras" element={<VendedorProximasCompras />} />
+                      <Route path="em-risco" element={<VendedorEmRisco />} />
+                      <Route path="leads" element={<VendedorLeadsPage />} />
+                      <Route path="pedidos" element={<VendedorPedidosPage />} />
+                    </Route>
+                    <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />
+                    <Route path="/vendedor/ativacao" element={<VendedorAtivacaoEBD />} />
                     
                     <Route path="*" element={<NotFound />} />
                   </Routes>
