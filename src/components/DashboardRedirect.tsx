@@ -167,6 +167,12 @@ export default function DashboardRedirect() {
     return <Navigate to="/admin" replace />;
   }
 
+  // Gerente EBD redirects to Admin EBD
+  if (role === 'gerente_ebd') {
+    console.log('DashboardRedirect - Redirecting gerente_ebd to /admin/ebd');
+    return <Navigate to="/admin/ebd" replace />;
+  }
+
   // If user is a vendedor, redirect to vendedor dashboard
   if (vendedor) {
     console.log('DashboardRedirect - Redirecting vendedor to /vendedor');
