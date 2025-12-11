@@ -17,7 +17,7 @@ const menuItems = [
   { to: "/vendedor/pendentes", icon: Clock, label: "Pendentes" },
   { to: "/vendedor/proximas-compras", icon: ShoppingCart, label: "Próximas Compras" },
   { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco" },
-  { to: "/vendedor/leads", icon: UserCheck, label: "Leads" },
+  { to: "/vendedor/leads", icon: UserCheck, label: "Reativação" },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
 ];
 
