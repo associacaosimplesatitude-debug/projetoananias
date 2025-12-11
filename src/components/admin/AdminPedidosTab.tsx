@@ -19,12 +19,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Eye, Package, ShoppingCart, Search } from "lucide-react";
+import { Eye, Package, ShoppingCart, Search, ExternalLink } from "lucide-react";
 import { useState, useMemo } from "react";
 import { PedidoDetailDialog, Pedido } from "@/components/vendedor/PedidoDetailDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+
+interface ShopifyPedido {
+  id: string;
+  shopify_order_id: number;
+  order_number: string;
+  vendedor_id: string | null;
+  cliente_id: string | null;
+  status_pagamento: string;
+  valor_total: number;
+  valor_frete: number;
+  valor_para_meta: number;
+  customer_email: string | null;
+  customer_name: string | null;
+  created_at: string;
+  codigo_rastreio: string | null;
+  url_rastreio: string | null;
+}
 
 interface AdminPedidosTabProps {
   vendedores?: { id: string; nome: string }[];
@@ -78,8 +96,8 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
     [clientes]
   );
 
-  // Fetch all orders
-  const { data: pedidos = [], isLoading } = useQuery({
+  // Fetch all internal orders
+  const { data: pedidos = [], isLoading: isLoadingPedidos } = useQuery({
     queryKey: ["admin-all-pedidos"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -107,6 +125,22 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
     },
     enabled: clientes.length > 0,
   });
+
+  // Fetch all Shopify orders
+  const { data: shopifyPedidos = [], isLoading: isLoadingShopify } = useQuery({
+    queryKey: ["admin-all-shopify-pedidos"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return (data || []) as ShopifyPedido[];
+    },
+  });
+
+  const isLoading = isLoadingPedidos || isLoadingShopify;
 
   const filteredPedidos = useMemo(() => {
     return pedidos.filter(p => {
@@ -145,19 +179,22 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
     setDialogOpen(true);
   };
 
-  // Stats
+  // Stats - include Shopify orders
   const stats = useMemo(() => {
-    const total = pedidos.length;
-    const pagos = pedidos.filter(p => p.payment_status === 'approved' || p.status === 'approved').length;
+    const total = pedidos.length + shopifyPedidos.length;
+    const pagos = pedidos.filter(p => p.payment_status === 'approved' || p.status === 'approved').length + shopifyPedidos.length;
     const cancelados = pedidos.filter(p => p.status === 'cancelled' || p.payment_status === 'cancelled').length;
     const faturados = pedidos.filter(p => p.status === 'shipped' || p.status === 'faturado').length;
-    const pendentes = total - pagos - cancelados - faturados;
-    const valorTotal = pedidos
+    const pendentes = pedidos.length - (pagos - shopifyPedidos.length) - cancelados - faturados;
+    
+    const valorTotalInterno = pedidos
       .filter(p => p.payment_status === 'approved' || p.status === 'approved')
       .reduce((acc, p) => acc + p.valor_total, 0);
+    const valorTotalShopify = shopifyPedidos.reduce((acc, p) => acc + p.valor_para_meta, 0);
+    const valorTotal = valorTotalInterno + valorTotalShopify;
 
-    return { total, pagos, cancelados, faturados, pendentes, valorTotal };
-  }, [pedidos]);
+    return { total, pagos, cancelados, faturados, pendentes, valorTotal, shopifyCount: shopifyPedidos.length };
+  }, [pedidos, shopifyPedidos]);
 
   if (isLoading) {
     return (
@@ -223,116 +260,217 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
         </CardContent>
       </Card>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Todos os Pedidos
-          </CardTitle>
-          <CardDescription>
-            Pedidos de todas as igrejas do sistema EBD
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Filters Row */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por igreja ou cliente..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
-                <SelectItem value="pago">Pago</SelectItem>
-                <SelectItem value="faturado">Faturado</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Vendedor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos Vendedores</SelectItem>
-                {vendedores.map(v => (
-                  <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      {/* Orders Tabs */}
+      <Tabs defaultValue="shopify" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="shopify" className="gap-2">
+            <ShoppingCart className="h-4 w-4" />
+            Shopify ({shopifyPedidos.length})
+          </TabsTrigger>
+          <TabsTrigger value="interno" className="gap-2">
+            <Package className="h-4 w-4" />
+            Internos ({pedidos.length})
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Table */}
-          {filteredPedidos.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>Nenhum pedido encontrado</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Igreja</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Pagamento</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPedidos.map((pedido) => {
-                  const vendedor = vendedores.find(v => v.id === pedido.vendedor_id);
-                  return (
-                    <TableRow key={pedido.id}>
-                      <TableCell>
-                        {pedido.created_at 
-                          ? format(new Date(pedido.created_at), "dd/MM/yyyy", { locale: ptBR })
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="font-medium max-w-[200px] truncate">
-                        {pedido.nome_igreja}
-                      </TableCell>
-                      <TableCell>
-                        R$ {pedido.valor_total.toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        {getPaymentMethodLabel(pedido.metodo_frete)}
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(pedido.status, pedido.payment_status)}
-                      </TableCell>
-                      <TableCell>
-                        {vendedor?.nome || '-'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewPedido(pedido)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          Ver
-                        </Button>
-                      </TableCell>
+        {/* Shopify Orders Tab */}
+        <TabsContent value="shopify">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Pedidos Shopify
+              </CardTitle>
+              <CardDescription>
+                Pedidos pagos via Shopify sincronizados automaticamente
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {shopifyPedidos.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                  <p>Nenhum pedido Shopify encontrado</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Pedido</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Valor Total</TableHead>
+                      <TableHead>Para Meta</TableHead>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead>Rastreio</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {shopifyPedidos.map((pedido) => {
+                      const vendedor = vendedores.find(v => v.id === pedido.vendedor_id);
+                      return (
+                        <TableRow key={pedido.id}>
+                          <TableCell className="font-medium">
+                            {pedido.order_number}
+                          </TableCell>
+                          <TableCell>
+                            {pedido.created_at 
+                              ? format(new Date(pedido.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {pedido.customer_name || clienteMap[pedido.cliente_id || '']?.nome || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            R$ {pedido.valor_total.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-green-600 font-medium">
+                            R$ {pedido.valor_para_meta.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            {vendedor?.nome || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {pedido.codigo_rastreio ? (
+                              pedido.url_rastreio ? (
+                                <a 
+                                  href={pedido.url_rastreio} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline flex items-center gap-1"
+                                >
+                                  {pedido.codigo_rastreio}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              ) : (
+                                <span>{pedido.codigo_rastreio}</span>
+                              )
+                            ) : (
+                              <Badge variant="secondary">Aguardando</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Internal Orders Tab */}
+        <TabsContent value="interno">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Pedidos Internos
+              </CardTitle>
+              <CardDescription>
+                Pedidos de todas as igrejas do sistema EBD
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filters Row */}
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por igreja ou cliente..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Status</SelectItem>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="pago">Pago</SelectItem>
+                    <SelectItem value="faturado">Faturado</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Vendedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos Vendedores</SelectItem>
+                    {vendedores.map(v => (
+                      <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Table */}
+              {filteredPedidos.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                  <p>Nenhum pedido encontrado</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Igreja</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Pagamento</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPedidos.map((pedido) => {
+                      const vendedor = vendedores.find(v => v.id === pedido.vendedor_id);
+                      return (
+                        <TableRow key={pedido.id}>
+                          <TableCell>
+                            {pedido.created_at 
+                              ? format(new Date(pedido.created_at), "dd/MM/yyyy", { locale: ptBR })
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="font-medium max-w-[200px] truncate">
+                            {pedido.nome_igreja}
+                          </TableCell>
+                          <TableCell>
+                            R$ {pedido.valor_total.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            {getPaymentMethodLabel(pedido.metodo_frete)}
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(pedido.status, pedido.payment_status)}
+                          </TableCell>
+                          <TableCell>
+                            {vendedor?.nome || '-'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewPedido(pedido)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Ver
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <PedidoDetailDialog
         open={dialogOpen}
