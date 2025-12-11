@@ -232,14 +232,13 @@ export default function AdminEBD() {
     },
   });
 
-  // Fetch Shopify orders for ranking calculations
+  // Fetch all Shopify orders for KPIs
   const { data: shopifyOrders = [] } = useQuery({
     queryKey: ["admin-shopify-orders"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select("*")
-        .in("status_pagamento", ["Pago"]) // Only count paid orders (exclude refunded)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -693,23 +692,52 @@ export default function AdminEBD() {
     });
   }, [orders, dateRange]);
 
-  // KPIs
+  // KPIs from old ebd_pedidos (keeping for chart compatibility)
   const pendingOrders = filteredOrders.filter(o => o.payment_status === 'pending' && o.status !== 'cancelled');
   const paidOrders = filteredOrders.filter(o => o.payment_status === 'approved');
   const cancelledOrders = filteredOrders.filter(o => o.status === 'cancelled');
-  const totalRevenue = paidOrders.reduce((sum, o) => sum + Number(o.valor_total), 0);
-  const totalProducts = paidOrders.reduce((sum, o) => sum + Number(o.valor_produtos), 0);
-  const totalShipping = paidOrders.reduce((sum, o) => sum + Number(o.valor_frete), 0);
-  const avgTicket = paidOrders.length > 0 ? totalRevenue / paidOrders.length : 0;
-  const totalItems = paidOrders.reduce((sum, o) => 
-    sum + (o.ebd_pedidos_itens?.reduce((s, item) => s + item.quantidade, 0) || 0), 0
-  );
   const totalEbdClients = ebdClients?.length || 0;
+
+  // KPIs from Shopify - filtered by date range
+  const filteredShopifyOrders = useMemo(() => {
+    return shopifyOrders.filter((order) => {
+      if (!order.created_at) return false;
+      const orderDate = parseISO(order.created_at);
+      return isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end });
+    });
+  }, [shopifyOrders, dateRange]);
+
+  const shopifyPaidOrders = useMemo(() => 
+    filteredShopifyOrders.filter(o => o.status_pagamento === 'Pago'), 
+    [filteredShopifyOrders]
+  );
+  const shopifyRefundedOrders = useMemo(() => 
+    filteredShopifyOrders.filter(o => o.status_pagamento === 'Estornado' || o.status_pagamento === 'refunded'), 
+    [filteredShopifyOrders]
+  );
+  const shopifyPendingOrders = useMemo(() => 
+    filteredShopifyOrders.filter(o => o.status_pagamento === 'pending' || o.status_pagamento === 'Pendente'), 
+    [filteredShopifyOrders]
+  );
+
+  // Main KPIs from Shopify
+  const totalRevenue = useMemo(() => 
+    shopifyPaidOrders.reduce((sum, o) => sum + Number(o.valor_total || 0), 0), 
+    [shopifyPaidOrders]
+  );
+  const totalShipping = useMemo(() => 
+    shopifyPaidOrders.reduce((sum, o) => sum + Number(o.valor_frete || 0), 0), 
+    [shopifyPaidOrders]
+  );
+  const totalProducts = totalRevenue - totalShipping;
+  const avgTicket = shopifyPaidOrders.length > 0 ? totalRevenue / shopifyPaidOrders.length : 0;
+  const totalItems = shopifyPaidOrders.length; // For Shopify, count orders as items
+  
   const deliveryStats = useMemo(() => {
-    const shipped = paidOrders.filter(o => o.codigo_rastreio).length;
-    const awaitingShipment = paidOrders.filter(o => !o.codigo_rastreio).length;
+    const shipped = shopifyPaidOrders.filter(o => o.codigo_rastreio).length;
+    const awaitingShipment = shopifyPaidOrders.filter(o => !o.codigo_rastreio).length;
     return { shipped, awaitingShipment };
-  }, [paidOrders]);
+  }, [shopifyPaidOrders]);
 
   // Chart data
   const paymentStatusData = useMemo(() => [
@@ -1333,8 +1361,8 @@ export default function AdminEBD() {
                 <ShoppingCart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{paidOrders.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">{totalItems} itens vendidos</p>
+                <div className="text-2xl font-bold">{shopifyPaidOrders.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">{totalItems} pedidos via Shopify</p>
               </CardContent>
             </Card>
 
