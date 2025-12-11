@@ -50,7 +50,7 @@ export default function VendedorDashboard() {
         .from("ebd_shopify_pedidos")
         .select("valor_para_meta")
         .eq("vendedor_id", vendedor.id)
-        .eq("status_pagamento", "paid")
+        .eq("status_pagamento", "Pago")
         .gte("created_at", inicioMes)
         .lte("created_at", fimMes);
       
