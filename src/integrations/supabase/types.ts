@@ -2994,7 +2994,7 @@ export type Database = {
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "client" | "tesoureiro" | "secretario"
+      app_role: "admin" | "client" | "tesoureiro" | "secretario" | "gerente_ebd"
       church_permission:
         | "view_financial"
         | "edit_financial"
@@ -3129,7 +3129,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "client", "tesoureiro", "secretario"],
+      app_role: ["admin", "client", "tesoureiro", "secretario", "gerente_ebd"],
       church_permission: [
         "view_financial",
         "edit_financial",
