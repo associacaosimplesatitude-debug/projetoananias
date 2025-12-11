@@ -12,54 +12,105 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const url = new URL(req.url);
+  
+  // Test endpoint - GET request to verify the webhook is working
+  if (req.method === 'GET' && url.searchParams.get('test') === 'true') {
+    console.log('=== Test endpoint called ===');
+    const webhookSecret = Deno.env.get('BREVO_WEBHOOK_SECRET');
+    return new Response(JSON.stringify({ 
+      status: 'active',
+      message: 'Webhook is active and receiving requests',
+      secretConfigured: !!webhookSecret,
+      secretLength: webhookSecret?.length || 0,
+      timestamp: new Date().toISOString()
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     console.log('=== Brevo webhook received ===');
     console.log('Method:', req.method);
-    console.log('Headers:', JSON.stringify(Object.fromEntries(req.headers.entries())));
+    console.log('URL:', req.url);
     
-    // Get the webhook secret for validation (optional but recommended)
+    // Log all headers for debugging
+    const headersObj: Record<string, string> = {};
+    req.headers.forEach((value, key) => {
+      headersObj[key] = key.toLowerCase().includes('auth') || key.toLowerCase().includes('token') 
+        ? `${value.substring(0, 10)}...` 
+        : value;
+    });
+    console.log('Headers:', JSON.stringify(headersObj));
+    
+    // Get the webhook secret for validation
     const webhookSecret = Deno.env.get('BREVO_WEBHOOK_SECRET');
     console.log('Webhook secret configured:', !!webhookSecret);
+    console.log('Webhook secret length:', webhookSecret?.length || 0);
     
-    // If webhook secret is configured, validate the request
+    // Brevo with "Token" authentication sends the token in the Authorization header
+    const authHeader = req.headers.get('authorization');
+    const signature = req.headers.get('x-brevo-signature');
+    const sibWebhookId = req.headers.get('x-sib-webhook-id');
+    
+    console.log('Auth header present:', !!authHeader);
+    console.log('Auth header value (partial):', authHeader ? `${authHeader.substring(0, 20)}...` : 'none');
+    console.log('Signature header:', signature ? `${signature.substring(0, 10)}...` : 'none');
+    console.log('SIB Webhook ID:', sibWebhookId);
+    
+    // Validate authentication if secret is configured
     if (webhookSecret) {
-      const signature = req.headers.get('x-brevo-signature');
-      const sibWebhookId = req.headers.get('x-sib-webhook-id');
-      const authHeader = req.headers.get('authorization');
+      let isValid = false;
       
-      console.log('Signature header:', signature);
-      console.log('SIB Webhook ID:', sibWebhookId);
-      console.log('Auth header present:', !!authHeader);
+      // Method 1: Bearer token in Authorization header
+      if (authHeader) {
+        const token = authHeader.replace('Bearer ', '').replace('bearer ', '').trim();
+        if (token === webhookSecret) {
+          isValid = true;
+          console.log('Auth: Bearer token matched');
+        }
+      }
       
-      // Brevo uses different authentication methods depending on setup
-      // Check multiple possible validation methods
-      const isValidAuth = 
-        (authHeader && authHeader === `Bearer ${webhookSecret}`) ||
-        (signature && signature === webhookSecret) ||
-        (sibWebhookId); // Accept if has Brevo webhook ID header
+      // Method 2: Direct token match (Brevo sometimes sends just the token)
+      if (!isValid && authHeader === webhookSecret) {
+        isValid = true;
+        console.log('Auth: Direct token matched');
+      }
       
-      if (!isValidAuth) {
-        console.error('Invalid webhook authentication - rejecting request');
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      // Method 3: x-brevo-signature header
+      if (!isValid && signature === webhookSecret) {
+        isValid = true;
+        console.log('Auth: Signature matched');
+      }
+      
+      // Method 4: Accept if has Brevo webhook ID (less secure but sometimes needed)
+      if (!isValid && sibWebhookId) {
+        isValid = true;
+        console.log('Auth: Accepted via SIB Webhook ID presence');
+      }
+      
+      if (!isValid) {
+        console.error('Authentication failed - no valid credentials');
+        console.error('Expected token starts with:', webhookSecret.substring(0, 5));
+        console.error('Received auth starts with:', authHeader?.substring(0, 15) || 'none');
+        return new Response(JSON.stringify({ error: 'Unauthorized', details: 'Token mismatch' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      console.log('Authentication passed');
     } else {
-      console.log('No webhook secret configured - accepting all requests');
+      console.log('No webhook secret configured - accepting all requests (NOT RECOMMENDED)');
     }
 
     const payload = await req.json();
     console.log('Webhook payload:', JSON.stringify(payload, null, 2));
 
-    // Brevo sends different event types
-    // For email tracking, we look for "opened", "click", "unique_opened" events
-    const event = payload.event;
-    const email = payload.email;
+    // Extract event and email - Brevo can send in different formats
+    const event = payload.event || payload.type || payload.eventType;
+    const email = payload.email || payload.recipient || payload.to;
     
-    console.log('Event type:', event);
-    console.log('Email:', email);
+    console.log('Extracted event type:', event);
+    console.log('Extracted email:', email);
 
     if (!email) {
       console.log('No email in payload, skipping');
@@ -73,79 +124,70 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Handle different event types - track email opens and clicks
-    const trackableEvents = ['opened', 'click', 'unique_opened', 'open', 'uniqueOpened'];
+    // Handle email open and click events
+    const trackableEvents = ['opened', 'click', 'unique_opened', 'open', 'uniqueOpened', 'delivered', 'trackOpened'];
+    const eventLower = event?.toLowerCase() || '';
+    const isTrackable = trackableEvents.some(e => eventLower.includes(e.toLowerCase()));
     
-    if (trackableEvents.includes(event)) {
-      console.log(`Processing ${event} event for email: ${email}`);
+    if (isTrackable) {
+      console.log(`Processing trackable event: ${event} for email: ${email}`);
       
-      // First, check if the lead exists
+      // First check if lead exists
       const { data: existingLead, error: fetchError } = await supabase
         .from('ebd_leads_reativacao')
-        .select('id, email_aberto, lead_score')
-        .eq('email', email.toLowerCase())
-        .single();
+        .select('id, email, email_aberto, lead_score')
+        .ilike('email', email)
+        .maybeSingle();
       
-      if (fetchError) {
-        console.error('Error fetching lead:', fetchError);
-        
-        // Try case-insensitive search with ilike
-        const { data: leadsByIlike, error: ilikeError } = await supabase
-          .from('ebd_leads_reativacao')
-          .select('id, email_aberto, lead_score')
-          .ilike('email', email);
-        
-        if (ilikeError) {
-          console.error('Error with ilike search:', ilikeError);
-        } else {
-          console.log('Found leads with ilike:', leadsByIlike);
-        }
-      } else {
-        console.log('Found existing lead:', existingLead);
+      console.log('Fetch result:', { existingLead, fetchError });
+      
+      if (!existingLead) {
+        console.log('Lead not found for email:', email);
+        return new Response(JSON.stringify({ 
+          success: false, 
+          message: 'Lead not found',
+          email 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
       
-      // Update the lead's email_aberto status AND lead_score to 'Morno'
-      const { data, error } = await supabase
+      // Update the lead
+      const { data: updateData, error: updateError } = await supabase
         .from('ebd_leads_reativacao')
         .update({ 
           email_aberto: true,
           lead_score: 'Morno',
           updated_at: new Date().toISOString()
         })
-        .eq('email', email.toLowerCase())
+        .eq('id', existingLead.id)
         .select();
 
-      if (error) {
-        console.error('Error updating lead with eq:', error);
-        
-        // Try with ilike as fallback
-        const { data: updateData, error: updateError } = await supabase
-          .from('ebd_leads_reativacao')
-          .update({ 
-            email_aberto: true,
-            lead_score: 'Morno',
-            updated_at: new Date().toISOString()
-          })
-          .ilike('email', email)
-          .select();
-        
-        if (updateError) {
-          console.error('Error updating lead with ilike:', updateError);
-          return new Response(JSON.stringify({ error: 'Failed to update lead', details: updateError.message }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        console.log('Successfully updated lead with ilike. Updated records:', updateData);
-      } else {
-        console.log(`Successfully updated email_aberto and lead_score to Morno for: ${email}. Updated records:`, data);
+      if (updateError) {
+        console.error('Error updating lead:', updateError);
+        return new Response(JSON.stringify({ 
+          error: 'Failed to update lead', 
+          details: updateError.message 
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
+      
+      console.log('Successfully updated lead:', updateData);
+      return new Response(JSON.stringify({ 
+        success: true, 
+        event, 
+        email,
+        updated: updateData 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     } else {
-      console.log(`Event type "${event}" not tracked, skipping. Trackable events are:`, trackableEvents);
+      console.log(`Event type "${event}" not tracked`);
     }
 
-    return new Response(JSON.stringify({ success: true, event, email }), {
+    return new Response(JSON.stringify({ success: true, event, email, processed: false }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
