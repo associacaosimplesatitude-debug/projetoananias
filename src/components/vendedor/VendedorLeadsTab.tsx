@@ -39,6 +39,13 @@ interface Lead {
   nome_igreja: string;
   email: string | null;
   telefone: string | null;
+  cnpj: string | null;
+  nome_responsavel: string | null;
+  endereco_cep: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_complemento: string | null;
+  endereco_bairro: string | null;
   endereco_cidade: string | null;
   endereco_estado: string | null;
   status_lead: string;
@@ -48,6 +55,7 @@ interface Lead {
   data_followup: string | null;
   motivo_perda: string | null;
   observacoes: string | null;
+  vendedor_id: string | null;
 }
 
 interface VendedorLeadsTabProps {
