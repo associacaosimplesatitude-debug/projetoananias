@@ -61,24 +61,31 @@ serve(async (req) => {
     // Validate authentication if secret is configured
     if (webhookSecret) {
       let isValid = false;
+      const trimmedSecret = webhookSecret.trim();
       
       // Method 1: Bearer token in Authorization header
       if (authHeader) {
-        const token = authHeader.replace('Bearer ', '').replace('bearer ', '').trim();
-        if (token === webhookSecret) {
+        const token = authHeader.replace(/^[Bb]earer\s+/, '').trim();
+        console.log('Token length:', token.length, 'Secret length:', trimmedSecret.length);
+        console.log('Token first 10:', token.substring(0, 10));
+        console.log('Secret first 10:', trimmedSecret.substring(0, 10));
+        console.log('Token last 10:', token.substring(token.length - 10));
+        console.log('Secret last 10:', trimmedSecret.substring(trimmedSecret.length - 10));
+        
+        if (token === trimmedSecret) {
           isValid = true;
           console.log('Auth: Bearer token matched');
         }
       }
       
       // Method 2: Direct token match (Brevo sometimes sends just the token)
-      if (!isValid && authHeader === webhookSecret) {
+      if (!isValid && authHeader?.trim() === trimmedSecret) {
         isValid = true;
         console.log('Auth: Direct token matched');
       }
       
       // Method 3: x-brevo-signature header
-      if (!isValid && signature === webhookSecret) {
+      if (!isValid && signature?.trim() === trimmedSecret) {
         isValid = true;
         console.log('Auth: Signature matched');
       }
@@ -91,8 +98,8 @@ serve(async (req) => {
       
       if (!isValid) {
         console.error('Authentication failed - no valid credentials');
-        console.error('Expected token starts with:', webhookSecret.substring(0, 5));
-        console.error('Received auth starts with:', authHeader?.substring(0, 15) || 'none');
+        console.error('Expected token:', `"${trimmedSecret}"`);
+        console.error('Received token:', authHeader ? `"${authHeader.replace(/^[Bb]earer\s+/, '').trim()}"` : 'none');
         return new Response(JSON.stringify({ error: 'Unauthorized', details: 'Token mismatch' }), {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
