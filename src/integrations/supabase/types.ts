@@ -2395,6 +2395,69 @@ export type Database = {
           },
         ]
       }
+      ebd_shopify_pedidos: {
+        Row: {
+          cliente_id: string | null
+          created_at: string
+          customer_email: string | null
+          customer_name: string | null
+          id: string
+          order_number: string
+          shopify_order_id: number
+          status_pagamento: string
+          updated_at: string
+          valor_frete: number
+          valor_para_meta: number
+          valor_total: number
+          vendedor_id: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          id?: string
+          order_number: string
+          shopify_order_id: number
+          status_pagamento?: string
+          updated_at?: string
+          valor_frete?: number
+          valor_para_meta?: number
+          valor_total?: number
+          vendedor_id?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          id?: string
+          order_number?: string
+          shopify_order_id?: number
+          status_pagamento?: string
+          updated_at?: string
+          valor_frete?: number
+          valor_para_meta?: number
+          valor_total?: number
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_shopify_pedidos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_shopify_pedidos_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_turmas: {
         Row: {
           church_id: string

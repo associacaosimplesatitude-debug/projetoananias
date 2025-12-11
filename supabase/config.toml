@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.ebd-shopify-order-create]
 verify_jwt = true
+
+[functions.ebd-shopify-order-webhook]
+verify_jwt = false
