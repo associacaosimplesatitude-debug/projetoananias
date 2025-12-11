@@ -2398,6 +2398,7 @@ export type Database = {
       ebd_shopify_pedidos: {
         Row: {
           cliente_id: string | null
+          codigo_rastreio: string | null
           created_at: string
           customer_email: string | null
           customer_name: string | null
@@ -2406,6 +2407,7 @@ export type Database = {
           shopify_order_id: number
           status_pagamento: string
           updated_at: string
+          url_rastreio: string | null
           valor_frete: number
           valor_para_meta: number
           valor_total: number
@@ -2413,6 +2415,7 @@ export type Database = {
         }
         Insert: {
           cliente_id?: string | null
+          codigo_rastreio?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -2421,6 +2424,7 @@ export type Database = {
           shopify_order_id: number
           status_pagamento?: string
           updated_at?: string
+          url_rastreio?: string | null
           valor_frete?: number
           valor_para_meta?: number
           valor_total?: number
@@ -2428,6 +2432,7 @@ export type Database = {
         }
         Update: {
           cliente_id?: string | null
+          codigo_rastreio?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -2436,6 +2441,7 @@ export type Database = {
           shopify_order_id?: number
           status_pagamento?: string
           updated_at?: string
+          url_rastreio?: string | null
           valor_frete?: number
           valor_para_meta?: number
           valor_total?: number
