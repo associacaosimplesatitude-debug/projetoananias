@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.create-vendedor]
 verify_jwt = true
+
+[functions.ebd-test-email-open]
+verify_jwt = false
