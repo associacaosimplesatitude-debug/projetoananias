@@ -57,8 +57,14 @@ verify_jwt = false
 [functions.ebd-brevo-webhook]
 verify_jwt = false
 
+[functions.ebd-brevo-webhook-teste]
+verify_jwt = false
+
 [functions.ebd-send-activation-batch]
 verify_jwt = true
 
-[functions.ebd-brevo-webhook-teste]
+[functions.ebd-brevo-webhook-public]
 verify_jwt = false
+
+[functions.create-vendedor]
+verify_jwt = true
