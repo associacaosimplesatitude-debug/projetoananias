@@ -215,6 +215,7 @@ export const Navigation = () => {
   const adminClientesDropdown = [
     { to: '/admin/clients', label: 'Clientes' },
     { to: '/admin/processos', label: 'Etapas' },
+    { to: '/admin/users', label: 'Usuários' },
   ];
 
   const adminFinanceiroDropdown = [
