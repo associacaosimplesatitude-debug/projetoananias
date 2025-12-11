@@ -22,6 +22,7 @@ interface Cliente {
   endereco_bairro: string | null;
   endereco_cidade: string | null;
   endereco_estado: string | null;
+  vendedor_id?: string | null;
 }
 
 interface CartItem {
@@ -47,7 +48,12 @@ serve(async (req) => {
       );
     }
 
-    const { cliente, items } = await req.json() as { cliente: Cliente; items: CartItem[] };
+    // Get vendedor_id from request body or from authenticated user
+    const { cliente, items, vendedor_id } = await req.json() as { 
+      cliente: Cliente; 
+      items: CartItem[];
+      vendedor_id?: string;
+    };
 
     if (!cliente || !items || items.length === 0) {
       return new Response(
@@ -56,7 +62,11 @@ serve(async (req) => {
       );
     }
 
+    // Use vendedor_id from request or from cliente
+    const finalVendedorId = vendedor_id || cliente.vendedor_id;
+    
     console.log("Creating draft order for cliente:", cliente.nome_igreja);
+    console.log("Vendedor ID:", finalVendedorId);
     console.log("Items:", items);
 
     // Step 1: Search for existing customer or create new one
@@ -170,11 +180,23 @@ serve(async (req) => {
 
     console.log("Creating draft order with line items:", lineItems);
 
+    // Build note attributes for vendedor tracking
+    const noteAttributes: Array<{ name: string; value: string }> = [];
+    
+    if (finalVendedorId) {
+      noteAttributes.push({ name: "vendedor_id", value: finalVendedorId });
+    }
+    
+    if (cliente.id) {
+      noteAttributes.push({ name: "cliente_id", value: cliente.id });
+    }
+
     const draftOrderPayload: Record<string, unknown> = {
       draft_order: {
         line_items: lineItems,
         note: `Pedido criado via EBD - Cliente: ${cliente.nome_igreja}`,
-        tags: "ebd_order",
+        tags: finalVendedorId ? `ebd_order,vendedor_${finalVendedorId}` : "ebd_order",
+        note_attributes: noteAttributes,
         ...(customerId && { customer: { id: customerId } }),
         use_customer_default_address: !!customerId,
       },
@@ -223,6 +245,7 @@ serve(async (req) => {
     const draftOrder = draftOrderData.draft_order;
 
     console.log("Draft order created:", draftOrder.id);
+    console.log("Draft order note_attributes:", draftOrder.note_attributes);
 
     // Step 3: Get invoice URL
     const invoiceUrl = draftOrder.invoice_url;
@@ -233,6 +256,7 @@ serve(async (req) => {
         draftOrderId: draftOrder.id,
         invoiceUrl: invoiceUrl,
         orderName: draftOrder.name,
+        vendedorId: finalVendedorId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

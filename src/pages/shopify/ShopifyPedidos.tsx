@@ -11,6 +11,7 @@ import { fetchShopifyProducts, ShopifyProduct, CartItem } from "@/lib/shopify";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useVendedor } from "@/hooks/useVendedor";
 import {
   Select,
   SelectContent,
@@ -48,6 +49,9 @@ export default function ShopifyPedidos() {
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  
+  // Get vendedor info for the logged-in user
+  const { vendedor } = useVendedor();
   
   const { 
     items, 
@@ -120,6 +124,7 @@ export default function ShopifyPedidos() {
       const { data, error } = await supabase.functions.invoke('ebd-shopify-order-create', {
         body: {
           cliente: selectedCliente,
+          vendedor_id: vendedor?.id, // Include vendedor_id for commission tracking
           items: items.map(item => ({
             variantId: item.variantId,
             quantity: item.quantity,
