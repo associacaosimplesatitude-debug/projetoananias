@@ -17,14 +17,14 @@ const createUserSchema = z.object({
   email: z.string().trim().email({ message: 'Email inválido' }).max(255),
   password: z.string().min(6, { message: 'Senha deve ter no mínimo 6 caracteres' }).max(100),
   fullName: z.string().trim().min(1, { message: 'Nome completo obrigatório' }).max(200),
-  role: z.enum(['admin', 'client', 'tesoureiro', 'secretario'], { message: 'Role inválida' }),
+  role: z.enum(['admin', 'client', 'tesoureiro', 'secretario', 'gerente_ebd'], { message: 'Role inválida' }),
 });
 
 interface User {
   id: string;
   email: string;
   full_name: string | null;
-  role: 'admin' | 'client' | 'tesoureiro' | 'secretario';
+  role: 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd';
   created_at: string;
 }
 
@@ -42,9 +42,9 @@ export default function AdminUsers() {
     email: '',
     password: '',
     fullName: '',
-    role: 'client' as 'admin' | 'client' | 'tesoureiro' | 'secretario',
+    role: 'client' as 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd',
   });
-  const [newRole, setNewRole] = useState<'admin' | 'client' | 'tesoureiro' | 'secretario'>('client');
+  const [newRole, setNewRole] = useState<'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd'>('client');
   const [newPassword, setNewPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -329,6 +329,7 @@ export default function AdminUsers() {
                       <SelectItem value="admin">Administrador</SelectItem>
                       <SelectItem value="tesoureiro">Tesoureiro</SelectItem>
                       <SelectItem value="secretario">Secretário(a)</SelectItem>
+                      <SelectItem value="gerente_ebd">Gerente EBD</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.role && (
@@ -377,10 +378,11 @@ export default function AdminUsers() {
                         <TableCell className="font-medium">{user.full_name || '-'}</TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>
-                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                          <Badge variant={user.role === 'admin' ? 'default' : user.role === 'gerente_ebd' ? 'outline' : 'secondary'}>
                             {user.role === 'admin' ? 'Administrador' : 
                              user.role === 'tesoureiro' ? 'Tesoureiro' :
-                             user.role === 'secretario' ? 'Secretário(a)' : 'Cliente'}
+                             user.role === 'secretario' ? 'Secretário(a)' :
+                             user.role === 'gerente_ebd' ? 'Gerente EBD' : 'Cliente'}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -423,6 +425,7 @@ export default function AdminUsers() {
                                         <SelectItem value="admin">Administrador</SelectItem>
                                         <SelectItem value="tesoureiro">Tesoureiro</SelectItem>
                                         <SelectItem value="secretario">Secretário(a)</SelectItem>
+                                        <SelectItem value="gerente_ebd">Gerente EBD</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
