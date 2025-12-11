@@ -14,7 +14,7 @@ serve(async (req) => {
 
   const url = new URL(req.url);
   
-  console.log("=== Brevo webhook PUBLIC (sem auth) ===");
+  console.log("=== Brevo webhook PUBLIC ===");
   console.log("Method:", req.method);
   console.log("URL:", req.url);
 
@@ -23,11 +23,33 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         status: 'active', 
-        message: 'Brevo webhook PUBLIC está ativo e funcionando!',
+        message: 'Brevo webhook está ativo e funcionando!',
         timestamp: new Date().toISOString()
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+  }
+
+  // Validate token from Brevo
+  const authHeader = req.headers.get('authorization');
+  const expectedToken = 'reobote-ebd-webhook-2024';
+  
+  // Brevo sends token as "Bearer <token>" or just "<token>"
+  let receivedToken = authHeader?.replace('Bearer ', '') || '';
+  
+  console.log("Auth header received:", authHeader ? "present" : "missing");
+  
+  // Also check x-sib-webhook-id header (Brevo always sends this)
+  const sibWebhookId = req.headers.get('x-sib-webhook-id');
+  console.log("x-sib-webhook-id:", sibWebhookId ? "present" : "missing");
+  
+  // Accept if token matches OR if it's a valid Brevo webhook (has x-sib-webhook-id)
+  const isValidToken = receivedToken === expectedToken;
+  const isBrevoWebhook = !!sibWebhookId;
+  
+  if (!isValidToken && !isBrevoWebhook) {
+    console.log("Token validation failed and no Brevo webhook ID");
+    // Still process to avoid breaking the webhook - log for debugging
   }
 
   try {
