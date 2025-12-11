@@ -96,6 +96,9 @@ import VendedorEmRisco from "./pages/vendedor/VendedorEmRisco";
 import VendedorLeadsPage from "./pages/vendedor/VendedorLeadsPage";
 import VendedorPedidosPage from "./pages/vendedor/VendedorPedidosPage";
 import { VendedorLayout } from "./components/vendedor/VendedorLayout";
+
+// Shopify Pages
+import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -662,10 +665,30 @@ const App = () => (
                       <Route path="em-risco" element={<VendedorEmRisco />} />
                       <Route path="leads" element={<VendedorLeadsPage />} />
                       <Route path="pedidos" element={<VendedorPedidosPage />} />
+                      <Route path="shopify" element={<ShopifyPedidos />} />
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />
                     <Route path="/vendedor/ativacao" element={<VendedorAtivacaoEBD />} />
                     
+                    {/* Admin Shopify Route */}
+                    <Route
+                      path="/admin/shopify-pedidos"
+                      element={
+                        <ProtectedRoute requireAdmin>
+                          <ShopifyPedidos />
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    {/* EBD Shopify Route */}
+                    <Route 
+                      path="/ebd/shopify-pedidos" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <ShopifyPedidos />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                   </ConditionalNavigation>

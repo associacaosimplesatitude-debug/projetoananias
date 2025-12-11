@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus, ShoppingBag, ShoppingCart, Link2, UserCheck } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus, ShoppingBag, ShoppingCart, Link2, UserCheck, Store } from 'lucide-react';
 import logoAnanias from '@/assets/logo_ananias_horizontal.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -118,6 +118,7 @@ export const Navigation = () => {
   const clientCatalogosDropdown = [
     { to: '/ebd/catalogo', label: 'Catálogo' },
     { to: '/ebd/pedidos', label: 'Meus Pedidos' },
+    { to: '/ebd/shopify-pedidos', label: 'Shopify' },
   ];
 
   const clientNavItems = [
@@ -226,6 +227,7 @@ export const Navigation = () => {
     { to: '/admin/curriculo-ebd', label: 'Catálogo' },
     { to: '/admin/orders', label: 'Pedidos' },
     { to: '/admin/bling', label: 'Bling' },
+    { to: '/admin/shopify-pedidos', label: 'Shopify' },
   ];
 
   const navItems = 
