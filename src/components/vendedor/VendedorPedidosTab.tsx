@@ -133,19 +133,22 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
 
   // Fetch Shopify orders for this vendedor
   const { data: shopifyPedidos = [], isLoading: isLoadingShopify } = useQuery({
-    queryKey: ["vendedor-shopify-pedidos", vendedorId, clienteIds],
+    queryKey: ["vendedor-shopify-pedidos", vendedorId],
     queryFn: async () => {
-      // Fetch orders by vendedor_id OR by cliente_id
+      // Fetch orders by vendedor_id (RLS policy allows vendedor to see their own)
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select("*")
-        .or(`vendedor_id.eq.${vendedorId},cliente_id.in.(${clienteIds.join(',')})`)
+        .eq("vendedor_id", vendedorId)
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching shopify pedidos:", error);
+        throw error;
+      }
       return (data || []) as ShopifyPedido[];
     },
-    enabled: !!vendedorId || clienteIds.length > 0,
+    enabled: !!vendedorId,
   });
 
   const isLoading = isLoadingPedidos || isLoadingShopify;
