@@ -13,7 +13,9 @@ import {
   BookOpen,
   CheckCircle,
   XCircle,
-  ClipboardList
+  ClipboardList,
+  Package,
+  ExternalLink
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useAuth } from "@/hooks/useAuth";
@@ -177,6 +179,23 @@ export default function EBDDashboard() {
         .from('ebd_faixas_etarias')
         .select('id, nome_faixa')
         .eq('church_id', churchId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!churchId,
+  });
+
+  // Fetch Shopify orders for this church
+  const { data: shopifyPedidos = [] } = useQuery({
+    queryKey: ['ebd-shopify-pedidos', churchId],
+    queryFn: async () => {
+      if (!churchId) return [];
+      const { data, error } = await supabase
+        .from('ebd_shopify_pedidos')
+        .select('*')
+        .eq('cliente_id', churchId)
+        .order('created_at', { ascending: false })
+        .limit(5);
       if (error) throw error;
       return data || [];
     },
@@ -539,7 +558,68 @@ export default function EBDDashboard() {
           </CardContent>
         </Card>
 
-        {/* Card 7 - Alertas */}
+        {/* Card 7 - Meus Pedidos Shopify */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              Meus Pedidos
+            </CardTitle>
+            <CardDescription>Últimos pedidos realizados</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {shopifyPedidos.length > 0 ? (
+              <div className="space-y-3">
+                {shopifyPedidos.map((pedido) => (
+                  <div key={pedido.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{pedido.order_number}</h3>
+                        <Badge variant={pedido.status_pagamento === 'Pago' ? 'default' : 'secondary'}>
+                          {pedido.status_pagamento}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        R$ {Number(pedido.valor_total).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {pedido.codigo_rastreio ? (
+                        pedido.url_rastreio ? (
+                          <a 
+                            href={pedido.url_rastreio} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-sm text-primary hover:underline"
+                          >
+                            <Package className="w-4 h-4" />
+                            {pedido.codigo_rastreio}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Package className="w-4 h-4" />
+                            {pedido.codigo_rastreio}
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Aguardando envio</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum pedido encontrado</p>
+                <p className="text-sm">Seus pedidos aparecerão aqui</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card 8 - Alertas */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

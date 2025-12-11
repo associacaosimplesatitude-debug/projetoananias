@@ -13,6 +13,14 @@ interface ShopifyOrder {
   email: string;
   financial_status: string;
   fulfillment_status: string | null;
+  fulfillments?: Array<{
+    id: number;
+    status: string;
+    tracking_number: string | null;
+    tracking_url: string | null;
+    tracking_numbers: string[];
+    tracking_urls: string[];
+  }>;
   total_price: string;
   subtotal_price: string;
   total_tax: string;
@@ -35,6 +43,50 @@ interface ShopifyOrder {
   } | null;
   created_at: string;
   updated_at: string;
+}
+
+// Function to fetch fulfillment data from Shopify
+async function fetchFulfillmentData(orderId: number): Promise<{ trackingNumber: string | null; trackingUrl: string | null }> {
+  const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN");
+  const SHOPIFY_STORE_DOMAIN = "editoraananias.myshopify.com";
+  
+  if (!SHOPIFY_ACCESS_TOKEN) {
+    console.log("SHOPIFY_ADMIN_ACCESS_TOKEN not set, skipping fulfillment fetch");
+    return { trackingNumber: null, trackingUrl: null };
+  }
+  
+  try {
+    const response = await fetch(
+      `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/orders/${orderId}/fulfillments.json`,
+      {
+        headers: {
+          "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error("Failed to fetch fulfillments:", response.status, await response.text());
+      return { trackingNumber: null, trackingUrl: null };
+    }
+    
+    const data = await response.json();
+    const fulfillments = data.fulfillments || [];
+    
+    if (fulfillments.length > 0) {
+      const latestFulfillment = fulfillments[fulfillments.length - 1];
+      return {
+        trackingNumber: latestFulfillment.tracking_number || latestFulfillment.tracking_numbers?.[0] || null,
+        trackingUrl: latestFulfillment.tracking_url || latestFulfillment.tracking_urls?.[0] || null,
+      };
+    }
+    
+    return { trackingNumber: null, trackingUrl: null };
+  } catch (error) {
+    console.error("Error fetching fulfillments:", error);
+    return { trackingNumber: null, trackingUrl: null };
+  }
 }
 
 serve(async (req) => {
@@ -103,6 +155,20 @@ serve(async (req) => {
 
     console.log("Extracted IDs:", { vendedorId, clienteId });
 
+    // Fetch fulfillment data (tracking info)
+    const { trackingNumber, trackingUrl } = await fetchFulfillmentData(order.id);
+    console.log("Fulfillment data:", { trackingNumber, trackingUrl });
+
+    // Also check if tracking is in the order payload (from fulfillments array)
+    let finalTrackingNumber = trackingNumber;
+    let finalTrackingUrl = trackingUrl;
+    
+    if (!finalTrackingNumber && order.fulfillments && order.fulfillments.length > 0) {
+      const latestFulfillment = order.fulfillments[order.fulfillments.length - 1];
+      finalTrackingNumber = latestFulfillment.tracking_number || latestFulfillment.tracking_numbers?.[0] || null;
+      finalTrackingUrl = latestFulfillment.tracking_url || latestFulfillment.tracking_urls?.[0] || null;
+    }
+
     // Calculate shipping value
     const valorFrete = order.shipping_lines && order.shipping_lines.length > 0
       ? parseFloat(order.shipping_lines[0].price)
@@ -125,6 +191,8 @@ serve(async (req) => {
       customer_name: order.customer 
         ? `${order.customer.first_name} ${order.customer.last_name}`.trim() 
         : null,
+      codigo_rastreio: finalTrackingNumber,
+      url_rastreio: finalTrackingUrl,
       updated_at: new Date().toISOString(),
     };
 
@@ -155,6 +223,8 @@ serve(async (req) => {
         order_id: order.id,
         vendedor_id: vendedorId,
         valor_para_meta: valorParaMeta,
+        tracking_number: finalTrackingNumber,
+        tracking_url: finalTrackingUrl,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
