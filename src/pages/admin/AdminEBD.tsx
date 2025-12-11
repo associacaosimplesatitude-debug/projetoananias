@@ -236,7 +236,7 @@ export default function AdminEBD() {
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select("*")
-        .eq("status_pagamento", "paid")
+        .in("status_pagamento", ["Pago"]) // Only count paid orders (exclude refunded)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];

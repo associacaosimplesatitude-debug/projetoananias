@@ -20,7 +20,7 @@ const menuItems = [
   { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco" },
   { to: "/vendedor/leads", icon: UserCheck, label: "Reativação" },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
-  { to: "/vendedor/shopify", icon: Store, label: "Shopify" },
+  { to: "/vendedor/shopify", icon: Store, label: "Fazer Pedido" },
 ];
 
 export function VendedorLayout() {

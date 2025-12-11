@@ -261,11 +261,11 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
       </Card>
 
       {/* Orders Tabs */}
-      <Tabs defaultValue="shopify" className="space-y-4">
+      <Tabs defaultValue="pedidos" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="shopify" className="gap-2">
+          <TabsTrigger value="pedidos" className="gap-2">
             <ShoppingCart className="h-4 w-4" />
-            Shopify ({shopifyPedidos.length})
+            Pedidos ({shopifyPedidos.length})
           </TabsTrigger>
           <TabsTrigger value="interno" className="gap-2">
             <Package className="h-4 w-4" />
@@ -273,23 +273,23 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
           </TabsTrigger>
         </TabsList>
 
-        {/* Shopify Orders Tab */}
-        <TabsContent value="shopify">
+        {/* Orders Tab */}
+        <TabsContent value="pedidos">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
-                Pedidos Shopify
+                Pedidos
               </CardTitle>
               <CardDescription>
-                Pedidos pagos via Shopify sincronizados automaticamente
+                Pedidos sincronizados automaticamente
               </CardDescription>
             </CardHeader>
             <CardContent>
               {shopifyPedidos.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                  <p>Nenhum pedido Shopify encontrado</p>
+                  <p>Nenhum pedido encontrado</p>
                 </div>
               ) : (
                 <Table>
@@ -300,6 +300,7 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
                       <TableHead>Cliente</TableHead>
                       <TableHead>Valor Total</TableHead>
                       <TableHead>Para Meta</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Vendedor</TableHead>
                       <TableHead>Rastreio</TableHead>
                     </TableRow>
@@ -307,6 +308,22 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
                   <TableBody>
                     {shopifyPedidos.map((pedido) => {
                       const vendedor = vendedores.find(v => v.id === pedido.vendedor_id);
+                      const getStatusBadgeShopify = (status: string) => {
+                        switch (status) {
+                          case 'Pago':
+                            return <Badge className="bg-green-500 hover:bg-green-600">Pago</Badge>;
+                          case 'Reembolsado':
+                            return <Badge variant="destructive">Reembolsado</Badge>;
+                          case 'Parcialmente Reembolsado':
+                            return <Badge className="bg-orange-500 hover:bg-orange-600">Parcial</Badge>;
+                          case 'Cancelado':
+                            return <Badge variant="destructive">Cancelado</Badge>;
+                          case 'Pendente':
+                            return <Badge variant="secondary">Pendente</Badge>;
+                          default:
+                            return <Badge variant="secondary">{status}</Badge>;
+                        }
+                      };
                       return (
                         <TableRow key={pedido.id}>
                           <TableCell className="font-medium">
@@ -325,6 +342,9 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
                           </TableCell>
                           <TableCell className="text-green-600 font-medium">
                             R$ {pedido.valor_para_meta.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadgeShopify(pedido.status_pagamento)}
                           </TableCell>
                           <TableCell>
                             {vendedor?.nome || '-'}
