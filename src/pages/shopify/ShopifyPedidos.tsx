@@ -163,8 +163,7 @@ export default function ShopifyPedidos() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Novo Pedido Shopify</h1>
-              <p className="text-muted-foreground">Crie pedidos (Draft Orders) diretamente na loja</p>
+              <h1 className="text-2xl font-bold">Novo Pedido</h1>
             </div>
           </div>
 
@@ -297,24 +296,24 @@ export default function ShopifyPedidos() {
                         </span>
                       </div>
                       
-                      <Button 
-                        onClick={handleCreateDraftOrder}
-                        className="w-full" 
-                        size="lg"
-                        disabled={items.length === 0 || !selectedCliente || isCreatingDraft}
-                      >
-                        {isCreatingDraft ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Criando Pedido...
-                          </>
-                        ) : (
-                          <>
-                            <ExternalLink className="w-4 h-4 mr-2" />
-                            Criar Pedido no Shopify
-                          </>
-                        )}
-                      </Button>
+                        <Button 
+                          onClick={handleCreateDraftOrder}
+                          className="w-full" 
+                          size="lg"
+                          disabled={items.length === 0 || !selectedCliente || isCreatingDraft}
+                        >
+                          {isCreatingDraft ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Criando Pedido...
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Criar Pedido
+                            </>
+                          )}
+                        </Button>
                     </div>
                   </>
                 )}
