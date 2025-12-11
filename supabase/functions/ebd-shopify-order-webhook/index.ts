@@ -121,14 +121,17 @@ serve(async (req) => {
       note_attributes: order.note_attributes,
     });
 
-    // Only process if financial_status is 'paid'
-    if (order.financial_status !== "paid") {
-      console.log("Order not paid, skipping. Status:", order.financial_status);
-      return new Response(
-        JSON.stringify({ success: true, message: "Order not paid, skipped" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Map Shopify financial_status to our status
+    const statusMap: Record<string, string> = {
+      paid: "Pago",
+      refunded: "Reembolsado",
+      partially_refunded: "Parcialmente Reembolsado",
+      pending: "Pendente",
+      voided: "Cancelado",
+    };
+
+    const statusPagamento = statusMap[order.financial_status] || order.financial_status;
+    console.log("Order financial_status:", order.financial_status, "-> mapped to:", statusPagamento);
 
     // Extract vendedor_id and cliente_id from note_attributes
     let vendedorId: string | null = null;
@@ -183,7 +186,7 @@ serve(async (req) => {
       order_number: order.name,
       vendedor_id: vendedorId,
       cliente_id: clienteId,
-      status_pagamento: order.financial_status === "paid" ? "Pago" : order.financial_status,
+      status_pagamento: statusPagamento,
       valor_total: valorTotal,
       valor_frete: valorFrete,
       valor_para_meta: valorParaMeta,
