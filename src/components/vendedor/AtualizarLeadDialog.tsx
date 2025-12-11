@@ -16,6 +16,18 @@ interface Lead {
   motivo_perda: string | null;
   data_followup: string | null;
   observacoes: string | null;
+  cnpj: string | null;
+  email: string | null;
+  telefone: string | null;
+  nome_responsavel: string | null;
+  endereco_cep: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_complemento: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  vendedor_id: string | null;
 }
 
 interface AtualizarLeadDialogProps {
@@ -78,6 +90,38 @@ export function AtualizarLeadDialog({ open, onOpenChange, lead, onSuccess }: Atu
         updateData.motivo_perda = formData.motivo_perda || null;
       }
 
+      // If status is "Reativado", transfer lead to clients table
+      if (formData.status_lead === "Reativado") {
+        // Create client record in ebd_clientes
+        const { error: clientError } = await supabase
+          .from("ebd_clientes")
+          .insert({
+            cnpj: lead.cnpj || "",
+            nome_igreja: lead.nome_igreja,
+            nome_responsavel: lead.nome_responsavel,
+            email_superintendente: lead.email,
+            telefone: lead.telefone,
+            endereco_cep: lead.endereco_cep,
+            endereco_rua: lead.endereco_rua,
+            endereco_numero: lead.endereco_numero,
+            endereco_complemento: lead.endereco_complemento,
+            endereco_bairro: lead.endereco_bairro,
+            endereco_cidade: lead.endereco_cidade,
+            endereco_estado: lead.endereco_estado,
+            vendedor_id: lead.vendedor_id,
+            status_ativacao_ebd: false,
+            tipo_cliente: "Igreja",
+          });
+
+        if (clientError) {
+          console.error("Erro ao criar cliente:", clientError);
+          throw new Error("Erro ao transferir lead para clientes");
+        }
+
+        toast.success("Lead reativado e transferido para a lista de clientes!");
+      }
+
+      // Update lead status
       const { error } = await supabase
         .from("ebd_leads_reativacao")
         .update(updateData)
@@ -85,7 +129,10 @@ export function AtualizarLeadDialog({ open, onOpenChange, lead, onSuccess }: Atu
 
       if (error) throw error;
 
-      toast.success("Lead atualizado com sucesso!");
+      if (formData.status_lead !== "Reativado") {
+        toast.success("Lead atualizado com sucesso!");
+      }
+      
       onSuccess();
       onOpenChange(false);
     } catch (error) {
