@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Home, Users, BookOpen, Calendar, User } from "lucide-react";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import { useDomainBranding } from "@/hooks/useDomainBranding";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import logoAnanias from "@/assets/logo_ananias_horizontal.png";
 
@@ -16,11 +17,13 @@ const menuItems = [
 export function AlunoNavigation() {
   const location = useLocation();
   const { data: brandingSettings } = useBrandingSettings();
+  const domainBranding = useDomainBranding();
 
-  const navBgColor = brandingSettings?.nav_background_color || "#1a2d40";
-  const navTextColor = brandingSettings?.nav_text_color || "#ffffff";
-  const accentColor = brandingSettings?.accent_color || "#c89c5a";
-  const logoUrl = brandingSettings?.nav_logo_url || logoAnanias;
+  // Use domain branding as primary, fallback to DB settings
+  const navBgColor = brandingSettings?.nav_background_color || domainBranding.navBackgroundColor;
+  const navTextColor = brandingSettings?.nav_text_color || domainBranding.navTextColor;
+  const accentColor = brandingSettings?.accent_color || domainBranding.accentColor;
+  const logoUrl = brandingSettings?.nav_logo_url || domainBranding.logoHorizontalUrl || logoAnanias;
 
   return (
     <nav 
