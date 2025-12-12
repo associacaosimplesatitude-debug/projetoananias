@@ -299,8 +299,7 @@ export function CadastrarClienteDialog({
           <DialogDescription>
             {isEditMode 
               ? "Atualize os dados do cliente conforme necessário."
-              : <>Preencha os dados do novo cliente. O cliente será atribuído automaticamente a você.
-                O módulo padrão será <strong>REOBOTE EBD - Escola Bíblica Dominical</strong>.</>
+              : "Preencha os dados do novo cliente. O cliente será atribuído automaticamente a você."
             }
           </DialogDescription>
         </DialogHeader>
