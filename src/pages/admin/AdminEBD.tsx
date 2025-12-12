@@ -1036,37 +1036,12 @@ export default function AdminEBD() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Top Header with Navigation */}
+      {/* Navigation Bar Only */}
       <header className="border-b bg-background sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <div>
-              <h1 className="text-2xl font-bold">Painel Admin EBD</h1>
-              <p className="text-muted-foreground">Gerenciamento completo do módulo EBD</p>
-            </div>
-            
-            {/* Period Filter */}
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Período" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hoje</SelectItem>
-                  <SelectItem value="7">Últimos 7 dias</SelectItem>
-                  <SelectItem value="thisMonth">Mês Atual</SelectItem>
-                  <SelectItem value="lastMonth">Mês Anterior</SelectItem>
-                  <SelectItem value="custom">Personalizado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          
-          {/* Menu de Navegação */}
-          <nav className="flex items-center gap-1 overflow-x-auto pb-2">
+        <nav className="container mx-auto px-4">
+          <div className="flex items-center gap-1 overflow-x-auto py-3">
             {[
-              { key: "vendas", label: "Vendas", icon: TrendingUp },
+              { key: "vendas", label: "Painel Admin EBD", icon: TrendingUp },
               { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
               { key: "clientes", label: "Clientes EBD", icon: Users },
               { key: "leads", label: "Leads Reativação", icon: UserX },
@@ -1086,8 +1061,25 @@ export default function AdminEBD() {
                 {item.label}
               </button>
             ))}
-          </nav>
-        </div>
+            
+            {/* Period Filter */}
+            <div className="flex items-center gap-2 ml-auto">
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="thisMonth">Mês Atual</SelectItem>
+                  <SelectItem value="lastMonth">Mês Anterior</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </nav>
       </header>
 
       {/* Main Content */}
