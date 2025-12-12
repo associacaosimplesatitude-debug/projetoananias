@@ -1035,12 +1035,36 @@ export default function AdminEBD() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header com título, menu e filtro de período */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold whitespace-nowrap">Painel Admin EBD</h1>
-          <nav className="flex items-center gap-1 overflow-x-auto">
+    <div className="min-h-screen flex flex-col">
+      {/* Top Header with Navigation */}
+      <header className="border-b bg-background sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+            <div>
+              <h1 className="text-2xl font-bold">Painel Admin EBD</h1>
+              <p className="text-muted-foreground">Gerenciamento completo do módulo EBD</p>
+            </div>
+            
+            {/* Period Filter */}
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="thisMonth">Mês Atual</SelectItem>
+                  <SelectItem value="lastMonth">Mês Anterior</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Menu de Navegação */}
+          <nav className="flex items-center gap-1 overflow-x-auto pb-2">
             {[
               { key: "vendas", label: "Vendas", icon: TrendingUp },
               { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
@@ -1052,7 +1076,7 @@ export default function AdminEBD() {
               <button
                 key={item.key}
                 onClick={() => setActiveTab(item.key)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   activeTab === item.key
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1064,44 +1088,30 @@ export default function AdminEBD() {
             ))}
           </nav>
         </div>
+      </header>
 
-        <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">Hoje</SelectItem>
-              <SelectItem value="7">Últimos 7 dias</SelectItem>
-              <SelectItem value="thisMonth">Mês Atual</SelectItem>
-              <SelectItem value="lastMonth">Mês Anterior</SelectItem>
-              <SelectItem value="custom">Personalizado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Custom Date Range */}
-      {period === 'custom' && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-end gap-4">
-              <div className="space-y-2">
-                <Label>Data Inicial</Label>
-                <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} />
+      {/* Main Content */}
+      <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
+        {/* Custom Date Range */}
+        {period === 'custom' && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-end gap-4">
+                <div className="space-y-2">
+                  <Label>Data Inicial</Label>
+                  <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data Final</Label>
+                  <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Data Final</Label>
-                <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Lead Scoring KPIs */}
-      <LeadScoringKPIs isAdmin />
+        {/* Lead Scoring KPIs */}
+        <LeadScoringKPIs isAdmin />
 
       {/* Conteúdo das seções */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -2286,21 +2296,22 @@ export default function AdminEBD() {
         )}
       </Tabs>
 
-      {/* Image Crop Dialog */}
-      <ImageCropDialog
-        open={showCropDialog}
-        onOpenChange={(open) => { if (!open) { setShowCropDialog(false); setSelectedImage(null); } }}
-        imageSrc={selectedImage || ""}
-        onCropComplete={handleCropComplete}
-      />
+        {/* Image Crop Dialog */}
+        <ImageCropDialog
+          open={showCropDialog}
+          onOpenChange={(open) => { if (!open) { setShowCropDialog(false); setSelectedImage(null); } }}
+          imageSrc={selectedImage || ""}
+          onCropComplete={handleCropComplete}
+        />
 
-      {/* Import Leads Dialog */}
-      <ImportLeadsDialog
-        open={importLeadsDialogOpen}
-        onOpenChange={setImportLeadsDialogOpen}
-        vendedores={vendedores || []}
-        onImportComplete={() => refetchLeads()}
-      />
+        {/* Import Leads Dialog */}
+        <ImportLeadsDialog
+          open={importLeadsDialogOpen}
+          onOpenChange={setImportLeadsDialogOpen}
+          vendedores={vendedores || []}
+          onImportComplete={() => refetchLeads()}
+        />
+      </main>
     </div>
   );
 }
