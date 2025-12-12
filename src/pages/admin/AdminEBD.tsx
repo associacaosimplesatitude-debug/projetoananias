@@ -1037,19 +1037,44 @@ export default function AdminEBD() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top Header with Navigation */}
-      <header className="border-b bg-background sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <div>
-              <h1 className="text-2xl font-bold">Painel Admin EBD</h1>
-              <p className="text-muted-foreground">Gerenciamento completo do módulo EBD</p>
+      <header className="border-b bg-muted/30 sticky top-0 z-10">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-14">
+            {/* Left: Title + Navigation Menu */}
+            <div className="flex items-center gap-6">
+              <h1 className="text-lg font-bold whitespace-nowrap">Painel Admin EBD</h1>
+              
+              {/* Menu de Navegação na barra superior */}
+              <nav className="flex items-center gap-1 overflow-x-auto">
+                {[
+                  { key: "vendas", label: "Vendas", icon: TrendingUp },
+                  { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
+                  { key: "clientes", label: "Clientes EBD", icon: Users },
+                  { key: "leads", label: "Leads Reativação", icon: UserX },
+                  { key: "vendedores", label: "Vendedores", icon: User },
+                  ...(!isGerenteEbd ? [{ key: "catalogo", label: "Catálogo", icon: BookOpen }] : []),
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setActiveTab(item.key)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                      activeTab === item.key
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
             </div>
             
-            {/* Period Filter */}
+            {/* Right: Period Filter */}
             <div className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
               <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[150px] h-9">
                   <SelectValue placeholder="Período" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1062,31 +1087,6 @@ export default function AdminEBD() {
               </Select>
             </div>
           </div>
-          
-          {/* Menu de Navegação */}
-          <nav className="flex items-center gap-1 overflow-x-auto pb-2">
-            {[
-              { key: "vendas", label: "Vendas", icon: TrendingUp },
-              { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
-              { key: "clientes", label: "Clientes EBD", icon: Users },
-              { key: "leads", label: "Leads Reativação", icon: UserX },
-              { key: "vendedores", label: "Vendedores", icon: User },
-              ...(!isGerenteEbd ? [{ key: "catalogo", label: "Catálogo", icon: BookOpen }] : []),
-            ].map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setActiveTab(item.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === item.key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </button>
-            ))}
-          </nav>
         </div>
       </header>
 
