@@ -11,7 +11,8 @@ interface ConditionalNavigationProps {
 
 export function ConditionalNavigation({ children }: ConditionalNavigationProps) {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const isGerenteEbd = role === 'gerente_ebd';
 
   // Check if current user is a student
   const { data: isAluno } = useQuery({
@@ -66,19 +67,22 @@ export function ConditionalNavigation({ children }: ConditionalNavigationProps) 
     enabled: !!user?.email,
   });
 
-  // Check if we're on aluno, professor or vendedor routes
+  // Check if we're on aluno, professor, vendedor or admin EBD routes
   const isAlunoRoute = location.pathname.startsWith('/ebd/aluno');
   const isProfessorRoute = location.pathname.startsWith('/ebd/professor');
   const isVendedorRoute = location.pathname.startsWith('/vendedor');
-
+  const isAdminEbdRoute = location.pathname.startsWith('/admin/ebd');
+ 
   // Hide main navigation if:
   // 1. User is aluno and on aluno routes
   // 2. User is professor and on professor routes
   // 3. User is vendedor and on vendedor routes
+  // 4. User is gerente EBD and on admin EBD routes
   const shouldHideNavigation = 
     (isAluno && isAlunoRoute) || 
     (isProfessor && isProfessorRoute) ||
-    (isVendedor && isVendedorRoute);
+    (isVendedor && isVendedorRoute) ||
+    (isGerenteEbd && isAdminEbdRoute);
 
   if (shouldHideNavigation) {
     return <>{children}</>;
