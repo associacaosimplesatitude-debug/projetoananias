@@ -13,12 +13,12 @@ interface DomainBranding {
 
 const brandingConfig: Record<string, DomainBranding> = {
   'gestaoebd.com.br': {
-    logoUrl: '/logos/logo-ebd.png',
+    logoUrl: '/logos/logo-ebd-horizontal.png',
     logoHorizontalUrl: '/logos/logo-ebd-horizontal.png',
-    primaryColor: '#10B981', // Verde EBD
-    navBackgroundColor: '#065F46', // Verde escuro
+    primaryColor: '#FFC107', // Amarelo/Ouro EBD
+    navBackgroundColor: '#1a1a1a', // Preto/Escuro
     navTextColor: '#FFFFFF',
-    accentColor: '#34D399',
+    accentColor: '#FFC107', // Amarelo/Ouro
     appName: 'Gestão EBD',
     domain: 'gestaoebd.com.br'
   },
