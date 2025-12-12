@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import logoAnanias from '@/assets/logo_ananias.png';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
+import { useDomainBranding } from '@/hooks/useDomainBranding';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
@@ -27,6 +28,7 @@ export default function Auth() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { data: brandingSettings } = useBrandingSettings();
+  const domainBranding = useDomainBranding();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -251,8 +253,9 @@ export default function Auth() {
     }
   };
 
-  const loginLogoUrl = brandingSettings?.login_logo_url || logoAnanias;
-  const accentColor = brandingSettings?.accent_color || '#c89c5a';
+  // Use domain branding as primary, fallback to DB settings
+  const loginLogoUrl = brandingSettings?.login_logo_url || domainBranding.logoUrl || logoAnanias;
+  const accentColor = brandingSettings?.accent_color || domainBranding.accentColor;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

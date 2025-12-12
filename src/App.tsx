@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { DomainBrandingProvider } from "@/contexts/DomainBrandingContext";
 import { ConditionalNavigation } from "@/components/layout/ConditionalNavigation";
 import { PaymentBanner } from "@/components/layout/PaymentBanner";
 import { EBDTrimesterBanner } from "@/components/ebd/EBDTrimesterBanner";
@@ -104,11 +105,12 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
+      <DomainBrandingProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/payment-blocked" element={<PaymentBlocked />} />
             <Route
@@ -698,6 +700,7 @@ const App = () => (
           </Routes>
         </AuthProvider>
       </BrowserRouter>
+      </DomainBrandingProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

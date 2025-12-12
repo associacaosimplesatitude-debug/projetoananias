@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
+import { useDomainBranding } from "@/hooks/useDomainBranding";
+import logoAnanias from "@/assets/logo_ananias_horizontal.png";
 
 const menuItems = [
   { to: "/vendedor", icon: LayoutDashboard, label: "Dashboard", end: true },
@@ -24,12 +26,18 @@ const menuItems = [
 ];
 
 export function VendedorLayout() {
+  const domainBranding = useDomainBranding();
+  const logoUrl = domainBranding.logoHorizontalUrl || logoAnanias;
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top Navigation */}
       <header className="border-b bg-background">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold">Painel do Vendedor</h1>
+          <div className="flex items-center gap-4">
+            <img src={logoUrl} alt={domainBranding.appName} className="h-8" />
+            <h1 className="text-xl font-bold">{domainBranding.appName === 'Gestão EBD' ? 'Painel do Vendedor EBD' : 'Painel do Vendedor'}</h1>
+          </div>
           <UserProfileDropdown />
         </div>
         

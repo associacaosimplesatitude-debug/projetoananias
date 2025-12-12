@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useChurchData } from '@/hooks/useChurchData';
 import { useClientType } from '@/hooks/useClientType';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
+import { useDomainBranding } from '@/hooks/useDomainBranding';
 import { useActiveModules } from '@/hooks/useActiveModules';
 import ManualRegistrationDialog from '@/components/ebd/ManualRegistrationDialog';
 import { useQuery } from '@tanstack/react-query';
@@ -23,6 +24,7 @@ import { Link } from 'react-router-dom';
 export const Navigation = () => {
   const { role, user } = useAuth();
   const { data: brandingSettings } = useBrandingSettings();
+  const domainBranding = useDomainBranding();
   const { clientType } = useClientType();
   const { data: activeModules } = useActiveModules();
   const [processStatus, setProcessStatus] = React.useState<string | null>(null);
@@ -238,10 +240,11 @@ export const Navigation = () => {
     hasOnlyReoboteEBD ? ebdOnlyNavItems :
     clientNavItems;
 
-  const navBgColor = brandingSettings?.nav_background_color || '#1a2d40';
-  const accentColor = brandingSettings?.accent_color || '#c89c5a';
-  const navTextColor = brandingSettings?.nav_text_color || '#ffffff';
-  const logoUrl = brandingSettings?.nav_logo_url || logoAnanias;
+  // Use domain branding as primary, fallback to DB settings, then defaults
+  const navBgColor = brandingSettings?.nav_background_color || domainBranding.navBackgroundColor;
+  const accentColor = brandingSettings?.accent_color || domainBranding.accentColor;
+  const navTextColor = brandingSettings?.nav_text_color || domainBranding.navTextColor;
+  const logoUrl = brandingSettings?.nav_logo_url || domainBranding.logoHorizontalUrl || logoAnanias;
 
   // If user is a student, don't show main navigation (AlunoNavigation handles it)
   if (isAluno) {
