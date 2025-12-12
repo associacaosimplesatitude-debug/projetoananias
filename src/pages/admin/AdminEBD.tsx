@@ -1082,16 +1082,36 @@ export default function AdminEBD() {
       {/* Lead Scoring KPIs */}
       <LeadScoringKPIs isAdmin />
 
-      {/* Tabs */}
+      {/* Menu de Navegação */}
+      <nav className="border-b bg-background -mx-6 px-6 mb-6">
+        <div className="flex items-center gap-1 overflow-x-auto pb-3">
+          {[
+            { key: "vendas", label: "Vendas", icon: TrendingUp },
+            { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
+            { key: "clientes", label: "Clientes EBD", icon: Users },
+            { key: "leads", label: "Leads Reativação", icon: UserX },
+            { key: "vendedores", label: "Vendedores", icon: User },
+            ...(!isGerenteEbd ? [{ key: "catalogo", label: "Catálogo", icon: BookOpen }] : []),
+          ].map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setActiveTab(item.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === item.key
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* Conteúdo das seções */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${isGerenteEbd ? 'grid-cols-5' : 'grid-cols-6'}`}>
-          <TabsTrigger value="vendas">Vendas</TabsTrigger>
-          <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
-          <TabsTrigger value="clientes">Clientes EBD</TabsTrigger>
-          <TabsTrigger value="leads">Leads Churn</TabsTrigger>
-          <TabsTrigger value="vendedores">Vendedores</TabsTrigger>
-          {!isGerenteEbd && <TabsTrigger value="catalogo">Catálogo</TabsTrigger>}
-        </TabsList>
+        <TabsList className="hidden" />
 
         {/* VENDAS TAB */}
         <TabsContent value="vendas" className="space-y-6">
