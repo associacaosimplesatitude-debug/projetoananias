@@ -253,10 +253,9 @@ export default function Auth() {
     }
   };
 
-  // Use domain branding as primary source, DB settings as fallback
-  const isEBDDomain = domainBranding.domain === 'gestaoebd.com.br';
-  const loginLogoUrl = isEBDDomain ? domainBranding.logoUrl : (brandingSettings?.login_logo_url || logoAnanias);
-  const accentColor = isEBDDomain ? domainBranding.accentColor : (brandingSettings?.accent_color || domainBranding.accentColor);
+  // Use DB settings as primary source, domain branding as fallback
+  const loginLogoUrl = brandingSettings?.login_logo_url || domainBranding.logoUrl || logoAnanias;
+  const accentColor = brandingSettings?.accent_color || domainBranding.accentColor;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
