@@ -262,18 +262,21 @@ export default function EBDDashboard() {
     enabled: !!churchId,
   });
 
-  // Calcular aniversariantes
+  // Calcular aniversariantes (evitando problemas de fuso horário)
   const today = new Date();
+  const todayDay = today.getDate();
+  const todayMonth = today.getMonth() + 1;
+
   const aniversariantesHoje = alunosData.filter(a => {
     if (!a.data_nascimento) return false;
-    const nascimento = new Date(a.data_nascimento);
-    return nascimento.getDate() === today.getDate() && nascimento.getMonth() === today.getMonth();
+    const [year, month, day] = String(a.data_nascimento).split("-").map(Number);
+    return day === todayDay && month === todayMonth;
   });
 
   const aniversariantesMes = alunosData.filter(a => {
     if (!a.data_nascimento) return false;
-    const nascimento = new Date(a.data_nascimento);
-    return nascimento.getMonth() === today.getMonth();
+    const [, month] = String(a.data_nascimento).split("-").map(Number);
+    return month === todayMonth;
   });
 
   // Top 10 ranking
