@@ -11,11 +11,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
-import { useDomainBranding } from "@/hooks/useDomainBranding";
-import logoAnanias from "@/assets/logo_ananias_horizontal.png";
 
 const menuItems = [
-  { to: "/vendedor", icon: LayoutDashboard, label: "Dashboard", end: true },
+  { to: "/vendedor", icon: LayoutDashboard, label: "Painel do Vendedor", end: true },
   { to: "/vendedor/clientes", icon: Users, label: "Clientes" },
   { to: "/vendedor/pendentes", icon: Clock, label: "Pendentes" },
   { to: "/vendedor/proximas-compras", icon: ShoppingCart, label: "Próximas Compras" },
@@ -26,24 +24,12 @@ const menuItems = [
 ];
 
 export function VendedorLayout() {
-  const domainBranding = useDomainBranding();
-  const logoUrl = domainBranding.logoHorizontalUrl || logoAnanias;
-
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Top Navigation */}
+      {/* Navigation Bar Only */}
       <header className="border-b bg-background">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src={logoUrl} alt={domainBranding.appName} className="h-8" />
-            <h1 className="text-xl font-bold">{domainBranding.appName === 'Gestão EBD' ? 'Painel do Vendedor EBD' : 'Painel do Vendedor'}</h1>
-          </div>
-          <UserProfileDropdown />
-        </div>
-        
-        {/* Menu Navigation */}
         <nav className="container mx-auto px-4">
-          <div className="flex items-center gap-1 overflow-x-auto pb-2">
+          <div className="flex items-center gap-1 overflow-x-auto py-3">
             {menuItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -62,6 +48,9 @@ export function VendedorLayout() {
                 {item.label}
               </NavLink>
             ))}
+            <div className="ml-auto">
+              <UserProfileDropdown />
+            </div>
           </div>
         </nav>
       </header>
