@@ -253,9 +253,11 @@ export default function Auth() {
     }
   };
 
-  // Use DB settings as primary source, domain branding as fallback
-  const loginLogoUrl = brandingSettings?.login_logo_url || domainBranding.logoUrl || logoAnanias;
-  const accentColor = brandingSettings?.accent_color || domainBranding.accentColor;
+  // Use domain branding as primary source (based on current hostname)
+  // This ensures each domain shows its own branding without redirects
+  const loginLogoUrl = domainBranding.logoUrl;
+  const accentColor = domainBranding.accentColor;
+  const appName = domainBranding.appName;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -269,8 +271,8 @@ export default function Auth() {
           </CardTitle>
           <CardDescription className="text-center">
             {isLogin 
-              ? 'Entre com suas credenciais para acessar o sistema' 
-              : 'Crie sua conta para começar'}
+              ? `Entre com suas credenciais para acessar o ${appName}` 
+              : `Crie sua conta no ${appName}`}
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -9,33 +9,22 @@ interface DomainBranding {
   accentColor: string;
   appName: string;
   domain: string;
+  isEBD: boolean;
 }
 
-const brandingConfig: Record<string, DomainBranding> = {
-  'gestaoebd.com.br': {
-    logoUrl: '/logos/logo-ebd-horizontal.png',
-    logoHorizontalUrl: '/logos/logo-ebd-horizontal.png',
-    primaryColor: '#FFC107', // Amarelo/Ouro EBD
-    navBackgroundColor: '#1a1a1a', // Preto/Escuro
-    navTextColor: '#FFFFFF',
-    accentColor: '#FFC107', // Amarelo/Ouro
-    appName: 'Gestão EBD',
-    domain: 'gestaoebd.com.br'
-  },
-  'projetoananias.com.br': {
-    logoUrl: '/logos/logo-ananias.png',
-    logoHorizontalUrl: '/logos/logo-ananias-horizontal.png',
-    primaryColor: '#0056b3',
-    navBackgroundColor: '#1e3a5f',
-    navTextColor: '#FFFFFF',
-    accentColor: '#3b82f6',
-    appName: 'Projeto Ananias',
-    domain: 'projetoananias.com.br'
-  }
+const ebdBranding: DomainBranding = {
+  logoUrl: '/logos/logo-ebd-horizontal.png',
+  logoHorizontalUrl: '/logos/logo-ebd-horizontal.png',
+  primaryColor: '#FFC107',
+  navBackgroundColor: '#1a1a1a',
+  navTextColor: '#FFFFFF',
+  accentColor: '#FFC107',
+  appName: 'Gestão EBD',
+  domain: 'gestaoebd.com.br',
+  isEBD: true
 };
 
-// Default branding (Ananias)
-const defaultBranding: DomainBranding = {
+const ananiasBranding: DomainBranding = {
   logoUrl: '/logos/logo-ananias.png',
   logoHorizontalUrl: '/logos/logo-ananias-horizontal.png',
   primaryColor: '#0056b3',
@@ -43,40 +32,44 @@ const defaultBranding: DomainBranding = {
   navTextColor: '#FFFFFF',
   accentColor: '#3b82f6',
   appName: 'Projeto Ananias',
-  domain: 'default'
+  domain: 'projetoananias.com.br',
+  isEBD: false
 };
 
 export const useDomainBranding = (): DomainBranding => {
   const branding = useMemo(() => {
-    const hostname = window.location.hostname;
+    const hostname = window.location.hostname.toLowerCase();
     
-    // Check for exact domain match
-    if (brandingConfig[hostname]) {
-      return brandingConfig[hostname];
+    // Check if accessing from EBD domain
+    if (hostname.includes('gestaoebd') || hostname.includes('ebd')) {
+      return ebdBranding;
     }
     
-    // Check for subdomain match (e.g., www.gestaoebd.com.br)
-    for (const [domain, config] of Object.entries(brandingConfig)) {
-      if (hostname.endsWith(domain) || hostname.includes(domain.split('.')[0])) {
-        return config;
-      }
+    // Check if accessing from Ananias domain
+    if (hostname.includes('ananias') || hostname.includes('projetoananias')) {
+      return ananiasBranding;
     }
     
-    // Return default branding
-    return defaultBranding;
+    // Default to Ananias for localhost and other domains
+    return ananiasBranding;
   }, []);
 
   return branding;
 };
 
 export const isEBDDomain = (): boolean => {
-  const hostname = window.location.hostname;
+  const hostname = window.location.hostname.toLowerCase();
   return hostname.includes('gestaoebd') || hostname.includes('ebd');
 };
 
 export const isAnaniasDomain = (): boolean => {
-  const hostname = window.location.hostname;
-  return hostname.includes('ananias') || (!isEBDDomain() && !hostname.includes('localhost'));
+  const hostname = window.location.hostname.toLowerCase();
+  return hostname.includes('ananias') || hostname.includes('projetoananias') || 
+         (!isEBDDomain() && !hostname.includes('localhost'));
+};
+
+export const getCurrentDomain = (): string => {
+  return window.location.hostname.toLowerCase();
 };
 
 export type { DomainBranding };
