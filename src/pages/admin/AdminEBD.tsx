@@ -1824,7 +1824,7 @@ export default function AdminEBD() {
               <div>
                   <CardTitle className="flex items-center gap-2">
                     <UserX className="h-5 w-5" />
-                    Leads de Reativação (Churn)
+                    Leads de Reativação
                   </CardTitle>
                   <CardDescription>
                     {filteredLeads.length} leads encontrados
