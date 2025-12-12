@@ -1382,7 +1382,7 @@ export default function AdminEBD() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{shopifyPaidOrders.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">{totalItems} pedidos via Shopify</p>
+                <p className="text-xs text-muted-foreground mt-1">{totalItems} pedidos via Alfa</p>
               </CardContent>
             </Card>
 
