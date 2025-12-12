@@ -1035,79 +1035,83 @@ export default function AdminEBD() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Admin EBD</h1>
-          <p className="text-muted-foreground">Gerenciamento completo do módulo EBD</p>
-        </div>
-        
-        {/* Period Filter */}
-        <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">Hoje</SelectItem>
-              <SelectItem value="7">Últimos 7 dias</SelectItem>
-              <SelectItem value="thisMonth">Mês Atual</SelectItem>
-              <SelectItem value="lastMonth">Mês Anterior</SelectItem>
-              <SelectItem value="custom">Personalizado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Custom Date Range */}
-      {period === 'custom' && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-end gap-4">
-              <div className="space-y-2">
-                <Label>Data Inicial</Label>
-                <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Data Final</Label>
-                <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} />
-              </div>
+    <div className="min-h-screen flex flex-col">
+      {/* Top Header with Navigation */}
+      <header className="border-b bg-background sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+            <div>
+              <h1 className="text-2xl font-bold">Painel Admin EBD</h1>
+              <p className="text-muted-foreground">Gerenciamento completo do módulo EBD</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Lead Scoring KPIs */}
-      <LeadScoringKPIs isAdmin />
-
-      {/* Menu de Navegação */}
-      <nav className="border-b bg-background -mx-6 px-6 mb-6">
-        <div className="flex items-center gap-1 overflow-x-auto pb-3">
-          {[
-            { key: "vendas", label: "Vendas", icon: TrendingUp },
-            { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
-            { key: "clientes", label: "Clientes EBD", icon: Users },
-            { key: "leads", label: "Leads Reativação", icon: UserX },
-            { key: "vendedores", label: "Vendedores", icon: User },
-            ...(!isGerenteEbd ? [{ key: "catalogo", label: "Catálogo", icon: BookOpen }] : []),
-          ].map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setActiveTab(item.key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === item.key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          ))}
+            
+            {/* Period Filter */}
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="thisMonth">Mês Atual</SelectItem>
+                  <SelectItem value="lastMonth">Mês Anterior</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Menu de Navegação */}
+          <nav className="flex items-center gap-1 overflow-x-auto pb-2">
+            {[
+              { key: "vendas", label: "Vendas", icon: TrendingUp },
+              { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
+              { key: "clientes", label: "Clientes EBD", icon: Users },
+              { key: "leads", label: "Leads Reativação", icon: UserX },
+              { key: "vendedores", label: "Vendedores", icon: User },
+              ...(!isGerenteEbd ? [{ key: "catalogo", label: "Catálogo", icon: BookOpen }] : []),
+            ].map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setActiveTab(item.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === item.key
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
-      </nav>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
+        {/* Custom Date Range */}
+        {period === 'custom' && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-end gap-4">
+                <div className="space-y-2">
+                  <Label>Data Inicial</Label>
+                  <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data Final</Label>
+                  <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Lead Scoring KPIs */}
+        <LeadScoringKPIs isAdmin />
 
       {/* Conteúdo das seções */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -2292,21 +2296,22 @@ export default function AdminEBD() {
         )}
       </Tabs>
 
-      {/* Image Crop Dialog */}
-      <ImageCropDialog
-        open={showCropDialog}
-        onOpenChange={(open) => { if (!open) { setShowCropDialog(false); setSelectedImage(null); } }}
-        imageSrc={selectedImage || ""}
-        onCropComplete={handleCropComplete}
-      />
+        {/* Image Crop Dialog */}
+        <ImageCropDialog
+          open={showCropDialog}
+          onOpenChange={(open) => { if (!open) { setShowCropDialog(false); setSelectedImage(null); } }}
+          imageSrc={selectedImage || ""}
+          onCropComplete={handleCropComplete}
+        />
 
-      {/* Import Leads Dialog */}
-      <ImportLeadsDialog
-        open={importLeadsDialogOpen}
-        onOpenChange={setImportLeadsDialogOpen}
-        vendedores={vendedores || []}
-        onImportComplete={() => refetchLeads()}
-      />
+        {/* Import Leads Dialog */}
+        <ImportLeadsDialog
+          open={importLeadsDialogOpen}
+          onOpenChange={setImportLeadsDialogOpen}
+          vendedores={vendedores || []}
+          onImportComplete={() => refetchLeads()}
+        />
+      </main>
     </div>
   );
 }
