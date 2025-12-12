@@ -1035,63 +1035,23 @@ export default function AdminEBD() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Top Header with Navigation */}
-      <header className="border-b bg-muted/30 sticky top-0 z-10">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-14">
-            {/* Left: Title + Navigation Menu */}
-            <div className="flex items-center gap-6">
-              <h1 className="text-lg font-bold whitespace-nowrap">Painel Admin EBD</h1>
-              
-              {/* Menu de Navegação na barra superior */}
-              <nav className="flex items-center gap-1 overflow-x-auto">
-                {[
-                  { key: "vendas", label: "Vendas", icon: TrendingUp },
-                  { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
-                  { key: "clientes", label: "Clientes EBD", icon: Users },
-                  { key: "leads", label: "Leads Reativação", icon: UserX },
-                  { key: "vendedores", label: "Vendedores", icon: User },
-                  ...(!isGerenteEbd ? [{ key: "catalogo", label: "Catálogo", icon: BookOpen }] : []),
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() => setActiveTab(item.key)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                      activeTab === item.key
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                  </button>
-                ))}
-              </nav>
-            </div>
-            
-            {/* Right: Period Filter */}
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className="w-[150px] h-9">
-                  <SelectValue placeholder="Período" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hoje</SelectItem>
-                  <SelectItem value="7">Últimos 7 dias</SelectItem>
-                  <SelectItem value="thisMonth">Mês Atual</SelectItem>
-                  <SelectItem value="lastMonth">Mês Anterior</SelectItem>
-                  <SelectItem value="custom">Personalizado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
+    <div className="space-y-6">
+      {/* Period Filter at top */}
+      <div className="flex items-center justify-end gap-2">
+        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Período" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="today">Hoje</SelectItem>
+            <SelectItem value="7">Últimos 7 dias</SelectItem>
+            <SelectItem value="thisMonth">Mês Atual</SelectItem>
+            <SelectItem value="lastMonth">Mês Anterior</SelectItem>
+            <SelectItem value="custom">Personalizado</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
         {/* Custom Date Range */}
         {period === 'custom' && (
           <Card>
@@ -2296,22 +2256,21 @@ export default function AdminEBD() {
         )}
       </Tabs>
 
-        {/* Image Crop Dialog */}
-        <ImageCropDialog
-          open={showCropDialog}
-          onOpenChange={(open) => { if (!open) { setShowCropDialog(false); setSelectedImage(null); } }}
-          imageSrc={selectedImage || ""}
-          onCropComplete={handleCropComplete}
-        />
+      {/* Image Crop Dialog */}
+      <ImageCropDialog
+        open={showCropDialog}
+        onOpenChange={(open) => { if (!open) { setShowCropDialog(false); setSelectedImage(null); } }}
+        imageSrc={selectedImage || ""}
+        onCropComplete={handleCropComplete}
+      />
 
-        {/* Import Leads Dialog */}
-        <ImportLeadsDialog
-          open={importLeadsDialogOpen}
-          onOpenChange={setImportLeadsDialogOpen}
-          vendedores={vendedores || []}
-          onImportComplete={() => refetchLeads()}
-        />
-      </main>
+      {/* Import Leads Dialog */}
+      <ImportLeadsDialog
+        open={importLeadsDialogOpen}
+        onOpenChange={setImportLeadsDialogOpen}
+        vendedores={vendedores || []}
+        onImportComplete={() => refetchLeads()}
+      />
     </div>
   );
 }
