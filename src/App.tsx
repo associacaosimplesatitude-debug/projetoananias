@@ -100,6 +100,7 @@ import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 
 // Shopify Pages
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
+import EBDLogin from "./pages/EBDLogin";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -111,8 +112,9 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/payment-blocked" element={<PaymentBlocked />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/login/ebd" element={<EBDLogin />} />
+              <Route path="/payment-blocked" element={<PaymentBlocked />} />
             <Route
               path="/*"
               element={
