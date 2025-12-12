@@ -19,6 +19,7 @@ import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { ImageCropDialog } from "@/components/financial/ImageCropDialog";
+import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { 
   DollarSign, 
   ShoppingCart, 
@@ -1062,21 +1063,24 @@ export default function AdminEBD() {
               </button>
             ))}
             
-            {/* Period Filter */}
-            <div className="flex items-center gap-2 ml-auto">
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Período" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hoje</SelectItem>
-                  <SelectItem value="7">Últimos 7 dias</SelectItem>
-                  <SelectItem value="thisMonth">Mês Atual</SelectItem>
-                  <SelectItem value="lastMonth">Mês Anterior</SelectItem>
-                  <SelectItem value="custom">Personalizado</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Period Filter and Avatar */}
+            <div className="flex items-center gap-4 ml-auto">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <Select value={period} onValueChange={setPeriod}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">Hoje</SelectItem>
+                    <SelectItem value="7">Últimos 7 dias</SelectItem>
+                    <SelectItem value="thisMonth">Mês Atual</SelectItem>
+                    <SelectItem value="lastMonth">Mês Anterior</SelectItem>
+                    <SelectItem value="custom">Personalizado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <UserProfileDropdown />
             </div>
           </div>
         </nav>
