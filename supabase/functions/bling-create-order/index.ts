@@ -213,9 +213,13 @@ serve(async (req) => {
     if (!contatoId) {
       console.log('Não foi possível criar/encontrar contato, criando consumidor genérico com endereço...');
       
+      const genericTipo = documento.length > 11 ? 'J' : 'F';
+
       const genericContatoData: any = {
         nome: nomeCompleto || 'Consumidor Final',
-        tipo: 'F',
+        tipo: genericTipo,
+        // garantir que o CPF/CNPJ também seja enviado mesmo no contato genérico
+        ...(documento ? { numeroDocumento: documento } : {}),
         situacao: 'A', // A = Ativo (obrigatório para Bling API v3)
       };
 
@@ -263,9 +267,9 @@ serve(async (req) => {
     // Função auxiliar para buscar produto no Bling pelo nome
     async function findBlingProductByName(productName: string): Promise<number | null> {
       try {
-        // Buscar produto pelo nome (pesquisa parcial)
+        // Buscar produto pelo nome (pesquisa parcial, sem cortar o título)
         const searchResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=10&nome=${encodeURIComponent(productName.substring(0, 60))}`,
+          `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=50&nome=${encodeURIComponent(productName)}`,
           {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -293,7 +297,18 @@ serve(async (req) => {
             return exactMatch.id;
           }
           
-          // Se não, usar o primeiro resultado
+          // Se não, tentar match por inclusão de texto
+          const partialMatch = produtos.find((p: any) => 
+            productName.toLowerCase().includes((p.nome || '').toLowerCase()) ||
+            (p.nome || '').toLowerCase().includes(productName.toLowerCase())
+          );
+
+          if (partialMatch) {
+            console.log(`Produto encontrado (match parcial): ${partialMatch.nome} -> ID ${partialMatch.id}`);
+            return partialMatch.id;
+          }
+          
+          // Se ainda assim não houver match, usar o primeiro resultado
           console.log(`Produto encontrado (primeiro resultado): ${produtos[0].nome} -> ID ${produtos[0].id}`);
           return produtos[0].id;
         }
@@ -497,6 +512,8 @@ serve(async (req) => {
         contato: {
           nome: nomeCompleto,
           telefone: cliente.telefone?.replace(/\D/g, '') || '',
+          // reforçar CPF/CNPJ também no contato de transporte
+          ...(documento ? { numeroDocumento: documento } : {}),
         },
         endereco: {
           endereco: endereco_entrega.rua || '',
