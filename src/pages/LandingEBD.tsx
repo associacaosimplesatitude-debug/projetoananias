@@ -18,7 +18,8 @@ import {
   TrendingUp,
   Clock,
   ArrowRight,
-  Church
+  Church,
+  Zap
 } from 'lucide-react';
 
 import logoGestaoEBD from '@/assets/landing/logo-gestao-ebd.png';
@@ -245,6 +246,72 @@ const LandingEBD = () => {
             Acreditamos que a tecnologia não deve ser uma barreira para o crescimento do Reino. 
             Por isso, o Gestão EBD é 100% gratuito. Centralize toda a administração da sua EBD em uma única plataforma.
           </p>
+        </div>
+      </section>
+
+      {/* Catalog Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-[#FFC107] text-black px-6 py-3 rounded-full text-lg font-bold mb-6">
+              <BookOpen className="w-6 h-6" />
+              ATÉ 35% DE DESCONTO
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-black mb-4">
+              Catálogo de Revistas para <span className="text-[#FFC107]">Todas as Faixas Etárias</span>
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto text-lg">
+              Oferecemos material didático de qualidade para cada fase da vida, 
+              do maternal aos adultos, com descontos exclusivos para sua igreja.
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap justify-center gap-3 mb-12">
+            {[
+              { label: 'Jovens e Adultos', highlight: true },
+              { label: 'Maternal: 2 a 3 Anos' },
+              { label: 'Jardim de Infância: 4 a 6 Anos' },
+              { label: 'Primários: 7 a 8 Anos' },
+              { label: 'Juniores: 9 a 11 Anos' },
+              { label: 'Adolescentes: 12 a 14 Anos' },
+              { label: 'Adolescentes+: 15 a 17 Anos' },
+            ].map((item, index) => (
+              <div 
+                key={index} 
+                className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-colors ${
+                  item.highlight 
+                    ? 'bg-[#FFC107] border-[#FFC107] text-black' 
+                    : 'bg-white border-gray-200 text-gray-700 hover:border-[#FFC107]'
+                }`}
+              >
+                {item.label}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            <div className="text-center p-6 bg-gray-50 rounded-2xl">
+              <div className="w-16 h-16 bg-[#FFC107]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-8 h-8 text-[#FFC107]" />
+              </div>
+              <h3 className="text-xl font-bold text-black mb-2">Material Completo</h3>
+              <p className="text-gray-600 text-sm">Revistas didáticas com conteúdo bíblico de qualidade para cada faixa etária</p>
+            </div>
+            <div className="text-center p-6 bg-gray-50 rounded-2xl">
+              <div className="w-16 h-16 bg-[#FFC107]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <TrendingUp className="w-8 h-8 text-[#FFC107]" />
+              </div>
+              <h3 className="text-xl font-bold text-black mb-2">Até 35% OFF</h3>
+              <p className="text-gray-600 text-sm">Descontos exclusivos para igrejas cadastradas na plataforma</p>
+            </div>
+            <div className="text-center p-6 bg-gray-50 rounded-2xl">
+              <div className="w-16 h-16 bg-[#FFC107]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Zap className="w-8 h-8 text-[#FFC107]" />
+              </div>
+              <h3 className="text-xl font-bold text-black mb-2">Entrega Rápida</h3>
+              <p className="text-gray-600 text-sm">Receba as revistas diretamente na sua igreja com agilidade</p>
+            </div>
+          </div>
         </div>
       </section>
 
