@@ -117,9 +117,10 @@ export const Navigation = () => {
     { to: '/bank-transfers', label: 'Transferências' },
   ];
 
-  const clientCatalogosDropdown = [
-    { to: '/ebd/pedidos', label: 'Meus Pedidos' },
-    { to: '/ebd/shopify-pedidos', label: 'Shopify' },
+  // Links separados para Catálogo (não mais dropdown)
+  const clientCatalogoLinks = [
+    { to: '/ebd/shopify-pedidos', icon: Store, label: 'Catálogo de Produtos' },
+    { to: '/ebd/pedidos', icon: ShoppingBag, label: 'Meus Pedidos' },
   ];
 
   const clientNavItems = [
@@ -489,30 +490,37 @@ export const Navigation = () => {
                 </DropdownMenu>
               )}
 
-              {/* EBD Catálogos Dropdown */}
+              {/* EBD Catálogo de Produtos e Meus Pedidos - Links separados */}
               {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger 
-                    className={cn(
-                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                      'hover:bg-white/10'
-                    )}
-                    style={{ color: navTextColor, opacity: 0.8 }}
-                  >
-                    <ShoppingBag className="h-4 w-4" />
-                    <span className="hidden sm:inline">Catálogos</span>
-                    <ChevronDown className="h-3 w-3" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-background z-50">
-                    {clientCatalogosDropdown.map((item) => (
-                      <DropdownMenuItem key={item.to} asChild>
-                        <Link to={item.to} className="cursor-pointer">
-                          {item.label}
-                        </Link>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <>
+                  {clientCatalogoLinks.map((item) => {
+                    const navItemId = `nav-cat-${item.to.replace(/\//g, '-')}`;
+                    return (
+                      <React.Fragment key={item.to}>
+                        <style>
+                          {`
+                            #${navItemId}.active {
+                              background-color: ${accentColor} !important;
+                            }
+                          `}
+                        </style>
+                        <NavLink
+                          id={navItemId}
+                          to={item.to}
+                          className={cn(
+                            'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                            'hover:bg-white/10'
+                          )}
+                          style={{ color: navTextColor, opacity: 0.8 }}
+                          activeClassName="active"
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span className="hidden sm:inline">{item.label}</span>
+                        </NavLink>
+                      </React.Fragment>
+                    );
+                  })}
+                </>
               )}
 
               {/* Admin - Botão Direto */}
