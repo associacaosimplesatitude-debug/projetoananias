@@ -93,7 +93,7 @@ export default function VendedorClientes() {
   const loading = vendedorLoading || clientesLoading;
 
   const handleFazerPedido = (cliente: Cliente) => {
-    navigate(`/ebd/shopify-pedidos?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
+    navigate(`/vendedor/shopify?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
   };
 
   const handleAtivarPainel = (cliente: Cliente) => {

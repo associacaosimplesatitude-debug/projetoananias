@@ -78,7 +78,7 @@ export default function Carrinho() {
 
   const handleGoToCatalog = () => {
     if (isVendedorOrder && vendedorClienteId && vendedorClienteNome) {
-      navigate(`/ebd/shopify-pedidos?clienteId=${vendedorClienteId}&clienteNome=${encodeURIComponent(vendedorClienteNome)}`);
+      navigate(`/vendedor/shopify?clienteId=${vendedorClienteId}&clienteNome=${encodeURIComponent(vendedorClienteNome)}`);
     } else {
       navigate('/ebd/catalogo');
     }
