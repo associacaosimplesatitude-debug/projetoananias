@@ -82,7 +82,8 @@ serve(async (req) => {
       pedido_id,
       valor_frete,
       metodo_frete,     // PAC, SEDEX, FREE
-      forma_pagamento,  // PIX, CARTAO, BOLETO
+      forma_pagamento,  // PIX, CARTAO, BOLETO, FATURAMENTO
+      faturamento_prazo, // 30, 60 ou 90 (apenas para FATURAMENTO)
       valor_produtos,   // Total dos produtos com desconto
       valor_total       // Total final (produtos + frete)
     } = await req.json();
@@ -326,6 +327,7 @@ serve(async (req) => {
       'pix': 'PIX',
       'card': 'Cartão de Crédito',
       'boleto': 'Boleto Bancário',
+      'faturamento': 'Faturamento 30/60/90',
     };
     const formaPagamentoDescricao = formaPagamentoMap[forma_pagamento?.toLowerCase()] || forma_pagamento || 'Outros';
 
@@ -354,6 +356,39 @@ serve(async (req) => {
       `Gerado em: ${new Date().toISOString()}`,
     ].join(' | ');
 
+    // Gerar parcelas baseado na forma de pagamento
+    let parcelas: any[] = [];
+    const isFaturamento = forma_pagamento?.toLowerCase() === 'faturamento';
+    
+    if (isFaturamento && faturamento_prazo) {
+      // Faturamento B2B: criar parcelas de 30, 60 ou 90 dias
+      const prazo = parseInt(faturamento_prazo);
+      const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
+      const valorParcela = Number((valorTotalCorreto / numParcelas).toFixed(2));
+      
+      console.log(`Faturamento B2B: ${numParcelas} parcela(s) de R$ ${valorParcela.toFixed(2)}`);
+      
+      for (let i = 1; i <= numParcelas; i++) {
+        const dataVencimento = new Date();
+        dataVencimento.setDate(dataVencimento.getDate() + (30 * i));
+        
+        parcelas.push({
+          dataVencimento: dataVencimento.toISOString().split('T')[0],
+          valor: valorParcela,
+          observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
+        });
+      }
+    } else {
+      // Pagamento à vista
+      parcelas = [
+        {
+          dataVencimento: new Date().toISOString().split('T')[0],
+          valor: valorTotalCorreto,
+          observacoes: `Pagamento via ${formaPagamentoDescricao}`,
+        }
+      ];
+    }
+
     // Criar pedido no Bling com dados de transporte corretos
     const pedidoData: any = {
       numero: numeroPedido,
@@ -366,17 +401,12 @@ serve(async (req) => {
       },
       itens: itensBling,
       situacao: {
-        id: 15, // Em Aberto
+        // Usar status apropriado: 15 = Em Aberto, 9 = Atendido
+        // Para faturamento B2B, usar Em Aberto para aguardar emissão dos boletos
+        id: isFaturamento ? 15 : 15,
       },
-      observacoes: observacoes,
-      // Parcelas - OBRIGATÓRIO: soma deve ser igual ao total da venda (produtos + frete)
-      parcelas: [
-        {
-          dataVencimento: new Date().toISOString().split('T')[0],
-          valor: valorTotalCorreto, // Total = produtos com desconto + frete
-          observacoes: `Pagamento via ${formaPagamentoDescricao}`,
-        }
-      ],
+      observacoes: observacoes + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : ''),
+      parcelas,
     };
 
     // Adicionar desconto total da venda se houver

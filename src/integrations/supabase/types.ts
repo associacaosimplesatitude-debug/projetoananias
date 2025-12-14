@@ -1005,6 +1005,7 @@ export type Database = {
           nome_igreja: string
           nome_responsavel: string | null
           nome_superintendente: string | null
+          pode_faturar: boolean
           possui_cnpj: boolean | null
           rg: string | null
           senha_temporaria: string | null
@@ -1038,6 +1039,7 @@ export type Database = {
           nome_igreja: string
           nome_responsavel?: string | null
           nome_superintendente?: string | null
+          pode_faturar?: boolean
           possui_cnpj?: boolean | null
           rg?: string | null
           senha_temporaria?: string | null
@@ -1071,6 +1073,7 @@ export type Database = {
           nome_igreja?: string
           nome_responsavel?: string | null
           nome_superintendente?: string | null
+          pode_faturar?: boolean
           possui_cnpj?: boolean | null
           rg?: string | null
           senha_temporaria?: string | null

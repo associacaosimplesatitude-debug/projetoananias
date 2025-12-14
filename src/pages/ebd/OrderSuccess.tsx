@@ -12,6 +12,7 @@ export default function OrderSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const pedidoId = searchParams.get('pedido');
+  const isFaturamento = searchParams.get('faturamento') === 'true';
 
   const { data: pedido, isLoading } = useQuery({
     queryKey: ['pedido-details', pedidoId],
@@ -85,6 +86,8 @@ export default function OrderSuccess() {
       pending: { label: 'Aguardando Pagamento', variant: 'secondary' },
       PAGO: { label: 'Pago', variant: 'default' },
       CANCELADO: { label: 'Cancelado', variant: 'destructive' },
+      AGUARDANDO_FATURAMENTO: { label: 'Aguardando Faturamento', variant: 'secondary' },
+      FATURAMENTO_ENVIADO: { label: 'Enviado para Faturamento', variant: 'default' },
     };
 
     const statusInfo = statusMap[status] || { label: status, variant: 'outline' as const };
@@ -107,12 +110,16 @@ export default function OrderSuccess() {
       <div className="container max-w-4xl mx-auto px-4 py-12">
         {/* Success Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/20 mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${isFaturamento ? 'bg-blue-100 dark:bg-blue-900/20' : 'bg-green-100 dark:bg-green-900/20'}`}>
+            <CheckCircle className={`w-8 h-8 ${isFaturamento ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`} />
           </div>
-          <h1 className="text-3xl font-bold mb-2">Pedido Realizado com Sucesso!</h1>
+          <h1 className="text-3xl font-bold mb-2">
+            {isFaturamento ? 'Pedido Enviado para Faturamento!' : 'Pedido Realizado com Sucesso!'}
+          </h1>
           <p className="text-muted-foreground">
-            Seu pedido foi recebido e está sendo processado.
+            {isFaturamento 
+              ? 'Seu pedido foi enviado para faturamento. Em breve, você receberá os boletos por e-mail.'
+              : 'Seu pedido foi recebido e está sendo processado.'}
           </p>
         </div>
 
@@ -241,7 +248,14 @@ export default function OrderSuccess() {
                 Próximos Passos
               </h3>
               <div className="space-y-2 text-sm text-muted-foreground">
-                {pedido.pedido.status === 'pending' && (
+                {(pedido.pedido.status === 'AGUARDANDO_FATURAMENTO' || pedido.pedido.status === 'FATURAMENTO_ENVIADO') && (
+                  <>
+                    <p>• Seu pedido foi enviado para faturamento.</p>
+                    <p>• Você receberá os boletos por e-mail em breve.</p>
+                    <p>• O pedido será processado após confirmação do pagamento.</p>
+                  </>
+                )}
+                {pedido.pedido.status === 'pending' && !isFaturamento && (
                   <p>• Aguardando confirmação do pagamento. Isso pode levar alguns minutos.</p>
                 )}
                 {pedido.pedido.status === 'PAGO' && pedido.pedido.status_logistico === 'AGUARDANDO_ENVIO' && (

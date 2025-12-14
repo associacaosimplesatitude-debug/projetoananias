@@ -41,6 +41,7 @@ interface Cliente {
   endereco_cidade: string | null;
   endereco_estado: string | null;
   senha_temporaria: string | null;
+  pode_faturar?: boolean;
 }
 
 interface CadastrarClienteDialogProps {
@@ -83,6 +84,7 @@ export function CadastrarClienteDialog({
     endereco_bairro: "",
     endereco_cidade: "",
     endereco_estado: "",
+    pode_faturar: false,
   });
   const [loadingCep, setLoadingCep] = useState(false);
 
@@ -111,6 +113,7 @@ export function CadastrarClienteDialog({
         endereco_bairro: clienteParaEditar.endereco_bairro || "",
         endereco_cidade: clienteParaEditar.endereco_cidade || "",
         endereco_estado: clienteParaEditar.endereco_estado || "",
+        pode_faturar: clienteParaEditar.pode_faturar ?? false,
       });
     }
   }, [clienteParaEditar, open]);
@@ -203,6 +206,7 @@ export function CadastrarClienteDialog({
       endereco_bairro: "",
       endereco_cidade: "",
       endereco_estado: "",
+      pode_faturar: false,
     });
   };
 
@@ -239,6 +243,7 @@ export function CadastrarClienteDialog({
         endereco_bairro: formData.endereco_bairro,
         endereco_cidade: formData.endereco_cidade,
         endereco_estado: formData.endereco_estado,
+        pode_faturar: formData.pode_faturar,
         ...(formData.senha ? { senha_temporaria: formData.senha } : {}),
       };
 
@@ -417,6 +422,24 @@ export function CadastrarClienteDialog({
                     onChange={(e) => handleDocumentoChange(e.target.value)}
                     placeholder={formData.possui_cnpj ? "00.000.000/0000-00" : "000.000.000-00"}
                     required
+                  />
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Faturamento B2B */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+                  <div>
+                    <Label className="text-base font-semibold text-blue-700 dark:text-blue-400">Pode Faturar (B2B)</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Permite pagamento em 30/60/90 dias via boleto
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.pode_faturar}
+                    onCheckedChange={(checked) => setFormData({ ...formData, pode_faturar: checked })}
                   />
                 </div>
               </div>
