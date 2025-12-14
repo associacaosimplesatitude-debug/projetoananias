@@ -86,7 +86,7 @@ export default function ShopifyPedidos() {
   });
 
   // Get logged-in user's client data if not a vendedor
-  const { data: userCliente } = useQuery({
+  const { data: userCliente, isLoading: isLoadingUserCliente } = useQuery({
     queryKey: ['user-cliente-shopify'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -103,6 +103,9 @@ export default function ShopifyPedidos() {
     },
     enabled: !isVendedor && !isLoadingVendedor,
   });
+  
+  // Check if still loading client info
+  const isLoadingClientInfo = isLoadingVendedor || (!isVendedor && isLoadingUserCliente);
 
   // Auto-select user's client when not a vendedor
   useEffect(() => {
@@ -347,12 +350,17 @@ export default function ShopifyPedidos() {
                           onClick={handleCreateDraftOrder}
                           className="w-full" 
                           size="lg"
-                          disabled={items.length === 0 || (!selectedCliente && !isLoadingVendedor) || isCreatingDraft}
+                          disabled={items.length === 0 || !selectedCliente || isLoadingClientInfo || isCreatingDraft}
                         >
                           {isCreatingDraft ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               Criando Pedido...
+                            </>
+                          ) : isLoadingClientInfo ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Carregando...
                             </>
                           ) : (
                             <>
