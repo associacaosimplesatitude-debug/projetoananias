@@ -16,6 +16,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { FaturamentoModeDialog } from '@/components/vendedor/FaturamentoModeDialog';
 
 const CATEGORIAS = [
   { value: "all", label: "Todos os Produtos" },
@@ -58,20 +59,49 @@ export default function VendedorCatalogo() {
   const clienteId = searchParams.get('clienteId');
   const clienteNome = searchParams.get('clienteNome');
   const hasCleared = useRef(false);
+  const hasShownModal = useRef(false);
   
   const [categoriaSelecionada, setCategoriaSelecionada] = useState<string>("all");
   const [faixaSelecionada, setFaixaSelecionada] = useState<string>("all");
   const [cart, setCart] = useState<{ [key: string]: number }>({});
+  const [showFaturamentoModal, setShowFaturamentoModal] = useState(false);
+  const [modoBling, setModoBling] = useState(false);
+
+  // Fetch client data to check pode_faturar
+  const { data: cliente } = useQuery({
+    queryKey: ['cliente-catalogo', clienteId],
+    queryFn: async () => {
+      if (!clienteId) return null;
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('id, nome_igreja, pode_faturar')
+        .eq('id', clienteId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!clienteId,
+  });
 
   // Clear cart when entering from a new order (clienteId changes) and initialize
   useEffect(() => {
     if (clienteId && !hasCleared.current) {
       // Clear cart for new order
       localStorage.removeItem('ebd-cart');
+      sessionStorage.removeItem('modo-bling');
       setCart({});
+      setModoBling(false);
       hasCleared.current = true;
     }
   }, [clienteId]);
+
+  // Show modal if client can be invoiced
+  useEffect(() => {
+    if (cliente?.pode_faturar && !hasShownModal.current && hasCleared.current) {
+      setShowFaturamentoModal(true);
+      hasShownModal.current = true;
+    }
+  }, [cliente?.pode_faturar]);
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
@@ -87,6 +117,20 @@ export default function VendedorCatalogo() {
       sessionStorage.setItem('vendedor-cliente-nome', clienteNome);
     }
   }, [clienteId, clienteNome]);
+
+  const handleSelectFaturamento = () => {
+    setModoBling(true);
+    sessionStorage.setItem('modo-bling', 'true');
+    setShowFaturamentoModal(false);
+    toast.success('Modo Faturamento B2B ativado! O pedido será enviado para o Bling.');
+  };
+
+  const handleSelectPadrao = () => {
+    setModoBling(false);
+    sessionStorage.removeItem('modo-bling');
+    setShowFaturamentoModal(false);
+    toast.info('Usando pagamento padrão (PIX, Cartão ou Boleto).');
+  };
 
   // Fetch all cart items info for sidebar display
   const cartItemIds = Object.keys(cart).filter(id => cart[id] > 0);
@@ -159,7 +203,12 @@ export default function VendedorCatalogo() {
       toast.error('Adicione pelo menos um produto ao carrinho');
       return;
     }
-    navigate('/ebd/carrinho');
+    // If in Bling mode, go to Bling checkout
+    if (modoBling) {
+      navigate('/ebd/checkout-bling');
+    } else {
+      navigate('/ebd/carrinho');
+    }
   };
 
   if (!clienteId || !clienteNome) {
@@ -178,6 +227,14 @@ export default function VendedorCatalogo() {
             </Button>
           </CardContent>
         </Card>
+        
+        <FaturamentoModeDialog
+          open={showFaturamentoModal}
+          onOpenChange={setShowFaturamentoModal}
+          clienteNome={clienteNome || ''}
+          onSelectFaturamento={handleSelectFaturamento}
+          onSelectPadrão={handleSelectPadrao}
+        />
       </div>
     );
   }
@@ -192,19 +249,26 @@ export default function VendedorCatalogo() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Catálogo de Produtos</h1>
-            <p className="text-muted-foreground">
-              Cliente: <span className="font-medium text-foreground">{clienteNome}</span>
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-muted-foreground">
+                Cliente: <span className="font-medium text-foreground">{clienteNome}</span>
+              </p>
+              {modoBling && (
+                <Badge className="bg-blue-500 text-white">
+                  Modo Faturamento
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
         
         <Button 
           size="lg"
           onClick={handleIrParaCarrinho}
-          className="relative"
+          className={modoBling ? "bg-blue-600 hover:bg-blue-700" : ""}
         >
           <ShoppingCart className="w-4 h-4 mr-2" />
-          Ir para o Carrinho
+          {modoBling ? 'Enviar para Faturamento' : 'Ir para o Carrinho'}
           {cartItemCount > 0 && (
             <Badge variant="secondary" className="ml-2 bg-background text-foreground">
               {cartItemCount}
@@ -399,12 +463,12 @@ export default function VendedorCatalogo() {
                       {cartItemCount} {cartItemCount === 1 ? 'item' : 'itens'} no carrinho
                     </p>
                     <Button 
-                      className="w-full" 
+                      className={`w-full ${modoBling ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
                       size="lg"
                       onClick={handleIrParaCarrinho}
                     >
                       <ShoppingCart className="w-4 h-4 mr-2" />
-                      Ir para o Carrinho
+                      {modoBling ? 'Enviar para Faturamento' : 'Ir para o Carrinho'}
                     </Button>
                   </div>
                 </>
@@ -413,6 +477,15 @@ export default function VendedorCatalogo() {
           </Card>
         </div>
       </div>
+
+      {/* Faturamento Mode Modal */}
+      <FaturamentoModeDialog
+        open={showFaturamentoModal}
+        onOpenChange={setShowFaturamentoModal}
+        clienteNome={clienteNome || ''}
+        onSelectFaturamento={handleSelectFaturamento}
+        onSelectPadrão={handleSelectPadrao}
+      />
     </div>
   );
 }
