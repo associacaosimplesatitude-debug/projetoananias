@@ -200,18 +200,34 @@ serve(async (req) => {
         // Buscar estoque do produto
         const estoque = await getProductStock(accessToken, product.id);
 
-        // Verificar se já existe pelo bling_produto_id ou título
+        // Verificar se já existe pelo bling_produto_id
         const { data: existingById } = await supabase
           .from('ebd_revistas')
           .select('id')
           .eq('bling_produto_id', product.id)
-          .single();
+          .maybeSingle();
 
-        const { data: existingByTitle } = await supabase
-          .from('ebd_revistas')
-          .select('id')
-          .eq('titulo', product.nome)
-          .single();
+        // Buscar pelo título usando ILIKE para match mais flexível
+        let existingByTitle = null;
+        if (!existingById && product.nome) {
+          const { data: byTitle } = await supabase
+            .from('ebd_revistas')
+            .select('id')
+            .ilike('titulo', product.nome)
+            .maybeSingle();
+          existingByTitle = byTitle;
+          
+          // Se não achou exato, tentar buscar parcial (primeiras 50 chars)
+          if (!existingByTitle) {
+            const searchTerm = product.nome.substring(0, 50);
+            const { data: byPartialTitle } = await supabase
+              .from('ebd_revistas')
+              .select('id')
+              .ilike('titulo', `%${searchTerm}%`)
+              .maybeSingle();
+            existingByTitle = byPartialTitle;
+          }
+        }
 
         const existing = existingById || existingByTitle;
 

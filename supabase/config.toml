@@ -37,7 +37,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.bling-sync-products]
-verify_jwt = true
+verify_jwt = false
 
 [functions.bling-check-stock]
 verify_jwt = true
