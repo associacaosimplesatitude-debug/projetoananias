@@ -121,12 +121,21 @@ const LandingEBD = () => {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <img src={logoGestaoEBD} alt="Gestão EBD" className="h-10 md:h-12" />
-          <Button 
-            onClick={scrollToForm}
-            className="bg-[#FFC107] hover:bg-[#FFB300] text-black font-bold"
-          >
-            Começar Agora
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline"
+              onClick={() => window.location.href = '/auth'}
+              className="border-[#FFC107] text-black hover:bg-[#FFC107]/10 font-medium"
+            >
+              Acessar Painel
+            </Button>
+            <Button 
+              onClick={scrollToForm}
+              className="bg-[#FFC107] hover:bg-[#FFB300] text-black font-bold"
+            >
+              Começar Agora
+            </Button>
+          </div>
         </div>
       </header>
 
