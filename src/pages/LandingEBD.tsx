@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,6 +28,7 @@ import listaProfessores from '@/assets/landing/lista-professores.png';
 import catalogoMateriais from '@/assets/landing/catalogo-materiais.png';
 
 const LandingEBD = () => {
+  const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     nomeIgreja: '',
@@ -124,7 +126,7 @@ const LandingEBD = () => {
           <div className="flex items-center gap-3">
             <Button 
               variant="outline"
-              onClick={() => window.location.href = '/auth'}
+              onClick={() => navigate('/login/ebd')}
               className="border-[#FFC107] text-black hover:bg-[#FFC107]/10 font-medium"
             >
               Acessar Painel
