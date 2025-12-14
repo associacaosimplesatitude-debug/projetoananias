@@ -63,6 +63,7 @@ interface Cliente {
   endereco_complemento: string | null;
   endereco_bairro: string | null;
   senha_temporaria: string | null;
+  pode_faturar: boolean;
 }
 
 export default function VendedorClientes() {
@@ -193,17 +194,24 @@ export default function VendedorClientes() {
                     </TableCell>
                     <TableCell className="font-mono text-sm">{formatDocumento(cliente)}</TableCell>
                     <TableCell>
-                      {cliente.status_ativacao_ebd ? (
-                        <Badge variant="default" className="bg-green-500">
-                          <CheckCircle className="mr-1 h-3 w-3" />
-                          Ativo
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">
-                          <XCircle className="mr-1 h-3 w-3" />
-                          Pendente
-                        </Badge>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {cliente.status_ativacao_ebd ? (
+                          <Badge variant="default" className="bg-green-500 w-fit">
+                            <CheckCircle className="mr-1 h-3 w-3" />
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="w-fit">
+                            <XCircle className="mr-1 h-3 w-3" />
+                            Pendente
+                          </Badge>
+                        )}
+                        {cliente.pode_faturar && (
+                          <Badge variant="outline" className="w-fit text-blue-600 border-blue-300 bg-blue-50">
+                            B2B
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

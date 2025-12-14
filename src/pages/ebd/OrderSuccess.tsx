@@ -81,6 +81,8 @@ export default function OrderSuccess() {
     );
   }
 
+  const prazoFaturamento = searchParams.get('prazo');
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
       pending: { label: 'Aguardando Pagamento', variant: 'secondary' },
@@ -88,6 +90,9 @@ export default function OrderSuccess() {
       CANCELADO: { label: 'Cancelado', variant: 'destructive' },
       AGUARDANDO_FATURAMENTO: { label: 'Aguardando Faturamento', variant: 'secondary' },
       FATURAMENTO_ENVIADO: { label: 'Enviado para Faturamento', variant: 'default' },
+      faturamento_pendente: { label: 'Aguardando Faturamento', variant: 'secondary' },
+      faturamento_enviado: { label: 'Enviado para Faturamento', variant: 'default' },
+      erro_bling: { label: 'Erro no Processamento', variant: 'destructive' },
     };
 
     const statusInfo = statusMap[status] || { label: status, variant: 'outline' as const };
@@ -118,7 +123,7 @@ export default function OrderSuccess() {
           </h1>
           <p className="text-muted-foreground">
             {isFaturamento 
-              ? 'Seu pedido foi enviado para faturamento. Em breve, você receberá os boletos por e-mail.'
+              ? `Seu pedido foi enviado para faturamento com condição de pagamento ${prazoFaturamento ? `${prazoFaturamento}/${parseInt(prazoFaturamento)+30}/${parseInt(prazoFaturamento)+60} dias` : '30/60/90 dias'}. A equipe financeira enviará os boletos por e-mail.`
               : 'Seu pedido foi recebido e está sendo processado.'}
           </p>
         </div>

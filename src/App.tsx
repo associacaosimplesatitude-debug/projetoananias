@@ -61,6 +61,7 @@ import EBDPlanejamento from "./pages/ebd/PlanejamentoEscolar";
 import EBDCatalogo from "./pages/ebd/Catalogo";
 import EBDCarrinho from "./pages/ebd/Carrinho";
 import EBDCheckout from "./pages/ebd/Checkout";
+import EBDCheckoutBling from "./pages/ebd/CheckoutBling";
 import EBDMyOrders from "./pages/ebd/MyOrders";
 import EBDOrderSuccess from "./pages/ebd/OrderSuccess";
 import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
@@ -336,6 +337,14 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDCheckout />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+                    <Route 
+                      path="/ebd/checkout-bling" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDCheckoutBling />
                         </ModuleProtectedRoute>
                       } 
                     />
