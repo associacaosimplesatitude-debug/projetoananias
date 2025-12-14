@@ -131,12 +131,13 @@ export default function CheckoutBling() {
       };
       const prazos = getPrazos();
 
-      // Prepare items for Bling (skip local order since church_id is from different table)
+      // Prepare items for Bling 
       const blingItems = revistas.map(revista => ({
         codigo: revista.bling_produto_id?.toString() || revista.id,
         descricao: revista.titulo,
         quantidade: cart[revista.id],
         valor: (revista.preco_cheio || 0) * 0.7,
+        preco_cheio: revista.preco_cheio || 0,
         unidade: 'UN',
       }));
 
@@ -147,24 +148,25 @@ export default function CheckoutBling() {
           body: {
             cliente: {
               nome: cliente.nome_igreja,
-              cnpj: cliente.cnpj,
-              cpf: cliente.cpf,
+              cpf_cnpj: cliente.cnpj || cliente.cpf,
               email: cliente.email_superintendente,
               telefone: cliente.telefone,
-              endereco: {
-                rua: cliente.endereco_rua,
-                numero: cliente.endereco_numero,
-                complemento: cliente.endereco_complemento,
-                bairro: cliente.endereco_bairro,
-                cidade: cliente.endereco_cidade,
-                uf: cliente.endereco_estado,
-                cep: cliente.endereco_cep,
-              },
             },
-            items: blingItems,
-            observacao: `CONDIÇÃO DE PAGAMENTO: ${prazos.obs} - ${prazos.parcelas} BOLETO(S) FATURADO(S)`,
-            formaPagamento: 'FATURAMENTO',
-            condicaoPagamento: prazos.parcelas.toString(),
+            endereco_entrega: {
+              rua: cliente.endereco_rua,
+              numero: cliente.endereco_numero,
+              complemento: cliente.endereco_complemento,
+              bairro: cliente.endereco_bairro,
+              cidade: cliente.endereco_cidade,
+              estado: cliente.endereco_estado,
+              cep: cliente.endereco_cep,
+            },
+            itens: blingItems,
+            valor_produtos: subtotal,
+            valor_frete: 0,
+            valor_total: subtotal,
+            forma_pagamento: 'FATURAMENTO',
+            faturamento_prazo: (prazos.parcelas * 30).toString(), // 30, 60, or 90
           },
         }
       );
