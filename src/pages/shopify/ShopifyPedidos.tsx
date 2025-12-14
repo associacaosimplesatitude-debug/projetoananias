@@ -10,7 +10,7 @@ import { ShoppingCart, Search, Plus, Minus, Trash2, ExternalLink, Loader2, Arrow
 import { fetchShopifyProducts, ShopifyProduct, CartItem } from "@/lib/shopify";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
 import {
   Select,
@@ -45,6 +45,12 @@ interface Cliente {
 
 export default function ShopifyPedidos() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // Read client info from URL params (for vendedor flow)
+  const urlClienteId = searchParams.get('clienteId');
+  const urlClienteNome = searchParams.get('clienteNome');
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -70,7 +76,23 @@ export default function ShopifyPedidos() {
     queryFn: () => fetchShopifyProducts(100),
   });
 
-  // Only fetch clients if user is a vendedor
+  // Fetch client from URL param (for vendedor flow)
+  const { data: urlCliente, isLoading: isLoadingUrlCliente } = useQuery({
+    queryKey: ['ebd-cliente-url', urlClienteId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('*')
+        .eq('id', urlClienteId!)
+        .single();
+      
+      if (error) throw error;
+      return data as Cliente;
+    },
+    enabled: !!urlClienteId,
+  });
+
+  // Only fetch clients if user is a vendedor and no URL param
   const { data: clientes, isLoading: isLoadingClientes } = useQuery({
     queryKey: ['ebd-clientes-shopify'],
     queryFn: async () => {
@@ -82,7 +104,7 @@ export default function ShopifyPedidos() {
       if (error) throw error;
       return data as Cliente[];
     },
-    enabled: isVendedor,
+    enabled: isVendedor && !urlClienteId,
   });
 
   // Get logged-in user's client data if not a vendedor
@@ -101,18 +123,20 @@ export default function ShopifyPedidos() {
       if (error) throw error;
       return data as Cliente | null;
     },
-    enabled: !isVendedor && !isLoadingVendedor,
+    enabled: !isVendedor && !isLoadingVendedor && !urlClienteId,
   });
   
   // Check if still loading client info
-  const isLoadingClientInfo = isLoadingVendedor || (!isVendedor && isLoadingUserCliente);
+  const isLoadingClientInfo = isLoadingVendedor || isLoadingUrlCliente || (!isVendedor && !urlClienteId && isLoadingUserCliente);
 
-  // Auto-select user's client when not a vendedor
+  // Auto-select client based on: URL param > user client (non-vendedor) 
   useEffect(() => {
-    if (!isLoadingVendedor && !isVendedor && userCliente) {
+    if (urlCliente) {
+      setSelectedCliente(urlCliente);
+    } else if (!isLoadingVendedor && !isVendedor && userCliente) {
       setSelectedCliente(userCliente);
     }
-  }, [isLoadingVendedor, isVendedor, userCliente]);
+  }, [urlCliente, isLoadingVendedor, isVendedor, userCliente]);
 
   const filteredProducts = products?.filter(product =>
     product.node.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -197,7 +221,14 @@ export default function ShopifyPedidos() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Novo Pedido</h1>
+              <h1 className="text-2xl font-bold">
+                {urlClienteNome ? `Novo Pedido para ${urlClienteNome}` : 'Novo Pedido'}
+              </h1>
+              {selectedCliente && !urlClienteNome && (
+                <p className="text-muted-foreground text-sm">
+                  Cliente: {selectedCliente.nome_igreja}
+                </p>
+              )}
             </div>
           </div>
 
@@ -223,8 +254,8 @@ export default function ShopifyPedidos() {
               </SheetHeader>
               
               <div className="flex flex-col flex-1 pt-6 min-h-0">
-                {/* Cliente Selection - Only show for vendedores */}
-                {isVendedor && (
+                {/* Cliente Selection - Only show for vendedores when no URL param */}
+                {isVendedor && !urlClienteId && (
                   <div className="mb-4 p-4 bg-muted/50 rounded-lg">
                     <label className="text-sm font-medium mb-2 block flex items-center gap-2">
                       <Users className="h-4 w-4" />
@@ -259,8 +290,8 @@ export default function ShopifyPedidos() {
                   </div>
                 )}
 
-                {/* Show selected client info for non-vendedores */}
-                {!isVendedor && selectedCliente && (
+                {/* Show selected client info when URL param is present or for non-vendedores */}
+                {(urlClienteId || (!isVendedor && selectedCliente)) && selectedCliente && (
                   <div className="mb-4 p-4 bg-muted/50 rounded-lg">
                     <label className="text-sm font-medium mb-2 block flex items-center gap-2">
                       <Users className="h-4 w-4" />
