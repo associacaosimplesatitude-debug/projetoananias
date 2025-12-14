@@ -85,7 +85,9 @@ serve(async (req) => {
       forma_pagamento,  // PIX, CARTAO, BOLETO, FATURAMENTO
       faturamento_prazo, // 30, 60 ou 90 (apenas para FATURAMENTO)
       valor_produtos,   // Total dos produtos com desconto
-      valor_total       // Total final (produtos + frete)
+      valor_total,      // Total final (produtos + frete)
+      vendedor_nome,    // Vendor name for Bling
+      desconto_percentual, // Discount percentage applied
     } = await req.json();
 
     if (!cliente || !itens || itens.length === 0) {
@@ -478,8 +480,10 @@ serve(async (req) => {
         // Para faturamento B2B, usar Em Aberto para aguardar emissão dos boletos
         id: isFaturamento ? 15 : 15,
       },
-      observacoes: observacoes + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : ''),
+      observacoes: observacoes + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : ''),
       parcelas,
+      // Add vendedor (salesperson) if provided
+      ...(vendedor_nome && { vendedor: { nome: vendedor_nome } }),
     };
 
     // Adicionar desconto total da venda se houver
