@@ -173,10 +173,34 @@ export default function CheckoutBling() {
 
       if (blingError) {
         console.error('Erro Bling:', blingError);
-        // Extract the actual error message from the response
-        const errorData = blingResult as { error?: string; errorType?: string } | null;
-        const errorMsg = errorData?.error || 'Erro ao enviar pedido para o Bling.';
-        throw new Error(errorMsg);
+        // Tentar extrair a mensagem real do erro, similar à tela de Pedidos Admin
+        let errorMsg = '';
+
+        // 1) Verificar se o backend retornou o erro no body
+        if ((blingResult as any)?.error) {
+          errorMsg = (blingResult as any).error as string;
+        } else if ((blingError as any).message) {
+          // 2) A mensagem geralmente vem no formato: "Edge function returned 400: Error, { ... }"
+          const rawMessage = (blingError as any).message as string;
+          const jsonMatch = rawMessage.match(/\{.*\}/);
+          if (jsonMatch) {
+            try {
+              const parsed = JSON.parse(jsonMatch[0]);
+              errorMsg = parsed.error || rawMessage;
+            } catch {
+              errorMsg = rawMessage;
+            }
+          } else {
+            errorMsg = rawMessage;
+          }
+        }
+
+        // Se for erro de estoque, deixar bem claro para o usuário
+        if (errorMsg && errorMsg.toLowerCase().includes('estoque') && errorMsg.toLowerCase().includes('insuficiente')) {
+          throw new Error(errorMsg);
+        }
+
+        throw new Error(errorMsg || 'Erro ao enviar pedido para o Bling.');
       }
 
       // Clear cart and session data
