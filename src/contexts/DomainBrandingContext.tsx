@@ -38,6 +38,12 @@ export const DomainBrandingProvider: React.FC<{ children: React.ReactNode }> = (
 
     // Update document title
     document.title = branding.appName;
+
+    // Apply branding colors as CSS variables for EBD domain
+    if (branding.isEBD) {
+      root.style.setProperty('--primary', hexToHSL(branding.primaryColor));
+      root.style.setProperty('--accent', hexToHSL(branding.accentColor));
+    }
   }, [branding]);
 
   return (

@@ -240,11 +240,13 @@ export const Navigation = () => {
     hasOnlyReoboteEBD ? ebdOnlyNavItems :
     clientNavItems;
 
-  // Use domain branding as primary, fallback to DB settings, then defaults
-  const navBgColor = brandingSettings?.nav_background_color || domainBranding.navBackgroundColor;
-  const accentColor = brandingSettings?.accent_color || domainBranding.accentColor;
-  const navTextColor = brandingSettings?.nav_text_color || domainBranding.navTextColor;
-  const logoUrl = brandingSettings?.nav_logo_url || domainBranding.logoHorizontalUrl || logoAnanias;
+  // Use domain branding as primary source when on EBD domain
+  // This ensures gestaoebd.com.br always shows EBD branding regardless of DB settings
+  const isEBD = domainBranding.isEBD;
+  const navBgColor = isEBD ? domainBranding.navBackgroundColor : (brandingSettings?.nav_background_color || domainBranding.navBackgroundColor);
+  const accentColor = isEBD ? domainBranding.accentColor : (brandingSettings?.accent_color || domainBranding.accentColor);
+  const navTextColor = isEBD ? domainBranding.navTextColor : (brandingSettings?.nav_text_color || domainBranding.navTextColor);
+  const logoUrl = isEBD ? domainBranding.logoHorizontalUrl : (brandingSettings?.nav_logo_url || domainBranding.logoHorizontalUrl || logoAnanias);
 
   // If user is a student, don't show main navigation (AlunoNavigation handles it)
   if (isAluno) {
