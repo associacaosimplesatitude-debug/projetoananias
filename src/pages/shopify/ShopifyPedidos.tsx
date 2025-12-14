@@ -106,10 +106,10 @@ export default function ShopifyPedidos() {
 
   // Auto-select user's client when not a vendedor
   useEffect(() => {
-    if (!isVendedor && userCliente && !selectedCliente) {
+    if (!isLoadingVendedor && !isVendedor && userCliente) {
       setSelectedCliente(userCliente);
     }
-  }, [isVendedor, userCliente, selectedCliente]);
+  }, [isLoadingVendedor, isVendedor, userCliente]);
 
   const filteredProducts = products?.filter(product =>
     product.node.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -347,7 +347,7 @@ export default function ShopifyPedidos() {
                           onClick={handleCreateDraftOrder}
                           className="w-full" 
                           size="lg"
-                          disabled={items.length === 0 || !selectedCliente || isCreatingDraft}
+                          disabled={items.length === 0 || (!selectedCliente && !isLoadingVendedor) || isCreatingDraft}
                         >
                           {isCreatingDraft ? (
                             <>
