@@ -18,10 +18,14 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const { nomeIgreja, nomeResponsavel, email, telefone } = await req.json();
+    const { nomeIgreja, nomeResponsavel, email, telefone, senha } = await req.json();
 
-    if (!email || !nomeIgreja || !nomeResponsavel || !telefone) {
+    if (!email || !nomeIgreja || !nomeResponsavel || !telefone || !senha) {
       throw new Error('Dados incompletos');
+    }
+
+    if (senha.length < 6) {
+      throw new Error('A senha deve ter pelo menos 6 caracteres');
     }
 
     console.log(`[ebd-instant-signup] Creating instant account for: ${email}`);
@@ -38,9 +42,6 @@ serve(async (req) => {
       throw new Error('REOBOTE EBD module not found');
     }
 
-    // Generate a temporary password
-    const tempPassword = 'mudar123';
-
     // Check if user already exists
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
@@ -53,10 +54,10 @@ serve(async (req) => {
       userId = existingUser.id;
       userAlreadyExists = true;
     } else {
-      // Create user in auth
+      // Create user in auth with user's chosen password
       const { data: authData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
         email: email,
-        password: tempPassword,
+        password: senha,
         email_confirm: true,
         user_metadata: {
           full_name: nomeResponsavel || nomeIgreja,
@@ -75,14 +76,13 @@ serve(async (req) => {
       userId = authData.user.id;
       console.log(`[ebd-instant-signup] Created auth user: ${userId}`);
 
-      // Create profile with senha_padrao_usada = true
+      // Create profile
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .upsert({
           id: userId,
           email: email,
           full_name: nomeResponsavel || nomeIgreja,
-          senha_padrao_usada: true,
         });
 
       if (profileError) {
@@ -182,7 +182,6 @@ serve(async (req) => {
         success: true,
         message: userAlreadyExists ? 'Conta já existe' : 'Conta criada com sucesso',
         email: email,
-        password: userAlreadyExists ? null : tempPassword,
         userAlreadyExists
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

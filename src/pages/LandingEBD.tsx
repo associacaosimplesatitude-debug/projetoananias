@@ -34,14 +34,20 @@ const LandingEBD = () => {
     nomeIgreja: '',
     nomeResponsavel: '',
     email: '',
-    telefone: ''
+    telefone: '',
+    senha: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nomeIgreja || !formData.nomeResponsavel || !formData.email || !formData.telefone) {
+    if (!formData.nomeIgreja || !formData.nomeResponsavel || !formData.email || !formData.telefone || !formData.senha) {
       toast.error('Por favor, preencha todos os campos');
+      return;
+    }
+
+    if (formData.senha.length < 6) {
+      toast.error('A senha deve ter pelo menos 6 caracteres');
       return;
     }
 
@@ -54,7 +60,8 @@ const LandingEBD = () => {
           nomeIgreja: formData.nomeIgreja,
           nomeResponsavel: formData.nomeResponsavel,
           email: formData.email,
-          telefone: formData.telefone
+          telefone: formData.telefone,
+          senha: formData.senha
         }
       });
 
@@ -66,14 +73,14 @@ const LandingEBD = () => {
         return;
       }
 
-      // Log in the user automatically with the temporary password
+      // Log in the user automatically with their password
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: formData.email,
-        password: 'mudar123'
+        password: formData.senha
       });
 
       if (signInError) {
-        toast.error('Conta criada! Faça login com a senha: mudar123');
+        toast.error('Conta criada! Faça login para acessar o painel.');
         navigate('/login/ebd');
         return;
       }
@@ -395,6 +402,18 @@ const LandingEBD = () => {
                         placeholder="(00) 00000-0000"
                         value={formData.telefone}
                         onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                        className="h-12"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Senha *
+                      </label>
+                      <Input
+                        type="password"
+                        placeholder="Mínimo 6 caracteres"
+                        value={formData.senha}
+                        onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
                         className="h-12"
                       />
                     </div>
