@@ -233,18 +233,31 @@ export default function ShopifyPedidos() {
 
       if (error) throw error;
 
-      if (data?.invoiceUrl) {
-        const successMessage = faturamentoPrazo 
-          ? `Pedido faturado em ${faturamentoPrazo} dias criado com sucesso!` 
-          : "Pedido criado com sucesso!";
-        toast.success(successMessage);
+      // For faturamento B2B, don't redirect to checkout - just show success
+      if (data?.isFaturamento && data?.blingOrderId) {
+        toast.success(`Pedido faturado em ${data.faturamentoPrazo} dias criado com sucesso no Bling!`, {
+          description: `Número do pedido Bling: ${data.blingOrderNumber}`,
+          duration: 5000,
+        });
+        clearCart();
+        setSelectedCliente(null);
+        setIsCartOpen(false);
+        setSelectedFaturamentoPrazo(null);
+        
+        // Navigate to vendedor orders page if vendedor
+        if (isVendedor) {
+          navigate('/vendedor/pedidos');
+        }
+      } else if (data?.invoiceUrl) {
+        // Normal checkout flow
+        toast.success("Pedido criado com sucesso!");
         clearCart();
         setSelectedCliente(null);
         setIsCartOpen(false);
         setSelectedFaturamentoPrazo(null);
         window.open(data.invoiceUrl, '_blank');
       } else {
-        throw new Error("URL de checkout não retornada");
+        throw new Error("Resposta inesperada do servidor");
       }
     } catch (error) {
       console.error("Erro ao criar pedido:", error);

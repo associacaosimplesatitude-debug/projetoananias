@@ -293,7 +293,91 @@ serve(async (req) => {
     console.log("Draft order created:", draftOrder.id);
     console.log("Draft order note_attributes:", draftOrder.note_attributes);
 
-    // Step 3: Get invoice URL
+    // Step 3: For B2B faturamento, create order in Bling instead of returning checkout URL
+    if (isFaturamento) {
+      console.log("Faturamento B2B detected, creating order in Bling...");
+      
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Format items for Bling
+      const itensBling = items.map(item => ({
+        descricao: item.title,
+        unidade: 'UN',
+        quantidade: item.quantity,
+        valor: parseFloat(item.price),
+        preco_cheio: parseFloat(item.price),
+      }));
+
+      // Calculate total
+      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
+      const valorTotal = valorProdutos; // No shipping for B2B faturamento orders
+      
+      // Prepare cliente data for Bling
+      const clienteBling = {
+        nome: cliente.nome_responsavel || cliente.nome_igreja,
+        cpf_cnpj: cliente.cnpj,
+        email: cliente.email_superintendente,
+        telefone: cliente.telefone,
+      };
+      
+      // Prepare address for Bling
+      const enderecoBling = cliente.endereco_rua ? {
+        rua: cliente.endereco_rua,
+        numero: cliente.endereco_numero || 'S/N',
+        bairro: cliente.endereco_bairro || '',
+        cep: cliente.endereco_cep || '',
+        cidade: cliente.endereco_cidade || '',
+        estado: cliente.endereco_estado || '',
+      } : null;
+
+      // Call bling-create-order function
+      const { data: blingData, error: blingError } = await supabase.functions.invoke('bling-create-order', {
+        body: {
+          cliente: clienteBling,
+          endereco_entrega: enderecoBling,
+          itens: itensBling,
+          pedido_id: draftOrder.id,
+          valor_frete: 0,
+          metodo_frete: 'free',
+          forma_pagamento: 'FATURAMENTO',
+          faturamento_prazo: faturamento_prazo,
+          valor_produtos: valorProdutos,
+          valor_total: valorTotal,
+        }
+      });
+
+      if (blingError) {
+        console.error("Error creating Bling order:", blingError);
+        return new Response(
+          JSON.stringify({ 
+            error: "Falha ao criar pedido no Bling", 
+            details: blingError.message,
+            draftOrderId: draftOrder.id,
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log("Bling order created successfully:", blingData);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          draftOrderId: draftOrder.id,
+          orderName: draftOrder.name,
+          vendedorId: finalVendedorId,
+          isFaturamento: true,
+          faturamentoPrazo: faturamento_prazo,
+          blingOrderId: blingData.bling_order_id,
+          blingOrderNumber: blingData.bling_order_number,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // For normal orders, return invoice URL
     const invoiceUrl = draftOrder.invoice_url;
 
     return new Response(
@@ -303,8 +387,7 @@ serve(async (req) => {
         invoiceUrl: invoiceUrl,
         orderName: draftOrder.name,
         vendedorId: finalVendedorId,
-        isFaturamento: isFaturamento,
-        faturamentoPrazo: faturamento_prazo,
+        isFaturamento: false,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
