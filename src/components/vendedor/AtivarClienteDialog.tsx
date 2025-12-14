@@ -81,24 +81,30 @@ export function AtivarClienteDialog({
       // Calculate next purchase date (13 weeks from start date)
       const dataProximaCompra = addWeeks(formData.data_inicio_ebd, 13);
 
-      // 1. Create the superintendent user via edge function
+      // Senha temporária gerada para o superintendente
+      const tempPassword = Math.random().toString(36).slice(-8) + "A1!";
+
+      // 1. Create the superintendent user via edge function (and link to cliente)
       const { data: userData, error: userError } = await supabase.functions.invoke(
         "create-ebd-user",
         {
           body: {
             email: formData.email_superintendente,
-            password: Math.random().toString(36).slice(-8) + "A1!", // Temporary password
+            password: tempPassword,
             fullName: formData.nome_superintendente || "Superintendente",
+            clienteId: cliente.id,
           },
         }
       );
 
-      if (userError) {
-        console.error("Error creating user:", userError);
-        // Continue anyway, might already exist
+      if (userError || !userData?.userId) {
+        console.error("Error creating user:", userError, userData);
+        toast.error("Não foi possível criar o acesso do superintendente. Tente novamente.");
+        setLoading(false);
+        return;
       }
 
-      // 2. Update the cliente record
+      // 2. Update the cliente record (redundant com a função, mas garante dados locais)
       const { error: updateError } = await supabase
         .from("ebd_clientes")
         .update({
@@ -108,7 +114,8 @@ export function AtivarClienteDialog({
           data_inicio_ebd: format(formData.data_inicio_ebd, "yyyy-MM-dd"),
           data_proxima_compra: format(dataProximaCompra, "yyyy-MM-dd"),
           status_ativacao_ebd: true,
-          superintendente_user_id: userData?.userId || null,
+          superintendente_user_id: userData.userId,
+          senha_temporaria: tempPassword,
         })
         .eq("id", cliente.id);
 
