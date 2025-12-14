@@ -18,11 +18,16 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const authHeader = req.headers.get('Authorization')!;
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('Missing Authorization header');
+      throw new Error('Unauthorized');
+    }
+
     const token = authHeader.replace('Bearer ', '');
-    
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) {
+      console.error('Auth error in create-ebd-user:', authError);
       throw new Error('Unauthorized');
     }
 
@@ -32,61 +37,105 @@ serve(async (req) => {
       throw new Error('Email and password are required');
     }
 
-    console.log(`Creating user for email: ${email}, clienteId: ${clienteId || 'not provided'}`);
+    console.log(`Creating/updating user for email: ${email}, clienteId: ${clienteId || 'not provided'}`);
 
-    // Check if user already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-    
+    // If we have a clienteId, try to get the existing superintendente_user_id first
+    let existingUserIdFromCliente: string | null = null;
+    if (clienteId) {
+      const { data: clienteRow, error: clienteError } = await supabaseAdmin
+        .from('ebd_clientes')
+        .select('superintendente_user_id')
+        .eq('id', clienteId)
+        .single();
+
+      if (clienteError) {
+        console.error('Error fetching ebd_clientes row:', clienteError);
+      } else if (clienteRow?.superintendente_user_id) {
+        existingUserIdFromCliente = clienteRow.superintendente_user_id;
+        console.log(`Found existing superintendente_user_id: ${existingUserIdFromCliente}`);
+      }
+    }
+
     let userId: string;
-    
-    if (existingUser) {
-      console.log(`User already exists with id: ${existingUser.id}`);
-      userId = existingUser.id;
-      
-      // Update password if provided
-      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-        password,
-        email_confirm: true,
-      });
-      
-      if (updateError) {
-        console.error('Error updating existing user:', updateError);
-        throw updateError;
-      }
-    } else {
-      // Create new auth user
-      const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: fullName,
-        },
-      });
 
-      if (createError) {
-        console.error('Error creating auth user:', createError);
-        throw createError;
-      }
-      
-      userId = authData.user.id;
-      console.log(`Created new user with id: ${userId}`);
-
-      // Create profile
-      const { error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .upsert({
-          id: userId,
+    if (existingUserIdFromCliente) {
+      // Update the existing auth user by id (email and password)
+      const { error: updateByIdError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingUserIdFromCliente,
+        {
           email,
-          full_name: fullName,
-        }, { onConflict: 'id' });
+          password,
+          email_confirm: true,
+        },
+      );
 
-      if (profileError) {
-        console.error('Error creating profile:', profileError);
-        // Rollback: delete the created user
-        await supabaseAdmin.auth.admin.deleteUser(userId);
-        throw profileError;
+      if (updateByIdError) {
+        console.error('Error updating existing user by id:', updateByIdError);
+        throw updateByIdError;
+      }
+
+      userId = existingUserIdFromCliente;
+      console.log(`Updated existing user by id: ${userId}`);
+    } else {
+      // Fallback: check if a user already exists with this email
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = existingUsers?.users?.find(
+        (u) => u.email?.toLowerCase() === email.toLowerCase(),
+      );
+
+      if (existingUser) {
+        console.log(`User already exists with id: ${existingUser.id}`);
+        userId = existingUser.id;
+
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+          existingUser.id,
+          {
+            password,
+            email_confirm: true,
+          },
+        );
+
+        if (updateError) {
+          console.error('Error updating existing user:', updateError);
+          throw updateError;
+        }
+      } else {
+        // Create new auth user
+        const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: fullName,
+          },
+        });
+
+        if (createError) {
+          console.error('Error creating auth user:', createError);
+          throw createError;
+        }
+
+        userId = authData.user.id;
+        console.log(`Created new user with id: ${userId}`);
+
+        // Create or update profile
+        const { error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .upsert(
+            {
+              id: userId,
+              email,
+              full_name: fullName,
+            },
+            { onConflict: 'id' },
+          );
+
+        if (profileError) {
+          console.error('Error creating/updating profile:', profileError);
+          // Rollback: delete the created user
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+          throw profileError;
+        }
       }
     }
 
@@ -95,10 +144,11 @@ serve(async (req) => {
       console.log(`Updating ebd_clientes with superintendente_user_id: ${userId}`);
       const { error: updateClienteError } = await supabaseAdmin
         .from('ebd_clientes')
-        .update({ 
+        .update({
           superintendente_user_id: userId,
           status_ativacao_ebd: true,
           senha_temporaria: password,
+          email_superintendente: email,
         })
         .eq('id', clienteId);
 
@@ -110,22 +160,21 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         userId,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
-
   } catch (error) {
     console.error('Error in create-ebd-user:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { 
+      {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
     );
   }
 });
