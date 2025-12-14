@@ -18,7 +18,7 @@ serve(async (req) => {
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
 
-    console.log('Bling callback received:', { code: code?.substring(0, 10) + '...', state, error });
+    console.log('Bling callback received:', { code: code ? code.substring(0, 10) + '...' : null, state, error });
 
     if (error) {
       console.error('Bling OAuth error:', error);
@@ -53,8 +53,23 @@ serve(async (req) => {
       );
     }
 
-    // Trocar code por tokens
-    const credentials = btoa(`${config.client_id}:${config.client_secret}`);
+    console.log('Config loaded - client_id:', config.client_id?.substring(0, 10) + '...');
+    console.log('Config loaded - client_secret length:', config.client_secret?.length || 0);
+
+    // Trocar code por tokens - usar credenciais do banco
+    const clientId = config.client_id;
+    const clientSecret = config.client_secret;
+    
+    if (!clientId || !clientSecret) {
+      console.error('Client ID ou Client Secret não configurado');
+      return new Response(
+        '<html><body><h1>Erro de configuração</h1><p>Client ID ou Client Secret não configurado</p><script>setTimeout(() => window.close(), 3000);</script></body></html>',
+        { headers: { 'Content-Type': 'text/html' } }
+      );
+    }
+
+    const credentials = btoa(`${clientId}:${clientSecret}`);
+    console.log('Making token request with credentials length:', credentials.length);
     
     const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
       method: 'POST',
@@ -70,6 +85,7 @@ serve(async (req) => {
 
     const tokenData = await tokenResponse.json();
     console.log('Token response status:', tokenResponse.status);
+    console.log('Token response body:', JSON.stringify(tokenData));
 
     if (!tokenResponse.ok || tokenData.error) {
       console.error('Erro ao obter token:', tokenData);
