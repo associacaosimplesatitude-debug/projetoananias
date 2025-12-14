@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, CreditCard, FileText, QrCode, MapPin, Check, Edit } from 'lucide-react';
+import { ArrowLeft, CreditCard, FileText, QrCode, MapPin, Check, Edit, Building } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -164,7 +164,7 @@ interface SavedAddress {
 export default function Checkout() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [paymentMethod, setPaymentMethod] = useState<'boleto' | 'card' | 'pix'>('pix');
+  const [paymentMethod, setPaymentMethod] = useState<'boleto' | 'card' | 'pix' | 'faturamento'>('pix');
   const [isProcessing, setIsProcessing] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<'free' | 'pac' | 'sedex'>('pac');
   const [pacCost, setPacCost] = useState<number>(0);
@@ -188,6 +188,7 @@ export default function Checkout() {
   const [installments, setInstallments] = useState('1');
   const [useSavedAddress, setUseSavedAddress] = useState<boolean | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [faturamentoPrazo, setFaturamentoPrazo] = useState<'30' | '60' | '90'>('30');
 
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -530,6 +531,8 @@ export default function Checkout() {
       await processPixPayment(data);
     } else if (paymentMethod === 'card') {
       setShowCardForm(true);
+    } else if (paymentMethod === 'faturamento') {
+      await processFaturamentoPayment(data);
     } else {
       await processBoletoPayment(data);
     }
@@ -1014,6 +1017,192 @@ export default function Checkout() {
     }
   };
 
+  // Processar Faturamento B2B (30/60/90 dias) - Envia direto para o Bling
+  const processFaturamentoPayment = async (data: AddressForm) => {
+    setIsProcessing(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: 'Erro',
+          description: 'Você precisa estar logado para finalizar a compra',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Para pedidos de vendedor, usar o ID do cliente do ebd_clientes
+      let targetChurchId: string | null = null;
+      
+      if (vendedorClienteId) {
+        targetChurchId = vendedorClienteId;
+      } else {
+        const { data: churchData } = await supabase
+          .from('churches')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (churchData) {
+          targetChurchId = churchData.id;
+        }
+      }
+
+      if (!targetChurchId) {
+        toast({
+          title: 'Erro',
+          description: 'Igreja não encontrada',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Preparar itens para o Bling
+      const itensBling = revistaIds.map(revistaId => {
+        const revista = revistas?.find(r => r.id === revistaId);
+        const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
+        return {
+          codigo: revista?.bling_produto_id?.toString() || revistaId,
+          descricao: revista?.titulo || 'Revista EBD',
+          unidade: 'UN',
+          quantidade: cart[revistaId],
+          valor: precoUnitario,
+          preco_cheio: revista?.preco_cheio || 0,
+        };
+      });
+
+      // Criar pedido no banco de dados local primeiro
+      const { data: pedido, error: pedidoError } = await supabase
+        .from('ebd_pedidos')
+        .insert({
+          church_id: targetChurchId,
+          status: 'AGUARDANDO_FATURAMENTO',
+          payment_status: 'pending',
+          status_logistico: 'AGUARDANDO_ENVIO',
+          valor_produtos: calculateSubtotal(),
+          valor_frete: shippingCost,
+          valor_total: total,
+          metodo_frete: shippingMethod,
+          endereco_cep: data.cep,
+          endereco_rua: data.rua,
+          endereco_numero: data.numero,
+          endereco_complemento: data.complemento,
+          endereco_bairro: data.bairro,
+          endereco_cidade: data.cidade,
+          endereco_estado: data.estado,
+          email_cliente: data.email,
+          nome_cliente: data.nome,
+          sobrenome_cliente: data.sobrenome,
+          cpf_cnpj_cliente: data.cpf,
+        })
+        .select()
+        .single();
+
+      if (pedidoError) {
+        console.error('Erro ao criar pedido:', pedidoError);
+        throw pedidoError;
+      }
+
+      // Criar itens do pedido
+      const itens = revistaIds.map(revistaId => {
+        const revista = revistas?.find(r => r.id === revistaId);
+        const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
+        return {
+          pedido_id: pedido.id,
+          revista_id: revistaId,
+          quantidade: cart[revistaId],
+          preco_unitario: precoUnitario,
+          preco_total: precoUnitario * cart[revistaId],
+        };
+      });
+
+      const { error: itensError } = await supabase
+        .from('ebd_pedidos_itens')
+        .insert(itens);
+
+      if (itensError) {
+        console.error('Erro ao criar itens do pedido:', itensError);
+      }
+
+      // Enviar para o Bling com condição de pagamento parcelado
+      const { data: blingResult, error: blingError } = await supabase.functions.invoke(
+        'bling-create-order',
+        {
+          body: {
+            cliente: {
+              nome: data.nome,
+              sobrenome: data.sobrenome,
+              cpf_cnpj: data.cpf,
+              email: data.email,
+            },
+            endereco_entrega: {
+              rua: data.rua,
+              numero: data.numero,
+              complemento: data.complemento,
+              bairro: data.bairro,
+              cep: data.cep,
+              cidade: data.cidade,
+              estado: data.estado,
+            },
+            itens: itensBling,
+            pedido_id: pedido.id,
+            valor_frete: shippingCost,
+            metodo_frete: shippingMethod,
+            forma_pagamento: 'FATURAMENTO',
+            faturamento_prazo: faturamentoPrazo,
+            valor_produtos: calculateSubtotal(),
+            valor_total: total,
+          },
+        }
+      );
+
+      if (blingError) {
+        console.error('Erro ao criar pedido no Bling:', blingError);
+        // Atualizar status do pedido para erro
+        await supabase
+          .from('ebd_pedidos')
+          .update({ status: 'ERRO_BLING', payment_status: 'failed' })
+          .eq('id', pedido.id);
+        throw blingError;
+      }
+
+      // Atualizar pedido com ID do Bling
+      if (blingResult?.bling_order_id) {
+        await supabase
+          .from('ebd_pedidos')
+          .update({ 
+            bling_order_id: blingResult.bling_order_id,
+            status: 'FATURAMENTO_ENVIADO',
+          })
+          .eq('id', pedido.id);
+      }
+
+      // Enviar email de confirmação de pedido
+      try {
+        await supabase.functions.invoke('send-order-email', {
+          body: { orderId: pedido.id, emailType: 'order_created' },
+        });
+      } catch (emailError) {
+        console.error('Erro ao enviar email:', emailError);
+      }
+
+      localStorage.removeItem('ebd-cart');
+      sessionStorage.removeItem('vendedor-cliente-id');
+      
+      navigate(`/ebd/order-success?pedido=${pedido.id}&faturamento=true`);
+    } catch (error) {
+      console.error('Erro ao processar faturamento:', error);
+      toast({
+        title: 'Erro ao processar faturamento',
+        description: 'Tente novamente mais tarde',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const onSubmit = async (data: AddressForm) => {
     // Salvar endereço para reutilização futura
     await saveAddress(data);
@@ -1309,7 +1498,7 @@ export default function Checkout() {
               <CardHeader>
                 <CardTitle>Forma de Pagamento</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <RadioGroup value={paymentMethod} onValueChange={(value: any) => setPaymentMethod(value)}>
                   <div className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-accent">
                     <RadioGroupItem value="pix" id="pix" />
@@ -1343,7 +1532,51 @@ export default function Checkout() {
                       </div>
                     </Label>
                   </div>
+
+                  {/* Opção de Faturamento B2B - só aparece para clientes com pode_faturar */}
+                  {vendedorCliente?.pode_faturar && (
+                    <div className={`flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-accent ${paymentMethod === 'faturamento' ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20' : ''}`}>
+                      <RadioGroupItem value="faturamento" id="faturamento" />
+                      <Label htmlFor="faturamento" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <Building className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <div className="font-semibold text-blue-700 dark:text-blue-400">Faturamento 30/60/90 dias (Boleto)</div>
+                          <div className="text-sm text-muted-foreground">Boletos serão enviados por e-mail</div>
+                        </div>
+                      </Label>
+                    </div>
+                  )}
                 </RadioGroup>
+
+                {/* Seleção de prazo de faturamento */}
+                {paymentMethod === 'faturamento' && vendedorCliente?.pode_faturar && (
+                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <Label className="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-3 block">
+                      Selecione a condição de pagamento:
+                    </Label>
+                    <RadioGroup 
+                      value={faturamentoPrazo} 
+                      onValueChange={(value: '30' | '60' | '90') => setFaturamentoPrazo(value)}
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="30" id="prazo-30" />
+                        <Label htmlFor="prazo-30" className="cursor-pointer font-medium">30 dias</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="60" id="prazo-60" />
+                        <Label htmlFor="prazo-60" className="cursor-pointer font-medium">60 dias</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="90" id="prazo-90" />
+                        <Label htmlFor="prazo-90" className="cursor-pointer font-medium">90 dias</Label>
+                      </div>
+                    </RadioGroup>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      O pedido será enviado para faturamento e você receberá os boletos por e-mail.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
