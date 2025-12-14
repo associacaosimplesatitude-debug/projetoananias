@@ -42,6 +42,8 @@ interface Cliente {
   endereco_estado: string | null;
   senha_temporaria: string | null;
   pode_faturar?: boolean;
+  status_ativacao_ebd?: boolean;
+  superintendente_user_id?: string | null;
 }
 
 interface CadastrarClienteDialogProps {
@@ -261,29 +263,37 @@ export function CadastrarClienteDialog({
 
         if (error) throw error;
 
-        // Se o vendedor informou uma nova senha, atualiza também o usuário de login
-        if (formData.senha) {
+        // Escolhe a senha a ser usada para o acesso do superintendente
+        const senhaParaLogin = formData.senha || clienteParaEditar.senha_temporaria || senhaGerada;
+
+        // Sempre garante que exista/atualize o usuário de login quando houver e-mail de superintendente
+        if (formData.email_superintendente) {
           try {
             const { data: authResp, error: authError } = await supabase.functions.invoke('create-ebd-user', {
               body: {
                 email: formData.email_superintendente,
-                password: formData.senha,
+                password: senhaParaLogin,
                 fullName: formData.nome_responsavel || formData.nome_igreja,
                 clienteId: clienteParaEditar.id,
               },
             });
 
             if (authError) {
-              console.error('Erro ao atualizar usuário do cliente:', authError, authResp);
+              console.error('Erro ao criar/atualizar usuário do cliente (edição):', authError, authResp);
               toast.warning('Dados do cliente atualizados, mas houve erro ao atualizar o acesso de login.');
+            } else if (!clienteParaEditar.senha_temporaria || formData.senha) {
+              // Só mostramos a senha se ela for nova ou se antes não havia senha temporária
+              toast.success('Cliente atualizado! Nova senha de acesso: ' + senhaParaLogin);
+            } else {
+              toast.success('Cliente atualizado com sucesso!');
             }
           } catch (authFuncError) {
             console.error('Erro ao chamar create-ebd-user na edição:', authFuncError);
             toast.warning('Dados do cliente atualizados, mas houve erro ao atualizar o acesso de login.');
           }
+        } else {
+          toast.success('Cliente atualizado com sucesso!');
         }
-
-        toast.success("Cliente atualizado com sucesso!");
       } else {
         // First, create the cliente record
         const { data: novoCliente, error: insertError } = await supabase
