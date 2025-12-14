@@ -210,6 +210,10 @@ export function CadastrarClienteDialog({
     });
   };
 
+  const generateRandomPassword = () => {
+    return Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -226,6 +230,7 @@ export function CadastrarClienteDialog({
     setLoading(true);
     try {
       const documentoLimpo = formData.documento.replace(/\D/g, "");
+      const senhaGerada = formData.senha || generateRandomPassword();
       
       const clienteData = {
         tipo_cliente: formData.tipo_cliente,
@@ -244,7 +249,7 @@ export function CadastrarClienteDialog({
         endereco_cidade: formData.endereco_cidade,
         endereco_estado: formData.endereco_estado,
         pode_faturar: formData.pode_faturar,
-        ...(formData.senha ? { senha_temporaria: formData.senha } : {}),
+        senha_temporaria: senhaGerada,
       };
 
       if (isEditMode && clienteParaEditar) {
@@ -256,21 +261,49 @@ export function CadastrarClienteDialog({
         if (error) throw error;
         toast.success("Cliente atualizado com sucesso!");
       } else {
-        const { error } = await supabase.from("ebd_clientes").insert({
-          ...clienteData,
-          vendedor_id: vendedorId,
-          status_ativacao_ebd: false,
-        });
+        // First, create the cliente record
+        const { data: novoCliente, error: insertError } = await supabase
+          .from("ebd_clientes")
+          .insert({
+            ...clienteData,
+            vendedor_id: vendedorId,
+            status_ativacao_ebd: false,
+          })
+          .select()
+          .single();
 
-        if (error) {
-          if (error.message.includes("duplicate key")) {
+        if (insertError) {
+          if (insertError.message.includes("duplicate key")) {
             toast.error("Já existe um cliente com este documento");
           } else {
-            throw error;
+            throw insertError;
           }
           return;
         }
-        toast.success("Cliente cadastrado com sucesso!");
+
+        // Then, create the auth user automatically
+        try {
+          const { data: authResponse, error: authError } = await supabase.functions.invoke('create-ebd-user', {
+            body: {
+              email: formData.email_superintendente,
+              password: senhaGerada,
+              fullName: formData.nome_responsavel || formData.nome_igreja,
+              clienteId: novoCliente.id,
+            }
+          });
+
+          if (authError) {
+            console.error('Error creating auth user:', authError);
+            toast.warning("Cliente cadastrado, mas houve um erro ao criar o acesso. Use a função de ativação.");
+          } else {
+            console.log('Auth user created successfully:', authResponse);
+          }
+        } catch (authFuncError) {
+          console.error('Error calling create-ebd-user:', authFuncError);
+          toast.warning("Cliente cadastrado, mas houve um erro ao criar o acesso. Use a função de ativação.");
+        }
+
+        toast.success("Cliente cadastrado com sucesso! Senha: " + senhaGerada);
       }
 
       resetForm();
