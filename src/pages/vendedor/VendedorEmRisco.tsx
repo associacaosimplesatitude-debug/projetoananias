@@ -43,7 +43,7 @@ export default function VendedorEmRisco() {
   });
 
   const handleFazerPedido = (cliente: Cliente) => {
-    navigate(`/ebd/shopify-pedidos?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
+    navigate(`/vendedor/shopify?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
   };
 
   if (vendedorLoading || isLoading) {
