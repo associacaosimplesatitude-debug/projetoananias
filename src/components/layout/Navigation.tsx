@@ -118,7 +118,6 @@ export const Navigation = () => {
   ];
 
   const clientCatalogosDropdown = [
-    { to: '/ebd/catalogo', label: 'Catálogo' },
     { to: '/ebd/pedidos', label: 'Meus Pedidos' },
     { to: '/ebd/shopify-pedidos', label: 'Shopify' },
   ];
