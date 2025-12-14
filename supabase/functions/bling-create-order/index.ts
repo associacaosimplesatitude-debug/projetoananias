@@ -210,16 +210,13 @@ serve(async (req) => {
     }
 
     // Se não conseguiu criar ou encontrar contato, criar um genérico com endereço
+    // IMPORTANTE: NÃO enviar numeroDocumento no contato genérico pois pode ser rejeitado se inválido
     if (!contatoId) {
-      console.log('Não foi possível criar/encontrar contato, criando consumidor genérico com endereço...');
+      console.log('Não foi possível criar/encontrar contato, criando consumidor genérico SEM documento...');
       
-      const genericTipo = documento.length > 11 ? 'J' : 'F';
-
       const genericContatoData: any = {
         nome: nomeCompleto || 'Consumidor Final',
-        tipo: genericTipo,
-        // garantir que o CPF/CNPJ também seja enviado mesmo no contato genérico
-        ...(documento ? { numeroDocumento: documento } : {}),
+        tipo: 'F', // Sempre pessoa física para genérico
         situacao: 'A', // A = Ativo (obrigatório para Bling API v3)
       };
 
@@ -237,6 +234,8 @@ serve(async (req) => {
         };
       }
 
+      console.log('Tentando criar contato genérico:', JSON.stringify(genericContatoData, null, 2));
+
       const genericResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
         method: 'POST',
         headers: {
@@ -253,7 +252,8 @@ serve(async (req) => {
         console.log('Contato genérico criado, ID:', contatoId);
       } else {
         console.error('Erro ao criar contato genérico:', genericResult);
-        throw new Error('Não foi possível criar contato no Bling');
+        // NÃO travar aqui - continuar sem contato se necessário
+        console.log('Continuando sem contato vinculado...');
       }
     }
 
