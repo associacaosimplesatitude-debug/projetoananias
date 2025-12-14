@@ -1125,52 +1125,11 @@ export default function Checkout() {
         console.error('Erro ao criar itens do pedido:', itensError);
       }
 
-      // Preparar itens para Shopify (precisa dos variant IDs)
-      // Como estamos usando revistas do banco local, precisamos buscar os variant IDs do Shopify
-      // Por enquanto, vamos usar o bling_produto_id como referência
-      const shopifyItems = revistaIds.map(revistaId => {
-        const revista = revistas?.find(r => r.id === revistaId);
-        const precoUnitario = (revista?.preco_cheio || 0) * 0.7;
-        return {
-          variantId: `gid://shopify/ProductVariant/${revista?.bling_produto_id || revistaId}`,
-          quantity: cart[revistaId],
-          title: revista?.titulo || 'Revista EBD',
-          price: precoUnitario.toString(),
-        };
-      });
-
-      // 1. Criar Draft Order na Shopify com Payment Terms
-      const { data: shopifyResult, error: shopifyError } = await supabase.functions.invoke(
-        'ebd-shopify-order-create',
-        {
-          body: {
-            cliente: {
-              id: targetChurchId,
-              nome_igreja: vendedorCliente?.nome_igreja || data.nome,
-              cnpj: data.cpf,
-              email_superintendente: data.email,
-              telefone: null,
-              nome_responsavel: `${data.nome} ${data.sobrenome}`,
-              endereco_cep: data.cep,
-              endereco_rua: data.rua,
-              endereco_numero: data.numero,
-              endereco_bairro: data.bairro,
-              endereco_cidade: data.cidade,
-              endereco_estado: data.estado,
-            },
-            items: shopifyItems,
-            forma_pagamento: 'FATURAMENTO',
-            faturamento_prazo: faturamentoPrazo,
-          },
-        }
-      );
-
-      if (shopifyError) {
-        console.error('Erro ao criar pedido no Shopify:', shopifyError);
-        // Continuar mesmo se falhar o Shopify, pois ainda temos o Bling
-      } else if (shopifyResult?.draftOrderId) {
-        console.log('Draft Order Shopify criado:', shopifyResult.draftOrderId);
-      }
+      // Variável para armazenar resultado do Shopify (opcional)
+      let shopifyResult: { draftOrderId?: string; invoiceUrl?: string } | null = null;
+      
+      // Nota: A integração Shopify para faturamento B2B requer mapeamento de variant IDs
+      // Por enquanto, processamos apenas via Bling para pedidos de faturamento
 
       // 2. Enviar para o Bling com condição de pagamento parcelado
       const { data: blingResult, error: blingError } = await supabase.functions.invoke(
@@ -1246,11 +1205,17 @@ export default function Checkout() {
       }
       
       navigate(`/ebd/order-success?pedido=${pedido.id}&faturamento=true`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao processar faturamento:', error);
+      const errorMessage = error?.message || 'Tente novamente mais tarde';
+      const isBlingError = errorMessage.toLowerCase().includes('bling') || 
+                           errorMessage.toLowerCase().includes('token') ||
+                           errorMessage.toLowerCase().includes('renovar');
       toast({
         title: 'Erro ao processar faturamento',
-        description: 'Tente novamente mais tarde',
+        description: isBlingError 
+          ? 'Erro de integração com o sistema. Por favor, entre em contato com o suporte.'
+          : errorMessage,
         variant: 'destructive',
       });
     } finally {
