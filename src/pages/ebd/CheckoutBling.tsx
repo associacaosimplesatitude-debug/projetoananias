@@ -50,7 +50,7 @@ export default function CheckoutBling() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [cart, setCart] = useState<{ [key: string]: number }>({});
-  const [faturamentoPrazo, setFaturamentoPrazo] = useState<'30' | '60' | '90'>('30');
+  const [faturamentoPrazo, setFaturamentoPrazo] = useState<'1' | '2' | '3'>('3');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get client ID from sessionStorage
@@ -120,51 +120,18 @@ export default function CheckoutBling() {
     setIsSubmitting(true);
 
     try {
-      // Create local order in ebd_pedidos
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('ebd_pedidos')
-        .insert({
-          church_id: clienteId!,
-          status: 'faturamento_pendente',
-          payment_status: 'faturamento',
-          valor_produtos: subtotal,
-          valor_frete: 0, // Will be calculated by Bling/logistics
-          valor_total: subtotal,
-          endereco_cep: cliente.endereco_cep || '',
-          endereco_rua: cliente.endereco_rua || '',
-          endereco_numero: cliente.endereco_numero || '',
-          endereco_complemento: cliente.endereco_complemento || null,
-          endereco_bairro: cliente.endereco_bairro || '',
-          endereco_cidade: cliente.endereco_cidade || '',
-          endereco_estado: cliente.endereco_estado || '',
-          nome_cliente: cliente.nome_igreja,
-          email_cliente: cliente.email_superintendente,
-          cpf_cnpj_cliente: cliente.cnpj || cliente.cpf,
-          telefone_cliente: cliente.telefone,
-        })
-        .select()
-        .single();
+      // Get payment terms based on selection
+      const getPrazos = () => {
+        switch (faturamentoPrazo) {
+          case '1': return { parcelas: 1, texto: '30 dias', obs: '30 DIAS' };
+          case '2': return { parcelas: 2, texto: '30/60 dias', obs: '30/60 DIAS' };
+          case '3': return { parcelas: 3, texto: '30/60/90 dias', obs: '30/60/90 DIAS' };
+          default: return { parcelas: 3, texto: '30/60/90 dias', obs: '30/60/90 DIAS' };
+        }
+      };
+      const prazos = getPrazos();
 
-      if (pedidoError) throw pedidoError;
-
-      // Create order items
-      const itensData = revistas.map(revista => ({
-        pedido_id: pedido.id,
-        revista_id: revista.id,
-        quantidade: cart[revista.id],
-        preco_unitario: (revista.preco_cheio || 0) * 0.7,
-        preco_total: (revista.preco_cheio || 0) * 0.7 * cart[revista.id],
-      }));
-
-      const { error: itensError } = await supabase
-        .from('ebd_pedidos_itens')
-        .insert(itensData);
-
-      if (itensError) {
-        console.error('Erro ao criar itens:', itensError);
-      }
-
-      // Prepare items for Bling
+      // Prepare items for Bling (skip local order since church_id is from different table)
       const blingItems = revistas.map(revista => ({
         codigo: revista.bling_produto_id?.toString() || revista.id,
         descricao: revista.titulo,
@@ -195,33 +162,16 @@ export default function CheckoutBling() {
               },
             },
             items: blingItems,
-            observacao: `CONDIÇÃO DE PAGAMENTO: ${faturamentoPrazo}/${parseInt(faturamentoPrazo) + 30}/${parseInt(faturamentoPrazo) + 60} DIAS - BOLETO FATURADO`,
+            observacao: `CONDIÇÃO DE PAGAMENTO: ${prazos.obs} - ${prazos.parcelas} BOLETO(S) FATURADO(S)`,
             formaPagamento: 'FATURAMENTO',
-            condicaoPagamento: faturamentoPrazo,
+            condicaoPagamento: prazos.parcelas.toString(),
           },
         }
       );
 
       if (blingError) {
         console.error('Erro Bling:', blingError);
-        // Update local order with error status
-        await supabase
-          .from('ebd_pedidos')
-          .update({ status: 'erro_bling' })
-          .eq('id', pedido.id);
-        
         throw new Error('Erro ao enviar pedido para o Bling. Verifique a integração.');
-      }
-
-      // Update local order with Bling ID
-      if (blingResult?.pedidoId) {
-        await supabase
-          .from('ebd_pedidos')
-          .update({ 
-            bling_order_id: blingResult.pedidoId,
-            status: 'faturamento_enviado',
-          })
-          .eq('id', pedido.id);
       }
 
       // Clear cart and session data
@@ -229,7 +179,7 @@ export default function CheckoutBling() {
       sessionStorage.removeItem('modo-bling');
       
       // Navigate to success page
-      navigate(`/ebd/order-success?pedido=${pedido.id}&faturamento=true&prazo=${faturamentoPrazo}`);
+      navigate(`/ebd/order-success?faturamento=true&prazo=${prazos.texto}`);
 
     } catch (error: any) {
       console.error('Erro ao processar faturamento:', error);
@@ -322,33 +272,33 @@ export default function CheckoutBling() {
               <CardContent>
                 <RadioGroup
                   value={faturamentoPrazo}
-                  onValueChange={(v) => setFaturamentoPrazo(v as '30' | '60' | '90')}
+                  onValueChange={(v) => setFaturamentoPrazo(v as '1' | '2' | '3')}
                   className="space-y-3"
                 >
                   <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
-                    <RadioGroupItem value="30" id="prazo-30" />
-                    <Label htmlFor="prazo-30" className="cursor-pointer flex-1">
+                    <RadioGroupItem value="1" id="prazo-1" />
+                    <Label htmlFor="prazo-1" className="cursor-pointer flex-1">
+                      <span className="font-medium">30 dias</span>
+                      <p className="text-sm text-muted-foreground">
+                        1 boleto: pagamento em 30 dias
+                      </p>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="2" id="prazo-2" />
+                    <Label htmlFor="prazo-2" className="cursor-pointer flex-1">
+                      <span className="font-medium">30/60 dias</span>
+                      <p className="text-sm text-muted-foreground">
+                        2 boletos: 1ª parcela em 30 dias
+                      </p>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="3" id="prazo-3" />
+                    <Label htmlFor="prazo-3" className="cursor-pointer flex-1">
                       <span className="font-medium">30/60/90 dias</span>
                       <p className="text-sm text-muted-foreground">
                         3 boletos: 1ª parcela em 30 dias
-                      </p>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
-                    <RadioGroupItem value="60" id="prazo-60" />
-                    <Label htmlFor="prazo-60" className="cursor-pointer flex-1">
-                      <span className="font-medium">60/90/120 dias</span>
-                      <p className="text-sm text-muted-foreground">
-                        3 boletos: 1ª parcela em 60 dias
-                      </p>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
-                    <RadioGroupItem value="90" id="prazo-90" />
-                    <Label htmlFor="prazo-90" className="cursor-pointer flex-1">
-                      <span className="font-medium">90/120/150 dias</span>
-                      <p className="text-sm text-muted-foreground">
-                        3 boletos: 1ª parcela em 90 dias
                       </p>
                     </Label>
                   </div>
@@ -410,7 +360,7 @@ export default function CheckoutBling() {
 
                 <Badge variant="outline" className="w-full justify-center py-2 text-blue-600 border-blue-300 bg-blue-50">
                   <FileText className="h-4 w-4 mr-2" />
-                  Pagamento: {faturamentoPrazo}/{parseInt(faturamentoPrazo) + 30}/{parseInt(faturamentoPrazo) + 60} dias
+                  Pagamento: {faturamentoPrazo === '1' ? '30 dias' : faturamentoPrazo === '2' ? '30/60 dias' : '30/60/90 dias'}
                 </Badge>
 
                 <Button
