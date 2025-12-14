@@ -155,10 +155,13 @@ export default function VendedorAtivacaoEBD() {
       // Calculate next purchase date (13 weeks from start date)
       const dataProximaCompra = addWeeks(dataInicio, 13);
 
-      // 1. Create the superintendent user via edge function
+      // 1. Create or update the superintendent user via edge function
       // Use existing password from ebd_clientes or generate a new one
       const tempPassword = cliente?.senha_temporaria || (Math.random().toString(36).slice(-8) + "A1!");
-      
+      const fullName = cliente?.nome_superintendente || "Superintendente";
+
+      let userId: string | null = null;
+
       try {
         const { data: userData, error: userError } = await supabase.functions.invoke(
           "create-ebd-user",
@@ -166,50 +169,52 @@ export default function VendedorAtivacaoEBD() {
             body: {
               email: emailSuperintendente,
               password: tempPassword,
-              fullName: cliente?.nome_superintendente || "Superintendente",
+              fullName,
+              clienteId,
             },
           }
         );
 
         if (userError) {
-          console.error("Error creating user:", userError);
-          // Continue anyway, might already exist
+          console.error("Error creating/updating user:", userError, userData);
+          throw userError;
         }
 
-        // 2. Update the cliente record with the generated password
-        const { error: updateError } = await supabase
-          .from("ebd_clientes")
-          .update({
-            email_superintendente: emailSuperintendente,
-            dia_aula: diaAula,
-            data_inicio_ebd: format(dataInicio, "yyyy-MM-dd"),
-            data_proxima_compra: format(dataProximaCompra, "yyyy-MM-dd"),
-            status_ativacao_ebd: true,
-            superintendente_user_id: userData?.userId || null,
-            senha_temporaria: tempPassword, // Save the generated password
-          })
-          .eq("id", clienteId);
-
-        if (updateError) throw updateError;
-
-        // 3. Send welcome email
-        try {
-          await supabase.functions.invoke("send-welcome-email", {
-            body: {
-              email: emailSuperintendente,
-              nome: cliente?.nome_superintendente || "Superintendente",
-              igreja: cliente?.nome_igreja || clienteNome,
-              senha: tempPassword,
-            },
-          });
-        } catch (emailError) {
-          console.error("Error sending welcome email:", emailError);
-          // Continue anyway
-        }
-
+        userId = userData?.userId ?? null;
       } catch (e) {
         console.error("Error in user creation flow:", e);
         throw e;
+      }
+
+      // 2. Update the cliente record with the generated password and activation data
+      const { error: updateError } = await supabase
+        .from("ebd_clientes")
+        .update({
+          email_superintendente: emailSuperintendente,
+          dia_aula: diaAula,
+          data_inicio_ebd: format(dataInicio, "yyyy-MM-dd"),
+          data_proxima_compra: format(dataProximaCompra, "yyyy-MM-dd"),
+          status_ativacao_ebd: true,
+          superintendente_user_id: userId,
+          senha_temporaria: tempPassword, // Save the generated password
+        })
+        .eq("id", clienteId);
+
+      if (updateError) throw updateError;
+
+      // 3. Send welcome email
+      try {
+        await supabase.functions.invoke("send-welcome-email", {
+          body: {
+            email: emailSuperintendente,
+            nome: fullName,
+            igreja: cliente?.nome_igreja || clienteNome,
+            senha: tempPassword,
+          },
+        });
+      } catch (emailError) {
+        console.error("Error sending welcome email:", emailError);
+        // Continue anyway
       }
 
       // Clear cart from sessionStorage

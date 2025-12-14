@@ -253,12 +253,36 @@ export function CadastrarClienteDialog({
       };
 
       if (isEditMode && clienteParaEditar) {
+        // Atualiza os dados do cliente
         const { error } = await supabase
           .from("ebd_clientes")
           .update(clienteData)
           .eq("id", clienteParaEditar.id);
 
         if (error) throw error;
+
+        // Se o vendedor informou uma nova senha, atualiza também o usuário de login
+        if (formData.senha) {
+          try {
+            const { data: authResp, error: authError } = await supabase.functions.invoke('create-ebd-user', {
+              body: {
+                email: formData.email_superintendente,
+                password: formData.senha,
+                fullName: formData.nome_responsavel || formData.nome_igreja,
+                clienteId: clienteParaEditar.id,
+              },
+            });
+
+            if (authError) {
+              console.error('Erro ao atualizar usuário do cliente:', authError, authResp);
+              toast.warning('Dados do cliente atualizados, mas houve erro ao atualizar o acesso de login.');
+            }
+          } catch (authFuncError) {
+            console.error('Erro ao chamar create-ebd-user na edição:', authFuncError);
+            toast.warning('Dados do cliente atualizados, mas houve erro ao atualizar o acesso de login.');
+          }
+        }
+
         toast.success("Cliente atualizado com sucesso!");
       } else {
         // First, create the cliente record
@@ -293,7 +317,7 @@ export function CadastrarClienteDialog({
           });
 
           if (authError) {
-            console.error('Error creating auth user:', authError);
+            console.error('Error creating auth user:', authError, authResponse);
             toast.warning("Cliente cadastrado, mas houve um erro ao criar o acesso. Use a função de ativação.");
           } else {
             console.log('Auth user created successfully:', authResponse);
