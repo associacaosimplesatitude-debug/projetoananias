@@ -58,7 +58,11 @@ export default function ShopifyPedidos() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
   const [showFaturamentoDialog, setShowFaturamentoDialog] = useState(false);
-  const [selectedFaturamentoPrazo, setSelectedFaturamentoPrazo] = useState<string | null>(null);
+  const [faturamentoConfig, setFaturamentoConfig] = useState<{
+    prazo: string;
+    desconto: number;
+    frete: { type: string; cost: number };
+  } | null>(null);
   
   // Get vendedor info for the logged-in user
   const { vendedor, isLoading: isLoadingVendedor } = useVendedor();
@@ -185,22 +189,26 @@ export default function ShopifyPedidos() {
       setShowFaturamentoDialog(true);
     } else {
       // Normal checkout flow
-      handleCreateDraftOrder(null);
+      handleCreateDraftOrder(null, 0, null);
     }
   };
 
-  const handleSelectFaturamento = (prazo: string) => {
-    setSelectedFaturamentoPrazo(prazo);
+  const handleSelectFaturamento = (prazo: string, desconto: number, frete: { type: string; cost: number }) => {
+    setFaturamentoConfig({ prazo, desconto, frete });
     setShowFaturamentoDialog(false);
-    handleCreateDraftOrder(prazo);
+    handleCreateDraftOrder(prazo, desconto, frete);
   };
 
   const handleSelectPagamentoPadrao = () => {
     setShowFaturamentoDialog(false);
-    handleCreateDraftOrder(null);
+    handleCreateDraftOrder(null, 0, null);
   };
 
-  const handleCreateDraftOrder = async (faturamentoPrazo: string | null) => {
+  const handleCreateDraftOrder = async (
+    faturamentoPrazo: string | null, 
+    descontoPercent: number = 0, 
+    frete: { type: string; cost: number } | null = null
+  ) => {
     if (!selectedCliente) {
       toast.error("Selecione um cliente");
       return;
@@ -218,6 +226,7 @@ export default function ShopifyPedidos() {
         body: {
           cliente: selectedCliente,
           vendedor_id: vendedor?.id,
+          vendedor_nome: vendedor?.nome,
           items: items.map(item => ({
             variantId: item.variantId,
             quantity: item.quantity,
@@ -227,6 +236,9 @@ export default function ShopifyPedidos() {
           ...(faturamentoPrazo && {
             forma_pagamento: 'FATURAMENTO',
             faturamento_prazo: faturamentoPrazo,
+            desconto_percentual: descontoPercent.toString(),
+            valor_frete: frete?.cost?.toString() || '0',
+            metodo_frete: frete?.type || 'free',
           })
         }
       });
@@ -242,7 +254,7 @@ export default function ShopifyPedidos() {
         clearCart();
         setSelectedCliente(null);
         setIsCartOpen(false);
-        setSelectedFaturamentoPrazo(null);
+        setFaturamentoConfig(null);
         
         // Navigate to vendedor orders page if vendedor
         if (isVendedor) {
@@ -254,7 +266,7 @@ export default function ShopifyPedidos() {
         clearCart();
         setSelectedCliente(null);
         setIsCartOpen(false);
-        setSelectedFaturamentoPrazo(null);
+        setFaturamentoConfig(null);
         window.open(data.invoiceUrl, '_blank');
       } else {
         throw new Error("Resposta inesperada do servidor");
@@ -566,6 +578,9 @@ export default function ShopifyPedidos() {
         open={showFaturamentoDialog}
         onOpenChange={setShowFaturamentoDialog}
         clienteNome={selectedCliente?.nome_igreja || ''}
+        clienteCep={selectedCliente?.endereco_cep || null}
+        totalProdutos={totalPrice}
+        items={items.map(item => ({ quantity: item.quantity }))}
         onSelectFaturamento={handleSelectFaturamento}
         onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
       />

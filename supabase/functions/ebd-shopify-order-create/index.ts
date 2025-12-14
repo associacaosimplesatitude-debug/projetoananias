@@ -53,14 +53,22 @@ serve(async (req) => {
       cliente, 
       items, 
       vendedor_id,
-      faturamento_prazo, // "30", "60", or "90" for B2B invoicing
-      forma_pagamento,   // "FATURAMENTO" for B2B invoicing
+      vendedor_nome,      // Vendor name for Bling
+      faturamento_prazo,  // "30", "60", or "90" for B2B invoicing
+      forma_pagamento,    // "FATURAMENTO" for B2B invoicing
+      desconto_percentual, // Discount percentage for B2B clients
+      valor_frete,        // Shipping cost
+      metodo_frete,       // PAC, SEDEX, or FREE
     } = await req.json() as { 
       cliente: Cliente; 
       items: CartItem[];
       vendedor_id?: string;
+      vendedor_nome?: string;
       faturamento_prazo?: string;
       forma_pagamento?: string;
+      desconto_percentual?: string;
+      valor_frete?: string;
+      metodo_frete?: string;
     };
 
     if (!cliente || !items || items.length === 0) {
@@ -74,10 +82,18 @@ serve(async (req) => {
     const finalVendedorId = vendedor_id || cliente.vendedor_id;
     const isFaturamento = forma_pagamento === 'FATURAMENTO' && faturamento_prazo;
     
+    // Parse discount and shipping info
+    const descontoPercentual = desconto_percentual ? parseFloat(desconto_percentual) : 0;
+    const valorFreteRecebido = valor_frete ? parseFloat(valor_frete) : 0;
+    const metodoFreteRecebido = metodo_frete || null;
+    
     console.log("Creating draft order for cliente:", cliente.nome_igreja);
     console.log("Vendedor ID:", finalVendedorId);
+    console.log("Vendedor Nome:", vendedor_nome);
     console.log("Items:", items);
     console.log("Faturamento:", isFaturamento, "Prazo:", faturamento_prazo);
+    console.log("Desconto:", descontoPercentual, "%");
+    console.log("Frete:", metodoFreteRecebido, "Valor:", valorFreteRecebido);
 
     // Step 1: Search for existing customer or create new one
     const customerEmail = cliente.email_superintendente || `${cliente.cnpj.replace(/\D/g, '')}@placeholder.com`;
@@ -301,22 +317,32 @@ serve(async (req) => {
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
       
-      // Format items for Bling
-      const itensBling = items.map(item => ({
-        descricao: item.title,
-        unidade: 'UN',
-        quantidade: item.quantity,
-        valor: parseFloat(item.price),
-        preco_cheio: parseFloat(item.price),
-      }));
+      // Format items for Bling - apply discount if provided
+      const itensBling = items.map(item => {
+        const precoOriginal = parseFloat(item.price);
+        const precoComDesconto = descontoPercentual > 0 
+          ? precoOriginal * (1 - descontoPercentual / 100) 
+          : precoOriginal;
+        
+        return {
+          descricao: item.title,
+          unidade: 'UN',
+          quantidade: item.quantity,
+          valor: precoComDesconto,
+          preco_cheio: precoOriginal,
+        };
+      });
 
-      // Calculate total
-      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
-      const valorTotal = valorProdutos; // No shipping for B2B faturamento orders
+      // Calculate totals with discount
+      const valorProdutosSemDesconto = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
+      const valorProdutos = descontoPercentual > 0 
+        ? valorProdutosSemDesconto * (1 - descontoPercentual / 100)
+        : valorProdutosSemDesconto;
+      const valorTotal = valorProdutos + valorFreteRecebido;
       
-      // Prepare cliente data for Bling
+      // Prepare cliente data for Bling - use nome_igreja (church name) instead of nome_responsavel
       const clienteBling = {
-        nome: cliente.nome_responsavel || cliente.nome_igreja,
+        nome: cliente.nome_igreja, // Changed to use church name
         cpf_cnpj: cliente.cnpj,
         email: cliente.email_superintendente,
         telefone: cliente.telefone,
@@ -339,12 +365,14 @@ serve(async (req) => {
           endereco_entrega: enderecoBling,
           itens: itensBling,
           pedido_id: draftOrder.id,
-          valor_frete: 0,
-          metodo_frete: 'free',
+          valor_frete: valorFreteRecebido,
+          metodo_frete: metodoFreteRecebido || 'free',
           forma_pagamento: 'FATURAMENTO',
           faturamento_prazo: faturamento_prazo,
           valor_produtos: valorProdutos,
           valor_total: valorTotal,
+          vendedor_nome: vendedor_nome, // Pass vendor name to Bling
+          desconto_percentual: descontoPercentual,
         }
       });
 
