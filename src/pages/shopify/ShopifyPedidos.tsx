@@ -12,6 +12,7 @@ import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
+import { FaturamentoSelectionDialog } from "@/components/shopify/FaturamentoSelectionDialog";
 import {
   Select,
   SelectContent,
@@ -41,6 +42,7 @@ interface Cliente {
   endereco_bairro: string | null;
   endereco_cidade: string | null;
   endereco_estado: string | null;
+  pode_faturar: boolean;
 }
 
 export default function ShopifyPedidos() {
@@ -55,6 +57,8 @@ export default function ShopifyPedidos() {
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  const [showFaturamentoDialog, setShowFaturamentoDialog] = useState(false);
+  const [selectedFaturamentoPrazo, setSelectedFaturamentoPrazo] = useState<string | null>(null);
   
   // Get vendedor info for the logged-in user
   const { vendedor, isLoading: isLoadingVendedor } = useVendedor();
@@ -165,7 +169,38 @@ export default function ShopifyPedidos() {
     toast.success("Produto adicionado ao carrinho", { position: "top-center" });
   };
 
-  const handleCreateDraftOrder = async () => {
+  const handleCheckoutClick = () => {
+    if (!selectedCliente) {
+      toast.error("Selecione um cliente");
+      return;
+    }
+
+    if (items.length === 0) {
+      toast.error("Adicione produtos ao carrinho");
+      return;
+    }
+
+    // Check if client can use B2B invoicing
+    if (selectedCliente.pode_faturar && isVendedor) {
+      setShowFaturamentoDialog(true);
+    } else {
+      // Normal checkout flow
+      handleCreateDraftOrder(null);
+    }
+  };
+
+  const handleSelectFaturamento = (prazo: string) => {
+    setSelectedFaturamentoPrazo(prazo);
+    setShowFaturamentoDialog(false);
+    handleCreateDraftOrder(prazo);
+  };
+
+  const handleSelectPagamentoPadrao = () => {
+    setShowFaturamentoDialog(false);
+    handleCreateDraftOrder(null);
+  };
+
+  const handleCreateDraftOrder = async (faturamentoPrazo: string | null) => {
     if (!selectedCliente) {
       toast.error("Selecione um cliente");
       return;
@@ -182,23 +217,31 @@ export default function ShopifyPedidos() {
       const { data, error } = await supabase.functions.invoke('ebd-shopify-order-create', {
         body: {
           cliente: selectedCliente,
-          vendedor_id: vendedor?.id, // Include vendedor_id for commission tracking
+          vendedor_id: vendedor?.id,
           items: items.map(item => ({
             variantId: item.variantId,
             quantity: item.quantity,
             title: item.product.node.title,
             price: item.price.amount
-          }))
+          })),
+          ...(faturamentoPrazo && {
+            forma_pagamento: 'FATURAMENTO',
+            faturamento_prazo: faturamentoPrazo,
+          })
         }
       });
 
       if (error) throw error;
 
       if (data?.invoiceUrl) {
-        toast.success("Pedido criado com sucesso!");
+        const successMessage = faturamentoPrazo 
+          ? `Pedido faturado em ${faturamentoPrazo} dias criado com sucesso!` 
+          : "Pedido criado com sucesso!";
+        toast.success(successMessage);
         clearCart();
         setSelectedCliente(null);
         setIsCartOpen(false);
+        setSelectedFaturamentoPrazo(null);
         window.open(data.invoiceUrl, '_blank');
       } else {
         throw new Error("URL de checkout não retornada");
@@ -285,6 +328,11 @@ export default function ShopifyPedidos() {
                         {selectedCliente.email_superintendente && (
                           <p>Email: {selectedCliente.email_superintendente}</p>
                         )}
+                        {selectedCliente.pode_faturar && (
+                          <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                            B2B - Pode Faturar 30/60/90 dias
+                          </Badge>
+                        )}
                       </div>
                     )}
                   </div>
@@ -300,6 +348,11 @@ export default function ShopifyPedidos() {
                     <p className="font-medium">{selectedCliente.nome_igreja}</p>
                     <div className="mt-1 text-xs text-muted-foreground">
                       <p>CNPJ: {selectedCliente.cnpj}</p>
+                      {selectedCliente.pode_faturar && isVendedor && (
+                        <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                          B2B - Pode Faturar 30/60/90 dias
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 )}
@@ -378,7 +431,7 @@ export default function ShopifyPedidos() {
                       </div>
                       
                         <Button 
-                          onClick={handleCreateDraftOrder}
+                          onClick={handleCheckoutClick}
                           className="w-full" 
                           size="lg"
                           disabled={items.length === 0 || !selectedCliente || isLoadingClientInfo || isCreatingDraft}
@@ -494,6 +547,15 @@ export default function ShopifyPedidos() {
           </div>
         )}
       </div>
+
+      {/* Faturamento Selection Dialog */}
+      <FaturamentoSelectionDialog
+        open={showFaturamentoDialog}
+        onOpenChange={setShowFaturamentoDialog}
+        clienteNome={selectedCliente?.nome_igreja || ''}
+        onSelectFaturamento={handleSelectFaturamento}
+        onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
+      />
     </div>
   );
 }
