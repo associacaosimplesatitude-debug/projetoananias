@@ -260,10 +260,70 @@ serve(async (req) => {
     // Calcular desconto total da venda
     let descontoTotalVenda = 0;
     
+    // Função auxiliar para buscar produto no Bling pelo nome
+    async function findBlingProductByName(productName: string): Promise<number | null> {
+      try {
+        // Buscar produto pelo nome (pesquisa parcial)
+        const searchResponse = await fetch(
+          `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=10&nome=${encodeURIComponent(productName.substring(0, 60))}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          }
+        );
+        
+        if (!searchResponse.ok) {
+          console.log(`Erro ao buscar produto por nome: ${productName}`);
+          return null;
+        }
+        
+        const searchData = await searchResponse.json();
+        const produtos = searchData.data || [];
+        
+        if (produtos.length > 0) {
+          // Tentar encontrar match exato primeiro
+          const exactMatch = produtos.find((p: any) => 
+            p.nome?.toLowerCase() === productName.toLowerCase()
+          );
+          
+          if (exactMatch) {
+            console.log(`Produto encontrado (match exato): ${exactMatch.nome} -> ID ${exactMatch.id}`);
+            return exactMatch.id;
+          }
+          
+          // Se não, usar o primeiro resultado
+          console.log(`Produto encontrado (primeiro resultado): ${produtos[0].nome} -> ID ${produtos[0].id}`);
+          return produtos[0].id;
+        }
+        
+        console.log(`Nenhum produto encontrado para: ${productName}`);
+        return null;
+      } catch (error) {
+        console.error(`Erro ao buscar produto: ${error}`);
+        return null;
+      }
+    }
+    
     // Preparar itens com Preço de Lista e Desconto separados
     // Bling API v3: valor = preço de lista, desconto = valor do desconto por unidade
-    const itensBling = itens.map((item: any) => {
-      const blingProdutoId = parseInt(item.codigo, 10);
+    const itensBling = [];
+    
+    for (const item of itens as any[]) {
+      let blingProdutoId = parseInt(item.codigo, 10);
+      
+      // Se o código não é um número válido, buscar pelo nome no Bling
+      if (!blingProdutoId || isNaN(blingProdutoId)) {
+        console.log(`bling_produto_id inválido (${item.codigo}), buscando pelo nome: ${item.descricao}`);
+        const foundId = await findBlingProductByName(item.descricao);
+        if (foundId) {
+          blingProdutoId = foundId;
+        } else {
+          console.error(`ERRO: Não foi possível encontrar o produto no Bling: ${item.descricao}`);
+          // Continuar sem o ID - o Bling vai criar como produto novo
+        }
+      }
       
       // preco_cheio = preço de tabela (sem desconto)
       // valor = preço com desconto aplicado
@@ -278,25 +338,23 @@ serve(async (req) => {
       descontoTotalVenda += descontoUnidade * quantidade;
       
       console.log(`Item: ${item.descricao}`);
-      console.log(`  - bling_produto_id: ${item.codigo} -> ${blingProdutoId}`);
+      console.log(`  - bling_produto_id: ${blingProdutoId}`);
       console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
       console.log(`  - Preço com Desconto: R$ ${precoComDesconto.toFixed(2)}`);
       console.log(`  - Desconto por Unidade: R$ ${descontoUnidade.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
       
-      if (!blingProdutoId || isNaN(blingProdutoId)) {
-        console.error(`ERRO: bling_produto_id inválido para item: ${item.descricao}`);
-      }
-      
       const itemBling: any = {
-        produto: {
-          id: blingProdutoId, // ID interno do produto no Bling
-        },
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
         valor: precoLista, // Preço de Lista (sem desconto)
       };
+      
+      // Só adicionar produto.id se for válido
+      if (blingProdutoId && !isNaN(blingProdutoId)) {
+        itemBling.produto = { id: blingProdutoId };
+      }
       
       // Adicionar desconto apenas se houver
       if (descontoUnidade > 0) {
@@ -306,8 +364,8 @@ serve(async (req) => {
         };
       }
       
-      return itemBling;
-    });
+      itensBling.push(itemBling);
+    }
 
     console.log(`Desconto Total da Venda: R$ ${descontoTotalVenda.toFixed(2)}`);
 
