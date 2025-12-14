@@ -206,9 +206,10 @@ export default function EBDLogin() {
         } else {
           toast({
             title: 'Conta criada com sucesso!',
-            description: 'Você já pode fazer login.',
+            description: 'Redirecionando para o painel...',
           });
-          setIsLogin(true);
+          // Redirect immediately to EBD dashboard after signup
+          navigate('/ebd/dashboard');
         }
       }
     } catch (error) {
