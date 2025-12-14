@@ -173,7 +173,10 @@ export default function CheckoutBling() {
 
       if (blingError) {
         console.error('Erro Bling:', blingError);
-        throw new Error('Erro ao enviar pedido para o Bling. Verifique a integração.');
+        // Extract the actual error message from the response
+        const errorData = blingResult as { error?: string; errorType?: string } | null;
+        const errorMsg = errorData?.error || 'Erro ao enviar pedido para o Bling.';
+        throw new Error(errorMsg);
       }
 
       // Clear cart and session data
