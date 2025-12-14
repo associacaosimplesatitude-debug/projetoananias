@@ -102,6 +102,7 @@ import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
 import EBDLogin from "./pages/EBDLogin";
 import LandingEBD from "./pages/LandingEBD";
+import EBDLandingRedirect from "./components/EBDLandingRedirect";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -113,7 +114,11 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-              <Route path="/auth" element={<Auth />} />
+              <Route path="/auth" element={
+                <EBDLandingRedirect>
+                  <Auth />
+                </EBDLandingRedirect>
+              } />
               <Route path="/login/ebd" element={<EBDLogin />} />
               <Route path="/gestao-ebd" element={<LandingEBD />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
