@@ -51,7 +51,10 @@ export default function ShopifyPedidos() {
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
   
   // Get vendedor info for the logged-in user
-  const { vendedor } = useVendedor();
+  const { vendedor, isLoading: isLoadingVendedor } = useVendedor();
+  
+  // Check if user is a vendedor
+  const isVendedor = !!vendedor;
   
   const { 
     items, 
@@ -67,6 +70,7 @@ export default function ShopifyPedidos() {
     queryFn: () => fetchShopifyProducts(100),
   });
 
+  // Only fetch clients if user is a vendedor
   const { data: clientes, isLoading: isLoadingClientes } = useQuery({
     queryKey: ['ebd-clientes-shopify'],
     queryFn: async () => {
@@ -78,7 +82,34 @@ export default function ShopifyPedidos() {
       if (error) throw error;
       return data as Cliente[];
     },
+    enabled: isVendedor,
   });
+
+  // Get logged-in user's client data if not a vendedor
+  const { data: userCliente } = useQuery({
+    queryKey: ['user-cliente-shopify'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) return null;
+      
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('*')
+        .eq('email_superintendente', user.email)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data as Cliente | null;
+    },
+    enabled: !isVendedor && !isLoadingVendedor,
+  });
+
+  // Auto-select user's client when not a vendedor
+  useEffect(() => {
+    if (!isVendedor && userCliente && !selectedCliente) {
+      setSelectedCliente(userCliente);
+    }
+  }, [isVendedor, userCliente, selectedCliente]);
 
   const filteredProducts = products?.filter(product =>
     product.node.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -189,39 +220,55 @@ export default function ShopifyPedidos() {
               </SheetHeader>
               
               <div className="flex flex-col flex-1 pt-6 min-h-0">
-                {/* Cliente Selection */}
-                <div className="mb-4 p-4 bg-muted/50 rounded-lg">
-                  <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Selecionar Cliente
-                  </label>
-                  <Select
-                    value={selectedCliente?.id || ""}
-                    onValueChange={(value) => {
-                      const cliente = clientes?.find(c => c.id === value);
-                      setSelectedCliente(cliente || null);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Escolha um cliente..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientes?.map((cliente) => (
-                        <SelectItem key={cliente.id} value={cliente.id}>
-                          {cliente.nome_igreja}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedCliente && (
-                    <div className="mt-2 text-xs text-muted-foreground">
+                {/* Cliente Selection - Only show for vendedores */}
+                {isVendedor && (
+                  <div className="mb-4 p-4 bg-muted/50 rounded-lg">
+                    <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Selecionar Cliente
+                    </label>
+                    <Select
+                      value={selectedCliente?.id || ""}
+                      onValueChange={(value) => {
+                        const cliente = clientes?.find(c => c.id === value);
+                        setSelectedCliente(cliente || null);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Escolha um cliente..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clientes?.map((cliente) => (
+                          <SelectItem key={cliente.id} value={cliente.id}>
+                            {cliente.nome_igreja}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedCliente && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        <p>CNPJ: {selectedCliente.cnpj}</p>
+                        {selectedCliente.email_superintendente && (
+                          <p>Email: {selectedCliente.email_superintendente}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Show selected client info for non-vendedores */}
+                {!isVendedor && selectedCliente && (
+                  <div className="mb-4 p-4 bg-muted/50 rounded-lg">
+                    <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Pedido para:
+                    </label>
+                    <p className="font-medium">{selectedCliente.nome_igreja}</p>
+                    <div className="mt-1 text-xs text-muted-foreground">
                       <p>CNPJ: {selectedCliente.cnpj}</p>
-                      {selectedCliente.email_superintendente && (
-                        <p>Email: {selectedCliente.email_superintendente}</p>
-                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {items.length === 0 ? (
                   <div className="flex-1 flex items-center justify-center">
