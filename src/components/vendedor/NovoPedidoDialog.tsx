@@ -254,7 +254,7 @@ export function NovoPedidoDialog({
     
     // Close dialog and navigate to catalog page
     onOpenChange(false);
-    navigate(`/vendedor/catalogo?clienteId=${selectedCliente.id}&clienteNome=${encodeURIComponent(selectedCliente.nome_igreja)}`);
+    navigate(`/ebd/shopify-pedidos?clienteId=${selectedCliente.id}&clienteNome=${encodeURIComponent(selectedCliente.nome_igreja)}`);
   };
 
   const handleProceedToActivation = () => {
