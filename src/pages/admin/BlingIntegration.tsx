@@ -158,16 +158,10 @@ const BlingIntegration = () => {
       return;
     }
 
-    // Escopos necessários para a integração
+    // Escopos necessários para a integração (apenas pedidos de venda, para evitar erro FORBIDDEN)
     const scopes = [
-      'produtos',
-      'produtos.alterar',
       'pedidos.vendas',
       'pedidos.vendas.alterar',
-      'estoques',
-      'estoques.alterar',
-      'contatos',
-      'contatos.alterar'
     ].join('+');
 
     const authUrl = `https://www.bling.com.br/Api/v3/oauth/authorize?response_type=code&client_id=${formData.client_id}&redirect_uri=${encodeURIComponent(formData.redirect_uri)}&scope=${scopes}&state=bling_auth`;
