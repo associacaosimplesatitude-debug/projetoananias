@@ -48,22 +48,41 @@ const LandingEBD = () => {
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase.from('ebd_leads_reativacao').insert({
-        nome_igreja: formData.nomeIgreja,
-        nome_responsavel: formData.nomeResponsavel,
-        email: formData.email,
-        telefone: formData.telefone,
-        status_lead: 'novo',
-        lead_score: 'quente'
+      // Call edge function to create account instantly
+      const { data, error } = await supabase.functions.invoke('ebd-instant-signup', {
+        body: {
+          nomeIgreja: formData.nomeIgreja,
+          nomeResponsavel: formData.nomeResponsavel,
+          email: formData.email,
+          telefone: formData.telefone
+        }
       });
 
       if (error) throw error;
 
-      toast.success('Cadastro realizado com sucesso! Em breve entraremos em contato.');
-      setFormData({ nomeIgreja: '', nomeResponsavel: '', email: '', telefone: '' });
-    } catch (error) {
-      console.error('Erro ao enviar formulário:', error);
-      toast.error('Erro ao enviar. Tente novamente.');
+      if (data?.userAlreadyExists) {
+        toast.info('Você já possui uma conta! Faça login para acessar o painel.');
+        navigate('/login/ebd');
+        return;
+      }
+
+      // Log in the user automatically with the temporary password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: 'mudar123'
+      });
+
+      if (signInError) {
+        toast.error('Conta criada! Faça login com a senha: mudar123');
+        navigate('/login/ebd');
+        return;
+      }
+
+      toast.success('Conta criada com sucesso! Redirecionando...');
+      navigate('/ebd/dashboard');
+    } catch (error: any) {
+      console.error('Erro ao criar conta:', error);
+      toast.error(error?.message || 'Erro ao criar conta. Tente novamente.');
     } finally {
       setIsSubmitting(false);
     }
