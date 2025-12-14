@@ -1,0 +1,275 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const SHOPIFY_STORE = "revendacentralgospel.myshopify.com";
+const SHOPIFY_API_VERSION = "2025-01";
+
+interface Cliente {
+  id: string;
+  nome_igreja: string;
+  cnpj: string;
+  email_superintendente: string | null;
+  telefone: string | null;
+  nome_responsavel: string | null;
+  endereco_cep: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  vendedor_id?: string | null;
+}
+
+interface CartItem {
+  variantId: string;
+  quantity: number;
+  title: string;
+  price: string;
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN");
+    
+    if (!SHOPIFY_ACCESS_TOKEN) {
+      console.error("SHOPIFY_ADMIN_ACCESS_TOKEN not configured");
+      return new Response(
+        JSON.stringify({ error: "Shopify not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get vendedor_id from request body or from authenticated user
+    const { cliente, items, vendedor_id } = await req.json() as { 
+      cliente: Cliente; 
+      items: CartItem[];
+      vendedor_id?: string;
+    };
+
+    if (!cliente || !items || items.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Cliente e itens são obrigatórios" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Use vendedor_id from request or from cliente
+    const finalVendedorId = vendedor_id || cliente.vendedor_id;
+    
+    console.log("Creating draft order for cliente:", cliente.nome_igreja);
+    console.log("Vendedor ID:", finalVendedorId);
+    console.log("Items:", items);
+
+    // Step 1: Search for existing customer or create new one
+    const customerEmail = cliente.email_superintendente || `${cliente.cnpj.replace(/\D/g, '')}@placeholder.com`;
+    
+    // Search for customer by email
+    const searchResponse = await fetch(
+      `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/customers/search.json?query=email:${encodeURIComponent(customerEmail)}`,
+      {
+        method: "GET",
+        headers: {
+          "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    let customerId: number | null = null;
+
+    if (searchResponse.ok) {
+      const searchData = await searchResponse.json();
+      if (searchData.customers && searchData.customers.length > 0) {
+        customerId = searchData.customers[0].id;
+        console.log("Found existing customer:", customerId);
+
+        // Update customer with latest info
+        await fetch(
+          `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/customers/${customerId}.json`,
+          {
+            method: "PUT",
+            headers: {
+              "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              customer: {
+                first_name: cliente.nome_responsavel || cliente.nome_igreja,
+                last_name: "",
+                phone: cliente.telefone,
+                tags: "ebd_cliente",
+                addresses: cliente.endereco_rua ? [{
+                  address1: `${cliente.endereco_rua}, ${cliente.endereco_numero || 'S/N'}`,
+                  city: cliente.endereco_cidade || "",
+                  province: cliente.endereco_estado || "",
+                  zip: cliente.endereco_cep || "",
+                  country: "BR",
+                  company: cliente.nome_igreja,
+                }] : undefined,
+              },
+            }),
+          }
+        );
+      }
+    }
+
+    // Create customer if not found
+    if (!customerId) {
+      console.log("Creating new customer...");
+      const createCustomerResponse = await fetch(
+        `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/customers.json`,
+        {
+          method: "POST",
+          headers: {
+            "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            customer: {
+              email: customerEmail,
+              first_name: cliente.nome_responsavel || cliente.nome_igreja,
+              last_name: "",
+              phone: cliente.telefone,
+              tags: "ebd_cliente",
+              addresses: cliente.endereco_rua ? [{
+                address1: `${cliente.endereco_rua}, ${cliente.endereco_numero || 'S/N'}`,
+                city: cliente.endereco_cidade || "",
+                province: cliente.endereco_estado || "",
+                zip: cliente.endereco_cep || "",
+                country: "BR",
+                company: cliente.nome_igreja,
+              }] : undefined,
+            },
+          }),
+        }
+      );
+
+      if (createCustomerResponse.ok) {
+        const customerData = await createCustomerResponse.json();
+        customerId = customerData.customer.id;
+        console.log("Created new customer:", customerId);
+      } else {
+        const errorText = await createCustomerResponse.text();
+        console.error("Failed to create customer:", errorText);
+        // Continue without customer - will create order without customer association
+      }
+    }
+
+    // Step 2: Create Draft Order
+    // Convert GraphQL variant IDs to numeric IDs
+    const lineItems = items.map(item => {
+      // Extract numeric ID from GraphQL ID (gid://shopify/ProductVariant/123456)
+      const variantIdMatch = item.variantId.match(/(\d+)$/);
+      const numericVariantId = variantIdMatch ? parseInt(variantIdMatch[1]) : null;
+      
+      return {
+        variant_id: numericVariantId,
+        quantity: item.quantity,
+        title: item.title,
+      };
+    }).filter(item => item.variant_id !== null);
+
+    console.log("Creating draft order with line items:", lineItems);
+
+    // Build note attributes for vendedor tracking
+    const noteAttributes: Array<{ name: string; value: string }> = [];
+    
+    if (finalVendedorId) {
+      noteAttributes.push({ name: "vendedor_id", value: finalVendedorId });
+    }
+    
+    if (cliente.id) {
+      noteAttributes.push({ name: "cliente_id", value: cliente.id });
+    }
+
+    // Build tags - Shopify has a 40 character limit per tag
+    // Use only "ebd_order" as tag, vendedor_id will be in note_attributes
+    const orderTags = "ebd_order";
+
+    const draftOrderPayload: Record<string, unknown> = {
+      draft_order: {
+        line_items: lineItems,
+        note: `Pedido criado via EBD - Cliente: ${cliente.nome_igreja}${finalVendedorId ? ` | Vendedor: ${finalVendedorId}` : ''}`,
+        tags: orderTags,
+        note_attributes: noteAttributes,
+        ...(customerId && { customer: { id: customerId } }),
+        use_customer_default_address: !!customerId,
+      },
+    };
+
+    // Add shipping address if available
+    if (cliente.endereco_rua) {
+      draftOrderPayload.draft_order = {
+        ...draftOrderPayload.draft_order as Record<string, unknown>,
+        shipping_address: {
+          first_name: cliente.nome_responsavel || cliente.nome_igreja,
+          last_name: "",
+          address1: `${cliente.endereco_rua}, ${cliente.endereco_numero || 'S/N'}`,
+          city: cliente.endereco_cidade || "",
+          province: cliente.endereco_estado || "",
+          zip: cliente.endereco_cep || "",
+          country: "BR",
+          phone: cliente.telefone,
+          company: cliente.nome_igreja,
+        },
+      };
+    }
+
+    const draftOrderResponse = await fetch(
+      `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/draft_orders.json`,
+      {
+        method: "POST",
+        headers: {
+          "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(draftOrderPayload),
+      }
+    );
+
+    if (!draftOrderResponse.ok) {
+      const errorText = await draftOrderResponse.text();
+      console.error("Failed to create draft order:", errorText);
+      return new Response(
+        JSON.stringify({ error: "Falha ao criar pedido no Shopify", details: errorText }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const draftOrderData = await draftOrderResponse.json();
+    const draftOrder = draftOrderData.draft_order;
+
+    console.log("Draft order created:", draftOrder.id);
+    console.log("Draft order note_attributes:", draftOrder.note_attributes);
+
+    // Step 3: Get invoice URL
+    const invoiceUrl = draftOrder.invoice_url;
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        draftOrderId: draftOrder.id,
+        invoiceUrl: invoiceUrl,
+        orderName: draftOrder.name,
+        vendedorId: finalVendedorId,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
+  } catch (error) {
+    console.error("Error in ebd-shopify-order-create:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

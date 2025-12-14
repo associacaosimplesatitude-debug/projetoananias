@@ -39,8 +39,8 @@ export const DomainBrandingProvider: React.FC<{ children: React.ReactNode }> = (
     // Update document title
     document.title = branding.appName;
 
-    // Apply branding colors as CSS variables for EBD domain
-    if (branding.isEBD) {
+    // Apply primary color as CSS variable (only for EBD domain)
+    if (branding.domain === 'gestaoebd.com.br') {
       root.style.setProperty('--primary', hexToHSL(branding.primaryColor));
       root.style.setProperty('--accent', hexToHSL(branding.accentColor));
     }

@@ -8,6 +8,7 @@ interface DomainBranding {
   navTextColor: string;
   accentColor: string;
   appName: string;
+  domain: string;
   isEBD: boolean;
 }
 
@@ -19,6 +20,7 @@ const ebdBranding: DomainBranding = {
   navTextColor: '#FFFFFF',
   accentColor: '#FFC107',
   appName: 'Gestão EBD',
+  domain: 'gestaoebd.com.br',
   isEBD: true
 };
 
@@ -30,6 +32,7 @@ const ananiasBranding: DomainBranding = {
   navTextColor: '#FFFFFF',
   accentColor: '#3b82f6',
   appName: 'Projeto Ananias',
+  domain: 'projetoananias.com.br',
   isEBD: false
 };
 
@@ -38,11 +41,16 @@ export const useDomainBranding = (): DomainBranding => {
     const hostname = window.location.hostname.toLowerCase();
     
     // Check if accessing from EBD domain
-    if (hostname.includes('gestaoebd')) {
+    if (hostname.includes('gestaoebd') || hostname.includes('ebd')) {
       return ebdBranding;
     }
     
-    // Default to Ananias for all other domains
+    // Check if accessing from Ananias domain
+    if (hostname.includes('ananias') || hostname.includes('projetoananias')) {
+      return ananiasBranding;
+    }
+    
+    // Default to Ananias for localhost and other domains
     return ananiasBranding;
   }, []);
 
@@ -51,7 +59,17 @@ export const useDomainBranding = (): DomainBranding => {
 
 export const isEBDDomain = (): boolean => {
   const hostname = window.location.hostname.toLowerCase();
-  return hostname.includes('gestaoebd');
+  return hostname.includes('gestaoebd') || hostname.includes('ebd');
+};
+
+export const isAnaniasDomain = (): boolean => {
+  const hostname = window.location.hostname.toLowerCase();
+  return hostname.includes('ananias') || hostname.includes('projetoananias') || 
+         (!isEBDDomain() && !hostname.includes('localhost'));
+};
+
+export const getCurrentDomain = (): string => {
+  return window.location.hostname.toLowerCase();
 };
 
 export type { DomainBranding };
