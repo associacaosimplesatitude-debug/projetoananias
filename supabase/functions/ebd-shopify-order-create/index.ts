@@ -49,10 +49,18 @@ serve(async (req) => {
     }
 
     // Get vendedor_id from request body or from authenticated user
-    const { cliente, items, vendedor_id } = await req.json() as { 
+    const { 
+      cliente, 
+      items, 
+      vendedor_id,
+      faturamento_prazo, // "30", "60", or "90" for B2B invoicing
+      forma_pagamento,   // "FATURAMENTO" for B2B invoicing
+    } = await req.json() as { 
       cliente: Cliente; 
       items: CartItem[];
       vendedor_id?: string;
+      faturamento_prazo?: string;
+      forma_pagamento?: string;
     };
 
     if (!cliente || !items || items.length === 0) {
@@ -64,10 +72,12 @@ serve(async (req) => {
 
     // Use vendedor_id from request or from cliente
     const finalVendedorId = vendedor_id || cliente.vendedor_id;
+    const isFaturamento = forma_pagamento === 'FATURAMENTO' && faturamento_prazo;
     
     console.log("Creating draft order for cliente:", cliente.nome_igreja);
     console.log("Vendedor ID:", finalVendedorId);
     console.log("Items:", items);
+    console.log("Faturamento:", isFaturamento, "Prazo:", faturamento_prazo);
 
     // Step 1: Search for existing customer or create new one
     const customerEmail = cliente.email_superintendente || `${cliente.cnpj.replace(/\D/g, '')}@placeholder.com`;
@@ -191,14 +201,27 @@ serve(async (req) => {
       noteAttributes.push({ name: "cliente_id", value: cliente.id });
     }
 
+    if (isFaturamento) {
+      noteAttributes.push({ name: "faturamento_prazo", value: faturamento_prazo! });
+      noteAttributes.push({ name: "forma_pagamento", value: "FATURAMENTO" });
+    }
+
     // Build tags - Shopify has a 40 character limit per tag
-    // Use only "ebd_order" as tag, vendedor_id will be in note_attributes
-    const orderTags = "ebd_order";
+    const orderTags = isFaturamento ? "ebd_order,faturamento_b2b" : "ebd_order";
+
+    // Build note with faturamento info
+    let orderNote = `Pedido criado via EBD - Cliente: ${cliente.nome_igreja}`;
+    if (finalVendedorId) {
+      orderNote += ` | Vendedor: ${finalVendedorId}`;
+    }
+    if (isFaturamento) {
+      orderNote += ` | FATURAMENTO ${faturamento_prazo} DIAS`;
+    }
 
     const draftOrderPayload: Record<string, unknown> = {
       draft_order: {
         line_items: lineItems,
-        note: `Pedido criado via EBD - Cliente: ${cliente.nome_igreja}${finalVendedorId ? ` | Vendedor: ${finalVendedorId}` : ''}`,
+        note: orderNote,
         tags: orderTags,
         note_attributes: noteAttributes,
         ...(customerId && { customer: { id: customerId } }),
@@ -222,6 +245,25 @@ serve(async (req) => {
           company: cliente.nome_igreja,
         },
       };
+    }
+
+    // Add payment terms for B2B faturamento orders
+    if (isFaturamento && faturamento_prazo) {
+      const daysUntilDue = parseInt(faturamento_prazo);
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + daysUntilDue);
+      
+      draftOrderPayload.draft_order = {
+        ...draftOrderPayload.draft_order as Record<string, unknown>,
+        // Shopify payment terms: NET_XX days
+        payment_terms: {
+          payment_terms_name: `Líquido ${daysUntilDue} dias`,
+          payment_terms_type: "NET",
+          due_in_days: daysUntilDue,
+        },
+      };
+      
+      console.log("Adding payment terms:", daysUntilDue, "days, due date:", dueDate.toISOString());
     }
 
     const draftOrderResponse = await fetch(
@@ -261,6 +303,8 @@ serve(async (req) => {
         invoiceUrl: invoiceUrl,
         orderName: draftOrder.name,
         vendedorId: finalVendedorId,
+        isFaturamento: isFaturamento,
+        faturamentoPrazo: faturamento_prazo,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
