@@ -64,10 +64,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
+    // Update ultimo_login for ebd_clientes if this user is a superintendente
+    if (!error && data.user) {
+      supabase
+        .from('ebd_clientes')
+        .update({ ultimo_login: new Date().toISOString() })
+        .eq('superintendente_user_id', data.user.id)
+        .then(() => {});
+    }
+    
     return { error };
   };
 
