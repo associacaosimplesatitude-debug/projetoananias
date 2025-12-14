@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { RevistaCard } from '@/components/ebd/RevistaCard';
 import { RevistaDetailDialog } from '@/components/ebd/RevistaDetailDialog';
+import { FaturamentoModeDialog } from '@/components/ebd/FaturamentoModeDialog';
 import { ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useNavigate } from 'react-router-dom';
 
 const FAIXAS_ETARIAS = [
   "Jovens e Adultos",
@@ -37,10 +37,34 @@ export default function Catalogo() {
   const navigate = useNavigate();
   const faixaSelecionada = searchParams.get('faixa') || FAIXAS_ETARIAS[0];
   const [selectedRevista, setSelectedRevista] = useState<Revista | null>(null);
+  const [showFaturamentoModal, setShowFaturamentoModal] = useState(false);
   const [cart, setCart] = useState<{ [key: string]: number }>(() => {
     const saved = localStorage.getItem('ebd-cart');
     return saved ? JSON.parse(saved) : {};
   });
+
+  // Verificar se cliente pode faturar
+  const { data: clienteData } = useQuery({
+    queryKey: ['cliente-pode-faturar'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('id, pode_faturar')
+        .eq('superintendente_user_id', user.id)
+        .single();
+
+      if (error) {
+        console.log('Cliente não encontrado:', error);
+        return null;
+      }
+      return data;
+    },
+  });
+
+  const podeFaturar = clienteData?.pode_faturar || false;
 
   const { data: revistas, isLoading } = useQuery({
     queryKey: ['ebd-revistas-catalogo', faixaSelecionada],
@@ -68,6 +92,35 @@ export default function Catalogo() {
 
   const cartItemCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
 
+  const handleGoToCart = () => {
+    if (cartItemCount === 0) {
+      navigate('/ebd/carrinho');
+      return;
+    }
+
+    // Se cliente pode faturar, mostrar modal de escolha
+    if (podeFaturar) {
+      setShowFaturamentoModal(true);
+    } else {
+      // Fluxo normal
+      navigate('/ebd/carrinho');
+    }
+  };
+
+  const handleSelectBling = () => {
+    setShowFaturamentoModal(false);
+    // Navegar para checkout Bling
+    localStorage.setItem('ebd-checkout-mode', 'bling');
+    navigate('/ebd/checkout-bling');
+  };
+
+  const handleSelectNormal = () => {
+    setShowFaturamentoModal(false);
+    // Fluxo normal
+    localStorage.setItem('ebd-checkout-mode', 'normal');
+    navigate('/ebd/carrinho');
+  };
+
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
@@ -81,7 +134,7 @@ export default function Catalogo() {
           </Button>
           <Button 
             variant="outline" 
-            onClick={() => navigate('/ebd/carrinho')}
+            onClick={handleGoToCart}
             className="relative"
           >
             <ShoppingCart className="w-4 h-4 mr-2" />
@@ -140,6 +193,13 @@ export default function Catalogo() {
           onAddToCart={() => handleAddToCart(selectedRevista.id)}
         />
       )}
+
+      <FaturamentoModeDialog
+        open={showFaturamentoModal}
+        onOpenChange={setShowFaturamentoModal}
+        onSelectBling={handleSelectBling}
+        onSelectNormal={handleSelectNormal}
+      />
     </div>
   );
 }
