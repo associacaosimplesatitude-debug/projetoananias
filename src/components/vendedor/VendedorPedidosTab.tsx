@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Eye, Package, ShoppingCart, ExternalLink } from "lucide-react";
+import { Eye, Package, ShoppingCart, ExternalLink, FileText } from "lucide-react";
 import { useState } from "react";
 import { PedidoDetailDialog, Pedido } from "./PedidoDetailDialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -118,6 +118,40 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
           )
         `)
         .in("church_id", clienteIds)
+        .is("bling_order_id", null)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      // Add nome_igreja to each pedido
+      return (data || []).map(p => ({
+        ...p,
+        nome_igreja: clienteMap[p.church_id] || 'Cliente não identificado',
+      })) as Pedido[];
+    },
+    enabled: clienteIds.length > 0,
+  });
+
+  // Fetch invoiced orders (Bling) for all clients of this vendedor
+  const { data: pedidosFaturados = [], isLoading: isLoadingFaturados } = useQuery({
+    queryKey: ["vendedor-pedidos-faturados", vendedorId, clienteIds],
+    queryFn: async () => {
+      if (clienteIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from("ebd_pedidos")
+        .select(`
+          *,
+          ebd_pedidos_itens(
+            id,
+            quantidade,
+            preco_unitario,
+            preco_total,
+            revista:ebd_revistas(titulo, faixa_etaria_alvo)
+          )
+        `)
+        .in("church_id", clienteIds)
+        .not("bling_order_id", "is", null)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
@@ -151,7 +185,12 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
     enabled: !!vendedorId,
   });
 
-  const isLoading = isLoadingPedidos || isLoadingShopify;
+  const isLoading = isLoadingPedidos || isLoadingShopify || isLoadingFaturados;
+
+  // Calculate valor_para_meta for faturados (same logic as Shopify: valor_total - valor_frete)
+  const calcularValorParaMeta = (pedido: Pedido) => {
+    return pedido.valor_total - (pedido.valor_frete || 0);
+  };
 
   const handleViewPedido = (pedido: Pedido) => {
     setSelectedPedido(pedido);
@@ -254,6 +293,64 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
             </div>
           )}
 
+          {/* Invoiced Orders (Bling) Section */}
+          {pedidosFaturados.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Pedidos Faturados (Bling)
+              </h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pedido Bling</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Valor Total</TableHead>
+                    <TableHead>Para Meta</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Rastreio</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pedidosFaturados.map((pedido) => (
+                    <TableRow key={pedido.id}>
+                      <TableCell className="font-medium">
+                        #{pedido.bling_order_id}
+                      </TableCell>
+                      <TableCell>
+                        {pedido.created_at 
+                          ? format(new Date(pedido.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {pedido.nome_igreja}
+                      </TableCell>
+                      <TableCell>
+                        R$ {pedido.valor_total.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-green-600 font-medium">
+                        R$ {calcularValorParaMeta(pedido).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-blue-500 hover:bg-blue-600">
+                          Faturado
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {pedido.codigo_rastreio ? (
+                          <span>{pedido.codigo_rastreio}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
           {/* Internal Orders Section */}
           {pedidos.length > 0 && (
             <div>
@@ -309,7 +406,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
             </div>
           )}
 
-          {pedidos.length === 0 && shopifyPedidos.length === 0 && (
+          {pedidos.length === 0 && shopifyPedidos.length === 0 && pedidosFaturados.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
               <p>Nenhum pedido encontrado</p>
