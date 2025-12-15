@@ -200,11 +200,21 @@ export default function DesafioBiblico() {
                         <HelpCircle className="h-4 w-4 mr-1" />
                         Perguntas
                       </Button>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => iniciarDesafioMutation.mutate(desafio.id)}
+                        disabled={iniciarDesafioMutation.isPending}
+                      >
+                        <Play className="h-4 w-4 mr-1" />
+                        Iniciar Desafio
+                      </Button>
                     </>
                   )}
                   {desafio.status === 'PRONTO' && (
                     <Button
                       size="sm"
+                      className="bg-green-600 hover:bg-green-700"
                       onClick={() => iniciarDesafioMutation.mutate(desafio.id)}
                       disabled={iniciarDesafioMutation.isPending}
                     >

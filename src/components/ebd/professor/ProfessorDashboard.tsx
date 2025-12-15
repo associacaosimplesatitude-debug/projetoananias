@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { format, startOfWeek, endOfWeek, addWeeks, isSameWeek, isAfter, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -16,6 +17,7 @@ import {
   BookOpen,
   ArrowRight,
   Check,
+  Gamepad2,
 } from "lucide-react";
 
 interface ProfessorDashboardProps {
@@ -34,6 +36,7 @@ interface ProfessorDashboardProps {
 
 export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const today = new Date();
 
   // Fetch próximas escalas do professor
@@ -131,6 +134,41 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
     enabled: turmas.length > 0,
   });
 
+  // Check for active Bible Challenges where user is a leader
+  const { data: desafioAtivo } = useQuery({
+    queryKey: ["professor-desafio-ativo", professor.id],
+    queryFn: async () => {
+      if (!professor.id) return null;
+
+      // Get equipes where professor is leader and challenge is EM_ANDAMENTO
+      const { data: equipe, error } = await supabase
+        .from("desafio_equipe")
+        .select(`
+          id,
+          nome,
+          desafio:desafio_biblico!inner(
+            id,
+            nome,
+            status,
+            tempo_limite_minutos,
+            iniciado_em
+          )
+        `)
+        .eq("lider_id", professor.id)
+        .eq("desafio.status", "EM_ANDAMENTO")
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error checking active challenge:", error);
+        return null;
+      }
+      
+      return equipe;
+    },
+    enabled: !!professor.id,
+  });
+
   // Get próxima aula
   const proximaAula = escalas?.[0];
 
@@ -145,6 +183,32 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
           Bem-vindo(a) ao seu painel do professor
         </p>
       </div>
+
+      {/* Card de Alerta: Desafio Bíblico Ativo */}
+      {desafioAtivo && (
+        <Card className="border-2 border-green-500 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 animate-pulse-slow">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-green-700 dark:text-green-400">
+              <Trophy className="h-6 w-6" />
+              Desafio Bíblico em Andamento!
+            </CardTitle>
+            <CardDescription className="text-green-600 dark:text-green-300">
+              Você é líder da equipe {desafioAtivo.nome === 'EQUIPE_A' ? 'A' : 'B'} no desafio "{(desafioAtivo.desafio as any)?.nome}"
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              size="lg"
+              className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-lg"
+              onClick={() => navigate(`/ebd/desafio-biblico/${(desafioAtivo.desafio as any)?.id}/jogar`)}
+            >
+              <Gamepad2 className="h-5 w-5" />
+              Entrar no Jogo
+              <ArrowRight className="h-5 w-5" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Card de Destaque: Próxima Aula */}
       <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
