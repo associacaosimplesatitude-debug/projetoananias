@@ -391,6 +391,44 @@ serve(async (req) => {
 
       console.log("Bling order created successfully:", blingData);
 
+      // Save/order update in ebd_shopify_pedidos so the vendedor can see this faturado order
+      try {
+        const valorTotalNumber = valorTotal;
+        const valorFreteNumber = valorFreteRecebido;
+        const valorParaMeta = valorTotalNumber - valorFreteNumber;
+
+        const orderData = {
+          shopify_order_id: draftOrder.id as number,
+          order_number: draftOrder.name as string,
+          vendedor_id: finalVendedorId || null,
+          cliente_id: cliente.id || null,
+          status_pagamento: "Faturado",
+          valor_total: valorTotalNumber,
+          valor_frete: valorFreteNumber,
+          valor_para_meta: valorParaMeta,
+          customer_email: cliente.email_superintendente || null,
+          customer_name: cliente.nome_igreja || null,
+          codigo_rastreio: null,
+          url_rastreio: null,
+          updated_at: new Date().toISOString(),
+        };
+
+        console.log("Saving faturado B2B order in ebd_shopify_pedidos:", orderData);
+
+        const { error: saveError } = await supabase
+          .from("ebd_shopify_pedidos")
+          .upsert(orderData, {
+            onConflict: "shopify_order_id",
+            ignoreDuplicates: false,
+          });
+
+        if (saveError) {
+          console.error("Error saving faturado B2B order in ebd_shopify_pedidos:", saveError);
+        }
+      } catch (dbError) {
+        console.error("Unexpected error while saving faturado B2B order:", dbError);
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
