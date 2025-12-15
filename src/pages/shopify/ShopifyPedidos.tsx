@@ -252,15 +252,16 @@ export default function ShopifyPedidos() {
 
       // For faturamento B2B, don't redirect to checkout - just show success
       if (data?.isFaturamento && data?.blingOrderId) {
+        const blingIdentifier = data.blingOrderNumber || data.blingOrderId;
         toast.success(`Pedido faturado em ${data.faturamentoPrazo} dias criado com sucesso no Bling!`, {
-          description: `Número do pedido Bling: ${data.blingOrderNumber}`,
+          description: `Identificador do pedido Bling: ${blingIdentifier}`,
           duration: 5000,
         });
         clearCart();
         setSelectedCliente(null);
         setIsCartOpen(false);
         setFaturamentoConfig(null);
-        
+
         // Navigate to vendedor orders page if vendedor
         if (isVendedor) {
           navigate('/vendedor/pedidos');
