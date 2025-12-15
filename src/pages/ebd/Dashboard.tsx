@@ -19,6 +19,7 @@ import {
   Star,
   Target,
   Crown,
+  Gamepad2,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useAuth } from "@/hooks/useAuth";
@@ -330,10 +331,16 @@ export default function EBDDashboard() {
               {churchData?.church_name || 'Escola Bíblica Dominical'}
             </p>
           </div>
-          <Button onClick={() => navigate("/ebd/lancamento")} className="gap-2">
-            <ClipboardList className="h-4 w-4" />
-            Lançamento Manual
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => navigate("/ebd/lancamento")} className="gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Lançamento Manual
+            </Button>
+            <Button onClick={() => navigate("/ebd/desafio-biblico")} variant="outline" className="gap-2">
+              <Gamepad2 className="h-4 w-4" />
+              Desafio Bíblico
+            </Button>
+          </div>
         </div>
 
         {/* Micro-KPIs */}
