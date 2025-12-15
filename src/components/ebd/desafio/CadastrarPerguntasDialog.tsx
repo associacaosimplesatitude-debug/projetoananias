@@ -48,28 +48,28 @@ export function CadastrarPerguntasDialog({ open, onOpenChange, desafio }: Cadast
   const [perguntasA, setPerguntasA] = useState<Pergunta[]>([]);
   const [perguntasB, setPerguntasB] = useState<Pergunta[]>([]);
 
-  // Calculate total questions needed
+  // Calculate total questions needed (simplified: 1 Charada = 1 question with 4-digit answer)
   const totalDesbloqueio = desafio.num_perguntas_desbloqueio;
-  const totalCharada = desafio.num_blocos_charada * 4;
+  const totalCharada = desafio.num_blocos_charada; // Now 1:1, not *4
   const totalPerguntas = totalDesbloqueio + totalCharada;
 
-  // Generate sequence: Desbloqueio -> Charada (4x) -> Desbloqueio -> Charada (4x) ...
+  // Generate alternating sequence: Desbloqueio -> Charada -> Desbloqueio -> Charada...
   const generateSequence = (): Array<{ tipo: 'DESBLOQUEIO' | 'CHARADA'; blocoIndex: number }> => {
     const sequence: Array<{ tipo: 'DESBLOQUEIO' | 'CHARADA'; blocoIndex: number }> = [];
     let desbloqueioCount = 0;
-    let blocoIndex = 0;
+    let charadaCount = 0;
     
     while (sequence.length < totalPerguntas) {
+      // Add Desbloqueio if available
       if (desbloqueioCount < totalDesbloqueio) {
         sequence.push({ tipo: 'DESBLOQUEIO', blocoIndex: desbloqueioCount });
         desbloqueioCount++;
       }
       
-      if (blocoIndex < desafio.num_blocos_charada && sequence.length < totalPerguntas) {
-        for (let i = 0; i < 4 && sequence.length < totalPerguntas; i++) {
-          sequence.push({ tipo: 'CHARADA', blocoIndex });
-        }
-        blocoIndex++;
+      // Add Charada if available (1 pergunta, not 4)
+      if (charadaCount < totalCharada && sequence.length < totalPerguntas) {
+        sequence.push({ tipo: 'CHARADA', blocoIndex: charadaCount });
+        charadaCount++;
       }
     }
     
@@ -264,7 +264,7 @@ export function CadastrarPerguntasDialog({ open, onOpenChange, desafio }: Cadast
             Cadastrar Perguntas - {desafio.nome}
           </DialogTitle>
           <DialogDescription>
-            {totalDesbloqueio} perguntas de desbloqueio + {totalCharada} perguntas charada = {totalPerguntas} total por equipe
+            {totalDesbloqueio} desbloqueio (2 dígitos) + {totalCharada} charada (4 dígitos) = {totalPerguntas} perguntas por equipe
           </DialogDescription>
         </DialogHeader>
 

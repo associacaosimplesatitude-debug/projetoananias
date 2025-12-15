@@ -166,19 +166,19 @@ export function CriarDesafioDialog({ open, onOpenChange, churchId }: CriarDesafi
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="blocos">Blocos Charada</Label>
+              <Label htmlFor="charada">Perguntas Charada</Label>
               <Input
-                id="blocos"
+                id="charada"
                 type="number"
                 min={1}
-                max={10}
+                max={20}
                 value={formData.num_blocos_charada}
                 onChange={(e) =>
                   setFormData({ ...formData, num_blocos_charada: parseInt(e.target.value) || 3 })
                 }
               />
               <p className="text-xs text-muted-foreground">
-                {formData.num_blocos_charada * 4} perguntas charada
+                Cada charada tem resposta de 4 dígitos
               </p>
             </div>
           </div>
