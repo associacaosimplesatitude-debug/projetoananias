@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Play, Users, HelpCircle, Trophy, Clock, Loader2, Gamepad2 } from 'lucide-react';
+import { Plus, Play, Users, HelpCircle, Trophy, Clock, Loader2, Gamepad2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { CriarDesafioDialog } from '@/components/ebd/desafio/CriarDesafioDialog';
 import { MontarEquipesDialog } from '@/components/ebd/desafio/MontarEquipesDialog';
@@ -214,9 +214,14 @@ export default function DesafioBiblico() {
                   )}
                   {desafio.status === 'EM_ANDAMENTO' && (
                     <>
-                      <Badge variant="destructive" className="animate-pulse">
-                        Em andamento...
-                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate(`/ebd/desafio-biblico/${desafio.id}/acompanhar`)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        Acompanhar
+                      </Button>
                       {meusDesafiosComoLider?.includes(desafio.id) && (
                         <Button
                           size="sm"
