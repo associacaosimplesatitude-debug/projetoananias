@@ -439,17 +439,37 @@ serve(async (req) => {
       // Faturamento B2B: criar parcelas de 30, 60 ou 90 dias
       const prazo = parseInt(faturamento_prazo);
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
-      const valorParcela = Number((valorTotalCorreto / numParcelas).toFixed(2));
-      
-      console.log(`Faturamento B2B: ${numParcelas} parcela(s) de R$ ${valorParcela.toFixed(2)}`);
-      
+
+      // Para evitar erro de validação "somatório das parcelas difere do total da venda",
+      // distribuímos o valor total garantindo que a soma das parcelas seja exatamente igual
+      // ao valorTotalCorreto, ajustando centavos na última parcela.
+      const totalCentavos = Math.round(valorTotalCorreto * 100);
+      const valorParcelaBaseCentavos = Math.floor(totalCentavos / numParcelas);
+      const parcelasCentavos: number[] = [];
+
+      for (let i = 0; i < numParcelas; i++) {
+        if (i < numParcelas - 1) {
+          parcelasCentavos.push(valorParcelaBaseCentavos);
+        } else {
+          // Última parcela recebe o restante para fechar exatamente o total
+          const somaAnteriores = valorParcelaBaseCentavos * (numParcelas - 1);
+          parcelasCentavos.push(totalCentavos - somaAnteriores);
+        }
+      }
+
+      console.log(
+        `Faturamento B2B: ${numParcelas} parcela(s) - valores: ${parcelasCentavos
+          .map(v => (v / 100).toFixed(2))
+          .join(', ')}`
+      );
+
       for (let i = 1; i <= numParcelas; i++) {
         const dataVencimento = new Date();
-        dataVencimento.setDate(dataVencimento.getDate() + (30 * i));
-        
+        dataVencimento.setDate(dataVencimento.getDate() + 30 * i);
+
         parcelas.push({
           dataVencimento: dataVencimento.toISOString().split('T')[0],
-          valor: valorParcela,
+          valor: parcelasCentavos[i - 1] / 100,
           observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
         });
       }
