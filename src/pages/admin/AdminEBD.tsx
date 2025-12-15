@@ -1106,15 +1106,14 @@ export default function AdminEBD() {
           </Card>
         )}
 
-        {/* Lead Scoring KPIs */}
-        <LeadScoringKPIs isAdmin />
-
       {/* Conteúdo das seções */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="hidden" />
 
         {/* VENDAS TAB */}
         <TabsContent value="vendas" className="space-y-6">
+          {/* Lead Scoring KPIs - Only visible on main dashboard */}
+          <LeadScoringKPIs isAdmin />
           {/* EBD Overview Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-l-4 border-l-blue-500">
