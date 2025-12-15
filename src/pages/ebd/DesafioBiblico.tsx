@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Play, Users, HelpCircle, Trophy, Clock, Loader2, Gamepad2, Eye } from 'lucide-react';
+import { Plus, Play, Users, HelpCircle, Trophy, Clock, Loader2, Gamepad2, Eye, Square, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { CriarDesafioDialog } from '@/components/ebd/desafio/CriarDesafioDialog';
 import { MontarEquipesDialog } from '@/components/ebd/desafio/MontarEquipesDialog';
@@ -103,6 +103,56 @@ export default function DesafioBiblico() {
     },
     onError: () => {
       toast.error('Erro ao iniciar desafio');
+    },
+  });
+
+  const pararDesafioMutation = useMutation({
+    mutationFn: async (desafioId: string) => {
+      const { error } = await supabase
+        .from('desafio_biblico')
+        .update({ 
+          status: 'FINALIZADO' as DesafioStatus,
+          finalizado_em: new Date().toISOString()
+        })
+        .eq('id', desafioId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['desafios-biblicos'] });
+      toast.success('Desafio finalizado!');
+    },
+    onError: () => {
+      toast.error('Erro ao finalizar desafio');
+    },
+  });
+
+  const reiniciarDesafioMutation = useMutation({
+    mutationFn: async (desafioId: string) => {
+      // First, delete all answer attempts for this challenge
+      await supabase
+        .from('desafio_tentativa_resposta')
+        .delete()
+        .eq('desafio_id', desafioId);
+      
+      // Then reset the challenge status
+      const { error } = await supabase
+        .from('desafio_biblico')
+        .update({ 
+          status: 'CONFIGURANDO' as DesafioStatus,
+          iniciado_em: null,
+          finalizado_em: null
+        })
+        .eq('id', desafioId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['desafios-biblicos'] });
+      toast.success('Desafio reiniciado! Todas as respostas foram apagadas.');
+    },
+    onError: () => {
+      toast.error('Erro ao reiniciar desafio');
     },
   });
 
@@ -232,6 +282,25 @@ export default function DesafioBiblico() {
                         <Eye className="h-4 w-4 mr-1" />
                         Acompanhar
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => pararDesafioMutation.mutate(desafio.id)}
+                        disabled={pararDesafioMutation.isPending}
+                      >
+                        <Square className="h-4 w-4 mr-1" />
+                        Parar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                        onClick={() => reiniciarDesafioMutation.mutate(desafio.id)}
+                        disabled={reiniciarDesafioMutation.isPending}
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Reiniciar
+                      </Button>
                       {meusDesafiosComoLider?.includes(desafio.id) && (
                         <Button
                           size="sm"
@@ -243,6 +312,18 @@ export default function DesafioBiblico() {
                         </Button>
                       )}
                     </>
+                  )}
+                  {desafio.status === 'FINALIZADO' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                      onClick={() => reiniciarDesafioMutation.mutate(desafio.id)}
+                      disabled={reiniciarDesafioMutation.isPending}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      Reiniciar Desafio
+                    </Button>
                   )}
                 </div>
               </CardContent>
