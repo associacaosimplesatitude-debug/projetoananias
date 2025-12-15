@@ -314,16 +314,29 @@ export default function DesafioBiblico() {
                     </>
                   )}
                   {desafio.status === 'FINALIZADO' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                      onClick={() => reiniciarDesafioMutation.mutate(desafio.id)}
-                      disabled={reiniciarDesafioMutation.isPending}
-                    >
-                      <RotateCcw className="h-4 w-4 mr-1" />
-                      Reiniciar Desafio
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                        onClick={() => reiniciarDesafioMutation.mutate(desafio.id)}
+                        disabled={reiniciarDesafioMutation.isPending}
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Reiniciar Desafio
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedDesafio(desafio);
+                          setEquipesDialogOpen(true);
+                        }}
+                      >
+                        <Users className="h-4 w-4 mr-1" />
+                        Reutilizar (Mudar Equipes)
+                      </Button>
+                    </>
                   )}
                 </div>
               </CardContent>
