@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useChurchData } from '@/hooks/useChurchData';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Play, Users, HelpCircle, Trophy, Clock, Loader2 } from 'lucide-react';
+import { Plus, Play, Users, HelpCircle, Trophy, Clock, Loader2, Gamepad2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CriarDesafioDialog } from '@/components/ebd/desafio/CriarDesafioDialog';
 import { MontarEquipesDialog } from '@/components/ebd/desafio/MontarEquipesDialog';
@@ -29,13 +30,44 @@ interface Desafio {
 
 export default function DesafioBiblico() {
   const { clientId } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { church: churchData, loading: loadingChurch } = useChurchData();
+  const { user } = useAuth();
   
   const [criarDialogOpen, setCriarDialogOpen] = useState(false);
   const [equipesDialogOpen, setEquipesDialogOpen] = useState(false);
   const [perguntasDialogOpen, setPerguntasDialogOpen] = useState(false);
   const [selectedDesafio, setSelectedDesafio] = useState<Desafio | null>(null);
+
+  // Check if current user is a lider in any desafio
+  const { data: meusDesafiosComoLider } = useQuery({
+    queryKey: ['meus-desafios-lider', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      // First get professor id
+      const { data: professor } = await supabase
+        .from('ebd_professores')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+      
+      if (!professor) return [];
+      
+      // Get equipes where user is lider
+      const { data: equipes } = await supabase
+        .from('desafio_equipe')
+        .select('desafio_id')
+        .eq('lider_id', professor.id);
+      
+      if (!equipes || equipes.length === 0) return [];
+      
+      return equipes.map(e => e.desafio_id);
+    },
+    enabled: !!user?.id,
+  });
 
   const { data: desafios, isLoading: loadingDesafios } = useQuery({
     queryKey: ['desafios-biblicos', churchData?.id],
@@ -181,9 +213,21 @@ export default function DesafioBiblico() {
                     </Button>
                   )}
                   {desafio.status === 'EM_ANDAMENTO' && (
-                    <Badge variant="destructive" className="animate-pulse">
-                      Em andamento...
-                    </Badge>
+                    <>
+                      <Badge variant="destructive" className="animate-pulse">
+                        Em andamento...
+                      </Badge>
+                      {meusDesafiosComoLider?.includes(desafio.id) && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => navigate(`/ebd/desafio-biblico/${desafio.id}/jogar`)}
+                        >
+                          <Gamepad2 className="h-4 w-4 mr-1" />
+                          Jogar
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>
