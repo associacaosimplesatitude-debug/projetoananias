@@ -37,7 +37,7 @@ export default function VendedorDashboard() {
     enabled: !!vendedor?.id,
   });
 
-  // Fetch Shopify orders for this vendedor in current month
+  // Fetch Shopify orders for this vendedor in current month (includes Pago and Faturado)
   const { data: vendasMes = 0 } = useQuery({
     queryKey: ["vendedor-vendas-mes", vendedor?.id],
     queryFn: async () => {
@@ -45,12 +45,12 @@ export default function VendedorDashboard() {
       const inicioMes = format(startOfMonth(new Date()), "yyyy-MM-dd'T'00:00:00");
       const fimMes = format(endOfMonth(new Date()), "yyyy-MM-dd'T'23:59:59");
       
-      // Fetch Shopify orders (paid) for this vendedor in current month
+      // Fetch Shopify orders (paid + faturados) for this vendedor in current month
       const { data: shopifyOrders, error: shopifyError } = await supabase
         .from("ebd_shopify_pedidos")
-        .select("valor_para_meta")
+        .select("valor_para_meta, status_pagamento")
         .eq("vendedor_id", vendedor.id)
-        .eq("status_pagamento", "Pago")
+        .in("status_pagamento", ["Pago", "Faturado"])
         .gte("created_at", inicioMes)
         .lte("created_at", fimMes);
       
@@ -58,7 +58,7 @@ export default function VendedorDashboard() {
         console.error("Error fetching shopify orders:", shopifyError);
       }
       
-      // Sum the valor_para_meta from all Shopify orders
+      // Sum the valor_para_meta from all Shopify orders (paid + faturados)
       const totalShopify = (shopifyOrders || []).reduce((sum, order) => 
         sum + Number(order.valor_para_meta || 0), 0
       );
