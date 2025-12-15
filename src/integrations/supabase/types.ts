@@ -737,6 +737,246 @@ export type Database = {
           },
         ]
       }
+      desafio_biblico: {
+        Row: {
+          church_id: string
+          created_at: string
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string | null
+          nome: string
+          num_blocos_charada: number
+          num_perguntas_desbloqueio: number
+          status: Database["public"]["Enums"]["desafio_status"]
+          tempo_limite_minutos: number
+          tipo_publico: Database["public"]["Enums"]["desafio_tipo_publico"]
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          created_at?: string
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string | null
+          nome: string
+          num_blocos_charada?: number
+          num_perguntas_desbloqueio?: number
+          status?: Database["public"]["Enums"]["desafio_status"]
+          tempo_limite_minutos?: number
+          tipo_publico?: Database["public"]["Enums"]["desafio_tipo_publico"]
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          created_at?: string
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string | null
+          nome?: string
+          num_blocos_charada?: number
+          num_perguntas_desbloqueio?: number
+          status?: Database["public"]["Enums"]["desafio_status"]
+          tempo_limite_minutos?: number
+          tipo_publico?: Database["public"]["Enums"]["desafio_tipo_publico"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "desafio_biblico_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      desafio_equipe: {
+        Row: {
+          created_at: string
+          desafio_id: string
+          id: string
+          lider_id: string | null
+          nome: Database["public"]["Enums"]["desafio_equipe_nome"]
+          pontuacao: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          desafio_id: string
+          id?: string
+          lider_id?: string | null
+          nome: Database["public"]["Enums"]["desafio_equipe_nome"]
+          pontuacao?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          desafio_id?: string
+          id?: string
+          lider_id?: string | null
+          nome?: Database["public"]["Enums"]["desafio_equipe_nome"]
+          pontuacao?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "desafio_equipe_desafio_id_fkey"
+            columns: ["desafio_id"]
+            isOneToOne: false
+            referencedRelation: "desafio_biblico"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desafio_equipe_lider_id_fkey"
+            columns: ["lider_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_professores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      desafio_membro_equipe: {
+        Row: {
+          created_at: string
+          equipe_id: string
+          id: string
+          professor_id: string
+        }
+        Insert: {
+          created_at?: string
+          equipe_id: string
+          id?: string
+          professor_id: string
+        }
+        Update: {
+          created_at?: string
+          equipe_id?: string
+          id?: string
+          professor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "desafio_membro_equipe_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "desafio_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desafio_membro_equipe_professor_id_fkey"
+            columns: ["professor_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_professores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      desafio_pergunta: {
+        Row: {
+          created_at: string
+          desafio_id: string
+          equipe_alvo: Database["public"]["Enums"]["desafio_equipe_nome"]
+          id: string
+          ordem: number
+          resposta_correta: string
+          texto_pergunta: string
+          tipo: Database["public"]["Enums"]["desafio_pergunta_tipo"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          desafio_id: string
+          equipe_alvo: Database["public"]["Enums"]["desafio_equipe_nome"]
+          id?: string
+          ordem: number
+          resposta_correta: string
+          texto_pergunta: string
+          tipo: Database["public"]["Enums"]["desafio_pergunta_tipo"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          desafio_id?: string
+          equipe_alvo?: Database["public"]["Enums"]["desafio_equipe_nome"]
+          id?: string
+          ordem?: number
+          resposta_correta?: string
+          texto_pergunta?: string
+          tipo?: Database["public"]["Enums"]["desafio_pergunta_tipo"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "desafio_pergunta_desafio_id_fkey"
+            columns: ["desafio_id"]
+            isOneToOne: false
+            referencedRelation: "desafio_biblico"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      desafio_tentativa_resposta: {
+        Row: {
+          acertou: boolean
+          created_at: string
+          desafio_id: string
+          equipe_id: string
+          id: string
+          pergunta_id: string
+          respondido_por: string | null
+          resposta_enviada: string
+        }
+        Insert: {
+          acertou?: boolean
+          created_at?: string
+          desafio_id: string
+          equipe_id: string
+          id?: string
+          pergunta_id: string
+          respondido_por?: string | null
+          resposta_enviada: string
+        }
+        Update: {
+          acertou?: boolean
+          created_at?: string
+          desafio_id?: string
+          equipe_id?: string
+          id?: string
+          pergunta_id?: string
+          respondido_por?: string | null
+          resposta_enviada?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "desafio_tentativa_resposta_desafio_id_fkey"
+            columns: ["desafio_id"]
+            isOneToOne: false
+            referencedRelation: "desafio_biblico"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desafio_tentativa_resposta_equipe_id_fkey"
+            columns: ["equipe_id"]
+            isOneToOne: false
+            referencedRelation: "desafio_equipe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desafio_tentativa_resposta_pergunta_id_fkey"
+            columns: ["pergunta_id"]
+            isOneToOne: false
+            referencedRelation: "desafio_pergunta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "desafio_tentativa_resposta_respondido_por_fkey"
+            columns: ["respondido_por"]
+            isOneToOne: false
+            referencedRelation: "ebd_professores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_aluno_badges: {
         Row: {
           aluno_id: string
@@ -3005,6 +3245,10 @@ export type Database = {
         | "manage_members"
         | "view_reports"
         | "edit_church_info"
+      desafio_equipe_nome: "EQUIPE_A" | "EQUIPE_B"
+      desafio_pergunta_tipo: "DESBLOQUEIO" | "CHARADA"
+      desafio_status: "CONFIGURANDO" | "PRONTO" | "EM_ANDAMENTO" | "FINALIZADO"
+      desafio_tipo_publico: "PROFESSORES" | "ALUNOS"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3141,6 +3385,10 @@ export const Constants = {
         "view_reports",
         "edit_church_info",
       ],
+      desafio_equipe_nome: ["EQUIPE_A", "EQUIPE_B"],
+      desafio_pergunta_tipo: ["DESBLOQUEIO", "CHARADA"],
+      desafio_status: ["CONFIGURANDO", "PRONTO", "EM_ANDAMENTO", "FINALIZADO"],
+      desafio_tipo_publico: ["PROFESSORES", "ALUNOS"],
     },
   },
 } as const

@@ -69,6 +69,7 @@ import EBDAdmin from "./pages/ebd/Admin";
 import EBDLancamentoManual from "./pages/ebd/LancamentoManual";
 import EBDClassroomForm from "./pages/ebd/ClassroomForm";
 import EBDAreaAluno from "./pages/ebd/AreaAluno";
+import EBDDesafioBiblico from "./pages/ebd/DesafioBiblico";
 import EBDAlunoPerfil from "./pages/ebd/AlunoPerfil";
 
 // Aluno Module Pages
@@ -417,6 +418,15 @@ const App = () => (
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
                           <EBDAlunoPerfil />
+                        </ModuleProtectedRoute>
+                      } 
+                    />
+
+                    <Route 
+                      path="/ebd/desafio-biblico" 
+                      element={
+                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
+                          <EBDDesafioBiblico />
                         </ModuleProtectedRoute>
                       } 
                     />
