@@ -64,8 +64,12 @@ export interface CartItem {
 }
 
 const STOREFRONT_QUERY = `
-  query GetProducts($first: Int!, $query: String) {
-    products(first: $first, query: $query) {
+  query GetProducts($first: Int!, $query: String, $after: String) {
+    products(first: $first, query: $query, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       edges {
         node {
           id
@@ -187,9 +191,34 @@ export async function storefrontApiRequest(query: string, variables: Record<stri
   return data;
 }
 
-export async function fetchShopifyProducts(first: number = 50, query?: string): Promise<ShopifyProduct[]> {
-  const data = await storefrontApiRequest(STOREFRONT_QUERY, { first, query });
-  return data.data.products.edges;
+export async function fetchShopifyProducts(first: number = 250, query?: string): Promise<ShopifyProduct[]> {
+  const allProducts: ShopifyProduct[] = [];
+  let hasNextPage = true;
+  let cursor: string | null = null;
+  
+  // Buscar todos os produtos com paginação (máximo 250 por requisição)
+  while (hasNextPage) {
+    const data = await storefrontApiRequest(STOREFRONT_QUERY, { 
+      first: Math.min(first, 250), // Shopify max is 250
+      query,
+      after: cursor 
+    });
+    
+    const products = data.data.products.edges;
+    const pageInfo = data.data.products.pageInfo;
+    
+    allProducts.push(...products);
+    
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+    
+    // Se já buscamos o suficiente, parar
+    if (allProducts.length >= first) {
+      hasNextPage = false;
+    }
+  }
+  
+  return allProducts;
 }
 
 export async function createStorefrontCheckout(items: CartItem[]): Promise<string> {
