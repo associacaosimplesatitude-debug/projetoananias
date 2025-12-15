@@ -441,10 +441,9 @@ serve(async (req) => {
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
 
       // Para evitar erro de validação "somatório do valor das parcelas difere do total da venda",
-      // vamos basear as parcelas apenas no valor dos PRODUTOS (sem frete).
-      // O Bling costuma validar o somatório das parcelas contra o valor da venda
-      // sem considerar o frete como parte parcelada.
-      const totalBaseParcelas = valorProdutosNum; // somente produtos (já com desconto)
+      // vamos basear as parcelas no VALOR TOTAL DA VENDA (produtos com desconto + frete),
+      // garantindo que a soma das parcelas seja exatamente igual ao valorTotalCorreto.
+      const totalBaseParcelas = valorTotalCorreto;
       const totalCentavos = Math.round(totalBaseParcelas * 100);
       const valorParcelaBaseCentavos = Math.floor(totalCentavos / numParcelas);
       const parcelasCentavos: number[] = [];
@@ -460,7 +459,7 @@ serve(async (req) => {
       }
 
       console.log(
-        `Faturamento B2B: ${numParcelas} parcela(s) sobre produtos (R$ ${totalBaseParcelas.toFixed(2)}) - valores: ${parcelasCentavos
+        `Faturamento B2B: ${numParcelas} parcela(s) sobre total (R$ ${totalBaseParcelas.toFixed(2)}) - valores: ${parcelasCentavos
           .map(v => (v / 100).toFixed(2))
           .join(', ')}`
       );
