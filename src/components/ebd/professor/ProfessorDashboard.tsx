@@ -203,7 +203,7 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
               onClick={() => navigate(`/ebd/desafio-biblico/${(desafioAtivo.desafio as any)?.id}/jogar`)}
             >
               <Gamepad2 className="h-5 w-5" />
-              Entrar no Jogo
+              Entrar no Desafio
               <ArrowRight className="h-5 w-5" />
             </Button>
           </CardContent>

@@ -357,8 +357,8 @@ export default function DesafioLiderPlay() {
     );
   }
 
-  // Game completed
-  if (perguntas && currentPerguntaIndex >= perguntas.length) {
+  // Game completed - only show if we have questions AND completed them all
+  if (perguntas && perguntas.length > 0 && currentPerguntaIndex >= perguntas.length) {
     return (
       <div className="container mx-auto p-6">
         <Card className="border-green-200 bg-green-50">
@@ -371,6 +371,24 @@ export default function DesafioLiderPlay() {
             <p className="text-sm text-green-600 mt-2">
               Tempo restante: {formatTime(gameTimeLeft)}
             </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // No questions available for this team
+  if (!perguntas || perguntas.length === 0) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto text-yellow-500 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Sem perguntas disponíveis</h2>
+            <p className="text-muted-foreground">
+              Nenhuma pergunta foi cadastrada para sua equipe neste desafio.
+            </p>
+            <Button className="mt-4" onClick={() => navigate('/ebd/desafio-biblico')}>Voltar</Button>
           </CardContent>
         </Card>
       </div>
