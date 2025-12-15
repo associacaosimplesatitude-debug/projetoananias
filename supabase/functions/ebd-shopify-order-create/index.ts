@@ -376,15 +376,16 @@ serve(async (req) => {
         }
       });
 
-      if (blingError) {
-        console.error("Error creating Bling order:", blingError);
+      if (blingError || blingData?.error) {
+        const errorMessage = blingData?.error || blingError?.message || "Erro desconhecido";
+        console.error("Error creating Bling order:", errorMessage);
         return new Response(
           JSON.stringify({ 
-            error: "Falha ao criar pedido no Bling", 
-            details: blingError.message,
+            error: errorMessage, 
+            errorType: blingData?.errorType || 'BLING_ERROR',
             draftOrderId: draftOrder.id,
           }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 

@@ -244,6 +244,11 @@ export default function ShopifyPedidos() {
       });
 
       if (error) throw error;
+      
+      // Check if response contains an error (Bling validation errors)
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       // For faturamento B2B, don't redirect to checkout - just show success
       if (data?.isFaturamento && data?.blingOrderId) {
@@ -271,9 +276,20 @@ export default function ShopifyPedidos() {
       } else {
         throw new Error("Resposta inesperada do servidor");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao criar pedido:", error);
-      toast.error("Erro ao criar pedido. Tente novamente.");
+      // Try to extract detailed error message
+      let errorMessage = "Erro ao criar pedido. Tente novamente.";
+      if (error?.message) {
+        try {
+          // Try to parse if it's a JSON string
+          const parsed = JSON.parse(error.message);
+          errorMessage = parsed.error || error.message;
+        } catch {
+          errorMessage = error.message;
+        }
+      }
+      toast.error(errorMessage, { duration: 8000 });
     } finally {
       setIsCreatingDraft(false);
     }
