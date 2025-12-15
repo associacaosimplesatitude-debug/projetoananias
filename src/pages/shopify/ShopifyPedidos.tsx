@@ -80,8 +80,8 @@ export default function ShopifyPedidos() {
   } = useShopifyCartStore();
 
   const { data: products, isLoading: isLoadingProducts } = useQuery({
-    queryKey: ['shopify-products'],
-    queryFn: () => fetchShopifyProducts(100),
+    queryKey: ['shopify-products-all'],
+    queryFn: () => fetchShopifyProducts(500), // Buscar até 500 produtos (paginação automática)
   });
 
   // Fetch client from URL param (for vendedor flow)
