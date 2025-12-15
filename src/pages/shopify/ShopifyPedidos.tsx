@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ShoppingCart, Search, Plus, Minus, Trash2, ExternalLink, Loader2, ArrowLeft, Users } from "lucide-react";
+import { ShoppingCart, Search, Plus, Minus, Trash2, ExternalLink, Loader2, ArrowLeft, Users, Filter, X } from "lucide-react";
 import { fetchShopifyProducts, ShopifyProduct, CartItem } from "@/lib/shopify";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,6 +54,8 @@ export default function ShopifyPedidos() {
   const urlClienteNome = searchParams.get('clienteNome');
   
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>("all");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
@@ -63,6 +65,138 @@ export default function ShopifyPedidos() {
     desconto: number;
     frete: { type: string; cost: number };
   } | null>(null);
+
+  // Definir categorias e subcategorias
+  const categories = [
+    { 
+      id: 'all', 
+      name: 'Todas as Categorias',
+      subcategories: []
+    },
+    { 
+      id: 'revistas', 
+      name: 'Revistas EBD',
+      subcategories: [
+        { id: 'all', name: 'Todas as Revistas' },
+        { id: 'jovens-adultos', name: 'Jovens e Adultos' },
+        { id: 'juvenis', name: 'Juvenis' },
+        { id: 'adolescentes', name: 'Adolescentes' },
+        { id: 'juniores', name: 'Juniores' },
+        { id: 'primarios', name: 'Primários' },
+        { id: 'jardim', name: 'Jardim de Infância' },
+        { id: 'maternal', name: 'Maternal' },
+        { id: 'bercario', name: 'Berçário' },
+        { id: 'discipulado', name: 'Discipulado' },
+        { id: 'professor', name: 'Professor' },
+        { id: 'aluno', name: 'Aluno' },
+      ]
+    },
+    { 
+      id: 'biblias', 
+      name: 'Bíblias',
+      subcategories: [
+        { id: 'all', name: 'Todas as Bíblias' },
+        { id: 'estudo', name: 'Bíblias de Estudo' },
+        { id: 'mulher', name: 'Bíblias Femininas' },
+        { id: 'jovem', name: 'Bíblias Jovem' },
+        { id: 'infantil', name: 'Bíblias Infantis' },
+        { id: 'ilustrada', name: 'Bíblias Ilustradas' },
+      ]
+    },
+    { 
+      id: 'livros', 
+      name: 'Livros e Devocionais',
+      subcategories: [
+        { id: 'all', name: 'Todos os Livros' },
+        { id: 'devocional', name: 'Devocionais' },
+        { id: 'casamento', name: 'Casamento e Família' },
+        { id: 'lideranca', name: 'Liderança' },
+      ]
+    },
+    { 
+      id: 'infantil', 
+      name: 'Infantil',
+      subcategories: [
+        { id: 'all', name: 'Todos os Infantis' },
+        { id: 'livros-infantis', name: 'Livros Infantis' },
+        { id: 'atividades', name: 'Atividades' },
+      ]
+    },
+    { 
+      id: 'perfumes', 
+      name: 'Perfumes',
+      subcategories: []
+    },
+    { 
+      id: 'outros', 
+      name: 'Outros Produtos',
+      subcategories: []
+    },
+  ];
+
+  // Função para categorizar produto baseado no título
+  const categorizeProduct = (title: string): { category: string; subcategory: string } => {
+    const lowerTitle = title.toLowerCase();
+    
+    // Revistas EBD
+    if (lowerTitle.includes('revista') || lowerTitle.includes('ebd')) {
+      let subcategory = 'all';
+      if (lowerTitle.includes('jovens e adultos') || lowerTitle.includes('jovens adultos')) subcategory = 'jovens-adultos';
+      else if (lowerTitle.includes('juvenis') || lowerTitle.includes('juvenil')) subcategory = 'juvenis';
+      else if (lowerTitle.includes('adolescentes') || lowerTitle.includes('adolescente')) subcategory = 'adolescentes';
+      else if (lowerTitle.includes('juniores') || lowerTitle.includes('junior')) subcategory = 'juniores';
+      else if (lowerTitle.includes('primários') || lowerTitle.includes('primario')) subcategory = 'primarios';
+      else if (lowerTitle.includes('jardim')) subcategory = 'jardim';
+      else if (lowerTitle.includes('maternal')) subcategory = 'maternal';
+      else if (lowerTitle.includes('berçário') || lowerTitle.includes('bercario')) subcategory = 'bercario';
+      else if (lowerTitle.includes('discipulado')) subcategory = 'discipulado';
+      
+      // Check for professor/aluno
+      if (lowerTitle.includes('professor')) subcategory = 'professor';
+      else if (lowerTitle.includes('aluno')) subcategory = 'aluno';
+      
+      return { category: 'revistas', subcategory };
+    }
+    
+    // Bíblias
+    if (lowerTitle.includes('bíblia') || lowerTitle.includes('biblia')) {
+      let subcategory = 'all';
+      if (lowerTitle.includes('estudo')) subcategory = 'estudo';
+      else if (lowerTitle.includes('mulher') || lowerTitle.includes('vitoriosa') || lowerTitle.includes('feminina')) subcategory = 'mulher';
+      else if (lowerTitle.includes('jovem')) subcategory = 'jovem';
+      else if (lowerTitle.includes('infantil') || lowerTitle.includes('criança') || lowerTitle.includes('pequeninos')) subcategory = 'infantil';
+      else if (lowerTitle.includes('ilustrada') || lowerTitle.includes('anote')) subcategory = 'ilustrada';
+      return { category: 'biblias', subcategory };
+    }
+    
+    // Perfumes
+    if (lowerTitle.includes('perfume') || lowerTitle.includes('colônia') || lowerTitle.includes('fragrance')) {
+      return { category: 'perfumes', subcategory: 'all' };
+    }
+    
+    // Infantil
+    if (lowerTitle.includes('entre cores e versos') || lowerTitle.includes('colorir') || lowerTitle.includes('atividades infantis')) {
+      return { category: 'infantil', subcategory: 'atividades' };
+    }
+    
+    // Livros e Devocionais
+    if (lowerTitle.includes('devocional') || lowerTitle.includes('próximo nível') || lowerTitle.includes('dias')) {
+      return { category: 'livros', subcategory: 'devocional' };
+    }
+    if (lowerTitle.includes('casamento') || lowerTitle.includes('família')) {
+      return { category: 'livros', subcategory: 'casamento' };
+    }
+    if (lowerTitle.includes('liderança') || lowerTitle.includes('autoridade') || lowerTitle.includes('ministério')) {
+      return { category: 'livros', subcategory: 'lideranca' };
+    }
+    
+    // Se não encontrou categoria específica, verificar se é livro
+    if (!lowerTitle.includes('revista') && !lowerTitle.includes('bíblia') && !lowerTitle.includes('biblia')) {
+      return { category: 'livros', subcategory: 'all' };
+    }
+    
+    return { category: 'outros', subcategory: 'all' };
+  };
   
   // Get vendedor info for the logged-in user
   const { vendedor, isLoading: isLoadingVendedor } = useVendedor();
@@ -146,9 +280,42 @@ export default function ShopifyPedidos() {
     }
   }, [urlCliente, isLoadingVendedor, isVendedor, userCliente]);
 
-  const filteredProducts = products?.filter(product =>
-    product.node.title.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  // Filtrar produtos por categoria, subcategoria e termo de busca
+  const filteredProducts = products?.filter(product => {
+    const title = product.node.title.toLowerCase();
+    const matchesSearch = title.includes(searchTerm.toLowerCase());
+    
+    // Se não há categoria selecionada, apenas filtrar por busca
+    if (selectedCategory === 'all') {
+      return matchesSearch;
+    }
+    
+    // Categorizar o produto
+    const productCategory = categorizeProduct(product.node.title);
+    
+    // Verificar se a categoria corresponde
+    if (productCategory.category !== selectedCategory) {
+      return false;
+    }
+    
+    // Verificar subcategoria se selecionada
+    if (selectedSubcategory !== 'all') {
+      if (productCategory.subcategory !== selectedSubcategory) {
+        return false;
+      }
+    }
+    
+    return matchesSearch;
+  }) || [];
+
+  // Obter subcategorias da categoria selecionada
+  const currentSubcategories = categories.find(c => c.id === selectedCategory)?.subcategories || [];
+
+  // Contar produtos por categoria
+  const countByCategory = (categoryId: string): number => {
+    if (categoryId === 'all') return products?.length || 0;
+    return products?.filter(p => categorizeProduct(p.node.title).category === categoryId).length || 0;
+  };
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
@@ -503,17 +670,111 @@ export default function ShopifyPedidos() {
           </Sheet>
         </div>
 
-        {/* Search */}
-        <div className="mb-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Buscar produtos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+        {/* Filters Section */}
+        <div className="mb-6 space-y-4">
+          {/* Search + Category Filters Row */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Buscar produtos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex gap-2 items-center">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={selectedCategory}
+                onValueChange={(value) => {
+                  setSelectedCategory(value);
+                  setSelectedSubcategory('all');
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name} ({countByCategory(cat.id)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Subcategory Filter - Only show if category has subcategories */}
+              {currentSubcategories.length > 0 && (
+                <Select
+                  value={selectedSubcategory}
+                  onValueChange={setSelectedSubcategory}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Subcategoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currentSubcategories.map((sub) => (
+                      <SelectItem key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Clear Filters */}
+              {(selectedCategory !== 'all' || searchTerm) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    setSelectedSubcategory('all');
+                    setSearchTerm('');
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Limpar
+                </Button>
+              )}
+            </div>
           </div>
+
+          {/* Active Filters Display */}
+          {(selectedCategory !== 'all' || selectedSubcategory !== 'all') && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Filtros ativos:</span>
+              {selectedCategory !== 'all' && (
+                <Badge variant="secondary" className="gap-1">
+                  {categories.find(c => c.id === selectedCategory)?.name}
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setSelectedSubcategory('all');
+                    }}
+                  />
+                </Badge>
+              )}
+              {selectedSubcategory !== 'all' && (
+                <Badge variant="outline" className="gap-1">
+                  {currentSubcategories.find(s => s.id === selectedSubcategory)?.name}
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={() => setSelectedSubcategory('all')}
+                  />
+                </Badge>
+              )}
+              <span className="text-muted-foreground ml-2">
+                ({filteredProducts.length} produtos)
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Products Grid */}
