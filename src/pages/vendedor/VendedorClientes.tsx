@@ -29,8 +29,17 @@ import {
   Play,
   MapPin,
   Pencil,
-  Trash2
+  Trash2,
+  Search
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
@@ -74,6 +83,9 @@ export default function VendedorClientes() {
   const [clienteParaEditar, setClienteParaEditar] = useState<Cliente | null>(null);
   const [clienteParaExcluir, setClienteParaExcluir] = useState<Cliente | null>(null);
   const [excluindo, setExcluindo] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [estadoFilter, setEstadoFilter] = useState<string>("all");
 
   const { data: clientes = [], isLoading: clientesLoading } = useQuery({
     queryKey: ["vendedor-clientes", vendedor?.id],
@@ -142,6 +154,30 @@ export default function VendedorClientes() {
     return "-";
   };
 
+  // Get unique estados for filter
+  const estadosUnicos = [...new Set(clientes.map(c => c.endereco_estado).filter(Boolean))].sort();
+
+  // Filter clients
+  const filteredClientes = clientes.filter((cliente) => {
+    const matchesSearch = 
+      cliente.nome_igreja.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (cliente.nome_responsavel?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (cliente.nome_superintendente?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (cliente.cnpj?.includes(searchTerm) ?? false) ||
+      (cliente.cpf?.includes(searchTerm) ?? false);
+
+    const matchesStatus = 
+      statusFilter === "all" ||
+      (statusFilter === "ativo" && cliente.status_ativacao_ebd) ||
+      (statusFilter === "pendente" && !cliente.status_ativacao_ebd);
+
+    const matchesEstado = 
+      estadoFilter === "all" ||
+      cliente.endereco_estado === estadoFilter;
+
+    return matchesSearch && matchesStatus && matchesEstado;
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -164,10 +200,44 @@ export default function VendedorClientes() {
       </div>
 
       <Card>
-        <CardContent className="pt-6">
-          {clientes.length === 0 ? (
+        <CardContent className="pt-6 space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, responsável, CNPJ/CPF..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Estados</SelectItem>
+                {estadosUnicos.map((estado) => (
+                  <SelectItem key={estado} value={estado!}>{estado}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {filteredClientes.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
-              Nenhum cliente cadastrado
+              {clientes.length === 0 ? "Nenhum cliente cadastrado" : "Nenhum cliente encontrado com os filtros selecionados"}
             </p>
           ) : (
             <Table>
@@ -182,7 +252,7 @@ export default function VendedorClientes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {clientes.map((cliente) => (
+                {filteredClientes.map((cliente) => (
                   <TableRow key={cliente.id}>
                     <TableCell className="font-medium">{cliente.nome_igreja}</TableCell>
                     <TableCell>{cliente.nome_responsavel || cliente.nome_superintendente || "-"}</TableCell>
