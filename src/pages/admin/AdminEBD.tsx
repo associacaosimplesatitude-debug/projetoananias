@@ -202,6 +202,25 @@ export default function AdminEBD() {
   const [leadStatusFilter, setLeadStatusFilter] = useState('all');
   const [leadScoreFilter, setLeadScoreFilter] = useState('all');
   const [leadContaFilter, setLeadContaFilter] = useState('all');
+  const [editLeadDialogOpen, setEditLeadDialogOpen] = useState(false);
+  const [deleteLeadDialogOpen, setDeleteLeadDialogOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [editLeadForm, setEditLeadForm] = useState({
+    nome_igreja: '',
+    email: '',
+    telefone: '',
+    nome_responsavel: '',
+    endereco_cep: '',
+    endereco_rua: '',
+    endereco_numero: '',
+    endereco_complemento: '',
+    endereco_bairro: '',
+    endereco_cidade: '',
+    endereco_estado: '',
+    cnpj: '',
+    status_lead: 'Não Contatado',
+    observacoes: '',
+  });
 
   // Data fetching
   const { data: orders, isLoading: ordersLoading } = useQuery({
@@ -974,6 +993,75 @@ export default function AdminEBD() {
       toast.error(error.message || 'Erro ao transferir cliente');
     },
   });
+
+  // Lead mutations
+  const updateLeadMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof editLeadForm }) => {
+      const { error } = await supabase.from('ebd_leads_reativacao').update(data).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads-reativacao'] });
+      toast.success('Lead atualizado com sucesso!');
+      setEditLeadDialogOpen(false);
+      setSelectedLead(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao atualizar lead');
+    },
+  });
+
+  const deleteLeadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('ebd_leads_reativacao').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads-reativacao'] });
+      toast.success('Lead excluído com sucesso!');
+      setDeleteLeadDialogOpen(false);
+      setSelectedLead(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao excluir lead');
+    },
+  });
+
+  const handleEditLead = (lead: any) => {
+    setSelectedLead(lead);
+    setEditLeadForm({
+      nome_igreja: lead.nome_igreja || '',
+      email: lead.email || '',
+      telefone: lead.telefone || '',
+      nome_responsavel: lead.nome_responsavel || '',
+      endereco_cep: lead.endereco_cep || '',
+      endereco_rua: lead.endereco_rua || '',
+      endereco_numero: lead.endereco_numero || '',
+      endereco_complemento: lead.endereco_complemento || '',
+      endereco_bairro: lead.endereco_bairro || '',
+      endereco_cidade: lead.endereco_cidade || '',
+      endereco_estado: lead.endereco_estado || '',
+      cnpj: lead.cnpj || '',
+      status_lead: lead.status_lead || 'Não Contatado',
+      observacoes: lead.observacoes || '',
+    });
+    setEditLeadDialogOpen(true);
+  };
+
+  const handleDeleteLead = (lead: any) => {
+    setSelectedLead(lead);
+    setDeleteLeadDialogOpen(true);
+  };
+
+  const handleSaveLead = () => {
+    if (!selectedLead) return;
+    updateLeadMutation.mutate({ id: selectedLead.id, data: editLeadForm });
+  };
+
+  const confirmDeleteLead = () => {
+    if (!selectedLead) return;
+    deleteLeadMutation.mutate(selectedLead.id);
+  };
 
   const resetForm = () => {
     setFormData({ nome: '', email: '', senha: '', foto_url: '', comissao_percentual: 5, status: 'Ativo', meta_mensal_valor: 0 });
@@ -2035,17 +2123,38 @@ export default function AdminEBD() {
                         </Select>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Navigate to activation with lead data
-                            navigate(`/vendedor/ativacao?leadId=${lead.id}&leadNome=${encodeURIComponent(lead.nome_igreja)}`);
-                          }}
-                        >
-                          <Play className="h-4 w-4 mr-1" />
-                          Ativar Painel
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Navigate to activation with lead data
+                              navigate(`/vendedor/ativacao?leadId=${lead.id}&leadNome=${encodeURIComponent(lead.nome_igreja)}`);
+                            }}
+                          >
+                            <Play className="h-4 w-4 mr-1" />
+                            Ativar Painel
+                          </Button>
+                          {role === 'admin' && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditLead(lead)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteLead(lead)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -2306,6 +2415,180 @@ export default function AdminEBD() {
           vendedores={vendedores || []}
           onImportComplete={() => refetchLeads()}
         />
+
+        {/* Edit Lead Dialog */}
+        <Dialog open={editLeadDialogOpen} onOpenChange={setEditLeadDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editar Lead</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome da Igreja *</Label>
+                  <Input
+                    value={editLeadForm.nome_igreja}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, nome_igreja: e.target.value })}
+                    placeholder="Nome da igreja"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Responsável</Label>
+                  <Input
+                    value={editLeadForm.nome_responsavel}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, nome_responsavel: e.target.value })}
+                    placeholder="Nome do responsável"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={editLeadForm.email}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, email: e.target.value })}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input
+                    value={editLeadForm.telefone}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, telefone: e.target.value })}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>CNPJ</Label>
+                  <Input
+                    value={editLeadForm.cnpj}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, cnpj: e.target.value })}
+                    placeholder="00.000.000/0000-00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={editLeadForm.status_lead}
+                    onValueChange={(value) => setEditLeadForm({ ...editLeadForm, status_lead: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Não Contatado">Não Contatado</SelectItem>
+                      <SelectItem value="Em Negociação">Em Negociação</SelectItem>
+                      <SelectItem value="Reativado">Reativado</SelectItem>
+                      <SelectItem value="Perdido">Perdido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>CEP</Label>
+                  <Input
+                    value={editLeadForm.endereco_cep}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, endereco_cep: e.target.value })}
+                    placeholder="00000-000"
+                  />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label>Rua</Label>
+                  <Input
+                    value={editLeadForm.endereco_rua}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, endereco_rua: e.target.value })}
+                    placeholder="Nome da rua"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>Número</Label>
+                  <Input
+                    value={editLeadForm.endereco_numero}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, endereco_numero: e.target.value })}
+                    placeholder="Nº"
+                  />
+                </div>
+                <div className="col-span-3 space-y-2">
+                  <Label>Complemento</Label>
+                  <Input
+                    value={editLeadForm.endereco_complemento}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, endereco_complemento: e.target.value })}
+                    placeholder="Apto, Sala, etc."
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Bairro</Label>
+                  <Input
+                    value={editLeadForm.endereco_bairro}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, endereco_bairro: e.target.value })}
+                    placeholder="Bairro"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cidade</Label>
+                  <Input
+                    value={editLeadForm.endereco_cidade}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, endereco_cidade: e.target.value })}
+                    placeholder="Cidade"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Input
+                    value={editLeadForm.endereco_estado}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, endereco_estado: e.target.value })}
+                    placeholder="UF"
+                    maxLength={2}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Observações</Label>
+                <Input
+                  value={editLeadForm.observacoes}
+                  onChange={(e) => setEditLeadForm({ ...editLeadForm, observacoes: e.target.value })}
+                  placeholder="Anotações sobre o lead..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditLeadDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveLead} disabled={updateLeadMutation.isPending}>
+                {updateLeadMutation.isPending ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Lead Confirmation Dialog */}
+        <Dialog open={deleteLeadDialogOpen} onOpenChange={setDeleteLeadDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Excluir Lead</DialogTitle>
+            </DialogHeader>
+            <p className="text-muted-foreground">
+              Tem certeza que deseja excluir o lead <strong>{selectedLead?.nome_igreja}</strong>? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setDeleteLeadDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteLead} disabled={deleteLeadMutation.isPending}>
+                {deleteLeadMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
