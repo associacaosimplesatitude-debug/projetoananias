@@ -6,8 +6,7 @@ import {
   AlertTriangle, 
   UserCheck,
   Package,
-  LayoutDashboard,
-  Store
+  LayoutDashboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -20,7 +19,6 @@ const menuItems = [
   { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco" },
   { to: "/vendedor/leads", icon: UserCheck, label: "Reativação" },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
-  { to: "/vendedor/shopify", icon: Store, label: "Fazer Pedido" },
 ];
 
 export function VendedorLayout() {
