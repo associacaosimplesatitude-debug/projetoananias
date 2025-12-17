@@ -44,6 +44,7 @@ interface Cliente {
   endereco_cidade: string | null;
   endereco_estado: string | null;
   pode_faturar: boolean;
+  desconto_faturamento: number | null;
 }
 
 export default function CheckoutBling() {
@@ -105,9 +106,15 @@ export default function CheckoutBling() {
     }
   }, [clienteId, modoBling, navigate]);
 
+  // Calculate discount: 30% base + additional client discount
+  const descontoBase = 0.30; // 30% discount
+  const descontoAdicional = (cliente?.desconto_faturamento || 0) / 100;
+  const descontoTotal = Math.min(descontoBase + descontoAdicional, 1); // Max 100%
+  const fatorDesconto = 1 - descontoTotal;
+
   const subtotal = revistas?.reduce((acc, revista) => {
     const quantidade = cart[revista.id] || 0;
-    const precoUnitario = (revista.preco_cheio || 0) * 0.7; // 30% discount
+    const precoUnitario = (revista.preco_cheio || 0) * fatorDesconto;
     return acc + precoUnitario * quantidade;
   }, 0) || 0;
 
@@ -136,7 +143,7 @@ export default function CheckoutBling() {
         codigo: revista.bling_produto_id?.toString() || revista.id,
         descricao: revista.titulo,
         quantidade: cart[revista.id],
-        valor: (revista.preco_cheio || 0) * 0.7,
+        valor: (revista.preco_cheio || 0) * fatorDesconto,
         preco_cheio: revista.preco_cheio || 0,
         unidade: 'UN',
       }));
@@ -357,11 +364,11 @@ export default function CheckoutBling() {
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm line-clamp-2">{revista.titulo}</p>
                             <p className="text-xs text-muted-foreground">
-                              {quantidade}x R$ {precoUnitario.toFixed(2)}
+                              {quantidade}x R$ {((revista.preco_cheio || 0) * fatorDesconto).toFixed(2)}
                             </p>
                           </div>
                           <span className="font-medium text-sm">
-                            R$ {(precoUnitario * quantidade).toFixed(2)}
+                            R$ {((revista.preco_cheio || 0) * fatorDesconto * quantidade).toFixed(2)}
                           </span>
                         </div>
                       );
@@ -391,6 +398,12 @@ export default function CheckoutBling() {
                   <FileText className="h-4 w-4 mr-2" />
                   Pagamento: {faturamentoPrazo === '1' ? '30 dias' : faturamentoPrazo === '2' ? '30/60 dias' : '30/60/90 dias'}
                 </Badge>
+
+                {cliente?.desconto_faturamento && cliente.desconto_faturamento > 0 && (
+                  <Badge variant="secondary" className="w-full justify-center py-2">
+                    Desconto especial: {(descontoTotal * 100).toFixed(0)}% (30% + {cliente.desconto_faturamento}%)
+                  </Badge>
+                )}
 
                 <Button
                   className="w-full"
