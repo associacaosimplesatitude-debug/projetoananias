@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ShoppingCart, Search, Plus, Minus, Trash2, ExternalLink, Loader2, ArrowLeft, Users, Filter, X } from "lucide-react";
+import { ShoppingCart, Search, Plus, Minus, Trash2, ExternalLink, Loader2, ArrowLeft, Users, Filter, X, User } from "lucide-react";
 import { fetchShopifyProducts, ShopifyProduct, CartItem } from "@/lib/shopify";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +28,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+interface Vendedor {
+  id: string;
+  nome: string;
+  foto_url: string | null;
+}
 
 interface Cliente {
   id: string;
@@ -43,6 +50,7 @@ interface Cliente {
   endereco_cidade: string | null;
   endereco_estado: string | null;
   pode_faturar: boolean;
+  vendedor?: Vendedor | null;
 }
 
 export default function ShopifyPedidos() {
@@ -254,12 +262,15 @@ export default function ShopifyPedidos() {
     queryKey: ['user-cliente-shopify'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.email) return null;
+      if (!user?.id) return null;
       
       const { data, error } = await supabase
         .from('ebd_clientes')
-        .select('*')
-        .eq('email_superintendente', user.email)
+        .select(`
+          *,
+          vendedor:vendedores(id, nome, foto_url)
+        `)
+        .eq('superintendente_user_id', user.id)
         .maybeSingle();
       
       if (error) throw error;
@@ -480,6 +491,19 @@ export default function ShopifyPedidos() {
                 <p className="text-muted-foreground text-sm">
                   Cliente: {selectedCliente.nome_igreja}
                 </p>
+              )}
+              {!isVendedor && selectedCliente?.vendedor && (
+                <div className="flex items-center gap-2 mt-2 bg-muted/50 rounded-lg px-3 py-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={selectedCliente.vendedor.foto_url || undefined} alt={selectedCliente.vendedor.nome} />
+                    <AvatarFallback>
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm text-muted-foreground">
+                    Consultor(a): <span className="font-medium text-foreground">{selectedCliente.vendedor.nome}</span>
+                  </span>
+                </div>
               )}
             </div>
           </div>
