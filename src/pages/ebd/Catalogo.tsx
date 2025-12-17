@@ -5,9 +5,10 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { RevistaCard } from '@/components/ebd/RevistaCard';
 import { RevistaDetailDialog } from '@/components/ebd/RevistaDetailDialog';
 import { FaturamentoModeDialog } from '@/components/ebd/FaturamentoModeDialog';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const FAIXAS_ETARIAS = [
   "Jovens e Adultos",
@@ -43,7 +44,7 @@ export default function Catalogo() {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Verificar se cliente pode faturar
+  // Verificar se cliente pode faturar e buscar vendedor
   const { data: clienteData } = useQuery({
     queryKey: ['cliente-pode-faturar'],
     queryFn: async () => {
@@ -52,7 +53,11 @@ export default function Catalogo() {
 
       const { data, error } = await supabase
         .from('ebd_clientes')
-        .select('id, pode_faturar')
+        .select(`
+          id, 
+          pode_faturar,
+          vendedor:vendedores(id, nome, foto_url)
+        `)
         .eq('superintendente_user_id', user.id)
         .single();
 
@@ -65,7 +70,7 @@ export default function Catalogo() {
   });
 
   const podeFaturar = clienteData?.pode_faturar || false;
-
+  const vendedor = clienteData?.vendedor as { id: string; nome: string; foto_url: string | null } | null;
   const { data: revistas, isLoading } = useQuery({
     queryKey: ['ebd-revistas-catalogo', faixaSelecionada],
     queryFn: async () => {
@@ -123,8 +128,23 @@ export default function Catalogo() {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">🛒 Catálogo de Revistas</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold">🛒 Catálogo de Revistas</h1>
+          {vendedor && (
+            <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={vendedor.foto_url || undefined} alt={vendedor.nome} />
+                <AvatarFallback>
+                  <User className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm text-muted-foreground">
+                Consultor(a): <span className="font-medium text-foreground">{vendedor.nome}</span>
+              </span>
+            </div>
+          )}
+        </div>
         <div className="flex gap-3">
           <Button 
             variant="outline" 
