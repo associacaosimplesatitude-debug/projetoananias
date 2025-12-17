@@ -30,7 +30,8 @@ import {
   MapPin,
   Pencil,
   Trash2,
-  Search
+  Search,
+  Percent
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,6 +44,7 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
+import { DescontoFaturamentoDialog } from "@/components/vendedor/DescontoFaturamentoDialog";
 import { useVendedor } from "@/hooks/useVendedor";
 import { toast } from "sonner";
 
@@ -73,6 +75,7 @@ interface Cliente {
   endereco_bairro: string | null;
   senha_temporaria: string | null;
   pode_faturar: boolean;
+  desconto_faturamento: number | null;
 }
 
 export default function VendedorClientes() {
@@ -82,6 +85,7 @@ export default function VendedorClientes() {
   const [cadastrarClienteOpen, setCadastrarClienteOpen] = useState(false);
   const [clienteParaEditar, setClienteParaEditar] = useState<Cliente | null>(null);
   const [clienteParaExcluir, setClienteParaExcluir] = useState<Cliente | null>(null);
+  const [clienteParaDesconto, setClienteParaDesconto] = useState<Cliente | null>(null);
   const [excluindo, setExcluindo] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -278,7 +282,7 @@ export default function VendedorClientes() {
                         )}
                         {cliente.pode_faturar && (
                           <Badge variant="outline" className="w-fit text-blue-600 border-blue-300 bg-blue-50">
-                            B2B
+                            B2B {cliente.desconto_faturamento ? `(-${cliente.desconto_faturamento}%)` : ''}
                           </Badge>
                         )}
                       </div>
@@ -293,6 +297,17 @@ export default function VendedorClientes() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
+                        {cliente.pode_faturar && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setClienteParaDesconto(cliente)}
+                            title="Configurar desconto de faturamento"
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Percent className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -338,6 +353,13 @@ export default function VendedorClientes() {
         vendedorId={vendedor?.id || ""}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["vendedor-clientes", vendedor?.id] })}
         clienteParaEditar={clienteParaEditar}
+      />
+
+      <DescontoFaturamentoDialog
+        open={!!clienteParaDesconto}
+        onOpenChange={(open) => !open && setClienteParaDesconto(null)}
+        cliente={clienteParaDesconto}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["vendedor-clientes", vendedor?.id] })}
       />
 
       <AlertDialog open={!!clienteParaExcluir} onOpenChange={(open) => !open && setClienteParaExcluir(null)}>
