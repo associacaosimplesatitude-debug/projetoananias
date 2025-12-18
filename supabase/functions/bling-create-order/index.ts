@@ -606,44 +606,44 @@ serve(async (req) => {
 
     if (!orderResponse.ok) {
       console.error('Erro ao criar pedido:', JSON.stringify(responseData, null, 2));
-      
+
       // Extract specific error message from Bling
       let errorMessage = 'Erro ao criar pedido no Bling';
       let errorType = 'UNKNOWN_ERROR';
-      
-      if (responseData?.error?.fields && responseData.error.fields.length > 0) {
-        // Get field error messages and clean HTML tags
-        const fieldErrors = responseData.error.fields as any[];
-        const errorMessages = fieldErrors.map((f: any) => f.msg).filter(Boolean);
-        
+
+      const fields = responseData?.error?.fields;
+
+      // Bling pode retornar `fields` como ARRAY ou como OBJETO (ex: { "1": { msg: "..." } })
+      if (fields) {
+        const fieldErrors: any[] = Array.isArray(fields) ? fields : Object.values(fields);
+
+        const errorMessages = fieldErrors
+          .map((f: any) => f?.msg)
+          .filter(Boolean)
+          .map((m: string) => m.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+
         if (errorMessages.length > 0) {
-          const cleanMessages = errorMessages.map((m: string) => 
-            m.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-          );
-          
-          // Check for stock error
-          const stockError = cleanMessages.find(m => 
+          const stockError = errorMessages.find((m) =>
             m.toLowerCase().includes('estoque') && m.toLowerCase().includes('insuficiente')
           );
-          
+
           if (stockError) {
             errorType = 'INSUFFICIENT_STOCK';
-            // Extract product names
             const productMatch = stockError.match(/insuficiente[:\s]*(.+)/i);
             const products = productMatch ? productMatch[1].trim() : '';
-            errorMessage = products 
+            errorMessage = products
               ? `Estoque insuficiente no Bling para: ${products}`
               : 'Estoque insuficiente no Bling para um ou mais produtos';
           } else {
-            errorMessage = cleanMessages.join('; ');
+            errorMessage = errorMessages.join('; ');
           }
         }
       } else if (responseData?.error?.message) {
         errorMessage = responseData.error.message;
       }
-      
+
       console.error('Erro processado:', errorMessage, errorType);
-      
+
       // Retornar 400 para erros de validação (como estoque)
       return new Response(
         JSON.stringify({ error: errorMessage, errorType }),
