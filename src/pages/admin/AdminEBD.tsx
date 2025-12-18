@@ -129,7 +129,7 @@ interface EBDClient {
     state: string | null;
     vendedor_id: string | null;
   } | null;
-  source?: 'churches' | 'ebd_clientes';
+  source: 'churches' | 'ebd_clientes';
 }
 
 const COLORS = {
@@ -977,9 +977,14 @@ export default function AdminEBD() {
   });
 
   const transferMutation = useMutation({
-    mutationFn: async ({ churchId, vendedorId }: { churchId: string; vendedorId: string | null }) => {
-      const { error } = await supabase.from('churches').update({ vendedor_id: vendedorId }).eq('id', churchId);
-      if (error) throw error;
+    mutationFn: async ({ clienteId, vendedorId, source }: { clienteId: string; vendedorId: string | null; source: 'churches' | 'ebd_clientes' }) => {
+      if (source === 'ebd_clientes') {
+        const { error } = await supabase.from('ebd_clientes').update({ vendedor_id: vendedorId }).eq('id', clienteId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('churches').update({ vendedor_id: vendedorId }).eq('id', clienteId);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['churches-all'] });
@@ -1886,8 +1891,9 @@ export default function AdminEBD() {
                             onValueChange={(value) => {
                               if (client.church?.id) {
                                 transferMutation.mutate({
-                                  churchId: client.church.id,
+                                  clienteId: client.church.id,
                                   vendedorId: value === "sem_vendedor" ? null : value,
+                                  source: client.source,
                                 });
                               }
                             }}
@@ -2193,8 +2199,8 @@ export default function AdminEBD() {
                     <Select value={selectedChurch} onValueChange={setSelectedChurch}>
                       <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
                       <SelectContent>
-                        {churches?.map((church) => (
-                          <SelectItem key={church.id} value={church.id}>{church.church_name} ({getVendedorName(church.vendedor_id)})</SelectItem>
+                        {ebdClients?.map((client) => (
+                          <SelectItem key={client.cliente_id} value={`${client.cliente_id}|${client.source}`}>{client.church?.church_name} ({getVendedorName(client.church?.vendedor_id)})</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -2211,7 +2217,10 @@ export default function AdminEBD() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button onClick={() => transferMutation.mutate({ churchId: selectedChurch, vendedorId: targetVendedor || null })} className="w-full">Transferir</Button>
+                  <Button onClick={() => {
+                    const [clienteId, source] = selectedChurch.split('|');
+                    transferMutation.mutate({ clienteId, vendedorId: targetVendedor || null, source: source as 'churches' | 'ebd_clientes' });
+                  }} className="w-full" disabled={!selectedChurch}>Transferir</Button>
                 </div>
               </DialogContent>
             </Dialog>
