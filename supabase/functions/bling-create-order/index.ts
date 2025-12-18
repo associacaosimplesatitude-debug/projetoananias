@@ -538,8 +538,12 @@ serve(async (req) => {
     // - transportador.servico_logistico = "PAC" / "SEDEX" / "FRETE GRATIS"
     // - volumes = array com detalhes do frete
     if (endereco_entrega) {
+      // No Bling, o frete só entra no "total da venda" quando é cobrado do destinatário.
+      // Como aqui estamos cobrando frete no checkout, marcamos como Destinatário (FOB).
+      const fretePorConta: 'R' | 'D' = valorFreteNum > 0 ? 'D' : 'R';
+
       pedidoData.transporte = {
-        fretePorConta: 'R', // R = Remetente (CIF), D = Destinatário (FOB)
+        fretePorConta, // R = Remetente (CIF), D = Destinatário (FOB)
         transportador: {
           nome: 'Correios', // Nome fixo do transportador
           servico_logistico: freteInfo.servico, // PAC, SEDEX, FRETE GRATIS
@@ -548,7 +552,7 @@ serve(async (req) => {
           {
             servico: freteInfo.servico, // PAC, SEDEX, FRETE GRATIS
             codigoRastreamento: '', // Será preenchido depois
-          }
+          },
         ],
         frete: valorFreteNum, // Valor do frete
         contato: {
