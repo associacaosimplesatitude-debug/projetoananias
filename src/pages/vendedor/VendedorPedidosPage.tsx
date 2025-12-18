@@ -118,10 +118,10 @@ export default function VendedorPedidosPage() {
     setProcessingPropostaId(proposta.id);
 
     try {
-      const cliente = proposta.cliente || {
-        id: proposta.cliente_id || '',
+      const clienteProposta = proposta.cliente || {
+        id: proposta.cliente_id || "",
         nome_igreja: proposta.cliente_nome,
-        cnpj: proposta.cliente_cnpj || '',
+        cnpj: proposta.cliente_cnpj || "",
         email_superintendente: null,
         telefone: null,
         nome_responsavel: proposta.cliente_nome,
@@ -134,41 +134,86 @@ export default function VendedorPedidosPage() {
         pode_faturar: true,
       };
 
-      // Use saved values from accepted proposal
-      const prazo = proposta.prazo_faturamento_selecionado || '30';
-      const desconto = proposta.desconto_percentual || 0;
+      const prazo = proposta.prazo_faturamento_selecionado || "30";
+      const descontoPercentual = proposta.desconto_percentual || 0;
       const valorFrete = proposta.valor_frete || 0;
-      const metodoFrete = proposta.metodo_frete || 'COMBINAR';
+      const metodoFrete = proposta.metodo_frete || "COMBINAR";
 
-      const { data, error } = await supabase.functions.invoke('ebd-shopify-order-create', {
+      // Montar itens no formato esperado pelo Bling
+      const itensBling = proposta.itens.map((item) => {
+        const precoOriginal = Number(item.price);
+        const precoComDesconto = descontoPercentual > 0
+          ? Math.round((precoOriginal * (1 - descontoPercentual / 100)) * 100) / 100
+          : precoOriginal;
+
+        return {
+          codigo: undefined,
+          descricao: item.title,
+          unidade: "UN",
+          quantidade: item.quantity,
+          valor: precoComDesconto,
+          preco_cheio: precoOriginal,
+        };
+      });
+
+      const valorProdutosSemDesconto = proposta.itens.reduce(
+        (sum, i) => sum + Number(i.price) * i.quantity,
+        0
+      );
+      const valorProdutos = descontoPercentual > 0
+        ? Math.round((valorProdutosSemDesconto * (1 - descontoPercentual / 100)) * 100) / 100
+        : Math.round(valorProdutosSemDesconto * 100) / 100;
+      const valorTotal = Math.round((valorProdutos + valorFrete) * 100) / 100;
+
+      const clienteBling = {
+        nome: clienteProposta.nome_responsavel || clienteProposta.nome_igreja,
+        sobrenome: null,
+        cpf_cnpj: clienteProposta.cnpj,
+        email: clienteProposta.email_superintendente,
+        telefone: clienteProposta.telefone,
+      };
+
+      const enderecoEntrega = clienteProposta.endereco_rua
+        ? {
+            rua: clienteProposta.endereco_rua,
+            numero: clienteProposta.endereco_numero || "S/N",
+            complemento: "",
+            bairro: clienteProposta.endereco_bairro || "",
+            cep: clienteProposta.endereco_cep || "",
+            cidade: clienteProposta.endereco_cidade || "",
+            estado: clienteProposta.endereco_estado || "",
+          }
+        : null;
+
+      const { data, error } = await supabase.functions.invoke("bling-create-order", {
         body: {
-          cliente,
-          vendedor_id: vendedor?.id,
-          vendedor_nome: proposta.vendedor_nome || vendedor?.nome,
-          items: proposta.itens,
-          forma_pagamento: 'FATURAMENTO',
-          faturamento_prazo: prazo,
-          desconto_percentual: desconto.toString(),
-          valor_frete: valorFrete.toString(),
+          cliente: clienteBling,
+          endereco_entrega: enderecoEntrega,
+          itens: itensBling,
+          // Identificador interno (não Shopify)
+          pedido_id: proposta.id,
+          valor_frete: valorFrete,
           metodo_frete: metodoFrete,
-        }
+          forma_pagamento: "FATURAMENTO",
+          faturamento_prazo: prazo,
+          valor_produtos: valorProdutos,
+          valor_total: valorTotal,
+          vendedor_nome: proposta.vendedor_nome || vendedor?.nome,
+          desconto_percentual: descontoPercentual,
+        },
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      // Update proposta status to FATURADO
       await supabase
         .from("vendedor_propostas")
         .update({ status: "FATURADO" })
         .eq("id", proposta.id);
 
-      if (data?.isFaturamento && data?.blingOrderId) {
-        const blingIdentifier = data.blingOrderNumber || data.blingOrderId;
-        toast.success(`Pedido enviado para faturamento no Bling!`, {
+      if (data?.success && (data?.bling_order_id || data?.bling_order_number)) {
+        const blingIdentifier = data.bling_order_number || data.bling_order_id;
+        toast.success("Pedido enviado para faturamento no Bling!", {
           description: `Prazo: ${prazo} dias • Pedido Bling: ${blingIdentifier}`,
           duration: 5000,
         });
