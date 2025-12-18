@@ -327,46 +327,14 @@ serve(async (req) => {
     const estoqueCache = new Map<number, number>();
 
     // Busca saldo físico total no Bling (quando possível)
+    // NOTA: A verificação de estoque foi removida pois a API de saldos não retorna dados
+    // consistentes para todos os produtos. Deixamos o Bling validar ao criar a venda.
     async function getBlingStock(produtoId: number): Promise<number | null> {
-      if (!produtoId || isNaN(produtoId)) return null;
-      if (estoqueCache.has(produtoId)) return estoqueCache.get(produtoId)!;
-
-      try {
-        const stockResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/json',
-            },
-          }
-        );
-
-        if (!stockResponse.ok) {
-          console.log(`Não foi possível consultar estoque no Bling para produto ${produtoId}`);
-          return null;
-        }
-
-        const stockData = await stockResponse.json();
-        const estoques = stockData.data || [];
-
-        let estoqueTotal = 0;
-        for (const item of estoques) {
-          if (item?.produto?.id === produtoId || item?.produto?.id === Number(produtoId)) {
-            if (Array.isArray(item.saldos)) {
-              for (const saldo of item.saldos) {
-                estoqueTotal += (saldo?.saldoFisicoTotal || 0);
-              }
-            }
-          }
-        }
-
-        estoqueCache.set(produtoId, estoqueTotal);
-        return estoqueTotal;
-      } catch (err) {
-        console.log(`Erro ao consultar estoque do produto ${produtoId}: ${String(err)}`);
-        return null;
-      }
+      // Desabilitando verificação prévia de estoque - deixar o Bling validar
+      // O endpoint /estoques/saldos pode não retornar dados para todos os produtos
+      // especialmente quando usam depósitos ou configurações específicas
+      console.log(`[STOCK CHECK SKIP] Pulando verificação de estoque para produto ${produtoId} - deixando Bling validar`);
+      return null;
     }
 
     // Preparar itens (enviando o valor FINAL já com desconto)
@@ -396,19 +364,9 @@ serve(async (req) => {
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade);
 
-      // Se conseguimos identificar o produto no Bling, checar estoque ANTES de tentar criar a venda.
-      // Isso evita erro genérico "Não foi possível salvar a venda" e retorna uma mensagem clara.
-      if (blingProdutoId && !isNaN(blingProdutoId)) {
-        const estoque = await getBlingStock(blingProdutoId);
-        if (typeof estoque === 'number' && estoque < quantidade) {
-          const msg = `Estoque insuficiente no Bling para: ${item.descricao}`;
-          console.error('Erro processado:', msg, 'INSUFFICIENT_STOCK');
-          return new Response(
-            JSON.stringify({ error: msg, errorType: 'INSUFFICIENT_STOCK' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
+      // A verificação prévia de estoque foi removida pois a API /estoques/saldos
+      // não retorna dados consistentes para todos os produtos.
+      // O Bling vai validar o estoque ao criar a venda e retornar erro específico se necessário.
 
       // Para evitar divergência de total/parcela no Bling, enviamos o valor FINAL do item
       // (já com desconto) e NÃO enviamos `itens[].desconto`.
