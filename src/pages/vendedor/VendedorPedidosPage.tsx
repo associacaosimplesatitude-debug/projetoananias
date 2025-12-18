@@ -96,7 +96,8 @@ export default function VendedorPedidosPage() {
   });
 
   const copyLink = async (token: string) => {
-    const link = `${window.location.origin}/proposta/${token}`;
+    // Usar domínio de produção para o link da proposta
+    const link = `https://gestaoebd.com.br/proposta/${token}`;
     await navigator.clipboard.writeText(link);
     toast.success("Link copiado!");
   };

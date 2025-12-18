@@ -478,8 +478,8 @@ export default function ShopifyPedidos() {
 
       if (error) throw error;
 
-      // Gerar link
-      const baseUrl = window.location.origin;
+      // Usar domínio de produção para o link da proposta
+      const baseUrl = 'https://gestaoebd.com.br';
       const link = `${baseUrl}/proposta/${token}`;
       
       setPropostaLink(link);
