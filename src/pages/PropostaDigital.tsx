@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,13 @@ interface PropostaItem {
   title: string;
   price: string;
   imageUrl?: string;
+}
+
+interface ShippingOption {
+  type: string;
+  label: string;
+  cost: number;
+  days?: number;
 }
 
 interface Proposta {
@@ -51,6 +58,9 @@ export default function PropostaDigital() {
   const queryClient = useQueryClient();
   const [isConfirming, setIsConfirming] = useState(false);
   const [selectedPrazo, setSelectedPrazo] = useState<string>("30");
+  const [selectedFrete, setSelectedFrete] = useState<string>("");
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [isLoadingShipping, setIsLoadingShipping] = useState(false);
 
   const { data: proposta, isLoading, error } = useQuery({
     queryKey: ["proposta", token],
@@ -77,6 +87,85 @@ export default function PropostaDigital() {
     enabled: !!token,
   });
 
+  // Fetch shipping options for standard payment
+  useEffect(() => {
+    if (proposta && !proposta.pode_faturar && proposta.status === "PROPOSTA_PENDENTE" && proposta.cliente_endereco?.cep) {
+      fetchShippingOptions();
+    }
+  }, [proposta]);
+
+  const fetchShippingOptions = async () => {
+    if (!proposta?.cliente_endereco?.cep) return;
+
+    setIsLoadingShipping(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('calculate-shipping', {
+        body: {
+          cep: proposta.cliente_endereco.cep,
+          items: proposta.itens.map(item => ({ quantity: item.quantity })),
+        }
+      });
+
+      if (error) throw error;
+
+      const options: ShippingOption[] = [];
+      
+      // Add PAC option
+      if (data?.pac) {
+        options.push({
+          type: 'pac',
+          label: `PAC - ${data.pac.days} dias úteis`,
+          cost: data.pac.cost,
+          days: data.pac.days,
+        });
+      }
+
+      // Add SEDEX option
+      if (data?.sedex) {
+        options.push({
+          type: 'sedex',
+          label: `SEDEX - ${data.sedex.days} dias úteis`,
+          cost: data.sedex.cost,
+          days: data.sedex.days,
+        });
+      }
+
+      // Add free shipping if total >= R$400
+      const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * (proposta.desconto_percentual || 0) / 100);
+      if (valorComDesconto >= 400) {
+        options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$400)', cost: 0 });
+      }
+
+      setShippingOptions(options);
+      
+      // Auto-select free if available, otherwise first option
+      if (valorComDesconto >= 400) {
+        setSelectedFrete('free');
+      } else if (options.length > 0) {
+        setSelectedFrete(options[0].type);
+      }
+    } catch (error) {
+      console.error('Error fetching shipping:', error);
+      // Fallback options
+      const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * (proposta.desconto_percentual || 0) / 100);
+      const fallbackOptions: ShippingOption[] = [
+        { type: 'pac', label: 'PAC - 8 dias úteis', cost: 15, days: 8 },
+        { type: 'sedex', label: 'SEDEX - 3 dias úteis', cost: 25, days: 3 },
+      ];
+      if (valorComDesconto >= 400) {
+        fallbackOptions.push({ type: 'free', label: 'Frete Grátis (compras acima de R$400)', cost: 0 });
+      }
+      setShippingOptions(fallbackOptions);
+      if (valorComDesconto >= 400) {
+        setSelectedFrete('free');
+      } else {
+        setSelectedFrete('pac');
+      }
+    } finally {
+      setIsLoadingShipping(false);
+    }
+  };
+
   const confirmMutation = useMutation({
     mutationFn: async () => {
       const updateData: any = { 
@@ -87,6 +176,16 @@ export default function PropostaDigital() {
       // If B2B, save selected prazo
       if (proposta?.pode_faturar) {
         updateData.prazo_faturamento_selecionado = selectedPrazo;
+      } else {
+        // For standard payment, save selected shipping
+        const selectedShipping = shippingOptions.find(opt => opt.type === selectedFrete);
+        if (selectedShipping) {
+          updateData.metodo_frete = selectedFrete;
+          updateData.valor_frete = selectedShipping.cost;
+          // Recalculate total with selected shipping
+          const valorComDesconto = proposta!.valor_produtos - (proposta!.valor_produtos * (proposta!.desconto_percentual || 0) / 100);
+          updateData.valor_total = valorComDesconto + selectedShipping.cost;
+        }
       }
 
       const { data, error } = await supabase
@@ -304,24 +403,93 @@ export default function PropostaDigital() {
                 </div>
               )}
               
-              {/* Shipping Section */}
-              <div className="flex justify-between text-sm items-center">
-                <span className="flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  {getFreteLabel()}:
-                </span>
-                <span className={proposta.valor_frete === 0 ? "text-green-600 font-medium" : ""}>
-                  {proposta.valor_frete === 0 ? "Grátis" : `R$ ${proposta.valor_frete.toFixed(2)}`}
-                </span>
-              </div>
+              {/* Shipping Section - Only show for B2B or when already confirmed */}
+              {(proposta.pode_faturar || !isPending) && (
+                <div className="flex justify-between text-sm items-center">
+                  <span className="flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
+                    {getFreteLabel()}:
+                  </span>
+                  <span className={proposta.valor_frete === 0 ? "text-green-600 font-medium" : ""}>
+                    {proposta.valor_frete === 0 ? "Grátis" : `R$ ${proposta.valor_frete.toFixed(2)}`}
+                  </span>
+                </div>
+              )}
+              
+              {/* For standard payment pending, show that shipping will be selected below */}
+              {!proposta.pode_faturar && isPending && (
+                <div className="flex justify-between text-sm items-center text-muted-foreground">
+                  <span className="flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
+                    Frete:
+                  </span>
+                  <span className="italic">Selecione abaixo</span>
+                </div>
+              )}
               
               <div className="flex justify-between text-lg font-bold pt-2 border-t">
                 <span>Total:</span>
-                <span>R$ {proposta.valor_total.toFixed(2)}</span>
+                <span>
+                  R$ {proposta.pode_faturar || !isPending 
+                    ? proposta.valor_total.toFixed(2)
+                    : (valorComDesconto + (shippingOptions.find(opt => opt.type === selectedFrete)?.cost || 0)).toFixed(2)
+                  }
+                </span>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Shipping Selection for Standard Payment */}
+        {!proposta.pode_faturar && isPending && (
+          <Card className="border-2 border-green-200 bg-green-50/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-green-800">
+                <Truck className="h-5 w-5" />
+                Escolha a Forma de Entrega
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-green-700 mb-4">
+                Selecione a opção de frete de sua preferência:
+              </p>
+              
+              {isLoadingShipping ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+                  <span className="ml-2 text-sm text-green-700">Calculando opções de frete...</span>
+                </div>
+              ) : (
+                <RadioGroup
+                  value={selectedFrete}
+                  onValueChange={setSelectedFrete}
+                  className="space-y-3"
+                >
+                  {shippingOptions.map((option) => (
+                    <div 
+                      key={option.type}
+                      className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-green-200 hover:border-green-400 transition-colors"
+                    >
+                      <RadioGroupItem value={option.type} id={`frete-${option.type}`} />
+                      <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer flex justify-between items-center">
+                        <span className="font-medium">{option.label}</span>
+                        <span className={option.cost === 0 ? "text-green-600 font-semibold" : "font-semibold"}>
+                          {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
+                        </span>
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              )}
+              
+              {shippingOptions.length === 0 && !isLoadingShipping && (
+                <p className="text-sm text-amber-600">
+                  Não foi possível calcular o frete. Entre em contato com o vendedor.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* B2B Payment Conditions */}
         {proposta.pode_faturar && isPending && (
@@ -382,7 +550,7 @@ export default function PropostaDigital() {
             <CardContent className="pt-6">
               <Button
                 onClick={handleConfirm}
-                disabled={isConfirming}
+                disabled={isConfirming || (!proposta.pode_faturar && !selectedFrete)}
                 className="w-full h-14 text-lg bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
                 size="lg"
               >
@@ -402,6 +570,9 @@ export default function PropostaDigital() {
                 Ao confirmar, você aceita os termos desta proposta comercial.
                 {proposta.pode_faturar && (
                   <> O pagamento será faturado em {selectedPrazo} dias.</>
+                )}
+                {!proposta.pode_faturar && (
+                  <> O pagamento será processado via checkout padrão.</>
                 )}
               </p>
             </CardContent>
