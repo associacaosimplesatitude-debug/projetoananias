@@ -51,6 +51,7 @@ interface Proposta {
   pode_faturar: boolean;
   prazo_faturamento_selecionado: string | null;
   vendedor_nome: string | null;
+  prazos_disponiveis: string[] | null;
 }
 
 export default function PropostaDigital() {
@@ -91,6 +92,13 @@ export default function PropostaDigital() {
   useEffect(() => {
     if (proposta && !proposta.pode_faturar && proposta.status === "PROPOSTA_PENDENTE" && proposta.cliente_endereco?.cep) {
       fetchShippingOptions();
+    }
+  }, [proposta]);
+
+  // Auto-select first available prazo for B2B
+  useEffect(() => {
+    if (proposta?.pode_faturar && proposta.prazos_disponiveis?.length) {
+      setSelectedPrazo(proposta.prazos_disponiveis[0]);
     }
   }, [proposta]);
 
@@ -502,7 +510,9 @@ export default function PropostaDigital() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-blue-700 mb-4">
-                Como cliente B2B, você pode escolher o prazo de pagamento:
+                {(proposta.prazos_disponiveis?.length || 0) > 1 
+                  ? "Escolha o prazo de pagamento de sua preferência:"
+                  : "Prazo de pagamento disponível:"}
               </p>
               
               <RadioGroup
@@ -510,35 +520,42 @@ export default function PropostaDigital() {
                 onValueChange={setSelectedPrazo}
                 className="space-y-3"
               >
-                <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
-                  <RadioGroupItem value="30" id="prazo-30" />
-                  <Label htmlFor="prazo-30" className="flex-1 cursor-pointer">
-                    <span className="font-medium">30 dias</span>
-                    <span className="text-muted-foreground ml-2">
-                      - 1x de R$ {valorTotalFinal.toFixed(2)}
-                    </span>
-                  </Label>
-                </div>
+                {/* Only show the prazos that were selected by the seller */}
+                {(proposta.prazos_disponiveis || ['30', '60', '90']).includes('30') && (
+                  <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
+                    <RadioGroupItem value="30" id="prazo-30" />
+                    <Label htmlFor="prazo-30" className="flex-1 cursor-pointer">
+                      <span className="font-medium">30 dias</span>
+                      <span className="text-muted-foreground ml-2">
+                        - 1x de R$ {valorTotalFinal.toFixed(2)}
+                      </span>
+                    </Label>
+                  </div>
+                )}
                 
-                <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
-                  <RadioGroupItem value="60" id="prazo-60" />
-                  <Label htmlFor="prazo-60" className="flex-1 cursor-pointer">
-                    <span className="font-medium">60 dias</span>
-                    <span className="text-muted-foreground ml-2">
-                      - 2x de R$ {parcela2x.toFixed(2)} (30/60 dias)
-                    </span>
-                  </Label>
-                </div>
+                {(proposta.prazos_disponiveis || ['30', '60', '90']).includes('60') && (
+                  <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
+                    <RadioGroupItem value="60" id="prazo-60" />
+                    <Label htmlFor="prazo-60" className="flex-1 cursor-pointer">
+                      <span className="font-medium">60 dias</span>
+                      <span className="text-muted-foreground ml-2">
+                        - 2x de R$ {parcela2x.toFixed(2)} (30/60 dias)
+                      </span>
+                    </Label>
+                  </div>
+                )}
                 
-                <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
-                  <RadioGroupItem value="90" id="prazo-90" />
-                  <Label htmlFor="prazo-90" className="flex-1 cursor-pointer">
-                    <span className="font-medium">90 dias</span>
-                    <span className="text-muted-foreground ml-2">
-                      - 3x de R$ {parcela3x.toFixed(2)} (30/60/90 dias)
-                    </span>
-                  </Label>
-                </div>
+                {(proposta.prazos_disponiveis || ['30', '60', '90']).includes('90') && (
+                  <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
+                    <RadioGroupItem value="90" id="prazo-90" />
+                    <Label htmlFor="prazo-90" className="flex-1 cursor-pointer">
+                      <span className="font-medium">90 dias</span>
+                      <span className="text-muted-foreground ml-2">
+                        - 3x de R$ {parcela3x.toFixed(2)} (30/60/90 dias)
+                      </span>
+                    </Label>
+                  </div>
+                )}
               </RadioGroup>
             </CardContent>
           </Card>
