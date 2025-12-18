@@ -95,13 +95,70 @@ export default function VendedorClientes() {
     queryKey: ["vendedor-clientes", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
-      const { data, error } = await supabase
+
+      // 1) Clientes cadastrados diretamente na carteira do vendedor
+      const { data: ebdClientesData, error: ebdClientesError } = await supabase
         .from("ebd_clientes")
         .select("*")
         .eq("vendedor_id", vendedor.id)
         .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Cliente[];
+      if (ebdClientesError) throw ebdClientesError;
+
+      // 2) Clientes com Módulo EBD (assinaturas) atribuídos ao vendedor via tabela churches
+      const { data: assinaturasData, error: assinaturasError } = await supabase
+        .from("assinaturas")
+        .select(
+          `
+          cliente_id,
+          church:churches(id, church_name, city, state, vendedor_id)
+        `
+        )
+        .eq("status", "Ativo");
+      if (assinaturasError) throw assinaturasError;
+
+      const fromAssinaturas = (assinaturasData || [])
+        .filter((row: any) => row?.church?.vendedor_id === vendedor.id)
+        .map((row: any) => {
+          const c = row.church;
+          return {
+            id: c.id,
+            cnpj: "",
+            cpf: null,
+            nome_igreja: c.church_name,
+            nome_responsavel: null,
+            nome_superintendente: null,
+            email_superintendente: null,
+            telefone: null,
+            dia_aula: null,
+            data_inicio_ebd: null,
+            data_proxima_compra: null,
+            status_ativacao_ebd: true,
+            ultimo_login: null,
+            data_aniversario_pastor: null,
+            data_aniversario_superintendente: null,
+            endereco_cidade: c.city ?? null,
+            endereco_estado: c.state ?? null,
+            tipo_cliente: "Módulo EBD",
+            possui_cnpj: null,
+            endereco_cep: null,
+            endereco_rua: null,
+            endereco_numero: null,
+            endereco_complemento: null,
+            endereco_bairro: null,
+            senha_temporaria: null,
+            pode_faturar: false,
+            desconto_faturamento: null,
+          } as Cliente;
+        });
+
+      // Evita duplicar quando o mesmo ID também existe em ebd_clientes
+      const ebdClientesIds = new Set((ebdClientesData || []).map((c: any) => c.id));
+      const merged = [
+        ...(ebdClientesData || []),
+        ...fromAssinaturas.filter((c) => !ebdClientesIds.has(c.id)),
+      ];
+
+      return merged as Cliente[];
     },
     enabled: !!vendedor?.id,
   });

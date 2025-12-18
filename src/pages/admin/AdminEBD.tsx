@@ -977,13 +977,35 @@ export default function AdminEBD() {
   });
 
   const transferMutation = useMutation({
-    mutationFn: async ({ clienteId, vendedorId, source }: { clienteId: string; vendedorId: string | null; source: 'churches' | 'ebd_clientes' }) => {
+    mutationFn: async ({
+      clienteId,
+      vendedorId,
+      source,
+    }: {
+      clienteId: string;
+      vendedorId: string | null;
+      source: 'churches' | 'ebd_clientes';
+    }) => {
       if (source === 'ebd_clientes') {
-        const { error } = await supabase.from('ebd_clientes').update({ vendedor_id: vendedorId }).eq('id', clienteId);
+        const { data, error } = await supabase
+          .from('ebd_clientes')
+          .update({ vendedor_id: vendedorId })
+          .eq('id', clienteId)
+          .select('id');
         if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error('Não foi possível transferir este cliente (sem permissão ou cliente não encontrado).');
+        }
       } else {
-        const { error } = await supabase.from('churches').update({ vendedor_id: vendedorId }).eq('id', clienteId);
+        const { data, error } = await supabase
+          .from('churches')
+          .update({ vendedor_id: vendedorId })
+          .eq('id', clienteId)
+          .select('id');
         if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error('Não foi possível transferir este cliente (sem permissão ou cliente não encontrado).');
+        }
       }
     },
     onSuccess: () => {
