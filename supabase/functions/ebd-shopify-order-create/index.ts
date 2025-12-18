@@ -118,6 +118,12 @@ serve(async (req) => {
         customerId = searchData.customers[0].id;
         console.log("Found existing customer:", customerId);
 
+        // Split name into first_name and last_name for better checkout pre-fill
+        const fullName = cliente.nome_responsavel || cliente.nome_igreja || '';
+        const nameParts = fullName.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
         // Update customer with latest info
         await fetch(
           `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/customers/${customerId}.json`,
@@ -129,12 +135,14 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               customer: {
-                first_name: cliente.nome_responsavel || cliente.nome_igreja,
-                last_name: "",
+                first_name: firstName,
+                last_name: lastName,
                 phone: cliente.telefone,
                 tags: "ebd_cliente",
+                note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
                 addresses: cliente.endereco_rua ? [{
                   address1: `${cliente.endereco_rua}, ${cliente.endereco_numero || 'S/N'}`,
+                  address2: cliente.endereco_bairro || '',
                   city: cliente.endereco_cidade || "",
                   province: cliente.endereco_estado || "",
                   zip: cliente.endereco_cep || "",
@@ -151,6 +159,13 @@ serve(async (req) => {
     // Create customer if not found
     if (!customerId) {
       console.log("Creating new customer...");
+      
+      // Split name into first_name and last_name for better checkout pre-fill
+      const fullName = cliente.nome_responsavel || cliente.nome_igreja || '';
+      const nameParts = fullName.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
       const createCustomerResponse = await fetch(
         `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/customers.json`,
         {
@@ -162,12 +177,14 @@ serve(async (req) => {
           body: JSON.stringify({
             customer: {
               email: customerEmail,
-              first_name: cliente.nome_responsavel || cliente.nome_igreja,
-              last_name: "",
+              first_name: firstName,
+              last_name: lastName,
               phone: cliente.telefone,
               tags: "ebd_cliente",
+              note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
               addresses: cliente.endereco_rua ? [{
                 address1: `${cliente.endereco_rua}, ${cliente.endereco_numero || 'S/N'}`,
+                address2: cliente.endereco_bairro || '',
                 city: cliente.endereco_cidade || "",
                 province: cliente.endereco_estado || "",
                 zip: cliente.endereco_cep || "",
@@ -247,12 +264,32 @@ serve(async (req) => {
 
     // Add shipping address if available
     if (cliente.endereco_rua) {
+      // Split name for shipping address too
+      const shippingFullName = cliente.nome_responsavel || cliente.nome_igreja || '';
+      const shippingNameParts = shippingFullName.trim().split(' ');
+      const shippingFirstName = shippingNameParts[0] || '';
+      const shippingLastName = shippingNameParts.slice(1).join(' ') || '';
+      
       draftOrderPayload.draft_order = {
         ...draftOrderPayload.draft_order as Record<string, unknown>,
         shipping_address: {
-          first_name: cliente.nome_responsavel || cliente.nome_igreja,
-          last_name: "",
+          first_name: shippingFirstName,
+          last_name: shippingLastName,
           address1: `${cliente.endereco_rua}, ${cliente.endereco_numero || 'S/N'}`,
+          address2: cliente.endereco_bairro || '',
+          city: cliente.endereco_cidade || "",
+          province: cliente.endereco_estado || "",
+          zip: cliente.endereco_cep || "",
+          country: "BR",
+          phone: cliente.telefone,
+          company: cliente.nome_igreja,
+        },
+        // Also add billing address with CPF/CNPJ info
+        billing_address: {
+          first_name: shippingFirstName,
+          last_name: shippingLastName,
+          address1: `${cliente.endereco_rua}, ${cliente.endereco_numero || 'S/N'}`,
+          address2: cliente.endereco_bairro || '',
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
           zip: cliente.endereco_cep || "",

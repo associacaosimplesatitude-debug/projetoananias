@@ -363,52 +363,79 @@ export default function PropostaDigital() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {proposta.itens.map((item, index) => (
-                <div 
-                  key={`${item.variantId}-${index}`}
-                  className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
-                >
-                  {item.imageUrl ? (
-                    <img 
-                      src={item.imageUrl} 
-                      alt={item.title}
-                      className="w-16 h-16 object-cover rounded"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
-                      <ShoppingCart className="h-6 w-6 text-gray-400" />
+              {proposta.itens.map((item, index) => {
+                const precoOriginal = parseFloat(item.price) * item.quantity;
+                const precoComDesconto = proposta.desconto_percentual > 0 
+                  ? precoOriginal * (1 - proposta.desconto_percentual / 100)
+                  : precoOriginal;
+                const temDesconto = proposta.desconto_percentual > 0;
+                
+                return (
+                  <div 
+                    key={`${item.variantId}-${index}`}
+                    className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
+                  >
+                    {item.imageUrl ? (
+                      <img 
+                        src={item.imageUrl} 
+                        alt={item.title}
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
+                        <ShoppingCart className="h-6 w-6 text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Quantidade: {item.quantity}
+                      </p>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{item.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Quantidade: {item.quantity}
-                    </p>
+                    <div className="text-right">
+                      {temDesconto ? (
+                        <>
+                          <p className="text-sm text-muted-foreground line-through">
+                            R$ {precoOriginal.toFixed(2)}
+                          </p>
+                          <p className="font-semibold text-green-600">
+                            R$ {precoComDesconto.toFixed(2)}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="font-semibold">
+                          R$ {precoOriginal.toFixed(2)}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        R$ {parseFloat(item.price).toFixed(2)} cada
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">
-                      R$ {(parseFloat(item.price) * item.quantity).toFixed(2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      R$ {parseFloat(item.price).toFixed(2)} cada
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Totals */}
             <div className="mt-6 pt-4 border-t space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotal dos produtos:</span>
-                <span>R$ {proposta.valor_produtos.toFixed(2)}</span>
+                <span className={proposta.desconto_percentual > 0 ? "text-muted-foreground line-through" : ""}>
+                  R$ {proposta.valor_produtos.toFixed(2)}
+                </span>
               </div>
               
               {proposta.desconto_percentual > 0 && (
-                <div className="flex justify-between text-sm text-green-600 font-medium">
-                  <span>Desconto ({proposta.desconto_percentual}%):</span>
-                  <span>- R$ {(proposta.valor_produtos * proposta.desconto_percentual / 100).toFixed(2)}</span>
-                </div>
+                <>
+                  <div className="flex justify-between text-sm text-green-600 font-medium">
+                    <span>Desconto ({proposta.desconto_percentual}%):</span>
+                    <span>- R$ {(proposta.valor_produtos * proposta.desconto_percentual / 100).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-medium">
+                    <span>Subtotal com desconto:</span>
+                    <span>R$ {valorComDesconto.toFixed(2)}</span>
+                  </div>
+                </>
               )}
               
               {/* Shipping Section - Only show for B2B or when already confirmed */}
@@ -444,6 +471,18 @@ export default function PropostaDigital() {
                   }
                 </span>
               </div>
+              
+              {/* "Você economizou" section */}
+              {proposta.desconto_percentual > 0 && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-green-700">
+                    <CheckCircle className="h-5 w-5" />
+                    <span className="font-semibold">
+                      Você economizou: R$ {(proposta.valor_produtos * proposta.desconto_percentual / 100).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
