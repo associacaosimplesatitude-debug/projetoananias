@@ -19,6 +19,10 @@ import {
   Filter,
   X,
   User,
+  Link,
+  Copy,
+  CheckCircle,
+  FileText,
 } from "lucide-react";
 import { fetchShopifyProducts, ShopifyProduct, CartItem } from "@/lib/shopify";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
@@ -42,6 +46,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 
@@ -88,7 +99,12 @@ export default function ShopifyPedidos() {
     desconto: number;
     frete: { type: string; cost: number };
   } | null>(null);
-
+  
+  // Estados para proposta digital
+  const [showPropostaLinkDialog, setShowPropostaLinkDialog] = useState(false);
+  const [propostaLink, setPropostaLink] = useState<string>("");
+  const [isGeneratingProposta, setIsGeneratingProposta] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   // Definir categorias e subcategorias
   const categories = [
     { 
@@ -377,24 +393,130 @@ export default function ShopifyPedidos() {
       return;
     }
 
-    // Check if client can use B2B invoicing
-    if (selectedCliente.pode_faturar && isVendedor) {
-      setShowFaturamentoDialog(true);
+    // Vendedor sempre gera link de proposta
+    if (isVendedor) {
+      // Check if client can use B2B invoicing for discount options
+      if (selectedCliente.pode_faturar) {
+        setShowFaturamentoDialog(true);
+      } else {
+        handleGeneratePropostaLink(null, 0, null);
+      }
     } else {
-      // Normal checkout flow
+      // Cliente final - checkout normal
       handleCreateDraftOrder(null, 0, null);
     }
+  };
+
+  const handleGeneratePropostaLink = async (
+    faturamentoPrazo: string | null,
+    descontoPercent: number = 0,
+    frete: { type: string; cost: number } | null = null
+  ) => {
+    if (!selectedCliente || !vendedor) {
+      toast.error("Dados incompletos");
+      return;
+    }
+
+    setIsGeneratingProposta(true);
+
+    try {
+      // Gerar token único
+      const token = crypto.randomUUID();
+      
+      // Calcular valores
+      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
+      const valorDesconto = valorProdutos * (descontoPercent / 100);
+      const valorFrete = frete?.cost || 0;
+      const valorTotal = valorProdutos - valorDesconto + valorFrete;
+
+      // Preparar itens para salvar
+      const itensParaSalvar = items.map(item => ({
+        variantId: item.variantId,
+        quantity: item.quantity,
+        title: item.product.node.title,
+        price: item.price.amount,
+        imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null
+      }));
+
+      // Preparar endereço
+      const clienteEndereco = {
+        rua: selectedCliente.endereco_rua,
+        numero: selectedCliente.endereco_numero,
+        bairro: selectedCliente.endereco_bairro,
+        cidade: selectedCliente.endereco_cidade,
+        estado: selectedCliente.endereco_estado,
+        cep: selectedCliente.endereco_cep
+      };
+
+      // Salvar proposta no banco
+      const { data, error } = await supabase
+        .from("vendedor_propostas")
+        .insert({
+          vendedor_id: vendedor.id,
+          cliente_id: selectedCliente.id,
+          cliente_nome: selectedCliente.nome_igreja,
+          cliente_cnpj: selectedCliente.cnpj,
+          cliente_endereco: clienteEndereco,
+          itens: itensParaSalvar,
+          valor_produtos: valorProdutos,
+          valor_frete: valorFrete,
+          valor_total: valorTotal,
+          desconto_percentual: descontoPercent,
+          status: "PROPOSTA_PENDENTE",
+          token: token
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Gerar link
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/proposta/${token}`;
+      
+      setPropostaLink(link);
+      setShowPropostaLinkDialog(true);
+      setLinkCopied(false);
+      
+      toast.success("Proposta gerada com sucesso!");
+      
+    } catch (error: any) {
+      console.error("Erro ao gerar proposta:", error);
+      toast.error("Erro ao gerar proposta: " + error.message);
+    } finally {
+      setIsGeneratingProposta(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(propostaLink);
+      setLinkCopied(true);
+      toast.success("Link copiado!");
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch {
+      toast.error("Erro ao copiar link");
+    }
+  };
+
+  const handleClosePropostaDialog = () => {
+    setShowPropostaLinkDialog(false);
+    setPropostaLink("");
+    clearCart();
+    setIsCartOpen(false);
   };
 
   const handleSelectFaturamento = (prazo: string, desconto: number, frete: { type: string; cost: number }) => {
     setFaturamentoConfig({ prazo, desconto, frete });
     setShowFaturamentoDialog(false);
-    handleCreateDraftOrder(prazo, desconto, frete);
+    // Vendedor gera link de proposta com config de faturamento
+    handleGeneratePropostaLink(prazo, desconto, frete);
   };
 
   const handleSelectPagamentoPadrao = () => {
     setShowFaturamentoDialog(false);
-    handleCreateDraftOrder(null, 0, null);
+    // Vendedor gera link de proposta sem faturamento B2B
+    handleGeneratePropostaLink(null, 0, null);
   };
 
   const handleCreateDraftOrder = async (
@@ -685,11 +807,16 @@ export default function ShopifyPedidos() {
                       
                         <Button 
                           onClick={handleCheckoutClick}
-                          className="w-full" 
+                          className="w-full bg-yellow-500 hover:bg-yellow-600 text-black" 
                           size="lg"
-                          disabled={items.length === 0 || !selectedCliente || isLoadingClientInfo || isCreatingDraft}
+                          disabled={items.length === 0 || !selectedCliente || isLoadingClientInfo || isCreatingDraft || isGeneratingProposta}
                         >
-                          {isCreatingDraft ? (
+                          {isGeneratingProposta ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Gerando Proposta...
+                            </>
+                          ) : isCreatingDraft ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               Criando Pedido...
@@ -698,6 +825,11 @@ export default function ShopifyPedidos() {
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               Carregando...
+                            </>
+                          ) : isVendedor ? (
+                            <>
+                              <FileText className="w-4 h-4 mr-2" />
+                              Gerar Link de Pedido
                             </>
                           ) : (
                             <>
@@ -906,6 +1038,63 @@ export default function ShopifyPedidos() {
         onSelectFaturamento={handleSelectFaturamento}
         onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
       />
+
+      {/* Proposta Link Dialog */}
+      <Dialog open={showPropostaLinkDialog} onOpenChange={setShowPropostaLinkDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Proposta Gerada com Sucesso!
+            </DialogTitle>
+            <DialogDescription>
+              Copie o link abaixo e envie ao cliente para que ele confirme a compra.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex items-center gap-2">
+              <Input 
+                value={propostaLink} 
+                readOnly 
+                className="flex-1 font-mono text-sm"
+              />
+              <Button
+                variant={linkCopied ? "default" : "outline"}
+                size="icon"
+                onClick={handleCopyLink}
+                className={linkCopied ? "bg-green-600 hover:bg-green-700" : ""}
+              >
+                {linkCopied ? (
+                  <CheckCircle className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <p className="text-sm font-medium">Próximos passos:</p>
+              <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                <li>Copie o link acima</li>
+                <li>Envie para o cliente via WhatsApp ou e-mail</li>
+                <li>O cliente clica em "Confirmar Compra" na página</li>
+                <li>Acompanhe o status no painel de pedidos</li>
+              </ol>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={handleClosePropostaDialog}>
+              Fechar
+            </Button>
+            <Button onClick={handleCopyLink} className="bg-yellow-500 hover:bg-yellow-600 text-black">
+              <Copy className="h-4 w-4 mr-2" />
+              {linkCopied ? "Copiado!" : "Copiar Link"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
