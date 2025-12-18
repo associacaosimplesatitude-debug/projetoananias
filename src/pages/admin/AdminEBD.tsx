@@ -195,6 +195,19 @@ export default function AdminEBD() {
   const [clientPurchaseStatusFilter, setClientPurchaseStatusFilter] = useState('all');
   const [clientStateFilter, setClientStateFilter] = useState('all');
 
+  // Clientes EBD edit/delete states
+  const [editClientDialogOpen, setEditClientDialogOpen] = useState(false);
+  const [deleteClientDialogOpen, setDeleteClientDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<EBDClient | null>(null);
+  const [editClientForm, setEditClientForm] = useState({
+    nome_igreja: '',
+    email: '',
+    telefone: '',
+    cnpj: '',
+    endereco_cidade: '',
+    endereco_estado: '',
+  });
+
   // Leads state
   const [importLeadsDialogOpen, setImportLeadsDialogOpen] = useState(false);
   const [leadSearchTerm, setLeadSearchTerm] = useState('');
@@ -1007,7 +1020,101 @@ export default function AdminEBD() {
     },
   });
 
-  // Lead mutations
+  // Client mutations
+  const updateClientMutation = useMutation({
+    mutationFn: async ({ client, data }: { client: EBDClient; data: typeof editClientForm }) => {
+      if (client.source === 'ebd_clientes') {
+        const { error } = await supabase.from('ebd_clientes').update({
+          nome_igreja: data.nome_igreja,
+          email_superintendente: data.email,
+          telefone: data.telefone,
+          cnpj: data.cnpj,
+          endereco_cidade: data.endereco_cidade,
+          endereco_estado: data.endereco_estado,
+        }).eq('id', client.cliente_id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('churches').update({
+          church_name: data.nome_igreja,
+          pastor_email: data.email,
+          pastor_whatsapp: data.telefone,
+          cnpj: data.cnpj,
+          city: data.endereco_cidade,
+          state: data.endereco_estado,
+        }).eq('id', client.cliente_id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-clients'] });
+      queryClient.invalidateQueries({ queryKey: ['churches-all'] });
+      toast.success('Cliente atualizado com sucesso!');
+      setEditClientDialogOpen(false);
+      setSelectedClient(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao atualizar cliente');
+    },
+  });
+
+  const deleteClientMutation = useMutation({
+    mutationFn: async (client: EBDClient) => {
+      if (client.source === 'ebd_clientes') {
+        const { error } = await supabase.from('ebd_clientes').delete().eq('id', client.cliente_id);
+        if (error) throw error;
+      } else {
+        // For churches, we need to delete the assinatura and optionally the church
+        const { error: assError } = await supabase.from('assinaturas').delete().eq('cliente_id', client.cliente_id);
+        if (assError) throw assError;
+        // Optionally delete the church record if no other assinaturas exist
+        const { data: otherAssinaturas } = await supabase.from('assinaturas').select('id').eq('cliente_id', client.cliente_id);
+        if (!otherAssinaturas || otherAssinaturas.length === 0) {
+          const { error: churchError } = await supabase.from('churches').delete().eq('id', client.cliente_id);
+          if (churchError) throw churchError;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-clients'] });
+      queryClient.invalidateQueries({ queryKey: ['churches-all'] });
+      toast.success('Cliente excluído com sucesso!');
+      setDeleteClientDialogOpen(false);
+      setSelectedClient(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao excluir cliente');
+    },
+  });
+
+  const handleEditClient = (client: EBDClient) => {
+    setSelectedClient(client);
+    setEditClientForm({
+      nome_igreja: client.church?.church_name || '',
+      email: client.church?.pastor_email || '',
+      telefone: '',
+      cnpj: '',
+      endereco_cidade: client.church?.city || '',
+      endereco_estado: client.church?.state || '',
+    });
+    setEditClientDialogOpen(true);
+  };
+
+  const handleDeleteClient = (client: EBDClient) => {
+    setSelectedClient(client);
+    setDeleteClientDialogOpen(true);
+  };
+
+  const handleSaveClient = () => {
+    if (!selectedClient) return;
+    updateClientMutation.mutate({ client: selectedClient, data: editClientForm });
+  };
+
+  const confirmDeleteClient = () => {
+    if (!selectedClient) return;
+    deleteClientMutation.mutate(selectedClient);
+  };
+
+
   const updateLeadMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof editLeadForm }) => {
       const { error } = await supabase.from('ebd_leads_reativacao').update(data).eq('id', id);
@@ -1861,6 +1968,7 @@ export default function AdminEBD() {
                     <TableHead>Cidade/Estado</TableHead>
                     <TableHead>Status de Compra</TableHead>
                     <TableHead>Vendedor</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1919,12 +2027,31 @@ export default function AdminEBD() {
                             </SelectContent>
                           </Select>
                         </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditClient(client)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteClient(client)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
                   {filteredEbdClients.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         {ebdClients && ebdClients.length > 0 
                           ? "Nenhum cliente encontrado com os filtros aplicados" 
                           : "Nenhum cliente EBD encontrado"}
@@ -2602,6 +2729,99 @@ export default function AdminEBD() {
               </Button>
               <Button variant="destructive" onClick={confirmDeleteLead} disabled={deleteLeadMutation.isPending}>
                 {deleteLeadMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Client Dialog */}
+        <Dialog open={editClientDialogOpen} onOpenChange={setEditClientDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Editar Cliente</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Nome da Igreja <span className="text-destructive">*</span></Label>
+                <Input
+                  value={editClientForm.nome_igreja}
+                  onChange={(e) => setEditClientForm({ ...editClientForm, nome_igreja: e.target.value })}
+                  placeholder="Nome da igreja"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={editClientForm.email}
+                    onChange={(e) => setEditClientForm({ ...editClientForm, email: e.target.value })}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input
+                    value={editClientForm.telefone}
+                    onChange={(e) => setEditClientForm({ ...editClientForm, telefone: e.target.value })}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>CNPJ</Label>
+                <Input
+                  value={editClientForm.cnpj}
+                  onChange={(e) => setEditClientForm({ ...editClientForm, cnpj: e.target.value })}
+                  placeholder="00.000.000/0000-00"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Cidade</Label>
+                  <Input
+                    value={editClientForm.endereco_cidade}
+                    onChange={(e) => setEditClientForm({ ...editClientForm, endereco_cidade: e.target.value })}
+                    placeholder="Cidade"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Estado</Label>
+                  <Input
+                    value={editClientForm.endereco_estado}
+                    onChange={(e) => setEditClientForm({ ...editClientForm, endereco_estado: e.target.value })}
+                    placeholder="UF"
+                    maxLength={2}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setEditClientDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveClient} disabled={updateClientMutation.isPending}>
+                {updateClientMutation.isPending ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Client Confirmation Dialog */}
+        <Dialog open={deleteClientDialogOpen} onOpenChange={setDeleteClientDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Excluir Cliente</DialogTitle>
+            </DialogHeader>
+            <p className="text-muted-foreground">
+              Tem certeza que deseja excluir o cliente <strong>{selectedClient?.church?.church_name}</strong>? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setDeleteClientDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteClient} disabled={deleteClientMutation.isPending}>
+                {deleteClientMutation.isPending ? 'Excluindo...' : 'Excluir'}
               </Button>
             </div>
           </DialogContent>
