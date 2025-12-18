@@ -499,27 +499,28 @@ serve(async (req) => {
       const prazo = parseInt(faturamento_prazo);
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
 
-      // IMPORTANTE: No Bling, o "total da venda" (base das parcelas) inclui o frete.
-      // Se as parcelas não somarem EXATAMENTE ao total calculado pelo Bling, ele rejeita com:
-      // "O somatório do valor das parcelas difere do total da venda".
-      const totalBaseParcelas = valorTotalBling;
-      const totalCentavos = Math.round(totalBaseParcelas * 100);
-      const valorParcelaBaseCentavos = Math.floor(totalCentavos / numParcelas);
-      const parcelasCentavos: number[] = [];
+      // CORREÇÃO FORÇADA DE CENTAVOS (Bling):
+      // 1) calcula base com alta precisão
+      // 2) arredonda cada parcela para 2 casas
+      // 3) soma e ajusta a ÚLTIMA parcela pela diferença
+      // Obs: usamos o total que enviamos na venda (itens líquidos + frete)
+      const totalBaseParcelas = Math.round(valorTotalBling * 100) / 100;
+      const parcelaBase = totalBaseParcelas / numParcelas; // alta precisão
 
+      const parcelasValores: number[] = [];
       for (let i = 0; i < numParcelas; i++) {
-        if (i < numParcelas - 1) {
-          parcelasCentavos.push(valorParcelaBaseCentavos);
-        } else {
-          // Última parcela recebe o restante para fechar exatamente o totalBaseParcelas
-          const somaAnteriores = valorParcelaBaseCentavos * (numParcelas - 1);
-          parcelasCentavos.push(totalCentavos - somaAnteriores);
-        }
+        parcelasValores.push(Math.round(parcelaBase * 100) / 100);
       }
 
+      const somaParcelas = Math.round(parcelasValores.reduce((acc, v) => acc + v, 0) * 100) / 100;
+      const diferenca = Math.round((totalBaseParcelas - somaParcelas) * 100) / 100;
+      parcelasValores[numParcelas - 1] = Math.round((parcelasValores[numParcelas - 1] + diferenca) * 100) / 100;
+
+      const somaFinal = Math.round(parcelasValores.reduce((acc, v) => acc + v, 0) * 100) / 100;
+
       console.log(
-        `Faturamento B2B: ${numParcelas} parcela(s) sobre total (R$ ${totalBaseParcelas.toFixed(2)}) - valores: ${parcelasCentavos
-          .map(v => (v / 100).toFixed(2))
+        `Faturamento B2B: ${numParcelas} parcela(s) | total=${totalBaseParcelas.toFixed(2)} | base=${parcelaBase.toFixed(4)} | soma_inicial=${somaParcelas.toFixed(2)} | diff=${diferenca.toFixed(2)} | soma_final=${somaFinal.toFixed(2)} | parcelas=${parcelasValores
+          .map(v => v.toFixed(2))
           .join(', ')}`
       );
 
@@ -529,7 +530,8 @@ serve(async (req) => {
 
         parcelas.push({
           dataVencimento: dataVencimento.toISOString().split('T')[0],
-          valor: parcelasCentavos[i - 1] / 100,
+          // Enviar como string com 2 casas para evitar qualquer parsing/float no lado do Bling
+          valor: parcelasValores[i - 1].toFixed(2),
           observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
         });
       }
@@ -538,7 +540,7 @@ serve(async (req) => {
       parcelas = [
         {
           dataVencimento: new Date().toISOString().split('T')[0],
-          valor: valorTotalBling,
+          valor: Number(valorTotalBling).toFixed(2),
           observacoes: `Pagamento via ${formaPagamentoDescricao}`,
         },
       ];
