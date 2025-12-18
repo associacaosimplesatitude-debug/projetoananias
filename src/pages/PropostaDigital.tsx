@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { CheckCircle, Loader2, MapPin, Building2, Package, ShoppingCart } from "lucide-react";
+import { CheckCircle, Loader2, MapPin, Building2, Package, ShoppingCart, Truck, CreditCard } from "lucide-react";
 
 interface PropostaItem {
   variantId: string;
@@ -38,12 +40,17 @@ interface Proposta {
   status: string;
   created_at: string;
   confirmado_em: string | null;
+  metodo_frete: string | null;
+  pode_faturar: boolean;
+  prazo_faturamento_selecionado: string | null;
+  vendedor_nome: string | null;
 }
 
 export default function PropostaDigital() {
   const { token } = useParams<{ token: string }>();
   const queryClient = useQueryClient();
   const [isConfirming, setIsConfirming] = useState(false);
+  const [selectedPrazo, setSelectedPrazo] = useState<string>("30");
 
   const { data: proposta, isLoading, error } = useQuery({
     queryKey: ["proposta", token],
@@ -72,12 +79,19 @@ export default function PropostaDigital() {
 
   const confirmMutation = useMutation({
     mutationFn: async () => {
+      const updateData: any = { 
+        status: "PROPOSTA_ACEITA",
+        confirmado_em: new Date().toISOString()
+      };
+      
+      // If B2B, save selected prazo
+      if (proposta?.pode_faturar) {
+        updateData.prazo_faturamento_selecionado = selectedPrazo;
+      }
+
       const { data, error } = await supabase
         .from("vendedor_propostas")
-        .update({ 
-          status: "PROPOSTA_ACEITA",
-          confirmado_em: new Date().toISOString()
-        })
+        .update(updateData)
         .eq("token", token!)
         .select()
         .single();
@@ -134,6 +148,20 @@ export default function PropostaDigital() {
   const isPending = proposta.status === "PROPOSTA_PENDENTE";
   const isAccepted = proposta.status === "PROPOSTA_ACEITA";
 
+  // Calculate installment values
+  const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * proposta.desconto_percentual / 100);
+  const valorTotalFinal = valorComDesconto + proposta.valor_frete;
+  const parcela2x = valorTotalFinal / 2;
+  const parcela3x = valorTotalFinal / 3;
+
+  // Format shipping method name
+  const getFreteLabel = () => {
+    if (!proposta.metodo_frete || proposta.metodo_frete === 'free') return 'Frete Grátis';
+    if (proposta.metodo_frete === 'pac') return 'PAC (Correios)';
+    if (proposta.metodo_frete === 'sedex') return 'SEDEX (Correios)';
+    return proposta.metodo_frete;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header with Logo */}
@@ -162,6 +190,9 @@ export default function PropostaDigital() {
                   hour: '2-digit',
                   minute: '2-digit'
                 })}
+                {proposta.prazo_faturamento_selecionado && (
+                  <> • Prazo selecionado: {proposta.prazo_faturamento_selecionado} dias</>
+                )}
               </p>
             </div>
           </div>
@@ -210,6 +241,7 @@ export default function PropostaDigital() {
                 hour: '2-digit',
                 minute: '2-digit'
               })}
+              {proposta.vendedor_nome && <> • Vendedor: {proposta.vendedor_nome}</>}
             </p>
           </CardContent>
         </Card>
@@ -266,18 +298,22 @@ export default function PropostaDigital() {
               </div>
               
               {proposta.desconto_percentual > 0 && (
-                <div className="flex justify-between text-sm text-green-600">
+                <div className="flex justify-between text-sm text-green-600 font-medium">
                   <span>Desconto ({proposta.desconto_percentual}%):</span>
                   <span>- R$ {(proposta.valor_produtos * proposta.desconto_percentual / 100).toFixed(2)}</span>
                 </div>
               )}
               
-              {proposta.valor_frete > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span>Frete:</span>
-                  <span>R$ {proposta.valor_frete.toFixed(2)}</span>
-                </div>
-              )}
+              {/* Shipping Section */}
+              <div className="flex justify-between text-sm items-center">
+                <span className="flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  {getFreteLabel()}:
+                </span>
+                <span className={proposta.valor_frete === 0 ? "text-green-600 font-medium" : ""}>
+                  {proposta.valor_frete === 0 ? "Grátis" : `R$ ${proposta.valor_frete.toFixed(2)}`}
+                </span>
+              </div>
               
               <div className="flex justify-between text-lg font-bold pt-2 border-t">
                 <span>Total:</span>
@@ -286,6 +322,59 @@ export default function PropostaDigital() {
             </div>
           </CardContent>
         </Card>
+
+        {/* B2B Payment Conditions */}
+        {proposta.pode_faturar && isPending && (
+          <Card className="border-2 border-blue-200 bg-blue-50/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-blue-800">
+                <CreditCard className="h-5 w-5" />
+                Condições de Pagamento (Faturamento B2B)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-blue-700 mb-4">
+                Como cliente B2B, você pode escolher o prazo de pagamento:
+              </p>
+              
+              <RadioGroup
+                value={selectedPrazo}
+                onValueChange={setSelectedPrazo}
+                className="space-y-3"
+              >
+                <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
+                  <RadioGroupItem value="30" id="prazo-30" />
+                  <Label htmlFor="prazo-30" className="flex-1 cursor-pointer">
+                    <span className="font-medium">30 dias</span>
+                    <span className="text-muted-foreground ml-2">
+                      - 1x de R$ {valorTotalFinal.toFixed(2)}
+                    </span>
+                  </Label>
+                </div>
+                
+                <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
+                  <RadioGroupItem value="60" id="prazo-60" />
+                  <Label htmlFor="prazo-60" className="flex-1 cursor-pointer">
+                    <span className="font-medium">60 dias</span>
+                    <span className="text-muted-foreground ml-2">
+                      - 2x de R$ {parcela2x.toFixed(2)} (30/60 dias)
+                    </span>
+                  </Label>
+                </div>
+                
+                <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
+                  <RadioGroupItem value="90" id="prazo-90" />
+                  <Label htmlFor="prazo-90" className="flex-1 cursor-pointer">
+                    <span className="font-medium">90 dias</span>
+                    <span className="text-muted-foreground ml-2">
+                      - 3x de R$ {parcela3x.toFixed(2)} (30/60/90 dias)
+                    </span>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Confirm Button */}
         {isPending && (
@@ -311,6 +400,9 @@ export default function PropostaDigital() {
               </Button>
               <p className="text-center text-xs text-muted-foreground mt-3">
                 Ao confirmar, você aceita os termos desta proposta comercial.
+                {proposta.pode_faturar && (
+                  <> O pagamento será faturado em {selectedPrazo} dias.</>
+                )}
               </p>
             </CardContent>
           </Card>

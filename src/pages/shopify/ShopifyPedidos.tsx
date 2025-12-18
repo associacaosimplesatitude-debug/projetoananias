@@ -105,6 +105,8 @@ export default function ShopifyPedidos() {
   const [propostaLink, setPropostaLink] = useState<string>("");
   const [isGeneratingProposta, setIsGeneratingProposta] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [messageCopied, setMessageCopied] = useState(false);
+  const [propostaClienteNome, setPropostaClienteNome] = useState<string>("");
   // Definir categorias e subcategorias
   const categories = [
     { 
@@ -463,7 +465,10 @@ export default function ShopifyPedidos() {
           valor_total: valorTotal,
           desconto_percentual: descontoPercent,
           status: "PROPOSTA_PENDENTE",
-          token: token
+          token: token,
+          metodo_frete: frete?.type || 'free',
+          pode_faturar: selectedCliente.pode_faturar || false,
+          vendedor_nome: vendedor.nome || null
         })
         .select()
         .single();
@@ -475,8 +480,10 @@ export default function ShopifyPedidos() {
       const link = `${baseUrl}/proposta/${token}`;
       
       setPropostaLink(link);
+      setPropostaClienteNome(selectedCliente.nome_igreja);
       setShowPropostaLinkDialog(true);
       setLinkCopied(false);
+      setMessageCopied(false);
       
       toast.success("Proposta gerada com sucesso!");
       
@@ -502,6 +509,8 @@ export default function ShopifyPedidos() {
   const handleClosePropostaDialog = () => {
     setShowPropostaLinkDialog(false);
     setPropostaLink("");
+    setPropostaClienteNome("");
+    setMessageCopied(false);
     clearCart();
     setIsCartOpen(false);
   };
@@ -1073,14 +1082,62 @@ export default function ShopifyPedidos() {
               </Button>
             </div>
             
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <p className="text-sm font-medium">Próximos passos:</p>
-              <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
-                <li>Copie o link acima</li>
-                <li>Envie para o cliente via WhatsApp ou e-mail</li>
-                <li>O cliente clica em "Confirmar Compra" na página</li>
-                <li>Acompanhe o status no painel de pedidos</li>
-              </ol>
+            {/* Standard Message Template */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium text-blue-800">Mensagem padrão para enviar ao cliente:</p>
+              <div className="bg-white rounded border p-3 text-sm text-muted-foreground whitespace-pre-line">
+{`Prezado(a) ${propostaClienteNome || '[Nome do Cliente]'},
+
+Segue a Proposta Digital de Pedido que preparamos para você.
+
+Por favor, clique no link abaixo para conferir todos os detalhes, quantidades, formas de entrega e condições de pagamento:
+
+${propostaLink}
+
+Após conferir, clique no botão "CONFIRMAR COMPRA" na página para dar andamento ao seu pedido.
+
+Qualquer dúvida, estou à disposição!
+
+Atenciosamente,
+${vendedor?.nome || '[Nome do Vendedor]'}`}
+              </div>
+              <Button
+                variant={messageCopied ? "default" : "secondary"}
+                size="sm"
+                className={messageCopied ? "bg-green-600 hover:bg-green-700 w-full" : "w-full"}
+                onClick={async () => {
+                  const message = `Prezado(a) ${propostaClienteNome || '[Nome do Cliente]'},
+
+Segue a Proposta Digital de Pedido que preparamos para você.
+
+Por favor, clique no link abaixo para conferir todos os detalhes, quantidades, formas de entrega e condições de pagamento:
+
+${propostaLink}
+
+Após conferir, clique no botão "CONFIRMAR COMPRA" na página para dar andamento ao seu pedido.
+
+Qualquer dúvida, estou à disposição!
+
+Atenciosamente,
+${vendedor?.nome || '[Nome do Vendedor]'}`;
+                  await navigator.clipboard.writeText(message);
+                  setMessageCopied(true);
+                  toast.success("Mensagem copiada!");
+                  setTimeout(() => setMessageCopied(false), 3000);
+                }}
+              >
+                {messageCopied ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Mensagem Copiada!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copiar Mensagem Completa
+                  </>
+                )}
+              </Button>
             </div>
           </div>
           

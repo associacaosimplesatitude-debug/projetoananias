@@ -3178,6 +3178,9 @@ export type Database = {
           desconto_percentual: number | null
           id: string
           itens: Json
+          metodo_frete: string | null
+          pode_faturar: boolean | null
+          prazo_faturamento_selecionado: string | null
           status: string
           token: string
           updated_at: string
@@ -3185,6 +3188,7 @@ export type Database = {
           valor_produtos: number
           valor_total: number
           vendedor_id: string | null
+          vendedor_nome: string | null
         }
         Insert: {
           cliente_cnpj?: string | null
@@ -3196,6 +3200,9 @@ export type Database = {
           desconto_percentual?: number | null
           id?: string
           itens?: Json
+          metodo_frete?: string | null
+          pode_faturar?: boolean | null
+          prazo_faturamento_selecionado?: string | null
           status?: string
           token: string
           updated_at?: string
@@ -3203,6 +3210,7 @@ export type Database = {
           valor_produtos?: number
           valor_total?: number
           vendedor_id?: string | null
+          vendedor_nome?: string | null
         }
         Update: {
           cliente_cnpj?: string | null
@@ -3214,6 +3222,9 @@ export type Database = {
           desconto_percentual?: number | null
           id?: string
           itens?: Json
+          metodo_frete?: string | null
+          pode_faturar?: boolean | null
+          prazo_faturamento_selecionado?: string | null
           status?: string
           token?: string
           updated_at?: string
@@ -3221,6 +3232,7 @@ export type Database = {
           valor_produtos?: number
           valor_total?: number
           vendedor_id?: string | null
+          vendedor_nome?: string | null
         }
         Relationships: [
           {
