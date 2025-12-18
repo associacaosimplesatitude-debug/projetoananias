@@ -528,7 +528,9 @@ export default function ShopifyPedidos() {
   const handleSelectPagamentoPadrao = () => {
     setShowFaturamentoDialog(false);
     // Vendedor gera link de proposta sem faturamento B2B (cliente escolherá frete na proposta)
-    handleGeneratePropostaLink(null, 0, null, false);
+    // Mas ainda aplica o desconto B2B do cliente, se houver
+    const descontoCliente = selectedCliente?.desconto_faturamento || 0;
+    handleGeneratePropostaLink(null, descontoCliente, null, false);
   };
 
   const handleCreateDraftOrder = async (
