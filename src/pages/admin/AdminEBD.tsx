@@ -988,9 +988,9 @@ export default function AdminEBD() {
     }) => {
       // Usa função SECURITY DEFINER para contornar RLS restritivo
       const { error } = await supabase.rpc('transfer_cliente_vendedor' as any, {
-        _source: source,
-        _cliente_id: clienteId,
-        _vendedor_id: vendedorId,
+        source,
+        cliente_id: clienteId,
+        vendedor_id: vendedorId,
       });
       if (error) throw error;
     },

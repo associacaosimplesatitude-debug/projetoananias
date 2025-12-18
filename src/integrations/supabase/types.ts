@@ -3238,6 +3238,10 @@ export type Database = {
         Returns: boolean
       }
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
+      transfer_cliente_vendedor: {
+        Args: { cliente_id: string; source: string; vendedor_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "client" | "tesoureiro" | "secretario" | "gerente_ebd"
