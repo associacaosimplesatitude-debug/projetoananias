@@ -337,10 +337,10 @@ serve(async (req) => {
       return null;
     }
 
-    // Preparar itens (enviando o valor FINAL já com desconto)
+    // Preparar itens (enviando o PREÇO LISTA + DESCONTO separados para exibição correta no Bling)
     const itensBling = [];
 
-    // Total real baseado nos itens que vamos enviar ao Bling
+    // Total real baseado nos itens que vamos enviar ao Bling (após desconto)
     let totalBrutoBling = 0;
 
     for (const item of itens as any[]) {
@@ -364,19 +364,20 @@ serve(async (req) => {
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade);
 
-      // A verificação prévia de estoque foi removida pois a API /estoques/saldos
-      // não retorna dados consistentes para todos os produtos.
-      // O Bling vai validar o estoque ao criar a venda e retornar erro específico se necessário.
+      // Calcular desconto percentual do item
+      // desconto_percentual_item = ((precoLista - precoComDesconto) / precoLista) * 100
+      let descontoPercentualItem = 0;
+      if (precoLista > precoComDesconto && precoLista > 0) {
+        descontoPercentualItem = Math.round(((precoLista - precoComDesconto) / precoLista) * 10000) / 100;
+      }
 
-      // Para evitar divergência de total/parcela no Bling, enviamos o valor FINAL do item
-      // (já com desconto) e NÃO enviamos `itens[].desconto`.
-      // O desconto total ainda é calculado apenas para exibição/log.
+      // Calcular desconto total em valor
       const descontoTotalItem = Math.max(
         0,
         Math.round(((precoLista - precoComDesconto) * quantidade) * 100) / 100
       );
 
-      // Total que o Bling deve computar via itens (já com desconto)
+      // Total que o Bling deve computar via itens (após desconto)
       totalBrutoBling += precoComDesconto * quantidade;
 
       // Acumular desconto total (para exibição)
@@ -384,17 +385,29 @@ serve(async (req) => {
 
       console.log(`Item: ${item.descricao}`);
       console.log(`  - bling_produto_id: ${blingProdutoId}`);
-      console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
-      console.log(`  - Preço Final (enviado): R$ ${precoComDesconto.toFixed(2)}`);
-      console.log(`  - Desconto Total do Item (info): R$ ${descontoTotalItem.toFixed(2)}`);
+      console.log(`  - Preço Lista (enviado): R$ ${precoLista.toFixed(2)}`);
+      console.log(`  - Desconto %: ${descontoPercentualItem.toFixed(2)}%`);
+      console.log(`  - Preço Final Esperado: R$ ${precoComDesconto.toFixed(2)}`);
+      console.log(`  - Desconto Total do Item: R$ ${descontoTotalItem.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
 
+      // IMPORTANTE: Bling espera:
+      // - valor: preço LISTA (cheio, sem desconto)
+      // - desconto.valor: percentual de desconto (ex: 40 para 40%)
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        valor: precoComDesconto, // Valor final já com desconto
+        valor: precoLista, // Preço lista (cheio) - NÃO o preço com desconto
       };
+
+      // Adicionar desconto se houver
+      if (descontoPercentualItem > 0) {
+        itemBling.desconto = {
+          valor: descontoPercentualItem, // Desconto em percentual
+          tipo: 'PERCENTUAL', // Tipo do desconto
+        };
+      }
 
       // Só adicionar produto.id se for válido
       if (blingProdutoId && !isNaN(blingProdutoId)) {
