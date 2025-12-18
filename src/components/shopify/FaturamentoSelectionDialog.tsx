@@ -29,7 +29,8 @@ interface FaturamentoSelectionDialogProps {
   clienteCep: string | null;
   totalProdutos: number;
   items: Array<{ quantity: number }>;
-  onSelectFaturamento: (prazo: string, desconto: number, frete: ShippingOption) => void;
+  descontoB2B: number | null;
+  onSelectFaturamento: (prazos: string[], desconto: number, frete: ShippingOption) => void;
   onSelectPagamentoPadrao: () => void;
 }
 
@@ -40,15 +41,23 @@ export function FaturamentoSelectionDialog({
   clienteCep,
   totalProdutos,
   items,
+  descontoB2B,
   onSelectFaturamento,
   onSelectPagamentoPadrao,
 }: FaturamentoSelectionDialogProps) {
-  const [selectedPrazo, setSelectedPrazo] = useState<string | null>(null);
+  const [selectedPrazos, setSelectedPrazos] = useState<string[]>([]);
   const [step, setStep] = useState<'choice' | 'config'>('choice');
   const [desconto, setDesconto] = useState<string>('');
   const [selectedFrete, setSelectedFrete] = useState<string>('');
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [isLoadingShipping, setIsLoadingShipping] = useState(false);
+
+  // Auto-fill discount when dialog opens
+  useEffect(() => {
+    if (open && descontoB2B && descontoB2B > 0) {
+      setDesconto(descontoB2B.toString());
+    }
+  }, [open, descontoB2B]);
 
   // Calculate total with discount
   const descontoPercent = parseFloat(desconto) || 0;
@@ -143,13 +152,13 @@ export function FaturamentoSelectionDialog({
   };
 
   const handleConfirmFaturamento = () => {
-    if (selectedPrazo && selectedFrete) {
+    if (selectedPrazos.length > 0 && selectedFrete) {
       const shipping = shippingOptions.find(opt => opt.type === selectedFrete)!;
-      onSelectFaturamento(selectedPrazo, descontoPercent, shipping);
+      onSelectFaturamento(selectedPrazos, descontoPercent, shipping);
       // Reset state for next time
       setTimeout(() => {
         setStep('choice');
-        setSelectedPrazo(null);
+        setSelectedPrazos([]);
         setDesconto('');
         setSelectedFrete('');
       }, 300);
@@ -160,7 +169,7 @@ export function FaturamentoSelectionDialog({
     onOpenChange(false);
     setTimeout(() => {
       setStep('choice');
-      setSelectedPrazo(null);
+      setSelectedPrazos([]);
       setDesconto('');
       setSelectedFrete('');
     }, 300);
@@ -170,10 +179,18 @@ export function FaturamentoSelectionDialog({
     onSelectPagamentoPadrao();
     setTimeout(() => {
       setStep('choice');
-      setSelectedPrazo(null);
+      setSelectedPrazos([]);
       setDesconto('');
       setSelectedFrete('');
     }, 300);
+  };
+
+  const togglePrazo = (value: string) => {
+    setSelectedPrazos(prev => 
+      prev.includes(value) 
+        ? prev.filter(p => p !== value) 
+        : [...prev, value]
+    );
   };
 
   const prazos = [
@@ -247,19 +264,22 @@ export function FaturamentoSelectionDialog({
                 <Clock className="h-4 w-4" />
                 Prazo de Pagamento
               </Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Selecione os prazos que deseja oferecer ao cliente:
+              </p>
               <div className="grid grid-cols-3 gap-3">
                 {prazos.map((prazo) => (
                   <button
                     key={prazo.value}
-                    onClick={() => setSelectedPrazo(prazo.value)}
+                    onClick={() => togglePrazo(prazo.value)}
                     className={cn(
                       "relative p-3 rounded-lg border-2 transition-all text-center",
-                      selectedPrazo === prazo.value
+                      selectedPrazos.includes(prazo.value)
                         ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                         : "border-muted hover:border-primary/50 hover:bg-muted/50"
                     )}
                   >
-                    {selectedPrazo === prazo.value && (
+                    {selectedPrazos.includes(prazo.value) && (
                       <CheckCircle2 className="absolute top-1.5 right-1.5 h-3.5 w-3.5 text-primary" />
                     )}
                     <div className="text-xl font-bold text-primary">{prazo.value}</div>
@@ -376,7 +396,7 @@ export function FaturamentoSelectionDialog({
               <Button
                 className="flex-1"
                 onClick={handleConfirmFaturamento}
-                disabled={!selectedPrazo || !selectedFrete}
+                disabled={selectedPrazos.length === 0 || !selectedFrete}
               >
                 <FileText className="w-4 h-4 mr-2" />
                 Confirmar Faturamento

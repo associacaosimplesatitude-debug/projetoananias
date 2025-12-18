@@ -3181,6 +3181,7 @@ export type Database = {
           metodo_frete: string | null
           pode_faturar: boolean | null
           prazo_faturamento_selecionado: string | null
+          prazos_disponiveis: string[] | null
           status: string
           token: string
           updated_at: string
@@ -3203,6 +3204,7 @@ export type Database = {
           metodo_frete?: string | null
           pode_faturar?: boolean | null
           prazo_faturamento_selecionado?: string | null
+          prazos_disponiveis?: string[] | null
           status?: string
           token: string
           updated_at?: string
@@ -3225,6 +3227,7 @@ export type Database = {
           metodo_frete?: string | null
           pode_faturar?: boolean | null
           prazo_faturamento_selecionado?: string | null
+          prazos_disponiveis?: string[] | null
           status?: string
           token?: string
           updated_at?: string

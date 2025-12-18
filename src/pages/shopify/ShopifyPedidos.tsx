@@ -76,6 +76,7 @@ interface Cliente {
   endereco_cidade: string | null;
   endereco_estado: string | null;
   pode_faturar: boolean;
+  desconto_faturamento: number | null;
   vendedor?: Vendedor | null;
 }
 
@@ -410,7 +411,7 @@ export default function ShopifyPedidos() {
   };
 
   const handleGeneratePropostaLink = async (
-    faturamentoPrazo: string | null,
+    faturamentoPrazos: string[] | null,
     descontoPercent: number = 0,
     frete: { type: string; cost: number } | null = null,
     isFaturamentoB2B: boolean = false
@@ -469,7 +470,8 @@ export default function ShopifyPedidos() {
           token: token,
           metodo_frete: frete?.type || null,
           pode_faturar: isFaturamentoB2B,
-          vendedor_nome: vendedor.nome || null
+          vendedor_nome: vendedor.nome || null,
+          prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null
         })
         .select()
         .single();
@@ -516,11 +518,11 @@ export default function ShopifyPedidos() {
     setIsCartOpen(false);
   };
 
-  const handleSelectFaturamento = (prazo: string, desconto: number, frete: { type: string; cost: number }) => {
-    setFaturamentoConfig({ prazo, desconto, frete });
+  const handleSelectFaturamento = (prazos: string[], desconto: number, frete: { type: string; cost: number }) => {
+    setFaturamentoConfig({ prazo: prazos[0], desconto, frete });
     setShowFaturamentoDialog(false);
     // Vendedor gera link de proposta com config de faturamento B2B
-    handleGeneratePropostaLink(prazo, desconto, frete, true);
+    handleGeneratePropostaLink(prazos, desconto, frete, true);
   };
 
   const handleSelectPagamentoPadrao = () => {
@@ -1045,6 +1047,7 @@ export default function ShopifyPedidos() {
         clienteCep={selectedCliente?.endereco_cep || null}
         totalProdutos={totalPrice}
         items={items.map(item => ({ quantity: item.quantity }))}
+        descontoB2B={selectedCliente?.desconto_faturamento || null}
         onSelectFaturamento={handleSelectFaturamento}
         onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
       />
