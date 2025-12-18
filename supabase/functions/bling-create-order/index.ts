@@ -575,17 +575,42 @@ serve(async (req) => {
 
     console.log('Criando pedido no Bling:', JSON.stringify(pedidoData, null, 2));
 
-    const orderResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(pedidoData),
-    });
+    // Bling aplica rate-limit bem agressivo (ex: 3 req/seg). Como este fluxo pode fazer
+    // múltiplas chamadas (contato, busca produto, etc.), fazemos um pequeno delay antes
+    // de criar o pedido e tentamos novamente se vier TOO_MANY_REQUESTS.
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    await sleep(450);
 
-    const responseData = await orderResponse.json();
+    let orderResponse: Response | undefined;
+    let responseData: any = null;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      orderResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(pedidoData),
+      });
+
+      responseData = await orderResponse.json();
+
+      // Retry em rate limit
+      if (!orderResponse.ok && responseData?.error?.type === 'TOO_MANY_REQUESTS' && attempt < 2) {
+        const backoff = 800 * (attempt + 1);
+        console.warn(`Bling rate limit (TOO_MANY_REQUESTS). Retry em ${backoff}ms...`);
+        await sleep(backoff);
+        continue;
+      }
+
+      break;
+    }
+
+    if (!orderResponse) {
+      throw new Error('Falha ao criar pedido no Bling');
+    }
 
     if (!orderResponse.ok) {
       console.error('Erro ao criar pedido:', JSON.stringify(responseData, null, 2));
