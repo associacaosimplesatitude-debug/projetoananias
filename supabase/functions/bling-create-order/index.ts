@@ -352,44 +352,49 @@ serve(async (req) => {
       const precoLista = Number(item.preco_cheio || item.valor);
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade);
-      
-      // Calcular desconto por unidade (arredondado para 2 casas)
-      const descontoUnidade = precoLista > precoComDesconto ? Math.round((precoLista - precoComDesconto) * 100) / 100 : 0;
-      
+
+      // Bling v3: em "desconto.tipo = VALOR", o campo "valor" é interpretado
+      // como desconto TOTAL do item (linha), e não por unidade.
+      const descontoUnidade = precoLista > precoComDesconto
+        ? Math.round((precoLista - precoComDesconto) * 100) / 100
+        : 0;
+      const descontoTotalItem = Math.round((descontoUnidade * quantidade) * 100) / 100;
+
       // Acumular totais para cálculo exato do que Bling vai computar
       totalBrutoBling += precoLista * quantidade;
-      totalDescontoBling += descontoUnidade * quantidade;
-      
+      totalDescontoBling += descontoTotalItem;
+
       // Acumular desconto total (para exibição)
-      descontoTotalVenda += descontoUnidade * quantidade;
-      
+      descontoTotalVenda += descontoTotalItem;
+
       console.log(`Item: ${item.descricao}`);
       console.log(`  - bling_produto_id: ${blingProdutoId}`);
       console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
       console.log(`  - Preço com Desconto: R$ ${precoComDesconto.toFixed(2)}`);
       console.log(`  - Desconto por Unidade: R$ ${descontoUnidade.toFixed(2)}`);
+      console.log(`  - Desconto Total do Item: R$ ${descontoTotalItem.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
-      
+
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
         valor: precoLista, // Preço de Lista (sem desconto)
       };
-      
+
       // Só adicionar produto.id se for válido
       if (blingProdutoId && !isNaN(blingProdutoId)) {
         itemBling.produto = { id: blingProdutoId };
       }
-      
-      // Adicionar desconto apenas se houver
-      if (descontoUnidade > 0) {
+
+      // Adicionar desconto apenas se houver (TOTAL do item)
+      if (descontoTotalItem > 0) {
         itemBling.desconto = {
-          valor: descontoUnidade, // Desconto por unidade em valor absoluto
-          tipo: 'VALOR', // Tipo de desconto: VALOR ou PERCENTUAL
+          valor: descontoTotalItem,
+          tipo: 'VALOR',
         };
       }
-      
+
       itensBling.push(itemBling);
     }
     
