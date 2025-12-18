@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
@@ -371,7 +372,18 @@ export default function VendedorCatalogo() {
                             >
                               <Minus className="h-4 w-4" />
                             </Button>
-                            <span className="w-8 text-center font-medium">{inCart}</span>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={inCart}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (!isNaN(val) && val >= 0) {
+                                  updateQuantity(revista.id, val);
+                                }
+                              }}
+                              className="w-14 h-8 text-center px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
                             <Button
                               variant="outline"
                               size="icon"
@@ -435,7 +447,18 @@ export default function VendedorCatalogo() {
                             >
                               <Minus className="h-3 w-3" />
                             </Button>
-                            <span className="w-6 text-center text-sm">{cart[revista.id]}</span>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={cart[revista.id]}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (!isNaN(val) && val >= 0) {
+                                  updateQuantity(revista.id, val);
+                                }
+                              }}
+                              className="w-12 h-6 text-center text-sm px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
                             <Button
                               variant="ghost"
                               size="icon"
