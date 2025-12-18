@@ -3167,6 +3167,78 @@ export type Database = {
           },
         ]
       }
+      vendedor_propostas: {
+        Row: {
+          cliente_cnpj: string | null
+          cliente_endereco: Json | null
+          cliente_id: string | null
+          cliente_nome: string
+          confirmado_em: string | null
+          created_at: string
+          desconto_percentual: number | null
+          id: string
+          itens: Json
+          status: string
+          token: string
+          updated_at: string
+          valor_frete: number | null
+          valor_produtos: number
+          valor_total: number
+          vendedor_id: string | null
+        }
+        Insert: {
+          cliente_cnpj?: string | null
+          cliente_endereco?: Json | null
+          cliente_id?: string | null
+          cliente_nome: string
+          confirmado_em?: string | null
+          created_at?: string
+          desconto_percentual?: number | null
+          id?: string
+          itens?: Json
+          status?: string
+          token: string
+          updated_at?: string
+          valor_frete?: number | null
+          valor_produtos?: number
+          valor_total?: number
+          vendedor_id?: string | null
+        }
+        Update: {
+          cliente_cnpj?: string | null
+          cliente_endereco?: Json | null
+          cliente_id?: string | null
+          cliente_nome?: string
+          confirmado_em?: string | null
+          created_at?: string
+          desconto_percentual?: number | null
+          id?: string
+          itens?: Json
+          status?: string
+          token?: string
+          updated_at?: string
+          valor_frete?: number | null
+          valor_produtos?: number
+          valor_total?: number
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendedor_propostas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendedor_propostas_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendedores: {
         Row: {
           comissao_percentual: number

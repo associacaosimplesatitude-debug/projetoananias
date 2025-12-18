@@ -106,6 +106,9 @@ import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
 import EBDLogin from "./pages/EBDLogin";
 import LandingEBD from "./pages/LandingEBD";
+
+// Public Pages
+import PropostaDigital from "./pages/PropostaDigital";
 import EBDLandingRedirect from "./components/EBDLandingRedirect";
 const queryClient = new QueryClient();
 
@@ -125,6 +128,7 @@ const App = () => (
               } />
               <Route path="/login/ebd" element={<EBDLogin />} />
               <Route path="/gestao-ebd" element={<LandingEBD />} />
+              <Route path="/proposta/:token" element={<PropostaDigital />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
             <Route
               path="/*"
