@@ -524,13 +524,11 @@ serve(async (req) => {
       ...(vendedor_nome && { vendedor: { nome: vendedor_nome } }),
     };
 
-    // Adicionar desconto total da venda se houver
-    if (descontoTotalVenda > 0) {
-      pedidoData.desconto = {
-        valor: Number(descontoTotalVenda.toFixed(2)),
-        tipo: 'VALOR',
-      };
-    }
+    // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
+    // Enviar também `pedido.desconto` faz o Bling aplicar desconto em duplicidade,
+    // causando erro de validação nas parcelas.
+    // Portanto, não enviar desconto total no nível do pedido.
+
 
     // Adicionar transporte/endereço de entrega se disponível
     // Estrutura correta para Bling API v3:
