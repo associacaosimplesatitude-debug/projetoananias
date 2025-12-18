@@ -323,18 +323,15 @@ serve(async (req) => {
       }
     }
     
-    // Preparar itens com Preço de Lista e Desconto separados
-    // Bling API v3: valor = preço de lista, desconto = valor do desconto por unidade
+    // Preparar itens (enviando o valor FINAL já com desconto)
     const itensBling = [];
-    
-    // Calcular o total real baseado nos itens que vamos enviar ao Bling
-    // para garantir que as parcelas somem exatamente o que Bling vai calcular
+
+    // Total real baseado nos itens que vamos enviar ao Bling
     let totalBrutoBling = 0;
-    let totalDescontoBling = 0;
-    
+
     for (const item of itens as any[]) {
       let blingProdutoId = parseInt(item.codigo, 10);
-      
+
       // Se o código não é um número válido, buscar pelo nome no Bling
       if (!blingProdutoId || isNaN(blingProdutoId)) {
         console.log(`bling_produto_id inválido (${item.codigo}), buscando pelo nome: ${item.descricao}`);
@@ -346,23 +343,23 @@ serve(async (req) => {
           // Continuar sem o ID - o Bling vai criar como produto novo
         }
       }
-      
+
       // preco_cheio = preço de tabela (sem desconto)
       // valor = preço com desconto aplicado
       const precoLista = Number(item.preco_cheio || item.valor);
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade);
 
-      // Bling v3: em "desconto.tipo = VALOR", o campo "valor" é interpretado
-      // como desconto TOTAL do item (linha), e não por unidade.
-      const descontoUnidade = precoLista > precoComDesconto
-        ? Math.round((precoLista - precoComDesconto) * 100) / 100
-        : 0;
-      const descontoTotalItem = Math.round((descontoUnidade * quantidade) * 100) / 100;
+      // Para evitar divergência de total/parcela no Bling, enviamos o valor FINAL do item
+      // (já com desconto) e NÃO enviamos `itens[].desconto`.
+      // O desconto total ainda é calculado apenas para exibição/log.
+      const descontoTotalItem = Math.max(
+        0,
+        Math.round(((precoLista - precoComDesconto) * quantidade) * 100) / 100
+      );
 
-      // Acumular totais para cálculo exato do que Bling vai computar
-      totalBrutoBling += precoLista * quantidade;
-      totalDescontoBling += descontoTotalItem;
+      // Total que o Bling deve computar via itens (já com desconto)
+      totalBrutoBling += precoComDesconto * quantidade;
 
       // Acumular desconto total (para exibição)
       descontoTotalVenda += descontoTotalItem;
@@ -370,16 +367,15 @@ serve(async (req) => {
       console.log(`Item: ${item.descricao}`);
       console.log(`  - bling_produto_id: ${blingProdutoId}`);
       console.log(`  - Preço Lista: R$ ${precoLista.toFixed(2)}`);
-      console.log(`  - Preço com Desconto: R$ ${precoComDesconto.toFixed(2)}`);
-      console.log(`  - Desconto por Unidade: R$ ${descontoUnidade.toFixed(2)}`);
-      console.log(`  - Desconto Total do Item: R$ ${descontoTotalItem.toFixed(2)}`);
+      console.log(`  - Preço Final (enviado): R$ ${precoComDesconto.toFixed(2)}`);
+      console.log(`  - Desconto Total do Item (info): R$ ${descontoTotalItem.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
 
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        valor: precoLista, // Preço de Lista (sem desconto)
+        valor: precoComDesconto, // Valor final já com desconto
       };
 
       // Só adicionar produto.id se for válido
@@ -387,29 +383,19 @@ serve(async (req) => {
         itemBling.produto = { id: blingProdutoId };
       }
 
-      // Adicionar desconto apenas se houver (TOTAL do item)
-      if (descontoTotalItem > 0) {
-        itemBling.desconto = {
-          valor: descontoTotalItem,
-          tipo: 'VALOR',
-        };
-      }
-
       itensBling.push(itemBling);
     }
-    
-    // Calcular o total exato que Bling vai computar: bruto - desconto + frete
+
+    // Calcular o total exato que Bling vai computar: itens + frete
     const valorFreteNum = Number(valor_frete || 0);
-    const totalLiquidoBling = Math.round((totalBrutoBling - totalDescontoBling) * 100) / 100;
+    const totalLiquidoBling = Math.round(totalBrutoBling * 100) / 100;
     const valorTotalBling = Math.round((totalLiquidoBling + valorFreteNum) * 100) / 100;
-    
+
     console.log(`=== CÁLCULO BLING ===`);
-    console.log(`Total Bruto Bling: R$ ${totalBrutoBling.toFixed(2)}`);
-    console.log(`Total Desconto Bling: R$ ${totalDescontoBling.toFixed(2)}`);
-    console.log(`Total Líquido Bling: R$ ${totalLiquidoBling.toFixed(2)}`);
+    console.log(`Total Itens Bling (já com desconto): R$ ${totalLiquidoBling.toFixed(2)}`);
     console.log(`Total com Frete Bling: R$ ${valorTotalBling.toFixed(2)}`);
 
-    console.log(`Desconto Total da Venda: R$ ${descontoTotalVenda.toFixed(2)}`);
+    console.log(`Desconto Total da Venda (info): R$ ${descontoTotalVenda.toFixed(2)}`);
 
     // Gerar número único para o pedido
     const numeroPedido = `${timestamp}-${randomSuffix}`;
