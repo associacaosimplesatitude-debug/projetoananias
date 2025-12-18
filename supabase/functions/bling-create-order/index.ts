@@ -500,10 +500,13 @@ serve(async (req) => {
       const prazo = parseInt(faturamento_prazo);
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
 
-      // ✅ Bling (pedidos/vendas): na prática o Bling valida o somatório das parcelas
-      // contra o TOTAL DOS ITENS (já com desconto) e NÃO contra (itens + frete).
-      // Quando incluímos o frete na base, ele acusa divergência.
-      const totalBaseParcelas = Math.round(totalLiquidoBling * 100) / 100;
+      // ✅ Bling valida o somatório das parcelas contra o "total da venda".
+      // Quando enviamos frete como CIF (fretePorConta='R'), o frete entra no total da venda.
+      // Portanto:
+      // - Se frete será incluído no pedido (CIF), parcelas devem somar (itens + frete)
+      // - Se frete não for incluído (FOB), parcelas devem somar apenas itens
+      const incluirFreteNoTotalDaVenda = Boolean(endereco_entrega) && Number(valor_frete || 0) > 0;
+      const totalBaseParcelas = Math.round((incluirFreteNoTotalDaVenda ? valorTotalBling : totalLiquidoBling) * 100) / 100;
 
       // CORREÇÃO FORÇADA DE CENTAVOS:
       // 1) base com alta precisão
@@ -523,7 +526,7 @@ serve(async (req) => {
       const somaFinal = Math.round(parcelasValores.reduce((acc, v) => acc + v, 0) * 100) / 100;
 
       console.log(
-        `Faturamento B2B: ${numParcelas} parcela(s) | base_itens=${totalBaseParcelas.toFixed(2)} | base=${parcelaBase.toFixed(4)} | soma_inicial=${somaParcelas.toFixed(2)} | diff=${diferenca.toFixed(2)} | soma_final=${somaFinal.toFixed(2)} | parcelas=${parcelasValores
+        `Faturamento B2B: ${numParcelas} parcela(s) | base=${totalBaseParcelas.toFixed(2)} | base_unit=${parcelaBase.toFixed(4)} | soma_inicial=${somaParcelas.toFixed(2)} | diff=${diferenca.toFixed(2)} | soma_final=${somaFinal.toFixed(2)} | parcelas=${parcelasValores
           .map(v => v.toFixed(2))
           .join(', ')}`
       );
@@ -534,7 +537,8 @@ serve(async (req) => {
 
         parcelas.push({
           dataVencimento: dataVencimento.toISOString().split('T')[0],
-          valor: parcelasValores[i - 1],
+          // Bling é sensível a arredondamento; enviar como string com 2 casas evita float binário
+          valor: parcelasValores[i - 1].toFixed(2),
           observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
         });
       }
