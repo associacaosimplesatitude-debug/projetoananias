@@ -453,16 +453,16 @@ serve(async (req) => {
     // Gerar parcelas baseado na forma de pagamento
     let parcelas: any[] = [];
     const isFaturamento = forma_pagamento?.toLowerCase() === 'faturamento';
-    
-  if (isFaturamento && faturamento_prazo) {
+
+    if (isFaturamento && faturamento_prazo) {
       // Faturamento B2B: criar parcelas de 30, 60 ou 90 dias
       const prazo = parseInt(faturamento_prazo);
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
 
-      // IMPORTANTE: Bling calcula o total da venda como: soma dos itens (valor * qtd) - descontos
-      // O frete é tratado separadamente no campo transporte.frete
-      // As parcelas devem somar ao valor líquido dos produtos (SEM frete)
-      const totalBaseParcelas = totalLiquidoBling;
+      // IMPORTANTE: No Bling, o "total da venda" (base das parcelas) inclui o frete.
+      // Se as parcelas não somarem EXATAMENTE ao total calculado pelo Bling, ele rejeita com:
+      // "O somatório do valor das parcelas difere do total da venda".
+      const totalBaseParcelas = valorTotalBling;
       const totalCentavos = Math.round(totalBaseParcelas * 100);
       const valorParcelaBaseCentavos = Math.floor(totalCentavos / numParcelas);
       const parcelasCentavos: number[] = [];
@@ -478,7 +478,7 @@ serve(async (req) => {
       }
 
       console.log(
-        `Faturamento B2B: ${numParcelas} parcela(s) sobre total líquido (R$ ${totalBaseParcelas.toFixed(2)}) - valores: ${parcelasCentavos
+        `Faturamento B2B: ${numParcelas} parcela(s) sobre total (R$ ${totalBaseParcelas.toFixed(2)}) - valores: ${parcelasCentavos
           .map(v => (v / 100).toFixed(2))
           .join(', ')}`
       );
@@ -494,13 +494,13 @@ serve(async (req) => {
         });
       }
     } else {
-      // Pagamento à vista - usar valor líquido (sem frete, pois frete vai em transporte.frete)
+      // Pagamento à vista
       parcelas = [
         {
           dataVencimento: new Date().toISOString().split('T')[0],
-          valor: totalLiquidoBling,
+          valor: valorTotalBling,
           observacoes: `Pagamento via ${formaPagamentoDescricao}`,
-        }
+        },
       ];
     }
 
