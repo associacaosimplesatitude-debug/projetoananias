@@ -209,16 +209,32 @@ serve(async (req) => {
 
     // Step 2: Create Draft Order
     // Convert GraphQL variant IDs to numeric IDs
+    // Apply line-item discount if desconto_percentual is provided
     const lineItems = items.map(item => {
       // Extract numeric ID from GraphQL ID (gid://shopify/ProductVariant/123456)
       const variantIdMatch = item.variantId.match(/(\d+)$/);
       const numericVariantId = variantIdMatch ? parseInt(variantIdMatch[1]) : null;
       
-      return {
+      const lineItem: Record<string, unknown> = {
         variant_id: numericVariantId,
         quantity: item.quantity,
         title: item.title,
       };
+      
+      // Apply discount to line item if discount percentage is provided
+      if (descontoPercentual > 0) {
+        const originalPrice = parseFloat(item.price);
+        const discountAmount = originalPrice * (descontoPercentual / 100);
+        lineItem.applied_discount = {
+          description: `Desconto B2B (${descontoPercentual}%)`,
+          value_type: "fixed_amount",
+          value: discountAmount.toFixed(2),
+          amount: discountAmount.toFixed(2),
+          title: `Desconto ${descontoPercentual}%`,
+        };
+      }
+      
+      return lineItem;
     }).filter(item => item.variant_id !== null);
 
     console.log("Creating draft order with line items:", lineItems);
@@ -251,6 +267,13 @@ serve(async (req) => {
       orderNote += ` | FATURAMENTO ${faturamento_prazo} DIAS`;
     }
 
+    // Build shipping line if frete is provided
+    const shippingLine = valorFreteRecebido > 0 ? {
+      title: metodoFreteRecebido === 'sedex' ? 'SEDEX (Correios)' : metodoFreteRecebido === 'pac' ? 'PAC (Correios)' : 'Frete',
+      price: valorFreteRecebido.toFixed(2),
+      custom: true,
+    } : null;
+
     const draftOrderPayload: Record<string, unknown> = {
       draft_order: {
         line_items: lineItems,
@@ -259,6 +282,7 @@ serve(async (req) => {
         note_attributes: noteAttributes,
         ...(customerId && { customer: { id: customerId } }),
         use_customer_default_address: !!customerId,
+        ...(shippingLine && { shipping_line: shippingLine }),
       },
     };
 
