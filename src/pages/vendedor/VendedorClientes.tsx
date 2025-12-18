@@ -125,6 +125,19 @@ export default function VendedorClientes() {
     if (!clienteParaExcluir) return;
     setExcluindo(true);
     try {
+      // Check if client has orders
+      const { count: ordersCount } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("*", { count: "exact", head: true })
+        .eq("cliente_id", clienteParaExcluir.id);
+      
+      if (ordersCount && ordersCount > 0) {
+        toast.error("Não é possível excluir este cliente pois ele possui pedidos registrados.");
+        setExcluindo(false);
+        setClienteParaExcluir(null);
+        return;
+      }
+
       const { error } = await supabase
         .from("ebd_clientes")
         .delete()
@@ -133,9 +146,13 @@ export default function VendedorClientes() {
       toast.success("Cliente excluído com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["vendedor-clientes", vendedor?.id] });
       setClienteParaExcluir(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting cliente:", error);
-      toast.error("Erro ao excluir cliente");
+      if (error?.code === '23503') {
+        toast.error("Não é possível excluir este cliente pois ele possui registros vinculados.");
+      } else {
+        toast.error("Erro ao excluir cliente. Verifique se não há dados vinculados.");
+      }
     } finally {
       setExcluindo(false);
     }
