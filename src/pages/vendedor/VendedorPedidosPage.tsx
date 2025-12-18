@@ -7,36 +7,89 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy, CheckCircle, Clock, ExternalLink } from "lucide-react";
+import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { FaturamentoSelectionDialog } from "@/components/shopify/FaturamentoSelectionDialog";
+
+interface PropostaItem {
+  variantId: string;
+  quantity: number;
+  title: string;
+  price: string;
+}
+
+interface PropostaCliente {
+  id: string;
+  nome_igreja: string;
+  cnpj: string;
+  email_superintendente: string | null;
+  telefone: string | null;
+  nome_responsavel: string | null;
+  endereco_cep: string | null;
+  endereco_rua: string | null;
+  endereco_numero: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
+  pode_faturar: boolean;
+  desconto_faturamento?: number | null;
+}
 
 interface Proposta {
   id: string;
   token: string;
+  cliente_id: string | null;
   cliente_nome: string;
   cliente_cnpj: string | null;
+  cliente_endereco: Record<string, string> | null;
+  itens: PropostaItem[];
   valor_total: number;
+  valor_produtos: number;
+  valor_frete: number | null;
+  desconto_percentual: number | null;
   status: string;
   created_at: string;
   confirmado_em: string | null;
+  cliente?: PropostaCliente | null;
 }
 
 export default function VendedorPedidosPage() {
   const { vendedor, isLoading } = useVendedor();
+  const [processingPropostaId, setProcessingPropostaId] = useState<string | null>(null);
+  const [showFaturamentoDialog, setShowFaturamentoDialog] = useState(false);
+  const [selectedPropostaForFaturamento, setSelectedPropostaForFaturamento] = useState<Proposta | null>(null);
 
-  const { data: propostas, isLoading: isLoadingPropostas } = useQuery({
+  const { data: propostas, isLoading: isLoadingPropostas, refetch } = useQuery({
     queryKey: ["vendedor-propostas", vendedor?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendedor_propostas")
-        .select("*")
+        .select(`
+          *,
+          cliente:ebd_clientes(
+            id,
+            nome_igreja,
+            cnpj,
+            email_superintendente,
+            telefone,
+            nome_responsavel,
+            endereco_cep,
+            endereco_rua,
+            endereco_numero,
+            endereco_bairro,
+            endereco_cidade,
+            endereco_estado,
+            pode_faturar,
+            desconto_faturamento
+          )
+        `)
         .eq("vendedor_id", vendedor!.id)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data as Proposta[];
+      return data as unknown as Proposta[];
     },
     enabled: !!vendedor?.id,
   });
@@ -45,6 +98,165 @@ export default function VendedorPedidosPage() {
     const link = `${window.location.origin}/proposta/${token}`;
     await navigator.clipboard.writeText(link);
     toast.success("Link copiado!");
+  };
+
+  const handleGeneratePaymentLink = async (proposta: Proposta) => {
+    // Check if cliente has pode_faturar (B2B)
+    if (proposta.cliente?.pode_faturar) {
+      setSelectedPropostaForFaturamento(proposta);
+      setShowFaturamentoDialog(true);
+      return;
+    }
+
+    // Standard payment flow - create Draft Order
+    await processPaymentLink(proposta);
+  };
+
+  const processPaymentLink = async (proposta: Proposta) => {
+    setProcessingPropostaId(proposta.id);
+
+    try {
+      // Build cliente object from proposta
+      const cliente = proposta.cliente || {
+        id: proposta.cliente_id || '',
+        nome_igreja: proposta.cliente_nome,
+        cnpj: proposta.cliente_cnpj || '',
+        email_superintendente: null,
+        telefone: null,
+        nome_responsavel: proposta.cliente_nome,
+        endereco_cep: proposta.cliente_endereco?.cep || null,
+        endereco_rua: proposta.cliente_endereco?.rua || null,
+        endereco_numero: proposta.cliente_endereco?.numero || null,
+        endereco_bairro: proposta.cliente_endereco?.bairro || null,
+        endereco_cidade: proposta.cliente_endereco?.cidade || null,
+        endereco_estado: proposta.cliente_endereco?.estado || null,
+        pode_faturar: false,
+      };
+
+      const { data, error } = await supabase.functions.invoke('ebd-shopify-order-create', {
+        body: {
+          cliente,
+          vendedor_id: vendedor?.id,
+          vendedor_nome: vendedor?.nome,
+          items: proposta.itens,
+          valor_frete: proposta.valor_frete?.toString() || '0',
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      // Update proposta status to AGUARDANDO_PAGAMENTO
+      await supabase
+        .from("vendedor_propostas")
+        .update({ status: "AGUARDANDO_PAGAMENTO" })
+        .eq("id", proposta.id);
+
+      if (data?.invoiceUrl) {
+        toast.success("Link de pagamento gerado com sucesso!");
+        window.open(data.invoiceUrl, '_blank');
+        refetch();
+      } else {
+        throw new Error("Resposta inesperada do servidor");
+      }
+    } catch (error: unknown) {
+      console.error("Erro ao gerar link de pagamento:", error);
+      toast.error("Erro ao gerar link de pagamento", {
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+      });
+    } finally {
+      setProcessingPropostaId(null);
+    }
+  };
+
+  const handleFaturamento = async (prazo: string, desconto: number, frete: { type: string; cost: number }) => {
+    if (!selectedPropostaForFaturamento) return;
+
+    setProcessingPropostaId(selectedPropostaForFaturamento.id);
+    setShowFaturamentoDialog(false);
+
+    try {
+      const proposta = selectedPropostaForFaturamento;
+      
+      const cliente = proposta.cliente || {
+        id: proposta.cliente_id || '',
+        nome_igreja: proposta.cliente_nome,
+        cnpj: proposta.cliente_cnpj || '',
+        email_superintendente: null,
+        telefone: null,
+        nome_responsavel: proposta.cliente_nome,
+        endereco_cep: proposta.cliente_endereco?.cep || null,
+        endereco_rua: proposta.cliente_endereco?.rua || null,
+        endereco_numero: proposta.cliente_endereco?.numero || null,
+        endereco_bairro: proposta.cliente_endereco?.bairro || null,
+        endereco_cidade: proposta.cliente_endereco?.cidade || null,
+        endereco_estado: proposta.cliente_endereco?.estado || null,
+        pode_faturar: true,
+      };
+
+      const { data, error } = await supabase.functions.invoke('ebd-shopify-order-create', {
+        body: {
+          cliente,
+          vendedor_id: vendedor?.id,
+          vendedor_nome: vendedor?.nome,
+          items: proposta.itens,
+          forma_pagamento: 'FATURAMENTO',
+          faturamento_prazo: prazo,
+          desconto_percentual: desconto.toString(),
+          valor_frete: frete.cost.toString(),
+          metodo_frete: frete.type,
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      // Update proposta status to FATURADO
+      await supabase
+        .from("vendedor_propostas")
+        .update({ status: "FATURADO" })
+        .eq("id", proposta.id);
+
+      if (data?.isFaturamento && data?.blingOrderId) {
+        const blingIdentifier = data.blingOrderNumber || data.blingOrderId;
+        toast.success(`Pedido faturado em ${prazo} dias criado com sucesso no Bling!`, {
+          description: `Identificador do pedido Bling: ${blingIdentifier}`,
+          duration: 5000,
+        });
+        refetch();
+      } else {
+        throw new Error("Resposta inesperada do servidor");
+      }
+    } catch (error: unknown) {
+      console.error("Erro ao faturar pedido:", error);
+      toast.error("Erro ao faturar pedido", {
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+      });
+    } finally {
+      setProcessingPropostaId(null);
+      setSelectedPropostaForFaturamento(null);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "PROPOSTA_PENDENTE":
+        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" /> Pendente</Badge>;
+      case "PROPOSTA_ACEITA":
+        return <Badge variant="default" className="bg-green-600"><CheckCircle className="w-3 h-3 mr-1" /> Aceita</Badge>;
+      case "AGUARDANDO_PAGAMENTO":
+        return <Badge variant="outline" className="border-yellow-500 text-yellow-600"><CreditCard className="w-3 h-3 mr-1" /> Aguardando Pagamento</Badge>;
+      case "FATURADO":
+        return <Badge variant="outline" className="border-blue-500 text-blue-600"><FileText className="w-3 h-3 mr-1" /> Faturado</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
   };
 
   if (isLoading) {
@@ -69,8 +281,8 @@ export default function VendedorPedidosPage() {
         <TabsList>
           <TabsTrigger value="propostas" className="flex items-center gap-2">
             Propostas Digitais
-            {propostasPendentes.length > 0 && (
-              <Badge variant="secondary" className="ml-1">{propostasPendentes.length}</Badge>
+            {(propostasPendentes.length + propostasAceitas.length) > 0 && (
+              <Badge variant="secondary" className="ml-1">{propostasPendentes.length + propostasAceitas.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="pedidos">Pedidos Confirmados</TabsTrigger>
@@ -92,13 +304,10 @@ export default function VendedorPedidosPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-semibold">{proposta.cliente_nome}</span>
-                          <Badge variant={proposta.status === "PROPOSTA_PENDENTE" ? "secondary" : "default"}>
-                            {proposta.status === "PROPOSTA_PENDENTE" ? (
-                              <><Clock className="w-3 h-3 mr-1" /> Pendente</>
-                            ) : (
-                              <><CheckCircle className="w-3 h-3 mr-1" /> Aceita</>
-                            )}
-                          </Badge>
+                          {getStatusBadge(proposta.status)}
+                          {proposta.cliente?.pode_faturar && (
+                            <Badge variant="outline" className="text-xs">B2B</Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">
                           R$ {proposta.valor_total.toFixed(2)} • Criada em {format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -110,9 +319,28 @@ export default function VendedorPedidosPage() {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => copyLink(proposta.token)}>
-                          <Copy className="h-4 w-4 mr-1" /> Copiar Link
-                        </Button>
+                        {proposta.status === "PROPOSTA_ACEITA" && (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={() => handleGeneratePaymentLink(proposta)}
+                            disabled={processingPropostaId === proposta.id}
+                          >
+                            {processingPropostaId === proposta.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : proposta.cliente?.pode_faturar ? (
+                              <FileText className="h-4 w-4 mr-1" />
+                            ) : (
+                              <CreditCard className="h-4 w-4 mr-1" />
+                            )}
+                            {proposta.cliente?.pode_faturar ? "Faturar Pedido" : "Gerar Link Pagamento"}
+                          </Button>
+                        )}
+                        {(proposta.status === "PROPOSTA_PENDENTE" || proposta.status === "PROPOSTA_ACEITA") && (
+                          <Button variant="outline" size="sm" onClick={() => copyLink(proposta.token)}>
+                            <Copy className="h-4 w-4 mr-1" /> Copiar Link
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" asChild>
                           <a href={`/proposta/${proposta.token}`} target="_blank">
                             <ExternalLink className="h-4 w-4" />
@@ -131,6 +359,22 @@ export default function VendedorPedidosPage() {
           <VendedorPedidosTab vendedorId={vendedor?.id || ""} />
         </TabsContent>
       </Tabs>
+
+      <FaturamentoSelectionDialog
+        open={showFaturamentoDialog}
+        onOpenChange={setShowFaturamentoDialog}
+        clienteNome={selectedPropostaForFaturamento?.cliente_nome || ""}
+        clienteCep={selectedPropostaForFaturamento?.cliente?.endereco_cep || selectedPropostaForFaturamento?.cliente_endereco?.cep || null}
+        totalProdutos={selectedPropostaForFaturamento?.valor_produtos || 0}
+        items={selectedPropostaForFaturamento?.itens || []}
+        onSelectFaturamento={handleFaturamento}
+        onSelectPagamentoPadrao={() => {
+          setShowFaturamentoDialog(false);
+          if (selectedPropostaForFaturamento) {
+            processPaymentLink(selectedPropostaForFaturamento);
+          }
+        }}
+      />
     </div>
   );
 }
