@@ -986,27 +986,13 @@ export default function AdminEBD() {
       vendedorId: string | null;
       source: 'churches' | 'ebd_clientes';
     }) => {
-      if (source === 'ebd_clientes') {
-        const { data, error } = await supabase
-          .from('ebd_clientes')
-          .update({ vendedor_id: vendedorId })
-          .eq('id', clienteId)
-          .select('id');
-        if (error) throw error;
-        if (!data || data.length === 0) {
-          throw new Error('Não foi possível transferir este cliente (sem permissão ou cliente não encontrado).');
-        }
-      } else {
-        const { data, error } = await supabase
-          .from('churches')
-          .update({ vendedor_id: vendedorId })
-          .eq('id', clienteId)
-          .select('id');
-        if (error) throw error;
-        if (!data || data.length === 0) {
-          throw new Error('Não foi possível transferir este cliente (sem permissão ou cliente não encontrado).');
-        }
-      }
+      // Usa função SECURITY DEFINER para contornar RLS restritivo
+      const { error } = await supabase.rpc('transfer_cliente_vendedor' as any, {
+        _source: source,
+        _cliente_id: clienteId,
+        _vendedor_id: vendedorId,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['churches-all'] });
