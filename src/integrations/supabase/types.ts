@@ -3239,7 +3239,7 @@ export type Database = {
       }
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
       transfer_cliente_vendedor: {
-        Args: { cliente_id: string; source: string; vendedor_id: string }
+        Args: { _cliente_id: string; _source: string; _vendedor_id: string }
         Returns: undefined
       }
     }
