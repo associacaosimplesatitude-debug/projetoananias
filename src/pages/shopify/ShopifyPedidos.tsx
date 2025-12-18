@@ -6,13 +6,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ShoppingCart, Search, Plus, Minus, Trash2, ExternalLink, Loader2, ArrowLeft, Users, Filter, X, User } from "lucide-react";
+import {
+  ShoppingCart,
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  ExternalLink,
+  Loader2,
+  ArrowLeft,
+  Users,
+  Filter,
+  X,
+  User,
+} from "lucide-react";
 import { fetchShopifyProducts, ShopifyProduct, CartItem } from "@/lib/shopify";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
 import { FaturamentoSelectionDialog } from "@/components/shopify/FaturamentoSelectionDialog";
+import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import {
   Select,
   SelectContent,
@@ -29,6 +43,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 
 interface Vendedor {
   id: string;
@@ -639,7 +654,12 @@ export default function ShopifyPedidos() {
                                 >
                                   <Minus className="h-3 w-3" />
                                 </Button>
-                                <span className="w-8 text-center text-sm">{item.quantity}</span>
+                                <CartQuantityField
+                                  value={item.quantity}
+                                  min={1}
+                                  onCommit={(next) => updateQuantity(item.variantId, next)}
+                                  className="w-12 h-6 text-center text-sm px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
                                 <Button
                                   variant="outline"
                                   size="icon"
