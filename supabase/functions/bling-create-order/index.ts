@@ -410,11 +410,16 @@ serve(async (req) => {
       };
 
       if (descontoPercentualItem > 0) {
-        // Formato compatível: não usar `tipo` (o Bling pode ignorar e não aplicar o desconto).
-        // Usamos `unidade` como PERCENTUAL.
+        // Para evitar divergência no cálculo das parcelas, enviamos o desconto como VALOR fixo por unidade
+        // (o Bling não precisa recalcular percentual e arredondar internamente).
+        const descontoValorUnitario = Math.max(
+          0,
+          Math.round((precoLista - precoUnitarioLiquido) * 100) / 100
+        );
+
         itemBling.desconto = {
-          valor: descontoPercentualItem,
-          unidade: 'PERCENTUAL',
+          valor: descontoValorUnitario,
+          unidade: 'VALOR',
         };
       }
 
