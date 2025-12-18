@@ -412,7 +412,8 @@ export default function ShopifyPedidos() {
   const handleGeneratePropostaLink = async (
     faturamentoPrazo: string | null,
     descontoPercent: number = 0,
-    frete: { type: string; cost: number } | null = null
+    frete: { type: string; cost: number } | null = null,
+    isFaturamentoB2B: boolean = false
   ) => {
     if (!selectedCliente || !vendedor) {
       toast.error("Dados incompletos");
@@ -466,8 +467,8 @@ export default function ShopifyPedidos() {
           desconto_percentual: descontoPercent,
           status: "PROPOSTA_PENDENTE",
           token: token,
-          metodo_frete: frete?.type || 'free',
-          pode_faturar: selectedCliente.pode_faturar || false,
+          metodo_frete: frete?.type || null,
+          pode_faturar: isFaturamentoB2B,
           vendedor_nome: vendedor.nome || null
         })
         .select()
@@ -518,14 +519,14 @@ export default function ShopifyPedidos() {
   const handleSelectFaturamento = (prazo: string, desconto: number, frete: { type: string; cost: number }) => {
     setFaturamentoConfig({ prazo, desconto, frete });
     setShowFaturamentoDialog(false);
-    // Vendedor gera link de proposta com config de faturamento
-    handleGeneratePropostaLink(prazo, desconto, frete);
+    // Vendedor gera link de proposta com config de faturamento B2B
+    handleGeneratePropostaLink(prazo, desconto, frete, true);
   };
 
   const handleSelectPagamentoPadrao = () => {
     setShowFaturamentoDialog(false);
-    // Vendedor gera link de proposta sem faturamento B2B
-    handleGeneratePropostaLink(null, 0, null);
+    // Vendedor gera link de proposta sem faturamento B2B (cliente escolherá frete na proposta)
+    handleGeneratePropostaLink(null, 0, null, false);
   };
 
   const handleCreateDraftOrder = async (
