@@ -16,6 +16,7 @@ import { format, isThisMonth, parseISO, startOfMonth, endOfMonth, differenceInDa
 import { useState } from "react";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
+import { AulasRestantesCard } from "@/components/vendedor/AulasRestantesCard";
 import { useVendedor } from "@/hooks/useVendedor";
 
 export default function VendedorDashboard() {
@@ -223,6 +224,9 @@ export default function VendedorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Aulas Restantes Card */}
+      <AulasRestantesCard vendedorId={vendedor.id} />
 
       {/* Lead Scoring KPIs */}
       <LeadScoringKPIs vendedorId={vendedor.id} />
