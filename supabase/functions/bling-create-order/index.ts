@@ -279,28 +279,28 @@ serve(async (req) => {
             },
           }
         );
-        
+
         if (!searchResponse.ok) {
           console.log(`Erro ao buscar produto por nome: ${productName}`);
           return null;
         }
-        
+
         const searchData = await searchResponse.json();
         const produtos = searchData.data || [];
-        
+
         if (produtos.length > 0) {
           // Tentar encontrar match exato primeiro
-          const exactMatch = produtos.find((p: any) => 
+          const exactMatch = produtos.find((p: any) =>
             p.nome?.toLowerCase() === productName.toLowerCase()
           );
-          
+
           if (exactMatch) {
             console.log(`Produto encontrado (match exato): ${exactMatch.nome} -> ID ${exactMatch.id}`);
             return exactMatch.id;
           }
-          
+
           // Se não, tentar match por inclusão de texto
-          const partialMatch = produtos.find((p: any) => 
+          const partialMatch = produtos.find((p: any) =>
             productName.toLowerCase().includes((p.nome || '').toLowerCase()) ||
             (p.nome || '').toLowerCase().includes(productName.toLowerCase())
           );
@@ -309,12 +309,12 @@ serve(async (req) => {
             console.log(`Produto encontrado (match parcial): ${partialMatch.nome} -> ID ${partialMatch.id}`);
             return partialMatch.id;
           }
-          
+
           // Se ainda assim não houver match, usar o primeiro resultado
           console.log(`Produto encontrado (primeiro resultado): ${produtos[0].nome} -> ID ${produtos[0].id}`);
           return produtos[0].id;
         }
-        
+
         console.log(`Nenhum produto encontrado para: ${productName}`);
         return null;
       } catch (error) {
@@ -322,7 +322,53 @@ serve(async (req) => {
         return null;
       }
     }
-    
+
+    // Cache simples para não bater no endpoint de estoque repetidas vezes
+    const estoqueCache = new Map<number, number>();
+
+    // Busca saldo físico total no Bling (quando possível)
+    async function getBlingStock(produtoId: number): Promise<number | null> {
+      if (!produtoId || isNaN(produtoId)) return null;
+      if (estoqueCache.has(produtoId)) return estoqueCache.get(produtoId)!;
+
+      try {
+        const stockResponse = await fetch(
+          `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          }
+        );
+
+        if (!stockResponse.ok) {
+          console.log(`Não foi possível consultar estoque no Bling para produto ${produtoId}`);
+          return null;
+        }
+
+        const stockData = await stockResponse.json();
+        const estoques = stockData.data || [];
+
+        let estoqueTotal = 0;
+        for (const item of estoques) {
+          if (item?.produto?.id === produtoId || item?.produto?.id === Number(produtoId)) {
+            if (Array.isArray(item.saldos)) {
+              for (const saldo of item.saldos) {
+                estoqueTotal += (saldo?.saldoFisicoTotal || 0);
+              }
+            }
+          }
+        }
+
+        estoqueCache.set(produtoId, estoqueTotal);
+        return estoqueTotal;
+      } catch (err) {
+        console.log(`Erro ao consultar estoque do produto ${produtoId}: ${String(err)}`);
+        return null;
+      }
+    }
+
     // Preparar itens (enviando o valor FINAL já com desconto)
     const itensBling = [];
 
@@ -349,6 +395,20 @@ serve(async (req) => {
       const precoLista = Number(item.preco_cheio || item.valor);
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade);
+
+      // Se conseguimos identificar o produto no Bling, checar estoque ANTES de tentar criar a venda.
+      // Isso evita erro genérico "Não foi possível salvar a venda" e retorna uma mensagem clara.
+      if (blingProdutoId && !isNaN(blingProdutoId)) {
+        const estoque = await getBlingStock(blingProdutoId);
+        if (typeof estoque === 'number' && estoque < quantidade) {
+          const msg = `Estoque insuficiente no Bling para: ${item.descricao}`;
+          console.error('Erro processado:', msg, 'INSUFFICIENT_STOCK');
+          return new Response(
+            JSON.stringify({ error: msg, errorType: 'INSUFFICIENT_STOCK' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
 
       // Para evitar divergência de total/parcela no Bling, enviamos o valor FINAL do item
       // (já com desconto) e NÃO enviamos `itens[].desconto`.
