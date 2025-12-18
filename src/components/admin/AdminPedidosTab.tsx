@@ -1,7 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -10,11 +14,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Package, ShoppingCart, ExternalLink } from "lucide-react";
-import { useMemo } from "react";
+import { Package, ShoppingCart, ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 interface ShopifyPedido {
   id: string;
@@ -55,6 +78,22 @@ const getShopifyStatusBadge = (status: string) => {
 };
 
 export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Dialog states
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
+  const [editForm, setEditForm] = useState({
+    status_pagamento: '',
+    codigo_rastreio: '',
+    url_rastreio: '',
+    valor_total: 0,
+    valor_para_meta: 0,
+    vendedor_id: '',
+  });
+
   // Fetch all ebd_clientes with vendedor info
   const { data: clientes = [] } = useQuery({
     queryKey: ["admin-ebd-clientes"],
@@ -85,6 +124,87 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
       return (data || []) as ShopifyPedido[];
     },
   });
+
+  // Update mutation
+  const updatePedidoMutation = useMutation({
+    mutationFn: async (data: { id: string; updates: Partial<ShopifyPedido> }) => {
+      const { error } = await supabase
+        .from("ebd_shopify_pedidos")
+        .update(data.updates)
+        .eq("id", data.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-all-shopify-pedidos"] });
+      toast({ title: "Pedido atualizado com sucesso!" });
+      setEditDialogOpen(false);
+      setSelectedPedido(null);
+    },
+    onError: (error) => {
+      toast({ title: "Erro ao atualizar pedido", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Delete mutation
+  const deletePedidoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("ebd_shopify_pedidos")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-all-shopify-pedidos"] });
+      toast({ title: "Pedido excluído com sucesso!" });
+      setDeleteDialogOpen(false);
+      setSelectedPedido(null);
+    },
+    onError: (error) => {
+      toast({ title: "Erro ao excluir pedido", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Handlers
+  const handleEditPedido = (pedido: ShopifyPedido) => {
+    setSelectedPedido(pedido);
+    setEditForm({
+      status_pagamento: pedido.status_pagamento,
+      codigo_rastreio: pedido.codigo_rastreio || '',
+      url_rastreio: pedido.url_rastreio || '',
+      valor_total: pedido.valor_total,
+      valor_para_meta: pedido.valor_para_meta,
+      vendedor_id: pedido.vendedor_id || '',
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleDeletePedido = (pedido: ShopifyPedido) => {
+    setSelectedPedido(pedido);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleSavePedido = () => {
+    if (!selectedPedido) return;
+    updatePedidoMutation.mutate({
+      id: selectedPedido.id,
+      updates: {
+        status_pagamento: editForm.status_pagamento,
+        codigo_rastreio: editForm.codigo_rastreio || null,
+        url_rastreio: editForm.url_rastreio || null,
+        valor_total: editForm.valor_total,
+        valor_para_meta: editForm.valor_para_meta,
+        vendedor_id: editForm.vendedor_id || null,
+      },
+    });
+  };
+
+  const confirmDeletePedido = () => {
+    if (!selectedPedido) return;
+    deletePedidoMutation.mutate(selectedPedido.id);
+  };
 
   // Stats - only Shopify orders now
   const stats = useMemo(() => {
@@ -187,6 +307,7 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
                   <TableHead>Status</TableHead>
                   <TableHead>Vendedor</TableHead>
                   <TableHead>Rastreio</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -236,6 +357,25 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
                           <Badge variant="secondary">Aguardando</Badge>
                         )}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditPedido(pedido)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeletePedido(pedido)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -244,6 +384,121 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Pedido {selectedPedido?.order_number}</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do pedido abaixo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Status de Pagamento</Label>
+              <Select
+                value={editForm.status_pagamento}
+                onValueChange={(value) => setEditForm({ ...editForm, status_pagamento: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pendente">Pendente</SelectItem>
+                  <SelectItem value="Pago">Pago</SelectItem>
+                  <SelectItem value="Reembolsado">Reembolsado</SelectItem>
+                  <SelectItem value="Parcialmente Reembolsado">Parcialmente Reembolsado</SelectItem>
+                  <SelectItem value="Cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Valor Total (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editForm.valor_total}
+                  onChange={(e) => setEditForm({ ...editForm, valor_total: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Valor para Meta (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editForm.valor_para_meta}
+                  onChange={(e) => setEditForm({ ...editForm, valor_para_meta: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Vendedor</Label>
+              <Select
+                value={editForm.vendedor_id}
+                onValueChange={(value) => setEditForm({ ...editForm, vendedor_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nenhum</SelectItem>
+                  {vendedores.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Código de Rastreio</Label>
+              <Input
+                value={editForm.codigo_rastreio}
+                onChange={(e) => setEditForm({ ...editForm, codigo_rastreio: e.target.value })}
+                placeholder="Ex: BR123456789BR"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>URL de Rastreio</Label>
+              <Input
+                value={editForm.url_rastreio}
+                onChange={(e) => setEditForm({ ...editForm, url_rastreio: e.target.value })}
+                placeholder="https://..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSavePedido} disabled={updatePedidoMutation.isPending}>
+              {updatePedidoMutation.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o pedido <strong>{selectedPedido?.order_number}</strong>? 
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePedido}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletePedidoMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
