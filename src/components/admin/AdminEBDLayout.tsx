@@ -6,7 +6,7 @@ import {
   UserX, 
   User,
   BookOpen,
-  LayoutDashboard
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -18,7 +18,8 @@ export function AdminEBDLayout() {
 
   const menuItems = [
     { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin EBD", end: true },
-    { to: "/admin/ebd/pedidos", icon: Package, label: "Pedidos" },
+    { to: "/admin/ebd/propostas", icon: FileText, label: "Pedidos e Propostas" },
+    { to: "/admin/ebd/pedidos", icon: Package, label: "Pedidos Shopify" },
     { to: "/admin/ebd/clientes", icon: Users, label: "Clientes EBD" },
     { to: "/admin/ebd/leads", icon: UserX, label: "Leads Reativação" },
     { to: "/admin/ebd/vendedores", icon: User, label: "Vendedores" },
