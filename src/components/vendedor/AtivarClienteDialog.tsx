@@ -78,6 +78,14 @@ export function AtivarClienteDialog({
 
     setLoading(true);
     try {
+      // Verificar se o usuário tem uma sessão válida antes de chamar a edge function
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        toast.error("Sua sessão expirou. Por favor, faça login novamente.");
+        setLoading(false);
+        return;
+      }
+
       // Calculate next purchase date (13 weeks from start date)
       const dataProximaCompra = addWeeks(formData.data_inicio_ebd, 13);
 
@@ -99,7 +107,13 @@ export function AtivarClienteDialog({
 
       if (userError || !userData?.userId) {
         console.error("Error creating user:", userError, userData);
-        toast.error("Não foi possível criar o acesso do superintendente. Tente novamente.");
+        // Verificar se é erro de autenticação
+        const errorMessage = userError?.message || userData?.error || "";
+        if (errorMessage.toLowerCase().includes("unauthorized") || errorMessage.toLowerCase().includes("auth")) {
+          toast.error("Sessão expirada. Por favor, faça login novamente.");
+        } else {
+          toast.error("Não foi possível criar o acesso do superintendente. Tente novamente.");
+        }
         setLoading(false);
         return;
       }
