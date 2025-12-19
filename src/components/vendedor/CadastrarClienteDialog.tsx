@@ -472,6 +472,65 @@ export function CadastrarClienteDialog({
         <form onSubmit={handleSubmit}>
           <ScrollArea className="h-[60vh] pr-4">
             <div className="space-y-6">
+              {/* Documento - PRIMEIRO para buscar no Bling */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Possui CNPJ?</Label>
+                  <Switch
+                    checked={formData.possui_cnpj}
+                    onCheckedChange={(checked) => setFormData({ ...formData, possui_cnpj: checked, documento: "" })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="documento">
+                    {formData.possui_cnpj ? "CNPJ *" : "RG / CPF *"}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="documento"
+                      value={formData.documento}
+                      onChange={(e) => handleDocumentoChange(e.target.value)}
+                      placeholder={formData.possui_cnpj ? "00.000.000/0000-00" : "000.000.000-00"}
+                      required
+                      className={blingClienteEncontrado ? "border-green-500 pr-10" : ""}
+                    />
+                    {loadingBling && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                    {blingClienteEncontrado && !loadingBling && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Feedback de busca no Bling */}
+                {loadingBling && (
+                  <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+                    <Search className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-700 dark:text-blue-400">
+                      Buscando cliente no sistema de faturamento...
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {blingClienteEncontrado && !loadingBling && (
+                  <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-700 dark:text-green-400">
+                      Cliente encontrado no Bling! Dados preenchidos automaticamente.
+                      {blingClienteId && <span className="text-xs ml-2">(ID: {blingClienteId})</span>}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+
+              <Separator />
+
               {/* Tipo de Cliente */}
               <div className="space-y-2">
                 <Label>Tipo de Cliente *</Label>
@@ -558,65 +617,6 @@ export function CadastrarClienteDialog({
                   onChange={(e) => setFormData({ ...formData, telefone: formatPhone(e.target.value) })}
                   placeholder="(00) 00000-0000"
                 />
-              </div>
-
-              <Separator />
-
-              {/* Documento */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Possui CNPJ?</Label>
-                  <Switch
-                    checked={formData.possui_cnpj}
-                    onCheckedChange={(checked) => setFormData({ ...formData, possui_cnpj: checked, documento: "" })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="documento">
-                    {formData.possui_cnpj ? "CNPJ *" : "RG / CPF *"}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="documento"
-                      value={formData.documento}
-                      onChange={(e) => handleDocumentoChange(e.target.value)}
-                      placeholder={formData.possui_cnpj ? "00.000.000/0000-00" : "000.000.000-00"}
-                      required
-                      className={blingClienteEncontrado ? "border-green-500 pr-10" : ""}
-                    />
-                    {loadingBling && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      </div>
-                    )}
-                    {blingClienteEncontrado && !loadingBling && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Feedback de busca no Bling */}
-                {loadingBling && (
-                  <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
-                    <Search className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-700 dark:text-blue-400">
-                      Buscando cliente no sistema de faturamento...
-                    </AlertDescription>
-                  </Alert>
-                )}
-                
-                {blingClienteEncontrado && !loadingBling && (
-                  <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-700 dark:text-green-400">
-                      Cliente encontrado no Bling! Dados preenchidos automaticamente.
-                      {blingClienteId && <span className="text-xs ml-2">(ID: {blingClienteId})</span>}
-                    </AlertDescription>
-                  </Alert>
-                )}
               </div>
 
               <Separator />
