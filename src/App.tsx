@@ -695,6 +695,11 @@ const App = () => (
                     >
                       <Route index element={<AdminEBD />} />
                       <Route path="propostas" element={<AdminEBDPropostasPage />} />
+                      <Route path="pedidos" element={<ShopifyPedidos />} />
+                      <Route path="clientes" element={<AdminEBD />} />
+                      <Route path="leads" element={<AdminEBD />} />
+                      <Route path="vendedores" element={<AdminEBD />} />
+                      <Route path="catalogo" element={<AdminEBD />} />
                     </Route>
                     <Route
                       path="/admin/bling"

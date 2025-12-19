@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -160,9 +160,25 @@ const SELLER_COLORS = [
 export default function AdminEBD() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const { role } = useAuth();
   const isGerenteEbd = role === 'gerente_ebd';
-  const [activeTab, setActiveTab] = useState("vendas");
+  
+  // Map URL paths to tab keys
+  const getTabFromPath = (pathname: string) => {
+    if (pathname.includes('/admin/ebd/clientes')) return 'clientes';
+    if (pathname.includes('/admin/ebd/leads')) return 'leads';
+    if (pathname.includes('/admin/ebd/vendedores')) return 'vendedores';
+    if (pathname.includes('/admin/ebd/catalogo')) return 'catalogo';
+    return 'vendas';
+  };
+  
+  const [activeTab, setActiveTab] = useState(() => getTabFromPath(location.pathname));
+  
+  // Update tab when URL changes
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
   const [period, setPeriod] = useState("thisMonth");
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
