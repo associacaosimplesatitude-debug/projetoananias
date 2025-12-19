@@ -32,6 +32,57 @@ function stripHtmlTags(html: string | null | undefined): string | null {
   return text;
 }
 
+// Função para extrair faixa etária do título do produto
+function extractFaixaEtaria(titulo: string): string {
+  const tituloLower = titulo.toLowerCase();
+  
+  // Mapeamento de padrões para faixas etárias
+  const patterns = [
+    { regex: /maternal|2\s*a\s*3\s*anos|02\s*a\s*03/i, faixa: 'Maternal: 2 a 3 Anos' },
+    { regex: /jardim|4\s*a\s*6\s*anos|04\s*a\s*06/i, faixa: 'Jardim de Infância: 4 a 6 Anos' },
+    { regex: /primári|7\s*a\s*8\s*anos|07\s*a\s*08/i, faixa: 'Primários: 7 a 8 Anos' },
+    { regex: /junior|juniores|9\s*a\s*11\s*anos|09\s*a\s*11/i, faixa: 'Juniores: 9 a 11 Anos' },
+    { regex: /adolescentes?\+|15\s*a\s*17\s*anos/i, faixa: 'Adolescentes+: 15 a 17 Anos' },
+    { regex: /adolescente|12\s*a\s*14\s*anos/i, faixa: 'Adolescentes: 12 a 14 Anos' },
+    { regex: /jovens?\s*(e|&)?\s*adultos?|adulto/i, faixa: 'Jovens e Adultos' },
+    { regex: /infantil|criança|kids/i, faixa: 'Infantil' },
+  ];
+  
+  for (const pattern of patterns) {
+    if (pattern.regex.test(titulo)) {
+      return pattern.faixa;
+    }
+  }
+  
+  return 'Geral';
+}
+
+// Função para extrair categoria do produto
+function extractCategoria(titulo: string, tipoCategoria: string | undefined): string {
+  const tituloLower = titulo.toLowerCase();
+  
+  // Prioridade para identificar pelo título
+  if (tituloLower.includes('kit')) return 'Kits';
+  if (tituloLower.includes('devocional')) return 'Devocionais';
+  if (tituloLower.includes('revista') || tituloLower.includes('rev ') || tituloLower.includes('ebd')) return 'Revista EBD';
+  if (tituloLower.includes('livro') || tituloLower.includes('comentário') || tituloLower.includes('comentario')) return 'Livros';
+  
+  // Se tem "P" como tipo e parece ser revista pelo contexto
+  if (tipoCategoria === 'P') {
+    if (tituloLower.includes('aluno') || tituloLower.includes('professor') || 
+        tituloLower.includes('estudo bíblico') || tituloLower.includes('estudo biblico') ||
+        tituloLower.includes('lições') || tituloLower.includes('licoes')) {
+      return 'Revista EBD';
+    }
+  }
+  
+  // Fallback pela categoria do Bling
+  if (tipoCategoria === 'Livros' || tipoCategoria === 'livros') return 'Livros';
+  if (tipoCategoria === 'Revista EBD' || tipoCategoria === 'revistas') return 'Revista EBD';
+  
+  return 'Outros';
+}
+
 async function refreshTokenIfNeeded(supabase: any, config: any, forceRefresh: boolean = false) {
   const now = new Date();
   const expiresAt = config.token_expires_at ? new Date(config.token_expires_at) : null;
@@ -85,7 +136,7 @@ async function refreshTokenIfNeeded(supabase: any, config: any, forceRefresh: bo
   return config.access_token;
 }
 
-async function getProductStock(accessToken: string, productId: number): Promise<number> {
+async function getProductStock(accessToken: string, productId: number, retryCount = 0): Promise<number> {
   try {
     const response = await fetch(
       `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${productId}`,
@@ -97,8 +148,15 @@ async function getProductStock(accessToken: string, productId: number): Promise<
       }
     );
 
+    // Se for rate limit, tenta novamente após delay
+    if (response.status === 429 && retryCount < 3) {
+      console.log(`Rate limit no estoque, tentativa ${retryCount + 1}/3...`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+      return getProductStock(accessToken, productId, retryCount + 1);
+    }
+
     if (!response.ok) {
-      console.log(`Erro ao buscar estoque do produto ${productId}`);
+      console.log(`Erro ao buscar estoque do produto ${productId}: ${response.status}`);
       return 0;
     }
 
@@ -145,13 +203,21 @@ serve(async (req) => {
     // Renovar token - sempre força refresh para garantir token válido
     const accessToken = await refreshTokenIfNeeded(supabase, config, true);
 
-    // Buscar produtos do Bling (sem filtro)
+    // Buscar produtos do Bling (sem filtro) - com delay para evitar rate limit
     let allProducts: any[] = [];
     let page = 1;
     let hasMore = true;
 
+    // Função helper para delay
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
     while (hasMore) {
       console.log(`Buscando página ${page} de produtos...`);
+      
+      // Delay de 400ms entre requisições para respeitar rate limit (3 req/s)
+      if (page > 1) {
+        await delay(400);
+      }
       
       const productsResponse = await fetch(
         `https://www.bling.com.br/Api/v3/produtos?pagina=${page}&limite=100`,
@@ -166,6 +232,14 @@ serve(async (req) => {
       if (!productsResponse.ok) {
         const errorText = await productsResponse.text();
         console.error('Erro na API Bling:', productsResponse.status, errorText);
+        
+        // Se for rate limit, espera e tenta novamente
+        if (productsResponse.status === 429) {
+          console.log('Rate limit atingido, aguardando 2 segundos...');
+          await delay(2000);
+          continue;
+        }
+        
         throw new Error(`Erro ao buscar produtos: ${productsResponse.status}`);
       }
 
@@ -189,6 +263,7 @@ serve(async (req) => {
 
     const syncTimestamp = new Date().toISOString();
     let updatedCount = 0;
+    let processedCount = 0;
 
     for (const product of allProducts) {
       // Por enquanto, sincroniza todos os produtos
@@ -197,6 +272,12 @@ serve(async (req) => {
                         true;
 
       if (isRevista) {
+        // Delay para respeitar rate limit (a cada 3 produtos)
+        if (processedCount > 0 && processedCount % 3 === 0) {
+          await delay(400);
+        }
+        processedCount++;
+        
         // Buscar estoque do produto
         const estoque = await getProductStock(accessToken, product.id);
 
@@ -231,13 +312,15 @@ serve(async (req) => {
 
         const existing = existingById || existingByTitle;
 
-        // Extrair categoria do produto
-        const categoria = product.categoria?.descricao || product.tipo || 'Geral';
+        // Extrair categoria e faixa etária do título do produto
+        const titulo = product.nome || 'Sem título';
+        const faixaEtaria = extractFaixaEtaria(titulo);
+        const categoria = extractCategoria(titulo, product.tipo || product.categoria?.descricao);
 
         const revistaData = {
-          titulo: product.nome || 'Sem título',
+          titulo: titulo,
           preco_cheio: product.preco || 0,
-          faixa_etaria_alvo: product.observacoes || 'Geral',
+          faixa_etaria_alvo: faixaEtaria,
           imagem_url: product.imagemURL || null,
           sinopse: stripHtmlTags(product.descricaoCurta),
           estoque: estoque,
