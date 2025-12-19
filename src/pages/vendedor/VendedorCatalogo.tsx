@@ -25,6 +25,7 @@ const CATEGORIAS = [
   { value: "Livros", label: "Livros" },
   { value: "Devocionais", label: "Devocionais" },
   { value: "Kits", label: "Kits" },
+  { value: "Infantil", label: "Infantil" },
   { value: "Outros", label: "Outros" },
 ] as const;
 
