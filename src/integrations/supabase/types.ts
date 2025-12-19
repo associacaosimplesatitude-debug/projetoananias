@@ -1225,7 +1225,7 @@ export type Database = {
       ebd_clientes: {
         Row: {
           bling_cliente_id: number | null
-          cnpj: string
+          cnpj: string | null
           cpf: string | null
           created_at: string
           data_aniversario_pastor: string | null
@@ -1260,7 +1260,7 @@ export type Database = {
         }
         Insert: {
           bling_cliente_id?: number | null
-          cnpj: string
+          cnpj?: string | null
           cpf?: string | null
           created_at?: string
           data_aniversario_pastor?: string | null
@@ -1295,7 +1295,7 @@ export type Database = {
         }
         Update: {
           bling_cliente_id?: number | null
-          cnpj?: string
+          cnpj?: string | null
           cpf?: string | null
           created_at?: string
           data_aniversario_pastor?: string | null
