@@ -58,11 +58,49 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
 
 function isTokenExpired(tokenExpiresAt: string | null): boolean {
   if (!tokenExpiresAt) return true;
-  
+
   const expiresAt = new Date(tokenExpiresAt);
   const now = new Date();
   const bufferMs = 5 * 60 * 1000;
   return now.getTime() >= expiresAt.getTime() - bufferMs;
+}
+
+function extractEmailFromBlingContato(contato: any): string {
+  if (!contato) return '';
+
+  const direct = (contato.email || contato.emailNfe || contato.emailNF || contato.emailNFe || contato.emailPrincipal || '').toString().trim();
+  if (direct) return direct;
+
+  const emails = contato.emails;
+  if (Array.isArray(emails) && emails.length > 0) {
+    const first = (emails[0]?.email || emails[0]?.endereco || emails[0]?.value || '').toString().trim();
+    if (first) return first;
+  }
+
+  return '';
+}
+
+async function fetchBlingContatoDetalhado(accessToken: string, contatoId: number): Promise<any | null> {
+  const detailUrl = `https://www.bling.com.br/Api/v3/contatos/${contatoId}`;
+  console.log(`Buscando detalhes do contato no Bling: ${detailUrl}`);
+
+  const resp = await fetch(detailUrl, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json',
+    },
+  });
+
+  const json = await resp.json();
+
+  if (!resp.ok) {
+    console.warn('Falha ao buscar detalhes do contato no Bling:', resp.status, JSON.stringify(json));
+    return null;
+  }
+
+  // Alguns endpoints retornam { data: {...} }
+  return json?.data ?? json;
 }
 
 serve(async (req) => {
@@ -107,9 +145,10 @@ serve(async (req) => {
     }
 
     // Buscar cliente no Bling por CPF/CNPJ
-    // Endpoint: GET /contatos?pesquisa={cpfCnpj}
+    // Observação: o endpoint de lista (/contatos) pode vir com dados reduzidos.
+    // Quando encontrar, buscamos os detalhes em /contatos/{id} para trazer email/endereço.
     const searchUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${documentoLimpo}&criterio=1`;
-    
+
     console.log(`Chamando API do Bling: ${searchUrl}`);
 
     const blingResponse = await fetch(searchUrl, {
@@ -126,12 +165,12 @@ serve(async (req) => {
 
     if (!blingResponse.ok) {
       console.error('Erro na busca do Bling:', blingData);
-      
+
       // Se for erro de autenticação, tentar renovar token e buscar novamente
       if (blingResponse.status === 401) {
         console.log('Token expirado, renovando...');
         accessToken = await refreshBlingToken(supabase, blingConfig);
-        
+
         const retryResponse = await fetch(searchUrl, {
           method: 'GET',
           headers: {
@@ -139,32 +178,34 @@ serve(async (req) => {
             'Accept': 'application/json',
           },
         });
-        
+
         const retryData = await retryResponse.json();
-        
+
         if (!retryResponse.ok) {
-          return new Response(JSON.stringify({ 
-            found: false, 
-            error: 'Erro ao buscar cliente no Bling após renovação do token' 
+          return new Response(JSON.stringify({
+            found: false,
+            error: 'Erro ao buscar cliente no Bling após renovação do token'
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        
+
         if (retryData.data && retryData.data.length > 0) {
           const cliente = retryData.data[0];
+          const detalhado = await fetchBlingContatoDetalhado(accessToken, Number(cliente.id));
+
           return new Response(JSON.stringify({
             found: true,
-            cliente: mapBlingClientToLocal(cliente),
+            cliente: mapBlingClientToLocal(detalhado || cliente),
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
       }
-      
-      return new Response(JSON.stringify({ 
-        found: false, 
-        error: 'Cliente não encontrado no Bling' 
+
+      return new Response(JSON.stringify({
+        found: false,
+        error: 'Cliente não encontrado no Bling'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -180,10 +221,12 @@ serve(async (req) => {
 
       if (clienteEncontrado) {
         console.log('Cliente encontrado no Bling:', clienteEncontrado.nome);
-        
+
+        const detalhado = await fetchBlingContatoDetalhado(accessToken, Number(clienteEncontrado.id));
+
         return new Response(JSON.stringify({
           found: true,
-          cliente: mapBlingClientToLocal(clienteEncontrado),
+          cliente: mapBlingClientToLocal(detalhado || clienteEncontrado),
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -213,25 +256,26 @@ serve(async (req) => {
 
 // Mapeia os dados do cliente do Bling para o formato do sistema local
 function mapBlingClientToLocal(clienteBling: any) {
-  const endereco = clienteBling.endereco || {};
-  
+  const endereco = clienteBling?.endereco || clienteBling?.enderecoGeral || clienteBling?.enderecoEntrega || {};
+
   return {
-    bling_cliente_id: clienteBling.id,
-    nome: clienteBling.nome || '',
-    fantasia: clienteBling.fantasia || '',
-    tipo_pessoa: clienteBling.tipo || 'J', // J = Jurídica, F = Física
-    cpf_cnpj: (clienteBling.numeroDocumento || '').replace(/\D/g, ''),
-    ie_rg: clienteBling.ie || '',
-    email: clienteBling.email || '',
-    telefone: clienteBling.telefone || clienteBling.celular || '',
-    celular: clienteBling.celular || '',
+    bling_cliente_id: clienteBling?.id,
+    nome: clienteBling?.nome || '',
+    fantasia: clienteBling?.fantasia || '',
+    tipo_pessoa: clienteBling?.tipo || 'J', // J = Jurídica, F = Física
+    cpf_cnpj: (clienteBling?.numeroDocumento || '').replace(/\D/g, ''),
+    ie_rg: (clienteBling?.ie || clienteBling?.rg || clienteBling?.ieRg || '').toString(),
+    email: extractEmailFromBlingContato(clienteBling),
+    telefone: clienteBling?.telefone || clienteBling?.celular || '',
+    celular: clienteBling?.celular || '',
+
     // Endereço
-    endereco_cep: (endereco.cep || '').replace(/\D/g, ''),
-    endereco_rua: endereco.endereco || '',
-    endereco_numero: endereco.numero || '',
-    endereco_complemento: endereco.complemento || '',
-    endereco_bairro: endereco.bairro || '',
-    endereco_cidade: endereco.municipio || '',
-    endereco_estado: endereco.uf || '',
+    endereco_cep: ((endereco?.cep || clienteBling?.cep || '') as string).replace(/\D/g, ''),
+    endereco_rua: (endereco?.endereco || endereco?.logradouro || clienteBling?.endereco || '').toString(),
+    endereco_numero: (endereco?.numero || clienteBling?.numero || '').toString(),
+    endereco_complemento: (endereco?.complemento || clienteBling?.complemento || '').toString(),
+    endereco_bairro: (endereco?.bairro || clienteBling?.bairro || '').toString(),
+    endereco_cidade: (endereco?.municipio || endereco?.cidade || clienteBling?.cidade || '').toString(),
+    endereco_estado: (endereco?.uf || clienteBling?.uf || '').toString(),
   };
 }
