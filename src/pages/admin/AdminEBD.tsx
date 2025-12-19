@@ -1259,59 +1259,63 @@ export default function AdminEBD() {
     );
   }
 
+  const isInAdminEBDLayout = location.pathname.startsWith('/admin/ebd');
+
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Navigation Bar Only */}
-      <header className="border-b bg-background sticky top-0 z-10">
-        <nav className="container mx-auto px-4">
-          <div className="flex items-center gap-1 overflow-x-auto py-3">
-            {[
-              { key: "vendas", label: "Painel Admin EBD", icon: TrendingUp },
-              { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
-              { key: "clientes", label: "Clientes EBD", icon: Users },
-              { key: "leads", label: "Leads Reativação", icon: UserX },
-              { key: "vendedores", label: "Vendedores", icon: User },
-              ...(!isGerenteEbd ? [{ key: "catalogo", label: "Catálogo", icon: BookOpen }] : []),
-            ].map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setActiveTab(item.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === item.key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </button>
-            ))}
-            
-            {/* Period Filter and Avatar */}
-            <div className="flex items-center gap-4 ml-auto">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                <Select value={period} onValueChange={setPeriod}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Período" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="today">Hoje</SelectItem>
-                    <SelectItem value="7">Últimos 7 dias</SelectItem>
-                    <SelectItem value="thisMonth">Mês Atual</SelectItem>
-                    <SelectItem value="lastMonth">Mês Anterior</SelectItem>
-                    <SelectItem value="custom">Personalizado</SelectItem>
-                  </SelectContent>
-                </Select>
+    <div className={isInAdminEBDLayout ? "space-y-6" : "min-h-screen flex flex-col"}>
+      {/* Local header only when NOT wrapped by AdminEBDLayout (avoids duplicated menus) */}
+      {!isInAdminEBDLayout && (
+        <header className="border-b bg-background sticky top-0 z-10">
+          <nav className="container mx-auto px-4">
+            <div className="flex items-center gap-1 overflow-x-auto py-3">
+              {[
+                { key: "vendas", label: "Painel Admin EBD", icon: TrendingUp },
+                { key: "pedidos", label: "Pedidos", icon: ShoppingCart },
+                { key: "clientes", label: "Clientes EBD", icon: Users },
+                { key: "leads", label: "Leads Reativação", icon: UserX },
+                { key: "vendedores", label: "Vendedores", icon: User },
+                ...(!isGerenteEbd ? [{ key: "catalogo", label: "Catálogo", icon: BookOpen }] : []),
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveTab(item.key)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                    activeTab === item.key
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              ))}
+
+              {/* Period Filter and Avatar */}
+              <div className="flex items-center gap-4 ml-auto">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                  <Select value={period} onValueChange={setPeriod}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Período" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Hoje</SelectItem>
+                      <SelectItem value="7">Últimos 7 dias</SelectItem>
+                      <SelectItem value="thisMonth">Mês Atual</SelectItem>
+                      <SelectItem value="lastMonth">Mês Anterior</SelectItem>
+                      <SelectItem value="custom">Personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <UserProfileDropdown />
               </div>
-              <UserProfileDropdown />
             </div>
-          </div>
-        </nav>
-      </header>
+          </nav>
+        </header>
+      )}
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
+      <main className={isInAdminEBDLayout ? "space-y-6" : "flex-1 container mx-auto px-4 py-6 space-y-6"}>
         {/* Custom Date Range */}
         {period === 'custom' && (
           <Card>
