@@ -508,26 +508,26 @@ serve(async (req) => {
       const incluirFreteNoTotalDaVenda = Boolean(endereco_entrega) && Number(valor_frete || 0) > 0;
       const totalBaseParcelas = Math.round((incluirFreteNoTotalDaVenda ? valorTotalBling : totalLiquidoBling) * 100) / 100;
 
-      // CORREÇÃO FORÇADA DE CENTAVOS:
-      // 1) base com alta precisão
-      // 2) arredonda cada parcela (2 casas)
-      // 3) ajusta a última pela diferença
-      const parcelaBase = totalBaseParcelas / numParcelas; // alta precisão
+      // CORREÇÃO DEFINITIVA (centavos):
+      // O Bling valida que somatório(parcelas) == total da venda.
+      // Para eliminar qualquer discrepância de float/arredondamento, calculamos tudo em CENTAVOS.
+      const totalBaseCentavos = Math.round(totalBaseParcelas * 100);
+      const parcelaBaseCentavos = Math.floor(totalBaseCentavos / numParcelas);
+      const restoCentavos = totalBaseCentavos - parcelaBaseCentavos * numParcelas; // 0..(numParcelas-1)
 
-      const parcelasValores: number[] = [];
+      const parcelasValoresCentavos: number[] = [];
       for (let i = 0; i < numParcelas; i++) {
-        parcelasValores.push(Math.round(parcelaBase * 100) / 100);
+        parcelasValoresCentavos.push(parcelaBaseCentavos);
       }
 
-      const somaParcelas = Math.round(parcelasValores.reduce((acc, v) => acc + v, 0) * 100) / 100;
-      const diferenca = Math.round((totalBaseParcelas - somaParcelas) * 100) / 100;
-      parcelasValores[numParcelas - 1] = Math.round((parcelasValores[numParcelas - 1] + diferenca) * 100) / 100;
+      // Ajustar a diferença (centavos) na ÚLTIMA parcela (conforme recomendado)
+      parcelasValoresCentavos[numParcelas - 1] += restoCentavos;
 
-      const somaFinal = Math.round(parcelasValores.reduce((acc, v) => acc + v, 0) * 100) / 100;
+      const somaFinalCentavos = parcelasValoresCentavos.reduce((acc, v) => acc + v, 0);
 
       console.log(
-        `Faturamento B2B: ${numParcelas} parcela(s) | base=${totalBaseParcelas.toFixed(2)} | base_unit=${parcelaBase.toFixed(4)} | soma_inicial=${somaParcelas.toFixed(2)} | diff=${diferenca.toFixed(2)} | soma_final=${somaFinal.toFixed(2)} | parcelas=${parcelasValores
-          .map(v => v.toFixed(2))
+        `Faturamento B2B: ${numParcelas} parcela(s) | base=${totalBaseParcelas.toFixed(2)} | base_cent=${totalBaseCentavos} | base_unit_cent=${parcelaBaseCentavos} | diff_cent=${restoCentavos} | soma_final_cent=${somaFinalCentavos} | parcelas=${parcelasValoresCentavos
+          .map((c) => (c / 100).toFixed(2))
           .join(', ')}`
       );
 
@@ -535,10 +535,12 @@ serve(async (req) => {
         const dataVencimento = new Date();
         dataVencimento.setDate(dataVencimento.getDate() + 30 * i);
 
+        const valorParcela = parcelasValoresCentavos[i - 1] / 100;
+
         parcelas.push({
           dataVencimento: dataVencimento.toISOString().split('T')[0],
-          // Bling: enviar como número (2 casas) evita parsing/locale inconsistentes
-          valor: Number(parcelasValores[i - 1].toFixed(2)),
+          // Enviar com 2 casas; usamos centavos para garantir soma exata.
+          valor: Number(valorParcela.toFixed(2)),
           observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
         });
       }
