@@ -537,8 +537,8 @@ serve(async (req) => {
 
         parcelas.push({
           dataVencimento: dataVencimento.toISOString().split('T')[0],
-          // Bling é sensível a arredondamento; enviar como string com 2 casas evita float binário
-          valor: parcelasValores[i - 1].toFixed(2),
+          // Bling: enviar como número (2 casas) evita parsing/locale inconsistentes
+          valor: Number(parcelasValores[i - 1].toFixed(2)),
           observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
         });
       }
@@ -547,7 +547,7 @@ serve(async (req) => {
       parcelas = [
         {
           dataVencimento: new Date().toISOString().split('T')[0],
-          valor: Math.round(Number(valorTotalBling) * 100) / 100,
+          valor: Number((Math.round(Number(valorTotalBling) * 100) / 100).toFixed(2)),
           observacoes: `Pagamento via ${formaPagamentoDescricao}`,
         },
       ];
