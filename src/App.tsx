@@ -727,8 +727,7 @@ const App = () => (
                       <Route path="em-risco" element={<VendedorEmRisco />} />
                       <Route path="leads" element={<VendedorLeadsPage />} />
                       <Route path="pedidos" element={<VendedorPedidosPage />} />
-                      {/* Catálogo de produtos EBD para criação de pedidos */}
-                      <Route path="shopify" element={<VendedorCatalogo />} />
+                      <Route path="shopify" element={<ShopifyPedidos />} />
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />
                     <Route path="/vendedor/ativacao" element={<VendedorAtivacaoEBD />} />
