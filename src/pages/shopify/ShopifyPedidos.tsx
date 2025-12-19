@@ -180,14 +180,22 @@ export default function ShopifyPedidos() {
   const categorizeProduct = (title: string): { category: string; subcategory: string } => {
     const lowerTitle = title.toLowerCase();
     
-    // Revistas EBD
-    if (lowerTitle.includes('revista') || lowerTitle.includes('ebd')) {
+    // Revistas EBD - inclui Kit do Professor, Estudo Bíblico, etc.
+    const isRevista = lowerTitle.includes('revista') || 
+                      lowerTitle.includes('ebd') || 
+                      lowerTitle.includes('estudo bíblico') || 
+                      lowerTitle.includes('estudo biblico') ||
+                      lowerTitle.includes('kit do professor') ||
+                      lowerTitle.includes('kit professor') ||
+                      lowerTitle.includes('infografico');
+    
+    if (isRevista) {
       let subcategory = 'all';
       if (lowerTitle.includes('jovens e adultos') || lowerTitle.includes('jovens adultos')) subcategory = 'jovens-adultos';
       else if (lowerTitle.includes('juvenis') || lowerTitle.includes('juvenil')) subcategory = 'juvenis';
       else if (lowerTitle.includes('adolescentes') || lowerTitle.includes('adolescente')) subcategory = 'adolescentes';
       else if (lowerTitle.includes('juniores') || lowerTitle.includes('junior')) subcategory = 'juniores';
-      else if (lowerTitle.includes('primários') || lowerTitle.includes('primario')) subcategory = 'primarios';
+      else if (lowerTitle.includes('primários') || lowerTitle.includes('primario') || lowerTitle.includes('primarios')) subcategory = 'primarios';
       else if (lowerTitle.includes('jardim')) subcategory = 'jardim';
       else if (lowerTitle.includes('maternal')) subcategory = 'maternal';
       else if (lowerTitle.includes('berçário') || lowerTitle.includes('bercario')) subcategory = 'bercario';
