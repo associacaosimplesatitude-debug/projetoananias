@@ -65,15 +65,27 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
   return now.getTime() >= expiresAt.getTime() - bufferMs;
 }
 
+// Extrai valor string de forma segura (evita [object Object])
+function safeString(val: any): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  // Se for objeto, tenta pegar campos comuns
+  if (typeof val === 'object') {
+    return (val.nome || val.value || val.descricao || val.endereco || val.logradouro || '').toString().trim();
+  }
+  return '';
+}
+
 function extractEmailFromBlingContato(contato: any): string {
   if (!contato) return '';
 
-  const direct = (contato.email || contato.emailNfe || contato.emailNF || contato.emailNFe || contato.emailPrincipal || '').toString().trim();
+  const direct = safeString(contato.email || contato.emailNfe || contato.emailNF || contato.emailNFe || contato.emailPrincipal);
   if (direct) return direct;
 
   const emails = contato.emails;
   if (Array.isArray(emails) && emails.length > 0) {
-    const first = (emails[0]?.email || emails[0]?.endereco || emails[0]?.value || '').toString().trim();
+    const first = safeString(emails[0]?.email || emails[0]?.endereco || emails[0]?.value);
     if (first) return first;
   }
 
@@ -256,26 +268,31 @@ serve(async (req) => {
 
 // Mapeia os dados do cliente do Bling para o formato do sistema local
 function mapBlingClientToLocal(clienteBling: any) {
+  console.log('Dados detalhados do Bling para mapeamento:', JSON.stringify(clienteBling, null, 2));
+
   const endereco = clienteBling?.endereco || clienteBling?.enderecoGeral || clienteBling?.enderecoEntrega || {};
+
+  // O Bling pode retornar o endereço de várias formas diferentes
+  const enderecoGeral = endereco?.geral || endereco;
 
   return {
     bling_cliente_id: clienteBling?.id,
-    nome: clienteBling?.nome || '',
-    fantasia: clienteBling?.fantasia || '',
-    tipo_pessoa: clienteBling?.tipo || 'J', // J = Jurídica, F = Física
-    cpf_cnpj: (clienteBling?.numeroDocumento || '').replace(/\D/g, ''),
-    ie_rg: (clienteBling?.ie || clienteBling?.rg || clienteBling?.ieRg || '').toString(),
+    nome: safeString(clienteBling?.nome),
+    fantasia: safeString(clienteBling?.fantasia),
+    tipo_pessoa: safeString(clienteBling?.tipo) || 'J', // J = Jurídica, F = Física
+    cpf_cnpj: safeString(clienteBling?.numeroDocumento).replace(/\D/g, ''),
+    ie_rg: safeString(clienteBling?.ie || clienteBling?.rg || clienteBling?.ieRg),
     email: extractEmailFromBlingContato(clienteBling),
-    telefone: clienteBling?.telefone || clienteBling?.celular || '',
-    celular: clienteBling?.celular || '',
+    telefone: safeString(clienteBling?.telefone || clienteBling?.celular),
+    celular: safeString(clienteBling?.celular),
 
-    // Endereço
-    endereco_cep: ((endereco?.cep || clienteBling?.cep || '') as string).replace(/\D/g, ''),
-    endereco_rua: (endereco?.endereco || endereco?.logradouro || clienteBling?.endereco || '').toString(),
-    endereco_numero: (endereco?.numero || clienteBling?.numero || '').toString(),
-    endereco_complemento: (endereco?.complemento || clienteBling?.complemento || '').toString(),
-    endereco_bairro: (endereco?.bairro || clienteBling?.bairro || '').toString(),
-    endereco_cidade: (endereco?.municipio || endereco?.cidade || clienteBling?.cidade || '').toString(),
-    endereco_estado: (endereco?.uf || clienteBling?.uf || '').toString(),
+    // Endereço - tenta múltiplas estruturas possíveis do Bling
+    endereco_cep: safeString(enderecoGeral?.cep || endereco?.cep || clienteBling?.cep).replace(/\D/g, ''),
+    endereco_rua: safeString(enderecoGeral?.endereco || enderecoGeral?.logradouro || endereco?.logradouro || clienteBling?.logradouro),
+    endereco_numero: safeString(enderecoGeral?.numero || endereco?.numero || clienteBling?.numero),
+    endereco_complemento: safeString(enderecoGeral?.complemento || endereco?.complemento || clienteBling?.complemento),
+    endereco_bairro: safeString(enderecoGeral?.bairro || endereco?.bairro || clienteBling?.bairro),
+    endereco_cidade: safeString(enderecoGeral?.municipio || enderecoGeral?.cidade || endereco?.municipio || endereco?.cidade || clienteBling?.cidade),
+    endereco_estado: safeString(enderecoGeral?.uf || endereco?.uf || clienteBling?.uf),
   };
 }
