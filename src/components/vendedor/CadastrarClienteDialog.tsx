@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -20,8 +20,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { MapPin, User, Building, Lock, Phone, Pencil } from "lucide-react";
+import { MapPin, User, Building, Lock, Phone, Pencil, Search, CheckCircle2, Loader2 } from "lucide-react";
 
 interface Cliente {
   id: string;
@@ -44,6 +45,7 @@ interface Cliente {
   pode_faturar?: boolean;
   status_ativacao_ebd?: boolean;
   superintendente_user_id?: string | null;
+  bling_cliente_id?: number | null;
 }
 
 interface CadastrarClienteDialogProps {
@@ -70,6 +72,10 @@ export function CadastrarClienteDialog({
   clienteParaEditar,
 }: CadastrarClienteDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [loadingBling, setLoadingBling] = useState(false);
+  const [blingClienteEncontrado, setBlingClienteEncontrado] = useState(false);
+  const [blingClienteId, setBlingClienteId] = useState<number | null>(null);
+  const [documentoJaBuscado, setDocumentoJaBuscado] = useState("");
   const [formData, setFormData] = useState({
     tipo_cliente: "Igreja" as string,
     nome_igreja: "",
@@ -189,7 +195,89 @@ export function CadastrarClienteDialog({
   const handleDocumentoChange = (value: string) => {
     const formatted = formData.possui_cnpj ? formatCNPJ(value) : formatCPF(value);
     setFormData({ ...formData, documento: formatted });
+    
+    // Reset Bling status when document changes
+    if (formatted !== documentoJaBuscado) {
+      setBlingClienteEncontrado(false);
+      setBlingClienteId(null);
+    }
   };
+
+  // Busca cliente no Bling quando o documento está completo
+  const buscarClienteNoBling = useCallback(async () => {
+    const documentoLimpo = formData.documento.replace(/\D/g, "");
+    const tamanhoEsperado = formData.possui_cnpj ? 14 : 11;
+    
+    // Só busca se o documento está completo e ainda não foi buscado
+    if (documentoLimpo.length !== tamanhoEsperado || documentoLimpo === documentoJaBuscado || isEditMode) {
+      return;
+    }
+    
+    setLoadingBling(true);
+    setDocumentoJaBuscado(documentoLimpo);
+    
+    try {
+      console.log('Buscando cliente no Bling:', documentoLimpo);
+      
+      const { data, error } = await supabase.functions.invoke('bling-search-client', {
+        body: { cpf_cnpj: documentoLimpo },
+      });
+      
+      if (error) {
+        console.error('Erro ao buscar cliente no Bling:', error);
+        return;
+      }
+      
+      if (data?.found && data?.cliente) {
+        console.log('Cliente encontrado no Bling:', data.cliente);
+        setBlingClienteEncontrado(true);
+        setBlingClienteId(data.cliente.bling_cliente_id);
+        
+        // Preencher formulário com dados do Bling
+        const clienteBling = data.cliente;
+        
+        setFormData(prev => ({
+          ...prev,
+          nome_igreja: clienteBling.nome || clienteBling.fantasia || prev.nome_igreja,
+          nome_responsavel: clienteBling.fantasia || prev.nome_responsavel,
+          email_superintendente: clienteBling.email || prev.email_superintendente,
+          telefone: formatPhone(clienteBling.telefone || clienteBling.celular || prev.telefone),
+          endereco_cep: formatCEP(clienteBling.endereco_cep || prev.endereco_cep),
+          endereco_rua: clienteBling.endereco_rua || prev.endereco_rua,
+          endereco_numero: clienteBling.endereco_numero || prev.endereco_numero,
+          endereco_complemento: clienteBling.endereco_complemento || prev.endereco_complemento,
+          endereco_bairro: clienteBling.endereco_bairro || prev.endereco_bairro,
+          endereco_cidade: clienteBling.endereco_cidade || prev.endereco_cidade,
+          endereco_estado: clienteBling.endereco_estado || prev.endereco_estado,
+          tipo_cliente: clienteBling.tipo_pessoa === 'F' ? 'Pessoa Física' : 'Igreja',
+        }));
+        
+        toast.success('Cliente encontrado no Bling! Dados preenchidos automaticamente.');
+      } else {
+        console.log('Cliente não encontrado no Bling');
+        setBlingClienteEncontrado(false);
+        setBlingClienteId(null);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar cliente no Bling:', err);
+    } finally {
+      setLoadingBling(false);
+    }
+  }, [formData.documento, formData.possui_cnpj, documentoJaBuscado, isEditMode]);
+
+  // Efeito para buscar no Bling quando documento está completo
+  useEffect(() => {
+    const documentoLimpo = formData.documento.replace(/\D/g, "");
+    const tamanhoEsperado = formData.possui_cnpj ? 14 : 11;
+    
+    if (documentoLimpo.length === tamanhoEsperado && documentoLimpo !== documentoJaBuscado && !isEditMode) {
+      const timeoutId = setTimeout(() => {
+        buscarClienteNoBling();
+      }, 500); // Debounce de 500ms
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [formData.documento, formData.possui_cnpj, buscarClienteNoBling, documentoJaBuscado, isEditMode]);
 
   const resetForm = () => {
     setFormData({
@@ -210,6 +298,9 @@ export function CadastrarClienteDialog({
       endereco_estado: "",
       pode_faturar: false,
     });
+    setBlingClienteEncontrado(false);
+    setBlingClienteId(null);
+    setDocumentoJaBuscado("");
   };
 
   const generateRandomPassword = () => {
@@ -252,6 +343,8 @@ export function CadastrarClienteDialog({
         endereco_estado: formData.endereco_estado,
         pode_faturar: formData.pode_faturar,
         senha_temporaria: senhaGerada,
+        // Inclui ID do cliente no Bling se foi encontrado
+        ...(blingClienteId && { bling_cliente_id: blingClienteId }),
       };
 
       if (isEditMode && clienteParaEditar) {
@@ -483,14 +576,47 @@ export function CadastrarClienteDialog({
                   <Label htmlFor="documento">
                     {formData.possui_cnpj ? "CNPJ *" : "RG / CPF *"}
                   </Label>
-                  <Input
-                    id="documento"
-                    value={formData.documento}
-                    onChange={(e) => handleDocumentoChange(e.target.value)}
-                    placeholder={formData.possui_cnpj ? "00.000.000/0000-00" : "000.000.000-00"}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="documento"
+                      value={formData.documento}
+                      onChange={(e) => handleDocumentoChange(e.target.value)}
+                      placeholder={formData.possui_cnpj ? "00.000.000/0000-00" : "000.000.000-00"}
+                      required
+                      className={blingClienteEncontrado ? "border-green-500 pr-10" : ""}
+                    />
+                    {loadingBling && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                    {blingClienteEncontrado && !loadingBling && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Feedback de busca no Bling */}
+                {loadingBling && (
+                  <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+                    <Search className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-700 dark:text-blue-400">
+                      Buscando cliente no sistema de faturamento...
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {blingClienteEncontrado && !loadingBling && (
+                  <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-700 dark:text-green-400">
+                      Cliente encontrado no Bling! Dados preenchidos automaticamente.
+                      {blingClienteId && <span className="text-xs ml-2">(ID: {blingClienteId})</span>}
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
 
               <Separator />
