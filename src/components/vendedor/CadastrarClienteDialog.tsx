@@ -388,27 +388,61 @@ export function CadastrarClienteDialog({
           toast.success('Cliente atualizado com sucesso!');
         }
       } else {
-        // First, create the cliente record
-        const { data: novoCliente, error: insertError } = await supabase
+        // Verifica se já existe um cliente com este documento
+        const { data: clienteExistente } = await supabase
           .from("ebd_clientes")
-          .insert({
-            ...clienteData,
-            vendedor_id: vendedorId,
-            status_ativacao_ebd: false,
-          })
-          .select()
-          .single();
+          .select("id, vendedor_id, nome_igreja")
+          .or(`cnpj.eq.${documentoLimpo},cpf.eq.${documentoLimpo}`)
+          .maybeSingle();
 
-        if (insertError) {
-          if (insertError.message.includes("duplicate key")) {
-            toast.error("Já existe um cliente com este documento");
-          } else {
+        let novoCliente: any;
+
+        if (clienteExistente) {
+          // Cliente já existe - verifica se já está vinculado a este vendedor
+          if (clienteExistente.vendedor_id === vendedorId) {
+            toast.error("Este cliente já está na sua carteira");
+            return;
+          }
+          
+          // Atualiza o vendedor_id para vincular ao vendedor atual e atualiza dados
+          const { data: clienteAtualizado, error: updateError } = await supabase
+            .from("ebd_clientes")
+            .update({
+              ...clienteData,
+              vendedor_id: vendedorId,
+            })
+            .eq("id", clienteExistente.id)
+            .select()
+            .single();
+
+          if (updateError) {
+            console.error("Erro ao vincular cliente:", updateError);
+            throw updateError;
+          }
+
+          novoCliente = clienteAtualizado;
+          toast.success(`Cliente "${clienteExistente.nome_igreja}" vinculado à sua carteira!`);
+        } else {
+          // Cliente não existe - cria novo registro
+          const { data: clienteCriado, error: insertError } = await supabase
+            .from("ebd_clientes")
+            .insert({
+              ...clienteData,
+              vendedor_id: vendedorId,
+              status_ativacao_ebd: false,
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error("Erro ao cadastrar cliente:", insertError);
             throw insertError;
           }
-          return;
+
+          novoCliente = clienteCriado;
         }
 
-        // Then, create the auth user automatically
+        // Cria/atualiza o usuário de autenticação
         try {
           const { data: authResponse, error: authError } = await supabase.functions.invoke('create-ebd-user', {
             body: {
@@ -430,7 +464,10 @@ export function CadastrarClienteDialog({
           toast.warning("Cliente cadastrado, mas houve um erro ao criar o acesso. Use a função de ativação.");
         }
 
-        toast.success("Cliente cadastrado com sucesso! Senha: " + senhaGerada);
+        // Só mostra mensagem de senha se foi cadastrado (não apenas vinculado)
+        if (!clienteExistente) {
+          toast.success("Cliente cadastrado com sucesso! Senha: " + senhaGerada);
+        }
       }
 
       resetForm();
