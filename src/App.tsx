@@ -44,6 +44,7 @@ import AdminEBDQuizMestre from "./pages/admin/EBDQuizMestre";
 import AdminOrders from "./pages/admin/Orders";
 import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
+import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
@@ -688,18 +689,13 @@ const App = () => (
                       path="/admin/ebd"
                       element={
                         <ProtectedRoute requireAdmin allowGerenteEbd>
-                          <AdminEBD />
+                          <AdminEBDLayout />
                         </ProtectedRoute>
                       }
-                    />
-                    <Route
-                      path="/admin/ebd/propostas"
-                      element={
-                        <ProtectedRoute requireAdmin allowGerenteEbd>
-                          <AdminEBDPropostasPage />
-                        </ProtectedRoute>
-                      }
-                    />
+                    >
+                      <Route index element={<AdminEBD />} />
+                      <Route path="propostas" element={<AdminEBDPropostasPage />} />
+                    </Route>
                     <Route
                       path="/admin/bling"
                       element={
