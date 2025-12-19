@@ -332,7 +332,7 @@ export function CadastrarClienteDialog({
         email_superintendente: formData.email_superintendente,
         telefone: formData.telefone.replace(/\D/g, "") || null,
         possui_cnpj: formData.possui_cnpj,
-        cnpj: formData.possui_cnpj ? documentoLimpo : "",
+        cnpj: formData.possui_cnpj ? documentoLimpo : null,
         cpf: !formData.possui_cnpj ? documentoLimpo : null,
         endereco_cep: formData.endereco_cep.replace(/\D/g, ""),
         endereco_rua: formData.endereco_rua,
