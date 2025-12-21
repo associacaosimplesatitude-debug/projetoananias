@@ -7,6 +7,7 @@ import {
   User,
   BookOpen,
   FileText,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -20,6 +21,7 @@ export function AdminEBDLayout() {
     { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin EBD", end: true },
     { to: "/admin/ebd/propostas", icon: FileText, label: "Pedidos e Propostas" },
     { to: "/admin/ebd/pedidos-online", icon: Package, label: "Pedidos Igrejas" },
+    { to: "/admin/ebd/pedidos-cg", icon: ShoppingBag, label: "Pedidos Online" },
     { to: "/admin/ebd/clientes", icon: Users, label: "Clientes EBD" },
     { to: "/admin/ebd/leads", icon: UserX, label: "Leads Reativação" },
     { to: "/admin/ebd/vendedores", icon: User, label: "Vendedores" },

@@ -2710,6 +2710,51 @@ export type Database = {
           },
         ]
       }
+      ebd_shopify_pedidos_cg: {
+        Row: {
+          codigo_rastreio: string | null
+          created_at: string
+          customer_email: string | null
+          customer_name: string | null
+          id: string
+          order_number: string
+          shopify_order_id: number
+          status_pagamento: string
+          updated_at: string
+          url_rastreio: string | null
+          valor_frete: number
+          valor_total: number
+        }
+        Insert: {
+          codigo_rastreio?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          id?: string
+          order_number: string
+          shopify_order_id: number
+          status_pagamento?: string
+          updated_at?: string
+          url_rastreio?: string | null
+          valor_frete?: number
+          valor_total?: number
+        }
+        Update: {
+          codigo_rastreio?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          id?: string
+          order_number?: string
+          shopify_order_id?: number
+          status_pagamento?: string
+          updated_at?: string
+          url_rastreio?: string | null
+          valor_frete?: number
+          valor_total?: number
+        }
+        Relationships: []
+      }
       ebd_turmas: {
         Row: {
           church_id: string
