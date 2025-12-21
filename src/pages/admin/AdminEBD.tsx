@@ -179,7 +179,7 @@ export default function AdminEBD() {
   useEffect(() => {
     setActiveTab(getTabFromPath(location.pathname));
   }, [location.pathname]);
-  const [period, setPeriod] = useState("thisMonth");
+  const [period, setPeriod] = useState("all");
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   
@@ -720,6 +720,9 @@ export default function AdminEBD() {
     let end: Date = endOfDay(now);
     
     switch (period) {
+      case "all":
+        // Return null to indicate no filtering
+        return null;
       case "today":
         start = startOfDay(now);
         break;
@@ -737,16 +740,16 @@ export default function AdminEBD() {
         if (customStartDate && customEndDate) {
           return { start: parseISO(customStartDate), end: endOfDay(parseISO(customEndDate)) };
         }
-        start = startOfMonth(now);
-        break;
+        return null;
       default:
-        start = startOfMonth(now);
+        return null;
     }
     return { start, end };
   }, [period, customStartDate, customEndDate]);
 
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
+    if (!dateRange) return orders; // No filtering when "all" is selected
     return orders.filter((order) => {
       if (!order.created_at) return false;
       const orderDate = parseISO(order.created_at);
@@ -762,6 +765,7 @@ export default function AdminEBD() {
 
   // KPIs from Shopify Igrejas - filtered by date range
   const filteredShopifyOrders = useMemo(() => {
+    if (!dateRange) return shopifyOrders; // No filtering when "all" is selected
     return shopifyOrders.filter((order) => {
       if (!order.created_at) return false;
       const orderDate = parseISO(order.created_at);
@@ -771,6 +775,7 @@ export default function AdminEBD() {
 
   // KPIs from Shopify CG (Online) - filtered by date range
   const filteredShopifyCGOrders = useMemo(() => {
+    if (!dateRange) return shopifyCGOrders; // No filtering when "all" is selected
     return shopifyCGOrders.filter((order) => {
       if (!order.created_at) return false;
       const orderDate = parseISO(order.created_at);
@@ -1392,6 +1397,7 @@ export default function AdminEBD() {
                       <SelectValue placeholder="Período" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="today">Hoje</SelectItem>
                       <SelectItem value="7">Últimos 7 dias</SelectItem>
                       <SelectItem value="thisMonth">Mês Atual</SelectItem>
