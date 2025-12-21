@@ -716,13 +716,16 @@ export default function AdminEBD() {
   // Date range calculation
   const dateRange = useMemo(() => {
     const now = new Date();
+
+    // Default: all time
+    if (period === "all") {
+      return { start: new Date(0), end: endOfDay(now) };
+    }
+
     let start: Date;
     let end: Date = endOfDay(now);
-    
+
     switch (period) {
-      case "all":
-        // Return null to indicate no filtering
-        return null;
       case "today":
         start = startOfDay(now);
         break;
@@ -740,10 +743,12 @@ export default function AdminEBD() {
         if (customStartDate && customEndDate) {
           return { start: parseISO(customStartDate), end: endOfDay(parseISO(customEndDate)) };
         }
-        return null;
+        // If custom is selected but dates are missing, fall back to all
+        return { start: new Date(0), end: endOfDay(now) };
       default:
-        return null;
+        return { start: new Date(0), end: endOfDay(now) };
     }
+
     return { start, end };
   }, [period, customStartDate, customEndDate]);
 
@@ -2041,10 +2046,9 @@ export default function AdminEBD() {
             <CardHeader>
               <CardTitle>Resumo do Período</CardTitle>
               <CardDescription>
-                {dateRange 
-                  ? `${format(dateRange.start, "dd/MM/yyyy", { locale: ptBR })} até ${format(dateRange.end, "dd/MM/yyyy", { locale: ptBR })}`
-                  : "Todos os períodos"
-                }
+                {period === "all"
+                  ? "Todos os períodos"
+                  : `${format(dateRange.start, "dd/MM/yyyy", { locale: ptBR })} até ${format(dateRange.end, "dd/MM/yyyy", { locale: ptBR })}`}
               </CardDescription>
             </CardHeader>
             <CardContent>
