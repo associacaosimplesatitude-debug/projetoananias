@@ -1340,8 +1340,6 @@ export default function AdminEBD() {
 
         {/* VENDAS TAB */}
         <TabsContent value="vendas" className="space-y-6">
-          {/* Lead Scoring KPIs - Only visible on main dashboard */}
-          <LeadScoringKPIs isAdmin />
           {/* EBD Overview Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-l-4 border-l-blue-500">
@@ -2086,6 +2084,9 @@ export default function AdminEBD() {
 
         {/* LEADS CHURN TAB */}
         <TabsContent value="leads" className="space-y-6">
+          {/* Lead Scoring KPIs */}
+          <LeadScoringKPIs isAdmin />
+          
           <Card>
             <CardHeader>
               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
