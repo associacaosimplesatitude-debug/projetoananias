@@ -779,7 +779,11 @@ export default function AdminEBD() {
   }, [shopifyCGOrders, dateRange]);
 
   const shopifyPaidOrders = useMemo(() => 
-    filteredShopifyOrders.filter(o => o.status_pagamento === 'Pago'), 
+    filteredShopifyOrders.filter(o => 
+      o.status_pagamento === 'Pago' || 
+      o.status_pagamento === 'paid' || 
+      o.status_pagamento === 'Faturado'
+    ), 
     [filteredShopifyOrders]
   );
   const shopifyRefundedOrders = useMemo(() => 
@@ -793,7 +797,11 @@ export default function AdminEBD() {
 
   // Shopify CG (Online) KPIs
   const shopifyCGPaidOrders = useMemo(() => 
-    filteredShopifyCGOrders.filter(o => o.status_pagamento === 'paid' || o.status_pagamento === 'Pago'), 
+    filteredShopifyCGOrders.filter(o => 
+      o.status_pagamento === 'paid' || 
+      o.status_pagamento === 'Pago' ||
+      o.status_pagamento === 'Faturado'
+    ), 
     [filteredShopifyCGOrders]
   );
 
@@ -1435,101 +1443,123 @@ export default function AdminEBD() {
               <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              {/* Primeira linha - Cards principais com destaque nos valores */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Pedidos Online (CG) */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <ShoppingCart className="h-5 w-5 text-blue-600" />
-                    <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Pedidos Online</span>
+                <div className="p-5 rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 dark:border-blue-800">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="h-5 w-5 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Pedidos Online</span>
+                    </div>
+                    <Badge variant="secondary" className="bg-blue-200 text-blue-800 dark:bg-blue-800 dark:text-blue-200">
+                      {dashboardKPIs.totalPedidosOnline} pedidos
+                    </Badge>
                   </div>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{dashboardKPIs.totalPedidosOnline}</p>
-                  <p className="text-sm text-blue-600 dark:text-blue-400">
+                  <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorPedidosOnline)}
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    {dashboardKPIs.pedidosOnlinePagos} pagos • {dashboardKPIs.recorrentesCG} recorrentes
                   </p>
                 </div>
 
                 {/* Pedidos Igrejas */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Church className="h-5 w-5 text-green-600" />
-                    <span className="text-xs font-medium text-green-700 dark:text-green-300">Pedidos Igrejas</span>
+                <div className="p-5 rounded-xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 dark:border-green-800">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Church className="h-5 w-5 text-green-600" />
+                      <span className="text-sm font-medium text-green-700 dark:text-green-300">Pedidos Igrejas</span>
+                    </div>
+                    <Badge variant="secondary" className="bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200">
+                      {dashboardKPIs.totalPedidosIgrejas} pedidos
+                    </Badge>
                   </div>
-                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">{dashboardKPIs.totalPedidosIgrejas}</p>
-                  <p className="text-sm text-green-600 dark:text-green-400">
+                  <p className="text-3xl font-bold text-green-900 dark:text-green-100">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorPedidosIgrejas)}
                   </p>
-                </div>
-
-                {/* Propostas Pendentes */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Clock className="h-5 w-5 text-yellow-600" />
-                    <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Propostas Pendentes</span>
-                  </div>
-                  <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{dashboardKPIs.propostasPendentes}</p>
-                </div>
-
-                {/* Pedidos Faturados */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Truck className="h-5 w-5 text-purple-600" />
-                    <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Faturados</span>
-                  </div>
-                  <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{dashboardKPIs.pedidosFaturados}</p>
-                  <p className="text-sm text-purple-600 dark:text-purple-400">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorFaturados)}
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                    {dashboardKPIs.pedidosIgrejasPagos} pagos • {dashboardKPIs.recorrentesIgrejas} recorrentes
                   </p>
                 </div>
 
-                {/* Total Pedidos Pagos */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle className="h-5 w-5 text-emerald-600" />
-                    <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Pedidos Pagos</span>
+                {/* Total Consolidado */}
+                <div className="p-5 rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-950 dark:to-emerald-900 dark:border-emerald-700">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5 text-emerald-700" />
+                      <span className="text-sm font-bold text-emerald-800 dark:text-emerald-200">TOTAL VENDAS</span>
+                    </div>
+                    <Badge variant="secondary" className="bg-emerald-300 text-emerald-900 dark:bg-emerald-700 dark:text-emerald-100">
+                      {dashboardKPIs.totalPedidosPagos} pedidos
+                    </Badge>
                   </div>
-                  <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{dashboardKPIs.totalPedidosPagos}</p>
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  <p className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorTotalPago)}
+                  </p>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+                    {dashboardKPIs.totalRecorrentes} clientes recorrentes
                   </p>
                 </div>
               </div>
 
-              {/* Segunda linha de KPIs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-                {/* Clientes Recorrentes */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Trophy className="h-5 w-5 text-pink-600" />
-                    <span className="text-xs font-medium text-pink-700 dark:text-pink-300">Clientes Recorrentes</span>
+              {/* Segunda linha - Cards secundários */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mt-4">
+                {/* Propostas Pendentes */}
+                <div className="p-3 rounded-lg border bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Clock className="h-4 w-4 text-yellow-600" />
+                    <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Pendentes</span>
                   </div>
-                  <p className="text-2xl font-bold text-pink-900 dark:text-pink-100">{dashboardKPIs.totalRecorrentes}</p>
+                  <p className="text-xl font-bold text-yellow-900 dark:text-yellow-100">{dashboardKPIs.propostasPendentes}</p>
                 </div>
 
-                {/* Total Clientes EBD */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="h-5 w-5 text-indigo-600" />
+                {/* Pedidos Faturados */}
+                <div className="p-3 rounded-lg border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Truck className="h-4 w-4 text-purple-600" />
+                    <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Faturados</span>
+                  </div>
+                  <p className="text-xl font-bold text-purple-900 dark:text-purple-100">{dashboardKPIs.pedidosFaturados}</p>
+                  <p className="text-xs text-purple-600 dark:text-purple-400">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorFaturados)}
+                  </p>
+                </div>
+
+                {/* Recorrentes Igrejas */}
+                <div className="p-3 rounded-lg border bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Trophy className="h-4 w-4 text-pink-600" />
+                    <span className="text-xs font-medium text-pink-700 dark:text-pink-300">Recor. Igrejas</span>
+                  </div>
+                  <p className="text-xl font-bold text-pink-900 dark:text-pink-100">{dashboardKPIs.recorrentesIgrejas}</p>
+                </div>
+
+                {/* Clientes EBD */}
+                <div className="p-3 rounded-lg border bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Users className="h-4 w-4 text-indigo-600" />
                     <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Clientes EBD</span>
                   </div>
-                  <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">{totalEbdClients}</p>
+                  <p className="text-xl font-bold text-indigo-900 dark:text-indigo-100">{totalEbdClients}</p>
                 </div>
 
                 {/* Total Alunos */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <GraduationCap className="h-5 w-5 text-cyan-600" />
-                    <span className="text-xs font-medium text-cyan-700 dark:text-cyan-300">Total Alunos</span>
+                <div className="p-3 rounded-lg border bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900">
+                  <div className="flex items-center gap-2 mb-1">
+                    <GraduationCap className="h-4 w-4 text-cyan-600" />
+                    <span className="text-xs font-medium text-cyan-700 dark:text-cyan-300">Alunos</span>
                   </div>
-                  <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">{totalAlunos ?? 0}</p>
+                  <p className="text-xl font-bold text-cyan-900 dark:text-cyan-100">{totalAlunos ?? 0}</p>
                 </div>
 
                 {/* Total Turmas */}
-                <div className="p-4 rounded-lg border bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900">
-                  <div className="flex items-center gap-2 mb-2">
-                    <BookOpen className="h-5 w-5 text-orange-600" />
-                    <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Total Turmas</span>
+                <div className="p-3 rounded-lg border bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900">
+                  <div className="flex items-center gap-2 mb-1">
+                    <BookOpen className="h-4 w-4 text-orange-600" />
+                    <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Turmas</span>
                   </div>
-                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{totalTurmas ?? 0}</p>
+                  <p className="text-xl font-bold text-orange-900 dark:text-orange-100">{totalTurmas ?? 0}</p>
                 </div>
               </div>
             </CardContent>
