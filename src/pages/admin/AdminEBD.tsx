@@ -2041,7 +2041,10 @@ export default function AdminEBD() {
             <CardHeader>
               <CardTitle>Resumo do Período</CardTitle>
               <CardDescription>
-                {format(dateRange.start, "dd/MM/yyyy", { locale: ptBR })} até {format(dateRange.end, "dd/MM/yyyy", { locale: ptBR })}
+                {dateRange 
+                  ? `${format(dateRange.start, "dd/MM/yyyy", { locale: ptBR })} até ${format(dateRange.end, "dd/MM/yyyy", { locale: ptBR })}`
+                  : "Todos os períodos"
+                }
               </CardDescription>
             </CardHeader>
             <CardContent>
