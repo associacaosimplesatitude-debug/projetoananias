@@ -38,7 +38,7 @@ import {
   ExternalLink,
   TrendingUp,
   ShoppingCart,
-  Truck,
+  Users,
   CheckCircle,
   RefreshCw,
   Loader2,
@@ -46,6 +46,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface ShopifyPedido {
   id: string;
@@ -116,6 +117,7 @@ const isPaidStatus = (statusRaw: string | null | undefined) => {
 
 export default function PedidosOnline() {
   const queryClient = useQueryClient();
+  const { isAdmin } = useUserRole();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
@@ -234,9 +236,18 @@ export default function PedidosOnline() {
     const totalPedidos = filteredByDate.length;
     const totalFaturado = filteredByDate.reduce((sum, p) => sum + (p.valor_total || 0), 0);
     const pedidosPagos = filteredByDate.filter((p) => isPaidStatus(p.status_pagamento)).length;
-    const pedidosComRastreio = filteredByDate.filter((p) => p.codigo_rastreio).length;
+    
+    // Calculate recurrent customers: unique customers with more than 1 order in the filtered period
+    const customerOrderCounts = new Map<string, number>();
+    filteredByDate.forEach((pedido) => {
+      const customerKey = pedido.customer_email?.toLowerCase() || pedido.cliente?.nome_igreja?.toLowerCase() || pedido.customer_name?.toLowerCase() || '';
+      if (customerKey) {
+        customerOrderCounts.set(customerKey, (customerOrderCounts.get(customerKey) || 0) + 1);
+      }
+    });
+    const recurrentCustomers = Array.from(customerOrderCounts.values()).filter((count) => count > 1).length;
 
-    return { totalPedidos, totalFaturado, pedidosPagos, pedidosComRastreio };
+    return { totalPedidos, totalFaturado, pedidosPagos, recurrentCustomers };
   }, [filteredByDate]);
 
   const getStatusBadge = (statusRaw: string) => {
@@ -285,19 +296,21 @@ export default function PedidosOnline() {
           <p className="text-muted-foreground">Pedidos pagos finalizados via Shopify</p>
         </div>
 
-        <Button
-          variant="outline"
-          onClick={() => syncOrdersMutation.mutate()}
-          disabled={syncOrdersMutation.isPending}
-          className="gap-2"
-        >
-          {syncOrdersMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          Sincronizar
-        </Button>
+        {isAdmin && (
+          <Button
+            variant="outline"
+            onClick={() => syncOrdersMutation.mutate()}
+            disabled={syncOrdersMutation.isPending}
+            className="gap-2"
+          >
+            {syncOrdersMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Sincronizar
+          </Button>
+        )}
       </header>
 
       {/* Stats Cards */}
@@ -350,11 +363,11 @@ export default function PedidosOnline() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-primary/10">
-                <Truck className="h-5 w-5 text-primary" />
+                <Users className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Com Rastreio</p>
-                <p className="text-2xl font-bold">{stats.pedidosComRastreio}</p>
+                <p className="text-sm text-muted-foreground">Recorrentes</p>
+                <p className="text-2xl font-bold">{stats.recurrentCustomers}</p>
               </div>
             </div>
           </CardContent>
