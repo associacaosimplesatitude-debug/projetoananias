@@ -936,12 +936,8 @@ export default function AdminEBD() {
   const vendedorStats = useMemo(() => {
     if (!vendedores || !paidOrders) return [];
     
-    // Filter Shopify orders within date range
-    const filteredShopifyOrders = shopifyOrders.filter((order) => {
-      if (!order.created_at) return false;
-      const orderDate = parseISO(order.created_at);
-      return isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end });
-    });
+    // Use already filtered Shopify orders (handles null dateRange)
+    const shopifyOrdersForStats = filteredShopifyOrders;
     
     return vendedores.map(vendedor => {
       // Internal orders
@@ -952,7 +948,7 @@ export default function AdminEBD() {
       const internalValue = vendedorOrders.reduce((sum, o) => sum + Number(o.valor_total), 0);
       
       // Shopify orders
-      const vendedorShopifyOrders = filteredShopifyOrders.filter(order => 
+      const vendedorShopifyOrders = shopifyOrdersForStats.filter(order => 
         order.vendedor_id === vendedor.id
       );
       const shopifySales = vendedorShopifyOrders.length;
@@ -974,7 +970,7 @@ export default function AdminEBD() {
         goalProgressRaw: goalProgress,
       };
     }).sort((a, b) => b.totalValue - a.totalValue);
-  }, [vendedores, paidOrders, shopifyOrders, dateRange]);
+  }, [vendedores, paidOrders, filteredShopifyOrders]);
 
   const salesEvolutionBySeller = useMemo(() => {
     if (!vendedores || !paidOrders) return [];
