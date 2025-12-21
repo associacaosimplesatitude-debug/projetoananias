@@ -138,16 +138,16 @@ export default function PropostaDigital() {
         });
       }
 
-      // Add free shipping if total >= R$400
+      // Add free shipping if total >= R$199,90
       const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * (proposta.desconto_percentual || 0) / 100);
-      if (valorComDesconto >= 400) {
-        options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$400)', cost: 0 });
+      if (valorComDesconto >= 199.90) {
+        options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
       }
 
       setShippingOptions(options);
       
       // Auto-select free if available, otherwise first option
-      if (valorComDesconto >= 400) {
+      if (valorComDesconto >= 199.90) {
         setSelectedFrete('free');
       } else if (options.length > 0) {
         setSelectedFrete(options[0].type);
@@ -160,11 +160,11 @@ export default function PropostaDigital() {
         { type: 'pac', label: 'PAC - 8 dias úteis', cost: 15, days: 8 },
         { type: 'sedex', label: 'SEDEX - 3 dias úteis', cost: 25, days: 3 },
       ];
-      if (valorComDesconto >= 400) {
-        fallbackOptions.push({ type: 'free', label: 'Frete Grátis (compras acima de R$400)', cost: 0 });
+      if (valorComDesconto >= 199.90) {
+        fallbackOptions.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
       }
       setShippingOptions(fallbackOptions);
-      if (valorComDesconto >= 400) {
+      if (valorComDesconto >= 199.90) {
         setSelectedFrete('free');
       } else {
         setSelectedFrete('pac');

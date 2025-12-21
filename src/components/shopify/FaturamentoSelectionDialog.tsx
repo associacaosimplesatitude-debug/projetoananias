@@ -77,7 +77,7 @@ export function FaturamentoSelectionDialog({
     if (!clienteCep) {
       // No CEP, show only free option if applicable
       const options: ShippingOption[] = [];
-      if (totalProdutos >= 400) {
+      if (totalProdutos >= 199.90) {
         options.push({ type: 'free', label: 'Frete Grátis', cost: 0 });
       }
       setShippingOptions(options);
@@ -117,15 +117,15 @@ export function FaturamentoSelectionDialog({
         });
       }
 
-      // Add free shipping if total >= R$400
-      if (totalProdutos >= 400) {
-        options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$400)', cost: 0 });
+      // Add free shipping if total >= R$199,90
+      if (totalProdutos >= 199.90) {
+        options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
       }
 
       setShippingOptions(options);
       
       // Auto-select free if available, otherwise PAC
-      if (totalProdutos >= 400) {
+      if (totalProdutos >= 199.90) {
         setSelectedFrete('free');
       } else if (options.length > 0) {
         setSelectedFrete(options[0].type);
