@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { RefreshCw, Package, Search, Calendar, Truck, DollarSign } from "lucide-react";
+import { RefreshCw, Package, Search, Calendar, Users, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import { useUserRole } from "@/hooks/useUserRole";
 type DateFilter = "today" | "7days" | "30days" | "thisMonth" | "custom" | "all";
 
 type CanonicalFinancialStatus = "paid" | "pending" | "refunded" | "voided" | "partially_refunded" | "partially_paid" | "authorized" | "unknown";
@@ -53,6 +53,7 @@ interface ShopifyPedidoCG {
 
 export default function PedidosCentralGospel() {
   const queryClient = useQueryClient();
+  const { isAdmin } = useUserRole();
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("30days");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -138,16 +139,25 @@ export default function PedidosCentralGospel() {
   }, [filteredByDate, searchTerm]);
 
   const stats = useMemo(() => {
-    const paidOrders = filteredPedidos.filter((p) => isPaidStatus(p.status_pagamento));
-    const withTracking = filteredPedidos.filter((p) => p.codigo_rastreio);
+    const paidOrders = filteredByDate.filter((p) => isPaidStatus(p.status_pagamento));
+    
+    // Calculate recurrent customers: unique customers with more than 1 order in the filtered period
+    const customerOrderCounts = new Map<string, number>();
+    filteredByDate.forEach((pedido) => {
+      const customerKey = pedido.customer_email?.toLowerCase() || pedido.customer_name?.toLowerCase() || '';
+      if (customerKey) {
+        customerOrderCounts.set(customerKey, (customerOrderCounts.get(customerKey) || 0) + 1);
+      }
+    });
+    const recurrentCustomers = Array.from(customerOrderCounts.values()).filter((count) => count > 1).length;
 
     return {
-      total: filteredPedidos.length,
-      totalValue: filteredPedidos.reduce((sum, p) => sum + (p.valor_total || 0), 0),
+      total: filteredByDate.length,
+      totalValue: filteredByDate.reduce((sum, p) => sum + (p.valor_total || 0), 0),
       paid: paidOrders.length,
-      withTracking: withTracking.length,
+      recurrent: recurrentCustomers,
     };
-  }, [filteredPedidos]);
+  }, [filteredByDate]);
 
   const getStatusBadge = (status: string) => {
     const canonical = canonicalizeStatus(status);
@@ -187,10 +197,12 @@ export default function PedidosCentralGospel() {
           <h1 className="text-2xl font-bold">Pedidos Online - Central Gospel</h1>
           <p className="text-muted-foreground">Pedidos da loja centralgospel.com.br</p>
         </div>
-        <Button onClick={() => syncOrdersMutation.mutate()} disabled={syncOrdersMutation.isPending}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${syncOrdersMutation.isPending ? "animate-spin" : ""}`} />
-          {syncOrdersMutation.isPending ? "Sincronizando..." : "Sincronizar Pedidos"}
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => syncOrdersMutation.mutate()} disabled={syncOrdersMutation.isPending}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncOrdersMutation.isPending ? "animate-spin" : ""}`} />
+            {syncOrdersMutation.isPending ? "Sincronizando..." : "Sincronizar Pedidos"}
+          </Button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -226,11 +238,11 @@ export default function PedidosCentralGospel() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Com Rastreio</CardTitle>
-            <Truck className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Recorrentes</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.withTracking}</div>
+            <div className="text-2xl font-bold">{stats.recurrent}</div>
           </CardContent>
         </Card>
       </div>
