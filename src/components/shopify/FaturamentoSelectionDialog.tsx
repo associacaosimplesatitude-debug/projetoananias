@@ -138,8 +138,8 @@ export function FaturamentoSelectionDialog({
         { type: 'pac', label: 'PAC - 8 dias úteis', cost: 15, days: 8 },
         { type: 'sedex', label: 'SEDEX - 3 dias úteis', cost: 25, days: 3 },
       ];
-      if (totalProdutos >= 400) {
-        fallbackOptions.push({ type: 'free', label: 'Frete Grátis (compras acima de R$400)', cost: 0 });
+      if (totalProdutos >= 199.90) {
+        fallbackOptions.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
       }
       setShippingOptions(fallbackOptions);
     } finally {
