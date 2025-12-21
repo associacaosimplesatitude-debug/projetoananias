@@ -18,7 +18,7 @@ export function AdminEBDLayout() {
   const isGerenteEbd = role === 'gerente_ebd';
 
   const menuItems = [
-    { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin EBD", end: true },
+    { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin", end: true },
     { to: "/admin/ebd/propostas", icon: FileText, label: "Pedidos e Propostas" },
     { to: "/admin/ebd/pedidos-online", icon: Package, label: "Pedidos Igrejas" },
     { to: "/admin/ebd/pedidos-cg", icon: ShoppingBag, label: "Pedidos Online" },
