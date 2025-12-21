@@ -107,6 +107,7 @@ import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 // Shopify Pages
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
 import PedidosOnline from "./pages/shopify/PedidosOnline";
+import PedidosCentralGospel from "./pages/shopify/PedidosCentralGospel";
 import EBDLogin from "./pages/EBDLogin";
 import LandingEBD from "./pages/LandingEBD";
 
@@ -697,6 +698,7 @@ const App = () => (
                       <Route index element={<AdminEBD />} />
                       <Route path="propostas" element={<AdminEBDPropostasPage />} />
                       <Route path="pedidos-online" element={<PedidosOnline />} />
+                      <Route path="pedidos-cg" element={<PedidosCentralGospel />} />
                       <Route path="clientes" element={<AdminEBD />} />
                       <Route path="leads" element={<AdminEBD />} />
                       <Route path="vendedores" element={<AdminEBD />} />
