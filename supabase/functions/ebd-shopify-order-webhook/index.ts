@@ -121,17 +121,9 @@ serve(async (req) => {
       note_attributes: order.note_attributes,
     });
 
-    // Map Shopify financial_status to our status
-    const statusMap: Record<string, string> = {
-      paid: "Pago",
-      refunded: "Reembolsado",
-      partially_refunded: "Parcialmente Reembolsado",
-      pending: "Pendente",
-      voided: "Cancelado",
-    };
-
-    const statusPagamento = statusMap[order.financial_status] || order.financial_status;
-    console.log("Order financial_status:", order.financial_status, "-> mapped to:", statusPagamento);
+    // Keep canonical Shopify financial_status in the DB (UI will localize labels)
+    const statusPagamento = order.financial_status;
+    console.log("Order financial_status:", order.financial_status, "-> saved as:", statusPagamento);
 
     // Extract vendedor_id and cliente_id from note_attributes
     let vendedorId: string | null = null;
