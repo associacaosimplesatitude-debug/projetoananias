@@ -6,8 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SHOPIFY_STORE_DOMAIN = "editoraananias.myshopify.com";
-const SHOPIFY_API_VERSION = "2024-01";
+const SHOPIFY_STORE_DOMAIN = "revendacentralgospel.myshopify.com";
+const SHOPIFY_API_VERSION = "2025-01";
 
 type ShopifyOrder = {
   id: number;
