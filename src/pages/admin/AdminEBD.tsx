@@ -281,12 +281,25 @@ export default function AdminEBD() {
     },
   });
 
-  // Fetch all Shopify orders for KPIs
+  // Fetch all Shopify orders for KPIs (Pedidos Igrejas)
   const { data: shopifyOrders = [] } = useQuery({
     queryKey: ["admin-shopify-orders"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch all Shopify CG orders for KPIs (Pedidos Online)
+  const { data: shopifyCGOrders = [] } = useQuery({
+    queryKey: ["admin-shopify-cg-orders"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_shopify_pedidos_cg")
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -747,7 +760,7 @@ export default function AdminEBD() {
   const cancelledOrders = filteredOrders.filter(o => o.status === 'cancelled');
   const totalEbdClients = ebdClients?.length || 0;
 
-  // KPIs from Shopify - filtered by date range
+  // KPIs from Shopify Igrejas - filtered by date range
   const filteredShopifyOrders = useMemo(() => {
     return shopifyOrders.filter((order) => {
       if (!order.created_at) return false;
@@ -755,6 +768,15 @@ export default function AdminEBD() {
       return isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end });
     });
   }, [shopifyOrders, dateRange]);
+
+  // KPIs from Shopify CG (Online) - filtered by date range
+  const filteredShopifyCGOrders = useMemo(() => {
+    return shopifyCGOrders.filter((order) => {
+      if (!order.created_at) return false;
+      const orderDate = parseISO(order.created_at);
+      return isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end });
+    });
+  }, [shopifyCGOrders, dateRange]);
 
   const shopifyPaidOrders = useMemo(() => 
     filteredShopifyOrders.filter(o => o.status_pagamento === 'Pago'), 
@@ -768,6 +790,69 @@ export default function AdminEBD() {
     filteredShopifyOrders.filter(o => o.status_pagamento === 'pending' || o.status_pagamento === 'Pendente'), 
     [filteredShopifyOrders]
   );
+
+  // Shopify CG (Online) KPIs
+  const shopifyCGPaidOrders = useMemo(() => 
+    filteredShopifyCGOrders.filter(o => o.status_pagamento === 'paid' || o.status_pagamento === 'Pago'), 
+    [filteredShopifyCGOrders]
+  );
+
+  // Dashboard KPIs - Consolidado
+  const dashboardKPIs = useMemo(() => {
+    // Pedidos Online (Central Gospel)
+    const totalPedidosOnline = filteredShopifyCGOrders.length;
+    const valorPedidosOnline = shopifyCGPaidOrders.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    const pedidosOnlinePagos = shopifyCGPaidOrders.length;
+
+    // Pedidos Igrejas (Shopify principal)
+    const totalPedidosIgrejas = filteredShopifyOrders.length;
+    const valorPedidosIgrejas = shopifyPaidOrders.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    const pedidosIgrejasPagos = shopifyPaidOrders.length;
+
+    // Propostas/Pedidos internos (ebd_pedidos)
+    const propostasPendentes = filteredOrders.filter(o => o.status === 'pending' || o.payment_status === 'pending').length;
+    const pedidosFaturados = filteredOrders.filter(o => o.status_logistico === 'faturado' || o.status_logistico === 'shipped').length;
+    const valorFaturados = filteredOrders.filter(o => o.status_logistico === 'faturado' || o.status_logistico === 'shipped')
+      .reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    
+    // Pedidos Pagos combinados
+    const totalPedidosPagos = pedidosOnlinePagos + pedidosIgrejasPagos + paidOrders.length;
+    const valorTotalPago = valorPedidosOnline + valorPedidosIgrejas + paidOrders.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+
+    // Clientes Recorrentes - emails únicos com mais de 1 pedido
+    const emailCountsIgrejas: Record<string, number> = {};
+    filteredShopifyOrders.forEach(o => {
+      if (o.customer_email) {
+        emailCountsIgrejas[o.customer_email] = (emailCountsIgrejas[o.customer_email] || 0) + 1;
+      }
+    });
+    const recorrentesIgrejas = Object.values(emailCountsIgrejas).filter(count => count > 1).length;
+
+    const emailCountsCG: Record<string, number> = {};
+    filteredShopifyCGOrders.forEach(o => {
+      if (o.customer_email) {
+        emailCountsCG[o.customer_email] = (emailCountsCG[o.customer_email] || 0) + 1;
+      }
+    });
+    const recorrentesCG = Object.values(emailCountsCG).filter(count => count > 1).length;
+
+    return {
+      totalPedidosOnline,
+      valorPedidosOnline,
+      pedidosOnlinePagos,
+      totalPedidosIgrejas,
+      valorPedidosIgrejas,
+      pedidosIgrejasPagos,
+      propostasPendentes,
+      pedidosFaturados,
+      valorFaturados,
+      totalPedidosPagos,
+      valorTotalPago,
+      recorrentesIgrejas,
+      recorrentesCG,
+      totalRecorrentes: recorrentesIgrejas + recorrentesCG,
+    };
+  }, [filteredShopifyCGOrders, shopifyCGPaidOrders, filteredShopifyOrders, shopifyPaidOrders, filteredOrders, paidOrders]);
 
   // Main KPIs from Shopify
   const totalRevenue = useMemo(() => 
@@ -1340,53 +1425,115 @@ export default function AdminEBD() {
 
         {/* VENDAS TAB */}
         <TabsContent value="vendas" className="space-y-6">
-          {/* EBD Overview Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-l-4 border-l-blue-500">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <Users className="h-8 w-8 text-blue-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Clientes EBD</p>
-                    <p className="text-2xl font-bold">{totalEbdClients}</p>
+          {/* Dashboard de Vendas - KPIs Consolidados */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Resumo de Vendas
+              </CardTitle>
+              <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                {/* Pedidos Online (CG) */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ShoppingCart className="h-5 w-5 text-blue-600" />
+                    <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Pedidos Online</span>
                   </div>
+                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{dashboardKPIs.totalPedidosOnline}</p>
+                  <p className="text-sm text-blue-600 dark:text-blue-400">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorPedidosOnline)}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <GraduationCap className="h-8 w-8 text-green-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total de Alunos</p>
-                    <p className="text-2xl font-bold">{totalAlunos ?? 0}</p>
+
+                {/* Pedidos Igrejas */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Church className="h-5 w-5 text-green-600" />
+                    <span className="text-xs font-medium text-green-700 dark:text-green-300">Pedidos Igrejas</span>
                   </div>
+                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">{dashboardKPIs.totalPedidosIgrejas}</p>
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorPedidosIgrejas)}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-purple-500">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <BookOpen className="h-8 w-8 text-purple-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total de Professores</p>
-                    <p className="text-2xl font-bold">{totalProfessores ?? 0}</p>
+
+                {/* Propostas Pendentes */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="h-5 w-5 text-yellow-600" />
+                    <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Propostas Pendentes</span>
                   </div>
+                  <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{dashboardKPIs.propostasPendentes}</p>
                 </div>
-              </CardContent>
-            </Card>
-            <Card className="border-l-4 border-l-orange-500">
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-3">
-                  <Church className="h-8 w-8 text-orange-500" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total de Turmas</p>
-                    <p className="text-2xl font-bold">{totalTurmas ?? 0}</p>
+
+                {/* Pedidos Faturados */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Truck className="h-5 w-5 text-purple-600" />
+                    <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Faturados</span>
                   </div>
+                  <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{dashboardKPIs.pedidosFaturados}</p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorFaturados)}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+
+                {/* Total Pedidos Pagos */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="h-5 w-5 text-emerald-600" />
+                    <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Pedidos Pagos</span>
+                  </div>
+                  <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{dashboardKPIs.totalPedidosPagos}</p>
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardKPIs.valorTotalPago)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Segunda linha de KPIs */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                {/* Clientes Recorrentes */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Trophy className="h-5 w-5 text-pink-600" />
+                    <span className="text-xs font-medium text-pink-700 dark:text-pink-300">Clientes Recorrentes</span>
+                  </div>
+                  <p className="text-2xl font-bold text-pink-900 dark:text-pink-100">{dashboardKPIs.totalRecorrentes}</p>
+                </div>
+
+                {/* Total Clientes EBD */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="h-5 w-5 text-indigo-600" />
+                    <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Clientes EBD</span>
+                  </div>
+                  <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">{totalEbdClients}</p>
+                </div>
+
+                {/* Total Alunos */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <GraduationCap className="h-5 w-5 text-cyan-600" />
+                    <span className="text-xs font-medium text-cyan-700 dark:text-cyan-300">Total Alunos</span>
+                  </div>
+                  <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">{totalAlunos ?? 0}</p>
+                </div>
+
+                {/* Total Turmas */}
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900">
+                  <div className="flex items-center gap-2 mb-2">
+                    <BookOpen className="h-5 w-5 text-orange-600" />
+                    <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Total Turmas</span>
+                  </div>
+                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{totalTurmas ?? 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Church Progress Cards - Aulas Restantes */}
           <Card>
