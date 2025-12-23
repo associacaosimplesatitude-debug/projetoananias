@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
@@ -78,6 +78,28 @@ export default function PedidosCentralGospel() {
       toast.error("Erro ao sincronizar pedidos");
     },
   });
+
+  // Realtime subscription for automatic updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('ebd-shopify-pedidos-cg-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ebd_shopify_pedidos_cg'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-cg"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["shopify-pedidos-cg"],

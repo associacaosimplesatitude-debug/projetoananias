@@ -158,6 +158,28 @@ export default function PedidosOnline() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, hasAutoSynced]);
 
+  // Realtime subscription for automatic updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('ebd-shopify-pedidos-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ebd_shopify_pedidos'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["ebd-shopify-pedidos-online"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   const { data: pedidos, isLoading } = useQuery({
     queryKey: ["ebd-shopify-pedidos-online"],
     queryFn: async () => {
