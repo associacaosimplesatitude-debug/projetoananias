@@ -80,3 +80,12 @@ verify_jwt = true
 
 [functions.ebd-shopify-order-webhook]
 verify_jwt = false
+
+[functions.ebd-shopify-sync-orders]
+verify_jwt = true
+
+[functions.cg-shopify-sync-orders]
+verify_jwt = true
+
+[functions.ebd-instant-signup]
+verify_jwt = false
