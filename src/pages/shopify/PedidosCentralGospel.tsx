@@ -47,7 +47,10 @@ interface ShopifyPedidoCG {
   valor_frete: number;
   codigo_rastreio: string | null;
   url_rastreio: string | null;
+  // created_at is legacy but now will be aligned with the real order date
   created_at: string;
+  // preferred field for the real order date
+  order_date?: string | null;
   updated_at: string;
 }
 
@@ -118,7 +121,8 @@ export default function PedidosCentralGospel() {
     const now = new Date();
 
     return pedidos.filter((pedido) => {
-      const createdAt = parseISO(pedido.created_at);
+      const dateField = pedido.order_date || pedido.created_at;
+      const createdAt = parseISO(dateField);
 
       switch (dateFilter) {
         case "today":
@@ -204,6 +208,8 @@ export default function PedidosCentralGospel() {
       return dateStr;
     }
   };
+
+  const getPedidoDate = (pedido: ShopifyPedidoCG) => pedido.order_date || pedido.created_at;
 
   const handleDateFilterChange = (value: DateFilter) => {
     setDateFilter(value);
@@ -356,7 +362,7 @@ export default function PedidosCentralGospel() {
                   filteredPedidos.map((pedido) => (
                     <TableRow key={pedido.id}>
                       <TableCell className="font-medium">{pedido.order_number}</TableCell>
-                      <TableCell>{formatDate(pedido.created_at)}</TableCell>
+                      <TableCell>{formatDate(getPedidoDate(pedido))}</TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">{pedido.customer_name || "-"}</div>
