@@ -162,6 +162,9 @@ serve(async (req) => {
         valor_para_meta: valorParaMeta,
         customer_email: order.email || order.customer?.email || null,
         customer_name: customerName,
+        // IMPORTANT: use Shopify's real order date for metrics
+        order_date: order.created_at,
+        // Keep created_at aligned to the real order date as well (legacy screens still use created_at)
         created_at: order.created_at,
         updated_at: order.updated_at,
       };
