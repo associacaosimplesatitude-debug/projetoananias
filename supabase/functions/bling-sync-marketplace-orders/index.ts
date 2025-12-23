@@ -6,16 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Mapping from Bling loja IDs to marketplace names
-const MARKETPLACE_LOJA_IDS: Record<string, string> = {
-  // These IDs should match your Bling configuration
-  // You can find them in Bling > Integrações > Lojas virtuais
-  'amazon': 'AMAZON',
-  'shopee': 'SHOPEE', 
-  'mercadolivre': 'MERCADO_LIVRE',
-  'mercado livre': 'MERCADO_LIVRE',
-};
-
 // Função para renovar o token do Bling
 async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   if (!config.refresh_token) {
@@ -78,26 +68,58 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function detectMarketplace(order: any): string | null {
-  // Try to detect marketplace from loja field
-  const lojaName = order.loja?.descricao?.toLowerCase() || '';
-  const canal = order.canal?.toLowerCase() || '';
+function detectMarketplace(order: any, debug = false): string | null {
+  // Collect all fields to check
+  const lojaDescricao = (order.loja?.descricao || '').toLowerCase();
+  const lojaNome = (order.loja?.nome || '').toLowerCase();
+  const lojaId = order.loja?.id;
+  const canal = (order.canal || '').toLowerCase();
+  const origemDescricao = (order.origem?.descricao || '').toLowerCase();
+  const origemNome = (order.origem?.nome || '').toLowerCase();
+  const numeroPedidoLoja = (order.numeroPedidoLoja || '').toLowerCase();
+  const observacoes = (order.observacoes || '').toLowerCase();
+  const observacoesInternas = (order.observacoesInternas || '').toLowerCase();
   
-  // Check loja name
-  if (lojaName.includes('amazon')) return 'AMAZON';
-  if (lojaName.includes('shopee')) return 'SHOPEE';
-  if (lojaName.includes('mercado') || lojaName.includes('meli')) return 'MERCADO_LIVRE';
+  // Combine all text fields to search
+  const allText = `${lojaDescricao} ${lojaNome} ${canal} ${origemDescricao} ${origemNome} ${numeroPedidoLoja} ${observacoes} ${observacoesInternas}`;
   
-  // Check canal
-  if (canal.includes('amazon')) return 'AMAZON';
-  if (canal.includes('shopee')) return 'SHOPEE';
-  if (canal.includes('mercado') || canal.includes('meli')) return 'MERCADO_LIVRE';
+  if (debug) {
+    console.log(`Order ${order.numero}: loja=${lojaDescricao}|${lojaNome}, canal=${canal}, origem=${origemDescricao}|${origemNome}, numeroPedidoLoja=${numeroPedidoLoja}`);
+  }
   
-  // Check origem
-  const origem = order.origem?.descricao?.toLowerCase() || '';
-  if (origem.includes('amazon')) return 'AMAZON';
-  if (origem.includes('shopee')) return 'SHOPEE';
-  if (origem.includes('mercado') || origem.includes('meli')) return 'MERCADO_LIVRE';
+  // Check for Shopee (most common patterns)
+  if (allText.includes('shopee') || 
+      numeroPedidoLoja.match(/^\d{15,}/) || // Shopee order numbers are usually 15+ digits
+      lojaDescricao.includes('ecg shopee') ||
+      lojaNome.includes('shopee')) {
+    return 'SHOPEE';
+  }
+  
+  // Check for Amazon
+  if (allText.includes('amazon') || 
+      allText.includes('amzn') ||
+      numeroPedidoLoja.match(/^\d{3}-\d{7}-\d{7}$/)) { // Amazon order format
+    return 'AMAZON';
+  }
+  
+  // Check for Mercado Livre
+  if (allText.includes('mercado') || 
+      allText.includes('meli') || 
+      allText.includes('mercadolivre') ||
+      allText.includes('ml_') ||
+      numeroPedidoLoja.match(/^\d{10,12}$/)) { // ML order numbers are 10-12 digits
+    return 'MERCADO_LIVRE';
+  }
+  
+  // Check by loja ID (need to be configured per Bling account)
+  // Common Bling integration IDs for marketplaces
+  if (lojaId) {
+    // These are typical integration names in Bling
+    const lojaIdStr = String(lojaId).toLowerCase();
+    if (lojaIdStr.includes('shopee')) return 'SHOPEE';
+    if (lojaIdStr.includes('amazon')) return 'AMAZON';
+    if (lojaIdStr.includes('mercado')) return 'MERCADO_LIVRE';
+  }
   
   return null;
 }
@@ -113,6 +135,8 @@ function mapBlingStatusToLocal(situacao: any): string {
   if (id === 6 || nome.includes('aprovado') || nome.includes('pago')) return 'Pago';
   if (nome.includes('pendente')) return 'Pendente';
   if (nome.includes('enviado')) return 'Enviado';
+  if (nome.includes('verificado')) return 'Verificado';
+  if (nome.includes('entregue')) return 'Entregue';
   
   return situacao?.nome || 'Desconhecido';
 }
@@ -123,7 +147,7 @@ serve(async (req) => {
   }
 
   try {
-    const { marketplace } = await req.json().catch(() => ({}));
+    const { marketplace, debug } = await req.json().catch(() => ({}));
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -205,11 +229,24 @@ serve(async (req) => {
 
     console.log(`Total de pedidos: ${allOrders.length}`);
 
+    // Sample 5 orders for debugging - show their structure
+    if (debug && allOrders.length > 0) {
+      console.log('=== DEBUG: Amostra de pedidos ===');
+      for (let i = 0; i < Math.min(5, allOrders.length); i++) {
+        const o = allOrders[i];
+        console.log(`Pedido ${o.numero}: loja=${JSON.stringify(o.loja)}, origem=${JSON.stringify(o.origem)}, canal=${o.canal}, numeroPedidoLoja=${o.numeroPedidoLoja}`);
+      }
+    }
+
     // Filter orders by marketplace
     const marketplaceOrders: any[] = [];
+    let debugCount = 0;
     
     for (const order of allOrders) {
-      const detectedMarketplace = detectMarketplace(order);
+      // Debug first 10 orders to see structure
+      const shouldDebug = debug && debugCount < 10;
+      const detectedMarketplace = detectMarketplace(order, shouldDebug);
+      if (shouldDebug) debugCount++;
       
       if (detectedMarketplace) {
         // If marketplace filter is specified, only include matching orders
@@ -225,6 +262,13 @@ serve(async (req) => {
     }
 
     console.log(`Pedidos de marketplaces encontrados: ${marketplaceOrders.length}`);
+    
+    // Log breakdown by marketplace
+    const byMarketplace: Record<string, number> = {};
+    for (const o of marketplaceOrders) {
+      byMarketplace[o.detected_marketplace] = (byMarketplace[o.detected_marketplace] || 0) + 1;
+    }
+    console.log('Breakdown por marketplace:', JSON.stringify(byMarketplace));
 
     // Upsert orders into database
     let syncedCount = 0;
@@ -285,6 +329,7 @@ serve(async (req) => {
       totalOrders: allOrders.length,
       marketplaceOrders: marketplaceOrders.length,
       syncedCount,
+      byMarketplace,
       summary,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
