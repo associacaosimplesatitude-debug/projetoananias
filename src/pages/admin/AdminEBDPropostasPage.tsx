@@ -342,6 +342,8 @@ export default function AdminEBDPropostasPage() {
         return <Badge variant="outline" className="border-yellow-500 text-yellow-600"><CreditCard className="w-3 h-3 mr-1" /> Aguardando Pagamento</Badge>;
       case "FATURADO":
         return <Badge variant="outline" className="border-blue-500 text-blue-600"><FileText className="w-3 h-3 mr-1" /> Faturado</Badge>;
+      case "PAGO":
+        return <Badge variant="default" className="bg-green-700"><CheckCircle className="w-3 h-3 mr-1" /> Pago</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -357,8 +359,17 @@ export default function AdminEBDPropostasPage() {
     );
   });
 
-  const propostasPendentes = filteredPropostas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
-  const propostasAceitas = filteredPropostas?.filter(p => p.status === "PROPOSTA_ACEITA") || [];
+  // Filter proposals that should appear in the "Propostas Digitais" tab
+  // Only show PROPOSTA_PENDENTE, PROPOSTA_ACEITA, and AGUARDANDO_PAGAMENTO
+  // FATURADO and PAGO should only appear in "Pedidos Confirmados"
+  const propostasAtivas = filteredPropostas?.filter(p => 
+    p.status === "PROPOSTA_PENDENTE" || 
+    p.status === "PROPOSTA_ACEITA" || 
+    p.status === "AGUARDANDO_PAGAMENTO"
+  ) || [];
+  
+  const propostasPendentes = propostasAtivas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
+  const propostasAceitas = propostasAtivas?.filter(p => p.status === "PROPOSTA_ACEITA") || [];
 
   return (
     <div className="space-y-6">
@@ -371,8 +382,8 @@ export default function AdminEBDPropostasPage() {
         <TabsList>
           <TabsTrigger value="propostas" className="flex items-center gap-2">
             Propostas Digitais
-            {(propostasPendentes.length + propostasAceitas.length) > 0 && (
-              <Badge variant="secondary" className="ml-1">{propostasPendentes.length + propostasAceitas.length}</Badge>
+            {propostasAtivas.length > 0 && (
+              <Badge variant="secondary" className="ml-1">{propostasAtivas.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="pedidos">Pedidos Confirmados</TabsTrigger>
@@ -393,13 +404,13 @@ export default function AdminEBDPropostasPage() {
 
           {isLoadingPropostas ? (
             <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-          ) : filteredPropostas?.length === 0 ? (
+          ) : propostasAtivas?.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {searchTerm ? "Nenhuma proposta encontrada" : "Nenhuma proposta gerada ainda"}
+              {searchTerm ? "Nenhuma proposta encontrada" : "Nenhuma proposta ativa"}
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredPropostas?.map((proposta) => (
+              {propostasAtivas?.map((proposta) => (
                 <Card key={proposta.id}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">

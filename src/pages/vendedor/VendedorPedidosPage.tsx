@@ -304,6 +304,8 @@ export default function VendedorPedidosPage() {
         return <Badge variant="outline" className="border-yellow-500 text-yellow-600"><CreditCard className="w-3 h-3 mr-1" /> Aguardando Pagamento</Badge>;
       case "FATURADO":
         return <Badge variant="outline" className="border-blue-500 text-blue-600"><FileText className="w-3 h-3 mr-1" /> Faturado</Badge>;
+      case "PAGO":
+        return <Badge variant="default" className="bg-green-700"><CheckCircle className="w-3 h-3 mr-1" /> Pago</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -317,8 +319,17 @@ export default function VendedorPedidosPage() {
     );
   }
 
-  const propostasPendentes = propostas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
-  const propostasAceitas = propostas?.filter(p => p.status === "PROPOSTA_ACEITA") || [];
+  // Filter proposals that should appear in the "Propostas Digitais" tab
+  // Only show PROPOSTA_PENDENTE, PROPOSTA_ACEITA, and AGUARDANDO_PAGAMENTO
+  // FATURADO and PAGO should only appear in "Pedidos Confirmados"
+  const propostasAtivas = propostas?.filter(p => 
+    p.status === "PROPOSTA_PENDENTE" || 
+    p.status === "PROPOSTA_ACEITA" || 
+    p.status === "AGUARDANDO_PAGAMENTO"
+  ) || [];
+  
+  const propostasPendentes = propostasAtivas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
+  const propostasAceitas = propostasAtivas?.filter(p => p.status === "PROPOSTA_ACEITA") || [];
 
   return (
     <div className="space-y-6">
@@ -331,8 +342,8 @@ export default function VendedorPedidosPage() {
         <TabsList>
           <TabsTrigger value="propostas" className="flex items-center gap-2">
             Propostas Digitais
-            {(propostasPendentes.length + propostasAceitas.length) > 0 && (
-              <Badge variant="secondary" className="ml-1">{propostasPendentes.length + propostasAceitas.length}</Badge>
+            {propostasAtivas.length > 0 && (
+              <Badge variant="secondary" className="ml-1">{propostasAtivas.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="pedidos">Pedidos Confirmados</TabsTrigger>
@@ -341,13 +352,13 @@ export default function VendedorPedidosPage() {
         <TabsContent value="propostas" className="space-y-4 mt-4">
           {isLoadingPropostas ? (
             <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-          ) : propostas?.length === 0 ? (
+          ) : propostasAtivas?.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Nenhuma proposta gerada ainda
+              Nenhuma proposta ativa
             </div>
           ) : (
             <div className="space-y-3">
-              {propostas?.map((proposta) => (
+              {propostasAtivas?.map((proposta) => (
                 <Card key={proposta.id}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">

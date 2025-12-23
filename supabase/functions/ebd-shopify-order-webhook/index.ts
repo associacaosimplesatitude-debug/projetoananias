@@ -211,6 +211,50 @@ serve(async (req) => {
 
     console.log("Order saved successfully:", data);
 
+    // If payment is confirmed (paid), update related vendedor_propostas status to PAGO
+    if (statusPagamento === "paid") {
+      console.log("Payment confirmed, checking for related proposal...");
+      
+      // Try to find and update the proposal by matching cliente_id and approximate value
+      if (clienteId) {
+        // Find proposals for this client that are in AGUARDANDO_PAGAMENTO status
+        const { data: propostas, error: propostaError } = await supabase
+          .from("vendedor_propostas")
+          .select("id, valor_total")
+          .eq("cliente_id", clienteId)
+          .eq("status", "AGUARDANDO_PAGAMENTO");
+        
+        if (propostaError) {
+          console.error("Error fetching propostas:", propostaError);
+        } else if (propostas && propostas.length > 0) {
+          // Find the proposal that matches the order value (with small tolerance for rounding)
+          const matchingProposta = propostas.find(p => {
+            const diff = Math.abs(p.valor_total - valorTotal);
+            return diff < 1; // Allow 1 BRL tolerance for rounding differences
+          });
+          
+          if (matchingProposta) {
+            console.log("Found matching proposal:", matchingProposta.id);
+            
+            const { error: updateError } = await supabase
+              .from("vendedor_propostas")
+              .update({ status: "PAGO" })
+              .eq("id", matchingProposta.id);
+            
+            if (updateError) {
+              console.error("Error updating proposal status:", updateError);
+            } else {
+              console.log("Proposal status updated to PAGO");
+            }
+          } else {
+            console.log("No matching proposal found for order value:", valorTotal);
+          }
+        } else {
+          console.log("No pending proposals found for cliente:", clienteId);
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
