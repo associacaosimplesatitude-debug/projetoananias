@@ -121,7 +121,10 @@ serve(async (req) => {
         valor_frete: parseFloat(shippingPrice) || 0,
         codigo_rastreio: tracking?.tracking_number || null,
         url_rastreio: tracking?.tracking_url || null,
-        order_date: order.created_at, // Use actual order date from Shopify
+        // IMPORTANT: use Shopify's real order date for metrics
+        order_date: order.created_at,
+        // Keep created_at aligned to the real order date as well (legacy screens still use created_at)
+        created_at: order.created_at,
         updated_at: new Date().toISOString(),
       };
     });
