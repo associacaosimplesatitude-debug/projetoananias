@@ -79,6 +79,14 @@ function StandardCard({ icon, title, value, periodLabel, colorClass, borderColor
   );
 }
 
+interface MarketplacePedido {
+  id: string;
+  marketplace: string;
+  order_date: string | null;
+  valor_total: number;
+  created_at: string;
+}
+
 export function SalesChannelCards({
   dashboardKPIs,
   totalEbdClients,
@@ -89,7 +97,8 @@ export function SalesChannelCards({
   vendedorStats,
   propostasDigitaisAbertas,
   pedidosBlingPendentes,
-}: SalesChannelCardsProps) {
+  marketplacePedidos = [],
+}: SalesChannelCardsProps & { marketplacePedidos?: MarketplacePedido[] }) {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("today");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
@@ -182,16 +191,33 @@ export function SalesChannelCards({
     };
   }, [shopifyOrders, shopifyCGOrders, vendedorStats, dateRange]);
 
-  // Placeholder data for future marketplace integrations
-  const marketplaceData = {
-    amazon: { valor: 0, qtd: 0 },
-    shopee: { valor: 0, qtd: 0 },
-    mercadoLivre: { valor: 0, qtd: 0 },
-    advecs: { valor: 0, qtd: 0 },
-    revendedores: { valor: 0, qtd: 0 },
-    atacado: { valor: 0, qtd: 0 },
-    representantes: { valor: 0, qtd: 0 },
-  };
+  // Calculate marketplace data from marketplacePedidos
+  const marketplaceData = useMemo(() => {
+    const { start, end } = dateRange;
+    
+    const filterByRange = (orders: MarketplacePedido[]) => {
+      return orders.filter(o => {
+        const dateField = o.order_date || o.created_at;
+        if (!dateField) return false;
+        const orderDate = parseISO(dateField);
+        return isWithinInterval(orderDate, { start, end });
+      });
+    };
+
+    const amazonOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'AMAZON'));
+    const shopeeOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'SHOPEE'));
+    const mlOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'MERCADO_LIVRE'));
+
+    return {
+      amazon: { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length },
+      shopee: { valor: shopeeOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: shopeeOrders.length },
+      mercadoLivre: { valor: mlOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: mlOrders.length },
+      advecs: { valor: 0, qtd: 0 },
+      revendedores: { valor: 0, qtd: 0 },
+      atacado: { valor: 0, qtd: 0 },
+      representantes: { valor: 0, qtd: 0 },
+    };
+  }, [marketplacePedidos, dateRange]);
 
   const periodButtons = [
     { value: "today" as PeriodFilter, label: "Hoje" },

@@ -315,6 +315,63 @@ export type Database = {
         }
         Relationships: []
       }
+      bling_marketplace_pedidos: {
+        Row: {
+          bling_order_id: number
+          codigo_rastreio: string | null
+          created_at: string
+          customer_document: string | null
+          customer_email: string | null
+          customer_name: string | null
+          id: string
+          marketplace: string
+          order_date: string | null
+          order_number: string
+          status_logistico: string | null
+          status_pagamento: string
+          updated_at: string
+          url_rastreio: string | null
+          valor_frete: number
+          valor_total: number
+        }
+        Insert: {
+          bling_order_id: number
+          codigo_rastreio?: string | null
+          created_at?: string
+          customer_document?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          id?: string
+          marketplace: string
+          order_date?: string | null
+          order_number: string
+          status_logistico?: string | null
+          status_pagamento?: string
+          updated_at?: string
+          url_rastreio?: string | null
+          valor_frete?: number
+          valor_total?: number
+        }
+        Update: {
+          bling_order_id?: number
+          codigo_rastreio?: string | null
+          created_at?: string
+          customer_document?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          id?: string
+          marketplace?: string
+          order_date?: string | null
+          order_number?: string
+          status_logistico?: string | null
+          status_pagamento?: string
+          updated_at?: string
+          url_rastreio?: string | null
+          valor_frete?: number
+          valor_total?: number
+        }
+        Relationships: []
+      }
       board_mandates: {
         Row: {
           church_id: string
