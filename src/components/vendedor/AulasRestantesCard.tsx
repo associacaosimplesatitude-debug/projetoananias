@@ -135,10 +135,6 @@ export function AulasRestantesCard({ vendedorId }: AulasRestantesCardProps) {
 
   const totalWithProgress = (churchProgress?.length || 0);
 
-  if (totalWithProgress === 0) {
-    return null;
-  }
-
   return (
     <>
       <Card>
