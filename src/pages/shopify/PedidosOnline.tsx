@@ -60,7 +60,10 @@ interface ShopifyPedido {
   valor_para_meta: number;
   customer_email: string | null;
   customer_name: string | null;
+  // created_at is legacy but now will be aligned with the real order date
   created_at: string;
+  // preferred field for the real order date
+  order_date?: string | null;
   codigo_rastreio: string | null;
   url_rastreio: string | null;
   cliente?: {
@@ -201,6 +204,9 @@ export default function PedidosOnline() {
     },
   });
 
+  // Helper to get the correct order date (prefer order_date, fallback to created_at)
+  const getPedidoDate = (pedido: ShopifyPedido) => pedido.order_date || pedido.created_at;
+
   // Filter pedidos by date range
   const filteredByDate = useMemo(() => {
     if (!pedidos) return [];
@@ -210,14 +216,14 @@ export default function PedidosOnline() {
     switch (dateFilter) {
       case "last_7_days": {
         const sevenDaysAgo = subDays(now, 7);
-        return pedidos.filter((p) => new Date(p.created_at) >= sevenDaysAgo);
+        return pedidos.filter((p) => new Date(getPedidoDate(p)) >= sevenDaysAgo);
       }
       case "last_month": {
         const lastMonth = subMonths(now, 1);
         const start = startOfMonth(lastMonth);
         const end = endOfMonth(lastMonth);
         return pedidos.filter((p) => {
-          const date = new Date(p.created_at);
+          const date = new Date(getPedidoDate(p));
           return isWithinInterval(date, { start, end });
         });
       }
@@ -226,7 +232,7 @@ export default function PedidosOnline() {
         const start = customDateRange.from;
         const end = customDateRange.to || customDateRange.from;
         return pedidos.filter((p) => {
-          const date = new Date(p.created_at);
+          const date = new Date(getPedidoDate(p));
           return isWithinInterval(date, {
             start,
             end: new Date(end.getTime() + 86400000 - 1),
@@ -513,7 +519,7 @@ export default function PedidosOnline() {
                         #{pedido.order_number}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
-                        {formatDate(pedido.created_at)}
+                        {formatDate(getPedidoDate(pedido))}
                       </TableCell>
                       <TableCell>
                         <div>
