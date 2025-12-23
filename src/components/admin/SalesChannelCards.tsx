@@ -1,16 +1,11 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { 
   DollarSign, 
   ShoppingCart, 
   TrendingUp,
   Clock,
-  Truck,
-  Trophy,
   Users,
-  GraduationCap,
-  BookOpen,
   Church,
   Package,
   Store,
@@ -51,6 +46,36 @@ interface SalesChannelCardsProps {
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+
+// Componente de Card padronizado
+interface StandardCardProps {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  todayLabel: string;
+  sevenDayLabel: string;
+  colorClass: string;
+  borderColorClass: string;
+  bgClass: string;
+}
+
+function StandardCard({ icon, title, value, todayLabel, sevenDayLabel, colorClass, borderColorClass, bgClass }: StandardCardProps) {
+  return (
+    <div className={`p-4 rounded-xl border-2 ${borderColorClass} ${bgClass} flex flex-col h-full min-h-[140px]`}>
+      <div className="flex items-center gap-2 mb-2">
+        {icon}
+        <span className={`text-xs font-medium ${colorClass}`}>{title}</span>
+      </div>
+      <p className={`text-xl font-bold ${colorClass} mb-auto`}>{value}</p>
+      <div className={`text-xs ${colorClass} opacity-80 mt-2 pt-2 border-t border-current/20`}>
+        <div className="flex justify-between">
+          <span>Hoje: {todayLabel}</span>
+          <span>7d: {sevenDayLabel}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function SalesChannelCards({
   dashboardKPIs,
@@ -169,274 +194,159 @@ export function SalesChannelCards({
         <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Primeira linha - Cards principais existentes */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Pedidos Online (CG) */}
-          <div className="p-5 rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 dark:border-blue-800">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5 text-blue-600" />
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Pedidos Online</span>
-              </div>
-              <Badge variant="secondary" className="bg-blue-200 text-blue-800 dark:bg-blue-800 dark:text-blue-200">
-                {dashboardKPIs.totalPedidosOnline} pedidos
-              </Badge>
-            </div>
-            <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
-              {formatCurrency(dashboardKPIs.valorPedidosOnline)}
-            </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-              {dashboardKPIs.pedidosOnlinePagos} pagos • {dashboardKPIs.recorrentesCG} recorrentes
-            </p>
-            <div className="mt-2 pt-2 border-t border-blue-200 dark:border-blue-700 grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-blue-600 dark:text-blue-400">Hoje:</span>
-                <span className="ml-1 font-medium">{dailyMetrics.onlineToday} vendas</span>
-              </div>
-              <div>
-                <span className="text-blue-600 dark:text-blue-400">7 dias:</span>
-                <span className="ml-1 font-medium">{dailyMetrics.online7Days} vendas</span>
-              </div>
-            </div>
-          </div>
+        {/* Grid unificado de todos os canais de venda */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* Pedidos Online */}
+          <StandardCard
+            icon={<ShoppingCart className="h-4 w-4 text-blue-600" />}
+            title="Pedidos Online"
+            value={formatCurrency(dailyMetrics.valorOnlineToday)}
+            todayLabel={`${dailyMetrics.onlineToday}`}
+            sevenDayLabel={`${dailyMetrics.online7Days}`}
+            colorClass="text-blue-700 dark:text-blue-300"
+            borderColorClass="border-blue-200 dark:border-blue-800"
+            bgClass="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
+          />
 
           {/* Pedidos Igrejas */}
-          <div className="p-5 rounded-xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 dark:border-green-800">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Church className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-green-700 dark:text-green-300">Pedidos Igrejas</span>
-              </div>
-              <Badge variant="secondary" className="bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200">
-                {dashboardKPIs.totalPedidosIgrejas} pedidos
-              </Badge>
-            </div>
-            <p className="text-3xl font-bold text-green-900 dark:text-green-100">
-              {formatCurrency(dashboardKPIs.valorPedidosIgrejas)}
-            </p>
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-              {dashboardKPIs.pedidosIgrejasPagos} pagos • {dashboardKPIs.recorrentesIgrejas} recorrentes
-            </p>
-            <div className="mt-2 pt-2 border-t border-green-200 dark:border-green-700 grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-green-600 dark:text-green-400">Hoje:</span>
-                <span className="ml-1 font-medium">{dailyMetrics.igrejasToday} vendas</span>
-              </div>
-              <div>
-                <span className="text-green-600 dark:text-green-400">7 dias:</span>
-                <span className="ml-1 font-medium">{dailyMetrics.igrejas7Days} vendas</span>
-              </div>
-            </div>
-          </div>
+          <StandardCard
+            icon={<Church className="h-4 w-4 text-green-600" />}
+            title="Pedidos Igrejas"
+            value={formatCurrency(dailyMetrics.valorIgrejasToday)}
+            todayLabel={`${dailyMetrics.igrejasToday}`}
+            sevenDayLabel={`${dailyMetrics.igrejas7Days}`}
+            colorClass="text-green-700 dark:text-green-300"
+            borderColorClass="border-green-200 dark:border-green-800"
+            bgClass="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
+          />
 
-          {/* Total Consolidado */}
-          <div className="p-5 rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-950 dark:to-emerald-900 dark:border-emerald-700">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-emerald-700" />
-                <span className="text-sm font-bold text-emerald-800 dark:text-emerald-200">TOTAL VENDAS</span>
-              </div>
-              <Badge variant="secondary" className="bg-emerald-300 text-emerald-900 dark:bg-emerald-700 dark:text-emerald-100">
-                {dashboardKPIs.totalPedidosPagos} pedidos
-              </Badge>
-            </div>
-            <p className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">
-              {formatCurrency(dashboardKPIs.valorTotalPago)}
-            </p>
-            <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
-              {dashboardKPIs.totalRecorrentes} clientes recorrentes
-            </p>
-            <div className="mt-2 pt-2 border-t border-emerald-300 dark:border-emerald-600 grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <span className="text-emerald-700 dark:text-emerald-300">Hoje:</span>
-                <span className="ml-1 font-medium">{formatCurrency(dailyMetrics.valorTotalToday)}</span>
-              </div>
-              <div>
-                <span className="text-emerald-700 dark:text-emerald-300">7 dias:</span>
-                <span className="ml-1 font-medium">{formatCurrency(dailyMetrics.valorTotal7Days)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Canais de Venda - Marketplaces */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           {/* Amazon */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="h-4 w-4 text-orange-600" />
-              <span className="text-xs font-medium text-orange-700 dark:text-orange-300">Amazon</span>
-            </div>
-            <p className="text-lg font-bold text-orange-900 dark:text-orange-100">{formatCurrency(marketplaceData.amazon.valorDia)}</p>
-            <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-              <span>{marketplaceData.amazon.vendasDia} hoje</span>
-              <span className="mx-1">•</span>
-              <span>{marketplaceData.amazon.vendas7Dias} 7d</span>
-            </div>
-          </div>
+          <StandardCard
+            icon={<Package className="h-4 w-4 text-orange-600" />}
+            title="Amazon"
+            value={formatCurrency(marketplaceData.amazon.valorDia)}
+            todayLabel={`${marketplaceData.amazon.vendasDia}`}
+            sevenDayLabel={`${marketplaceData.amazon.vendas7Dias}`}
+            colorClass="text-orange-700 dark:text-orange-300"
+            borderColorClass="border-orange-200 dark:border-orange-800"
+            bgClass="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
+          />
 
           {/* Shopee */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Store className="h-4 w-4 text-red-600" />
-              <span className="text-xs font-medium text-red-700 dark:text-red-300">Shopee</span>
-            </div>
-            <p className="text-lg font-bold text-red-900 dark:text-red-100">{formatCurrency(marketplaceData.shopee.valorDia)}</p>
-            <div className="text-xs text-red-600 dark:text-red-400 mt-1">
-              <span>{marketplaceData.shopee.vendasDia} hoje</span>
-              <span className="mx-1">•</span>
-              <span>{marketplaceData.shopee.vendas7Dias} 7d</span>
-            </div>
-          </div>
+          <StandardCard
+            icon={<Store className="h-4 w-4 text-red-600" />}
+            title="Shopee"
+            value={formatCurrency(marketplaceData.shopee.valorDia)}
+            todayLabel={`${marketplaceData.shopee.vendasDia}`}
+            sevenDayLabel={`${marketplaceData.shopee.vendas7Dias}`}
+            colorClass="text-red-700 dark:text-red-300"
+            borderColorClass="border-red-200 dark:border-red-800"
+            bgClass="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900"
+          />
 
           {/* Mercado Livre */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900">
-            <div className="flex items-center gap-2 mb-1">
-              <ShoppingCart className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Mercado Livre</span>
-            </div>
-            <p className="text-lg font-bold text-yellow-900 dark:text-yellow-100">{formatCurrency(marketplaceData.mercadoLivre.valorDia)}</p>
-            <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-              <span>{marketplaceData.mercadoLivre.vendasDia} hoje</span>
-              <span className="mx-1">•</span>
-              <span>{marketplaceData.mercadoLivre.vendas7Dias} 7d</span>
-            </div>
-          </div>
+          <StandardCard
+            icon={<ShoppingCart className="h-4 w-4 text-yellow-600" />}
+            title="Mercado Livre"
+            value={formatCurrency(marketplaceData.mercadoLivre.valorDia)}
+            todayLabel={`${marketplaceData.mercadoLivre.vendasDia}`}
+            sevenDayLabel={`${marketplaceData.mercadoLivre.vendas7Dias}`}
+            colorClass="text-yellow-700 dark:text-yellow-300"
+            borderColorClass="border-yellow-200 dark:border-yellow-800"
+            bgClass="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900"
+          />
 
           {/* ADVECS */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Building2 className="h-4 w-4 text-teal-600" />
-              <span className="text-xs font-medium text-teal-700 dark:text-teal-300">ADVECS</span>
-            </div>
-            <p className="text-lg font-bold text-teal-900 dark:text-teal-100">{formatCurrency(marketplaceData.advecs.valorDia)}</p>
-            <div className="text-xs text-teal-600 dark:text-teal-400 mt-1">
-              <span>{marketplaceData.advecs.vendasDia} hoje</span>
-              <span className="mx-1">•</span>
-              <span>{marketplaceData.advecs.vendas7Dias} 7d</span>
-            </div>
-          </div>
+          <StandardCard
+            icon={<Building2 className="h-4 w-4 text-teal-600" />}
+            title="ADVECS"
+            value={formatCurrency(marketplaceData.advecs.valorDia)}
+            todayLabel={`${marketplaceData.advecs.vendasDia}`}
+            sevenDayLabel={`${marketplaceData.advecs.vendas7Dias}`}
+            colorClass="text-teal-700 dark:text-teal-300"
+            borderColorClass="border-teal-200 dark:border-teal-800"
+            bgClass="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
+          />
 
           {/* Revendedores */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900">
-            <div className="flex items-center gap-2 mb-1">
-              <UserCheck className="h-4 w-4 text-violet-600" />
-              <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Revendedores</span>
-            </div>
-            <p className="text-lg font-bold text-violet-900 dark:text-violet-100">{formatCurrency(marketplaceData.revendedores.valorDia)}</p>
-            <div className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-              <span>{marketplaceData.revendedores.vendasDia} hoje</span>
-              <span className="mx-1">•</span>
-              <span>{marketplaceData.revendedores.vendas7Dias} 7d</span>
-            </div>
-          </div>
+          <StandardCard
+            icon={<UserCheck className="h-4 w-4 text-violet-600" />}
+            title="Revendedores"
+            value={formatCurrency(marketplaceData.revendedores.valorDia)}
+            todayLabel={`${marketplaceData.revendedores.vendasDia}`}
+            sevenDayLabel={`${marketplaceData.revendedores.vendas7Dias}`}
+            colorClass="text-violet-700 dark:text-violet-300"
+            borderColorClass="border-violet-200 dark:border-violet-800"
+            bgClass="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
+          />
 
           {/* Atacado */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Briefcase className="h-4 w-4 text-sky-600" />
-              <span className="text-xs font-medium text-sky-700 dark:text-sky-300">Atacado</span>
-            </div>
-            <p className="text-lg font-bold text-sky-900 dark:text-sky-100">{formatCurrency(marketplaceData.atacado.valorDia)}</p>
-            <div className="text-xs text-sky-600 dark:text-sky-400 mt-1">
-              <span>{marketplaceData.atacado.vendasDia} hoje</span>
-              <span className="mx-1">•</span>
-              <span>{marketplaceData.atacado.vendas7Dias} 7d</span>
-            </div>
-          </div>
+          <StandardCard
+            icon={<Briefcase className="h-4 w-4 text-sky-600" />}
+            title="Atacado"
+            value={formatCurrency(marketplaceData.atacado.valorDia)}
+            todayLabel={`${marketplaceData.atacado.vendasDia}`}
+            sevenDayLabel={`${marketplaceData.atacado.vendas7Dias}`}
+            colorClass="text-sky-700 dark:text-sky-300"
+            borderColorClass="border-sky-200 dark:border-sky-800"
+            bgClass="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
+          />
 
           {/* Representantes */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Users className="h-4 w-4 text-rose-600" />
-              <span className="text-xs font-medium text-rose-700 dark:text-rose-300">Representantes</span>
-            </div>
-            <p className="text-lg font-bold text-rose-900 dark:text-rose-100">{formatCurrency(marketplaceData.representantes.valorDia)}</p>
-            <div className="text-xs text-rose-600 dark:text-rose-400 mt-1">
-              <span>{marketplaceData.representantes.vendasDia} hoje</span>
-              <span className="mx-1">•</span>
-              <span>{marketplaceData.representantes.vendas7Dias} 7d</span>
-            </div>
-          </div>
+          <StandardCard
+            icon={<Users className="h-4 w-4 text-rose-600" />}
+            title="Representantes"
+            value={formatCurrency(marketplaceData.representantes.valorDia)}
+            todayLabel={`${marketplaceData.representantes.vendasDia}`}
+            sevenDayLabel={`${marketplaceData.representantes.vendas7Dias}`}
+            colorClass="text-rose-700 dark:text-rose-300"
+            borderColorClass="border-rose-200 dark:border-rose-800"
+            bgClass="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
+          />
+
+          {/* TOTAL GERAL */}
+          <StandardCard
+            icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
+            title="TOTAL GERAL"
+            value={formatCurrency(dailyMetrics.valorTotalToday)}
+            todayLabel={formatCurrency(dailyMetrics.valorTotalToday)}
+            sevenDayLabel={formatCurrency(dailyMetrics.valorTotal7Days)}
+            colorClass="text-emerald-700 dark:text-emerald-300"
+            borderColorClass="border-emerald-300 dark:border-emerald-700"
+            bgClass="bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-950 dark:to-emerald-900"
+          />
         </div>
 
-        {/* Card TOTAL GERAL do Dia */}
-        <div className="p-4 rounded-xl border-2 border-primary bg-gradient-to-br from-primary/5 to-primary/10 dark:from-primary/20 dark:to-primary/30">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-6 w-6 text-primary" />
-              <div>
-                <span className="text-sm font-bold text-primary">TOTAL GERAL DO DIA</span>
-                <p className="text-3xl font-bold text-foreground">{formatCurrency(dailyMetrics.valorTotalToday)}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-xs text-muted-foreground">Últimos 7 dias</span>
-              <p className="text-xl font-bold text-muted-foreground">{formatCurrency(dailyMetrics.valorTotal7Days)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Cards de Status e Gestão */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-          {/* Propostas Pendentes */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900">
-            <div className="flex items-center gap-2 mb-1">
+        {/* Cards de Gestão */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Propostas Abertas */}
+          <div className="p-4 rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 dark:border-amber-800">
+            <div className="flex items-center gap-2 mb-2">
               <FileText className="h-4 w-4 text-amber-600" />
               <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Propostas Abertas</span>
             </div>
-            <p className="text-xl font-bold text-amber-900 dark:text-amber-100">{propostasDigitaisAbertas}</p>
-            <p className="text-xs text-amber-600 dark:text-amber-400">propostas digitais</p>
+            <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">{propostasDigitaisAbertas}</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">propostas digitais pendentes</p>
           </div>
 
           {/* Pedidos Bling Pendentes */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Pendentes Bling</span>
+          <div className="p-4 rounded-xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 dark:border-purple-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="h-4 w-4 text-purple-600" />
+              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Pedidos Pendentes</span>
             </div>
-            <p className="text-xl font-bold text-yellow-900 dark:text-yellow-100">{pedidosBlingPendentes}</p>
-            <p className="text-xs text-yellow-600 dark:text-yellow-400">pedidos pendentes</p>
+            <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{pedidosBlingPendentes}</p>
+            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">aguardando envio ao Bling</p>
           </div>
 
           {/* Custo de Comissão */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-lime-50 to-lime-100 dark:from-lime-950 dark:to-lime-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Percent className="h-4 w-4 text-lime-600" />
-              <span className="text-xs font-medium text-lime-700 dark:text-lime-300">Comissão (Dia)</span>
+          <div className="p-4 rounded-xl border-2 border-pink-200 bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900 dark:border-pink-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Percent className="h-4 w-4 text-pink-600" />
+              <span className="text-xs font-medium text-pink-700 dark:text-pink-300">Custo de Comissão</span>
             </div>
-            <p className="text-xl font-bold text-lime-900 dark:text-lime-100">{formatCurrency(dailyMetrics.comissaoToday)}</p>
-            <p className="text-xs text-lime-600 dark:text-lime-400">7d: {formatCurrency(dailyMetrics.comissao7Days)}</p>
-          </div>
-
-          {/* Pedidos Faturados */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Truck className="h-4 w-4 text-purple-600" />
-              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Faturados</span>
-            </div>
-            <p className="text-xl font-bold text-purple-900 dark:text-purple-100">{dashboardKPIs.pedidosFaturados}</p>
-            <p className="text-xs text-purple-600 dark:text-purple-400">
-              {formatCurrency(dashboardKPIs.valorFaturados)}
-            </p>
-          </div>
-
-          {/* Clientes EBD */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Users className="h-4 w-4 text-indigo-600" />
-              <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Clientes EBD</span>
-            </div>
-            <p className="text-xl font-bold text-indigo-900 dark:text-indigo-100">{totalEbdClients}</p>
-          </div>
-
-          {/* Total Alunos */}
-          <div className="p-3 rounded-lg border bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900">
-            <div className="flex items-center gap-2 mb-1">
-              <GraduationCap className="h-4 w-4 text-cyan-600" />
-              <span className="text-xs font-medium text-cyan-700 dark:text-cyan-300">Alunos</span>
-            </div>
-            <p className="text-xl font-bold text-cyan-900 dark:text-cyan-100">{totalAlunos ?? 0}</p>
+            <p className="text-2xl font-bold text-pink-900 dark:text-pink-100">{formatCurrency(dailyMetrics.comissaoToday)}</p>
+            <p className="text-xs text-pink-600 dark:text-pink-400 mt-1">7 dias: {formatCurrency(dailyMetrics.comissao7Days)}</p>
           </div>
         </div>
       </CardContent>
