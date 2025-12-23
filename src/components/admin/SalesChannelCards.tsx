@@ -1,5 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { 
   DollarSign, 
   ShoppingCart, 
@@ -14,8 +17,11 @@ import {
   UserCheck,
   FileText,
   Percent,
+  CalendarIcon,
 } from "lucide-react";
-import { startOfDay, subDays, parseISO, isWithinInterval, endOfDay } from "date-fns";
+import { startOfDay, subDays, parseISO, isWithinInterval, endOfDay, format, startOfMonth, subMonths } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface SalesChannelCardsProps {
   dashboardKPIs: {
@@ -47,32 +53,28 @@ interface SalesChannelCardsProps {
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+type PeriodFilter = "today" | "7days" | "30days" | "custom";
+
 // Componente de Card padronizado
 interface StandardCardProps {
   icon: React.ReactNode;
   title: string;
   value: string;
-  todayLabel: string;
-  sevenDayLabel: string;
+  periodLabel: string;
   colorClass: string;
   borderColorClass: string;
   bgClass: string;
 }
 
-function StandardCard({ icon, title, value, todayLabel, sevenDayLabel, colorClass, borderColorClass, bgClass }: StandardCardProps) {
+function StandardCard({ icon, title, value, periodLabel, colorClass, borderColorClass, bgClass }: StandardCardProps) {
   return (
-    <div className={`p-4 rounded-xl border-2 ${borderColorClass} ${bgClass} flex flex-col h-full min-h-[140px]`}>
+    <div className={`p-4 rounded-xl border-2 ${borderColorClass} ${bgClass} flex flex-col h-full min-h-[120px]`}>
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <span className={`text-xs font-medium ${colorClass}`}>{title}</span>
       </div>
       <p className={`text-xl font-bold ${colorClass} mb-auto`}>{value}</p>
-      <div className={`text-xs ${colorClass} opacity-80 mt-2 pt-2 border-t border-current/20`}>
-        <div className="flex justify-between">
-          <span>Hoje: {todayLabel}</span>
-          <span>7d: {sevenDayLabel}</span>
-        </div>
-      </div>
+      <p className={`text-xs ${colorClass} opacity-70 mt-1`}>{periodLabel}</p>
     </div>
   );
 }
@@ -88,15 +90,44 @@ export function SalesChannelCards({
   propostasDigitaisAbertas,
   pedidosBlingPendentes,
 }: SalesChannelCardsProps) {
-  
-  // Calculate daily and 7-day metrics
-  const dailyMetrics = useMemo(() => {
-    const today = startOfDay(new Date());
-    const endToday = endOfDay(new Date());
-    const sevenDaysAgo = startOfDay(subDays(new Date(), 7));
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("today");
+  const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+
+  // Calculate date range based on filter
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    const endDate = endOfDay(now);
+    
+    switch (periodFilter) {
+      case "today":
+        return { start: startOfDay(now), end: endDate, label: "Hoje" };
+      case "7days":
+        return { start: startOfDay(subDays(now, 7)), end: endDate, label: "Últimos 7 dias" };
+      case "30days":
+        return { start: startOfDay(subDays(now, 30)), end: endDate, label: "Últimos 30 dias" };
+      case "custom":
+        if (customDateRange.from && customDateRange.to) {
+          return { 
+            start: startOfDay(customDateRange.from), 
+            end: endOfDay(customDateRange.to),
+            label: `${format(customDateRange.from, "dd/MM")} - ${format(customDateRange.to, "dd/MM")}`
+          };
+        }
+        return { start: startOfDay(now), end: endDate, label: "Hoje" };
+      default:
+        return { start: startOfDay(now), end: endDate, label: "Hoje" };
+    }
+  }, [periodFilter, customDateRange]);
+
+  // Calculate metrics based on selected period
+  const periodMetrics = useMemo(() => {
+    const { start, end } = dateRange;
 
     // Helper to filter orders by date range
-    const filterByRange = (orders: any[], start: Date, end: Date) => {
+    const filterByRange = (orders: any[]) => {
       return orders.filter(o => {
         if (!o.created_at) return false;
         const orderDate = parseISO(o.created_at);
@@ -113,85 +144,118 @@ export function SalesChannelCards({
     );
 
     // Pedidos Igrejas (Shopify principal)
-    const igrejasToday = filterByRange(paidShopifyOrders, today, endToday);
-    const igrejas7Days = filterByRange(paidShopifyOrders, sevenDaysAgo, endToday);
-    const valorIgrejasToday = igrejasToday.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-    const valorIgrejas7Days = igrejas7Days.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    const igrejasFiltered = filterByRange(paidShopifyOrders);
+    const valorIgrejas = igrejasFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    const qtdIgrejas = igrejasFiltered.length;
 
     // Pedidos Online (CG)
-    const onlineToday = filterByRange(paidShopifyCGOrders, today, endToday);
-    const online7Days = filterByRange(paidShopifyCGOrders, sevenDaysAgo, endToday);
-    const valorOnlineToday = onlineToday.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-    const valorOnline7Days = online7Days.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    const onlineFiltered = filterByRange(paidShopifyCGOrders);
+    const valorOnline = onlineFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    const qtdOnline = onlineFiltered.length;
 
     // Total
-    const valorTotalToday = valorIgrejasToday + valorOnlineToday;
-    const valorTotal7Days = valorIgrejas7Days + valorOnline7Days;
-    const vendasToday = igrejasToday.length + onlineToday.length;
-    const vendas7Days = igrejas7Days.length + online7Days.length;
+    const valorTotal = valorIgrejas + valorOnline;
+    const qtdTotal = qtdIgrejas + qtdOnline;
 
-    // Commission calculations (daily and 7-day)
-    const comissaoToday = vendedorStats.reduce((sum, v) => {
-      const ordersToday = filterByRange(
-        shopifyOrders.filter(o => o.vendedor_id === v.id),
-        today,
-        endToday
+    // Commission calculations
+    const comissao = vendedorStats.reduce((sum, v) => {
+      const vendedorOrders = filterByRange(
+        shopifyOrders.filter(o => o.vendedor_id === v.id)
       );
-      const valorToday = ordersToday.reduce((s, o) => s + Number(o.valor_para_meta || o.valor_total || 0), 0);
-      return sum + valorToday * (v.comissao_percentual / 100);
-    }, 0);
-
-    const comissao7Days = vendedorStats.reduce((sum, v) => {
-      const orders7d = filterByRange(
-        shopifyOrders.filter(o => o.vendedor_id === v.id),
-        sevenDaysAgo,
-        endToday
-      );
-      const valor7d = orders7d.reduce((s, o) => s + Number(o.valor_para_meta || o.valor_total || 0), 0);
-      return sum + valor7d * (v.comissao_percentual / 100);
+      const valorVendedor = vendedorOrders.reduce((s, o) => s + Number(o.valor_para_meta || o.valor_total || 0), 0);
+      return sum + valorVendedor * (v.comissao_percentual / 100);
     }, 0);
 
     return {
       // Pedidos Online
-      onlineToday: onlineToday.length,
-      online7Days: online7Days.length,
-      valorOnlineToday,
-      valorOnline7Days,
+      qtdOnline,
+      valorOnline,
       // Pedidos Igrejas
-      igrejasToday: igrejasToday.length,
-      igrejas7Days: igrejas7Days.length,
-      valorIgrejasToday,
-      valorIgrejas7Days,
+      qtdIgrejas,
+      valorIgrejas,
       // Total
-      valorTotalToday,
-      valorTotal7Days,
-      vendasToday,
-      vendas7Days,
+      valorTotal,
+      qtdTotal,
       // Comissão
-      comissaoToday,
-      comissao7Days,
+      comissao,
     };
-  }, [shopifyOrders, shopifyCGOrders, vendedorStats]);
+  }, [shopifyOrders, shopifyCGOrders, vendedorStats, dateRange]);
 
   // Placeholder data for future marketplace integrations
   const marketplaceData = {
-    amazon: { valorDia: 0, vendasDia: 0, vendas7Dias: 0 },
-    shopee: { valorDia: 0, vendasDia: 0, vendas7Dias: 0 },
-    mercadoLivre: { valorDia: 0, vendasDia: 0, vendas7Dias: 0 },
-    advecs: { valorDia: 0, vendasDia: 0, vendas7Dias: 0 },
-    revendedores: { valorDia: 0, vendasDia: 0, vendas7Dias: 0 },
-    atacado: { valorDia: 0, vendasDia: 0, vendas7Dias: 0 },
-    representantes: { valorDia: 0, vendasDia: 0, vendas7Dias: 0 },
+    amazon: { valor: 0, qtd: 0 },
+    shopee: { valor: 0, qtd: 0 },
+    mercadoLivre: { valor: 0, qtd: 0 },
+    advecs: { valor: 0, qtd: 0 },
+    revendedores: { valor: 0, qtd: 0 },
+    atacado: { valor: 0, qtd: 0 },
+    representantes: { valor: 0, qtd: 0 },
   };
+
+  const periodButtons = [
+    { value: "today" as PeriodFilter, label: "Hoje" },
+    { value: "7days" as PeriodFilter, label: "7 dias" },
+    { value: "30days" as PeriodFilter, label: "30 dias" },
+  ];
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          Resumo de Vendas
-        </CardTitle>
-        <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Resumo de Vendas
+            </CardTitle>
+            <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
+          </div>
+          
+          {/* Filtro de Período */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {periodButtons.map((btn) => (
+              <Button
+                key={btn.value}
+                variant={periodFilter === btn.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPeriodFilter(btn.value)}
+                className="text-xs"
+              >
+                {btn.label}
+              </Button>
+            ))}
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={periodFilter === "custom" ? "default" : "outline"}
+                  size="sm"
+                  className={cn("text-xs gap-1", periodFilter === "custom" && customDateRange.from && "min-w-[140px]")}
+                >
+                  <CalendarIcon className="h-3 w-3" />
+                  {periodFilter === "custom" && customDateRange.from && customDateRange.to
+                    ? `${format(customDateRange.from, "dd/MM")} - ${format(customDateRange.to, "dd/MM")}`
+                    : "Período"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={customDateRange.from || new Date()}
+                  selected={{ from: customDateRange.from, to: customDateRange.to }}
+                  onSelect={(range) => {
+                    setCustomDateRange({ from: range?.from, to: range?.to });
+                    if (range?.from && range?.to) {
+                      setPeriodFilter("custom");
+                    }
+                  }}
+                  numberOfMonths={2}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Grid unificado de todos os canais de venda */}
@@ -200,9 +264,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<ShoppingCart className="h-4 w-4 text-blue-600" />}
             title="Pedidos Online"
-            value={formatCurrency(dailyMetrics.valorOnlineToday)}
-            todayLabel={`${dailyMetrics.onlineToday}`}
-            sevenDayLabel={`${dailyMetrics.online7Days}`}
+            value={formatCurrency(periodMetrics.valorOnline)}
+            periodLabel={`${periodMetrics.qtdOnline} pedidos`}
             colorClass="text-blue-700 dark:text-blue-300"
             borderColorClass="border-blue-200 dark:border-blue-800"
             bgClass="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
@@ -212,9 +275,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<Church className="h-4 w-4 text-green-600" />}
             title="Pedidos Igrejas"
-            value={formatCurrency(dailyMetrics.valorIgrejasToday)}
-            todayLabel={`${dailyMetrics.igrejasToday}`}
-            sevenDayLabel={`${dailyMetrics.igrejas7Days}`}
+            value={formatCurrency(periodMetrics.valorIgrejas)}
+            periodLabel={`${periodMetrics.qtdIgrejas} pedidos`}
             colorClass="text-green-700 dark:text-green-300"
             borderColorClass="border-green-200 dark:border-green-800"
             bgClass="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
@@ -224,9 +286,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<Package className="h-4 w-4 text-orange-600" />}
             title="Amazon"
-            value={formatCurrency(marketplaceData.amazon.valorDia)}
-            todayLabel={`${marketplaceData.amazon.vendasDia}`}
-            sevenDayLabel={`${marketplaceData.amazon.vendas7Dias}`}
+            value={formatCurrency(marketplaceData.amazon.valor)}
+            periodLabel={`${marketplaceData.amazon.qtd} pedidos`}
             colorClass="text-orange-700 dark:text-orange-300"
             borderColorClass="border-orange-200 dark:border-orange-800"
             bgClass="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
@@ -236,9 +297,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<Store className="h-4 w-4 text-red-600" />}
             title="Shopee"
-            value={formatCurrency(marketplaceData.shopee.valorDia)}
-            todayLabel={`${marketplaceData.shopee.vendasDia}`}
-            sevenDayLabel={`${marketplaceData.shopee.vendas7Dias}`}
+            value={formatCurrency(marketplaceData.shopee.valor)}
+            periodLabel={`${marketplaceData.shopee.qtd} pedidos`}
             colorClass="text-red-700 dark:text-red-300"
             borderColorClass="border-red-200 dark:border-red-800"
             bgClass="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900"
@@ -248,9 +308,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<ShoppingCart className="h-4 w-4 text-yellow-600" />}
             title="Mercado Livre"
-            value={formatCurrency(marketplaceData.mercadoLivre.valorDia)}
-            todayLabel={`${marketplaceData.mercadoLivre.vendasDia}`}
-            sevenDayLabel={`${marketplaceData.mercadoLivre.vendas7Dias}`}
+            value={formatCurrency(marketplaceData.mercadoLivre.valor)}
+            periodLabel={`${marketplaceData.mercadoLivre.qtd} pedidos`}
             colorClass="text-yellow-700 dark:text-yellow-300"
             borderColorClass="border-yellow-200 dark:border-yellow-800"
             bgClass="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900"
@@ -260,9 +319,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<Building2 className="h-4 w-4 text-teal-600" />}
             title="ADVECS"
-            value={formatCurrency(marketplaceData.advecs.valorDia)}
-            todayLabel={`${marketplaceData.advecs.vendasDia}`}
-            sevenDayLabel={`${marketplaceData.advecs.vendas7Dias}`}
+            value={formatCurrency(marketplaceData.advecs.valor)}
+            periodLabel={`${marketplaceData.advecs.qtd} pedidos`}
             colorClass="text-teal-700 dark:text-teal-300"
             borderColorClass="border-teal-200 dark:border-teal-800"
             bgClass="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
@@ -272,9 +330,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<UserCheck className="h-4 w-4 text-violet-600" />}
             title="Revendedores"
-            value={formatCurrency(marketplaceData.revendedores.valorDia)}
-            todayLabel={`${marketplaceData.revendedores.vendasDia}`}
-            sevenDayLabel={`${marketplaceData.revendedores.vendas7Dias}`}
+            value={formatCurrency(marketplaceData.revendedores.valor)}
+            periodLabel={`${marketplaceData.revendedores.qtd} pedidos`}
             colorClass="text-violet-700 dark:text-violet-300"
             borderColorClass="border-violet-200 dark:border-violet-800"
             bgClass="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
@@ -284,9 +341,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<Briefcase className="h-4 w-4 text-sky-600" />}
             title="Atacado"
-            value={formatCurrency(marketplaceData.atacado.valorDia)}
-            todayLabel={`${marketplaceData.atacado.vendasDia}`}
-            sevenDayLabel={`${marketplaceData.atacado.vendas7Dias}`}
+            value={formatCurrency(marketplaceData.atacado.valor)}
+            periodLabel={`${marketplaceData.atacado.qtd} pedidos`}
             colorClass="text-sky-700 dark:text-sky-300"
             borderColorClass="border-sky-200 dark:border-sky-800"
             bgClass="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
@@ -296,9 +352,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<Users className="h-4 w-4 text-rose-600" />}
             title="Representantes"
-            value={formatCurrency(marketplaceData.representantes.valorDia)}
-            todayLabel={`${marketplaceData.representantes.vendasDia}`}
-            sevenDayLabel={`${marketplaceData.representantes.vendas7Dias}`}
+            value={formatCurrency(marketplaceData.representantes.valor)}
+            periodLabel={`${marketplaceData.representantes.qtd} pedidos`}
             colorClass="text-rose-700 dark:text-rose-300"
             borderColorClass="border-rose-200 dark:border-rose-800"
             bgClass="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
@@ -308,9 +363,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
             title="TOTAL GERAL"
-            value={formatCurrency(dailyMetrics.valorTotalToday)}
-            todayLabel={formatCurrency(dailyMetrics.valorTotalToday)}
-            sevenDayLabel={formatCurrency(dailyMetrics.valorTotal7Days)}
+            value={formatCurrency(periodMetrics.valorTotal)}
+            periodLabel={`${periodMetrics.qtdTotal} pedidos • ${dateRange.label}`}
             colorClass="text-emerald-700 dark:text-emerald-300"
             borderColorClass="border-emerald-300 dark:border-emerald-700"
             bgClass="bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-950 dark:to-emerald-900"
@@ -345,8 +399,8 @@ export function SalesChannelCards({
               <Percent className="h-4 w-4 text-pink-600" />
               <span className="text-xs font-medium text-pink-700 dark:text-pink-300">Custo de Comissão</span>
             </div>
-            <p className="text-2xl font-bold text-pink-900 dark:text-pink-100">{formatCurrency(dailyMetrics.comissaoToday)}</p>
-            <p className="text-xs text-pink-600 dark:text-pink-400 mt-1">7 dias: {formatCurrency(dailyMetrics.comissao7Days)}</p>
+            <p className="text-2xl font-bold text-pink-900 dark:text-pink-100">{formatCurrency(periodMetrics.comissao)}</p>
+            <p className="text-xs text-pink-600 dark:text-pink-400 mt-1">{dateRange.label}</p>
           </div>
         </div>
       </CardContent>
