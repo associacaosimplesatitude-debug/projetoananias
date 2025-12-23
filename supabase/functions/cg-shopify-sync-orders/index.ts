@@ -121,7 +121,7 @@ serve(async (req) => {
         valor_frete: parseFloat(shippingPrice) || 0,
         codigo_rastreio: tracking?.tracking_number || null,
         url_rastreio: tracking?.tracking_url || null,
-        created_at: order.created_at, // Use actual order date from Shopify
+        order_date: order.created_at, // Use actual order date from Shopify
         updated_at: new Date().toISOString(),
       };
     });

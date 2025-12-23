@@ -2717,6 +2717,7 @@ export type Database = {
           customer_email: string | null
           customer_name: string | null
           id: string
+          order_date: string | null
           order_number: string
           shopify_order_id: number
           status_pagamento: string
@@ -2731,6 +2732,7 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string | null
           id?: string
+          order_date?: string | null
           order_number: string
           shopify_order_id: number
           status_pagamento?: string
@@ -2745,6 +2747,7 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string | null
           id?: string
+          order_date?: string | null
           order_number?: string
           shopify_order_id?: number
           status_pagamento?: string

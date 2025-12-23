@@ -126,11 +126,12 @@ export function SalesChannelCards({
   const periodMetrics = useMemo(() => {
     const { start, end } = dateRange;
 
-    // Helper to filter orders by date range
+    // Helper to filter orders by date range - use order_date if available, fallback to created_at
     const filterByRange = (orders: any[]) => {
       return orders.filter(o => {
-        if (!o.created_at) return false;
-        const orderDate = parseISO(o.created_at);
+        const dateField = o.order_date || o.created_at;
+        if (!dateField) return false;
+        const orderDate = parseISO(dateField);
         return isWithinInterval(orderDate, { start, end });
       });
     };
