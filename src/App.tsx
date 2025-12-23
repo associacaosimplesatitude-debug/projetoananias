@@ -108,6 +108,9 @@ import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
 import PedidosOnline from "./pages/shopify/PedidosOnline";
 import PedidosCentralGospel from "./pages/shopify/PedidosCentralGospel";
+import PedidosAmazon from "./pages/shopify/PedidosAmazon";
+import PedidosShopee from "./pages/shopify/PedidosShopee";
+import PedidosMercadoLivre from "./pages/shopify/PedidosMercadoLivre";
 import EBDLogin from "./pages/EBDLogin";
 import LandingEBD from "./pages/LandingEBD";
 
@@ -697,8 +700,11 @@ const App = () => (
                     >
                       <Route index element={<AdminEBD />} />
                       <Route path="propostas" element={<AdminEBDPropostasPage />} />
-                      <Route path="pedidos-online" element={<PedidosOnline />} />
-                      <Route path="pedidos-cg" element={<PedidosCentralGospel />} />
+                      <Route path="pedidos-igrejas" element={<PedidosOnline />} />
+                      <Route path="pedidos-online" element={<PedidosCentralGospel />} />
+                      <Route path="pedidos-amazon" element={<PedidosAmazon />} />
+                      <Route path="pedidos-shopee" element={<PedidosShopee />} />
+                      <Route path="pedidos-mercadolivre" element={<PedidosMercadoLivre />} />
                       <Route path="clientes" element={<AdminEBD />} />
                       <Route path="leads" element={<AdminEBD />} />
                       <Route path="vendedores" element={<AdminEBD />} />
