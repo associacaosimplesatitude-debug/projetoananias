@@ -26,7 +26,6 @@ import {
   CalendarIcon,
 } from "lucide-react";
 import {
-  startOfDay,
   subDays,
   parseISO,
   isWithinInterval,
@@ -36,7 +35,8 @@ import {
   subMonths,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DateRange } from "react-day-picker";
+
+type DateFilter = "all" | "last_7_days" | "last_month" | "custom";
 
 interface MarketplacePedido {
   id: string;
@@ -72,12 +72,6 @@ interface SalesChannelCardsProps {
   propostasDigitaisAbertas: number;
   pedidosBlingPendentes: number;
   marketplacePedidos?: MarketplacePedido[];
-
-  // filtro global do painel (/admin/ebd)
-  period: "all" | "today" | "7" | "thisMonth" | "lastMonth" | "custom";
-  dateRange: { start: Date; end: Date };
-  customStartDate?: string;
-  customEndDate?: string;
 }
 
 const formatCurrency = (value: number) =>
@@ -127,78 +121,70 @@ export function SalesChannelCards({
   propostasDigitaisAbertas,
   pedidosBlingPendentes,
   marketplacePedidos = [],
-  period: externalPeriod,
-  dateRange: externalDateRange,
-  customStartDate: externalCustomStart,
-  customEndDate: externalCustomEnd,
 }: SalesChannelCardsProps) {
-  // Estado local para filtro interno do card
-  const [localPeriod, setLocalPeriod] = useState<"all" | "today" | "7" | "thisMonth" | "lastMonth" | "custom">("7");
-  const [localDateRange, setLocalDateRange] = useState<DateRange | undefined>(undefined);
+  // Estado local para filtro interno do card (mesma lógica das páginas de marketplace)
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
 
-  // Usar filtro local se definido, senão usar o externo
-  const period = localPeriod;
-  const customStartDate = localDateRange?.from ? format(localDateRange.from, "yyyy-MM-dd") : undefined;
-  const customEndDate = localDateRange?.to ? format(localDateRange.to, "yyyy-MM-dd") : undefined;
-
-  // Calcular dateRange baseado no período local
-  const dateRange = useMemo(() => {
+  const cardDateRange = useMemo(() => {
     const now = new Date();
-    switch (period) {
-      case "today":
-        return { start: startOfDay(now), end: now };
-      case "7":
-        return { start: subDays(now, 7), end: now };
-      case "thisMonth":
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-      case "lastMonth": {
-        const lastMonth = subMonths(now, 1);
-        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+    switch (dateFilter) {
+      case "last_7_days": {
+        const start = subDays(now, 7);
+        return { start, end: now, endInclusive: now };
       }
-      case "custom":
-        if (localDateRange?.from) {
-          return {
-            start: localDateRange.from,
-            end: localDateRange.to || localDateRange.from,
-          };
+      case "last_month": {
+        const lastMonth = subMonths(now, 1);
+        const start = startOfMonth(lastMonth);
+        const end = endOfMonth(lastMonth);
+        return { start, end, endInclusive: end };
+      }
+      case "custom": {
+        if (!customDateRange.from) {
+          return { start: new Date(0), end: now, endInclusive: now };
         }
-        return { start: new Date(0), end: now };
+        const start = customDateRange.from;
+        const end = customDateRange.to || customDateRange.from;
+        const endInclusive = new Date(end.getTime() + 86400000 - 1);
+        return { start, end, endInclusive };
+      }
       default:
-        return { start: new Date(0), end: now };
+        return { start: new Date(0), end: now, endInclusive: now };
     }
-  }, [period, localDateRange]);
+  }, [dateFilter, customDateRange]);
 
   const periodLabel = useMemo(() => {
-    switch (period) {
+    switch (dateFilter) {
       case "all":
         return "Todos";
-      case "today":
-        return "Hoje";
-      case "7":
+      case "last_7_days":
         return "Últimos 7 dias";
-      case "thisMonth":
-        return "Mês atual";
-      case "lastMonth":
+      case "last_month":
         return "Mês anterior";
       case "custom":
-        if (customStartDate && customEndDate) {
-          return `${format(new Date(customStartDate), "dd/MM")} - ${format(new Date(customEndDate), "dd/MM")}`;
+        if (customDateRange.from) {
+          const from = format(customDateRange.from, "dd/MM");
+          const to = customDateRange.to ? format(customDateRange.to, "dd/MM") : from;
+          return `${from}${to ? ` - ${to}` : ""}`;
         }
         return "Personalizado";
       default:
         return "Todos";
     }
-  }, [period, customStartDate, customEndDate]);
+  }, [dateFilter, customDateRange]);
 
   const periodMetrics = useMemo(() => {
-    const { start, end } = dateRange;
+    const { start, endInclusive } = cardDateRange;
 
     const filterByRange = (orders: any[]) =>
       orders.filter((o) => {
         const dateField = o.order_date || o.created_at;
         if (!dateField) return false;
         const orderDate = parseISO(dateField);
-        return isWithinInterval(orderDate, { start, end });
+        return isWithinInterval(orderDate, { start, end: endInclusive });
       });
 
     const paidShopifyOrders = shopifyOrders.filter(
@@ -235,42 +221,61 @@ export function SalesChannelCards({
       qtdTotal,
       comissao,
     };
-  }, [shopifyOrders, shopifyCGOrders, vendedorStats, dateRange]);
+  }, [shopifyOrders, shopifyCGOrders, vendedorStats, cardDateRange]);
 
-  // Marketplace: usar o MESMO dateRange (start/end) calculado acima
+  // Marketplace: replicar exatamente a lógica das páginas (p.order_date + date-fns)
   const marketplaceData = useMemo(() => {
-    const { start } = dateRange;
+    const now = new Date();
 
-    // Para período custom, garantir fim inclusivo (fim do dia)
-    const endInclusive =
-      period === "custom" ? new Date(dateRange.end.getTime() + 86400000 - 1) : dateRange.end;
-
-    const parseOrderDate = (p: MarketplacePedido) => {
-      if (!p.order_date) return null;
-      const d = new Date(p.order_date);
-      return Number.isNaN(d.getTime()) ? null : d;
+    const filterMarketplaceByPeriod = (orders: MarketplacePedido[]) => {
+      switch (dateFilter) {
+        case "last_7_days": {
+          const sevenDaysAgo = subDays(now, 7);
+          return orders.filter((p) => {
+            if (!p.order_date) return false;
+            const d = new Date(p.order_date);
+            return !Number.isNaN(d.getTime()) && d >= sevenDaysAgo;
+          });
+        }
+        case "last_month": {
+          const lastMonth = subMonths(now, 1);
+          const start = startOfMonth(lastMonth);
+          const end = endOfMonth(lastMonth);
+          return orders.filter((p) => {
+            if (!p.order_date) return false;
+            const d = new Date(p.order_date);
+            return !Number.isNaN(d.getTime()) && isWithinInterval(d, { start, end });
+          });
+        }
+        case "custom": {
+          if (!customDateRange.from) return orders;
+          const start = customDateRange.from;
+          const end = customDateRange.to || customDateRange.from;
+          return orders.filter((p) => {
+            if (!p.order_date) return false;
+            const d = new Date(p.order_date);
+            if (Number.isNaN(d.getTime())) return false;
+            return isWithinInterval(d, { start, end: new Date(end.getTime() + 86400000 - 1) });
+          });
+        }
+        default:
+          return orders;
+      }
     };
 
-    const filterMarketplaceByRange = (orders: MarketplacePedido[]) =>
-      orders.filter((p) => {
-        const d = parseOrderDate(p);
-        if (!d) return false;
-        return isWithinInterval(d, { start, end: endInclusive });
-      });
-
-    const amazonOrders = filterMarketplaceByRange(
+    const amazonOrders = filterMarketplaceByPeriod(
       marketplacePedidos.filter((p) => p.marketplace === "AMAZON")
     );
-    const shopeeOrders = filterMarketplaceByRange(
+    const shopeeOrders = filterMarketplaceByPeriod(
       marketplacePedidos.filter((p) => p.marketplace === "SHOPEE")
     );
-    const mlOrders = filterMarketplaceByRange(
+    const mlOrders = filterMarketplaceByPeriod(
       marketplacePedidos.filter((p) => p.marketplace === "MERCADO_LIVRE")
     );
-    const advecsOrders = filterMarketplaceByRange(
+    const advecsOrders = filterMarketplaceByPeriod(
       marketplacePedidos.filter((p) => p.marketplace === "ADVECS")
     );
-    const atacadoOrders = filterMarketplaceByRange(
+    const atacadoOrders = filterMarketplaceByPeriod(
       marketplacePedidos.filter((p) => p.marketplace === "ATACADO")
     );
 
@@ -283,7 +288,7 @@ export function SalesChannelCards({
       atacado: { valor: atacadoOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: atacadoOrders.length },
       representantes: { valor: 0, qtd: 0 },
     };
-  }, [marketplacePedidos, dateRange, period]);
+  }, [marketplacePedidos, dateFilter, customDateRange]);
 
   return (
     <Card>
@@ -299,78 +304,46 @@ export function SalesChannelCards({
             </div>
           </div>
           
-          {/* Botões de filtro de período */}
+          {/* Botões de filtro de período (igual às páginas de marketplace) */}
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant={localPeriod === "today" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLocalPeriod("today")}
-            >
-              Hoje
-            </Button>
-            <Button
-              variant={localPeriod === "7" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLocalPeriod("7")}
-            >
-              7 dias
-            </Button>
-            <Button
-              variant={localPeriod === "thisMonth" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLocalPeriod("thisMonth")}
-            >
-              Mês atual
-            </Button>
-            <Button
-              variant={localPeriod === "lastMonth" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLocalPeriod("lastMonth")}
-            >
-              Mês anterior
-            </Button>
-            <Button
-              variant={localPeriod === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLocalPeriod("all")}
-            >
-              Todos
-            </Button>
-            
+            {[
+              { value: "all", label: "Todos" },
+              { value: "last_7_days", label: "7 dias" },
+              { value: "last_month", label: "Mês anterior" },
+            ].map((btn) => (
+              <Button
+                key={btn.value}
+                variant={dateFilter === btn.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDateFilter(btn.value as DateFilter)}
+              >
+                {btn.label}
+              </Button>
+            ))}
+
             <Popover>
               <PopoverTrigger asChild>
-                <Button
-                  variant={localPeriod === "custom" ? "default" : "outline"}
-                  size="sm"
-                  className="gap-1"
-                >
+                <Button variant={dateFilter === "custom" ? "default" : "outline"} size="sm" className="gap-1">
                   <CalendarIcon className="h-3 w-3" />
-                  {localPeriod === "custom" && localDateRange?.from
-                    ? `${format(localDateRange.from, "dd/MM")}${localDateRange.to ? ` - ${format(localDateRange.to, "dd/MM")}` : ""}`
-                    : "Personalizado"}
+                  Período
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   initialFocus
                   mode="range"
-                  defaultMonth={localDateRange?.from}
-                  selected={localDateRange}
+                  selected={{ from: customDateRange.from, to: customDateRange.to }}
                   onSelect={(range) => {
-                    setLocalDateRange(range);
-                    if (range?.from) {
-                      setLocalPeriod("custom");
-                    }
+                    setCustomDateRange({ from: range?.from, to: range?.to });
+                    if (range?.from) setDateFilter("custom");
                   }}
                   numberOfMonths={2}
                   locale={ptBR}
                 />
               </PopoverContent>
             </Popover>
-            
-            <span className="text-xs text-muted-foreground ml-auto">
-              {periodLabel}
-            </span>
+
+            <span className="text-xs text-muted-foreground ml-auto">{periodLabel}</span>
           </div>
         </div>
       </CardHeader>
