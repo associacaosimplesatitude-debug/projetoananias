@@ -197,10 +197,15 @@ export function SalesChannelCards({
     const { start, end } = dateRange;
     
     const filterByRange = (orders: MarketplacePedido[]) => {
-      return orders.filter(o => {
+      return orders.filter((o) => {
         const dateField = o.order_date || o.created_at;
         if (!dateField) return false;
-        const orderDate = parseISO(dateField);
+
+        // Marketplace timestamps may come in non-ISO formats (e.g. "YYYY-MM-DD HH:mm:ss+00").
+        // Using Date() is more tolerant than parseISO and avoids silently dropping rows.
+        const orderDate = new Date(dateField);
+        if (Number.isNaN(orderDate.getTime())) return false;
+
         return isWithinInterval(orderDate, { start, end });
       });
     };
