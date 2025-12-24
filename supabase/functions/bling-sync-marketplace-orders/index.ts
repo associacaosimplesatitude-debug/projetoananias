@@ -68,30 +68,15 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchBlingLojas(accessToken: string): Promise<Array<{ id: number; nome?: string; descricao?: string }>> {
-  // Endpoint v3: /lojas
-  const url = 'https://www.bling.com.br/Api/v3/lojas?limite=100';
-  console.log(`[REQ] URL (lojas): ${url}`);
-
-  const res = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
-
-  console.log(`[RES] lojas Status: ${res.status}`);
-
-  if (!res.ok) {
-    const body = await res.text();
-    console.error(`[RES] lojas Error body: ${body}`);
-    throw new Error(`Erro ao buscar lojas: ${res.status}`);
-  }
-
-  const data = await res.json();
-  const lojas = (data?.data || []) as Array<{ id: number; nome?: string; descricao?: string }>;
-  return lojas;
-}
+// Mapeamento manual de loja.id -> marketplace
+// Baseado nos dados do CSV do usuário (ex: "2000014808618424_204732507" = ML)
+// O usuário pode precisar atualizar esses IDs conforme sua configuração no Bling
+const LOJA_ID_MARKETPLACE_MAP: Record<number, string> = {
+  // Adicione os IDs das lojas do Bling aqui:
+  // 204732507: 'MERCADO_LIVRE',
+  // 205391854: 'SHOPEE',
+  // 205441191: 'AMAZON',
+};
 
 function normalizeLojaText(loja: { nome?: string; descricao?: string } | null | undefined) {
   const nome = (loja?.nome || '').toLowerCase().trim();
@@ -243,40 +228,15 @@ serve(async (req) => {
     dataInicial.setDate(dataInicial.getDate() - 90);
     const dataInicialStr = dataInicial.toISOString().split('T')[0];
 
-    // Fetch lojas once so we can map loja.id -> descrição (Bling nem sempre devolve descricao dentro do pedido)
-    const lojas = await fetchBlingLojas(accessToken);
-    const lojaDescById = new Map<number, string>();
-
-    console.log('=== LOJAS (API) ===');
-    for (const l of lojas) {
-      const text = (l.descricao || l.nome || '').trim();
-      lojaDescById.set(l.id, text);
-      console.log(`  Loja ID ${l.id}: "${text}"`);
+    // Não há endpoint /lojas na API v3 - usamos mapeamento manual ou detecção por padrões
+    console.log('=== MAPEAMENTO DE LOJAS (MANUAL) ===');
+    for (const [lojaId, mp] of Object.entries(LOJA_ID_MARKETPLACE_MAP)) {
+      console.log(`  Loja ID ${lojaId}: ${mp}`);
     }
 
-    // Optional: when marketplace is requested, try to filter by idLoja(s) found by loja name
-    const marketplaceTargetLojaIds: number[] = [];
-    if (requestedMarketplace) {
-      for (const l of lojas) {
-        const t = normalizeLojaText(l);
-        if (requestedMarketplace === 'MERCADO_LIVRE' && (t.includes('mercado livre') || t.includes('mercadolivre') || t.includes('meli') || t.includes('ml') || t.includes('ecg mercado'))) {
-          marketplaceTargetLojaIds.push(l.id);
-        }
-        if (requestedMarketplace === 'SHOPEE' && (t.includes('shopee') || t.includes('ecg shopee'))) {
-          marketplaceTargetLojaIds.push(l.id);
-        }
-        if (requestedMarketplace === 'AMAZON' && (t.includes('amazon') || t.includes('amzn') || t.includes('ecg amazon'))) {
-          marketplaceTargetLojaIds.push(l.id);
-        }
-      }
-      if (marketplaceTargetLojaIds.length) {
-        console.log(`Filtrando por idLoja para ${requestedMarketplace}: ${marketplaceTargetLojaIds.join(', ')}`);
-      } else {
-        console.log(`Nenhuma loja encontrada por nome para ${requestedMarketplace}; buscando pedidos sem filtro de loja.`);
-      }
-    }
+    // Buscar todos os pedidos (sem filtro de loja, já que não temos o endpoint)
+    const lojaIdsToFetch: (number | null)[] = [null];
 
-    const lojaIdsToFetch = marketplaceTargetLojaIds.length ? marketplaceTargetLojaIds : [null];
 
     for (const lojaId of lojaIdsToFetch) {
       let page = 1;
@@ -350,7 +310,7 @@ serve(async (req) => {
           existing.count++;
         } else {
           lojaAnalysis.set(order.loja.id, {
-            descricao: lojaDescById.get(order.loja.id) || order.loja.descricao || order.loja.nome || '',
+            descricao: order.loja.descricao || order.loja.nome || '',
             count: 1
           });
         }
@@ -400,21 +360,30 @@ serve(async (req) => {
       console.log(`  Padrão "${pattern}": ${count} pedidos`);
     }
     
-    // Build loja ID to marketplace mapping based on names
+    // Build loja ID to marketplace mapping based on names found in orders + manual mapping
     const lojaIdMapping = new Map<number, string>();
     
+    // Primeiro: adicionar mapeamento manual
+    for (const [lojaIdStr, mp] of Object.entries(LOJA_ID_MARKETPLACE_MAP)) {
+      lojaIdMapping.set(Number(lojaIdStr), mp);
+      console.log(`  -> Loja ${lojaIdStr} mapeada manualmente para ${mp}`);
+    }
+    
+    // Segundo: tentar detectar por descrição (se disponível nos pedidos)
     for (const [lojaId, info] of lojaAnalysis.entries()) {
+      if (lojaIdMapping.has(lojaId)) continue; // já mapeado manualmente
+      
       const desc = info.descricao.toLowerCase();
       
       if (desc.includes('shopee')) {
         lojaIdMapping.set(lojaId, 'SHOPEE');
-        console.log(`  -> Loja ${lojaId} mapeada para SHOPEE`);
+        console.log(`  -> Loja ${lojaId} mapeada automaticamente para SHOPEE`);
       } else if (desc.includes('amazon') || desc.includes('amzn')) {
         lojaIdMapping.set(lojaId, 'AMAZON');
-        console.log(`  -> Loja ${lojaId} mapeada para AMAZON`);
+        console.log(`  -> Loja ${lojaId} mapeada automaticamente para AMAZON`);
       } else if (desc.includes('mercado') || desc.includes('meli') || desc.includes('ml') || desc.includes('ecg')) {
         lojaIdMapping.set(lojaId, 'MERCADO_LIVRE');
-        console.log(`  -> Loja ${lojaId} mapeada para MERCADO_LIVRE`);
+        console.log(`  -> Loja ${lojaId} mapeada automaticamente para MERCADO_LIVRE`);
       }
     }
 
