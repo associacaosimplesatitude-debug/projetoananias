@@ -23,6 +23,14 @@ import { startOfDay, subDays, parseISO, isWithinInterval, endOfDay, format, star
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
+interface MarketplacePedido {
+  id: string;
+  marketplace: string;
+  order_date: string | null;
+  valor_total: number;
+  created_at: string;
+}
+
 interface SalesChannelCardsProps {
   dashboardKPIs: {
     totalPedidosOnline: number;
@@ -48,6 +56,7 @@ interface SalesChannelCardsProps {
   vendedorStats: any[];
   propostasDigitaisAbertas: number;
   pedidosBlingPendentes: number;
+  marketplacePedidos?: MarketplacePedido[];
 }
 
 const formatCurrency = (value: number) =>
@@ -79,14 +88,6 @@ function StandardCard({ icon, title, value, periodLabel, colorClass, borderColor
   );
 }
 
-interface MarketplacePedido {
-  id: string;
-  marketplace: string;
-  order_date: string | null;
-  valor_total: number;
-  created_at: string;
-}
-
 export function SalesChannelCards({
   dashboardKPIs,
   totalEbdClients,
@@ -98,7 +99,7 @@ export function SalesChannelCards({
   propostasDigitaisAbertas,
   pedidosBlingPendentes,
   marketplacePedidos = [],
-}: SalesChannelCardsProps & { marketplacePedidos?: MarketplacePedido[] }) {
+}: SalesChannelCardsProps) {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("today");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
