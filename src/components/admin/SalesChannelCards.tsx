@@ -198,24 +198,22 @@ export function SalesChannelCards({
     
     const filterByRange = (orders: MarketplacePedido[]) => {
       return orders.filter((o) => {
-        // Para marketplaces, `order_date` pode vir antigo/errado; para os Cards (Hoje/7d/30d)
-        // faz mais sentido filtrar pela data de sincronização (created_at).
-        const dateField = o.created_at || o.order_date;
+        // Para TODOS os canais, o filtro do card deve respeitar a data real do pedido.
+        // `created_at` é apenas a data de sincronização/importação.
+        const dateField = o.order_date || o.created_at;
         if (!dateField) return false;
 
-        // `order_date` às vezes vem como DATE puro ("YYYY-MM-DD").
-        // `new Date("YYYY-MM-DD")` interpreta como UTC e pode cair no dia anterior no fuso BR,
-        // zerando os Cards. Então tratamos DATE puro como local via parseISO.
+        // `order_date` pode vir como:
+        // - DATE puro ("YYYY-MM-DD")
+        // - TIMESTAMP ISO ("2025-09-25T00:00:00+00:00")
+        // - Outros formatos com espaço ("YYYY-MM-DD HH:mm:ss+00")
         let orderDate: Date;
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
           orderDate = parseISO(dateField);
         } else {
-          // Alguns timestamps podem vir como "YYYY-MM-DD HH:mm:ss+00"; normalize para ISO.
           const normalized = dateField.includes(" ") ? dateField.replace(" ", "T") : dateField;
           orderDate = parseISO(normalized);
-          if (Number.isNaN(orderDate.getTime())) {
-            orderDate = new Date(dateField);
-          }
+          if (Number.isNaN(orderDate.getTime())) orderDate = new Date(dateField);
         }
 
         if (Number.isNaN(orderDate.getTime())) return false;
