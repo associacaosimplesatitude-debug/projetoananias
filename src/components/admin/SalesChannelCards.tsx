@@ -1,13 +1,15 @@
-import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { 
-  DollarSign, 
-  ShoppingCart, 
+import { useMemo } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  DollarSign,
+  ShoppingCart,
   TrendingUp,
-  Clock,
   Users,
   Church,
   Package,
@@ -17,11 +19,18 @@ import {
   UserCheck,
   FileText,
   Percent,
-  CalendarIcon,
+  Clock,
 } from "lucide-react";
-import { startOfDay, subDays, parseISO, isWithinInterval, endOfDay, format, startOfMonth, subMonths } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import {
+  startOfDay,
+  subDays,
+  parseISO,
+  isWithinInterval,
+  format,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+} from "date-fns";
 
 interface MarketplacePedido {
   id: string;
@@ -57,14 +66,17 @@ interface SalesChannelCardsProps {
   propostasDigitaisAbertas: number;
   pedidosBlingPendentes: number;
   marketplacePedidos?: MarketplacePedido[];
+
+  // filtro global do painel (/admin/ebd)
+  period: "all" | "today" | "7" | "thisMonth" | "lastMonth" | "custom";
+  dateRange: { start: Date; end: Date };
+  customStartDate?: string;
+  customEndDate?: string;
 }
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
-type PeriodFilter = "today" | "7days" | "30days" | "custom";
-
-// Componente de Card padronizado
 interface StandardCardProps {
   icon: React.ReactNode;
   title: string;
@@ -75,9 +87,19 @@ interface StandardCardProps {
   bgClass: string;
 }
 
-function StandardCard({ icon, title, value, periodLabel, colorClass, borderColorClass, bgClass }: StandardCardProps) {
+function StandardCard({
+  icon,
+  title,
+  value,
+  periodLabel,
+  colorClass,
+  borderColorClass,
+  bgClass,
+}: StandardCardProps) {
   return (
-    <div className={`p-4 rounded-xl border-2 ${borderColorClass} ${bgClass} flex flex-col h-full min-h-[120px]`}>
+    <div
+      className={`p-4 rounded-xl border-2 ${borderColorClass} ${bgClass} flex flex-col h-full min-h-[120px]`}
+    >
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <span className={`text-xs font-medium ${colorClass}`}>{title}</span>
@@ -99,136 +121,127 @@ export function SalesChannelCards({
   propostasDigitaisAbertas,
   pedidosBlingPendentes,
   marketplacePedidos = [],
+  period,
+  dateRange,
+  customStartDate,
+  customEndDate,
 }: SalesChannelCardsProps) {
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("today");
-  const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: undefined,
-    to: undefined,
-  });
-
-  // Calculate date range based on filter
-  const dateRange = useMemo(() => {
-    const now = new Date();
-    const endDate = endOfDay(now);
-    
-    switch (periodFilter) {
+  const periodLabel = useMemo(() => {
+    switch (period) {
+      case "all":
+        return "Todos";
       case "today":
-        return { start: startOfDay(now), end: endDate, label: "Hoje" };
-      case "7days":
-        return { start: startOfDay(subDays(now, 7)), end: endDate, label: "Últimos 7 dias" };
-      case "30days":
-        return { start: startOfDay(subDays(now, 30)), end: endDate, label: "Últimos 30 dias" };
+        return "Hoje";
+      case "7":
+        return "Últimos 7 dias";
+      case "thisMonth":
+        return "Mês atual";
+      case "lastMonth":
+        return "Mês anterior";
       case "custom":
-        if (customDateRange.from && customDateRange.to) {
-          return { 
-            start: startOfDay(customDateRange.from), 
-            end: endOfDay(customDateRange.to),
-            label: `${format(customDateRange.from, "dd/MM")} - ${format(customDateRange.to, "dd/MM")}`
-          };
+        if (customStartDate && customEndDate) {
+          return `${format(new Date(customStartDate), "dd/MM")} - ${format(new Date(customEndDate), "dd/MM")}`;
         }
-        return { start: startOfDay(now), end: endDate, label: "Hoje" };
+        return "Personalizado";
       default:
-        return { start: startOfDay(now), end: endDate, label: "Hoje" };
+        return "Todos";
     }
-  }, [periodFilter, customDateRange]);
+  }, [period, customStartDate, customEndDate]);
 
-  // Calculate metrics based on selected period
   const periodMetrics = useMemo(() => {
     const { start, end } = dateRange;
 
-    // Helper to filter orders by date range - use order_date if available, fallback to created_at
-    const filterByRange = (orders: any[]) => {
-      return orders.filter(o => {
+    const filterByRange = (orders: any[]) =>
+      orders.filter((o) => {
         const dateField = o.order_date || o.created_at;
         if (!dateField) return false;
         const orderDate = parseISO(dateField);
         return isWithinInterval(orderDate, { start, end });
       });
-    };
 
-    // Get paid orders only
-    const paidShopifyOrders = shopifyOrders.filter(o => 
-      o.status_pagamento === 'Pago' || o.status_pagamento === 'paid' || o.status_pagamento === 'Faturado'
+    const paidShopifyOrders = shopifyOrders.filter(
+      (o) => o.status_pagamento === "Pago" || o.status_pagamento === "paid" || o.status_pagamento === "Faturado"
     );
-    const paidShopifyCGOrders = shopifyCGOrders.filter(o => 
-      o.status_pagamento === 'paid' || o.status_pagamento === 'Pago' || o.status_pagamento === 'Faturado'
+    const paidShopifyCGOrders = shopifyCGOrders.filter(
+      (o) => o.status_pagamento === "paid" || o.status_pagamento === "Pago" || o.status_pagamento === "Faturado"
     );
 
-    // Pedidos Igrejas (Shopify principal)
     const igrejasFiltered = filterByRange(paidShopifyOrders);
     const valorIgrejas = igrejasFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-    const qtdIgrejas = igrejasFiltered.length;
 
-    // Pedidos Online (CG)
     const onlineFiltered = filterByRange(paidShopifyCGOrders);
     const valorOnline = onlineFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-    const qtdOnline = onlineFiltered.length;
 
-    // Total
     const valorTotal = valorIgrejas + valorOnline;
-    const qtdTotal = qtdIgrejas + qtdOnline;
+    const qtdTotal = igrejasFiltered.length + onlineFiltered.length;
 
-    // Commission calculations
     const comissao = vendedorStats.reduce((sum, v) => {
-      const vendedorOrders = filterByRange(
-        shopifyOrders.filter(o => o.vendedor_id === v.id)
+      const vendedorOrders = filterByRange(shopifyOrders.filter((o) => o.vendedor_id === v.id));
+      const valorVendedor = vendedorOrders.reduce(
+        (s, o) => s + Number(o.valor_para_meta || o.valor_total || 0),
+        0
       );
-      const valorVendedor = vendedorOrders.reduce((s, o) => s + Number(o.valor_para_meta || o.valor_total || 0), 0);
       return sum + valorVendedor * (v.comissao_percentual / 100);
     }, 0);
 
     return {
-      // Pedidos Online
-      qtdOnline,
+      qtdOnline: onlineFiltered.length,
       valorOnline,
-      // Pedidos Igrejas
-      qtdIgrejas,
+      qtdIgrejas: igrejasFiltered.length,
       valorIgrejas,
-      // Total
       valorTotal,
       qtdTotal,
-      // Comissão
       comissao,
     };
   }, [shopifyOrders, shopifyCGOrders, vendedorStats, dateRange]);
 
-  // Calculate marketplace data from marketplacePedidos
+  // Marketplace: mesma lógica das páginas (new Date(order_date)) + período global
   const marketplaceData = useMemo(() => {
-    const { start, end } = dateRange;
+    const now = new Date();
 
-    const parseMarketplaceOrderDate = (raw: string): Date => {
-      // Normaliza formatos comuns do Bling para bater com o comportamento das páginas
-      // (que fazem `new Date(order_date)`):
-      // - "YYYY-MM-DD"
-      // - "YYYY-MM-DD HH:mm:ss+00" (sem :00)
-      // - "YYYY-MM-DDTHH:mm:ss+00:00"
-      let s = raw.trim();
-      if (s.includes(" ")) s = s.replace(" ", "T");
-      // +00  -> +00:00
-      if (/([+-]\d{2})$/.test(s)) s = s.replace(/([+-]\d{2})$/, "$1:00");
-      // +0000 -> +00:00
-      if (/([+-]\d{2})(\d{2})$/.test(s)) s = s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
-      return new Date(s);
+    const filterMarketplaceByPeriod = (orders: MarketplacePedido[]) => {
+      switch (period) {
+        case "all":
+          return orders;
+        case "today": {
+          const start = startOfDay(now);
+          return orders.filter((p) => p.order_date && new Date(p.order_date) >= start);
+        }
+        case "7": {
+          const sevenDaysAgo = subDays(now, 7);
+          return orders.filter((p) => p.order_date && new Date(p.order_date) >= sevenDaysAgo);
+        }
+        case "thisMonth": {
+          const start = startOfMonth(now);
+          const end = endOfMonth(now);
+          return orders.filter((p) => p.order_date && isWithinInterval(new Date(p.order_date), { start, end }));
+        }
+        case "lastMonth": {
+          const lastMonth = subMonths(now, 1);
+          const start = startOfMonth(lastMonth);
+          const end = endOfMonth(lastMonth);
+          return orders.filter((p) => p.order_date && isWithinInterval(new Date(p.order_date), { start, end }));
+        }
+        case "custom": {
+          if (!customStartDate) return orders;
+          const start = new Date(customStartDate);
+          const endBase = customEndDate ? new Date(customEndDate) : start;
+          return orders.filter((p) => {
+            if (!p.order_date) return false;
+            const date = new Date(p.order_date);
+            return isWithinInterval(date, { start, end: new Date(endBase.getTime() + 86400000 - 1) });
+          });
+        }
+        default:
+          return orders;
+      }
     };
 
-    const filterByRange = (orders: MarketplacePedido[]) => {
-      return orders.filter((o) => {
-        // Shopee e Mercado Livre: usar SOMENTE order_date (igual às páginas)
-        const mustUseOrderDate = ["SHOPEE", "MERCADO_LIVRE"].includes(o.marketplace);
-        const dateField = mustUseOrderDate ? o.order_date : (o.order_date || o.created_at);
-        if (!dateField) return false;
-
-        const orderDate = parseMarketplaceOrderDate(dateField);
-        if (Number.isNaN(orderDate.getTime())) return false;
-        return isWithinInterval(orderDate, { start, end });
-      });
-    };
-
-    const amazonOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "AMAZON"));
-    const shopeeOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "SHOPEE"));
-    const mlOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "MERCADO_LIVRE"));
-    const advecsOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "ADVECS"));
-    const atacadoOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "ATACADO"));
+    const amazonOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "AMAZON"));
+    const shopeeOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "SHOPEE"));
+    const mlOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "MERCADO_LIVRE"));
+    const advecsOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "ADVECS"));
+    const atacadoOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "ATACADO"));
 
     return {
       amazon: { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length },
@@ -239,14 +252,7 @@ export function SalesChannelCards({
       atacado: { valor: atacadoOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: atacadoOrders.length },
       representantes: { valor: 0, qtd: 0 },
     };
-  }, [marketplacePedidos, dateRange]);
-
-
-  const periodButtons = [
-    { value: "today" as PeriodFilter, label: "Hoje" },
-    { value: "7days" as PeriodFilter, label: "7 dias" },
-    { value: "30days" as PeriodFilter, label: "30 dias" },
-  ];
+  }, [marketplacePedidos, period, customStartDate, customEndDate]);
 
   return (
     <Card>
@@ -259,58 +265,14 @@ export function SalesChannelCards({
             </CardTitle>
             <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
           </div>
-          
-          {/* Filtro de Período */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {periodButtons.map((btn) => (
-              <Button
-                key={btn.value}
-                variant={periodFilter === btn.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPeriodFilter(btn.value)}
-                className="text-xs"
-              >
-                {btn.label}
-              </Button>
-            ))}
-            
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={periodFilter === "custom" ? "default" : "outline"}
-                  size="sm"
-                  className={cn("text-xs gap-1", periodFilter === "custom" && customDateRange.from && "min-w-[140px]")}
-                >
-                  <CalendarIcon className="h-3 w-3" />
-                  {periodFilter === "custom" && customDateRange.from && customDateRange.to
-                    ? `${format(customDateRange.from, "dd/MM")} - ${format(customDateRange.to, "dd/MM")}`
-                    : "Período"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={customDateRange.from || new Date()}
-                  selected={{ from: customDateRange.from, to: customDateRange.to }}
-                  onSelect={(range) => {
-                    setCustomDateRange({ from: range?.from, to: range?.to });
-                    if (range?.from && range?.to) {
-                      setPeriodFilter("custom");
-                    }
-                  }}
-                  numberOfMonths={2}
-                  locale={ptBR}
-                />
-              </PopoverContent>
-            </Popover>
+          <div className="text-xs text-muted-foreground">
+            Período: <span className="font-medium text-foreground">{periodLabel}</span>
           </div>
         </div>
       </CardHeader>
+
       <CardContent className="space-y-4">
-        {/* Grid unificado de todos os canais de venda */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {/* Pedidos Online */}
           <StandardCard
             icon={<ShoppingCart className="h-4 w-4 text-blue-600" />}
             title="Pedidos Online"
@@ -321,7 +283,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
           />
 
-          {/* Pedidos Igrejas */}
           <StandardCard
             icon={<Church className="h-4 w-4 text-green-600" />}
             title="Pedidos Igrejas"
@@ -332,7 +293,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
           />
 
-          {/* Amazon */}
           <StandardCard
             icon={<Package className="h-4 w-4 text-orange-600" />}
             title="Amazon"
@@ -343,7 +303,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
           />
 
-          {/* Shopee */}
           <StandardCard
             icon={<Store className="h-4 w-4 text-red-600" />}
             title="Shopee"
@@ -354,7 +313,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900"
           />
 
-          {/* Mercado Livre */}
           <StandardCard
             icon={<ShoppingCart className="h-4 w-4 text-yellow-600" />}
             title="Mercado Livre"
@@ -365,7 +323,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900"
           />
 
-          {/* ADVECS */}
           <StandardCard
             icon={<Building2 className="h-4 w-4 text-teal-600" />}
             title="ADVECS"
@@ -376,7 +333,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
           />
 
-          {/* Revendedores */}
           <StandardCard
             icon={<UserCheck className="h-4 w-4 text-violet-600" />}
             title="Revendedores"
@@ -387,7 +343,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
           />
 
-          {/* Atacado */}
           <StandardCard
             icon={<Briefcase className="h-4 w-4 text-sky-600" />}
             title="Atacado"
@@ -398,7 +353,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
           />
 
-          {/* Representantes */}
           <StandardCard
             icon={<Users className="h-4 w-4 text-rose-600" />}
             title="Representantes"
@@ -409,48 +363,70 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
           />
 
-          {/* TOTAL GERAL */}
           <StandardCard
             icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
             title="TOTAL GERAL"
             value={formatCurrency(periodMetrics.valorTotal)}
-            periodLabel={`${periodMetrics.qtdTotal} pedidos • ${dateRange.label}`}
+            periodLabel={`${periodMetrics.qtdTotal} pedidos • ${periodLabel}`}
             colorClass="text-emerald-700 dark:text-emerald-300"
             borderColorClass="border-emerald-300 dark:border-emerald-700"
             bgClass="bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-950 dark:to-emerald-900"
           />
         </div>
 
-        {/* Cards de Gestão */}
+        {/* Cards de Gestão (mantidos) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Propostas Abertas */}
           <div className="p-4 rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 dark:border-amber-800">
             <div className="flex items-center gap-2 mb-2">
               <FileText className="h-4 w-4 text-amber-600" />
               <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Propostas Abertas</span>
             </div>
             <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">{propostasDigitaisAbertas}</p>
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">propostas digitais pendentes</p>
           </div>
 
-          {/* Pedidos Bling Pendentes */}
-          <div className="p-4 rounded-xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 dark:border-purple-800">
+          <div className="p-4 rounded-xl border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900 dark:border-cyan-800">
             <div className="flex items-center gap-2 mb-2">
-              <Clock className="h-4 w-4 text-purple-600" />
-              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Pedidos Pendentes</span>
+              <Clock className="h-4 w-4 text-cyan-600" />
+              <span className="text-xs font-medium text-cyan-700 dark:text-cyan-300">Bling Pendentes</span>
             </div>
-            <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{pedidosBlingPendentes}</p>
-            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">aguardando envio ao Bling</p>
+            <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">{pedidosBlingPendentes}</p>
           </div>
 
-          {/* Custo de Comissão */}
-          <div className="p-4 rounded-xl border-2 border-pink-200 bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900 dark:border-pink-800">
+          <div className="p-4 rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900 dark:border-indigo-800">
             <div className="flex items-center gap-2 mb-2">
-              <Percent className="h-4 w-4 text-pink-600" />
-              <span className="text-xs font-medium text-pink-700 dark:text-pink-300">Custo de Comissão</span>
+              <Percent className="h-4 w-4 text-indigo-600" />
+              <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Comissão (est.)</span>
             </div>
-            <p className="text-2xl font-bold text-pink-900 dark:text-pink-100">{formatCurrency(periodMetrics.comissao)}</p>
-            <p className="text-xs text-pink-600 dark:text-pink-400 mt-1">{dateRange.label}</p>
+            <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">
+              {formatCurrency(periodMetrics.comissao)}
+            </p>
+          </div>
+        </div>
+
+        {/* Cards de Base */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-4 rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Store className="h-4 w-4 text-slate-600" />
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Clientes EBD</span>
+            </div>
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalEbdClients}</p>
+          </div>
+
+          <div className="p-4 rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Users className="h-4 w-4 text-slate-600" />
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Alunos</span>
+            </div>
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalAlunos ?? 0}</p>
+          </div>
+
+          <div className="p-4 rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Church className="h-4 w-4 text-slate-600" />
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Turmas</span>
+            </div>
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalTurmas ?? 0}</p>
           </div>
         </div>
       </CardContent>
