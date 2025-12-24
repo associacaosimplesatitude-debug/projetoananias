@@ -195,37 +195,40 @@ export function SalesChannelCards({
   // Calculate marketplace data from marketplacePedidos
   const marketplaceData = useMemo(() => {
     const { start, end } = dateRange;
-    
+
+    const parseMarketplaceOrderDate = (raw: string): Date => {
+      // Normaliza formatos comuns do Bling para bater com o comportamento das páginas
+      // (que fazem `new Date(order_date)`):
+      // - "YYYY-MM-DD"
+      // - "YYYY-MM-DD HH:mm:ss+00" (sem :00)
+      // - "YYYY-MM-DDTHH:mm:ss+00:00"
+      let s = raw.trim();
+      if (s.includes(" ")) s = s.replace(" ", "T");
+      // +00  -> +00:00
+      if (/([+-]\d{2})$/.test(s)) s = s.replace(/([+-]\d{2})$/, "$1:00");
+      // +0000 -> +00:00
+      if (/([+-]\d{2})(\d{2})$/.test(s)) s = s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+      return new Date(s);
+    };
+
     const filterByRange = (orders: MarketplacePedido[]) => {
       return orders.filter((o) => {
-        // IMPORTANTE: Shopee e Mercado Livre devem usar a MESMA regra das páginas de pedidos:
-        // filtrar sempre pela data real do pedido (order_date).
-        // Os demais canais permanecem com fallback para created_at.
+        // Shopee e Mercado Livre: usar SOMENTE order_date (igual às páginas)
         const mustUseOrderDate = ["SHOPEE", "MERCADO_LIVRE"].includes(o.marketplace);
         const dateField = mustUseOrderDate ? o.order_date : (o.order_date || o.created_at);
         if (!dateField) return false;
 
-        let orderDate: Date;
-        // Suporta DATE puro (YYYY-MM-DD) e timestamps.
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
-          orderDate = parseISO(dateField);
-        } else {
-          const normalized = dateField.includes(" ") ? dateField.replace(" ", "T") : dateField;
-          orderDate = parseISO(normalized);
-          if (Number.isNaN(orderDate.getTime())) orderDate = new Date(dateField);
-        }
-
+        const orderDate = parseMarketplaceOrderDate(dateField);
         if (Number.isNaN(orderDate.getTime())) return false;
         return isWithinInterval(orderDate, { start, end });
       });
     };
 
-
-    const amazonOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'AMAZON'));
-    const shopeeOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'SHOPEE'));
-    const mlOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'MERCADO_LIVRE'));
-    const advecsOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'ADVECS'));
-    const atacadoOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'ATACADO'));
+    const amazonOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "AMAZON"));
+    const shopeeOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "SHOPEE"));
+    const mlOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "MERCADO_LIVRE"));
+    const advecsOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "ADVECS"));
+    const atacadoOrders = filterByRange(marketplacePedidos.filter((p) => p.marketplace === "ATACADO"));
 
     return {
       amazon: { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length },
@@ -237,6 +240,7 @@ export function SalesChannelCards({
       representantes: { valor: 0, qtd: 0 },
     };
   }, [marketplacePedidos, dateRange]);
+
 
   const periodButtons = [
     { value: "today" as PeriodFilter, label: "Hoje" },
