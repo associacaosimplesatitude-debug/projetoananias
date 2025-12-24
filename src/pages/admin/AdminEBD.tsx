@@ -309,13 +309,15 @@ export default function AdminEBD() {
   });
 
   // Fetch Bling marketplace orders (Amazon, Shopee, Mercado Livre)
+  // IMPORTANTE: ordenar por order_date (data real da venda), igual às páginas de listagem,
+  // para não cair no limite padrão de 1000 registros retornando apenas pedidos antigos (por data de venda).
   const { data: marketplacePedidos = [] } = useQuery({
     queryKey: ["admin-marketplace-pedidos"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bling_marketplace_pedidos")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("order_date", { ascending: false });
       if (error) throw error;
       return data || [];
     },
