@@ -198,7 +198,9 @@ export function SalesChannelCards({
     
     const filterByRange = (orders: MarketplacePedido[]) => {
       return orders.filter((o) => {
-        const dateField = o.order_date || o.created_at;
+        // Para marketplaces, `order_date` pode vir antigo/errado; para os Cards (Hoje/7d/30d)
+        // faz mais sentido filtrar pela data de sincronização (created_at).
+        const dateField = o.created_at || o.order_date;
         if (!dateField) return false;
 
         // `order_date` às vezes vem como DATE puro ("YYYY-MM-DD").
