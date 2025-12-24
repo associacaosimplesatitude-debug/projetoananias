@@ -69,13 +69,10 @@ function delay(ms: number) {
 }
 
 // Mapeamento manual de loja.id -> marketplace
-// Baseado nos dados do CSV do usuário (ex: "2000014808618424_204732507" = ML)
-// O usuário pode precisar atualizar esses IDs conforme sua configuração no Bling
+// IDs fornecidos pelo usuário
 const LOJA_ID_MARKETPLACE_MAP: Record<number, string> = {
-  // Adicione os IDs das lojas do Bling aqui:
-  // 204732507: 'MERCADO_LIVRE',
-  // 205391854: 'SHOPEE',
-  // 205441191: 'AMAZON',
+  204728077: 'SHOPEE',        // ECG Shopee
+  204732507: 'MERCADO_LIVRE', // ECG Mercado Livre
 };
 
 function normalizeLojaText(loja: { nome?: string; descricao?: string } | null | undefined) {
