@@ -237,53 +237,42 @@ export function SalesChannelCards({
     };
   }, [shopifyOrders, shopifyCGOrders, vendedorStats, dateRange]);
 
-  // Marketplace: mesma lógica das páginas (new Date(order_date)) + período global
+  // Marketplace: usar o MESMO dateRange (start/end) calculado acima
   const marketplaceData = useMemo(() => {
-    const now = new Date();
+    const { start } = dateRange;
 
-    const filterMarketplaceByPeriod = (orders: MarketplacePedido[]) => {
-      switch (period) {
-        case "all":
-          return orders;
-        case "today": {
-          const start = startOfDay(now);
-          return orders.filter((p) => p.order_date && new Date(p.order_date) >= start);
-        }
-        case "7": {
-          const sevenDaysAgo = subDays(now, 7);
-          return orders.filter((p) => p.order_date && new Date(p.order_date) >= sevenDaysAgo);
-        }
-        case "thisMonth": {
-          const start = startOfMonth(now);
-          const end = endOfMonth(now);
-          return orders.filter((p) => p.order_date && isWithinInterval(new Date(p.order_date), { start, end }));
-        }
-        case "lastMonth": {
-          const lastMonth = subMonths(now, 1);
-          const start = startOfMonth(lastMonth);
-          const end = endOfMonth(lastMonth);
-          return orders.filter((p) => p.order_date && isWithinInterval(new Date(p.order_date), { start, end }));
-        }
-        case "custom": {
-          if (!customStartDate) return orders;
-          const start = new Date(customStartDate);
-          const endBase = customEndDate ? new Date(customEndDate) : start;
-          return orders.filter((p) => {
-            if (!p.order_date) return false;
-            const date = new Date(p.order_date);
-            return isWithinInterval(date, { start, end: new Date(endBase.getTime() + 86400000 - 1) });
-          });
-        }
-        default:
-          return orders;
-      }
+    // Para período custom, garantir fim inclusivo (fim do dia)
+    const endInclusive =
+      period === "custom" ? new Date(dateRange.end.getTime() + 86400000 - 1) : dateRange.end;
+
+    const parseOrderDate = (p: MarketplacePedido) => {
+      if (!p.order_date) return null;
+      const d = new Date(p.order_date);
+      return Number.isNaN(d.getTime()) ? null : d;
     };
 
-    const amazonOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "AMAZON"));
-    const shopeeOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "SHOPEE"));
-    const mlOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "MERCADO_LIVRE"));
-    const advecsOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "ADVECS"));
-    const atacadoOrders = filterMarketplaceByPeriod(marketplacePedidos.filter((p) => p.marketplace === "ATACADO"));
+    const filterMarketplaceByRange = (orders: MarketplacePedido[]) =>
+      orders.filter((p) => {
+        const d = parseOrderDate(p);
+        if (!d) return false;
+        return isWithinInterval(d, { start, end: endInclusive });
+      });
+
+    const amazonOrders = filterMarketplaceByRange(
+      marketplacePedidos.filter((p) => p.marketplace === "AMAZON")
+    );
+    const shopeeOrders = filterMarketplaceByRange(
+      marketplacePedidos.filter((p) => p.marketplace === "SHOPEE")
+    );
+    const mlOrders = filterMarketplaceByRange(
+      marketplacePedidos.filter((p) => p.marketplace === "MERCADO_LIVRE")
+    );
+    const advecsOrders = filterMarketplaceByRange(
+      marketplacePedidos.filter((p) => p.marketplace === "ADVECS")
+    );
+    const atacadoOrders = filterMarketplaceByRange(
+      marketplacePedidos.filter((p) => p.marketplace === "ATACADO")
+    );
 
     return {
       amazon: { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length },
@@ -294,7 +283,7 @@ export function SalesChannelCards({
       atacado: { valor: atacadoOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: atacadoOrders.length },
       representantes: { valor: 0, qtd: 0 },
     };
-  }, [marketplacePedidos, period, customStartDate, customEndDate]);
+  }, [marketplacePedidos, dateRange, period]);
 
   return (
     <Card>
