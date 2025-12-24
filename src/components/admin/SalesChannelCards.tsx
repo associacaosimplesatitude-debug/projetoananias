@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -6,6 +6,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   DollarSign,
   ShoppingCart,
@@ -20,6 +23,7 @@ import {
   FileText,
   Percent,
   Clock,
+  CalendarIcon,
 } from "lucide-react";
 import {
   startOfDay,
@@ -31,6 +35,8 @@ import {
   endOfMonth,
   subMonths,
 } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { DateRange } from "react-day-picker";
 
 interface MarketplacePedido {
   id: string;
@@ -121,11 +127,47 @@ export function SalesChannelCards({
   propostasDigitaisAbertas,
   pedidosBlingPendentes,
   marketplacePedidos = [],
-  period,
-  dateRange,
-  customStartDate,
-  customEndDate,
+  period: externalPeriod,
+  dateRange: externalDateRange,
+  customStartDate: externalCustomStart,
+  customEndDate: externalCustomEnd,
 }: SalesChannelCardsProps) {
+  // Estado local para filtro interno do card
+  const [localPeriod, setLocalPeriod] = useState<"all" | "today" | "7" | "thisMonth" | "lastMonth" | "custom">("7");
+  const [localDateRange, setLocalDateRange] = useState<DateRange | undefined>(undefined);
+
+  // Usar filtro local se definido, senão usar o externo
+  const period = localPeriod;
+  const customStartDate = localDateRange?.from ? format(localDateRange.from, "yyyy-MM-dd") : undefined;
+  const customEndDate = localDateRange?.to ? format(localDateRange.to, "yyyy-MM-dd") : undefined;
+
+  // Calcular dateRange baseado no período local
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    switch (period) {
+      case "today":
+        return { start: startOfDay(now), end: now };
+      case "7":
+        return { start: subDays(now, 7), end: now };
+      case "thisMonth":
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case "lastMonth": {
+        const lastMonth = subMonths(now, 1);
+        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      }
+      case "custom":
+        if (localDateRange?.from) {
+          return {
+            start: localDateRange.from,
+            end: localDateRange.to || localDateRange.from,
+          };
+        }
+        return { start: new Date(0), end: now };
+      default:
+        return { start: new Date(0), end: now };
+    }
+  }, [period, localDateRange]);
+
   const periodLabel = useMemo(() => {
     switch (period) {
       case "all":
@@ -257,16 +299,89 @@ export function SalesChannelCards({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Resumo de Vendas
-            </CardTitle>
-            <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Resumo de Vendas
+              </CardTitle>
+              <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
+            </div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            Período: <span className="font-medium text-foreground">{periodLabel}</span>
+          
+          {/* Botões de filtro de período */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant={localPeriod === "today" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLocalPeriod("today")}
+            >
+              Hoje
+            </Button>
+            <Button
+              variant={localPeriod === "7" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLocalPeriod("7")}
+            >
+              7 dias
+            </Button>
+            <Button
+              variant={localPeriod === "thisMonth" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLocalPeriod("thisMonth")}
+            >
+              Mês atual
+            </Button>
+            <Button
+              variant={localPeriod === "lastMonth" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLocalPeriod("lastMonth")}
+            >
+              Mês anterior
+            </Button>
+            <Button
+              variant={localPeriod === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLocalPeriod("all")}
+            >
+              Todos
+            </Button>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={localPeriod === "custom" ? "default" : "outline"}
+                  size="sm"
+                  className="gap-1"
+                >
+                  <CalendarIcon className="h-3 w-3" />
+                  {localPeriod === "custom" && localDateRange?.from
+                    ? `${format(localDateRange.from, "dd/MM")}${localDateRange.to ? ` - ${format(localDateRange.to, "dd/MM")}` : ""}`
+                    : "Personalizado"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={localDateRange?.from}
+                  selected={localDateRange}
+                  onSelect={(range) => {
+                    setLocalDateRange(range);
+                    if (range?.from) {
+                      setLocalPeriod("custom");
+                    }
+                  }}
+                  numberOfMonths={2}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+            
+            <span className="text-xs text-muted-foreground ml-auto">
+              {periodLabel}
+            </span>
           </div>
         </div>
       </CardHeader>
