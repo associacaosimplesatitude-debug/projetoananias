@@ -68,11 +68,42 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function fetchBlingLojas(accessToken: string): Promise<Array<{ id: number; nome?: string; descricao?: string }>> {
+  // Endpoint v3: /lojas
+  const url = 'https://www.bling.com.br/Api/v3/lojas?limite=100';
+  console.log(`[REQ] URL (lojas): ${url}`);
+
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json',
+    },
+  });
+
+  console.log(`[RES] lojas Status: ${res.status}`);
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[RES] lojas Error body: ${body}`);
+    throw new Error(`Erro ao buscar lojas: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const lojas = (data?.data || []) as Array<{ id: number; nome?: string; descricao?: string }>;
+  return lojas;
+}
+
+function normalizeLojaText(loja: { nome?: string; descricao?: string } | null | undefined) {
+  const nome = (loja?.nome || '').toLowerCase().trim();
+  const descricao = (loja?.descricao || '').toLowerCase().trim();
+  return `${nome} ${descricao}`.trim();
+}
+
 function detectMarketplace(order: any, lojaIdMapping: Map<number, string>): string | null {
   // Collect all fields to check
+  const lojaId = order.loja?.id;
   const lojaDescricao = (order.loja?.descricao || '').toLowerCase().trim();
   const lojaNome = (order.loja?.nome || '').toLowerCase().trim();
-  const lojaId = order.loja?.id;
   const canal = (order.canal || '').toLowerCase();
   const origemDescricao = (order.origem?.descricao || '').toLowerCase();
   const origemNome = (order.origem?.nome || '').toLowerCase();
@@ -81,63 +112,72 @@ function detectMarketplace(order: any, lojaIdMapping: Map<number, string>): stri
   const observacoesInternas = (order.observacoesInternas || '').toLowerCase();
   const vendedorDescricao = (order.vendedor?.descricao || '').toLowerCase();
   const vendedorNome = (order.vendedor?.nome || '').toLowerCase();
-  
+
   // Check by loja ID first (most reliable)
   if (lojaId && lojaIdMapping.has(lojaId)) {
     return lojaIdMapping.get(lojaId)!;
   }
-  
+
   // Combine all text fields to search
   const allText = `${lojaDescricao} ${lojaNome} ${canal} ${origemDescricao} ${origemNome} ${observacoes} ${observacoesInternas} ${vendedorDescricao} ${vendedorNome}`;
-  
-  // Check for ECG prefixed names (common in Bling for marketplace integrations)
-  
+
   // Shopee detection
-  if (lojaDescricao.includes('shopee') || lojaNome.includes('shopee') || 
-      vendedorDescricao.includes('shopee') || vendedorNome.includes('shopee') ||
-      allText.includes('shopee') || allText.includes('ecg shopee')) {
+  if (
+    lojaDescricao.includes('shopee') ||
+    lojaNome.includes('shopee') ||
+    vendedorDescricao.includes('shopee') ||
+    vendedorNome.includes('shopee') ||
+    allText.includes('shopee') ||
+    allText.includes('ecg shopee')
+  ) {
     return 'SHOPEE';
   }
-  
+
   // Amazon detection
-  if (lojaDescricao.includes('amazon') || lojaNome.includes('amazon') ||
-      vendedorDescricao.includes('amazon') || vendedorNome.includes('amazon') ||
-      allText.includes('amazon') || allText.includes('amzn') || allText.includes('ecg amazon')) {
+  if (
+    lojaDescricao.includes('amazon') ||
+    lojaNome.includes('amazon') ||
+    vendedorDescricao.includes('amazon') ||
+    vendedorNome.includes('amazon') ||
+    allText.includes('amazon') ||
+    allText.includes('amzn') ||
+    allText.includes('ecg amazon')
+  ) {
     return 'AMAZON';
   }
-  
-  // Mercado Livre detection (more patterns based on ECG naming)
-  if (lojaDescricao.includes('mercado') || lojaNome.includes('mercado') ||
-      lojaDescricao.includes('meli') || lojaNome.includes('meli') ||
-      vendedorDescricao.includes('mercado') || vendedorNome.includes('mercado') ||
-      allText.includes('mercado livre') || allText.includes('mercadolivre') ||
-      allText.includes('meli') || allText.includes('ecg mercado')) {
+
+  // Mercado Livre detection
+  if (
+    lojaDescricao.includes('mercado') ||
+    lojaNome.includes('mercado') ||
+    lojaDescricao.includes('meli') ||
+    lojaNome.includes('meli') ||
+    vendedorDescricao.includes('mercado') ||
+    vendedorNome.includes('mercado') ||
+    allText.includes('mercado livre') ||
+    allText.includes('mercadolivre') ||
+    allText.includes('meli') ||
+    allText.includes('ecg mercado')
+  ) {
     return 'MERCADO_LIVRE';
   }
-  
+
   // Check by order number patterns (numeroPedidoLoja)
   if (numeroPedidoLoja) {
-    // Mercado Livre: 16 digits starting with 2000 (most common ML pattern)
+    // Mercado Livre: 16 digits starting with 2000
     if (/^2000\d{12}$/.test(numeroPedidoLoja)) {
       return 'MERCADO_LIVRE';
     }
-    // Mercado Livre: 10-16 digits (alternative patterns)
-    if (/^\d{10,16}$/.test(numeroPedidoLoja) && numeroPedidoLoja.length >= 10) {
-      // If it's a very long number starting with 2, likely ML
-      if (numeroPedidoLoja.startsWith('2') && numeroPedidoLoja.length >= 13) {
-        return 'MERCADO_LIVRE';
-      }
-    }
-    // Amazon: XXX-XXXXXXX-XXXXXXX format
+    // Amazon: XXX-XXXXXXX-XXXXXXX
     if (/^\d{3}-\d{7}-\d{7}$/.test(numeroPedidoLoja)) {
       return 'AMAZON';
     }
-    // Shopee: Usually contains letters or different format
+    // Shopee: Starts with letters
     if (/^[A-Z]{2}\d+/.test(numeroPedidoLoja)) {
       return 'SHOPEE';
     }
   }
-  
+
   return null;
 }
 
@@ -191,69 +231,107 @@ serve(async (req) => {
     }
 
     let allOrders: any[] = [];
-    let page = 1;
-    let hasMore = true;
 
     console.log('=== INICIANDO SINCRONIZAÇÃO DE PEDIDOS BLING ===');
     console.log(`Marketplace solicitado: ${marketplace || 'TODOS'}`);
     console.log(`Debug mode: ${debug ? 'SIM' : 'NÃO'}`);
 
-    // Fetch all sales orders from Bling
-    while (hasMore) {
-      console.log(`Buscando página ${page}...`);
-      
-      if (page > 1) {
-        await delay(400); // Rate limit: 3 req/s
-      }
+    const requestedMarketplace = marketplace ? String(marketplace).toUpperCase() : null;
 
-      // Build URL with date filter (last 90 days)
-      const dataInicial = new Date();
-      dataInicial.setDate(dataInicial.getDate() - 90);
-      const dataInicialStr = dataInicial.toISOString().split('T')[0];
+    // Build date filter (last 90 days)
+    const dataInicial = new Date();
+    dataInicial.setDate(dataInicial.getDate() - 90);
+    const dataInicialStr = dataInicial.toISOString().split('T')[0];
 
-      const url = `https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=${page}&limite=100&dataInicial=${dataInicialStr}`;
-      
-      console.log(`[REQ] URL: ${url}`);
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-        },
-      });
+    // Fetch lojas once so we can map loja.id -> descrição (Bling nem sempre devolve descricao dentro do pedido)
+    const lojas = await fetchBlingLojas(accessToken);
+    const lojaDescById = new Map<number, string>();
 
-      console.log(`[RES] Status: ${response.status}`);
+    console.log('=== LOJAS (API) ===');
+    for (const l of lojas) {
+      const text = (l.descricao || l.nome || '').trim();
+      lojaDescById.set(l.id, text);
+      console.log(`  Loja ID ${l.id}: "${text}"`);
+    }
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          console.log('Rate limit, aguardando 2s...');
-          await delay(2000);
-          continue;
+    // Optional: when marketplace is requested, try to filter by idLoja(s) found by loja name
+    const marketplaceTargetLojaIds: number[] = [];
+    if (requestedMarketplace) {
+      for (const l of lojas) {
+        const t = normalizeLojaText(l);
+        if (requestedMarketplace === 'MERCADO_LIVRE' && (t.includes('mercado livre') || t.includes('mercadolivre') || t.includes('meli') || t.includes('ml') || t.includes('ecg mercado'))) {
+          marketplaceTargetLojaIds.push(l.id);
         }
-        const errorBody = await response.text();
-        console.error(`[RES] Error body: ${errorBody}`);
-        throw new Error(`Erro ao buscar pedidos: ${response.status}`);
+        if (requestedMarketplace === 'SHOPEE' && (t.includes('shopee') || t.includes('ecg shopee'))) {
+          marketplaceTargetLojaIds.push(l.id);
+        }
+        if (requestedMarketplace === 'AMAZON' && (t.includes('amazon') || t.includes('amzn') || t.includes('ecg amazon'))) {
+          marketplaceTargetLojaIds.push(l.id);
+        }
       }
-
-      const data = await response.json();
-      const orders = data.data || [];
-      
-      console.log(`Página ${page}: ${orders.length} pedidos encontrados`);
-      
-      // Log first order structure for debugging
-      if (page === 1 && orders.length > 0) {
-        console.log('=== ESTRUTURA DO PRIMEIRO PEDIDO (DEBUG) ===');
-        console.log(JSON.stringify(orders[0], null, 2));
+      if (marketplaceTargetLojaIds.length) {
+        console.log(`Filtrando por idLoja para ${requestedMarketplace}: ${marketplaceTargetLojaIds.join(', ')}`);
+      } else {
+        console.log(`Nenhuma loja encontrada por nome para ${requestedMarketplace}; buscando pedidos sem filtro de loja.`);
       }
-      
-      allOrders = [...allOrders, ...orders];
-      
-      hasMore = orders.length === 100;
-      page++;
+    }
 
-      if (page > 50) {
-        console.log('Limite de páginas atingido (50)');
-        break;
+    const lojaIdsToFetch = marketplaceTargetLojaIds.length ? marketplaceTargetLojaIds : [null];
+
+    for (const lojaId of lojaIdsToFetch) {
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        console.log(`Buscando página ${page}${lojaId ? ` (idLoja=${lojaId})` : ''}...`);
+
+        if (page > 1) {
+          await delay(400); // Rate limit: 3 req/s
+        }
+
+        const url = `https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=${page}&limite=100&dataInicial=${dataInicialStr}${lojaId ? `&idLoja=${lojaId}` : ''}`;
+        console.log(`[REQ] URL: ${url}`);
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+
+        console.log(`[RES] Status: ${response.status}`);
+
+        if (!response.ok) {
+          if (response.status === 429) {
+            console.log('Rate limit, aguardando 2s...');
+            await delay(2000);
+            continue;
+          }
+          const errorBody = await response.text();
+          console.error(`[RES] Error body: ${errorBody}`);
+          throw new Error(`Erro ao buscar pedidos: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const orders = data.data || [];
+
+        console.log(`Página ${page}: ${orders.length} pedidos encontrados`);
+
+        // Log first order structure for debugging
+        if (page === 1 && allOrders.length === 0 && orders.length > 0) {
+          console.log('=== ESTRUTURA DO PRIMEIRO PEDIDO (DEBUG) ===');
+          console.log(JSON.stringify(orders[0], null, 2));
+        }
+
+        allOrders = [...allOrders, ...orders];
+
+        hasMore = orders.length === 100;
+        page++;
+
+        if (page > 50) {
+          console.log('Limite de páginas atingido (50)');
+          hasMore = false;
+        }
       }
     }
 
@@ -272,10 +350,9 @@ serve(async (req) => {
           existing.count++;
         } else {
           lojaAnalysis.set(order.loja.id, {
-            descricao: order.loja.descricao || order.loja.nome || '',
+            descricao: lojaDescById.get(order.loja.id) || order.loja.descricao || order.loja.nome || '',
             count: 1
           });
-        }
       }
       
       // Analyze vendedor
@@ -481,12 +558,16 @@ serve(async (req) => {
     console.error('=== ERRO NA SINCRONIZAÇÃO ===');
     console.error(error);
     const message = error instanceof Error ? error.message : 'Erro desconhecido';
-    return new Response(JSON.stringify({
-      success: false,
-      error: message,
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: message,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });
+
