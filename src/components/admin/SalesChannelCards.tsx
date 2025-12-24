@@ -200,8 +200,21 @@ export function SalesChannelCards({
     const onlineFiltered = filterByRange(paidShopifyCGOrders);
     const valorOnline = onlineFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
 
-    const valorTotal = valorIgrejas + valorOnline;
-    const qtdTotal = igrejasFiltered.length + onlineFiltered.length;
+    // Filtrar pedidos de marketplace pelo período (mesma lógica)
+    const filterMarketplaceByRange = (orders: MarketplacePedido[]) =>
+      orders.filter((p) => {
+        if (!p.order_date) return false;
+        const d = new Date(p.order_date);
+        if (Number.isNaN(d.getTime())) return false;
+        return isWithinInterval(d, { start, end: endInclusive });
+      });
+
+    const marketplaceFiltered = filterMarketplaceByRange(marketplacePedidos);
+    const valorMarketplace = marketplaceFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+
+    // Total Geral = Igrejas + Online + Marketplaces (Amazon, Shopee, ML, etc.)
+    const valorTotal = valorIgrejas + valorOnline + valorMarketplace;
+    const qtdTotal = igrejasFiltered.length + onlineFiltered.length + marketplaceFiltered.length;
 
     const comissao = vendedorStats.reduce((sum, v) => {
       const vendedorOrders = filterByRange(shopifyOrders.filter((o) => o.vendedor_id === v.id));
@@ -221,7 +234,7 @@ export function SalesChannelCards({
       qtdTotal,
       comissao,
     };
-  }, [shopifyOrders, shopifyCGOrders, vendedorStats, cardDateRange]);
+  }, [shopifyOrders, shopifyCGOrders, vendedorStats, cardDateRange, marketplacePedidos]);
 
   // Marketplace: replicar exatamente a lógica das páginas (p.order_date + date-fns)
   const marketplaceData = useMemo(() => {
