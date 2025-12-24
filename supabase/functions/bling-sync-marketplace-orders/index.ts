@@ -353,8 +353,9 @@ serve(async (req) => {
             descricao: lojaDescById.get(order.loja.id) || order.loja.descricao || order.loja.nome || '',
             count: 1
           });
+        }
       }
-      
+
       // Analyze vendedor
       if (order.vendedor?.descricao || order.vendedor?.nome) {
         const vendKey = order.vendedor.descricao || order.vendedor.nome || '';
@@ -368,7 +369,7 @@ serve(async (req) => {
           });
         }
       }
-      
+
       // Analyze numeroPedidoLoja patterns
       if (order.numeroPedidoLoja) {
         const num = String(order.numeroPedidoLoja);
