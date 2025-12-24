@@ -207,14 +207,16 @@ export function SalesChannelCards({
     const amazonOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'AMAZON'));
     const shopeeOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'SHOPEE'));
     const mlOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'MERCADO_LIVRE'));
+    const advecsOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'ADVECS'));
+    const atacadoOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'ATACADO'));
 
     return {
       amazon: { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length },
       shopee: { valor: shopeeOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: shopeeOrders.length },
       mercadoLivre: { valor: mlOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: mlOrders.length },
-      advecs: { valor: 0, qtd: 0 },
+      advecs: { valor: advecsOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: advecsOrders.length },
       revendedores: { valor: 0, qtd: 0 },
-      atacado: { valor: 0, qtd: 0 },
+      atacado: { valor: atacadoOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: atacadoOrders.length },
       representantes: { valor: 0, qtd: 0 },
     };
   }, [marketplacePedidos, dateRange]);

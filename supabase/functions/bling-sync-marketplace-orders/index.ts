@@ -73,7 +73,22 @@ function delay(ms: number) {
 const LOJA_ID_MARKETPLACE_MAP: Record<number, string> = {
   204728077: 'SHOPEE',        // ECG Shopee
   204732507: 'MERCADO_LIVRE', // ECG Mercado Livre
+  205441191: 'ATACADO',       // Atacado (será reclassificado para ADVECS se necessário)
 };
+
+// Função para classificar pedidos do Atacado entre ADVECS e Atacado Geral
+function classifyAtacadoOrder(customerName: string | null | undefined): string {
+  if (!customerName) return 'ATACADO';
+  
+  const nameUpper = customerName.toUpperCase();
+  
+  // Verifica se é ADVEC ou Assembleia de Deus Vitória em Cristo
+  if (nameUpper.includes('ADVEC') || nameUpper.includes('ASSEMBLEIA DE DEUS VITORIA EM CRISTO')) {
+    return 'ADVECS';
+  }
+  
+  return 'ATACADO';
+}
 
 function normalizeLojaText(loja: { nome?: string; descricao?: string } | null | undefined) {
   const nome = (loja?.nome || '').toLowerCase().trim();
@@ -451,9 +466,17 @@ serve(async (req) => {
         await delay(50);
       }
 
+      // Aplicar classificação ADVECS para pedidos do Atacado (loja 205441191)
+      let finalMarketplace = order.detected_marketplace;
+      if (finalMarketplace === 'ATACADO') {
+        const customerName = order.contato?.nome || order.contato?.razaoSocial || '';
+        finalMarketplace = classifyAtacadoOrder(customerName);
+        console.log(`  Atacado -> ${finalMarketplace}: ${customerName?.substring(0, 50)}`);
+      }
+
       const orderData = {
         bling_order_id: order.id,
-        marketplace: order.detected_marketplace,
+        marketplace: finalMarketplace,
         order_number: order.numero || String(order.id),
         order_date: order.data ? new Date(order.data).toISOString() : null,
         customer_name: order.contato?.nome || null,
