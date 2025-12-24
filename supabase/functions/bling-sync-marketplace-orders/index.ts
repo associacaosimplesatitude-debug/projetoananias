@@ -68,10 +68,6 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Known marketplace loja IDs from Bling integrations
-// These are populated dynamically based on the detected lojas
-const MARKETPLACE_LOJA_IDS: Record<number, string> = {};
-
 function detectMarketplace(order: any, lojaIdMapping: Map<number, string>): string | null {
   // Collect all fields to check
   const lojaDescricao = (order.loja?.descricao || '').toLowerCase().trim();
@@ -80,7 +76,7 @@ function detectMarketplace(order: any, lojaIdMapping: Map<number, string>): stri
   const canal = (order.canal || '').toLowerCase();
   const origemDescricao = (order.origem?.descricao || '').toLowerCase();
   const origemNome = (order.origem?.nome || '').toLowerCase();
-  const numeroPedidoLoja = (order.numeroPedidoLoja || '').toString();
+  const numeroPedidoLoja = (order.numeroPedidoLoja || '').toString().trim();
   const observacoes = (order.observacoes || '').toLowerCase();
   const observacoesInternas = (order.observacoesInternas || '').toLowerCase();
   const vendedorDescricao = (order.vendedor?.descricao || '').toLowerCase();
@@ -95,44 +91,50 @@ function detectMarketplace(order: any, lojaIdMapping: Map<number, string>): stri
   const allText = `${lojaDescricao} ${lojaNome} ${canal} ${origemDescricao} ${origemNome} ${observacoes} ${observacoesInternas} ${vendedorDescricao} ${vendedorNome}`;
   
   // Check for ECG prefixed names (common in Bling for marketplace integrations)
-  // Pattern: "ECG Shopee", "ECG Mercado Livre", "ECG Amazon", etc.
   
   // Shopee detection
   if (lojaDescricao.includes('shopee') || lojaNome.includes('shopee') || 
       vendedorDescricao.includes('shopee') || vendedorNome.includes('shopee') ||
-      allText.includes('shopee')) {
+      allText.includes('shopee') || allText.includes('ecg shopee')) {
     return 'SHOPEE';
   }
   
   // Amazon detection
   if (lojaDescricao.includes('amazon') || lojaNome.includes('amazon') ||
       vendedorDescricao.includes('amazon') || vendedorNome.includes('amazon') ||
-      allText.includes('amazon') || allText.includes('amzn')) {
+      allText.includes('amazon') || allText.includes('amzn') || allText.includes('ecg amazon')) {
     return 'AMAZON';
   }
   
-  // Mercado Livre detection
+  // Mercado Livre detection (more patterns based on ECG naming)
   if (lojaDescricao.includes('mercado') || lojaNome.includes('mercado') ||
       lojaDescricao.includes('meli') || lojaNome.includes('meli') ||
       vendedorDescricao.includes('mercado') || vendedorNome.includes('mercado') ||
       allText.includes('mercado livre') || allText.includes('mercadolivre') ||
-      allText.includes('meli') || allText.includes('ml ')) {
+      allText.includes('meli') || allText.includes('ecg mercado')) {
     return 'MERCADO_LIVRE';
   }
   
-  // Check by order number patterns (less reliable)
+  // Check by order number patterns (numeroPedidoLoja)
   if (numeroPedidoLoja) {
-    // Shopee: long numeric (15+ digits)
-    if (/^\d{15,}$/.test(numeroPedidoLoja)) {
-      return 'SHOPEE';
+    // Mercado Livre: 16 digits starting with 2000 (most common ML pattern)
+    if (/^2000\d{12}$/.test(numeroPedidoLoja)) {
+      return 'MERCADO_LIVRE';
+    }
+    // Mercado Livre: 10-16 digits (alternative patterns)
+    if (/^\d{10,16}$/.test(numeroPedidoLoja) && numeroPedidoLoja.length >= 10) {
+      // If it's a very long number starting with 2, likely ML
+      if (numeroPedidoLoja.startsWith('2') && numeroPedidoLoja.length >= 13) {
+        return 'MERCADO_LIVRE';
+      }
     }
     // Amazon: XXX-XXXXXXX-XXXXXXX format
     if (/^\d{3}-\d{7}-\d{7}$/.test(numeroPedidoLoja)) {
       return 'AMAZON';
     }
-    // Mercado Livre: 10-12 digits
-    if (/^\d{10,12}$/.test(numeroPedidoLoja)) {
-      return 'MERCADO_LIVRE';
+    // Shopee: Usually contains letters or different format
+    if (/^[A-Z]{2}\d+/.test(numeroPedidoLoja)) {
+      return 'SHOPEE';
     }
   }
   
@@ -192,7 +194,9 @@ serve(async (req) => {
     let page = 1;
     let hasMore = true;
 
-    console.log('Buscando pedidos de vendas do Bling...');
+    console.log('=== INICIANDO SINCRONIZAÇÃO DE PEDIDOS BLING ===');
+    console.log(`Marketplace solicitado: ${marketplace || 'TODOS'}`);
+    console.log(`Debug mode: ${debug ? 'SIM' : 'NÃO'}`);
 
     // Fetch all sales orders from Bling
     while (hasMore) {
@@ -209,6 +213,8 @@ serve(async (req) => {
 
       const url = `https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=${page}&limite=100&dataInicial=${dataInicialStr}`;
       
+      console.log(`[REQ] URL: ${url}`);
+      
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -216,12 +222,16 @@ serve(async (req) => {
         },
       });
 
+      console.log(`[RES] Status: ${response.status}`);
+
       if (!response.ok) {
         if (response.status === 429) {
-          console.log('Rate limit, aguardando...');
+          console.log('Rate limit, aguardando 2s...');
           await delay(2000);
           continue;
         }
+        const errorBody = await response.text();
+        console.error(`[RES] Error body: ${errorBody}`);
         throw new Error(`Erro ao buscar pedidos: ${response.status}`);
       }
 
@@ -230,23 +240,32 @@ serve(async (req) => {
       
       console.log(`Página ${page}: ${orders.length} pedidos encontrados`);
       
+      // Log first order structure for debugging
+      if (page === 1 && orders.length > 0) {
+        console.log('=== ESTRUTURA DO PRIMEIRO PEDIDO (DEBUG) ===');
+        console.log(JSON.stringify(orders[0], null, 2));
+      }
+      
       allOrders = [...allOrders, ...orders];
       
       hasMore = orders.length === 100;
       page++;
 
       if (page > 50) {
-        console.log('Limite de páginas atingido');
+        console.log('Limite de páginas atingido (50)');
         break;
       }
     }
 
-    console.log(`Total de pedidos: ${allOrders.length}`);
+    console.log(`=== TOTAL DE PEDIDOS ENCONTRADOS: ${allOrders.length} ===`);
 
-    // FIRST PASS: Analyze all unique lojas to build marketplace mapping
+    // FIRST PASS: Analyze all unique lojas AND vendors to build marketplace mapping
     const lojaAnalysis = new Map<number, { descricao: string; count: number }>();
+    const vendedorAnalysis = new Map<string, { descricao: string; count: number }>();
+    const numeroPedidoLojaAnalysis = new Map<string, number>(); // pattern -> count
     
     for (const order of allOrders) {
+      // Analyze loja
       if (order.loja?.id) {
         const existing = lojaAnalysis.get(order.loja.id);
         if (existing) {
@@ -258,12 +277,49 @@ serve(async (req) => {
           });
         }
       }
+      
+      // Analyze vendedor
+      if (order.vendedor?.descricao || order.vendedor?.nome) {
+        const vendKey = order.vendedor.descricao || order.vendedor.nome || '';
+        const existing = vendedorAnalysis.get(vendKey);
+        if (existing) {
+          existing.count++;
+        } else {
+          vendedorAnalysis.set(vendKey, {
+            descricao: vendKey,
+            count: 1
+          });
+        }
+      }
+      
+      // Analyze numeroPedidoLoja patterns
+      if (order.numeroPedidoLoja) {
+        const num = String(order.numeroPedidoLoja);
+        let pattern = 'unknown';
+        if (/^2000\d{12}$/.test(num)) pattern = 'ML_2000xxx (16 digits)';
+        else if (/^\d{10,12}$/.test(num)) pattern = 'numeric_10-12';
+        else if (/^\d{13,}$/.test(num)) pattern = 'numeric_13+';
+        else if (/^\d{3}-\d{7}-\d{7}$/.test(num)) pattern = 'AMAZON_XXX-XXX-XXX';
+        else if (/^[A-Z]/.test(num)) pattern = 'starts_with_letter';
+        
+        numeroPedidoLojaAnalysis.set(pattern, (numeroPedidoLojaAnalysis.get(pattern) || 0) + 1);
+      }
     }
     
     // Log all lojas found
-    console.log('=== Lojas encontradas no Bling ===');
+    console.log('=== LOJAS ENCONTRADAS NO BLING ===');
     for (const [lojaId, info] of lojaAnalysis.entries()) {
       console.log(`  Loja ID ${lojaId}: "${info.descricao}" (${info.count} pedidos)`);
+    }
+    
+    console.log('=== VENDEDORES ENCONTRADOS NO BLING ===');
+    for (const [vendKey, info] of vendedorAnalysis.entries()) {
+      console.log(`  Vendedor: "${info.descricao}" (${info.count} pedidos)`);
+    }
+    
+    console.log('=== PADRÕES DE numeroPedidoLoja ===');
+    for (const [pattern, count] of numeroPedidoLojaAnalysis.entries()) {
+      console.log(`  Padrão "${pattern}": ${count} pedidos`);
     }
     
     // Build loja ID to marketplace mapping based on names
@@ -278,28 +334,30 @@ serve(async (req) => {
       } else if (desc.includes('amazon') || desc.includes('amzn')) {
         lojaIdMapping.set(lojaId, 'AMAZON');
         console.log(`  -> Loja ${lojaId} mapeada para AMAZON`);
-      } else if (desc.includes('mercado') || desc.includes('meli') || desc.includes('ml')) {
+      } else if (desc.includes('mercado') || desc.includes('meli') || desc.includes('ml') || desc.includes('ecg')) {
         lojaIdMapping.set(lojaId, 'MERCADO_LIVRE');
         console.log(`  -> Loja ${lojaId} mapeada para MERCADO_LIVRE`);
       }
     }
 
-    // Show sample orders for debugging
-    if (debug && allOrders.length > 0) {
-      console.log('=== DEBUG: Amostra de pedidos ===');
-      for (let i = 0; i < Math.min(5, allOrders.length); i++) {
-        const o = allOrders[i];
-        console.log(`[SAMPLE] Pedido ${o.numero}:`);
-        console.log(`  loja: ${JSON.stringify(o.loja)}`);
-        console.log(`  vendedor: ${JSON.stringify(o.vendedor)}`);
-        console.log(`  origem: ${JSON.stringify(o.origem)}`);
-        console.log(`  canal: ${o.canal}`);
-        console.log(`  numeroPedidoLoja: ${o.numeroPedidoLoja}`);
-      }
+    // Show sample orders for debugging (always in debug mode or if marketplace detection fails)
+    console.log('=== DEBUG: Amostra de pedidos ===');
+    for (let i = 0; i < Math.min(5, allOrders.length); i++) {
+      const o = allOrders[i];
+      console.log(`[SAMPLE ${i+1}] Pedido ${o.numero || o.id}:`);
+      console.log(`  loja: ${JSON.stringify(o.loja)}`);
+      console.log(`  vendedor: ${JSON.stringify(o.vendedor)}`);
+      console.log(`  origem: ${JSON.stringify(o.origem)}`);
+      console.log(`  canal: ${o.canal}`);
+      console.log(`  numeroPedidoLoja: ${o.numeroPedidoLoja}`);
+      console.log(`  observacoes: ${o.observacoes?.substring(0, 100)}`);
+      console.log(`  total: ${o.total || o.totalProdutos}`);
+      console.log(`  data: ${o.data}`);
     }
 
     // SECOND PASS: Filter orders by marketplace
     const marketplaceOrders: any[] = [];
+    const noMarketplaceOrders: any[] = [];
     
     for (const order of allOrders) {
       const detectedMarketplace = detectMarketplace(order, lojaIdMapping);
@@ -314,20 +372,34 @@ serve(async (req) => {
           ...order,
           detected_marketplace: detectedMarketplace,
         });
+      } else {
+        noMarketplaceOrders.push(order);
       }
     }
 
-    console.log(`Pedidos de marketplaces encontrados: ${marketplaceOrders.length}`);
+    console.log(`=== PEDIDOS DE MARKETPLACES DETECTADOS: ${marketplaceOrders.length} ===`);
+    console.log(`=== PEDIDOS SEM MARKETPLACE: ${noMarketplaceOrders.length} ===`);
+    
+    // Log some non-marketplace orders to understand what we're missing
+    if (noMarketplaceOrders.length > 0) {
+      console.log('=== EXEMPLOS DE PEDIDOS SEM MARKETPLACE DETECTADO ===');
+      for (let i = 0; i < Math.min(3, noMarketplaceOrders.length); i++) {
+        const o = noMarketplaceOrders[i];
+        console.log(`  Pedido ${o.numero}: loja=${JSON.stringify(o.loja)}, numeroPedidoLoja=${o.numeroPedidoLoja}`);
+      }
+    }
     
     // Log breakdown by marketplace
     const byMarketplace: Record<string, number> = {};
     for (const o of marketplaceOrders) {
       byMarketplace[o.detected_marketplace] = (byMarketplace[o.detected_marketplace] || 0) + 1;
     }
-    console.log('Breakdown por marketplace:', JSON.stringify(byMarketplace));
+    console.log('=== BREAKDOWN POR MARKETPLACE ===');
+    console.log(JSON.stringify(byMarketplace, null, 2));
 
     // Upsert orders into database
     let syncedCount = 0;
+    let errorCount = 0;
     
     for (const order of marketplaceOrders) {
       // Rate limit delay every 10 orders
@@ -359,15 +431,18 @@ serve(async (req) => {
         });
 
       if (upsertError) {
-        console.error(`Erro ao salvar pedido ${order.id}:`, upsertError);
+        console.error(`Erro ao salvar pedido ${order.id}:`, upsertError.message);
+        errorCount++;
       } else {
         syncedCount++;
       }
     }
 
-    console.log(`Sincronização concluída! ${syncedCount} pedidos salvos.`);
+    console.log(`=== SINCRONIZAÇÃO CONCLUÍDA ===`);
+    console.log(`  Salvos: ${syncedCount}`);
+    console.log(`  Erros: ${errorCount}`);
 
-    // Get summary by marketplace
+    // Get summary by marketplace from database
     const { data: dbSummary } = await supabase
       .from('bling_marketplace_pedidos')
       .select('marketplace, valor_total');
@@ -382,21 +457,29 @@ serve(async (req) => {
         summary[row.marketplace].total += Number(row.valor_total || 0);
       }
     }
+    
+    console.log('=== RESUMO NO BANCO DE DADOS ===');
+    console.log(JSON.stringify(summary, null, 2));
 
     return new Response(JSON.stringify({
       success: true,
       totalOrders: allOrders.length,
       marketplaceOrders: marketplaceOrders.length,
+      noMarketplaceOrders: noMarketplaceOrders.length,
       syncedCount,
+      errorCount,
       byMarketplace,
       summary,
       lojasEncontradas: Object.fromEntries(lojaAnalysis),
+      vendedoresEncontrados: Object.fromEntries(vendedorAnalysis),
+      padroesNumeroPedido: Object.fromEntries(numeroPedidoLojaAnalysis),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: unknown) {
-    console.error('Erro:', error);
+    console.error('=== ERRO NA SINCRONIZAÇÃO ===');
+    console.error(error);
     const message = error instanceof Error ? error.message : 'Erro desconhecido';
     return new Response(JSON.stringify({
       success: false,
