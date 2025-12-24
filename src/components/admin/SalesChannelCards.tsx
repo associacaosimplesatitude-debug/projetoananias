@@ -198,15 +198,13 @@ export function SalesChannelCards({
     
     const filterByRange = (orders: MarketplacePedido[]) => {
       return orders.filter((o) => {
-        // Para TODOS os canais, o filtro do card deve respeitar a data real do pedido.
-        // `created_at` é apenas a data de sincronização/importação.
-        const dateField = o.order_date || o.created_at;
+        // ADVECS e ATACADO já estão corretos usando a data do pedido.
+        // Shopee/Mercado Livre/Amazon no Bling podem vir com `order_date` desatualizado;
+        // nesses canais, usamos `created_at` (data de sincronização) para o filtro do card.
+        const useSyncDate = ['SHOPEE', 'MERCADO_LIVRE', 'AMAZON'].includes(o.marketplace);
+        const dateField = useSyncDate ? o.created_at : (o.order_date || o.created_at);
         if (!dateField) return false;
 
-        // `order_date` pode vir como:
-        // - DATE puro ("YYYY-MM-DD")
-        // - TIMESTAMP ISO ("2025-09-25T00:00:00+00:00")
-        // - Outros formatos com espaço ("YYYY-MM-DD HH:mm:ss+00")
         let orderDate: Date;
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
           orderDate = parseISO(dateField);
