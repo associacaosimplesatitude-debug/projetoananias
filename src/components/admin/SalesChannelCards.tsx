@@ -198,14 +198,15 @@ export function SalesChannelCards({
     
     const filterByRange = (orders: MarketplacePedido[]) => {
       return orders.filter((o) => {
-        // ADVECS e ATACADO já estão corretos usando a data do pedido.
-        // Shopee/Mercado Livre/Amazon no Bling podem vir com `order_date` desatualizado;
-        // nesses canais, usamos `created_at` (data de sincronização) para o filtro do card.
-        const useSyncDate = ['SHOPEE', 'MERCADO_LIVRE', 'AMAZON'].includes(o.marketplace);
-        const dateField = useSyncDate ? o.created_at : (o.order_date || o.created_at);
+        // IMPORTANTE: Shopee e Mercado Livre devem usar a MESMA regra das páginas de pedidos:
+        // filtrar sempre pela data real do pedido (order_date).
+        // Os demais canais permanecem com fallback para created_at.
+        const mustUseOrderDate = ["SHOPEE", "MERCADO_LIVRE"].includes(o.marketplace);
+        const dateField = mustUseOrderDate ? o.order_date : (o.order_date || o.created_at);
         if (!dateField) return false;
 
         let orderDate: Date;
+        // Suporta DATE puro (YYYY-MM-DD) e timestamps.
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
           orderDate = parseISO(dateField);
         } else {
@@ -218,6 +219,7 @@ export function SalesChannelCards({
         return isWithinInterval(orderDate, { start, end });
       });
     };
+
 
     const amazonOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'AMAZON'));
     const shopeeOrders = filterByRange(marketplacePedidos.filter(p => p.marketplace === 'SHOPEE'));
