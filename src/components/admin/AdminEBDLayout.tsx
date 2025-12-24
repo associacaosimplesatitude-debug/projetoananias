@@ -13,6 +13,7 @@ import {
   Church,
   Store,
   ShoppingCart,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -35,6 +36,8 @@ export function AdminEBDLayout() {
   const pedidosSubItems = [
     { to: "/admin/ebd/pedidos-igrejas", icon: Church, label: "Igrejas" },
     { to: "/admin/ebd/pedidos-online", icon: ShoppingBag, label: "Online" },
+    { to: "/admin/ebd/pedidos-advecs", icon: Church, label: "ADVECS" },
+    { to: "/admin/ebd/pedidos-atacado", icon: Boxes, label: "Atacado" },
     { to: "/admin/ebd/pedidos-amazon", icon: Package, label: "Amazon" },
     { to: "/admin/ebd/pedidos-shopee", icon: Store, label: "Shopee" },
     { to: "/admin/ebd/pedidos-mercadolivre", icon: ShoppingCart, label: "Mercado Livre" },
