@@ -201,11 +201,22 @@ export function SalesChannelCards({
         const dateField = o.order_date || o.created_at;
         if (!dateField) return false;
 
-        // Marketplace timestamps may come in non-ISO formats (e.g. "YYYY-MM-DD HH:mm:ss+00").
-        // Using Date() is more tolerant than parseISO and avoids silently dropping rows.
-        const orderDate = new Date(dateField);
-        if (Number.isNaN(orderDate.getTime())) return false;
+        // `order_date` às vezes vem como DATE puro ("YYYY-MM-DD").
+        // `new Date("YYYY-MM-DD")` interpreta como UTC e pode cair no dia anterior no fuso BR,
+        // zerando os Cards. Então tratamos DATE puro como local via parseISO.
+        let orderDate: Date;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateField)) {
+          orderDate = parseISO(dateField);
+        } else {
+          // Alguns timestamps podem vir como "YYYY-MM-DD HH:mm:ss+00"; normalize para ISO.
+          const normalized = dateField.includes(" ") ? dateField.replace(" ", "T") : dateField;
+          orderDate = parseISO(normalized);
+          if (Number.isNaN(orderDate.getTime())) {
+            orderDate = new Date(dateField);
+          }
+        }
 
+        if (Number.isNaN(orderDate.getTime())) return false;
         return isWithinInterval(orderDate, { start, end });
       });
     };
