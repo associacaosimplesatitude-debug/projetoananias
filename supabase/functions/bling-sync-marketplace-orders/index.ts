@@ -82,8 +82,12 @@ function classifyAtacadoOrder(customerName: string | null | undefined): string {
   
   const nameUpper = customerName.toUpperCase();
   
-  // Verifica se é ADVEC ou Assembleia de Deus Vitória em Cristo
-  if (nameUpper.includes('ADVEC') || nameUpper.includes('ASSEMBLEIA DE DEUS VITORIA EM CRISTO')) {
+  // Verifica se é ADVEC (Assembleia de Deus Vitória em Cristo) - múltiplos padrões
+  if (
+    nameUpper.includes('ADVEC') || 
+    nameUpper.includes('VITORIA EM CRISTO') ||
+    nameUpper.includes('VITÓRIA EM CRISTO')
+  ) {
     return 'ADVECS';
   }
   
