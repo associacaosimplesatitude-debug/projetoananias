@@ -68,57 +68,72 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function detectMarketplace(order: any, debug = false): string | null {
+// Known marketplace loja IDs from Bling integrations
+// These are populated dynamically based on the detected lojas
+const MARKETPLACE_LOJA_IDS: Record<number, string> = {};
+
+function detectMarketplace(order: any, lojaIdMapping: Map<number, string>): string | null {
   // Collect all fields to check
-  const lojaDescricao = (order.loja?.descricao || '').toLowerCase();
-  const lojaNome = (order.loja?.nome || '').toLowerCase();
+  const lojaDescricao = (order.loja?.descricao || '').toLowerCase().trim();
+  const lojaNome = (order.loja?.nome || '').toLowerCase().trim();
   const lojaId = order.loja?.id;
   const canal = (order.canal || '').toLowerCase();
   const origemDescricao = (order.origem?.descricao || '').toLowerCase();
   const origemNome = (order.origem?.nome || '').toLowerCase();
-  const numeroPedidoLoja = (order.numeroPedidoLoja || '').toLowerCase();
+  const numeroPedidoLoja = (order.numeroPedidoLoja || '').toString();
   const observacoes = (order.observacoes || '').toLowerCase();
   const observacoesInternas = (order.observacoesInternas || '').toLowerCase();
+  const vendedorDescricao = (order.vendedor?.descricao || '').toLowerCase();
+  const vendedorNome = (order.vendedor?.nome || '').toLowerCase();
   
-  // Combine all text fields to search
-  const allText = `${lojaDescricao} ${lojaNome} ${canal} ${origemDescricao} ${origemNome} ${numeroPedidoLoja} ${observacoes} ${observacoesInternas}`;
-  
-  if (debug) {
-    console.log(`Order ${order.numero}: loja=${lojaDescricao}|${lojaNome}, canal=${canal}, origem=${origemDescricao}|${origemNome}, numeroPedidoLoja=${numeroPedidoLoja}`);
+  // Check by loja ID first (most reliable)
+  if (lojaId && lojaIdMapping.has(lojaId)) {
+    return lojaIdMapping.get(lojaId)!;
   }
   
-  // Check for Shopee (most common patterns)
-  if (allText.includes('shopee') || 
-      numeroPedidoLoja.match(/^\d{15,}/) || // Shopee order numbers are usually 15+ digits
-      lojaDescricao.includes('ecg shopee') ||
-      lojaNome.includes('shopee')) {
+  // Combine all text fields to search
+  const allText = `${lojaDescricao} ${lojaNome} ${canal} ${origemDescricao} ${origemNome} ${observacoes} ${observacoesInternas} ${vendedorDescricao} ${vendedorNome}`;
+  
+  // Check for ECG prefixed names (common in Bling for marketplace integrations)
+  // Pattern: "ECG Shopee", "ECG Mercado Livre", "ECG Amazon", etc.
+  
+  // Shopee detection
+  if (lojaDescricao.includes('shopee') || lojaNome.includes('shopee') || 
+      vendedorDescricao.includes('shopee') || vendedorNome.includes('shopee') ||
+      allText.includes('shopee')) {
     return 'SHOPEE';
   }
   
-  // Check for Amazon
-  if (allText.includes('amazon') || 
-      allText.includes('amzn') ||
-      numeroPedidoLoja.match(/^\d{3}-\d{7}-\d{7}$/)) { // Amazon order format
+  // Amazon detection
+  if (lojaDescricao.includes('amazon') || lojaNome.includes('amazon') ||
+      vendedorDescricao.includes('amazon') || vendedorNome.includes('amazon') ||
+      allText.includes('amazon') || allText.includes('amzn')) {
     return 'AMAZON';
   }
   
-  // Check for Mercado Livre
-  if (allText.includes('mercado') || 
-      allText.includes('meli') || 
-      allText.includes('mercadolivre') ||
-      allText.includes('ml_') ||
-      numeroPedidoLoja.match(/^\d{10,12}$/)) { // ML order numbers are 10-12 digits
+  // Mercado Livre detection
+  if (lojaDescricao.includes('mercado') || lojaNome.includes('mercado') ||
+      lojaDescricao.includes('meli') || lojaNome.includes('meli') ||
+      vendedorDescricao.includes('mercado') || vendedorNome.includes('mercado') ||
+      allText.includes('mercado livre') || allText.includes('mercadolivre') ||
+      allText.includes('meli') || allText.includes('ml ')) {
     return 'MERCADO_LIVRE';
   }
   
-  // Check by loja ID (need to be configured per Bling account)
-  // Common Bling integration IDs for marketplaces
-  if (lojaId) {
-    // These are typical integration names in Bling
-    const lojaIdStr = String(lojaId).toLowerCase();
-    if (lojaIdStr.includes('shopee')) return 'SHOPEE';
-    if (lojaIdStr.includes('amazon')) return 'AMAZON';
-    if (lojaIdStr.includes('mercado')) return 'MERCADO_LIVRE';
+  // Check by order number patterns (less reliable)
+  if (numeroPedidoLoja) {
+    // Shopee: long numeric (15+ digits)
+    if (/^\d{15,}$/.test(numeroPedidoLoja)) {
+      return 'SHOPEE';
+    }
+    // Amazon: XXX-XXXXXXX-XXXXXXX format
+    if (/^\d{3}-\d{7}-\d{7}$/.test(numeroPedidoLoja)) {
+      return 'AMAZON';
+    }
+    // Mercado Livre: 10-12 digits
+    if (/^\d{10,12}$/.test(numeroPedidoLoja)) {
+      return 'MERCADO_LIVRE';
+    }
   }
   
   return null;
@@ -128,7 +143,6 @@ function mapBlingStatusToLocal(situacao: any): string {
   const id = situacao?.id || situacao?.valor || 0;
   const nome = (situacao?.nome || situacao?.descricao || '').toLowerCase();
   
-  // Map Bling status IDs/names to our status
   if (id === 9 || nome.includes('atendido')) return 'Atendido';
   if (id === 15 || nome.includes('aberto') || nome.includes('em aberto')) return 'Em Aberto';
   if (id === 12 || nome.includes('cancelado')) return 'Cancelado';
@@ -229,24 +243,66 @@ serve(async (req) => {
 
     console.log(`Total de pedidos: ${allOrders.length}`);
 
-    // Sample 5 orders for debugging - show their structure
+    // FIRST PASS: Analyze all unique lojas to build marketplace mapping
+    const lojaAnalysis = new Map<number, { descricao: string; count: number }>();
+    
+    for (const order of allOrders) {
+      if (order.loja?.id) {
+        const existing = lojaAnalysis.get(order.loja.id);
+        if (existing) {
+          existing.count++;
+        } else {
+          lojaAnalysis.set(order.loja.id, {
+            descricao: order.loja.descricao || order.loja.nome || '',
+            count: 1
+          });
+        }
+      }
+    }
+    
+    // Log all lojas found
+    console.log('=== Lojas encontradas no Bling ===');
+    for (const [lojaId, info] of lojaAnalysis.entries()) {
+      console.log(`  Loja ID ${lojaId}: "${info.descricao}" (${info.count} pedidos)`);
+    }
+    
+    // Build loja ID to marketplace mapping based on names
+    const lojaIdMapping = new Map<number, string>();
+    
+    for (const [lojaId, info] of lojaAnalysis.entries()) {
+      const desc = info.descricao.toLowerCase();
+      
+      if (desc.includes('shopee')) {
+        lojaIdMapping.set(lojaId, 'SHOPEE');
+        console.log(`  -> Loja ${lojaId} mapeada para SHOPEE`);
+      } else if (desc.includes('amazon') || desc.includes('amzn')) {
+        lojaIdMapping.set(lojaId, 'AMAZON');
+        console.log(`  -> Loja ${lojaId} mapeada para AMAZON`);
+      } else if (desc.includes('mercado') || desc.includes('meli') || desc.includes('ml')) {
+        lojaIdMapping.set(lojaId, 'MERCADO_LIVRE');
+        console.log(`  -> Loja ${lojaId} mapeada para MERCADO_LIVRE`);
+      }
+    }
+
+    // Show sample orders for debugging
     if (debug && allOrders.length > 0) {
       console.log('=== DEBUG: Amostra de pedidos ===');
       for (let i = 0; i < Math.min(5, allOrders.length); i++) {
         const o = allOrders[i];
-        console.log(`Pedido ${o.numero}: loja=${JSON.stringify(o.loja)}, origem=${JSON.stringify(o.origem)}, canal=${o.canal}, numeroPedidoLoja=${o.numeroPedidoLoja}`);
+        console.log(`[SAMPLE] Pedido ${o.numero}:`);
+        console.log(`  loja: ${JSON.stringify(o.loja)}`);
+        console.log(`  vendedor: ${JSON.stringify(o.vendedor)}`);
+        console.log(`  origem: ${JSON.stringify(o.origem)}`);
+        console.log(`  canal: ${o.canal}`);
+        console.log(`  numeroPedidoLoja: ${o.numeroPedidoLoja}`);
       }
     }
 
-    // Filter orders by marketplace
+    // SECOND PASS: Filter orders by marketplace
     const marketplaceOrders: any[] = [];
-    let debugCount = 0;
     
     for (const order of allOrders) {
-      // Debug first 10 orders to see structure
-      const shouldDebug = debug && debugCount < 10;
-      const detectedMarketplace = detectMarketplace(order, shouldDebug);
-      if (shouldDebug) debugCount++;
+      const detectedMarketplace = detectMarketplace(order, lojaIdMapping);
       
       if (detectedMarketplace) {
         // If marketplace filter is specified, only include matching orders
@@ -274,9 +330,9 @@ serve(async (req) => {
     let syncedCount = 0;
     
     for (const order of marketplaceOrders) {
-      // Rate limit delay every 5 orders
-      if (syncedCount > 0 && syncedCount % 5 === 0) {
-        await delay(100);
+      // Rate limit delay every 10 orders
+      if (syncedCount > 0 && syncedCount % 10 === 0) {
+        await delay(50);
       }
 
       const orderData = {
@@ -312,17 +368,20 @@ serve(async (req) => {
     console.log(`Sincronização concluída! ${syncedCount} pedidos salvos.`);
 
     // Get summary by marketplace
-    const { data: summary } = await supabase
+    const { data: dbSummary } = await supabase
       .from('bling_marketplace_pedidos')
-      .select('marketplace')
-      .then((res: any) => {
-        if (res.error) return { data: null };
-        const counts: Record<string, number> = {};
-        for (const row of res.data || []) {
-          counts[row.marketplace] = (counts[row.marketplace] || 0) + 1;
+      .select('marketplace, valor_total');
+    
+    const summary: Record<string, { count: number; total: number }> = {};
+    if (dbSummary) {
+      for (const row of dbSummary) {
+        if (!summary[row.marketplace]) {
+          summary[row.marketplace] = { count: 0, total: 0 };
         }
-        return { data: counts };
-      });
+        summary[row.marketplace].count++;
+        summary[row.marketplace].total += Number(row.valor_total || 0);
+      }
+    }
 
     return new Response(JSON.stringify({
       success: true,
@@ -331,6 +390,7 @@ serve(async (req) => {
       syncedCount,
       byMarketplace,
       summary,
+      lojasEncontradas: Object.fromEntries(lojaAnalysis),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
