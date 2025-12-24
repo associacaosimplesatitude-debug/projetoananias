@@ -1492,10 +1492,6 @@ export default function AdminEBD() {
             propostasDigitaisAbertas={propostasAbertas.length}
             pedidosBlingPendentes={pedidosBlingPendentes}
             marketplacePedidos={marketplacePedidos}
-            period={period as any}
-            dateRange={dateRange}
-            customStartDate={customStartDate}
-            customEndDate={customEndDate}
           />
 
           {/* Church Progress Cards - Aulas Restantes */}
