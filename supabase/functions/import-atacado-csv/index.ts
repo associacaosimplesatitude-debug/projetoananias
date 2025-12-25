@@ -122,8 +122,24 @@ serve(async (req) => {
       }
       values.push(current.trim());
 
+      const requiredMax = Math.max(
+        colMap.numero,
+        colMap.data,
+        colMap.cliente,
+        colMap.email,
+        colMap.total,
+        colMap.frete
+      );
+
+      // Ignorar linhas "soltas" (observações/rodapés) que não seguem o mesmo padrão do header
+      if (values.length <= requiredMax) {
+        skippedLines++;
+        continue;
+      }
+
       const orderNumber = values[colMap.numero]?.replace(/"/g, "").trim();
-      if (!orderNumber) {
+      // No CSV do Bling, o número do pedido é numérico. Se não for, é linha inválida.
+      if (!orderNumber || !/^\d+$/.test(orderNumber)) {
         skippedLines++;
         continue;
       }
@@ -172,11 +188,18 @@ serve(async (req) => {
       const blingOrderId = numericPart ? parseInt(numericPart) : Math.floor(Math.random() * 1000000000);
 
       // Usar Map para agrupar por order_number (evitar duplicatas do mesmo pedido com múltiplos itens)
+      // ATENÇÃO: estamos lendo "total pedido" (já é o total do pedido), então NÃO devemos somar por item.
       const existingOrder = ordersMap.get(orderNumber);
       if (existingOrder) {
-        // Somar valores se já existe
-        existingOrder.valor_total += valorTotal;
-        existingOrder.valor_frete = Math.max(existingOrder.valor_frete, valorFrete); // Frete só conta uma vez
+        existingOrder.valor_total = Math.max(existingOrder.valor_total, valorTotal);
+        existingOrder.valor_frete = Math.max(existingOrder.valor_frete, valorFrete);
+
+        // Preencher dados ausentes se aparecerem em outra linha
+        if (!existingOrder.customer_name && customerName) existingOrder.customer_name = customerName;
+        if (!existingOrder.customer_email && customerEmail) existingOrder.customer_email = customerEmail;
+        if ((!existingOrder.codigo_rastreio || existingOrder.codigo_rastreio === '-') && rastreio) {
+          existingOrder.codigo_rastreio = rastreio;
+        }
       } else {
         ordersMap.set(orderNumber, {
           bling_order_id: blingOrderId,
