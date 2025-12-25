@@ -60,6 +60,7 @@ import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import { SalesChannelCards } from "@/components/admin/SalesChannelCards";
 import { ClientsSummaryCards } from "@/components/admin/ClientsSummaryCards";
+import { VendedoresSummaryCards } from "@/components/admin/VendedoresSummaryCards";
 import {
   ResponsiveContainer,
   PieChart,
@@ -1501,6 +1502,13 @@ export default function AdminEBD() {
           <ClientsSummaryCards
             shopifyOrders={shopifyOrders}
             ebdClients={ebdClients || []}
+          />
+
+          {/* Bloco Performance de Vendedores - Metas, Ranking e Comissão */}
+          <VendedoresSummaryCards
+            vendedores={vendedores || []}
+            shopifyOrders={shopifyOrders}
+            blingOrders={marketplacePedidos}
           />
 
           {/* Church Progress Cards - Aulas Restantes */}
