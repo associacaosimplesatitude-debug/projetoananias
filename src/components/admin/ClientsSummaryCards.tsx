@@ -392,17 +392,22 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
              n.includes('ad vitória em cristo');
     };
 
-    // Identificar igrejas (não-ADVEC) pelo nome
-    const isIgrejaClient = (name: string | null | undefined): boolean => {
-      if (!name) return false;
-      if (isAdvecClient(name)) return false;
-      const n = name.toLowerCase();
-      return n.includes('igreja') || 
-             n.includes(' ad ') || n.startsWith('ad ') || n.endsWith(' ad') ||
-             n.includes('batista') || 
-             n.includes('metodista') || 
-             n.includes('presbiteriana') ||
-             n.includes('comunidade');
+    // Função para extrair apenas números do documento
+    const getDocumentDigits = (doc: string | null | undefined): string => {
+      if (!doc) return '';
+      return doc.replace(/\D/g, '');
+    };
+
+    // Verificar se é CNPJ (14 dígitos)
+    const isCnpj = (doc: string | null | undefined): boolean => {
+      const digits = getDocumentDigits(doc);
+      return digits.length === 14;
+    };
+
+    // Verificar se é CPF (11 dígitos)
+    const isCpf = (doc: string | null | undefined): boolean => {
+      const digits = getDocumentDigits(doc);
+      return digits.length === 11;
     };
     
     // Buscar clientes ADVEC únicos de TODOS os pedidos Bling (sem filtro de período)
@@ -415,25 +420,25 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
     });
     const totalAdvec = advecUniqueClients.size;
 
-    // Buscar Igrejas Atacado (clientes com "IGREJA" no nome, excluindo ADVECs)
-    const igrejaAtacadoClients = new Set<string>();
+    // Atacado CNPJ: clientes com CNPJ (14 dígitos) que NÃO são ADVEC
+    const atacadoCnpjClients = new Set<string>();
     blingOrders.forEach(order => {
-      if (isIgrejaClient(order.customer_name)) {
+      if (isCnpj(order.customer_document) && !isAdvecClient(order.customer_name)) {
         const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
-        if (key) igrejaAtacadoClients.add(key);
+        if (key) atacadoCnpjClients.add(key);
       }
     });
-    const igrejasAtacado = igrejaAtacadoClients.size;
-    
-    // Total de clientes únicos em TODOS os pedidos Bling (para calcular Atacado)
-    const allBlingUniqueClients = new Set<string>();
+    const atacadoCnpj = atacadoCnpjClients.size;
+
+    // Atacado CPF: clientes com CPF (11 dígitos)
+    const atacadoCpfClients = new Set<string>();
     blingOrders.forEach(order => {
-      const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
-      if (key) allBlingUniqueClients.add(key);
+      if (isCpf(order.customer_document)) {
+        const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
+        if (key) atacadoCpfClients.add(key);
+      }
     });
-    
-    // Clientes Atacado = Total clientes Bling - ADVECs - Igrejas Atacado
-    const clientesAtacado = allBlingUniqueClients.size - advecUniqueClients.size - igrejaAtacadoClients.size;
+    const atacadoCpf = atacadoCpfClients.size;
 
     return {
       clientesAtivos,
@@ -445,8 +450,8 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       clientesInativos,
       potencialReativacao,
       totalAdvec,
-      igrejasAtacado,
-      clientesAtacado: Math.max(0, clientesAtacado),
+      atacadoCnpj,
+      atacadoCpf,
     };
   }, [allOrders, ebdClients, allEbdClientes, blingOrders, dateRange]);
 
@@ -622,9 +627,9 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
 
           <StandardCard
             icon={<Building2 className="h-4 w-4 text-purple-600" />}
-            title="Igrejas Atacado"
-            value={clientMetrics.igrejasAtacado}
-            subtitle="Igrejas não-ADVEC"
+            title="Atacado CNPJ"
+            value={clientMetrics.atacadoCnpj}
+            subtitle="Clientes com CNPJ (não-ADVEC)"
             colorClass="text-purple-700 dark:text-purple-300"
             borderColorClass="border-purple-200 dark:border-purple-800"
             bgClass="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900"
@@ -632,9 +637,9 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
 
           <StandardCard
             icon={<Users className="h-4 w-4 text-rose-600" />}
-            title="Clientes Atacado"
-            value={clientMetrics.clientesAtacado}
-            subtitle="Tirando ADVECs e Igrejas"
+            title="Atacado CPF"
+            value={clientMetrics.atacadoCpf}
+            subtitle="Clientes com CPF"
             colorClass="text-rose-700 dark:text-rose-300"
             borderColorClass="border-rose-200 dark:border-rose-800"
             bgClass="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
