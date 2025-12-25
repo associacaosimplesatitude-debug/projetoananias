@@ -6,15 +6,53 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Generate a consistent numeric hash from a string
-function hashStringToNumber(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+// Parse CSV properly handling multi-line fields within quotes
+function parseCSV(content: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
+  let insideQuotes = false;
+  
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+    
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        // Escaped quote
+        currentField += '"';
+        i++;
+      } else {
+        // Toggle quote state
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === ';' && !insideQuotes) {
+      // Field separator
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((char === '\n' || (char === '\r' && nextChar === '\n')) && !insideQuotes) {
+      // Row separator
+      if (char === '\r') i++; // Skip \n in \r\n
+      currentRow.push(currentField.trim());
+      if (currentRow.some(field => field !== '')) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = '';
+    } else {
+      currentField += char;
+    }
   }
-  return Math.abs(hash);
+  
+  // Add last field and row
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some(field => field !== '')) {
+      rows.push(currentRow);
+    }
+  }
+  
+  return rows;
 }
 
 serve(async (req) => {
@@ -40,22 +78,32 @@ serve(async (req) => {
     console.log('Starting Mercado Livre CSV import...');
     console.log('CSV content length:', csvContent.length);
 
-    // Parse CSV - handle BOM and semicolon delimiter
-    const lines = csvContent.replace(/^\uFEFF/, '').split('\n');
-    const headers = lines[0].split(';').map((h: string) => h.replace(/"/g, '').trim());
+    // Remove BOM and parse CSV
+    const cleanContent = csvContent.replace(/^\uFEFF/, '');
+    const rows = parseCSV(cleanContent);
     
+    console.log('Total rows parsed:', rows.length);
+    
+    if (rows.length < 2) {
+      return new Response(
+        JSON.stringify({ error: 'CSV has no data rows' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // First row is headers
+    const headers = rows[0].map(h => h.replace(/"/g, ''));
     console.log('Headers found:', headers);
-    console.log('Total lines:', lines.length);
 
     // Map header names to indices
     const headerMap: Record<string, number> = {};
-    headers.forEach((header: string, index: number) => {
+    headers.forEach((header, index) => {
       headerMap[header] = index;
     });
 
     console.log('Header map:', headerMap);
 
-    // Group by order number to consolidate items - use bling_order_id as key to ensure uniqueness
+    // Group by order number to consolidate items - use bling_order_id as key
     const ordersMap = new Map<number, {
       bling_order_id: number;
       order_number: string;
@@ -72,49 +120,31 @@ serve(async (req) => {
     let processedLines = 0;
     let skippedLines = 0;
 
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) {
-        skippedLines++;
-        continue;
-      }
-
-      // Parse CSV line handling quoted values with semicolons inside
-      const values: string[] = [];
-      let currentValue = '';
-      let insideQuotes = false;
+    for (let i = 1; i < rows.length; i++) {
+      const values = rows[i];
       
-      for (const char of line) {
-        if (char === '"') {
-          insideQuotes = !insideQuotes;
-        } else if (char === ';' && !insideQuotes) {
-          values.push(currentValue.trim());
-          currentValue = '';
-        } else {
-          currentValue += char;
-        }
-      }
-      values.push(currentValue.trim()); // Push last value
-
       const orderNumber = values[headerMap['Número pedido']]?.replace(/"/g, '');
       if (!orderNumber) {
         skippedLines++;
         continue;
       }
 
-      // Generate a unique numeric ID from the order number
-      // Try to parse as number first, otherwise hash the string
-      let blingOrderId = parseInt(orderNumber.replace(/\D/g, '')) || 0;
+      // Use the order number directly as the bling_order_id
+      const blingOrderId = parseInt(orderNumber) || 0;
       if (blingOrderId === 0) {
-        blingOrderId = hashStringToNumber(orderNumber);
+        skippedLines++;
+        continue;
       }
 
       // Parse date from DD/MM/YYYY to YYYY-MM-DD
       const dateStr = values[headerMap['Data']]?.replace(/"/g, '');
       let orderDate = '';
       if (dateStr) {
-        const [day, month, year] = dateStr.split('/');
-        orderDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const [day, month, year] = parts;
+          orderDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
       }
 
       // Parse numeric values (Brazilian format: comma as decimal)
@@ -127,7 +157,7 @@ serve(async (req) => {
       const totalPedido = parseNumber(values[headerMap['Total Pedido']]);
       const valorFrete = parseNumber(values[headerMap['Valor Frete Pedido']]);
 
-      // If order already exists in map, we already have the totals (they're per-order, not per-item)
+      // If order already exists in map, skip (same order with different items)
       if (!ordersMap.has(blingOrderId)) {
         ordersMap.set(blingOrderId, {
           bling_order_id: blingOrderId,
@@ -163,8 +193,8 @@ serve(async (req) => {
       );
     }
 
-    // Insert in batches of 100
-    const batchSize = 100;
+    // Insert in batches of 50 to avoid issues
+    const batchSize = 50;
     let totalInserted = 0;
     let errors: string[] = [];
 
@@ -175,7 +205,7 @@ serve(async (req) => {
         .from('bling_marketplace_pedidos')
         .upsert(batch, { 
           onConflict: 'bling_order_id',
-          ignoreDuplicates: false 
+          ignoreDuplicates: true 
         })
         .select();
 
