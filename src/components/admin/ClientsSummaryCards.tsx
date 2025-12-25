@@ -597,7 +597,7 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
             icon={<Users className="h-4 w-4 text-rose-600" />}
             title="Clientes Atacado"
             value={clientMetrics.clientesAtacado}
-            subtitle="Total clientes - ADVECs"
+            subtitle="Total clientes tirando as ADVECs"
             colorClass="text-rose-700 dark:text-rose-300"
             borderColorClass="border-rose-200 dark:border-rose-800"
             bgClass="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
