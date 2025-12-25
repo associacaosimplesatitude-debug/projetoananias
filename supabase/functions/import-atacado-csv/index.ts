@@ -161,8 +161,12 @@ serve(async (req) => {
         atacado++;
       }
 
+      // Gerar bling_order_id seguro - pegar apenas os primeiros 15 dígitos para não estourar bigint
+      const numericPart = orderNumber.replace(/\D/g, "").slice(0, 15);
+      const blingOrderId = numericPart ? parseInt(numericPart) : Math.floor(Math.random() * 1000000000);
+
       ordersToInsert.push({
-        bling_order_id: parseInt(orderNumber.replace(/\D/g, "")) || Math.floor(Math.random() * 1000000000),
+        bling_order_id: blingOrderId,
         order_number: orderNumber,
         customer_name: customerName,
         customer_email: customerEmail,
