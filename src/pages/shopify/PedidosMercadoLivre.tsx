@@ -48,7 +48,7 @@ export default function PedidosMercadoLivre() {
       const { data, error } = await supabase
         .from("bling_marketplace_pedidos")
         .select("*")
-        .eq("marketplace", "MERCADOLIVRE")
+        .eq("marketplace", "MERCADO_LIVRE")
         .order("order_date", { ascending: false });
       if (error) throw error;
       return data as MarketplacePedido[];
