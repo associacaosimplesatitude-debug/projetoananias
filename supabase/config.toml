@@ -93,5 +93,8 @@ verify_jwt = false
 [functions.import-shopee-csv]
 verify_jwt = true
 
+[functions.import-mercadolivre-csv]
+verify_jwt = true
+
 [functions.bling-sync-marketplace-orders]
 verify_jwt = true
