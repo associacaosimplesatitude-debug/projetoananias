@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { RefreshCw, Search, Boxes, CalendarIcon } from "lucide-react";
+import { RefreshCw, Search, Boxes, CalendarIcon, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { format, subDays, subMonths, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -40,6 +40,8 @@ export default function PedidosAtacado() {
     from: undefined,
     to: undefined,
   });
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: pedidos, isLoading } = useQuery({
     queryKey: ["marketplace-pedidos-atacado"],
@@ -70,6 +72,46 @@ export default function PedidosAtacado() {
       toast.error("Erro ao sincronizar: " + error.message);
     },
   });
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-atacado-csv`,
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            Authorization: `Bearer ${sessionData.session?.access_token}`,
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erro ao importar CSV");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["marketplace-pedidos-atacado"] });
+      queryClient.invalidateQueries({ queryKey: ["marketplace-pedidos-advecs"] });
+      toast.success(`${result.message} (ADVECS: ${result.advecs}, ATACADO: ${result.atacado})`);
+    } catch (error: any) {
+      toast.error("Erro ao importar: " + error.message);
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   const filteredByDate = useMemo(() => {
     if (!pedidos) return [];
@@ -153,10 +195,27 @@ export default function PedidosAtacado() {
           </h1>
           <p className="text-muted-foreground">Pedidos de atacado geral (exceto ADVECS)</p>
         </div>
-        <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-          <RefreshCw className={cn("h-4 w-4 mr-2", syncMutation.isPending && "animate-spin")} />
-          Sincronizar
-        </Button>
+        <div className="flex gap-2">
+          <input
+            type="file"
+            accept=".csv"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+          >
+            <Upload className={cn("h-4 w-4 mr-2", isImporting && "animate-pulse")} />
+            {isImporting ? "Importando..." : "Importar CSV"}
+          </Button>
+          <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+            <RefreshCw className={cn("h-4 w-4 mr-2", syncMutation.isPending && "animate-spin")} />
+            Sincronizar
+          </Button>
+        </div>
       </div>
 
       <Card>
