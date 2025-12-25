@@ -59,6 +59,7 @@ import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import { SalesChannelCards } from "@/components/admin/SalesChannelCards";
+import { ClientsSummaryCards } from "@/components/admin/ClientsSummaryCards";
 import {
   ResponsiveContainer,
   PieChart,
@@ -1494,6 +1495,12 @@ export default function AdminEBD() {
             propostasDigitaisAbertas={propostasAbertas.length}
             pedidosBlingPendentes={pedidosBlingPendentes}
             marketplacePedidos={marketplacePedidos}
+          />
+
+          {/* Bloco Resumo de Clientes - 10 Cards de Métricas */}
+          <ClientsSummaryCards
+            shopifyOrders={shopifyOrders}
+            ebdClients={ebdClients || []}
           />
 
           {/* Church Progress Cards - Aulas Restantes */}
