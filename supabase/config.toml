@@ -89,3 +89,9 @@ verify_jwt = true
 
 [functions.ebd-instant-signup]
 verify_jwt = false
+
+[functions.import-shopee-csv]
+verify_jwt = true
+
+[functions.bling-sync-marketplace-orders]
+verify_jwt = true

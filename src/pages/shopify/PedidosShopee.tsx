@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { RefreshCw, Search, Store, CalendarIcon } from "lucide-react";
+import { RefreshCw, Search, Store, CalendarIcon, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { format, subDays, subMonths, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -40,6 +40,7 @@ export default function PedidosShopee() {
     from: undefined,
     to: undefined,
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: pedidos, isLoading } = useQuery({
     queryKey: ["marketplace-pedidos-shopee"],
@@ -70,6 +71,48 @@ export default function PedidosShopee() {
       toast.error("Erro ao sincronizar: " + error.message);
     },
   });
+
+  const importMutation = useMutation({
+    mutationFn: async (csvContent: string) => {
+      const { data, error } = await supabase.functions.invoke("import-shopee-csv", {
+        body: { csvContent },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["marketplace-pedidos-shopee"] });
+      toast.success(`Importação concluída! ${data.stats?.total_orders || 0} pedidos importados.`);
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao importar: " + error.message);
+    },
+  });
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast.error("Por favor, selecione um arquivo CSV");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        toast.info("Importando pedidos...");
+        importMutation.mutate(content);
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const filteredByDate = useMemo(() => {
     if (!pedidos) return [];
@@ -129,7 +172,7 @@ export default function PedidosShopee() {
 
   const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase();
-    if (statusLower.includes("pago") || statusLower.includes("atendido")) {
+    if (statusLower.includes("pago") || statusLower.includes("atendido") || statusLower.includes("paid")) {
       return <Badge className="bg-green-100 text-green-800">{status}</Badge>;
     }
     if (statusLower.includes("cancelado")) {
@@ -153,10 +196,27 @@ export default function PedidosShopee() {
           </h1>
           <p className="text-muted-foreground">Pedidos sincronizados do marketplace Shopee via Bling</p>
         </div>
-        <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-          <RefreshCw className={cn("h-4 w-4 mr-2", syncMutation.isPending && "animate-spin")} />
-          Sincronizar
-        </Button>
+        <div className="flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".csv"
+            className="hidden"
+          />
+          <Button 
+            variant="outline" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importMutation.isPending}
+          >
+            <Upload className={cn("h-4 w-4 mr-2", importMutation.isPending && "animate-pulse")} />
+            Importar CSV
+          </Button>
+          <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+            <RefreshCw className={cn("h-4 w-4 mr-2", syncMutation.isPending && "animate-spin")} />
+            Sincronizar
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -222,7 +282,7 @@ export default function PedidosShopee() {
             <div className="text-center py-8">Carregando...</div>
           ) : filteredPedidos.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Nenhum pedido encontrado. Clique em "Sincronizar" para buscar pedidos do Bling.
+              Nenhum pedido encontrado. Clique em "Importar CSV" para importar do Bling ou "Sincronizar" para buscar novos.
             </div>
           ) : (
             <div className="overflow-x-auto">
