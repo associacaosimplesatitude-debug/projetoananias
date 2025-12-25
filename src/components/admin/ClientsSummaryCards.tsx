@@ -391,8 +391,14 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
     // Identificar igrejas (não-ADVEC) pelo nome
     const isIgrejaClient = (name: string | null | undefined): boolean => {
       if (!name) return false;
+      if (isAdvecClient(name)) return false;
       const n = name.toLowerCase();
-      return n.includes('igreja') && !isAdvecClient(name);
+      return n.includes('igreja') || 
+             n.includes(' ad ') || n.startsWith('ad ') || n.endsWith(' ad') ||
+             n.includes('batista') || 
+             n.includes('metodista') || 
+             n.includes('presbiteriana') ||
+             n.includes('comunidade');
     };
     
     // Buscar clientes ADVEC únicos de TODOS os pedidos Bling (sem filtro de período)
