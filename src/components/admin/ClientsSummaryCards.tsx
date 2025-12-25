@@ -380,24 +380,40 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       ? inactiveClientValues.reduce((a, b) => a + b, 0) / inactiveClientValues.length
       : 0;
 
-    // Cards 9-10: ADVEC - buscar diretamente dos pedidos Bling
+    // Cards 9-11: ADVEC e Atacado - buscar diretamente dos pedidos Bling
     // Identificar clientes ADVEC pelo nome: "ADVEC" ou "Assembleia de Deus Vitória em Cristo"
     const isAdvecClient = (name: string | null | undefined): boolean => {
       if (!name) return false;
       const n = name.toLowerCase();
       return n.includes('advec') || n.includes('assembleia de deus vitória em cristo') || n.includes('assembleia de deus vitoria em cristo');
     };
+
+    // Identificar igrejas (não-ADVEC) pelo nome
+    const isIgrejaClient = (name: string | null | undefined): boolean => {
+      if (!name) return false;
+      const n = name.toLowerCase();
+      return n.includes('igreja') && !isAdvecClient(name);
+    };
     
     // Buscar clientes ADVEC únicos de TODOS os pedidos Bling (sem filtro de período)
     const advecUniqueClients = new Set<string>();
     blingOrders.forEach(order => {
       if (isAdvecClient(order.customer_name)) {
-        // Usar email normalizado ou nome como chave única
         const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
         if (key) advecUniqueClients.add(key);
       }
     });
     const totalAdvec = advecUniqueClients.size;
+
+    // Buscar Igrejas Atacado (clientes com "IGREJA" no nome, excluindo ADVECs)
+    const igrejaAtacadoClients = new Set<string>();
+    blingOrders.forEach(order => {
+      if (isIgrejaClient(order.customer_name)) {
+        const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
+        if (key) igrejaAtacadoClients.add(key);
+      }
+    });
+    const igrejasAtacado = igrejaAtacadoClients.size;
     
     // Total de clientes únicos em TODOS os pedidos Bling (para calcular Atacado)
     const allBlingUniqueClients = new Set<string>();
@@ -406,8 +422,8 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       if (key) allBlingUniqueClients.add(key);
     });
     
-    // Clientes Atacado = Total clientes Bling - ADVECs
-    const clientesAtacado = allBlingUniqueClients.size - advecUniqueClients.size;
+    // Clientes Atacado = Total clientes Bling - ADVECs - Igrejas Atacado
+    const clientesAtacado = allBlingUniqueClients.size - advecUniqueClients.size - igrejaAtacadoClients.size;
 
     return {
       clientesAtivos,
@@ -419,6 +435,7 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       clientesInativos,
       potencialReativacao,
       totalAdvec,
+      igrejasAtacado,
       clientesAtacado: Math.max(0, clientesAtacado),
     };
   }, [allOrders, ebdClients, allEbdClientes, blingOrders, dateRange]);
@@ -581,8 +598,8 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
           />
         </div>
 
-        {/* Terceira linha: ADVEC */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Terceira linha: ADVEC e Atacado */}
+        <div className="grid grid-cols-3 gap-3">
           <StandardCard
             icon={<Building2 className="h-4 w-4 text-indigo-600" />}
             title="Total Igrejas ADVEC"
@@ -594,10 +611,20 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
           />
 
           <StandardCard
+            icon={<Building2 className="h-4 w-4 text-purple-600" />}
+            title="Igrejas Atacado"
+            value={clientMetrics.igrejasAtacado}
+            subtitle="Igrejas não-ADVEC"
+            colorClass="text-purple-700 dark:text-purple-300"
+            borderColorClass="border-purple-200 dark:border-purple-800"
+            bgClass="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900"
+          />
+
+          <StandardCard
             icon={<Users className="h-4 w-4 text-rose-600" />}
             title="Clientes Atacado"
             value={clientMetrics.clientesAtacado}
-            subtitle="Total clientes tirando as ADVECs"
+            subtitle="Tirando ADVECs e Igrejas"
             colorClass="text-rose-700 dark:text-rose-300"
             borderColorClass="border-rose-200 dark:border-rose-800"
             bgClass="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
