@@ -120,7 +120,7 @@ serve(async (req) => {
           valor_total: totalPedido,
           valor_frete: valorFrete,
           order_date: orderDate ? `${orderDate}T12:00:00Z` : new Date().toISOString(),
-          marketplace: 'MERCADOLIVRE',
+          marketplace: 'MERCADO_LIVRE',
           status_pagamento: 'paid'
         });
         processedLines++;
