@@ -67,6 +67,7 @@ serve(async (req) => {
       data: headers.findIndex(h => h === "data"),
       cliente: headers.findIndex(h => h === "nome comprador"),
       email: headers.findIndex(h => h === "e-mail comprador" || h === "email comprador"),
+      documento: headers.findIndex(h => h === "cpf/cnpj comprador" || h === "cpf/cnpj" || h === "documento" || h === "cpf" || h === "cnpj"),
       total: headers.findIndex(h => h === "total pedido"),
       frete: headers.findIndex(h => h === "valor frete pedido"),
       status: headers.findIndex(h => h === "status" || h === "situação"),
@@ -177,6 +178,7 @@ serve(async (req) => {
       const valorFrete = colMap.frete !== -1 ? parseNumber(values[colMap.frete]) : 0;
       const customerName = colMap.cliente !== -1 ? values[colMap.cliente]?.replace(/"/g, "").trim() : null;
       const customerEmail = colMap.email !== -1 ? values[colMap.email]?.replace(/"/g, "").trim() : null;
+      const customerDocument = colMap.documento !== -1 ? values[colMap.documento]?.replace(/"/g, "").replace(/[.\-\/\s]/g, "").trim() : null;
       const status = colMap.status !== -1 ? values[colMap.status]?.replace(/"/g, "").trim() || "paid" : "paid";
       const rastreio = colMap.rastreio !== -1 ? values[colMap.rastreio]?.replace(/"/g, "").trim() : null;
 
@@ -197,6 +199,7 @@ serve(async (req) => {
         // Preencher dados ausentes se aparecerem em outra linha
         if (!existingOrder.customer_name && customerName) existingOrder.customer_name = customerName;
         if (!existingOrder.customer_email && customerEmail) existingOrder.customer_email = customerEmail;
+        if (!existingOrder.customer_document && customerDocument) existingOrder.customer_document = customerDocument;
         if ((!existingOrder.codigo_rastreio || existingOrder.codigo_rastreio === '-') && rastreio) {
           existingOrder.codigo_rastreio = rastreio;
         }
@@ -206,6 +209,7 @@ serve(async (req) => {
           order_number: orderNumber,
           customer_name: customerName,
           customer_email: customerEmail,
+          customer_document: customerDocument,
           valor_total: valorTotal,
           valor_frete: valorFrete,
           order_date: orderDate ? `${orderDate}T12:00:00Z` : new Date().toISOString(),
