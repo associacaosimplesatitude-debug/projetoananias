@@ -110,18 +110,6 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
     },
   });
 
-  // Buscar clientes ADVEC da base ebd_clientes
-  const { data: advecClients = [] } = useQuery({
-    queryKey: ["advec-clients"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_clientes")
-        .select("id, nome_igreja, vendedor_id, status_ativacao_ebd, created_at, email_superintendente")
-        .or("tipo_cliente.eq.ADVEC,nome_igreja.ilike.%advec%");
-      if (error) throw error;
-      return data || [];
-    },
-  });
 
   // Buscar todos os clientes ebd_clientes para mapeamento por email
   const { data: allEbdClientes = [] } = useQuery({
@@ -380,29 +368,36 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       ? inactiveClientValues.reduce((a, b) => a + b, 0) / inactiveClientValues.length
       : 0;
 
-    // Cards 9-10: ADVEC
-    const totalAdvec = advecClients.length;
+    // Cards 9-10: ADVEC - buscar diretamente dos pedidos Bling
+    // Identificar clientes ADVEC pelo nome: "ADVEC" ou "Assembleia de Deus Vitória em Cristo"
+    const isAdvecClient = (name: string | null | undefined): boolean => {
+      if (!name) return false;
+      const n = name.toLowerCase();
+      return n.includes('advec') || n.includes('assembleia de deus vitória em cristo') || n.includes('assembleia de deus vitoria em cristo');
+    };
     
-    // ADVECs com compra no período (por email)
-    const advecEmails = new Set(
-      advecClients.map(c => normalizeEmail(c.email_superintendente)).filter(Boolean)
-    );
-    const advecIds = new Set(advecClients.map(c => c.id));
+    // Buscar clientes ADVEC únicos de TODOS os pedidos Bling (sem filtro de período)
+    const advecUniqueClients = new Set<string>();
+    blingOrders.forEach(order => {
+      if (isAdvecClient(order.customer_name)) {
+        // Usar email normalizado ou nome como chave única
+        const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
+        if (key) advecUniqueClients.add(key);
+      }
+    });
+    const totalAdvec = advecUniqueClients.size;
     
-    // Verificar ADVECs ativos (com compra no período)
-    let advecComCompra = 0;
-    currentActiveClients.forEach(clientKey => {
-      // Verificar se o cliente é ADVEC (por email ou id)
-      if (advecEmails.has(clientKey) || advecIds.has(clientKey as string)) {
-        advecComCompra++;
+    // ADVECs com compra no período
+    const advecActiveInPeriod = new Set<string>();
+    currentPeriodOrders.forEach(order => {
+      if (isAdvecClient(order.customer_name)) {
+        const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
+        if (key) advecActiveInPeriod.add(key);
       }
     });
     
-    // Também contar ADVECs com status_ativacao_ebd = true
-    const advecAtivos = advecClients.filter(c => c.status_ativacao_ebd === true).length;
-    
     const percentAtivacaoAdvec = totalAdvec > 0
-      ? (Math.max(advecAtivos, advecComCompra) / totalAdvec) * 100
+      ? (advecActiveInPeriod.size / totalAdvec) * 100
       : 0;
 
     return {
@@ -417,7 +412,7 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       totalAdvec,
       percentAtivacaoAdvec,
     };
-  }, [allOrders, ebdClients, allEbdClientes, advecClients, dateRange]);
+  }, [allOrders, ebdClients, allEbdClientes, blingOrders, dateRange]);
 
   return (
     <Card>
