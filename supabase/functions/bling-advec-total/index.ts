@@ -71,6 +71,7 @@ function normalizeText(v: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -104,7 +105,19 @@ function extractEmail(contato: any): string {
 
 function isAdvecName(name: string): boolean {
   const n = normalizeText(name);
-  return n.includes("advec") || n.includes("assembleia de deus vitoria em cristo");
+
+  // Cobrir variações comuns no cadastro do Bling
+  if (n.includes("advec")) return true;
+
+  const vitoriaEmCristo = "de deus vitoria em cristo";
+
+  // Ex.: "Assembleia de Deus Vitória em Cristo" (com 1 ou mais espaços)
+  if (n.includes(`assembleia ${vitoriaEmCristo}`) || n.includes(`assembleia de ${vitoriaEmCristo}`)) return true;
+
+  // Ex.: "ASS DE DEUS VITORIA EM CRISTO" (abreviação)
+  if (n.includes(`ass ${vitoriaEmCristo}`) || n.includes(`ass de ${vitoriaEmCristo}`)) return true;
+
+  return false;
 }
 
 serve(async (req) => {
