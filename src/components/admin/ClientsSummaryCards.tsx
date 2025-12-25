@@ -399,18 +399,15 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
     });
     const totalAdvec = advecUniqueClients.size;
     
-    // ADVECs com compra no período
-    const advecActiveInPeriod = new Set<string>();
-    currentPeriodOrders.forEach(order => {
-      if (isAdvecClient(order.customer_name)) {
-        const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
-        if (key) advecActiveInPeriod.add(key);
-      }
+    // Total de clientes únicos em TODOS os pedidos Bling (para calcular Atacado)
+    const allBlingUniqueClients = new Set<string>();
+    blingOrders.forEach(order => {
+      const key = normalizeEmail(order.customer_email) || order.customer_name?.toLowerCase().trim();
+      if (key) allBlingUniqueClients.add(key);
     });
     
-    const percentAtivacaoAdvec = totalAdvec > 0
-      ? (advecActiveInPeriod.size / totalAdvec) * 100
-      : 0;
+    // Clientes Atacado = Total clientes Bling - ADVECs
+    const clientesAtacado = allBlingUniqueClients.size - advecUniqueClients.size;
 
     return {
       clientesAtivos,
@@ -422,7 +419,7 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       clientesInativos,
       potencialReativacao,
       totalAdvec,
-      percentAtivacaoAdvec,
+      clientesAtacado: Math.max(0, clientesAtacado),
     };
   }, [allOrders, ebdClients, allEbdClientes, blingOrders, dateRange]);
 
@@ -597,10 +594,10 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
           />
 
           <StandardCard
-            icon={<TrendingUp className="h-4 w-4 text-rose-600" />}
-            title="% Ativação ADVEC"
-            value={`${clientMetrics.percentAtivacaoAdvec.toFixed(1)}%`}
-            subtitle="ADVEC Ativas / Total ADVEC"
+            icon={<Users className="h-4 w-4 text-rose-600" />}
+            title="Clientes Atacado"
+            value={clientMetrics.clientesAtacado}
+            subtitle="Total clientes - ADVECs"
             colorClass="text-rose-700 dark:text-rose-300"
             borderColorClass="border-rose-200 dark:border-rose-800"
             bgClass="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
