@@ -6,6 +6,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Generate a consistent numeric hash from a string
+function hashStringToNumber(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -44,8 +55,8 @@ serve(async (req) => {
 
     console.log('Header map:', headerMap);
 
-    // Group by order number to consolidate items
-    const ordersMap = new Map<string, {
+    // Group by bling_order_id to ensure uniqueness within batches
+    const ordersMap = new Map<number, {
       bling_order_id: number;
       order_number: string;
       customer_name: string;
@@ -91,6 +102,13 @@ serve(async (req) => {
         continue;
       }
 
+      // Generate a unique numeric ID from the order number
+      // Try to parse as number first, otherwise hash the string
+      let blingOrderId = parseInt(orderNumber.replace(/\D/g, '')) || 0;
+      if (blingOrderId === 0) {
+        blingOrderId = hashStringToNumber(orderNumber);
+      }
+
       // Parse date from DD/MM/YYYY to YYYY-MM-DD
       const dateStr = values[headerMap['Data']]?.replace(/"/g, '');
       let orderDate = '';
@@ -110,9 +128,9 @@ serve(async (req) => {
       const valorFrete = parseNumber(values[headerMap['Valor Frete Pedido']]);
 
       // If order already exists in map, we already have the totals (they're per-order, not per-item)
-      if (!ordersMap.has(orderNumber)) {
-        ordersMap.set(orderNumber, {
-          bling_order_id: parseInt(orderNumber) || 0,
+      if (!ordersMap.has(blingOrderId)) {
+        ordersMap.set(blingOrderId, {
+          bling_order_id: blingOrderId,
           order_number: orderNumber,
           customer_name: values[headerMap['Nome Comprador']]?.replace(/"/g, '') || 'N/A',
           customer_email: values[headerMap['E-mail Comprador']]?.replace(/"/g, '') || null,
