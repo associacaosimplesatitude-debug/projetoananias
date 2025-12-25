@@ -83,7 +83,7 @@ serve(async (req) => {
       );
     }
 
-    const ordersToInsert: any[] = [];
+    const ordersMap = new Map<string, any>();
     let processedLines = 0;
     let skippedLines = 0;
     let advecs = 0;
@@ -154,33 +154,44 @@ serve(async (req) => {
 
       // Classificar como ADVECS ou ATACADO
       const marketplace = classifyAtacadoOrder(customerName);
-      
-      if (marketplace === 'ADVECS') {
-        advecs++;
-      } else {
-        atacado++;
-      }
 
       // Gerar bling_order_id seguro - pegar apenas os primeiros 15 dígitos para não estourar bigint
       const numericPart = orderNumber.replace(/\D/g, "").slice(0, 15);
       const blingOrderId = numericPart ? parseInt(numericPart) : Math.floor(Math.random() * 1000000000);
 
-      ordersToInsert.push({
-        bling_order_id: blingOrderId,
-        order_number: orderNumber,
-        customer_name: customerName,
-        customer_email: customerEmail,
-        valor_total: valorTotal,
-        valor_frete: valorFrete,
-        order_date: orderDate ? `${orderDate}T12:00:00Z` : new Date().toISOString(),
-        marketplace: marketplace,
-        status_pagamento: status.toLowerCase().includes("pago") || status.toLowerCase().includes("paid") ? "paid" : status,
-        codigo_rastreio: rastreio || null,
-      });
+      // Usar Map para agrupar por order_number (evitar duplicatas do mesmo pedido com múltiplos itens)
+      const existingOrder = ordersMap.get(orderNumber);
+      if (existingOrder) {
+        // Somar valores se já existe
+        existingOrder.valor_total += valorTotal;
+        existingOrder.valor_frete = Math.max(existingOrder.valor_frete, valorFrete); // Frete só conta uma vez
+      } else {
+        ordersMap.set(orderNumber, {
+          bling_order_id: blingOrderId,
+          order_number: orderNumber,
+          customer_name: customerName,
+          customer_email: customerEmail,
+          valor_total: valorTotal,
+          valor_frete: valorFrete,
+          order_date: orderDate ? `${orderDate}T12:00:00Z` : new Date().toISOString(),
+          marketplace: marketplace,
+          status_pagamento: status.toLowerCase().includes("pago") || status.toLowerCase().includes("paid") ? "paid" : status,
+          codigo_rastreio: rastreio || null,
+        });
+        
+        if (marketplace === 'ADVECS') {
+          advecs++;
+        } else {
+          atacado++;
+        }
+      }
       processedLines++;
     }
 
-    console.log(`Processados: ${processedLines}, Pulados: ${skippedLines}, ADVECS: ${advecs}, ATACADO: ${atacado}`);
+    // Converter Map para array
+    const ordersToInsert = Array.from(ordersMap.values());
+
+    console.log(`Linhas processadas: ${processedLines}, Pedidos únicos: ${ordersToInsert.length}, ADVECS: ${advecs}, ATACADO: ${atacado}`);
 
     if (ordersToInsert.length === 0) {
       return new Response(
