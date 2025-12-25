@@ -385,7 +385,11 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
     const isAdvecClient = (name: string | null | undefined): boolean => {
       if (!name) return false;
       const n = name.toLowerCase();
-      return n.includes('advec') || n.includes('assembleia de deus vitória em cristo') || n.includes('assembleia de deus vitoria em cristo');
+      return n.includes('advec') || 
+             n.includes('assembleia de deus vitória em cristo') || 
+             n.includes('assembleia de deus vitoria em cristo') ||
+             n.includes('ad vitoria em cristo') ||
+             n.includes('ad vitória em cristo');
     };
 
     // Identificar igrejas (não-ADVEC) pelo nome
