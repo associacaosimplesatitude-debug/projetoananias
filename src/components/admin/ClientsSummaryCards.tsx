@@ -110,6 +110,18 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
     },
   });
 
+  // Total de Igrejas ADVEC direto do Bling (Clientes/Fornecedores)
+  const { data: blingAdvecTotalData } = useQuery({
+    queryKey: ["bling-advec-total"],
+    staleTime: 1000 * 60 * 10,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("bling-advec-total");
+      if (error) throw error;
+      return data as { totalAdvec?: number };
+    },
+  });
+  const blingAdvecTotal = blingAdvecTotalData?.totalAdvec;
+
 
   // Buscar todos os clientes ebd_clientes para mapeamento por email
   const { data: allEbdClientes = [] } = useQuery({
@@ -577,8 +589,8 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
           <StandardCard
             icon={<Building2 className="h-4 w-4 text-indigo-600" />}
             title="Total Igrejas ADVEC"
-            value={clientMetrics.totalAdvec}
-            subtitle="Na base de clientes"
+            value={blingAdvecTotal ?? clientMetrics.totalAdvec}
+            subtitle="Clientes/fornecedores no Bling"
             colorClass="text-indigo-700 dark:text-indigo-300"
             borderColorClass="border-indigo-200 dark:border-indigo-800"
             bgClass="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900"
