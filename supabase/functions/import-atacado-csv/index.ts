@@ -211,7 +211,7 @@ serve(async (req) => {
       const { error: insertError } = await supabase
         .from("bling_marketplace_pedidos")
         .upsert(batch, { 
-          onConflict: "bling_order_id",
+          onConflict: "order_number,marketplace",
           ignoreDuplicates: false 
         });
 
