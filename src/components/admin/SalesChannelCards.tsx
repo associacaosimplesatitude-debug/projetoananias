@@ -464,61 +464,6 @@ export function SalesChannelCards({
           />
         </div>
 
-        {/* Cards de Gestão (mantidos) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 dark:border-amber-800">
-            <div className="flex items-center gap-2 mb-2">
-              <FileText className="h-4 w-4 text-amber-600" />
-              <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Propostas Abertas</span>
-            </div>
-            <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">{propostasDigitaisAbertas}</p>
-          </div>
-
-          <div className="p-4 rounded-xl border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900 dark:border-cyan-800">
-            <div className="flex items-center gap-2 mb-2">
-              <Clock className="h-4 w-4 text-cyan-600" />
-              <span className="text-xs font-medium text-cyan-700 dark:text-cyan-300">Bling Pendentes</span>
-            </div>
-            <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">{pedidosBlingPendentes}</p>
-          </div>
-
-          <div className="p-4 rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900 dark:border-indigo-800">
-            <div className="flex items-center gap-2 mb-2">
-              <Percent className="h-4 w-4 text-indigo-600" />
-              <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Comissão (est.)</span>
-            </div>
-            <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">
-              {formatCurrency(periodMetrics.comissao)}
-            </p>
-          </div>
-        </div>
-
-        {/* Cards de Base */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
-            <div className="flex items-center gap-2 mb-2">
-              <Store className="h-4 w-4 text-slate-600" />
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Clientes EBD</span>
-            </div>
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalEbdClients}</p>
-          </div>
-
-          <div className="p-4 rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="h-4 w-4 text-slate-600" />
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Alunos</span>
-            </div>
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalAlunos ?? 0}</p>
-          </div>
-
-          <div className="p-4 rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 dark:border-slate-800">
-            <div className="flex items-center gap-2 mb-2">
-              <Church className="h-4 w-4 text-slate-600" />
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Turmas</span>
-            </div>
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalTurmas ?? 0}</p>
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
