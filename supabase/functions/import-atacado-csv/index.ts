@@ -60,17 +60,29 @@ serve(async (req) => {
     const headers = firstLine.split(delimiter).map(h => h.replace(/"/g, "").trim().toLowerCase());
     console.log("Headers encontrados:", headers);
 
-    // Mapear colunas - adaptar conforme estrutura do CSV de atacado
+    // Mapear colunas - específico para CSV do Bling Atacado
+    // Headers esperados: número pedido, nome comprador, data, ..., total pedido (col 20), valor frete pedido (col 21)
     const colMap = {
-      numero: headers.findIndex(h => h.includes("nº") || h.includes("numero") || h.includes("pedido") || h.includes("order")),
-      data: headers.findIndex(h => h.includes("data") || h.includes("date") || h.includes("emissao") || h.includes("emissão")),
-      cliente: headers.findIndex(h => h.includes("cliente") || h.includes("customer") || h.includes("comprador") || h.includes("nome")),
-      email: headers.findIndex(h => h.includes("email") || h.includes("e-mail")),
-      total: headers.findIndex(h => h.includes("total") || h.includes("valor") || h.includes("value")),
-      frete: headers.findIndex(h => h.includes("frete") || h.includes("shipping") || h.includes("envio")),
-      status: headers.findIndex(h => h.includes("status") || h.includes("situação") || h.includes("situacao")),
-      rastreio: headers.findIndex(h => h.includes("rastreio") || h.includes("tracking") || h.includes("rastreamento")),
+      numero: headers.findIndex(h => h === "número pedido" || h === "numero pedido"),
+      data: headers.findIndex(h => h === "data"),
+      cliente: headers.findIndex(h => h === "nome comprador"),
+      email: headers.findIndex(h => h === "e-mail comprador" || h === "email comprador"),
+      total: headers.findIndex(h => h === "total pedido"),
+      frete: headers.findIndex(h => h === "valor frete pedido"),
+      status: headers.findIndex(h => h === "status" || h === "situação"),
+      rastreio: headers.findIndex(h => h === "rastreio" || h === "código rastreio"),
     };
+    
+    // Fallback se não encontrou colunas específicas
+    if (colMap.numero === -1) {
+      colMap.numero = headers.findIndex(h => h.includes("pedido") && h.includes("número"));
+    }
+    if (colMap.total === -1) {
+      colMap.total = headers.findIndex(h => h === "total pedido" || (h.includes("total") && h.includes("pedido")));
+    }
+    if (colMap.cliente === -1) {
+      colMap.cliente = headers.findIndex(h => h.includes("comprador") && h.includes("nome"));
+    }
 
     console.log("Mapeamento de colunas:", colMap);
 
