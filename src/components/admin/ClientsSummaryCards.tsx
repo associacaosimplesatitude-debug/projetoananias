@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Users,
   TrendingUp,
@@ -26,7 +25,6 @@ import {
   Activity,
 } from "lucide-react";
 import {
-  subDays,
   subMonths,
   parseISO,
   isWithinInterval,
@@ -36,7 +34,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-type DateFilter = "quarter" | "semester" | "year" | "custom";
+type DateFilter = "month" | "quarter" | "semester" | "year" | "custom";
 
 interface ClientsSummaryCardsProps {
   shopifyOrders: any[];
@@ -79,6 +77,19 @@ function StandardCard({
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+// Normalizar email para comparação
+const normalizeEmail = (email: string | null | undefined): string | null => {
+  if (!email) return null;
+  return email.toLowerCase().trim();
+};
+
+// Normalizar status de pagamento
+const isPaidStatus = (status: string | null | undefined): boolean => {
+  if (!status) return false;
+  const s = status.toLowerCase();
+  return s === 'pago' || s === 'paid' || s === 'faturado' || s === 'approved';
+};
+
 export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummaryCardsProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>("quarter");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -86,14 +97,39 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
     to: undefined,
   });
 
-  // Buscar clientes ADVEC da base
+  // Buscar pedidos do Bling Marketplace (Amazon, Shopee, ML, Atacado)
+  const { data: blingOrders = [] } = useQuery({
+    queryKey: ["clients-summary-bling-orders"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bling_marketplace_pedidos")
+        .select("*")
+        .order("order_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar clientes ADVEC da base ebd_clientes
   const { data: advecClients = [] } = useQuery({
     queryKey: ["advec-clients"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ebd_clientes")
-        .select("id, nome_igreja, vendedor_id, status_ativacao_ebd, created_at")
+        .select("id, nome_igreja, vendedor_id, status_ativacao_ebd, created_at, email_superintendente")
         .or("tipo_cliente.eq.ADVEC,nome_igreja.ilike.%advec%");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Buscar todos os clientes ebd_clientes para mapeamento por email
+  const { data: allEbdClientes = [] } = useQuery({
+    queryKey: ["all-ebd-clientes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja, email_superintendente, created_at, tipo_cliente");
       if (error) throw error;
       return data || [];
     },
@@ -102,6 +138,13 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
   const dateRange = useMemo(() => {
     const now = new Date();
     switch (dateFilter) {
+      case "month": {
+        const start = startOfMonth(now);
+        const end = endOfMonth(now);
+        const previousStart = startOfMonth(subMonths(now, 1));
+        const previousEnd = endOfMonth(subMonths(now, 1));
+        return { start, end, previousStart, previousEnd };
+      }
       case "quarter": {
         const start = subMonths(now, 3);
         return { start, end: now, previousStart: subMonths(now, 6), previousEnd: subMonths(now, 3) };
@@ -134,6 +177,8 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
 
   const periodLabel = useMemo(() => {
     switch (dateFilter) {
+      case "month":
+        return "Mês Atual";
       case "quarter":
         return "Último Trimestre";
       case "semester":
@@ -152,32 +197,103 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
     }
   }, [dateFilter, customDateRange]);
 
+  // Unificar todos os pedidos de todos os canais
+  const allOrders = useMemo(() => {
+    // Pedidos Shopify (igrejas) - tem cliente_id e customer_email
+    const shopifyNormalized = shopifyOrders.map(o => ({
+      id: o.id,
+      cliente_id: o.cliente_id,
+      customer_email: normalizeEmail(o.customer_email),
+      customer_name: o.customer_name,
+      order_date: o.order_date || o.created_at,
+      valor_total: Number(o.valor_total || 0),
+      status_pagamento: o.status_pagamento,
+      source: 'shopify' as const,
+    }));
+
+    // Pedidos Bling Marketplace - tem customer_email
+    const blingNormalized = blingOrders.map(o => ({
+      id: o.id,
+      cliente_id: null,
+      customer_email: normalizeEmail(o.customer_email),
+      customer_name: o.customer_name,
+      order_date: o.order_date || o.created_at,
+      valor_total: Number(o.valor_total || 0),
+      status_pagamento: o.status_pagamento,
+      source: 'bling' as const,
+    }));
+
+    return [...shopifyNormalized, ...blingNormalized];
+  }, [shopifyOrders, blingOrders]);
+
+  // Mapa de email -> cliente_id (para unificar clientes)
+  const emailToClientMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    
+    // Mapear clientes ebd_clientes
+    allEbdClientes.forEach(c => {
+      const email = normalizeEmail(c.email_superintendente);
+      if (email) {
+        map[email] = c.id;
+      }
+    });
+
+    // Mapear pedidos Shopify com cliente_id
+    shopifyOrders.forEach(o => {
+      const email = normalizeEmail(o.customer_email);
+      if (email && o.cliente_id) {
+        map[email] = o.cliente_id;
+      }
+    });
+
+    return map;
+  }, [allEbdClientes, shopifyOrders]);
+
+  // Função para obter ID único do cliente (por email ou cliente_id)
+  const getClientKey = (order: any): string | null => {
+    // Priorizar email normalizado
+    if (order.customer_email) {
+      return order.customer_email;
+    }
+    // Fallback para cliente_id
+    if (order.cliente_id) {
+      return order.cliente_id;
+    }
+    return null;
+  };
+
   const clientMetrics = useMemo(() => {
     const { start, end, previousStart, previousEnd } = dateRange;
 
     // Função para verificar se um pedido está no período
     const isInPeriod = (orderDate: string | null, periodStart: Date, periodEnd: Date) => {
       if (!orderDate) return false;
-      const date = parseISO(orderDate);
-      return isWithinInterval(date, { start: periodStart, end: periodEnd });
+      try {
+        const date = parseISO(orderDate);
+        return isWithinInterval(date, { start: periodStart, end: periodEnd });
+      } catch {
+        return false;
+      }
     };
 
-    // Filtrar pedidos pagos
-    const paidOrders = shopifyOrders.filter(
-      (o) => o.status_pagamento === "Pago" || o.status_pagamento === "paid" || o.status_pagamento === "Faturado"
-    );
+    // Filtrar pedidos pagos de TODAS as fontes
+    const paidOrders = allOrders.filter(o => isPaidStatus(o.status_pagamento));
 
-    // Clientes ativos no período atual (com compra)
-    const currentPeriodOrders = paidOrders.filter((o) => 
-      isInPeriod(o.order_date || o.created_at, start, end)
+    // Clientes ativos no período atual (com compra paga)
+    const currentPeriodOrders = paidOrders.filter(o => 
+      isInPeriod(o.order_date, start, end)
     );
-    const currentActiveClients = new Set(currentPeriodOrders.map((o) => o.cliente_id).filter(Boolean));
+    const currentActiveClients = new Set(
+      currentPeriodOrders.map(o => getClientKey(o)).filter(Boolean)
+    );
 
     // Clientes ativos no período anterior
-    const previousPeriodOrders = paidOrders.filter((o) => 
-      isInPeriod(o.order_date || o.created_at, previousStart, previousEnd)
+    const previousPeriodOrders = paidOrders.filter(o => 
+      isInPeriod(o.order_date, previousStart, previousEnd)
     );
-    const previousActiveClients = new Set(previousPeriodOrders.map((o) => o.cliente_id).filter(Boolean));
+    const previousActiveClients = new Set(
+      previousPeriodOrders.map(o => getClientKey(o)).filter(Boolean)
+    );
 
     // Card 1: Clientes Ativos no Período
     const clientesAtivos = currentActiveClients.size;
@@ -188,32 +304,41 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       : clientesAtivos > 0 ? 100 : 0;
 
     // Card 3: Novos Clientes (primeira compra no período)
-    // Identificar clientes que nunca compraram antes do período atual
-    const allOrdersBeforePeriod = paidOrders.filter((o) => {
-      const dateField = o.order_date || o.created_at;
-      if (!dateField) return false;
-      const date = parseISO(dateField);
-      return date < start;
+    // Identificar a primeira compra de cada cliente em todo o histórico
+    const clientFirstPurchase: Record<string, Date> = {};
+    paidOrders.forEach(o => {
+      const key = getClientKey(o);
+      if (!key || !o.order_date) return;
+      try {
+        const date = parseISO(o.order_date);
+        if (!clientFirstPurchase[key] || date < clientFirstPurchase[key]) {
+          clientFirstPurchase[key] = date;
+        }
+      } catch {
+        // ignore invalid dates
+      }
     });
-    const clientsBeforePeriod = new Set(allOrdersBeforePeriod.map((o) => o.cliente_id).filter(Boolean));
-    
-    const newClients = [...currentActiveClients].filter((id) => !clientsBeforePeriod.has(id));
-    const novosClientes = newClients.length;
+
+    // Contar clientes cuja primeira compra está no período atual
+    const novosClientes = Object.entries(clientFirstPurchase).filter(([_, firstDate]) => 
+      isWithinInterval(firstDate, { start, end })
+    ).length;
 
     // Card 4: % Crescimento da Base
-    const totalBaseClientes = ebdClients?.length || 0;
+    const totalBaseClientes = allEbdClientes.length || ebdClients?.length || 1;
     const percentCrescimentoBase = totalBaseClientes > 0
       ? (novosClientes / totalBaseClientes) * 100
       : 0;
 
     // Card 5: Clientes Recorrentes (2+ compras no período)
     const clientOrderCount: Record<string, number> = {};
-    currentPeriodOrders.forEach((o) => {
-      if (o.cliente_id) {
-        clientOrderCount[o.cliente_id] = (clientOrderCount[o.cliente_id] || 0) + 1;
+    currentPeriodOrders.forEach(o => {
+      const key = getClientKey(o);
+      if (key) {
+        clientOrderCount[key] = (clientOrderCount[key] || 0) + 1;
       }
     });
-    const clientesRecorrentes = Object.values(clientOrderCount).filter((count) => count >= 2).length;
+    const clientesRecorrentes = Object.values(clientOrderCount).filter(count => count >= 2).length;
 
     // Card 6: Taxa de Recorrência
     const taxaRecorrencia = clientesAtivos > 0
@@ -222,39 +347,59 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
 
     // Card 7: Clientes Inativos (sem compra nos últimos 6 meses)
     const sixMonthsAgo = subMonths(new Date(), 6);
-    const recentOrders = paidOrders.filter((o) => {
-      const dateField = o.order_date || o.created_at;
-      if (!dateField) return false;
-      const date = parseISO(dateField);
-      return date >= sixMonthsAgo;
+    const recentOrders = paidOrders.filter(o => {
+      if (!o.order_date) return false;
+      try {
+        const date = parseISO(o.order_date);
+        return date >= sixMonthsAgo;
+      } catch {
+        return false;
+      }
     });
-    const recentActiveClients = new Set(recentOrders.map((o) => o.cliente_id).filter(Boolean));
+    const recentActiveClients = new Set(
+      recentOrders.map(o => getClientKey(o)).filter(Boolean)
+    );
     
-    // Clientes da base que não estão nos clientes ativos recentes
-    const allKnownClients = new Set(paidOrders.map((o) => o.cliente_id).filter(Boolean));
-    const inactiveClients = [...allKnownClients].filter((id) => !recentActiveClients.has(id));
+    // Clientes conhecidos que não estão ativos recentemente
+    const allKnownClients = new Set(
+      paidOrders.map(o => getClientKey(o)).filter(Boolean)
+    );
+    const inactiveClients = [...allKnownClients].filter(key => !recentActiveClients.has(key));
     const clientesInativos = inactiveClients.length;
 
     // Card 8: Potencial de Reativação (receita média por cliente inativo)
-    // Calcular valor médio de compra por cliente
     const clientTotalValue: Record<string, number> = {};
-    paidOrders.forEach((o) => {
-      if (o.cliente_id) {
-        clientTotalValue[o.cliente_id] = (clientTotalValue[o.cliente_id] || 0) + Number(o.valor_total || 0);
+    paidOrders.forEach(o => {
+      const key = getClientKey(o);
+      if (key) {
+        clientTotalValue[key] = (clientTotalValue[key] || 0) + o.valor_total;
       }
     });
-    const inactiveClientValues = inactiveClients.map((id) => clientTotalValue[id] || 0);
+    const inactiveClientValues = inactiveClients.map(key => clientTotalValue[key] || 0);
     const potencialReativacao = inactiveClientValues.length > 0
       ? inactiveClientValues.reduce((a, b) => a + b, 0) / inactiveClientValues.length
       : 0;
 
     // Cards 9-10: ADVEC
     const totalAdvec = advecClients.length;
-    const advecAtivos = advecClients.filter((c) => c.status_ativacao_ebd === true).length;
     
-    // Verificar ADVECs com compra no período
-    const advecIds = new Set(advecClients.map((c) => c.id));
-    const advecComCompra = [...currentActiveClients].filter((id) => advecIds.has(id)).length;
+    // ADVECs com compra no período (por email)
+    const advecEmails = new Set(
+      advecClients.map(c => normalizeEmail(c.email_superintendente)).filter(Boolean)
+    );
+    const advecIds = new Set(advecClients.map(c => c.id));
+    
+    // Verificar ADVECs ativos (com compra no período)
+    let advecComCompra = 0;
+    currentActiveClients.forEach(clientKey => {
+      // Verificar se o cliente é ADVEC (por email ou id)
+      if (advecEmails.has(clientKey) || advecIds.has(clientKey as string)) {
+        advecComCompra++;
+      }
+    });
+    
+    // Também contar ADVECs com status_ativacao_ebd = true
+    const advecAtivos = advecClients.filter(c => c.status_ativacao_ebd === true).length;
     
     const percentAtivacaoAdvec = totalAdvec > 0
       ? (Math.max(advecAtivos, advecComCompra) / totalAdvec) * 100
@@ -272,7 +417,7 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
       totalAdvec,
       percentAtivacaoAdvec,
     };
-  }, [shopifyOrders, ebdClients, advecClients, dateRange]);
+  }, [allOrders, ebdClients, allEbdClientes, advecClients, dateRange]);
 
   return (
     <Card>
@@ -291,6 +436,7 @@ export function ClientsSummaryCards({ shopifyOrders, ebdClients }: ClientsSummar
           {/* Filtros de período */}
           <div className="flex flex-wrap items-center gap-2">
             {[
+              { value: "month", label: "Mês" },
               { value: "quarter", label: "Trimestre" },
               { value: "semester", label: "Semestre" },
               { value: "year", label: "Ano" },
