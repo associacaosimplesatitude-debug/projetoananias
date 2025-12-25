@@ -185,46 +185,40 @@ serve(async (req) => {
       );
     }
 
-    // Upsert (insert or update)
-    const { error: insertError } = await supabase
-      .from("bling_marketplace_pedidos")
-      .upsert(ordersToInsert, { 
-        onConflict: "order_number,marketplace",
-        ignoreDuplicates: false 
-      });
+    // Inserir em lotes de 500 para evitar estouro de memória
+    const BATCH_SIZE = 500;
+    let inserted = 0;
+    let errors = 0;
 
-    if (insertError) {
-      console.error("Erro ao inserir:", insertError);
-      // Tentar inserir um por um se falhar o batch
-      let inserted = 0;
-      for (const order of ordersToInsert) {
-        const { error } = await supabase
-          .from("bling_marketplace_pedidos")
-          .upsert(order, { onConflict: "bling_order_id" });
-        if (!error) inserted++;
+    for (let i = 0; i < ordersToInsert.length; i += BATCH_SIZE) {
+      const batch = ordersToInsert.slice(i, i + BATCH_SIZE);
+      
+      const { error: insertError } = await supabase
+        .from("bling_marketplace_pedidos")
+        .upsert(batch, { 
+          onConflict: "bling_order_id",
+          ignoreDuplicates: false 
+        });
+
+      if (insertError) {
+        console.error(`Erro no lote ${Math.floor(i/BATCH_SIZE) + 1}:`, insertError.message);
+        errors += batch.length;
+      } else {
+        inserted += batch.length;
       }
       
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: `Importados ${inserted} de ${ordersToInsert.length} pedidos (modo individual)`,
-          total: inserted,
-          advecs: advecs,
-          atacado: atacado,
-          skipped: skippedLines
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.log(`Lote ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(ordersToInsert.length/BATCH_SIZE)} processado`);
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Importados ${ordersToInsert.length} pedidos com sucesso!`,
-        total: ordersToInsert.length,
+        message: `Importados ${inserted} pedidos com sucesso!`,
+        total: inserted,
         advecs: advecs,
         atacado: atacado,
-        skipped: skippedLines
+        skipped: skippedLines,
+        errors: errors
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
