@@ -224,6 +224,9 @@ export default function AprovacaoFaturamento() {
           description: `Prazo: ${prazo} dias • Pedido Bling: ${blingIdentifier}`,
           duration: 5000,
         });
+        // Invalidate queries to update vendedor panel
+        queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
+        queryClient.invalidateQueries({ queryKey: ["vendedor-propostas"] });
         refetch();
       } else {
         throw new Error("Resposta inesperada do servidor");
