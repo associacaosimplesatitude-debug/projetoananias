@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +13,32 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle } from "lucide-react";
+import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle, Pencil, Trash2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { PedidoDetailDialog, Pedido } from "./PedidoDetailDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface ShopifyPedido {
   id: string;
@@ -77,8 +99,21 @@ const getPaymentMethodLabel = (metodo: string | null) => {
 };
 
 export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
+  const { role } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  
+  // States for edit/delete propostas faturadas
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedProposta, setSelectedProposta] = useState<PropostaFaturada | null>(null);
+  const [editValorTotal, setEditValorTotal] = useState("");
+  const [editValorFrete, setEditValorFrete] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Check if user can edit/delete (financeiro or gerente_ebd)
+  const canManagePropostas = role === 'financeiro' || role === 'gerente_ebd' || role === 'admin';
 
   // Fetch all clients for this vendedor from both ebd_clientes and churches
   const { data: allClients = [] } = useQuery({
@@ -235,6 +270,78 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
     setDialogOpen(true);
   };
 
+  // Handlers for edit/delete propostas faturadas
+  const handleOpenEditDialog = (proposta: PropostaFaturada) => {
+    setSelectedProposta(proposta);
+    setEditValorTotal(proposta.valor_total.toString());
+    setEditValorFrete((proposta.valor_frete || 0).toString());
+    setEditDialogOpen(true);
+  };
+
+  const handleOpenDeleteDialog = (proposta: PropostaFaturada) => {
+    setSelectedProposta(proposta);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleEditProposta = async () => {
+    if (!selectedProposta) return;
+    setIsProcessing(true);
+
+    try {
+      const novoValorTotal = parseFloat(editValorTotal);
+      const novoValorFrete = parseFloat(editValorFrete);
+
+      if (isNaN(novoValorTotal) || novoValorTotal < 0) {
+        toast.error("Valor total inválido");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("vendedor_propostas")
+        .update({
+          valor_total: novoValorTotal,
+          valor_frete: novoValorFrete || 0,
+        })
+        .eq("id", selectedProposta.id);
+
+      if (error) throw error;
+
+      toast.success("Proposta atualizada com sucesso");
+      setEditDialogOpen(false);
+      setSelectedProposta(null);
+      queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
+    } catch (error: unknown) {
+      console.error("Erro ao editar proposta:", error);
+      toast.error("Erro ao editar proposta");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteProposta = async () => {
+    if (!selectedProposta) return;
+    setIsProcessing(true);
+
+    try {
+      const { error } = await supabase
+        .from("vendedor_propostas")
+        .delete()
+        .eq("id", selectedProposta.id);
+
+      if (error) throw error;
+
+      toast.success("Proposta excluída com sucesso");
+      setDeleteDialogOpen(false);
+      setSelectedProposta(null);
+      queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
+    } catch (error: unknown) {
+      console.error("Erro ao excluir proposta:", error);
+      toast.error("Erro ao excluir proposta");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -347,6 +454,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                     <TableHead>Valor Total</TableHead>
                     <TableHead>Para Meta</TableHead>
                     <TableHead>Status</TableHead>
+                    {canManagePropostas && <TableHead className="text-right">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -380,6 +488,27 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                             Faturado
                           </Badge>
                         </TableCell>
+                        {canManagePropostas && (
+                          <TableCell className="text-right">
+                            <div className="flex gap-1 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEditDialog(proposta)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenDeleteDialog(proposta)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -515,6 +644,75 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
         onOpenChange={setDialogOpen}
         pedido={selectedPedido}
       />
+
+      {/* Edit Proposta Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Proposta Faturada</DialogTitle>
+            <DialogDescription>
+              Altere os valores da proposta de {selectedProposta?.cliente_nome}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="valor_total">Valor Total (R$)</Label>
+              <Input
+                id="valor_total"
+                type="number"
+                step="0.01"
+                value={editValorTotal}
+                onChange={(e) => setEditValorTotal(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="valor_frete">Valor Frete (R$)</Label>
+              <Input
+                id="valor_frete"
+                type="number"
+                step="0.01"
+                value={editValorFrete}
+                onChange={(e) => setEditValorFrete(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleEditProposta} disabled={isProcessing}>
+              {isProcessing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Proposta Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Proposta Faturada</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem certeza que deseja excluir a proposta de <strong>{selectedProposta?.cliente_nome}</strong>?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSelectedProposta(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteProposta}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isProcessing}
+            >
+              {isProcessing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
