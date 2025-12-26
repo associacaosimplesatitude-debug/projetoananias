@@ -80,14 +80,14 @@ function StandardCard({
 }: StandardCardProps) {
   return (
     <div
-      className={`p-4 rounded-xl border-2 ${borderColorClass} ${bgClass} flex flex-col h-full min-h-[120px]`}
+      className={`p-3 sm:p-4 rounded-xl border-2 ${borderColorClass} ${bgClass} flex flex-col h-full min-h-[100px] sm:min-h-[120px] overflow-hidden`}
     >
-      <div className="flex items-center gap-2 mb-2">
-        {icon}
-        <span className={`text-xs font-medium ${colorClass}`}>{title}</span>
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 min-w-0">
+        <span className="flex-shrink-0">{icon}</span>
+        <span className={`text-[10px] sm:text-xs font-medium ${colorClass} truncate`}>{title}</span>
       </div>
-      <p className={`text-xl font-bold ${colorClass} mb-auto`}>{value}</p>
-      {subtitle && <p className={`text-xs ${colorClass} opacity-70 mt-1`}>{subtitle}</p>}
+      <p className={`text-base sm:text-xl font-bold ${colorClass} mb-auto truncate`}>{value}</p>
+      {subtitle && <p className={`text-[10px] sm:text-xs ${colorClass} opacity-70 mt-1 truncate`}>{subtitle}</p>}
     </div>
   );
 }
