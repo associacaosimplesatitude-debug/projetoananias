@@ -337,10 +337,10 @@ export function SalesChannelCards({
           {/* Botões de filtro de período (igual às páginas de marketplace) */}
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { value: "all", label: "Todos" },
               { value: "today", label: "Hoje" },
               { value: "last_7_days", label: "7 dias" },
               { value: "last_month", label: "Mês anterior" },
+              { value: "all", label: "Todos" },
             ].map((btn) => (
               <Button
                 key={btn.value}
