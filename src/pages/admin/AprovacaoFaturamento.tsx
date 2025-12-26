@@ -220,6 +220,33 @@ export default function AprovacaoFaturamento() {
 
       if (data?.success && (data?.bling_order_id || data?.bling_order_number)) {
         const blingIdentifier = data.bling_order_number || data.bling_order_id;
+        
+        // Calcular valor para meta (valor produtos - sem frete)
+        const valorParaMeta = valorProdutos;
+        
+        // Criar registro em ebd_shopify_pedidos para contabilizar na meta do vendedor
+        const itensResumo = proposta.itens.map(i => `${i.quantity}x ${i.title}`).join(", ");
+        
+        const { error: insertError } = await supabase
+          .from("ebd_shopify_pedidos")
+          .insert({
+            shopify_order_id: data.bling_order_id || Math.floor(Math.random() * 1000000000),
+            order_number: `BLING-${blingIdentifier}`,
+            vendedor_id: proposta.vendedor_id,
+            cliente_id: proposta.cliente_id,
+            valor_total: valorTotal,
+            valor_frete: valorFrete,
+            valor_para_meta: valorParaMeta,
+            status_pagamento: "Faturado",
+            customer_email: proposta.cliente?.email_superintendente || null,
+            customer_name: proposta.cliente_nome,
+            order_date: new Date().toISOString(),
+          });
+        
+        if (insertError) {
+          console.error("Erro ao inserir pedido para meta:", insertError);
+        }
+        
         toast.success("Pedido aprovado e enviado para faturamento!", {
           description: `Prazo: ${prazo} dias • Pedido Bling: ${blingIdentifier}`,
           duration: 5000,
@@ -227,6 +254,8 @@ export default function AprovacaoFaturamento() {
         // Invalidate queries to update vendedor panel
         queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
         queryClient.invalidateQueries({ queryKey: ["vendedor-propostas"] });
+        queryClient.invalidateQueries({ queryKey: ["vendedor-vendas-mes"] });
+        queryClient.invalidateQueries({ queryKey: ["ebd-shopify-orders"] });
         refetch();
       } else {
         throw new Error("Resposta inesperada do servidor");
