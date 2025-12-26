@@ -645,14 +645,14 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
             <div className="grid gap-2">
               <Label>Vendedor</Label>
               <Select
-                value={editForm.vendedor_id}
-                onValueChange={(value) => setEditForm({ ...editForm, vendedor_id: value })}
+                value={editForm.vendedor_id || "__none__"}
+                onValueChange={(value) => setEditForm({ ...editForm, vendedor_id: value === "__none__" ? "" : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o vendedor" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="__none__">Nenhum</SelectItem>
                   {vendedores.map((v) => (
                     <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
                   ))}
@@ -731,14 +731,14 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
             <div className="grid gap-2">
               <Label>Vendedor</Label>
               <Select
-                value={editPropostaForm.vendedor_id}
-                onValueChange={(value) => setEditPropostaForm({ ...editPropostaForm, vendedor_id: value })}
+                value={editPropostaForm.vendedor_id || "__none__"}
+                onValueChange={(value) => setEditPropostaForm({ ...editPropostaForm, vendedor_id: value === "__none__" ? "" : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o vendedor" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="__none__">Nenhum</SelectItem>
                   {vendedores.map((v) => (
                     <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
                   ))}
