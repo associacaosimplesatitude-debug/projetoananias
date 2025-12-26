@@ -59,12 +59,30 @@ export default function VendedorDashboard() {
         console.error("Error fetching shopify orders:", shopifyError);
       }
       
+      // Buscar propostas faturadas do mês atual
+      const { data: propostasFaturadas, error: propostasError } = await supabase
+        .from("vendedor_propostas")
+        .select("valor_total, valor_frete")
+        .eq("vendedor_id", vendedor.id)
+        .eq("status", "FATURADO")
+        .gte("created_at", inicioMes)
+        .lte("created_at", fimMes);
+      
+      if (propostasError) {
+        console.error("Error fetching propostas faturadas:", propostasError);
+      }
+      
       // Somar valor_para_meta de todos os pedidos válidos (Pago, Faturado, etc.)
       const totalShopify = (shopifyOrders || []).reduce((sum, order) => 
         sum + Number(order.valor_para_meta || 0), 0
       );
       
-      return totalShopify;
+      // Somar valor das propostas faturadas (valor_total - valor_frete)
+      const totalPropostas = (propostasFaturadas || []).reduce((sum, proposta) => 
+        sum + (Number(proposta.valor_total || 0) - Number(proposta.valor_frete || 0)), 0
+      );
+      
+      return totalShopify + totalPropostas;
     },
     enabled: !!vendedor?.id,
   });

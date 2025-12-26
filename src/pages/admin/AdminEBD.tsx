@@ -465,6 +465,19 @@ export default function AdminEBD() {
     },
   });
 
+  // Query propostas faturadas para incluir na meta dos vendedores
+  const { data: propostasFaturadasMeta = [] } = useQuery({
+    queryKey: ['propostas-faturadas-meta'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vendedor_propostas')
+        .select('id, vendedor_id, valor_total, valor_frete, created_at')
+        .eq('status', 'FATURADO');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Query pedidos Bling pendentes (usando ebd_pedidos com status_logistico pendente)
   const { data: pedidosBlingPendentes = 0 } = useQuery({
     queryKey: ['pedidos-bling-pendentes'],
@@ -988,6 +1001,14 @@ export default function AdminEBD() {
     // Use already filtered Shopify orders (handles null dateRange)
     const shopifyOrdersForStats = filteredShopifyOrders;
     
+    // Filter propostas faturadas by date range if applicable
+    const propostasFaturadasForStats = dateRange?.start 
+      ? propostasFaturadasMeta.filter(p => {
+          const createdAt = new Date(p.created_at);
+          return createdAt >= dateRange.start && (!dateRange.end || createdAt <= dateRange.end);
+        })
+      : propostasFaturadasMeta;
+    
     return vendedores.map(vendedor => {
       // Internal orders
       const vendedorOrders = paidOrders.filter(order => 
@@ -1003,9 +1024,18 @@ export default function AdminEBD() {
       const shopifySales = vendedorShopifyOrders.length;
       const shopifyValue = vendedorShopifyOrders.reduce((sum, o) => sum + Number(o.valor_para_meta || 0), 0);
       
+      // Propostas faturadas (B2B)
+      const vendedorPropostasFaturadas = propostasFaturadasForStats.filter(p => 
+        p.vendedor_id === vendedor.id
+      );
+      const propostasFaturadasSales = vendedorPropostasFaturadas.length;
+      const propostasFaturadasValue = vendedorPropostasFaturadas.reduce((sum, p) => 
+        sum + (Number(p.valor_total || 0) - Number(p.valor_frete || 0)), 0
+      );
+      
       // Combined totals
-      const totalSales = internalSales + shopifySales;
-      const totalValue = internalValue + shopifyValue;
+      const totalSales = internalSales + shopifySales + propostasFaturadasSales;
+      const totalValue = internalValue + shopifyValue + propostasFaturadasValue;
       const commission = totalValue * (vendedor.comissao_percentual / 100);
       const goalProgress = vendedor.meta_mensal_valor > 0 
         ? (totalValue / vendedor.meta_mensal_valor) * 100 
@@ -1019,7 +1049,7 @@ export default function AdminEBD() {
         goalProgressRaw: goalProgress,
       };
     }).sort((a, b) => b.totalValue - a.totalValue);
-  }, [vendedores, paidOrders, filteredShopifyOrders]);
+  }, [vendedores, paidOrders, filteredShopifyOrders, propostasFaturadasMeta, dateRange]);
 
   const salesEvolutionBySeller = useMemo(() => {
     if (!vendedores || !paidOrders) return [];
