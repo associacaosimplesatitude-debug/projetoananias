@@ -399,24 +399,15 @@ serve(async (req) => {
       console.log(`  - Desconto Total do Item (simulado): R$ ${descontoTotalItem.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
 
-      // IMPORTANTE (Bling): para bater exatamente o "total da venda" e as parcelas,
-      // enviamos o PREÇO DE LISTA (cheio) e o DESCONTO UNITÁRIO em VALOR.
-      // Assim o líquido fica determinístico: (valor - desconto) * quantidade.
-      const descontoUnitarioValor = Math.max(0, Math.round((precoLista - precoUnitarioLiquido) * 100) / 100);
-
+      // IMPORTANTE (Bling): para não haver divergência entre "total da venda" e parcelas,
+      // enviamos o PREÇO UNITÁRIO LÍQUIDO (já com desconto) e não enviamos campo de desconto.
+      // Assim, o total da venda no Bling fica determinístico: (valor * quantidade) + frete.
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        valor: precoLista,
+        valor: precoUnitarioLiquido,
       };
-
-      if (descontoUnitarioValor > 0) {
-        itemBling.desconto = {
-          valor: Number(descontoUnitarioValor.toFixed(2)),
-          unidade: 'VALOR',
-        };
-      }
 
       // Preferir enviar o CÓDIGO do produto (é o que aparece na coluna "Código" no Bling)
       // para garantir vínculo e estoque corretos; se não houver, usar o ID encontrado.
@@ -578,9 +569,8 @@ serve(async (req) => {
     // - transportador.servico_logistico = "PAC" / "SEDEX" / "FRETE GRATIS"
     // - volumes = array com detalhes do frete
     if (endereco_entrega) {
-      // IMPORTANTE: Para faturamento B2B, o Bling costuma validar parcelas apenas sobre os itens.
-      // Então enviamos o frete como FOB ('D') para não entrar no total da venda.
-      const fretePorConta: 'R' | 'D' = isFaturamento ? 'D' : 'R';
+      // Para manter o total da venda consistente com as parcelas, enviamos frete por conta do remetente ('R').
+      const fretePorConta: 'R' | 'D' = 'R';
 
       pedidoData.transporte = {
         fretePorConta,
