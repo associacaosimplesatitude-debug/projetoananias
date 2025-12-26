@@ -494,11 +494,9 @@ serve(async (req) => {
       const prazo = parseInt(faturamento_prazo);
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
 
-      // ✅ Base das parcelas precisa bater com o total que o Bling calcula para a venda.
-      // Na prática, quando enviamos frete via transporte, o Bling tende a considerar
-      // o frete no total da venda quando fretePorConta='R'.
-      const incluirFreteNoTotalDaVenda = Boolean(endereco_entrega) && Number(valor_frete || 0) > 0;
-      const totalBaseParcelas = Math.round((incluirFreteNoTotalDaVenda ? valorTotalBling : totalLiquidoBling) * 100) / 100;
+      // ✅ O Bling está rejeitando quando as parcelas incluem o frete.
+      // Para faturamento B2B, consideramos as parcelas apenas sobre os ITENS (frete à parte).
+      const totalBaseParcelas = Math.round(totalLiquidoBling * 100) / 100;
 
       // Calcular parcelas em centavos para evitar problemas de arredondamento
       const totalBaseCentavos = Math.round(totalBaseParcelas * 100);
@@ -580,13 +578,12 @@ serve(async (req) => {
     // - transportador.servico_logistico = "PAC" / "SEDEX" / "FRETE GRATIS"
     // - volumes = array com detalhes do frete
     if (endereco_entrega) {
-      // IMPORTANTE: O Bling só soma o frete ao "total da venda" quando fretePorConta = 'R' (CIF).
-      // Com 'D' (FOB), o Bling considera que o frete é pago separadamente e NÃO o inclui no total.
-      // Como nossas parcelas incluem o frete, devemos usar 'R' para que o cálculo bata.
-      const fretePorConta: 'R' | 'D' = 'R';
+      // IMPORTANTE: Para faturamento B2B, o Bling costuma validar parcelas apenas sobre os itens.
+      // Então enviamos o frete como FOB ('D') para não entrar no total da venda.
+      const fretePorConta: 'R' | 'D' = isFaturamento ? 'D' : 'R';
 
       pedidoData.transporte = {
-        fretePorConta, // R = Remetente (CIF) - frete incluído no total da venda
+        fretePorConta,
         transportador: {
           nome: 'Correios', // Nome fixo do transportador
           servico_logistico: freteInfo.servico, // PAC, SEDEX, FRETE GRATIS
