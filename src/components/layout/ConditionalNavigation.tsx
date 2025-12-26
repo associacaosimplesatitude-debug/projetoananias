@@ -13,6 +13,7 @@ export function ConditionalNavigation({ children }: ConditionalNavigationProps) 
   const location = useLocation();
   const { user, role } = useAuth();
   const isGerenteEbd = role === 'gerente_ebd';
+  const isFinanceiro = role === 'financeiro';
 
   // Check if current user is a student
   const { data: isAluno } = useQuery({
@@ -78,11 +79,13 @@ export function ConditionalNavigation({ children }: ConditionalNavigationProps) 
   // 2. User is professor and on professor routes
   // 3. User is vendedor and on vendedor routes
   // 4. User is gerente EBD and on admin EBD routes
+  // 5. User is financeiro and on admin EBD routes
   const shouldHideNavigation = 
     (isAluno && isAlunoRoute) || 
     (isProfessor && isProfessorRoute) ||
     (isVendedor && isVendedorRoute) ||
-    (isGerenteEbd && isAdminEbdRoute);
+    (isGerenteEbd && isAdminEbdRoute) ||
+    (isFinanceiro && isAdminEbdRoute);
 
   if (shouldHideNavigation) {
     return <>{children}</>;
