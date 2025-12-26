@@ -125,7 +125,7 @@ export function SalesChannelCards({
   marketplacePedidos = [],
 }: SalesChannelCardsProps) {
   // Estado local para filtro interno do card (mesma lógica das páginas de marketplace)
-  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("today");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
