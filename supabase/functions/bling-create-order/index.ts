@@ -269,9 +269,13 @@ serve(async (req) => {
     // Função auxiliar para buscar produto no Bling pelo nome
     async function findBlingProductByName(productName: string): Promise<number | null> {
       try {
-        // Buscar produto pelo nome (pesquisa parcial, sem cortar o título)
+        // Buscar produto pelo nome - usar apenas as primeiras palavras para melhorar resultados
+        // O Bling pode ter problemas com nomes muito longos ou com acentos
+        const searchTerms = productName.split(' ').slice(0, 4).join(' ');
+        console.log(`Buscando produto no Bling com termo: "${searchTerms}"`);
+        
         const searchResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=50&nome=${encodeURIComponent(productName)}`,
+          `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=100&nome=${encodeURIComponent(searchTerms)}`,
           {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -281,17 +285,24 @@ serve(async (req) => {
         );
 
         if (!searchResponse.ok) {
-          console.log(`Erro ao buscar produto por nome: ${productName}`);
+          const errorText = await searchResponse.text();
+          console.log(`Erro HTTP ao buscar produto por nome: ${productName}. Status: ${searchResponse.status}. Body: ${errorText}`);
           return null;
         }
 
         const searchData = await searchResponse.json();
         const produtos = searchData.data || [];
+        
+        console.log(`Bling retornou ${produtos.length} produtos para busca "${searchTerms}"`);
 
         if (produtos.length > 0) {
+          // Normalizar para comparação (remover acentos e case)
+          const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+          const normalizedSearch = normalize(productName);
+          
           // Tentar encontrar match exato primeiro
           const exactMatch = produtos.find((p: any) =>
-            p.nome?.toLowerCase() === productName.toLowerCase()
+            normalize(p.nome || '') === normalizedSearch
           );
 
           if (exactMatch) {
@@ -299,11 +310,11 @@ serve(async (req) => {
             return exactMatch.id;
           }
 
-          // Se não, tentar match por inclusão de texto
-          const partialMatch = produtos.find((p: any) =>
-            productName.toLowerCase().includes((p.nome || '').toLowerCase()) ||
-            (p.nome || '').toLowerCase().includes(productName.toLowerCase())
-          );
+          // Tentar match por inclusão de texto normalizado
+          const partialMatch = produtos.find((p: any) => {
+            const normalizedProduto = normalize(p.nome || '');
+            return normalizedSearch.includes(normalizedProduto) || normalizedProduto.includes(normalizedSearch);
+          });
 
           if (partialMatch) {
             console.log(`Produto encontrado (match parcial): ${partialMatch.nome} -> ID ${partialMatch.id}`);
@@ -354,7 +365,8 @@ serve(async (req) => {
           blingProdutoId = foundId;
         } else {
           console.error(`ERRO: Não foi possível encontrar o produto no Bling: ${item.descricao}`);
-          // Continuar sem o ID - o Bling vai criar como produto novo
+          // Retornar erro claro para o usuário
+          throw new Error(`Produto não encontrado no Bling: "${item.descricao}". Verifique se o produto está cadastrado no Bling com este nome ou associe o código do produto.`);
         }
       }
 
