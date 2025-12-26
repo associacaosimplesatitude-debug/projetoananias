@@ -110,6 +110,11 @@ export default function EBDLogin() {
         return;
       }
 
+      if (roleData?.role === 'financeiro') {
+        navigate('/admin/ebd/aprovacao-faturamento');
+        return;
+      }
+
       if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
         navigate('/dashboard');
         return;
