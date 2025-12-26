@@ -251,6 +251,8 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
       return (data || []) as PropostaFaturada[];
     },
     enabled: !!vendedorId,
+    refetchOnWindowFocus: true,
+    staleTime: 30000, // 30 seconds
   });
 
   const isLoading = isLoadingPedidos || isLoadingShopify || isLoadingFaturados || isLoadingPropostas;
