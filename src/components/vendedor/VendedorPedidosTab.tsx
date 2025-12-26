@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Eye, Package, ShoppingCart, ExternalLink, FileText } from "lucide-react";
+import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import { PedidoDetailDialog, Pedido } from "./PedidoDetailDialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,6 +33,19 @@ interface ShopifyPedido {
   created_at: string;
   codigo_rastreio: string | null;
   url_rastreio: string | null;
+}
+
+interface PropostaFaturada {
+  id: string;
+  cliente_nome: string;
+  valor_total: number;
+  valor_frete: number | null;
+  valor_produtos: number | null;
+  desconto_percentual: number | null;
+  created_at: string;
+  confirmado_em: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  itens: any;
 }
 
 interface VendedorPedidosTabProps {
@@ -185,11 +198,36 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
     enabled: !!vendedorId,
   });
 
-  const isLoading = isLoadingPedidos || isLoadingShopify || isLoadingFaturados;
+  // Fetch propostas faturadas (approved by financial) for this vendedor
+  const { data: propostasFaturadas = [], isLoading: isLoadingPropostas } = useQuery({
+    queryKey: ["vendedor-propostas-faturadas", vendedorId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendedor_propostas")
+        .select("*")
+        .eq("vendedor_id", vendedorId)
+        .in("status", ["FATURADO", "APROVADA_FATURAMENTO"])
+        .order("created_at", { ascending: false });
+      
+      if (error) {
+        console.error("Error fetching propostas faturadas:", error);
+        throw error;
+      }
+      return (data || []) as PropostaFaturada[];
+    },
+    enabled: !!vendedorId,
+  });
+
+  const isLoading = isLoadingPedidos || isLoadingShopify || isLoadingFaturados || isLoadingPropostas;
 
   // Calculate valor_para_meta for faturados (same logic as Shopify: valor_total - valor_frete)
   const calcularValorParaMeta = (pedido: Pedido) => {
     return pedido.valor_total - (pedido.valor_frete || 0);
+  };
+
+  // Calculate valor_para_meta for propostas faturadas
+  const calcularValorParaMetaProposta = (proposta: PropostaFaturada) => {
+    return proposta.valor_total - (proposta.valor_frete || 0);
   };
 
   const handleViewPedido = (pedido: Pedido) => {
@@ -288,6 +326,63 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Propostas Faturadas (Approved by Financial) Section */}
+          {propostasFaturadas.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                Propostas Faturadas (Aprovadas pelo Financeiro)
+              </h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Itens</TableHead>
+                    <TableHead>Valor Total</TableHead>
+                    <TableHead>Para Meta</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {propostasFaturadas.map((proposta) => {
+                    const itens = Array.isArray(proposta.itens) ? proposta.itens : [];
+                    return (
+                      <TableRow key={proposta.id}>
+                        <TableCell>
+                          {proposta.created_at 
+                            ? format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                            : '-'}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {proposta.cliente_nome}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate">
+                          {itens.map((item: any, idx: number) => (
+                            <span key={idx}>
+                              {item.quantity}x {item.title}{idx < itens.length - 1 ? ", " : ""}
+                            </span>
+                          ))}
+                        </TableCell>
+                        <TableCell>
+                          R$ {proposta.valor_total.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-green-600 font-medium">
+                          R$ {calcularValorParaMetaProposta(proposta).toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className="bg-blue-500 hover:bg-blue-600">
+                            Faturado
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -406,7 +501,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
             </div>
           )}
 
-          {pedidos.length === 0 && shopifyPedidos.length === 0 && pedidosFaturados.length === 0 && (
+          {pedidos.length === 0 && shopifyPedidos.length === 0 && pedidosFaturados.length === 0 && propostasFaturadas.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
               <p>Nenhum pedido encontrado</p>
