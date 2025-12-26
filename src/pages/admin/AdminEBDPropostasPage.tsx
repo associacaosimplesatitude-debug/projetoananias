@@ -79,6 +79,7 @@ interface Proposta {
 export default function AdminEBDPropostasPage() {
   const { role } = useAuth();
   const isGerenteEbd = role === 'gerente_ebd';
+  const isFinanceiro = role === 'financeiro';
   const queryClient = useQueryClient();
   const [processingPropostaId, setProcessingPropostaId] = useState<string | null>(null);
   const [deletePropostaId, setDeletePropostaId] = useState<string | null>(null);
@@ -584,7 +585,7 @@ export default function AdminEBDPropostasPage() {
         </TabsContent>
 
         <TabsContent value="pedidos" className="mt-4">
-          <AdminPedidosTab vendedores={vendedores} hideStats={isGerenteEbd} />
+          <AdminPedidosTab vendedores={vendedores} hideStats={isGerenteEbd || isFinanceiro} />
         </TabsContent>
       </Tabs>
 
