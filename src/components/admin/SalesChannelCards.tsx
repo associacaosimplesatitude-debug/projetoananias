@@ -33,10 +33,12 @@ import {
   startOfMonth,
   endOfMonth,
   subMonths,
+  startOfDay,
+  endOfDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-type DateFilter = "all" | "last_7_days" | "last_month" | "custom";
+type DateFilter = "all" | "today" | "last_7_days" | "last_month" | "custom";
 
 interface MarketplacePedido {
   id: string;
@@ -132,6 +134,11 @@ export function SalesChannelCards({
   const cardDateRange = useMemo(() => {
     const now = new Date();
     switch (dateFilter) {
+      case "today": {
+        const start = startOfDay(now);
+        const end = endOfDay(now);
+        return { start, end, endInclusive: end };
+      }
       case "last_7_days": {
         const start = subDays(now, 7);
         return { start, end: now, endInclusive: now };
@@ -160,6 +167,8 @@ export function SalesChannelCards({
     switch (dateFilter) {
       case "all":
         return "Todos";
+      case "today":
+        return "Hoje";
       case "last_7_days":
         return "Últimos 7 dias";
       case "last_month":
@@ -321,6 +330,7 @@ export function SalesChannelCards({
           <div className="flex flex-wrap items-center gap-2">
             {[
               { value: "all", label: "Todos" },
+              { value: "today", label: "Hoje" },
               { value: "last_7_days", label: "7 dias" },
               { value: "last_month", label: "Mês anterior" },
             ].map((btn) => (
