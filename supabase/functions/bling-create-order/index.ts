@@ -500,33 +500,28 @@ serve(async (req) => {
       const prazo = parseInt(faturamento_prazo);
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
 
-      // ✅ Bling valida o somatório das parcelas contra o "total da venda".
-      // Quando enviamos frete como CIF (fretePorConta='R'), o frete entra no total da venda.
-      // Portanto:
-      // - Se frete será incluído no pedido (CIF), parcelas devem somar (itens + frete)
-      // - Se frete não for incluído (FOB), parcelas devem somar apenas itens
-      const incluirFreteNoTotalDaVenda = Boolean(endereco_entrega) && Number(valor_frete || 0) > 0;
-      const totalBaseParcelas = Math.round((incluirFreteNoTotalDaVenda ? valorTotalBling : totalLiquidoBling) * 100) / 100;
+      // ✅ CORREÇÃO: O Bling valida as parcelas APENAS contra o total dos ITENS,
+      // NÃO incluindo o frete, mesmo quando o frete é enviado como CIF.
+      // O frete é tratado separadamente na seção de transporte.
+      const totalBaseParcelas = Math.round(totalLiquidoBling * 100) / 100;
 
-      // CORREÇÃO DEFINITIVA (centavos):
-      // O Bling valida que somatório(parcelas) == total da venda.
-      // Para eliminar qualquer discrepância de float/arredondamento, calculamos tudo em CENTAVOS.
+      // Calcular parcelas em centavos para evitar problemas de arredondamento
       const totalBaseCentavos = Math.round(totalBaseParcelas * 100);
       const parcelaBaseCentavos = Math.floor(totalBaseCentavos / numParcelas);
-      const restoCentavos = totalBaseCentavos - parcelaBaseCentavos * numParcelas; // 0..(numParcelas-1)
+      const restoCentavos = totalBaseCentavos - parcelaBaseCentavos * numParcelas;
 
       const parcelasValoresCentavos: number[] = [];
       for (let i = 0; i < numParcelas; i++) {
         parcelasValoresCentavos.push(parcelaBaseCentavos);
       }
 
-      // Ajustar a diferença (centavos) na ÚLTIMA parcela (conforme recomendado)
+      // Ajustar a diferença (centavos) na ÚLTIMA parcela
       parcelasValoresCentavos[numParcelas - 1] += restoCentavos;
 
       const somaFinalCentavos = parcelasValoresCentavos.reduce((acc, v) => acc + v, 0);
 
       console.log(
-        `Faturamento B2B: ${numParcelas} parcela(s) | base=${totalBaseParcelas.toFixed(2)} | base_cent=${totalBaseCentavos} | base_unit_cent=${parcelaBaseCentavos} | diff_cent=${restoCentavos} | soma_final_cent=${somaFinalCentavos} | parcelas=${parcelasValoresCentavos
+        `Faturamento B2B: ${numParcelas} parcela(s) | base_itens=${totalBaseParcelas.toFixed(2)} | base_cent=${totalBaseCentavos} | base_unit_cent=${parcelaBaseCentavos} | diff_cent=${restoCentavos} | soma_final_cent=${somaFinalCentavos} | parcelas=${parcelasValoresCentavos
           .map((c) => (c / 100).toFixed(2))
           .join(', ')}`
       );
@@ -546,15 +541,11 @@ serve(async (req) => {
       }
     } else {
       // Pagamento à vista
-      // IMPORTANTE: Se não há endereço de entrega, o frete não é enviado ao Bling,
-      // então as parcelas devem ser apenas o valor dos itens (sem frete).
-      const incluirFreteNoPagamento = Boolean(endereco_entrega) && Number(valor_frete || 0) > 0;
-      const totalParcelaAvista = incluirFreteNoPagamento ? valorTotalBling : totalLiquidoBling;
-      
+      // IMPORTANTE: O Bling valida parcelas apenas contra o total dos itens, sem frete.
       parcelas = [
         {
           dataVencimento: new Date().toISOString().split('T')[0],
-          valor: Number((Math.round(Number(totalParcelaAvista) * 100) / 100).toFixed(2)),
+          valor: Number((Math.round(Number(totalLiquidoBling) * 100) / 100).toFixed(2)),
           observacoes: `Pagamento via ${formaPagamentoDescricao}`,
         },
       ];
