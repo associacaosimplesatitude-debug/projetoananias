@@ -5,9 +5,10 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
   allowGerenteEbd?: boolean;
+  allowFinanceiro?: boolean;
 }
 
-export default function ProtectedRoute({ children, requireAdmin = false, allowGerenteEbd = false }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requireAdmin = false, allowGerenteEbd = false, allowFinanceiro = false }: ProtectedRouteProps) {
   const { user, role, loading } = useAuth();
 
   if (loading) {
@@ -25,9 +26,10 @@ export default function ProtectedRoute({ children, requireAdmin = false, allowGe
   if (requireAdmin) {
     const isAdmin = role === 'admin';
     const isGerenteEbd = role === 'gerente_ebd';
+    const isFinanceiro = role === 'financeiro';
     
-    // Allow access if user is admin, or if allowGerenteEbd is true and user is gerente_ebd
-    if (!isAdmin && !(allowGerenteEbd && isGerenteEbd)) {
+    // Allow access if user is admin, or if allowGerenteEbd is true and user is gerente_ebd, or if allowFinanceiro is true and user is financeiro
+    if (!isAdmin && !(allowGerenteEbd && isGerenteEbd) && !(allowFinanceiro && isFinanceiro)) {
       return <Navigate to="/" replace />;
     }
   }
