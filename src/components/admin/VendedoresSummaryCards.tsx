@@ -9,14 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -505,72 +497,90 @@ export function VendedoresSummaryCards({
           />
         </div>
 
-        {/* Tabela de Ranking */}
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">#</TableHead>
-                <TableHead>Vendedor</TableHead>
-                <TableHead className="text-right">Vendas</TableHead>
-                <TableHead className="text-center">% Meta</TableHead>
-                <TableHead className="text-right">Comissão</TableHead>
-                <TableHead className="text-center">Clientes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rankingData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Nenhum vendedor ativo encontrado
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rankingData.map((item, index) => (
-                  <TableRow key={item.vendedor.id}>
-                    <TableCell>{getRankIcon(index)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={item.vendedor.foto_url || undefined} />
-                          <AvatarFallback className="text-xs">
-                            {item.vendedor.nome.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium text-sm">{item.vendedor.nome}</p>
-                          <p className="text-xs text-muted-foreground">{item.vendedor.email}</p>
-                        </div>
+        {/* Cards de Ranking dos Vendedores */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-muted-foreground">Ranking de Vendedores</h3>
+          {rankingData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground border rounded-lg">
+              Nenhum vendedor ativo encontrado
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {rankingData.map((item, index) => (
+                <div 
+                  key={item.vendedor.id} 
+                  className="p-4 rounded-xl border bg-card hover:shadow-md transition-shadow overflow-hidden"
+                >
+                  {/* Header com avatar e nome */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={item.vendedor.foto_url || undefined} />
+                        <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                          {item.vendedor.nome.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="absolute -top-1 -left-1">
+                        {getRankIcon(index)}
                       </div>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(item.vendas)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-center gap-1">
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm truncate">{item.vendedor.nome}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{item.vendedor.email}</p>
+                    </div>
+                  </div>
+
+                  {/* Métricas em grid 2x2 */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Vendas */}
+                    <div className="bg-muted/50 rounded-lg p-2">
+                      <p className="text-[10px] text-muted-foreground">Vendas</p>
+                      <p className="text-xs sm:text-sm font-bold text-foreground truncate">
+                        {formatCurrency(item.vendas)}
+                      </p>
+                    </div>
+
+                    {/* % Meta */}
+                    <div className="bg-muted/50 rounded-lg p-2">
+                      <p className="text-[10px] text-muted-foreground">% Meta</p>
+                      <div className="flex items-center gap-1.5">
                         <Badge 
                           variant={item.percentAtingimento >= 100 ? "default" : item.percentAtingimento >= 70 ? "secondary" : "outline"}
-                          className={item.percentAtingimento >= 100 ? "bg-emerald-500" : ""}
+                          className={`text-[10px] px-1.5 py-0 ${item.percentAtingimento >= 100 ? "bg-emerald-500" : ""}`}
                         >
                           {item.percentAtingimento.toFixed(0)}%
                         </Badge>
-                        <Progress 
-                          value={Math.min(item.percentAtingimento, 100)} 
-                          className="w-16 h-1.5" 
-                        />
                       </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(item.comissao)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="outline">{item.clientesAtivos}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+
+                    {/* Comissão */}
+                    <div className="bg-muted/50 rounded-lg p-2">
+                      <p className="text-[10px] text-muted-foreground">Comissão</p>
+                      <p className="text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                        {formatCurrency(item.comissao)}
+                      </p>
+                    </div>
+
+                    {/* Clientes */}
+                    <div className="bg-muted/50 rounded-lg p-2">
+                      <p className="text-[10px] text-muted-foreground">Clientes</p>
+                      <Badge variant="outline" className="text-xs">
+                        {item.clientesAtivos}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="mt-3">
+                    <Progress 
+                      value={Math.min(item.percentAtingimento, 100)} 
+                      className="h-1.5" 
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
