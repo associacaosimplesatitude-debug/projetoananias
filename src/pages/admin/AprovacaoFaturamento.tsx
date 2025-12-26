@@ -255,8 +255,7 @@ export default function AprovacaoFaturamento() {
       const { error } = await supabase
         .from("vendedor_propostas")
         .update({ 
-          status: "REPROVADA_FINANCEIRO",
-          motivo_reprovacao: rejectReason || "Reprovado pelo financeiro"
+          status: "REPROVADA_FINANCEIRO"
         })
         .eq("id", selectedProposta.id);
 

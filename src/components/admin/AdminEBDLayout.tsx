@@ -45,19 +45,26 @@ export function AdminEBDLayout() {
     { to: "/admin/ebd/pedidos-mercadolivre", icon: ShoppingCart, label: "Mercado Livre" },
   ];
 
-  // Menu "Aprovação Financeira" só aparece para role financeiro
-  const menuItems = [
-    { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin", end: true },
-    { to: "/admin/ebd/propostas", icon: FileText, label: "Pedidos e Propostas" },
-    ...(isFinanceiro ? [{ to: "/admin/ebd/aprovacao-faturamento", icon: ClipboardCheck, label: "Aprovação Financeira" }] : []),
-  ];
+  // Menu items based on role
+  const menuItems = isFinanceiro
+    ? [
+        { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin", end: true },
+        { to: "/admin/ebd/propostas", icon: FileText, label: "Pedidos e Propostas" },
+        { to: "/admin/ebd/aprovacao-faturamento", icon: ClipboardCheck, label: "Aprovação Financeira" },
+      ]
+    : [
+        { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin", end: true },
+        { to: "/admin/ebd/propostas", icon: FileText, label: "Pedidos e Propostas" },
+      ];
 
-  const afterPedidosItems = [
-    { to: "/admin/ebd/clientes", icon: Users, label: "Clientes EBD" },
-    { to: "/admin/ebd/leads", icon: UserX, label: "Leads Reativação" },
-    { to: "/admin/ebd/vendedores", icon: User, label: "Vendedores" },
-    ...(!isGerenteEbd ? [{ to: "/admin/ebd/catalogo", icon: BookOpen, label: "Catálogo" }] : []),
-  ];
+  const afterPedidosItems = isFinanceiro
+    ? []
+    : [
+        { to: "/admin/ebd/clientes", icon: Users, label: "Clientes EBD" },
+        { to: "/admin/ebd/leads", icon: UserX, label: "Leads Reativação" },
+        { to: "/admin/ebd/vendedores", icon: User, label: "Vendedores" },
+        ...(!isGerenteEbd ? [{ to: "/admin/ebd/catalogo", icon: BookOpen, label: "Catálogo" }] : []),
+      ];
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -85,41 +92,43 @@ export function AdminEBDLayout() {
               </NavLink>
             ))}
 
-            {/* Pedidos dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
-                    isPedidosActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <Package className="h-4 w-4" />
-                  Pedidos
-                  <ChevronDown className="h-3 w-3" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                {pedidosSubItems.map((item) => (
-                  <DropdownMenuItem key={item.to} asChild>
-                    <NavLink
-                      to={item.to}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex items-center gap-2 w-full cursor-pointer",
-                          isActive && "bg-accent"
-                        )
-                      }
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
-                    </NavLink>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Pedidos dropdown - hidden for financeiro */}
+            {!isFinanceiro && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
+                      isPedidosActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <Package className="h-4 w-4" />
+                    Pedidos
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  {pedidosSubItems.map((item) => (
+                    <DropdownMenuItem key={item.to} asChild>
+                      <NavLink
+                        to={item.to}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex items-center gap-2 w-full cursor-pointer",
+                            isActive && "bg-accent"
+                          )
+                        }
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </NavLink>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             {/* Menu items after Pedidos */}
             {afterPedidosItems.map((item) => (
