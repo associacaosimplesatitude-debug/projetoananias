@@ -546,10 +546,15 @@ serve(async (req) => {
       }
     } else {
       // Pagamento à vista
+      // IMPORTANTE: Se não há endereço de entrega, o frete não é enviado ao Bling,
+      // então as parcelas devem ser apenas o valor dos itens (sem frete).
+      const incluirFreteNoPagamento = Boolean(endereco_entrega) && Number(valor_frete || 0) > 0;
+      const totalParcelaAvista = incluirFreteNoPagamento ? valorTotalBling : totalLiquidoBling;
+      
       parcelas = [
         {
           dataVencimento: new Date().toISOString().split('T')[0],
-          valor: Number((Math.round(Number(valorTotalBling) * 100) / 100).toFixed(2)),
+          valor: Number((Math.round(Number(totalParcelaAvista) * 100) / 100).toFixed(2)),
           observacoes: `Pagamento via ${formaPagamentoDescricao}`,
         },
       ];
