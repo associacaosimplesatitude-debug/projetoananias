@@ -96,7 +96,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  // Dialog states
+  // Dialog states for Shopify orders
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
@@ -106,6 +106,15 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     url_rastreio: '',
     valor_total: 0,
     valor_para_meta: 0,
+    vendedor_id: '',
+  });
+
+  // Dialog states for Propostas Faturadas
+  const [editPropostaDialogOpen, setEditPropostaDialogOpen] = useState(false);
+  const [deletePropostaDialogOpen, setDeletePropostaDialogOpen] = useState(false);
+  const [selectedProposta, setSelectedProposta] = useState<PropostaFaturada | null>(null);
+  const [editPropostaForm, setEditPropostaForm] = useState({
+    valor_total: 0,
     vendedor_id: '',
   });
 
@@ -199,7 +208,49 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     },
   });
 
-  // Handlers
+  // Update mutation for Propostas
+  const updatePropostaMutation = useMutation({
+    mutationFn: async (data: { id: string; updates: Partial<PropostaFaturada> }) => {
+      const { error } = await supabase
+        .from("vendedor_propostas")
+        .update(data.updates)
+        .eq("id", data.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-propostas-faturadas"] });
+      toast({ title: "Proposta atualizada com sucesso!" });
+      setEditPropostaDialogOpen(false);
+      setSelectedProposta(null);
+    },
+    onError: (error) => {
+      toast({ title: "Erro ao atualizar proposta", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Delete mutation for Propostas
+  const deletePropostaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("vendedor_propostas")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-propostas-faturadas"] });
+      toast({ title: "Proposta excluída com sucesso!" });
+      setDeletePropostaDialogOpen(false);
+      setSelectedProposta(null);
+    },
+    onError: (error) => {
+      toast({ title: "Erro ao excluir proposta", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Handlers for Shopify orders
   const handleEditPedido = (pedido: ShopifyPedido) => {
     setSelectedPedido(pedido);
     setEditForm({
@@ -236,6 +287,37 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const confirmDeletePedido = () => {
     if (!selectedPedido) return;
     deletePedidoMutation.mutate(selectedPedido.id);
+  };
+
+  // Handlers for Propostas Faturadas
+  const handleEditProposta = (proposta: PropostaFaturada) => {
+    setSelectedProposta(proposta);
+    setEditPropostaForm({
+      valor_total: proposta.valor_total,
+      vendedor_id: proposta.vendedor_id || '',
+    });
+    setEditPropostaDialogOpen(true);
+  };
+
+  const handleDeleteProposta = (proposta: PropostaFaturada) => {
+    setSelectedProposta(proposta);
+    setDeletePropostaDialogOpen(true);
+  };
+
+  const handleSaveProposta = () => {
+    if (!selectedProposta) return;
+    updatePropostaMutation.mutate({
+      id: selectedProposta.id,
+      updates: {
+        valor_total: editPropostaForm.valor_total,
+        vendedor_id: editPropostaForm.vendedor_id || null,
+      },
+    });
+  };
+
+  const confirmDeleteProposta = () => {
+    if (!selectedProposta) return;
+    deletePropostaMutation.mutate(selectedProposta.id);
   };
 
   // Stats - only Shopify orders now
@@ -449,6 +531,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                   <TableHead>Para Meta</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Vendedor</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -482,6 +565,25 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                       </TableCell>
                       <TableCell>
                         {proposta.vendedor?.nome || '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditProposta(proposta)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteProposta(proposta)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -602,6 +704,76 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deletePedidoMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Proposta Dialog */}
+      <Dialog open={editPropostaDialogOpen} onOpenChange={setEditPropostaDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Editar Proposta Faturada</DialogTitle>
+            <DialogDescription>
+              Atualize as informações da proposta de {selectedProposta?.cliente_nome}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Valor Total (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={editPropostaForm.valor_total}
+                onChange={(e) => setEditPropostaForm({ ...editPropostaForm, valor_total: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Vendedor</Label>
+              <Select
+                value={editPropostaForm.vendedor_id}
+                onValueChange={(value) => setEditPropostaForm({ ...editPropostaForm, vendedor_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nenhum</SelectItem>
+                  {vendedores.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPropostaDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveProposta} disabled={updatePropostaMutation.isPending}>
+              {updatePropostaMutation.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Proposta Confirmation Dialog */}
+      <AlertDialog open={deletePropostaDialogOpen} onOpenChange={setDeletePropostaDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a proposta faturada de <strong>{selectedProposta?.cliente_nome}</strong>? 
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteProposta}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletePropostaMutation.isPending ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
