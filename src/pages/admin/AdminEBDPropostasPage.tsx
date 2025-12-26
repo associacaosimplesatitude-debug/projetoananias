@@ -408,6 +408,11 @@ export default function AdminEBDPropostasPage() {
   const propostasAguardandoLiberacao = filteredPropostas?.filter(p => 
     p.status === "AGUARDANDO_APROVACAO_FINANCEIRA"
   ) || [];
+
+  // Propostas faturadas (aba separada)
+  const propostasFaturadas = filteredPropostas?.filter(p => 
+    p.status === "FATURADO"
+  ) || [];
   
   const propostasPendentes = propostasAtivas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
   const propostasAceitas = propostasAtivas?.filter(p => p.status === "PROPOSTA_ACEITA") || [];
@@ -432,6 +437,12 @@ export default function AdminEBDPropostasPage() {
             Aguardando Liberação
             {propostasAguardandoLiberacao.length > 0 && (
               <Badge variant="outline" className="ml-1 border-orange-500 text-orange-600">{propostasAguardandoLiberacao.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="faturadas" className="flex items-center gap-2">
+            Propostas Faturadas
+            {propostasFaturadas.length > 0 && (
+              <Badge variant="outline" className="ml-1 border-green-500 text-green-600">{propostasFaturadas.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="pedidos">Pedidos Confirmados</TabsTrigger>
@@ -574,6 +585,76 @@ export default function AdminEBDPropostasPage() {
                           onClick={() => window.open(`https://gestaoebd.com.br/proposta/${proposta.token}`, '_blank')}
                         >
                           <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="faturadas" className="space-y-4 mt-4">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por cliente ou vendedor..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          {isLoadingPropostas ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : propostasFaturadas.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {searchTerm ? "Nenhuma proposta encontrada" : "Nenhuma proposta faturada"}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {propostasFaturadas.map((proposta) => (
+                <Card key={proposta.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-semibold">{proposta.cliente_nome}</span>
+                          {getStatusBadge(proposta.status)}
+                          {proposta.pode_faturar && (
+                            <Badge variant="outline" className="text-xs">
+                              B2B {proposta.prazo_faturamento_selecionado && `• ${proposta.prazo_faturamento_selecionado} dias`}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          R$ {proposta.valor_total.toFixed(2)} • Criada em {format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Vendedor: {proposta.vendedor?.nome || proposta.vendedor_nome || "N/A"}
+                        </p>
+                        {proposta.confirmado_em && (
+                          <p className="text-xs text-green-600">
+                            Confirmada em {format(new Date(proposta.confirmado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={`/proposta/${proposta.token}`} target="_blank">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeletePropostaId(proposta.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
