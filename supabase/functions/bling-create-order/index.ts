@@ -400,21 +400,19 @@ serve(async (req) => {
       console.log(`  - Quantidade: ${quantidade}`);
 
       // IMPORTANTE (Bling): para exibir o PREÇO DE LISTA e o DESCONTO aplicado,
-      // enviamos o preço cheio no campo 'valor' e o desconto unitário (em reais) no campo 'desconto'.
-      // O Bling calcula: (valor - desconto) * quantidade para cada item.
+      // enviamos o preço cheio no campo 'valor' e o desconto em PORCENTAGEM no campo 'desconto'.
+      // Observação: o Bling interpreta `desconto` numérico como %, então 40 = 40%.
+      // O Bling calcula: valor * (1 - desconto/100) * quantidade.
       // Total da venda = soma dos itens líquidos + frete.
-      const descontoUnitarioReais = Math.round((precoLista - precoUnitarioLiquido) * 100) / 100;
-      
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        valor: precoLista,  // Preço de lista (cheio)
+        valor: precoLista, // Preço de lista (cheio)
       };
-      
-      // Adicionar desconto como número simples (não objeto) - é o valor de desconto por unidade
-      if (descontoUnitarioReais > 0) {
-        itemBling.desconto = descontoUnitarioReais;
+
+      if (descontoPercentualItem > 0) {
+        itemBling.desconto = Number(descontoPercentualItem.toFixed(2));
       }
 
       // Preferir enviar o CÓDIGO do produto (é o que aparece na coluna "Código" no Bling)
