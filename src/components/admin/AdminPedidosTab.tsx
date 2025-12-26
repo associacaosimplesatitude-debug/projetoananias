@@ -58,6 +58,7 @@ interface ShopifyPedido {
 
 interface AdminPedidosTabProps {
   vendedores?: { id: string; nome: string }[];
+  hideStats?: boolean;
 }
 
 const getShopifyStatusBadge = (status: string) => {
@@ -77,7 +78,7 @@ const getShopifyStatusBadge = (status: string) => {
   }
 };
 
-export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
+export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPedidosTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -235,48 +236,52 @@ export function AdminPedidosTab({ vendedores = [] }: AdminPedidosTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-sm text-muted-foreground">Total</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold text-yellow-600">{stats.pendentes}</div>
-            <p className="text-sm text-muted-foreground">Pendentes</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold text-green-600">{stats.pagos}</div>
-            <p className="text-sm text-muted-foreground">Pagos</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-red-500">
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold text-red-600">{stats.reembolsados}</div>
-            <p className="text-sm text-muted-foreground">Reembolsados</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Total Revenue */}
-      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30">
-        <CardContent className="pt-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Faturamento Total (Pagos)</p>
-              <div className="text-3xl font-bold text-green-600">
-                R$ {stats.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </div>
-            </div>
-            <ShoppingCart className="h-10 w-10 text-green-500 opacity-50" />
+      {/* Stats Cards - Hidden for gerente */}
+      {!hideStats && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-2xl font-bold">{stats.total}</div>
+                <p className="text-sm text-muted-foreground">Total</p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-yellow-500">
+              <CardContent className="pt-4">
+                <div className="text-2xl font-bold text-yellow-600">{stats.pendentes}</div>
+                <p className="text-sm text-muted-foreground">Pendentes</p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-4">
+                <div className="text-2xl font-bold text-green-600">{stats.pagos}</div>
+                <p className="text-sm text-muted-foreground">Pagos</p>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-red-500">
+              <CardContent className="pt-4">
+                <div className="text-2xl font-bold text-red-600">{stats.reembolsados}</div>
+                <p className="text-sm text-muted-foreground">Reembolsados</p>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Total Revenue */}
+          <Card className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Faturamento Total (Pagos)</p>
+                  <div className="text-3xl font-bold text-green-600">
+                    R$ {stats.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <ShoppingCart className="h-10 w-10 text-green-500 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Orders Table */}
       <Card>

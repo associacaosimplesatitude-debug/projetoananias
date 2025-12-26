@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
+import { useAuth } from "@/hooks/useAuth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,6 +77,8 @@ interface Proposta {
 }
 
 export default function AdminEBDPropostasPage() {
+  const { role } = useAuth();
+  const isGerenteEbd = role === 'gerente_ebd';
   const queryClient = useQueryClient();
   const [processingPropostaId, setProcessingPropostaId] = useState<string | null>(null);
   const [deletePropostaId, setDeletePropostaId] = useState<string | null>(null);
@@ -581,7 +584,7 @@ export default function AdminEBDPropostasPage() {
         </TabsContent>
 
         <TabsContent value="pedidos" className="mt-4">
-          <AdminPedidosTab vendedores={vendedores} />
+          <AdminPedidosTab vendedores={vendedores} hideStats={isGerenteEbd} />
         </TabsContent>
       </Tabs>
 
