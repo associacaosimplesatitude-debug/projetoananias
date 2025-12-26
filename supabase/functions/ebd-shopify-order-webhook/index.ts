@@ -215,9 +215,10 @@ serve(async (req) => {
     if (statusPagamento === "paid") {
       console.log("Payment confirmed, checking for related proposal...");
       
-      // Try to find and update the proposal by matching cliente_id and approximate value
+      let matchingPropostaId: string | null = null;
+      
+      // Method 1: Try to find proposal by cliente_id
       if (clienteId) {
-        // Find proposals for this client that are in AGUARDANDO_PAGAMENTO status
         const { data: propostas, error: propostaError } = await supabase
           .from("vendedor_propostas")
           .select("id, valor_total")
@@ -225,33 +226,113 @@ serve(async (req) => {
           .eq("status", "AGUARDANDO_PAGAMENTO");
         
         if (propostaError) {
-          console.error("Error fetching propostas:", propostaError);
+          console.error("Error fetching propostas by cliente_id:", propostaError);
         } else if (propostas && propostas.length > 0) {
-          // Find the proposal that matches the order value (with small tolerance for rounding)
           const matchingProposta = propostas.find(p => {
             const diff = Math.abs(p.valor_total - valorTotal);
-            return diff < 1; // Allow 1 BRL tolerance for rounding differences
+            return diff < 1;
           });
-          
           if (matchingProposta) {
-            console.log("Found matching proposal:", matchingProposta.id);
-            
-            const { error: updateError } = await supabase
-              .from("vendedor_propostas")
-              .update({ status: "PAGO" })
-              .eq("id", matchingProposta.id);
-            
-            if (updateError) {
-              console.error("Error updating proposal status:", updateError);
-            } else {
-              console.log("Proposal status updated to PAGO");
-            }
-          } else {
-            console.log("No matching proposal found for order value:", valorTotal);
+            matchingPropostaId = matchingProposta.id;
+            console.log("Found matching proposal by cliente_id:", matchingPropostaId);
           }
-        } else {
-          console.log("No pending proposals found for cliente:", clienteId);
         }
+      }
+      
+      // Method 2: If not found by cliente_id, try to find by customer email and value
+      if (!matchingPropostaId && (order.email || order.customer?.email)) {
+        const customerEmail = order.email || order.customer?.email;
+        console.log("Trying to find proposal by email:", customerEmail);
+        
+        // First find the cliente by email
+        const { data: clientes, error: clienteError } = await supabase
+          .from("ebd_clientes")
+          .select("id")
+          .eq("email_superintendente", customerEmail);
+        
+        if (clienteError) {
+          console.error("Error fetching cliente by email:", clienteError);
+        } else if (clientes && clientes.length > 0) {
+          const clienteIds = clientes.map(c => c.id);
+          
+          const { data: propostas, error: propostaError } = await supabase
+            .from("vendedor_propostas")
+            .select("id, valor_total, cliente_id")
+            .in("cliente_id", clienteIds)
+            .eq("status", "AGUARDANDO_PAGAMENTO");
+          
+          if (propostaError) {
+            console.error("Error fetching propostas by email:", propostaError);
+          } else if (propostas && propostas.length > 0) {
+            const matchingProposta = propostas.find(p => {
+              const diff = Math.abs(p.valor_total - valorTotal);
+              return diff < 1;
+            });
+            if (matchingProposta) {
+              matchingPropostaId = matchingProposta.id;
+              console.log("Found matching proposal by email:", matchingPropostaId);
+              
+              // Also update the ebd_shopify_pedidos record with the cliente_id
+              if (matchingProposta.cliente_id) {
+                await supabase
+                  .from("ebd_shopify_pedidos")
+                  .update({ cliente_id: matchingProposta.cliente_id })
+                  .eq("shopify_order_id", order.id);
+              }
+            }
+          }
+        }
+      }
+      
+      // Method 3: Try to find by customer name and value
+      if (!matchingPropostaId && order.customer) {
+        const customerName = `${order.customer.first_name} ${order.customer.last_name}`.trim();
+        console.log("Trying to find proposal by customer name:", customerName);
+        
+        const { data: propostas, error: propostaError } = await supabase
+          .from("vendedor_propostas")
+          .select("id, valor_total, cliente_id, cliente_nome")
+          .eq("status", "AGUARDANDO_PAGAMENTO");
+        
+        if (propostaError) {
+          console.error("Error fetching propostas for name matching:", propostaError);
+        } else if (propostas && propostas.length > 0) {
+          // Find proposal that matches both name and value
+          const matchingProposta = propostas.find(p => {
+            const diff = Math.abs(p.valor_total - valorTotal);
+            const nameMatch = p.cliente_nome?.toLowerCase().includes(customerName.toLowerCase()) ||
+                              customerName.toLowerCase().includes(p.cliente_nome?.toLowerCase() || '');
+            return diff < 1 && nameMatch;
+          });
+          if (matchingProposta) {
+            matchingPropostaId = matchingProposta.id;
+            console.log("Found matching proposal by name:", matchingPropostaId);
+            
+            // Also update the ebd_shopify_pedidos record with the cliente_id
+            if (matchingProposta.cliente_id) {
+              await supabase
+                .from("ebd_shopify_pedidos")
+                .update({ cliente_id: matchingProposta.cliente_id })
+                .eq("shopify_order_id", order.id);
+            }
+          }
+        }
+      }
+      
+      // Update the matching proposal to PAGO
+      if (matchingPropostaId) {
+        const { error: updateError } = await supabase
+          .from("vendedor_propostas")
+          .update({ status: "PAGO" })
+          .eq("id", matchingPropostaId);
+        
+        if (updateError) {
+          console.error("Error updating proposal status:", updateError);
+        } else {
+          console.log("Proposal status updated to PAGO:", matchingPropostaId);
+        }
+      } else {
+        console.log("No matching proposal found for order:", order.id, "value:", valorTotal);
       }
     }
 
