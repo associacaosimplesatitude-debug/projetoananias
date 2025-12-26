@@ -385,19 +385,54 @@ export function SalesChannelCards({
     const valorPropostasRevendedores = propostasRevendedores.reduce((s, p) => s + (Number(p.valor_total) - Number(p.valor_frete)), 0);
     const valorPropostasRepresentantes = propostasRepresentantes.reduce((s, p) => s + (Number(p.valor_total) - Number(p.valor_frete)), 0);
 
+    const amazonData = { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length };
+    const shopeeData = { valor: shopeeOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: shopeeOrders.length };
+    const mercadoLivreData = { valor: mlOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: mlOrders.length };
+    const advecsData = { 
+      valor: advecsOrders.reduce((s, o) => s + Number(o.valor_total), 0) + valorPropostasAdvecs, 
+      qtd: advecsOrders.length + propostasAdvecs.length 
+    };
+    const revendedoresData = { valor: valorPropostasRevendedores, qtd: propostasRevendedores.length };
+    const atacadoData = { valor: atacadoOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: atacadoOrders.length };
+    const representantesData = { valor: valorPropostasRepresentantes, qtd: propostasRepresentantes.length };
+
     return {
-      amazon: { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length },
-      shopee: { valor: shopeeOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: shopeeOrders.length },
-      mercadoLivre: { valor: mlOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: mlOrders.length },
-      advecs: { 
-        valor: advecsOrders.reduce((s, o) => s + Number(o.valor_total), 0) + valorPropostasAdvecs, 
-        qtd: advecsOrders.length + propostasAdvecs.length 
-      },
-      revendedores: { valor: valorPropostasRevendedores, qtd: propostasRevendedores.length },
-      atacado: { valor: atacadoOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: atacadoOrders.length },
-      representantes: { valor: valorPropostasRepresentantes, qtd: propostasRepresentantes.length },
+      amazon: amazonData,
+      shopee: shopeeData,
+      mercadoLivre: mercadoLivreData,
+      advecs: advecsData,
+      revendedores: revendedoresData,
+      atacado: atacadoData,
+      representantes: representantesData,
     };
   }, [marketplacePedidos, propostasFaturadas, dateFilter, customDateRange]);
+
+  // Calcula o total geral somando todos os canais
+  const totalGeral = useMemo(() => {
+    const valorTotal = 
+      periodMetrics.valorOnline + 
+      periodMetrics.valorIgrejas + 
+      marketplaceData.amazon.valor + 
+      marketplaceData.shopee.valor + 
+      marketplaceData.mercadoLivre.valor + 
+      marketplaceData.advecs.valor + 
+      marketplaceData.revendedores.valor + 
+      marketplaceData.atacado.valor + 
+      marketplaceData.representantes.valor;
+    
+    const qtdTotal = 
+      periodMetrics.qtdOnline + 
+      periodMetrics.qtdIgrejas + 
+      marketplaceData.amazon.qtd + 
+      marketplaceData.shopee.qtd + 
+      marketplaceData.mercadoLivre.qtd + 
+      marketplaceData.advecs.qtd + 
+      marketplaceData.revendedores.qtd + 
+      marketplaceData.atacado.qtd + 
+      marketplaceData.representantes.qtd;
+    
+    return { valorTotal, qtdTotal };
+  }, [periodMetrics, marketplaceData]);
 
   return (
     <Card>
@@ -553,8 +588,8 @@ export function SalesChannelCards({
           <StandardCard
             icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
             title="TOTAL GERAL"
-            value={formatCurrency(periodMetrics.valorTotal)}
-            periodLabel={`${periodMetrics.qtdTotal} pedidos • ${periodLabel}`}
+            value={formatCurrency(totalGeral.valorTotal)}
+            periodLabel={`${totalGeral.qtdTotal} pedidos • ${periodLabel}`}
             colorClass="text-emerald-700 dark:text-emerald-300"
             borderColorClass="border-emerald-300 dark:border-emerald-700"
             bgClass="bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-950 dark:to-emerald-900"
