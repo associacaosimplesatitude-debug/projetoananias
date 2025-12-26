@@ -410,17 +410,11 @@ serve(async (req) => {
       };
 
       if (descontoPercentualItem > 0) {
-        // ✅ Bling: com `unidade: VALOR`, o Bling trata `valor` como DESCONTO TOTAL DO ITEM
-        // (linha inteira) e não como desconto por unidade.
-        // Para o total da venda bater (e as parcelas serem aceitas), enviamos o desconto TOTAL:
-        const descontoValorTotalItem = Math.max(
-          0,
-          Math.round(((precoLista - precoUnitarioLiquido) * quantidade) * 100) / 100
-        );
-
+        // ✅ Bling: para evitar inconsistências no total/parcelas,
+        // enviar desconto como PORCENTAGEM (por item), que é o formato mais estável.
         itemBling.desconto = {
-          valor: descontoValorTotalItem,
-          unidade: 'VALOR',
+          valor: Number(descontoPercentualItem.toFixed(2)),
+          unidade: 'PORCENTAGEM',
         };
       }
 
@@ -500,10 +494,11 @@ serve(async (req) => {
       const prazo = parseInt(faturamento_prazo);
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
 
-      // ✅ CORREÇÃO: O Bling valida as parcelas APENAS contra o total dos ITENS,
-      // NÃO incluindo o frete, mesmo quando o frete é enviado como CIF.
-      // O frete é tratado separadamente na seção de transporte.
-      const totalBaseParcelas = Math.round(totalLiquidoBling * 100) / 100;
+      // ✅ Base das parcelas precisa bater com o total que o Bling calcula para a venda.
+      // Na prática, quando enviamos frete via transporte, o Bling tende a considerar
+      // o frete no total da venda quando fretePorConta='R'.
+      const incluirFreteNoTotalDaVenda = Boolean(endereco_entrega) && Number(valor_frete || 0) > 0;
+      const totalBaseParcelas = Math.round((incluirFreteNoTotalDaVenda ? valorTotalBling : totalLiquidoBling) * 100) / 100;
 
       // Calcular parcelas em centavos para evitar problemas de arredondamento
       const totalBaseCentavos = Math.round(totalBaseParcelas * 100);
@@ -521,7 +516,7 @@ serve(async (req) => {
       const somaFinalCentavos = parcelasValoresCentavos.reduce((acc, v) => acc + v, 0);
 
       console.log(
-        `Faturamento B2B: ${numParcelas} parcela(s) | base_itens=${totalBaseParcelas.toFixed(2)} | base_cent=${totalBaseCentavos} | base_unit_cent=${parcelaBaseCentavos} | diff_cent=${restoCentavos} | soma_final_cent=${somaFinalCentavos} | parcelas=${parcelasValoresCentavos
+        `Faturamento B2B: ${numParcelas} parcela(s) | base=${totalBaseParcelas.toFixed(2)} | base_cent=${totalBaseCentavos} | base_unit_cent=${parcelaBaseCentavos} | diff_cent=${restoCentavos} | soma_final_cent=${somaFinalCentavos} | parcelas=${parcelasValoresCentavos
           .map((c) => (c / 100).toFixed(2))
           .join(', ')}`
       );
