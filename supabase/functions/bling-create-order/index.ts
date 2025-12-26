@@ -399,24 +399,16 @@ serve(async (req) => {
       console.log(`  - Desconto Total do Item (simulado): R$ ${descontoTotalItem.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
 
-      // IMPORTANTE (Bling):
-      // - valor: preço LISTA (cheio)
-      // - desconto: informar como percentual para o Bling exibir Desc(%) e preço final
+      // IMPORTANTE (Bling): para evitar divergência de cálculo interno (parcelas x total),
+      // enviamos diretamente o preço UNITÁRIO LÍQUIDO (já com desconto) e NÃO enviamos
+      // o campo `desconto` no item.
+      // Assim o total da venda no Bling fica determinístico: valor * quantidade (+/- frete).
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        valor: precoLista,
+        valor: precoUnitarioLiquido,
       };
-
-      if (descontoPercentualItem > 0) {
-        // ✅ Bling: para evitar inconsistências no total/parcelas,
-        // enviar desconto como PORCENTAGEM (por item), que é o formato mais estável.
-        itemBling.desconto = {
-          valor: Number(descontoPercentualItem.toFixed(2)),
-          unidade: 'PORCENTAGEM',
-        };
-      }
 
       // Preferir enviar o CÓDIGO do produto (é o que aparece na coluna "Código" no Bling)
       // para garantir vínculo e estoque corretos; se não houver, usar o ID encontrado.
