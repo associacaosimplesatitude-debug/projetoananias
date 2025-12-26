@@ -251,6 +251,15 @@ export function SalesChannelCards({
 
     const filterMarketplaceByPeriod = (orders: MarketplacePedido[]) => {
       switch (dateFilter) {
+        case "today": {
+          const todayStart = startOfDay(now);
+          const todayEnd = endOfDay(now);
+          return orders.filter((p) => {
+            if (!p.order_date) return false;
+            const d = new Date(p.order_date);
+            return !Number.isNaN(d.getTime()) && isWithinInterval(d, { start: todayStart, end: todayEnd });
+          });
+        }
         case "last_7_days": {
           const sevenDaysAgo = subDays(now, 7);
           return orders.filter((p) => {
