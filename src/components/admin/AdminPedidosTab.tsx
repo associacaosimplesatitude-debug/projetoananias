@@ -34,10 +34,24 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Package, ShoppingCart, ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { Package, ShoppingCart, ExternalLink, Pencil, Trash2, CheckCircle, FileText } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+
+interface PropostaFaturada {
+  id: string;
+  cliente_id: string;
+  cliente_nome: string;
+  vendedor_id: string;
+  itens: any;
+  valor_total: number;
+  desconto_percentual: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  vendedor?: { nome: string } | null;
+}
 
 interface ShopifyPedido {
   id: string;
@@ -124,6 +138,23 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
       if (error) throw error;
       return (data || []) as ShopifyPedido[];
     },
+  });
+
+  // Fetch propostas faturadas (B2B orders approved by financial)
+  const { data: propostasFaturadas = [], isLoading: isLoadingFaturadas } = useQuery({
+    queryKey: ["admin-propostas-faturadas"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendedor_propostas")
+        .select("*, vendedor:vendedores(nome)")
+        .in("status", ["FATURADO", "APROVADA_FATURAMENTO"])
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return (data || []) as PropostaFaturada[];
+    },
+    refetchOnWindowFocus: true,
+    staleTime: 30000,
   });
 
   // Update mutation
@@ -221,7 +252,12 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     return { total, pagos, reembolsados, pendentes, valorTotal };
   }, [shopifyPedidos]);
 
-  if (isLoading) {
+  // Helper to calculate valor para meta for propostas
+  const calcularValorParaMetaProposta = (proposta: PropostaFaturada) => {
+    return proposta.valor_total * (1 - (proposta.desconto_percentual || 0) / 100);
+  };
+
+  if (isLoading || isLoadingFaturadas) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-4 gap-4">
@@ -389,6 +425,72 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
           )}
         </CardContent>
       </Card>
+
+      {/* Propostas Faturadas (B2B Orders) Section */}
+      {propostasFaturadas.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Propostas Faturadas (B2B)
+            </CardTitle>
+            <CardDescription>
+              Pedidos faturados aprovados pelo financeiro
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Itens</TableHead>
+                  <TableHead>Valor Total</TableHead>
+                  <TableHead>Para Meta</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Vendedor</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {propostasFaturadas.map((proposta) => {
+                  const itens = Array.isArray(proposta.itens) ? proposta.itens : [];
+                  return (
+                    <TableRow key={proposta.id}>
+                      <TableCell>
+                        {proposta.created_at 
+                          ? format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {proposta.cliente_nome}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">
+                        {itens.map((item: any, idx: number) => (
+                          <span key={idx}>
+                            {item.quantity}x {item.title}{idx < itens.length - 1 ? ", " : ""}
+                          </span>
+                        ))}
+                      </TableCell>
+                      <TableCell>
+                        R$ {proposta.valor_total.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-green-600 font-medium">
+                        R$ {calcularValorParaMetaProposta(proposta).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-green-500 hover:bg-green-600">Faturado</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {proposta.vendedor?.nome || '-'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
