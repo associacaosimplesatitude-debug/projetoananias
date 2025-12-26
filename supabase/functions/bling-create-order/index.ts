@@ -527,6 +527,9 @@ serve(async (req) => {
           // Enviar com 2 casas; usamos centavos para garantir soma exata.
           valor: Number(valorParcela.toFixed(2)),
           observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
+          formaPagamento: {
+            descricao: 'Boleto parcelado',
+          },
         });
       }
     } else {
@@ -537,6 +540,9 @@ serve(async (req) => {
           dataVencimento: new Date().toISOString().split('T')[0],
           valor: Number((Math.round(Number(totalLiquidoBling) * 100) / 100).toFixed(2)),
           observacoes: `Pagamento via ${formaPagamentoDescricao}`,
+          formaPagamento: {
+            descricao: 'Boleto parcelado',
+          },
         },
       ];
     }
