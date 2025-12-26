@@ -130,6 +130,13 @@ export default function Auth() {
         return;
       }
 
+      // 5.1. FINANCEIRO - redirecionar para Aprovação Faturamento
+      if (roleData?.role === 'financeiro') {
+        console.log('Redirecting to /admin/ebd/aprovacao-faturamento (financeiro)');
+        navigate('/admin/ebd/aprovacao-faturamento');
+        return;
+      }
+
       // 6. TESOUREIRO/SECRETÁRIO
       if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
         console.log('Redirecting to /dashboard (tesoureiro/secretario)');

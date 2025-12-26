@@ -173,6 +173,12 @@ export default function DashboardRedirect() {
     return <Navigate to="/admin/ebd" replace />;
   }
 
+  // Financeiro redirects to aprovacao faturamento
+  if (role === 'financeiro') {
+    console.log('DashboardRedirect - Redirecting financeiro to /admin/ebd/aprovacao-faturamento');
+    return <Navigate to="/admin/ebd/aprovacao-faturamento" replace />;
+  }
+
   // If user is a vendedor, redirect to vendedor dashboard
   if (vendedor) {
     console.log('DashboardRedirect - Redirecting vendedor to /vendedor');
