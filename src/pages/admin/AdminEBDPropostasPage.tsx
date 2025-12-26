@@ -397,7 +397,11 @@ export default function AdminEBDPropostasPage() {
   const propostasAtivas = filteredPropostas?.filter(p => 
     p.status === "PROPOSTA_PENDENTE" || 
     p.status === "PROPOSTA_ACEITA" || 
-    p.status === "AGUARDANDO_PAGAMENTO" ||
+    p.status === "AGUARDANDO_PAGAMENTO"
+  ) || [];
+
+  // Propostas aguardando liberação financeira (aba separada)
+  const propostasAguardandoLiberacao = filteredPropostas?.filter(p => 
     p.status === "AGUARDANDO_APROVACAO_FINANCEIRA"
   ) || [];
   
@@ -418,6 +422,12 @@ export default function AdminEBDPropostasPage() {
             Propostas Digitais
             {propostasAtivas.length > 0 && (
               <Badge variant="secondary" className="ml-1">{propostasAtivas.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="aguardando" className="flex items-center gap-2">
+            Aguardando Liberação
+            {propostasAguardandoLiberacao.length > 0 && (
+              <Badge variant="outline" className="ml-1 border-orange-500 text-orange-600">{propostasAguardandoLiberacao.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="pedidos">Pedidos Confirmados</TabsTrigger>
@@ -505,6 +515,61 @@ export default function AdminEBDPropostasPage() {
                           onClick={() => setDeletePropostaId(proposta.id)}
                         >
                           <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="aguardando" className="space-y-4 mt-4">
+          {isLoadingPropostas ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : propostasAguardandoLiberacao.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma proposta aguardando liberação
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {propostasAguardandoLiberacao.map((proposta) => (
+                <Card key={proposta.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-semibold">{proposta.cliente_nome}</span>
+                          {getStatusBadge(proposta.status)}
+                          {proposta.pode_faturar && (
+                            <Badge variant="outline" className="text-xs">
+                              B2B {proposta.prazo_faturamento_selecionado && `• ${proposta.prazo_faturamento_selecionado} dias`}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          R$ {proposta.valor_total.toFixed(2)} • Criada em {format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Vendedor: {proposta.vendedor?.nome || proposta.vendedor_nome || "N/A"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyLink(proposta.token)}
+                        >
+                          <Copy className="h-4 w-4 mr-1" />
+                          Copiar Link
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => window.open(`https://gestaoebd.com.br/proposta/${proposta.token}`, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>

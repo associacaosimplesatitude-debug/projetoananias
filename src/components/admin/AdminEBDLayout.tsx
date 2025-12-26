@@ -30,6 +30,7 @@ export function AdminEBDLayout() {
   const { role } = useAuth();
   const location = useLocation();
   const isGerenteEbd = role === 'gerente_ebd';
+  const isFinanceiro = role === 'financeiro';
 
   // Check if current path is within pedidos
   const isPedidosActive = location.pathname.includes('/admin/ebd/pedidos');
@@ -44,10 +45,11 @@ export function AdminEBDLayout() {
     { to: "/admin/ebd/pedidos-mercadolivre", icon: ShoppingCart, label: "Mercado Livre" },
   ];
 
+  // Menu "Aprovação Financeira" só aparece para role financeiro
   const menuItems = [
     { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin", end: true },
     { to: "/admin/ebd/propostas", icon: FileText, label: "Pedidos e Propostas" },
-    { to: "/admin/ebd/aprovacao-faturamento", icon: ClipboardCheck, label: "Aprovação Financeira" },
+    ...(isFinanceiro ? [{ to: "/admin/ebd/aprovacao-faturamento", icon: ClipboardCheck, label: "Aprovação Financeira" }] : []),
   ];
 
   const afterPedidosItems = [
