@@ -48,6 +48,15 @@ interface MarketplacePedido {
   created_at: string;
 }
 
+interface PropostaFaturada {
+  id: string;
+  vendedor_id: string | null;
+  valor_total: number;
+  valor_frete: number;
+  created_at: string;
+  cliente: { tipo_cliente: string | null } | null;
+}
+
 interface SalesChannelCardsProps {
   dashboardKPIs: {
     totalPedidosOnline: number;
@@ -74,6 +83,7 @@ interface SalesChannelCardsProps {
   propostasDigitaisAbertas: number;
   pedidosBlingPendentes: number;
   marketplacePedidos?: MarketplacePedido[];
+  propostasFaturadas?: PropostaFaturada[];
 }
 
 const formatCurrency = (value: number) =>
@@ -123,6 +133,7 @@ export function SalesChannelCards({
   propostasDigitaisAbertas,
   pedidosBlingPendentes,
   marketplacePedidos = [],
+  propostasFaturadas = [],
 }: SalesChannelCardsProps) {
   // Estado local para filtro interno do card (mesma lógica das páginas de marketplace)
   const [dateFilter, setDateFilter] = useState<DateFilter>("today");
@@ -221,9 +232,18 @@ export function SalesChannelCards({
     const marketplaceFiltered = filterMarketplaceByRange(marketplacePedidos);
     const valorMarketplace = marketplaceFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
 
-    // Total Geral = Igrejas + Online + Marketplaces (Amazon, Shopee, ML, etc.)
-    const valorTotal = valorIgrejas + valorOnline + valorMarketplace;
-    const qtdTotal = igrejasFiltered.length + onlineFiltered.length + marketplaceFiltered.length;
+    // Filtrar propostas faturadas pelo período
+    const propostasFiltered = propostasFaturadas.filter((p) => {
+      if (!p.created_at) return false;
+      const d = new Date(p.created_at);
+      if (Number.isNaN(d.getTime())) return false;
+      return isWithinInterval(d, { start, end: endInclusive });
+    });
+    const valorPropostas = propostasFiltered.reduce((sum, p) => sum + (Number(p.valor_total || 0) - Number(p.valor_frete || 0)), 0);
+
+    // Total Geral = Igrejas + Online + Marketplaces + Propostas Faturadas
+    const valorTotal = valorIgrejas + valorOnline + valorMarketplace + valorPropostas;
+    const qtdTotal = igrejasFiltered.length + onlineFiltered.length + marketplaceFiltered.length + propostasFiltered.length;
 
     const comissao = vendedorStats.reduce((sum, v) => {
       const vendedorOrders = filterByRange(shopifyOrders.filter((o) => o.vendedor_id === v.id));
@@ -243,7 +263,7 @@ export function SalesChannelCards({
       qtdTotal,
       comissao,
     };
-  }, [shopifyOrders, shopifyCGOrders, vendedorStats, cardDateRange, marketplacePedidos]);
+  }, [shopifyOrders, shopifyCGOrders, vendedorStats, cardDateRange, marketplacePedidos, propostasFaturadas]);
 
   // Marketplace: replicar exatamente a lógica das páginas (p.order_date + date-fns)
   const marketplaceData = useMemo(() => {
@@ -293,6 +313,51 @@ export function SalesChannelCards({
       }
     };
 
+    // Filtrar propostas faturadas pelo período
+    const filterPropostasByPeriod = (propostas: PropostaFaturada[]) => {
+      switch (dateFilter) {
+        case "today": {
+          const todayStr = format(now, "yyyy-MM-dd");
+          return propostas.filter((p) => {
+            if (!p.created_at) return false;
+            const dateStr = p.created_at.substring(0, 10);
+            return dateStr === todayStr;
+          });
+        }
+        case "last_7_days": {
+          const sevenDaysAgo = subDays(now, 7);
+          return propostas.filter((p) => {
+            if (!p.created_at) return false;
+            const d = new Date(p.created_at);
+            return !Number.isNaN(d.getTime()) && d >= sevenDaysAgo;
+          });
+        }
+        case "last_month": {
+          const lastMonth = subMonths(now, 1);
+          const start = startOfMonth(lastMonth);
+          const end = endOfMonth(lastMonth);
+          return propostas.filter((p) => {
+            if (!p.created_at) return false;
+            const d = new Date(p.created_at);
+            return !Number.isNaN(d.getTime()) && isWithinInterval(d, { start, end });
+          });
+        }
+        case "custom": {
+          if (!customDateRange.from) return propostas;
+          const start = customDateRange.from;
+          const end = customDateRange.to || customDateRange.from;
+          return propostas.filter((p) => {
+            if (!p.created_at) return false;
+            const d = new Date(p.created_at);
+            if (Number.isNaN(d.getTime())) return false;
+            return isWithinInterval(d, { start, end: new Date(end.getTime() + 86400000 - 1) });
+          });
+        }
+        default:
+          return propostas;
+      }
+    };
+
     const amazonOrders = filterMarketplaceByPeriod(
       marketplacePedidos.filter((p) => p.marketplace === "AMAZON")
     );
@@ -309,16 +374,30 @@ export function SalesChannelCards({
       marketplacePedidos.filter((p) => p.marketplace === "ATACADO")
     );
 
+    // Propostas faturadas filtradas por período - tipo_cliente "Igreja" vai para ADVECS
+    const propostasFiltered = filterPropostasByPeriod(propostasFaturadas);
+    const propostasAdvecs = propostasFiltered.filter(p => p.cliente?.tipo_cliente === "Igreja");
+    const propostasRevendedores = propostasFiltered.filter(p => p.cliente?.tipo_cliente === "Revendedor");
+    const propostasRepresentantes = propostasFiltered.filter(p => p.cliente?.tipo_cliente === "Representante");
+
+    // Calcular valores das propostas (valor_total - valor_frete)
+    const valorPropostasAdvecs = propostasAdvecs.reduce((s, p) => s + (Number(p.valor_total) - Number(p.valor_frete)), 0);
+    const valorPropostasRevendedores = propostasRevendedores.reduce((s, p) => s + (Number(p.valor_total) - Number(p.valor_frete)), 0);
+    const valorPropostasRepresentantes = propostasRepresentantes.reduce((s, p) => s + (Number(p.valor_total) - Number(p.valor_frete)), 0);
+
     return {
       amazon: { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length },
       shopee: { valor: shopeeOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: shopeeOrders.length },
       mercadoLivre: { valor: mlOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: mlOrders.length },
-      advecs: { valor: advecsOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: advecsOrders.length },
-      revendedores: { valor: 0, qtd: 0 },
+      advecs: { 
+        valor: advecsOrders.reduce((s, o) => s + Number(o.valor_total), 0) + valorPropostasAdvecs, 
+        qtd: advecsOrders.length + propostasAdvecs.length 
+      },
+      revendedores: { valor: valorPropostasRevendedores, qtd: propostasRevendedores.length },
       atacado: { valor: atacadoOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: atacadoOrders.length },
-      representantes: { valor: 0, qtd: 0 },
+      representantes: { valor: valorPropostasRepresentantes, qtd: propostasRepresentantes.length },
     };
-  }, [marketplacePedidos, dateFilter, customDateRange]);
+  }, [marketplacePedidos, propostasFaturadas, dateFilter, customDateRange]);
 
   return (
     <Card>

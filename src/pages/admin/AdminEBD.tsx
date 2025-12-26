@@ -465,13 +465,20 @@ export default function AdminEBD() {
     },
   });
 
-  // Query propostas faturadas para incluir na meta dos vendedores
+  // Query propostas faturadas para incluir na meta dos vendedores e nos cards de canais
   const { data: propostasFaturadasMeta = [] } = useQuery({
     queryKey: ['propostas-faturadas-meta'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vendedor_propostas')
-        .select('id, vendedor_id, valor_total, valor_frete, created_at')
+        .select(`
+          id, 
+          vendedor_id, 
+          valor_total, 
+          valor_frete, 
+          created_at,
+          cliente:ebd_clientes(tipo_cliente)
+        `)
         .eq('status', 'FATURADO');
       if (error) throw error;
       return data || [];
@@ -1526,6 +1533,7 @@ export default function AdminEBD() {
             propostasDigitaisAbertas={propostasAbertas.length}
             pedidosBlingPendentes={pedidosBlingPendentes}
             marketplacePedidos={marketplacePedidos}
+            propostasFaturadas={propostasFaturadasMeta}
           />
 
           {/* Bloco Resumo de Clientes - 10 Cards de Métricas */}
