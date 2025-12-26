@@ -399,15 +399,23 @@ serve(async (req) => {
       console.log(`  - Desconto Total do Item (simulado): R$ ${descontoTotalItem.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
 
-      // IMPORTANTE (Bling): para não haver divergência entre "total da venda" e parcelas,
-      // enviamos o PREÇO UNITÁRIO LÍQUIDO (já com desconto) e não enviamos campo de desconto.
-      // Assim, o total da venda no Bling fica determinístico: (valor * quantidade) + frete.
+      // IMPORTANTE (Bling): para exibir o PREÇO DE LISTA e o DESCONTO aplicado,
+      // enviamos o preço cheio no campo 'valor' e o desconto unitário (em reais) no campo 'desconto'.
+      // O Bling calcula: (valor - desconto) * quantidade para cada item.
+      // Total da venda = soma dos itens líquidos + frete.
+      const descontoUnitarioReais = Math.round((precoLista - precoUnitarioLiquido) * 100) / 100;
+      
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        valor: precoUnitarioLiquido,
+        valor: precoLista,  // Preço de lista (cheio)
       };
+      
+      // Adicionar desconto como número simples (não objeto) - é o valor de desconto por unidade
+      if (descontoUnitarioReais > 0) {
+        itemBling.desconto = descontoUnitarioReais;
+      }
 
       // Preferir enviar o CÓDIGO do produto (é o que aparece na coluna "Código" no Bling)
       // para garantir vínculo e estoque corretos; se não houver, usar o ID encontrado.
