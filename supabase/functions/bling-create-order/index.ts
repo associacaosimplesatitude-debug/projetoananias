@@ -528,7 +528,7 @@ serve(async (req) => {
           valor: Number(valorParcela.toFixed(2)),
           observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
           formaPagamento: {
-            descricao: 'Boleto parcelado',
+            id: 1634796,
           },
         });
       }
@@ -541,7 +541,7 @@ serve(async (req) => {
           valor: Number((Math.round(Number(totalLiquidoBling) * 100) / 100).toFixed(2)),
           observacoes: `Pagamento via ${formaPagamentoDescricao}`,
           formaPagamento: {
-            descricao: 'Boleto parcelado',
+            id: 1634796,
           },
         },
       ];
