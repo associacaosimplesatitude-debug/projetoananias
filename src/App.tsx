@@ -44,6 +44,7 @@ import AdminEBDQuizMestre from "./pages/admin/EBDQuizMestre";
 import AdminOrders from "./pages/admin/Orders";
 import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
+import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
@@ -702,6 +703,7 @@ const App = () => (
                     >
                       <Route index element={<AdminEBD />} />
                       <Route path="propostas" element={<AdminEBDPropostasPage />} />
+                      <Route path="aprovacao-faturamento" element={<AprovacaoFaturamento />} />
                       <Route path="pedidos-igrejas" element={<PedidosOnline />} />
                       <Route path="pedidos-online" element={<PedidosCentralGospel />} />
                       <Route path="pedidos-advecs" element={<PedidosAdvecs />} />

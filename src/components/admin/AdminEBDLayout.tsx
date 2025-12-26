@@ -14,6 +14,7 @@ import {
   Store,
   ShoppingCart,
   Boxes,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -46,6 +47,7 @@ export function AdminEBDLayout() {
   const menuItems = [
     { to: "/admin/ebd", icon: TrendingUp, label: "Painel Admin", end: true },
     { to: "/admin/ebd/propostas", icon: FileText, label: "Pedidos e Propostas" },
+    { to: "/admin/ebd/aprovacao-faturamento", icon: ClipboardCheck, label: "Aprovação Financeira" },
   ];
 
   const afterPedidosItems = [

@@ -153,11 +153,37 @@ export default function AdminEBDPropostasPage() {
   };
 
   const handleGeneratePaymentLink = async (proposta: Proposta) => {
+    // B2B com faturamento: enviar para aprovação financeira
     if (proposta.pode_faturar && proposta.prazo_faturamento_selecionado) {
-      await processFaturamento(proposta);
+      await enviarParaAprovacaoFinanceira(proposta);
       return;
     }
     await processPaymentLink(proposta);
+  };
+
+  const enviarParaAprovacaoFinanceira = async (proposta: Proposta) => {
+    setProcessingPropostaId(proposta.id);
+    try {
+      const { error } = await supabase
+        .from("vendedor_propostas")
+        .update({ status: "AGUARDANDO_APROVACAO_FINANCEIRA" })
+        .eq("id", proposta.id);
+
+      if (error) throw error;
+
+      toast.success("Proposta enviada para aprovação financeira!", {
+        description: "O time financeiro irá analisar e aprovar o faturamento.",
+        duration: 5000,
+      });
+      refetch();
+    } catch (error: unknown) {
+      console.error("Erro ao enviar para aprovação:", error);
+      toast.error("Erro ao enviar para aprovação", {
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+      });
+    } finally {
+      setProcessingPropostaId(null);
+    }
   };
 
   const processFaturamento = async (proposta: Proposta) => {
@@ -338,6 +364,12 @@ export default function AdminEBDPropostasPage() {
         return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" /> Pendente</Badge>;
       case "PROPOSTA_ACEITA":
         return <Badge variant="default" className="bg-green-600"><CheckCircle className="w-3 h-3 mr-1" /> Aceita</Badge>;
+      case "AGUARDANDO_APROVACAO_FINANCEIRA":
+        return <Badge variant="outline" className="border-orange-500 text-orange-600"><Clock className="w-3 h-3 mr-1" /> Aguardando Financeiro</Badge>;
+      case "APROVADA_FATURAMENTO":
+        return <Badge variant="outline" className="border-blue-500 text-blue-600"><CheckCircle className="w-3 h-3 mr-1" /> Aprovada</Badge>;
+      case "REPROVADA_FINANCEIRO":
+        return <Badge variant="destructive"><FileText className="w-3 h-3 mr-1" /> Reprovada</Badge>;
       case "AGUARDANDO_PAGAMENTO":
         return <Badge variant="outline" className="border-yellow-500 text-yellow-600"><CreditCard className="w-3 h-3 mr-1" /> Aguardando Pagamento</Badge>;
       case "FATURADO":
@@ -365,11 +397,13 @@ export default function AdminEBDPropostasPage() {
   const propostasAtivas = filteredPropostas?.filter(p => 
     p.status === "PROPOSTA_PENDENTE" || 
     p.status === "PROPOSTA_ACEITA" || 
-    p.status === "AGUARDANDO_PAGAMENTO"
+    p.status === "AGUARDANDO_PAGAMENTO" ||
+    p.status === "AGUARDANDO_APROVACAO_FINANCEIRA"
   ) || [];
   
   const propostasPendentes = propostasAtivas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
   const propostasAceitas = propostasAtivas?.filter(p => p.status === "PROPOSTA_ACEITA") || [];
+  const propostasAguardandoFinanceiro = propostasAtivas?.filter(p => p.status === "AGUARDANDO_APROVACAO_FINANCEIRA") || [];
 
   return (
     <div className="space-y-6">
@@ -451,7 +485,7 @@ export default function AdminEBDPropostasPage() {
                             ) : (
                               <CreditCard className="h-4 w-4 mr-1" />
                             )}
-                            {proposta.pode_faturar && proposta.prazo_faturamento_selecionado ? "Faturar" : "Pagamento"}
+                            {proposta.pode_faturar && proposta.prazo_faturamento_selecionado ? "Enviar p/ Financeiro" : "Pagamento"}
                           </Button>
                         )}
                         {(proposta.status === "PROPOSTA_PENDENTE" || proposta.status === "PROPOSTA_ACEITA") && (

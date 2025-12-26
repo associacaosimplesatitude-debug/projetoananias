@@ -103,15 +103,39 @@ export default function VendedorPedidosPage() {
   };
 
   const handleGeneratePaymentLink = async (proposta: Proposta) => {
-    // Check if this is a B2B proposal with faturamento
+    // B2B com faturamento: enviar para aprovação financeira
     if (proposta.pode_faturar && proposta.prazo_faturamento_selecionado) {
-      // Direct B2B faturamento - no popup needed
-      await processFaturamento(proposta);
+      await enviarParaAprovacaoFinanceira(proposta);
       return;
     }
 
     // Standard payment flow - create Draft Order directly
     await processPaymentLink(proposta);
+  };
+
+  const enviarParaAprovacaoFinanceira = async (proposta: Proposta) => {
+    setProcessingPropostaId(proposta.id);
+    try {
+      const { error } = await supabase
+        .from("vendedor_propostas")
+        .update({ status: "AGUARDANDO_APROVACAO_FINANCEIRA" })
+        .eq("id", proposta.id);
+
+      if (error) throw error;
+
+      toast.success("Proposta enviada para aprovação financeira!", {
+        description: "O time financeiro irá analisar e aprovar o faturamento.",
+        duration: 5000,
+      });
+      refetch();
+    } catch (error: unknown) {
+      console.error("Erro ao enviar para aprovação:", error);
+      toast.error("Erro ao enviar para aprovação", {
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+      });
+    } finally {
+      setProcessingPropostaId(null);
+    }
   };
 
   const processFaturamento = async (proposta: Proposta) => {
@@ -300,6 +324,12 @@ export default function VendedorPedidosPage() {
         return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" /> Pendente</Badge>;
       case "PROPOSTA_ACEITA":
         return <Badge variant="default" className="bg-green-600"><CheckCircle className="w-3 h-3 mr-1" /> Aceita</Badge>;
+      case "AGUARDANDO_APROVACAO_FINANCEIRA":
+        return <Badge variant="outline" className="border-orange-500 text-orange-600"><Clock className="w-3 h-3 mr-1" /> Aguardando Financeiro</Badge>;
+      case "APROVADA_FATURAMENTO":
+        return <Badge variant="outline" className="border-blue-500 text-blue-600"><CheckCircle className="w-3 h-3 mr-1" /> Aprovada</Badge>;
+      case "REPROVADA_FINANCEIRO":
+        return <Badge variant="destructive"><FileText className="w-3 h-3 mr-1" /> Reprovada</Badge>;
       case "AGUARDANDO_PAGAMENTO":
         return <Badge variant="outline" className="border-yellow-500 text-yellow-600"><CreditCard className="w-3 h-3 mr-1" /> Aguardando Pagamento</Badge>;
       case "FATURADO":
@@ -319,13 +349,15 @@ export default function VendedorPedidosPage() {
     );
   }
 
-  // Filter proposals that should appear in the "Propostas Digitais" tab
-  // Only show PROPOSTA_PENDENTE, PROPOSTA_ACEITA, and AGUARDANDO_PAGAMENTO
-  // FATURADO and PAGO should only appear in "Pedidos Confirmados"
+  // Filter proposals by status
   const propostasAtivas = propostas?.filter(p => 
     p.status === "PROPOSTA_PENDENTE" || 
     p.status === "PROPOSTA_ACEITA" || 
     p.status === "AGUARDANDO_PAGAMENTO"
+  ) || [];
+
+  const propostasAguardandoLiberacao = propostas?.filter(p => 
+    p.status === "AGUARDANDO_APROVACAO_FINANCEIRA"
   ) || [];
   
   const propostasPendentes = propostasAtivas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
@@ -344,6 +376,12 @@ export default function VendedorPedidosPage() {
             Propostas Digitais
             {propostasAtivas.length > 0 && (
               <Badge variant="secondary" className="ml-1">{propostasAtivas.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="aguardando" className="flex items-center gap-2">
+            Aguardando Liberação
+            {propostasAguardandoLiberacao.length > 0 && (
+              <Badge variant="outline" className="ml-1 border-orange-500 text-orange-600">{propostasAguardandoLiberacao.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="pedidos">Pedidos Confirmados</TabsTrigger>
@@ -396,7 +434,7 @@ export default function VendedorPedidosPage() {
                             ) : (
                               <CreditCard className="h-4 w-4 mr-1" />
                             )}
-                            {proposta.pode_faturar && proposta.prazo_faturamento_selecionado ? "Faturar Pedido" : "Gerar Link Pagamento"}
+                            {proposta.pode_faturar && proposta.prazo_faturamento_selecionado ? "Enviar p/ Financeiro" : "Gerar Link Pagamento"}
                           </Button>
                         )}
                         {(proposta.status === "PROPOSTA_PENDENTE" || proposta.status === "PROPOSTA_ACEITA") && (
@@ -404,6 +442,56 @@ export default function VendedorPedidosPage() {
                             <Copy className="h-4 w-4 mr-1" /> Copiar Link
                           </Button>
                         )}
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={`/proposta/${proposta.token}`} target="_blank">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="aguardando" className="space-y-4 mt-4">
+          {isLoadingPropostas ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : propostasAguardandoLiberacao?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma proposta aguardando liberação financeira
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {propostasAguardandoLiberacao?.map((proposta) => (
+                <Card key={proposta.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold">{proposta.cliente_nome}</span>
+                          {getStatusBadge(proposta.status)}
+                          {proposta.pode_faturar && (
+                            <Badge variant="outline" className="text-xs">
+                              B2B {proposta.prazo_faturamento_selecionado && `• ${proposta.prazo_faturamento_selecionado} dias`}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          R$ {proposta.valor_total.toFixed(2)} • Criada em {format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </p>
+                        {proposta.confirmado_em && (
+                          <p className="text-xs text-green-600">
+                            Confirmada em {format(new Date(proposta.confirmado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </p>
+                        )}
+                        <p className="text-xs text-orange-600 mt-1">
+                          Aguardando aprovação do time financeiro
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
                         <Button variant="ghost" size="sm" asChild>
                           <a href={`/proposta/${proposta.token}`} target="_blank">
                             <ExternalLink className="h-4 w-4" />
