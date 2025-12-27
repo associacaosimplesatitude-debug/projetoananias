@@ -2703,6 +2703,7 @@ export type Database = {
           cliente_id: string | null
           codigo_rastreio: string | null
           created_at: string
+          customer_document: string | null
           customer_email: string | null
           customer_name: string | null
           id: string
@@ -2721,6 +2722,7 @@ export type Database = {
           cliente_id?: string | null
           codigo_rastreio?: string | null
           created_at?: string
+          customer_document?: string | null
           customer_email?: string | null
           customer_name?: string | null
           id?: string
@@ -2739,6 +2741,7 @@ export type Database = {
           cliente_id?: string | null
           codigo_rastreio?: string | null
           created_at?: string
+          customer_document?: string | null
           customer_email?: string | null
           customer_name?: string | null
           id?: string

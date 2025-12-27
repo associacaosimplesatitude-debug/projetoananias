@@ -16,11 +16,21 @@ type ShopifyOrder = {
   created_at: string;
   updated_at: string;
   email: string | null;
-  customer: { first_name: string | null; last_name: string | null; email: string | null } | null;
+  customer: { 
+    first_name: string | null; 
+    last_name: string | null; 
+    email: string | null;
+    default_address?: {
+      company?: string | null;
+    } | null;
+  } | null;
   tags: string | null;
   note_attributes?: Array<{ name: string; value: string }>;
   total_price: string;
   shipping_lines?: Array<{ price: string }>;
+  billing_address?: {
+    company?: string | null;
+  } | null;
 };
 
 function getNextPageInfo(linkHeader: string | null): string | null {
@@ -43,14 +53,31 @@ function getNextPageInfo(linkHeader: string | null): string | null {
   return null;
 }
 
-function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId: string | null } {
+function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId: string | null; customerDocument: string | null } {
   let vendedorId: string | null = null;
   let clienteId: string | null = null;
+  let customerDocument: string | null = null;
 
   if (order.note_attributes && Array.isArray(order.note_attributes)) {
     for (const attr of order.note_attributes) {
       if (attr?.name === "vendedor_id") vendedorId = attr.value;
       if (attr?.name === "cliente_id") clienteId = attr.value;
+      // Shopify armazena CPF/CNPJ em note_attributes ou campos customizados
+      if (attr?.name?.toLowerCase() === "cpf" || attr?.name?.toLowerCase() === "cnpj" || attr?.name?.toLowerCase() === "cpf_cnpj" || attr?.name?.toLowerCase() === "document") {
+        customerDocument = attr.value;
+      }
+    }
+  }
+
+  // Shopify também pode enviar CPF/CNPJ no campo "company" do billing_address
+  if (!customerDocument) {
+    const company = order.billing_address?.company || order.customer?.default_address?.company;
+    // Verifica se parece com CPF (11 dígitos) ou CNPJ (14 dígitos)
+    if (company) {
+      const digits = company.replace(/\D/g, "");
+      if (digits.length === 11 || digits.length === 14) {
+        customerDocument = company;
+      }
     }
   }
 
@@ -59,7 +86,7 @@ function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId
     if (tagMatch) vendedorId = tagMatch[1];
   }
 
-  return { vendedorId, clienteId };
+  return { vendedorId, clienteId, customerDocument };
 }
 
 serve(async (req) => {
@@ -141,7 +168,7 @@ serve(async (req) => {
     }
 
     const rows = allOrders.map((order) => {
-      const { vendedorId, clienteId } = extractIds(order);
+      const { vendedorId, clienteId, customerDocument } = extractIds(order);
 
       const valorFrete = order.shipping_lines && order.shipping_lines.length > 0 ? parseFloat(order.shipping_lines[0].price) : 0;
       const valorTotal = parseFloat(order.total_price);
@@ -162,6 +189,7 @@ serve(async (req) => {
         valor_para_meta: valorParaMeta,
         customer_email: order.email || order.customer?.email || null,
         customer_name: customerName,
+        customer_document: customerDocument,
         // IMPORTANT: use Shopify's real order date for metrics
         order_date: order.created_at,
         // Keep created_at aligned to the real order date as well (legacy screens still use created_at)

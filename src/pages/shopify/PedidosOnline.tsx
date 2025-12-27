@@ -62,6 +62,7 @@ interface ShopifyPedido {
   valor_para_meta: number;
   customer_email: string | null;
   customer_name: string | null;
+  customer_document?: string | null;
   // created_at is legacy but now will be aligned with the real order date
   created_at: string;
   // preferred field for the real order date

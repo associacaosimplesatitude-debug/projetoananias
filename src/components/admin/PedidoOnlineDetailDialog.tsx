@@ -36,6 +36,7 @@ interface ShopifyPedido {
   valor_para_meta: number;
   customer_email: string | null;
   customer_name: string | null;
+  customer_document?: string | null;
   created_at: string;
   order_date?: string | null;
   codigo_rastreio: string | null;
@@ -218,8 +219,10 @@ export function PedidoOnlineDetailDialog({
   if (!pedido) return null;
 
   const orderDate = pedido.order_date || pedido.created_at;
-  const clienteDocumento = clienteData?.cnpj || clienteData?.cpf || null;
-  const clienteDocumentoLabel = clienteData?.cnpj ? "CNPJ" : clienteData?.cpf ? "CPF" : "CPF/CNPJ";
+  // Prioridade: documento do pedido (Shopify) > documento do cliente (cadastro)
+  const documentoFromPedido = pedido.customer_document;
+  const documentoFromCliente = clienteData?.cnpj || clienteData?.cpf || null;
+  const clienteDocumento = documentoFromPedido || documentoFromCliente || null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -261,7 +264,7 @@ export function PedidoOnlineDetailDialog({
 
               <p className="text-muted-foreground flex items-center gap-1">
                 <IdCard className="h-3 w-3" />
-                {clienteDocumentoLabel}: {clienteDocumento || "-"}
+                CPF/CNPJ: {clienteDocumento || "-"}
               </p>
 
               {pedido.customer_email && (
