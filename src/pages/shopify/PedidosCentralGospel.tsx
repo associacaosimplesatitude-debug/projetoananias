@@ -69,11 +69,40 @@ export default function PedidosCentralGospel() {
 
   const syncOrdersMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("cg-shopify-sync-orders", {
-        body: { financial_status: "paid", status: "any" },
-      });
-      if (error) throw error;
-      return data as { success?: boolean; synced?: number; error?: string; details?: string };
+      // Use fetch directly with a longer timeout (2 minutes) because sync can take a while
+      const session = (await supabase.auth.getSession()).data.session;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes
+
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cg-shopify-sync-orders`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.access_token}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ financial_status: "paid", status: "any" }),
+            signal: controller.signal,
+          }
+        );
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+
+        return (await response.json()) as { success?: boolean; synced?: number; error?: string; details?: string };
+      } catch (e: any) {
+        clearTimeout(timeoutId);
+        if (e.name === "AbortError") {
+          throw new Error("A sincronização está demorando muito. Aguarde alguns segundos e atualize a página.");
+        }
+        throw e;
+      }
     },
     onSuccess: (data) => {
       toast.success("Pedidos sincronizados", {
@@ -83,12 +112,7 @@ export default function PedidosCentralGospel() {
     },
     onError: (err: any) => {
       console.error("Falha ao sincronizar pedidos (cg-shopify-sync-orders)", err);
-      const description =
-        err?.context?.body?.error ||
-        err?.context?.body?.details ||
-        err?.message ||
-        "Erro desconhecido";
-
+      const description = err?.message || "Erro desconhecido";
       toast.error("Falha ao sincronizar pedidos", { description });
     },
   });
