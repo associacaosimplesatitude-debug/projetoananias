@@ -18,6 +18,7 @@ import {
   Building2,
   LayoutDashboard,
   ArrowLeft,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -234,14 +235,24 @@ function AdminSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {!isGerenteEbd && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/catalogo')}>
-                      <RouterNavLink to="/admin/ebd/catalogo">
-                        <BookOpen className="h-4 w-4" />
-                        <span>Catálogo</span>
-                      </RouterNavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/catalogo')}>
+                        <RouterNavLink to="/admin/ebd/catalogo">
+                          <BookOpen className="h-4 w-4" />
+                          <span>Catálogo</span>
+                        </RouterNavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/shopify')}>
+                        <RouterNavLink to="/admin/ebd/shopify">
+                          <Store className="h-4 w-4" />
+                          <span>Integração Shopify</span>
+                        </RouterNavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </>
                 )}
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/admin/ebd/tutoriais')}>
