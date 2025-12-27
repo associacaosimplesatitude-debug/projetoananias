@@ -39,6 +39,17 @@ interface ShopifyPedidoCG {
   created_at: string;
   order_date?: string | null;
   updated_at: string;
+  // Novos campos de endereço e CPF/CNPJ
+  customer_document?: string | null;
+  endereco_rua?: string | null;
+  endereco_numero?: string | null;
+  endereco_complemento?: string | null;
+  endereco_bairro?: string | null;
+  endereco_cidade?: string | null;
+  endereco_estado?: string | null;
+  endereco_cep?: string | null;
+  endereco_nome?: string | null;
+  endereco_telefone?: string | null;
 }
 
 interface Vendedor {
@@ -281,15 +292,48 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
               <div className="flex items-center gap-2 md:col-span-2">
                 <IdCard className="h-4 w-4 text-muted-foreground" />
                 <span>
-                  {existingCliente?.cnpj
-                    ? `CNPJ: ${existingCliente.cnpj}`
-                    : existingCliente?.cpf
-                      ? `CPF: ${existingCliente.cpf}`
-                      : "CPF/CNPJ: -"}
+                  {pedido.customer_document
+                    ? `CPF/CNPJ: ${pedido.customer_document}`
+                    : existingCliente?.cnpj
+                      ? `CNPJ: ${existingCliente.cnpj}`
+                      : existingCliente?.cpf
+                        ? `CPF: ${existingCliente.cpf}`
+                        : "CPF/CNPJ: -"}
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Endereço de Entrega */}
+          {(pedido.endereco_rua || pedido.endereco_cidade) && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  Endereço de Entrega
+                </h3>
+                <div className="text-sm space-y-1">
+                  {pedido.endereco_nome && <p><strong>Destinatário:</strong> {pedido.endereco_nome}</p>}
+                  {pedido.endereco_rua && (
+                    <p>
+                      {pedido.endereco_rua}
+                      {pedido.endereco_numero ? `, ${pedido.endereco_numero}` : ""}
+                      {pedido.endereco_complemento ? ` - ${pedido.endereco_complemento}` : ""}
+                    </p>
+                  )}
+                  {(pedido.endereco_bairro || pedido.endereco_cidade || pedido.endereco_estado) && (
+                    <p>
+                      {pedido.endereco_bairro ? `${pedido.endereco_bairro}, ` : ""}
+                      {pedido.endereco_cidade || ""}{pedido.endereco_estado ? ` - ${pedido.endereco_estado}` : ""}
+                    </p>
+                  )}
+                  {pedido.endereco_cep && <p><strong>CEP:</strong> {pedido.endereco_cep}</p>}
+                  {pedido.endereco_telefone && <p><strong>Telefone:</strong> {pedido.endereco_telefone}</p>}
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Products List */}
           <Separator />

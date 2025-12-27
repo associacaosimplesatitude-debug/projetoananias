@@ -52,6 +52,17 @@ interface ShopifyPedidoCG {
   created_at: string;
   order_date?: string | null;
   updated_at: string;
+  // Novos campos de endereço e CPF/CNPJ
+  customer_document?: string | null;
+  endereco_rua?: string | null;
+  endereco_numero?: string | null;
+  endereco_complemento?: string | null;
+  endereco_bairro?: string | null;
+  endereco_cidade?: string | null;
+  endereco_estado?: string | null;
+  endereco_cep?: string | null;
+  endereco_nome?: string | null;
+  endereco_telefone?: string | null;
 }
 
 export default function PedidosCentralGospel() {
