@@ -56,7 +56,17 @@ interface CadastrarClienteDialogProps {
   clienteParaEditar?: Cliente | null;
 }
 
-const TIPOS_CLIENTE = ["Igreja", "Lojista", "Pessoa Física"] as const;
+const TIPOS_CLIENTE = [
+  "ADVECS",
+  "IGREJA (Não-ADVECS)", 
+  "LOJISTA",
+  "REPRESENTANTE",
+  "PESSOA FÍSICA",
+  "REVENDEDOR"
+] as const;
+
+// Tipos que NÃO exigem CNPJ (apenas PESSOA FÍSICA)
+const TIPOS_PESSOA_FISICA = ["PESSOA FÍSICA"];
 
 const ESTADOS_BR = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", 
@@ -77,7 +87,7 @@ export function CadastrarClienteDialog({
   const [blingClienteId, setBlingClienteId] = useState<number | null>(null);
   const [documentoJaBuscado, setDocumentoJaBuscado] = useState("");
   const [formData, setFormData] = useState({
-    tipo_cliente: "Igreja" as string,
+    tipo_cliente: "ADVECS" as string,
     nome_igreja: "",
     nome_responsavel: "",
     email_superintendente: "",
@@ -106,7 +116,7 @@ export function CadastrarClienteDialog({
         : formatCPF(clienteParaEditar.cpf || "");
       
       setFormData({
-        tipo_cliente: clienteParaEditar.tipo_cliente || "Igreja",
+        tipo_cliente: clienteParaEditar.tipo_cliente || "ADVECS",
         nome_igreja: clienteParaEditar.nome_igreja || "",
         nome_responsavel: clienteParaEditar.nome_responsavel || "",
         email_superintendente: clienteParaEditar.email_superintendente || "",
@@ -249,7 +259,7 @@ export function CadastrarClienteDialog({
           endereco_bairro: clienteBling.endereco_bairro || prev.endereco_bairro,
           endereco_cidade: clienteBling.endereco_cidade || prev.endereco_cidade,
           endereco_estado: clienteBling.endereco_estado || prev.endereco_estado,
-          tipo_cliente: clienteBling.tipo_pessoa === 'F' ? 'Pessoa Física' : 'Igreja',
+          tipo_cliente: clienteBling.tipo_pessoa === 'F' ? 'PESSOA FÍSICA' : 'ADVECS',
         }));
         
         toast.success('Cliente encontrado no Bling! Dados preenchidos automaticamente.');
@@ -281,7 +291,7 @@ export function CadastrarClienteDialog({
 
   const resetForm = () => {
     setFormData({
-      tipo_cliente: "Igreja",
+      tipo_cliente: "ADVECS",
       nome_igreja: "",
       nome_responsavel: "",
       email_superintendente: "",
@@ -509,19 +519,54 @@ export function CadastrarClienteDialog({
         <form onSubmit={handleSubmit}>
           <ScrollArea className="h-[60vh] pr-4">
             <div className="space-y-6">
-              {/* Documento - PRIMEIRO para buscar no Bling */}
+              {/* Tipo de Cliente - PRIMEIRO para determinar CNPJ/CPF */}
+              <div className="space-y-2">
+                <Label>Tipo de Cliente *</Label>
+                <Select
+                  value={formData.tipo_cliente}
+                  onValueChange={(value) => {
+                    // Se for PESSOA FÍSICA, desativa CNPJ; caso contrário, ativa CNPJ
+                    const isPessoaFisica = TIPOS_PESSOA_FISICA.includes(value);
+                    setFormData({ 
+                      ...formData, 
+                      tipo_cliente: value,
+                      possui_cnpj: !isPessoaFisica,
+                      documento: "" // Limpa documento ao mudar tipo
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_CLIENTE.map((tipo) => (
+                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Documento (CNPJ ou CPF baseado no tipo de cliente) */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Possui CNPJ?</Label>
-                  <Switch
-                    checked={formData.possui_cnpj}
-                    onCheckedChange={(checked) => setFormData({ ...formData, possui_cnpj: checked, documento: "" })}
-                  />
-                </div>
+                {/* Switch de CNPJ - apenas visível quando NÃO é PESSOA FÍSICA */}
+                {formData.tipo_cliente !== "PESSOA FÍSICA" && (
+                  <div className="flex items-center justify-between">
+                    <Label>Possui CNPJ?</Label>
+                    <Switch
+                      checked={formData.possui_cnpj}
+                      onCheckedChange={(checked) => setFormData({ ...formData, possui_cnpj: checked, documento: "" })}
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="documento">
-                    {formData.possui_cnpj ? "CNPJ *" : "RG / CPF *"}
+                    {formData.tipo_cliente === "PESSOA FÍSICA" 
+                      ? "CPF *" 
+                      : formData.possui_cnpj 
+                        ? "CNPJ *" 
+                        : "CPF *"
+                    }
                   </Label>
                   <div className="relative">
                     <Input
@@ -568,35 +613,17 @@ export function CadastrarClienteDialog({
 
               <Separator />
 
-              {/* Tipo de Cliente */}
-              <div className="space-y-2">
-                <Label>Tipo de Cliente *</Label>
-                <Select
-                  value={formData.tipo_cliente}
-                  onValueChange={(value) => setFormData({ ...formData, tipo_cliente: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_CLIENTE.map((tipo) => (
-                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Dados Básicos */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="nome_igreja">
-                    {formData.tipo_cliente === "Pessoa Física" ? "Nome *" : "Nome da Igreja/Empresa *"}
+                    {formData.tipo_cliente === "PESSOA FÍSICA" ? "Nome *" : "Nome da Igreja/Empresa *"}
                   </Label>
                   <Input
                     id="nome_igreja"
                     value={formData.nome_igreja}
                     onChange={(e) => setFormData({ ...formData, nome_igreja: e.target.value })}
-                    placeholder={formData.tipo_cliente === "Pessoa Física" ? "Nome completo" : "Igreja Assembleia de Deus..."}
+                    placeholder={formData.tipo_cliente === "PESSOA FÍSICA" ? "Nome completo" : "Igreja Assembleia de Deus..."}
                     required
                   />
                 </div>
