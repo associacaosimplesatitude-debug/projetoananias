@@ -15,8 +15,7 @@ import {
   Boxes,
   ClipboardCheck,
   Video,
-  DollarSign,
-  Settings,
+  Building2,
   LayoutDashboard,
   ArrowLeft,
 } from "lucide-react";
@@ -61,6 +60,8 @@ function AdminSidebar() {
 
   const pedidosSubItems = [
     { to: "/admin/ebd/pedidos-online", icon: ShoppingBag, label: "Online" },
+    { to: "/admin/ebd/pedidos-igreja-cpf", icon: User, label: "Igreja CPF" },
+    { to: "/admin/ebd/pedidos-igreja-cnpj", icon: Building2, label: "Igreja CNPJ" },
     { to: "/admin/ebd/pedidos-advecs", icon: Church, label: "ADVECS" },
     { to: "/admin/ebd/pedidos-atacado", icon: Boxes, label: "Atacado" },
     { to: "/admin/ebd/pedidos-amazon", icon: Package, label: "Amazon" },
