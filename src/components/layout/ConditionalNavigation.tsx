@@ -68,22 +68,25 @@ export function ConditionalNavigation({ children }: ConditionalNavigationProps) 
     enabled: !!user?.email,
   });
 
-  // Check if we're on aluno, professor, vendedor or admin EBD routes
+  // Check if we're on aluno, professor, vendedor, admin or admin EBD routes
   const isAlunoRoute = location.pathname.startsWith('/ebd/aluno');
   const isProfessorRoute = location.pathname.startsWith('/ebd/professor');
   const isVendedorRoute = location.pathname.startsWith('/vendedor');
+  const isAdminRoute = location.pathname.startsWith('/admin');
   const isAdminEbdRoute = location.pathname.startsWith('/admin/ebd');
  
   // Hide main navigation if:
   // 1. User is aluno and on aluno routes
   // 2. User is professor and on professor routes
   // 3. User is vendedor and on vendedor routes
-  // 4. User is gerente EBD and on admin EBD routes
-  // 5. User is financeiro and on admin EBD routes
+  // 4. User is admin and on admin routes (has sidebar)
+  // 5. User is gerente EBD and on admin EBD routes
+  // 6. User is financeiro and on admin EBD routes
   const shouldHideNavigation = 
     (isAluno && isAlunoRoute) || 
     (isProfessor && isProfessorRoute) ||
     (isVendedor && isVendedorRoute) ||
+    (role === 'admin' && isAdminRoute) ||
     (isGerenteEbd && isAdminEbdRoute) ||
     (isFinanceiro && isAdminEbdRoute);
 
