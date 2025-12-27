@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Boxes,
   ClipboardCheck,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -31,6 +32,7 @@ export function AdminEBDLayout() {
   const location = useLocation();
   const isGerenteEbd = role === 'gerente_ebd';
   const isFinanceiro = role === 'financeiro';
+  const isAdmin = role === 'admin';
 
   // Check if current path is within pedidos
   const isPedidosActive = location.pathname.includes('/admin/ebd/pedidos');
@@ -64,6 +66,7 @@ export function AdminEBDLayout() {
         { to: "/admin/ebd/leads", icon: UserX, label: "Leads Reativação" },
         { to: "/admin/ebd/vendedores", icon: User, label: "Vendedores" },
         ...(!isGerenteEbd ? [{ to: "/admin/ebd/catalogo", icon: BookOpen, label: "Catálogo" }] : []),
+        ...(isAdmin ? [{ to: "/admin/ebd/gestao-tutoriais", icon: Video, label: "Tutoriais" }] : []),
       ];
 
   return (
