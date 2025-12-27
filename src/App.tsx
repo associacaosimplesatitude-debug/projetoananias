@@ -642,6 +642,7 @@ const App = () => (
                       <Route path="leads" element={<VendedorLeadsPage />} />
                       <Route path="pedidos" element={<VendedorPedidosPage />} />
                       <Route path="shopify" element={<ShopifyPedidos />} />
+                      <Route path="tutoriais" element={<Tutoriais />} />
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />
                     <Route path="/vendedor/ativacao" element={<VendedorAtivacaoEBD />} />
