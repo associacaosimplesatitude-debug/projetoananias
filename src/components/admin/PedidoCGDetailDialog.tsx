@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, User, Mail, Package, Truck, ExternalLink, ShoppingBag, Church } from "lucide-react";
+import { Loader2, User, Mail, Package, Truck, ExternalLink, ShoppingBag, Church, IdCard } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +55,8 @@ interface EbdCliente {
   vendedor_id: string | null;
   tipo_cliente: string | null;
   status_ativacao_ebd: boolean;
+  cpf?: string | null;
+  cnpj?: string | null;
 }
 
 interface PedidoItem {
@@ -275,6 +277,16 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-muted-foreground" />
                 <span>{pedido.customer_email || "Não informado"}</span>
+              </div>
+              <div className="flex items-center gap-2 md:col-span-2">
+                <IdCard className="h-4 w-4 text-muted-foreground" />
+                <span>
+                  {existingCliente?.cnpj
+                    ? `CNPJ: ${existingCliente.cnpj}`
+                    : existingCliente?.cpf
+                      ? `CPF: ${existingCliente.cpf}`
+                      : "CPF/CNPJ: -"}
+                </span>
               </div>
             </div>
           </div>

@@ -22,7 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { Loader2, User, Mail, MapPin, Package, Truck, DollarSign } from "lucide-react";
+import { Loader2, User, Mail, Package, Truck, DollarSign, IdCard } from "lucide-react";
 
 interface ShopifyPedido {
   id: string;
@@ -218,6 +218,8 @@ export function PedidoOnlineDetailDialog({
   if (!pedido) return null;
 
   const orderDate = pedido.order_date || pedido.created_at;
+  const clienteDocumento = clienteData?.cnpj || clienteData?.cpf || null;
+  const clienteDocumentoLabel = clienteData?.cnpj ? "CNPJ" : clienteData?.cpf ? "CPF" : "CPF/CNPJ";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -256,6 +258,12 @@ export function PedidoOnlineDetailDialog({
               <p className="font-medium">
                 {pedido.cliente?.nome_igreja || pedido.customer_name || "Não identificado"}
               </p>
+
+              <p className="text-muted-foreground flex items-center gap-1">
+                <IdCard className="h-3 w-3" />
+                {clienteDocumentoLabel}: {clienteDocumento || "-"}
+              </p>
+
               {pedido.customer_email && (
                 <p className="text-muted-foreground flex items-center gap-1">
                   <Mail className="h-3 w-3" />
