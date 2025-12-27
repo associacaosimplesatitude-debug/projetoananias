@@ -178,8 +178,6 @@ serve(async (req) => {
         quantity: item.quantity,
         price: parseFloat(item.price) || 0,
         sku: item.sku,
-        shopify_product_id: item.product_id,
-        shopify_variant_id: item.variant_id,
       }));
 
       const { error: itemsError } = await supabase
