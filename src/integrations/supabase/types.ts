@@ -2804,6 +2804,15 @@ export type Database = {
           customer_document: string | null
           customer_email: string | null
           customer_name: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_complemento: string | null
+          endereco_estado: string | null
+          endereco_nome: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          endereco_telefone: string | null
           id: string
           order_date: string | null
           order_number: string
@@ -2820,6 +2829,15 @@ export type Database = {
           customer_document?: string | null
           customer_email?: string | null
           customer_name?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_nome?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          endereco_telefone?: string | null
           id?: string
           order_date?: string | null
           order_number: string
@@ -2836,6 +2854,15 @@ export type Database = {
           customer_document?: string | null
           customer_email?: string | null
           customer_name?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_nome?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          endereco_telefone?: string | null
           id?: string
           order_date?: string | null
           order_number?: string

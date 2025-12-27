@@ -39,7 +39,31 @@ interface ShopifyOrder {
     first_name?: string;
     last_name?: string;
     email?: string;
+    default_address?: {
+      address1?: string;
+      address2?: string;
+      city?: string;
+      province?: string;
+      province_code?: string;
+      zip?: string;
+      country?: string;
+      phone?: string;
+    };
   };
+  shipping_address?: {
+    first_name?: string;
+    last_name?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    province?: string;
+    province_code?: string;
+    zip?: string;
+    country?: string;
+    phone?: string;
+    name?: string;
+  };
+  note_attributes?: Array<{ name: string; value: string }>;
   fulfillments?: Array<{
     tracking_number?: string;
     tracking_url?: string;
@@ -175,9 +199,23 @@ serve(async (req) => {
 
       const customerName = order.customer
         ? `${order.customer.first_name || ""} ${order.customer.last_name || ""}`.trim()
-        : "";
+        : order.shipping_address?.name || "";
 
       const tracking = order.fulfillments?.[0];
+
+      // Extract CPF/CNPJ from note_attributes (common Shopify checkout field)
+      let customerDocument: string | null = null;
+      if (order.note_attributes) {
+        const cpfAttr = order.note_attributes.find(
+          (a) => a.name.toLowerCase() === "cpf" || a.name.toLowerCase() === "cnpj" || a.name.toLowerCase() === "cpf/cnpj" || a.name.toLowerCase() === "documento"
+        );
+        if (cpfAttr) {
+          customerDocument = cpfAttr.value;
+        }
+      }
+
+      // Extract shipping address
+      const ship = order.shipping_address;
 
       return {
         shopify_order_id: order.id,
@@ -189,6 +227,18 @@ serve(async (req) => {
         valor_frete: parseFloat(shippingPrice) || 0,
         codigo_rastreio: tracking?.tracking_number || null,
         url_rastreio: tracking?.tracking_url || null,
+        // CPF / CNPJ
+        customer_document: customerDocument,
+        // Address
+        endereco_rua: ship?.address1 || null,
+        endereco_numero: null, // Shopify não separa número; está dentro de address1
+        endereco_complemento: ship?.address2 || null,
+        endereco_bairro: null, // Shopify não tem campo separado; pode estar em address2
+        endereco_cidade: ship?.city || null,
+        endereco_estado: ship?.province_code || ship?.province || null,
+        endereco_cep: ship?.zip || null,
+        endereco_nome: ship?.name || null,
+        endereco_telefone: ship?.phone || null,
         // IMPORTANT: use Shopify's real order date for metrics
         order_date: order.created_at,
         // Keep created_at aligned to the real order date as well (legacy screens still use created_at)
