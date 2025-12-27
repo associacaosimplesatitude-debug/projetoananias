@@ -24,7 +24,7 @@ import {
   CheckCircle,
   FileText,
 } from "lucide-react";
-import { fetchShopifyProducts, ShopifyProduct, CartItem } from "@/lib/shopify";
+import { fetchShopifyProducts, ShopifyProduct, CartItem, createStorefrontCheckout } from "@/lib/shopify";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -407,14 +407,32 @@ export default function ShopifyPedidos() {
     toast.success("Produto adicionado ao carrinho", { position: "top-center" });
   };
 
-  const handleCheckoutClick = () => {
-    if (!selectedCliente) {
-      toast.error("Selecione um cliente");
+  const handleCheckoutClick = async () => {
+    if (items.length === 0) {
+      toast.error("Adicione produtos ao carrinho");
       return;
     }
 
-    if (items.length === 0) {
-      toast.error("Adicione produtos ao carrinho");
+    // Se não é vendedor e não tem cliente cadastrado, fazer checkout direto no Shopify
+    if (!isVendedor && !selectedCliente) {
+      setIsCreatingDraft(true);
+      try {
+        const checkoutUrl = await createStorefrontCheckout(items);
+        window.open(checkoutUrl, '_blank');
+        clearCart();
+        setIsCartOpen(false);
+        toast.success("Redirecionando para o checkout...");
+      } catch (error) {
+        console.error('Checkout error:', error);
+        toast.error("Erro ao criar checkout. Tente novamente.");
+      } finally {
+        setIsCreatingDraft(false);
+      }
+      return;
+    }
+
+    if (!selectedCliente) {
+      toast.error("Selecione um cliente");
       return;
     }
 
@@ -881,7 +899,7 @@ export default function ShopifyPedidos() {
                           onClick={handleCheckoutClick}
                           className="w-full bg-yellow-500 hover:bg-yellow-600 text-black" 
                           size="lg"
-                          disabled={items.length === 0 || !selectedCliente || isLoadingClientInfo || isCreatingDraft || isGeneratingProposta}
+                          disabled={items.length === 0 || (isVendedor && !selectedCliente) || isLoadingClientInfo || isCreatingDraft || isGeneratingProposta}
                         >
                           {isGeneratingProposta ? (
                             <>
