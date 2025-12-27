@@ -46,6 +46,7 @@ import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
@@ -568,134 +569,34 @@ const App = () => (
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
                     
+                    {/* Admin Routes with Layout */}
                     <Route
                       path="/admin"
                       element={
                         <ProtectedRoute requireAdmin>
-                          <AdminDashboard />
+                          <AdminLayout />
                         </ProtectedRoute>
                       }
-                    />
-                    <Route
-                      path="/admin/clients"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminClients />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/processos"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminProcessList />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/client-view/:id"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminClientView />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/clients/:churchId"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminClientManagement />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/tasks"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminTasks />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/users"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminUsers />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/receivable"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminAccountsReceivable />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/payable"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminAccountsPayable />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/reports"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminFinancialReports />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/stages"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminStageManagement />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/clients/:clientId/modules"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <ClientModules />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/branding"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <BrandingCustomization />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/curriculo-ebd"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminEBDCurriculo />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/quiz-mestre"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminEBDQuizMestre />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/admin/orders"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminOrders />
-                        </ProtectedRoute>
-                      }
-                    />
+                    >
+                      <Route index element={<AdminDashboard />} />
+                      <Route path="clients" element={<AdminClients />} />
+                      <Route path="processos" element={<AdminProcessList />} />
+                      <Route path="client-view/:id" element={<AdminClientView />} />
+                      <Route path="clients/:churchId" element={<AdminClientManagement />} />
+                      <Route path="tasks" element={<AdminTasks />} />
+                      <Route path="users" element={<AdminUsers />} />
+                      <Route path="receivable" element={<AdminAccountsReceivable />} />
+                      <Route path="payable" element={<AdminAccountsPayable />} />
+                      <Route path="reports" element={<AdminFinancialReports />} />
+                      <Route path="stages" element={<AdminStageManagement />} />
+                      <Route path="clients/:clientId/modules" element={<ClientModules />} />
+                      <Route path="branding" element={<BrandingCustomization />} />
+                      <Route path="curriculo-ebd" element={<AdminEBDCurriculo />} />
+                      <Route path="quiz-mestre" element={<AdminEBDQuizMestre />} />
+                      <Route path="orders" element={<AdminOrders />} />
+                      <Route path="bling" element={<BlingIntegration />} />
+                      <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
+                    </Route>
                     <Route
                       path="/admin/ebd"
                       element={
@@ -721,14 +622,6 @@ const App = () => (
                       <Route path="gestao-tutoriais" element={<GestaoTutoriais />} />
                     </Route>
                     <Route
-                      path="/admin/bling"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <BlingIntegration />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
                       path="/superadmin/branding"
                       element={
                         <ProtectedRoute requireAdmin>
@@ -750,16 +643,6 @@ const App = () => (
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />
                     <Route path="/vendedor/ativacao" element={<VendedorAtivacaoEBD />} />
-                    
-                    {/* Admin Shopify Route */}
-                    <Route
-                      path="/admin/shopify-pedidos"
-                      element={
-                        <ProtectedRoute requireAdmin>
-                          <ShopifyPedidos />
-                        </ProtectedRoute>
-                      }
-                    />
                     
                     {/* EBD Shopify Route */}
                     <Route 
