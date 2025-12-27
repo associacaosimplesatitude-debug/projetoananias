@@ -519,54 +519,29 @@ export function CadastrarClienteDialog({
         <form onSubmit={handleSubmit}>
           <ScrollArea className="h-[60vh] pr-4">
             <div className="space-y-6">
-              {/* Tipo de Cliente - PRIMEIRO para determinar CNPJ/CPF */}
-              <div className="space-y-2">
-                <Label>Tipo de Cliente *</Label>
-                <Select
-                  value={formData.tipo_cliente}
-                  onValueChange={(value) => {
-                    // Se for PESSOA FÍSICA, desativa CNPJ; caso contrário, ativa CNPJ
-                    const isPessoaFisica = TIPOS_PESSOA_FISICA.includes(value);
-                    setFormData({ 
-                      ...formData, 
-                      tipo_cliente: value,
-                      possui_cnpj: !isPessoaFisica,
-                      documento: "" // Limpa documento ao mudar tipo
-                    });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_CLIENTE.map((tipo) => (
-                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Documento (CNPJ ou CPF baseado no tipo de cliente) */}
+              {/* 1. Documento (CNPJ/CPF) - PRIMEIRO para buscar no Bling */}
               <div className="space-y-4">
-                {/* Switch de CNPJ - apenas visível quando NÃO é PESSOA FÍSICA */}
-                {formData.tipo_cliente !== "PESSOA FÍSICA" && (
-                  <div className="flex items-center justify-between">
-                    <Label>Possui CNPJ?</Label>
-                    <Switch
-                      checked={formData.possui_cnpj}
-                      onCheckedChange={(checked) => setFormData({ ...formData, possui_cnpj: checked, documento: "" })}
-                    />
-                  </div>
-                )}
+                {/* Switch de CNPJ */}
+                <div className="flex items-center justify-between">
+                  <Label>Possui CNPJ?</Label>
+                  <Switch
+                    checked={formData.possui_cnpj}
+                    onCheckedChange={(checked) => {
+                      // Ao mudar o tipo de documento, ajustar tipo_cliente se necessário
+                      setFormData({ 
+                        ...formData, 
+                        possui_cnpj: checked, 
+                        documento: "",
+                        // Se desativar CNPJ e tipo atual exige CNPJ, muda para PESSOA FÍSICA
+                        tipo_cliente: !checked ? "PESSOA FÍSICA" : formData.tipo_cliente === "PESSOA FÍSICA" ? "ADVECS" : formData.tipo_cliente
+                      });
+                    }}
+                  />
+                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="documento">
-                    {formData.tipo_cliente === "PESSOA FÍSICA" 
-                      ? "CPF *" 
-                      : formData.possui_cnpj 
-                        ? "CNPJ *" 
-                        : "CPF *"
-                    }
+                    {formData.possui_cnpj ? "CNPJ *" : "CPF *"}
                   </Label>
                   <div className="relative">
                     <Input
@@ -611,7 +586,35 @@ export function CadastrarClienteDialog({
                 )}
               </div>
 
+              {/* 2. Tipo de Cliente */}
+              <div className="space-y-2">
+                <Label>Tipo de Cliente *</Label>
+                <Select
+                  value={formData.tipo_cliente}
+                  onValueChange={(value) => {
+                    // Se for PESSOA FÍSICA, desativa CNPJ; caso contrário, ativa CNPJ
+                    const isPessoaFisica = TIPOS_PESSOA_FISICA.includes(value);
+                    setFormData({ 
+                      ...formData, 
+                      tipo_cliente: value,
+                      possui_cnpj: !isPessoaFisica,
+                      documento: formData.possui_cnpj !== !isPessoaFisica ? "" : formData.documento // Só limpa se mudar o tipo de documento
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_CLIENTE.map((tipo) => (
+                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Separator />
+
 
               {/* Dados Básicos */}
               <div className="grid grid-cols-2 gap-4">
