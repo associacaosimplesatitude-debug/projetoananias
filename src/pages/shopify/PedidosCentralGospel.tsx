@@ -79,6 +79,8 @@ export default function PedidosCentralGospel() {
           status: "any",
           created_at_min: createdAtMin,
           created_at_max: createdAtMax,
+          // Itens geram muitas operações e podem estourar limites; sincronize itens depois se necessário.
+          sync_items: false,
         },
       });
 
