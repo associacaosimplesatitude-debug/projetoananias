@@ -56,19 +56,21 @@ interface CadastrarClienteDialogProps {
   clienteParaEditar?: Cliente | null;
 }
 
+// Opções padronizadas com o Gerente EBD
 const TIPOS_CLIENTE = [
-  "ADVECS",
-  "IGREJA (Não-ADVECS)", 
-  "LOJISTA",
-  "REPRESENTANTE",
-  "PESSOA FÍSICA",
-  "REVENDEDOR"
-] as const;
+  { value: "", label: "Não classificado" },
+  { value: "Igreja CNPJ", label: "Igreja CNPJ" },
+  { value: "Igreja CPF", label: "Igreja CPF" },
+  { value: "IGREJA ADVECS", label: "IGREJA ADVECS" },
+  { value: "VAREJO", label: "VAREJO" },
+  { value: "LIVRARIA", label: "LIVRARIA" },
+  { value: "REVENDEDOR", label: "REVENDEDOR" },
+];
 
-// Tipos que SEMPRE usam CPF (não mostram toggle)
-const TIPOS_APENAS_CPF = ["PESSOA FÍSICA"];
-// Tipos que podem usar CPF ou CNPJ (mostram toggle)
-const TIPOS_CPF_OU_CNPJ = ["REVENDEDOR"];
+// Tipos que usam CPF ao invés de CNPJ
+const TIPOS_COM_CPF = ["Igreja CPF"];
+// Tipos que podem ter documento opcional ou não definido
+const TIPOS_SEM_DOCUMENTO_OBRIGATORIO = [""];
 
 const ESTADOS_BR = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", 
@@ -89,7 +91,7 @@ export function CadastrarClienteDialog({
   const [blingClienteId, setBlingClienteId] = useState<number | null>(null);
   const [documentoJaBuscado, setDocumentoJaBuscado] = useState("");
   const [formData, setFormData] = useState({
-    tipo_cliente: "ADVECS" as string,
+    tipo_cliente: "none" as string,
     nome_igreja: "",
     nome_responsavel: "",
     email_superintendente: "",
@@ -113,18 +115,40 @@ export function CadastrarClienteDialog({
   // Populate form when editing
   useEffect(() => {
     if (clienteParaEditar && open) {
-      const documento = clienteParaEditar.possui_cnpj 
+      // Determinar possui_cnpj baseado no tipo ou nos dados existentes
+      const tipoCliente = clienteParaEditar.tipo_cliente || "";
+      const usaCpf = TIPOS_COM_CPF.includes(tipoCliente);
+      const possuiCnpj = usaCpf ? false : (clienteParaEditar.possui_cnpj ?? true);
+      
+      // Formatar documento baseado no tipo de documento
+      const documento = possuiCnpj 
         ? formatCNPJ(clienteParaEditar.cnpj || "")
         : formatCPF(clienteParaEditar.cpf || "");
       
+      // Converter tipos antigos para os novos (compatibilidade)
+      let tipoClienteNormalizado = tipoCliente;
+      if (tipoCliente === "ADVECS") tipoClienteNormalizado = "IGREJA ADVECS";
+      if (tipoCliente === "IGREJA (Não-ADVECS)") {
+        tipoClienteNormalizado = possuiCnpj ? "Igreja CNPJ" : "Igreja CPF";
+      }
+      if (tipoCliente === "PESSOA FÍSICA") tipoClienteNormalizado = "Igreja CPF";
+      if (tipoCliente === "LOJISTA") tipoClienteNormalizado = "VAREJO";
+      if (tipoCliente === "REPRESENTANTE") tipoClienteNormalizado = "REVENDEDOR";
+      
+      // Se o tipo não existe nas novas opções, usar "none" (não classificado)
+      const tiposValidos = TIPOS_CLIENTE.map(t => t.value);
+      if (!tiposValidos.includes(tipoClienteNormalizado)) {
+        tipoClienteNormalizado = "none";
+      }
+      
       setFormData({
-        tipo_cliente: clienteParaEditar.tipo_cliente || "ADVECS",
+        tipo_cliente: tipoClienteNormalizado,
         nome_igreja: clienteParaEditar.nome_igreja || "",
         nome_responsavel: clienteParaEditar.nome_responsavel || "",
         email_superintendente: clienteParaEditar.email_superintendente || "",
         senha: "",
         telefone: formatPhone(clienteParaEditar.telefone || ""),
-        possui_cnpj: clienteParaEditar.possui_cnpj ?? true,
+        possui_cnpj: possuiCnpj,
         documento: documento,
         endereco_cep: formatCEP(clienteParaEditar.endereco_cep || ""),
         endereco_rua: clienteParaEditar.endereco_rua || "",
@@ -293,7 +317,7 @@ export function CadastrarClienteDialog({
 
   const resetForm = () => {
     setFormData({
-      tipo_cliente: "ADVECS",
+      tipo_cliente: "none",
       nome_igreja: "",
       nome_responsavel: "",
       email_superintendente: "",
@@ -337,8 +361,11 @@ export function CadastrarClienteDialog({
       const documentoLimpo = formData.documento.replace(/\D/g, "");
       const senhaGerada = formData.senha || generateRandomPassword();
       
+      // Normaliza tipo_cliente: "none" significa não classificado
+      const tipoClienteParaSalvar = formData.tipo_cliente === "none" ? null : formData.tipo_cliente;
+      
       const clienteData = {
-        tipo_cliente: formData.tipo_cliente,
+        tipo_cliente: tipoClienteParaSalvar,
         nome_igreja: formData.nome_igreja,
         nome_responsavel: formData.nome_responsavel || null,
         email_superintendente: formData.email_superintendente,
@@ -527,13 +554,8 @@ export function CadastrarClienteDialog({
                 <Select
                   value={formData.tipo_cliente}
                   onValueChange={(value) => {
-                    const isApenasCpf = TIPOS_APENAS_CPF.includes(value);
-                    const podeCpfOuCnpj = TIPOS_CPF_OU_CNPJ.includes(value);
-                    
-                    // PESSOA FÍSICA: sempre CPF
-                    // REVENDEDOR: mantém o que o usuário escolheu
-                    // Outros: sempre CNPJ
-                    const novoPossuiCnpj = isApenasCpf ? false : (podeCpfOuCnpj ? formData.possui_cnpj : true);
+                    const usaCpf = TIPOS_COM_CPF.includes(value);
+                    const novoPossuiCnpj = !usaCpf;
                     
                     setFormData({ 
                       ...formData, 
@@ -544,11 +566,13 @@ export function CadastrarClienteDialog({
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
                   <SelectContent>
                     {TIPOS_CLIENTE.map((tipo) => (
-                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                      <SelectItem key={tipo.value} value={tipo.value || "none"}>
+                        {tipo.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -556,22 +580,6 @@ export function CadastrarClienteDialog({
 
               {/* 2. Documento (CNPJ/CPF) */}
               <div className="space-y-4">
-                {/* Switch de CNPJ - só aparece para tipos que podem ter CPF ou CNPJ */}
-                {(TIPOS_CPF_OU_CNPJ.includes(formData.tipo_cliente)) && (
-                  <div className="flex items-center justify-between">
-                    <Label>Possui CNPJ?</Label>
-                    <Switch
-                      checked={formData.possui_cnpj}
-                      onCheckedChange={(checked) => {
-                        setFormData({ 
-                          ...formData, 
-                          possui_cnpj: checked, 
-                          documento: ""
-                        });
-                      }}
-                    />
-                  </div>
-                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="documento">
@@ -626,14 +634,12 @@ export function CadastrarClienteDialog({
               {/* Dados Básicos */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="nome_igreja">
-                    {formData.tipo_cliente === "PESSOA FÍSICA" ? "Nome *" : "Nome da Igreja/Empresa *"}
-                  </Label>
+                  <Label htmlFor="nome_igreja">Nome da Igreja/Empresa *</Label>
                   <Input
                     id="nome_igreja"
                     value={formData.nome_igreja}
                     onChange={(e) => setFormData({ ...formData, nome_igreja: e.target.value })}
-                    placeholder={formData.tipo_cliente === "PESSOA FÍSICA" ? "Nome completo" : "Igreja Assembleia de Deus..."}
+                    placeholder="Igreja Assembleia de Deus..."
                     required
                   />
                 </div>
