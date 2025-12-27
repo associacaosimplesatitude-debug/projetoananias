@@ -113,17 +113,31 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const financialStatus = body.financial_status || "paid";
     const status = body.status || "any";
+    const createdAtMin = body.created_at_min as string | undefined;
+    const createdAtMax = body.created_at_max as string | undefined;
 
-    console.log(`Syncing orders with financial_status: ${financialStatus}, status: ${status}`);
+    console.log(
+      `Syncing orders with financial_status: ${financialStatus}, status: ${status}, created_at_min: ${createdAtMin ?? "-"}, created_at_max: ${createdAtMax ?? "-"}`
+    );
 
     let allOrders: ShopifyOrder[] = [];
     let pageInfo: string | null = null;
 
     // Fetch orders with pagination
     do {
+      const baseUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/orders.json`;
       const url = pageInfo
-        ? `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/orders.json?limit=250&page_info=${pageInfo}`
-        : `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/orders.json?limit=250&status=${status}&financial_status=${financialStatus}`;
+        ? `${baseUrl}?limit=250&page_info=${pageInfo}`
+        : (() => {
+            const params = new URLSearchParams({
+              limit: "250",
+              status,
+              financial_status: financialStatus,
+            });
+            if (createdAtMin) params.set("created_at_min", createdAtMin);
+            if (createdAtMax) params.set("created_at_max", createdAtMax);
+            return `${baseUrl}?${params.toString()}`;
+          })();
 
       console.log(`Fetching: ${url}`);
 
