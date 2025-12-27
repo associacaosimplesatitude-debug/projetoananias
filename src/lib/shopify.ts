@@ -1,8 +1,8 @@
 // Shopify Storefront API Configuration
 export const SHOPIFY_API_VERSION = '2025-07';
-export const SHOPIFY_STORE_PERMANENT_DOMAIN = 'kgg1pq-6r.myshopify.com';
+export const SHOPIFY_STORE_PERMANENT_DOMAIN = 'revendacentralgospel.myshopify.com';
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_STOREFRONT_TOKEN = '02cc57d9cde6e1ce4ecbf0daf80b1ae9';
+export const SHOPIFY_STOREFRONT_TOKEN = '6f4a9b541650594788cf6c1e0bfd8e5b';
 
 export interface ShopifyProduct {
   node: {
