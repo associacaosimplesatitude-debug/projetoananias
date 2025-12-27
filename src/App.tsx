@@ -621,6 +621,7 @@ const App = () => (
                       <Route path="vendedores" element={<AdminEBD />} />
                       <Route path="catalogo" element={<AdminEBD />} />
                       <Route path="gestao-tutoriais" element={<GestaoTutoriais />} />
+                      <Route path="tutoriais" element={<Tutoriais />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"

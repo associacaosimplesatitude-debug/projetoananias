@@ -244,8 +244,8 @@ function AdminSidebar() {
                   </SidebarMenuItem>
                 )}
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive('/tutoriais')}>
-                    <RouterNavLink to="/tutoriais">
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/tutoriais')}>
+                    <RouterNavLink to="/admin/ebd/tutoriais">
                       <Video className="h-4 w-4" />
                       <span>Tutoriais</span>
                     </RouterNavLink>
