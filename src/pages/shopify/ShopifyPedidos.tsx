@@ -24,7 +24,7 @@ import {
   CheckCircle,
   FileText,
 } from "lucide-react";
-import { fetchShopifyProducts, ShopifyProduct, CartItem, createStorefrontCheckout } from "@/lib/shopify";
+import { fetchShopifyProducts, ShopifyProduct, CartItem, createStorefrontCheckout, BuyerInfo } from "@/lib/shopify";
 import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -73,6 +73,7 @@ interface Cliente {
   endereco_cep: string | null;
   endereco_rua: string | null;
   endereco_numero: string | null;
+  endereco_complemento: string | null;
   endereco_bairro: string | null;
   endereco_cidade: string | null;
   endereco_estado: string | null;
@@ -417,7 +418,69 @@ export default function ShopifyPedidos() {
     if (!isVendedor && !selectedCliente) {
       setIsCreatingDraft(true);
       try {
-        const checkoutUrl = await createStorefrontCheckout(items);
+        // Buscar dados do usuário logado para preencher checkout
+        const { data: { user } } = await supabase.auth.getUser();
+        let buyerInfo: BuyerInfo | undefined;
+        
+        if (user) {
+          const { data: clienteData } = await supabase
+            .from('ebd_clientes')
+            .select('*')
+            .eq('superintendente_user_id', user.id)
+            .maybeSingle();
+          
+          if (clienteData) {
+            buyerInfo = {
+              email: clienteData.email_superintendente,
+              phone: clienteData.telefone,
+              firstName: clienteData.nome_responsavel?.split(' ')[0] || clienteData.nome_igreja,
+              lastName: clienteData.nome_responsavel?.split(' ').slice(1).join(' ') || '',
+              address: {
+                address1: clienteData.endereco_rua ? `${clienteData.endereco_rua}, ${clienteData.endereco_numero || ''}` : null,
+                address2: clienteData.endereco_complemento,
+                city: clienteData.endereco_cidade,
+                province: clienteData.endereco_estado,
+                zip: clienteData.endereco_cep,
+                country: 'BR',
+              }
+            };
+          }
+        }
+        
+        const checkoutUrl = await createStorefrontCheckout(items, buyerInfo);
+        window.open(checkoutUrl, '_blank');
+        clearCart();
+        setIsCartOpen(false);
+        toast.success("Redirecionando para o checkout...");
+      } catch (error) {
+        console.error('Checkout error:', error);
+        toast.error("Erro ao criar checkout. Tente novamente.");
+      } finally {
+        setIsCreatingDraft(false);
+      }
+      return;
+    }
+
+    // Se tem cliente selecionado (superintendente logado com cadastro), usar seus dados
+    if (!isVendedor && selectedCliente) {
+      setIsCreatingDraft(true);
+      try {
+        const buyerInfo: BuyerInfo = {
+          email: selectedCliente.email_superintendente,
+          phone: selectedCliente.telefone,
+          firstName: selectedCliente.nome_responsavel?.split(' ')[0] || selectedCliente.nome_igreja,
+          lastName: selectedCliente.nome_responsavel?.split(' ').slice(1).join(' ') || '',
+          address: {
+            address1: selectedCliente.endereco_rua ? `${selectedCliente.endereco_rua}, ${selectedCliente.endereco_numero || ''}` : null,
+            address2: selectedCliente.endereco_complemento,
+            city: selectedCliente.endereco_cidade,
+            province: selectedCliente.endereco_estado,
+            zip: selectedCliente.endereco_cep,
+            country: 'BR',
+          }
+        };
+        
+        const checkoutUrl = await createStorefrontCheckout(items, buyerInfo);
         window.open(checkoutUrl, '_blank');
         clearCart();
         setIsCartOpen(false);
