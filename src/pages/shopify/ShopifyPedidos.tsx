@@ -77,8 +77,21 @@ interface Cliente {
   endereco_estado: string | null;
   pode_faturar: boolean;
   desconto_faturamento: number | null;
+  tipo_cliente?: string | null;
   vendedor?: Vendedor | null;
 }
+
+// Função para calcular desconto escalonado para REVENDEDORES
+const calcularDescontoRevendedor = (valorTotal: number): { faixa: string; desconto: number } => {
+  if (valorTotal >= 699.90) {
+    return { faixa: 'Ouro', desconto: 30 };
+  } else if (valorTotal >= 499.90) {
+    return { faixa: 'Prata', desconto: 25 };
+  } else if (valorTotal >= 299.90) {
+    return { faixa: 'Bronze', desconto: 20 };
+  }
+  return { faixa: '', desconto: 0 };
+};
 
 export default function ShopifyPedidos() {
   const navigate = useNavigate();
@@ -404,6 +417,13 @@ export default function ShopifyPedidos() {
       return;
     }
 
+    // Calcular total para verificar desconto escalonado de revendedor
+    const valorTotal = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
+    
+    // Se o cliente logado for REVENDEDOR, aplicar desconto escalonado
+    const isRevendedor = selectedCliente.tipo_cliente?.toUpperCase() === 'REVENDEDOR';
+    const descontoRevendedor = isRevendedor ? calcularDescontoRevendedor(valorTotal) : { faixa: '', desconto: 0 };
+
     // Vendedor sempre gera link de proposta
     if (isVendedor) {
       // Check if client can use B2B invoicing for discount options
@@ -414,7 +434,13 @@ export default function ShopifyPedidos() {
       }
     } else {
       // Cliente final - checkout normal
-      handleCreateDraftOrder(null, 0, null);
+      // Se for REVENDEDOR, aplicar desconto escalonado automaticamente
+      if (isRevendedor && descontoRevendedor.desconto > 0) {
+        toast.info(`Desconto ${descontoRevendedor.faixa} (${descontoRevendedor.desconto}%) aplicado!`);
+        handleCreateDraftOrder(null, descontoRevendedor.desconto, null);
+      } else {
+        handleCreateDraftOrder(null, 0, null);
+      }
     }
   };
 
@@ -561,7 +587,10 @@ export default function ShopifyPedidos() {
     try {
       const { data, error } = await supabase.functions.invoke('ebd-shopify-order-create', {
         body: {
-          cliente: selectedCliente,
+          cliente: {
+            ...selectedCliente,
+            tipo_cliente: selectedCliente.tipo_cliente, // Enviar tipo_cliente para classificação
+          },
           vendedor_id: vendedor?.id,
           vendedor_nome: vendedor?.nome,
           items: items.map(item => ({
@@ -570,6 +599,10 @@ export default function ShopifyPedidos() {
             title: item.product.node.title,
             price: item.price.amount
           })),
+          // Para não-faturamento, ainda enviar desconto se for revendedor
+          ...(descontoPercent > 0 && !faturamentoPrazo && {
+            desconto_percentual: descontoPercent.toString(),
+          }),
           ...(faturamentoPrazo && {
             forma_pagamento: 'FATURAMENTO',
             faturamento_prazo: faturamentoPrazo,
