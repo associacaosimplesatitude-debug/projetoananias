@@ -23,6 +23,7 @@ import { useState } from "react";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import { AulasRestantesCard } from "@/components/vendedor/AulasRestantesCard";
+import { ClientesParaAtivarCard } from "@/components/vendedor/ClientesParaAtivarCard";
 import { useVendedor } from "@/hooks/useVendedor";
 
 export default function VendedorDashboard() {
@@ -322,6 +323,11 @@ export default function VendedorDashboard() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Card de Clientes para Ativar */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <ClientesParaAtivarCard vendedorId={vendedor.id} />
       </div>
 
       {/* Aulas Restantes Card */}

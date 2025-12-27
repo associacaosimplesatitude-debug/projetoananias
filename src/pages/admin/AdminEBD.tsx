@@ -61,6 +61,7 @@ import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import { SalesChannelCards } from "@/components/admin/SalesChannelCards";
 import { ClientsSummaryCards } from "@/components/admin/ClientsSummaryCards";
 import { VendedoresSummaryCards } from "@/components/admin/VendedoresSummaryCards";
+import { ClientesParaAtribuirCard } from "@/components/admin/ClientesParaAtribuirCard";
 import {
   ResponsiveContainer,
   PieChart,
@@ -1521,6 +1522,11 @@ export default function AdminEBD() {
 
         {/* VENDAS TAB */}
         <TabsContent value="vendas" className="space-y-6">
+          {/* Card de Clientes para Atribuir */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <ClientesParaAtribuirCard />
+          </div>
+
           {/* Dashboard de Vendas - KPIs Consolidados */}
           <SalesChannelCards
             dashboardKPIs={dashboardKPIs}

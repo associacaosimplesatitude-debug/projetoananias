@@ -1,0 +1,371 @@
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import { Loader2, User, Mail, MapPin, Package, Truck, DollarSign } from "lucide-react";
+
+interface ShopifyPedido {
+  id: string;
+  shopify_order_id: number;
+  order_number: string;
+  vendedor_id: string | null;
+  cliente_id: string | null;
+  status_pagamento: string;
+  valor_total: number;
+  valor_frete: number;
+  valor_para_meta: number;
+  customer_email: string | null;
+  customer_name: string | null;
+  created_at: string;
+  order_date?: string | null;
+  codigo_rastreio: string | null;
+  url_rastreio: string | null;
+  cliente?: {
+    nome_igreja: string;
+    tipo_cliente: string | null;
+  } | null;
+  vendedor?: {
+    nome: string;
+  } | null;
+}
+
+interface Vendedor {
+  id: string;
+  nome: string;
+}
+
+const TIPOS_CLIENTE = [
+  "ADVECS",
+  "IGREJA (Não-ADVECS)",
+  "LOJISTA",
+  "REPRESENTANTE",
+  "REVENDEDOR",
+  "PESSOA FÍSICA",
+];
+
+interface PedidoOnlineDetailDialogProps {
+  pedido: ShopifyPedido | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function PedidoOnlineDetailDialog({
+  pedido,
+  open,
+  onOpenChange,
+}: PedidoOnlineDetailDialogProps) {
+  const queryClient = useQueryClient();
+  const [selectedVendedor, setSelectedVendedor] = useState<string>("");
+  const [selectedTipoCliente, setSelectedTipoCliente] = useState<string>("");
+
+  // Fetch vendedores
+  const { data: vendedores = [] } = useQuery({
+    queryKey: ["vendedores-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendedores")
+        .select("id, nome")
+        .eq("status", "Ativo")
+        .order("nome");
+      if (error) throw error;
+      return data as Vendedor[];
+    },
+  });
+
+  // Fetch cliente data if cliente_id exists
+  const { data: clienteData } = useQuery({
+    queryKey: ["cliente-detail", pedido?.cliente_id],
+    queryFn: async () => {
+      if (!pedido?.cliente_id) return null;
+      const { data, error } = await supabase
+        .from("ebd_clientes")
+        .select("*")
+        .eq("id", pedido.cliente_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!pedido?.cliente_id,
+  });
+
+  // Update state when pedido changes
+  useEffect(() => {
+    if (pedido) {
+      setSelectedVendedor(pedido.vendedor_id || "");
+      setSelectedTipoCliente(clienteData?.tipo_cliente || pedido.cliente?.tipo_cliente || "");
+    }
+  }, [pedido, clienteData]);
+
+  // Mutation to save attribution
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!pedido) return;
+
+      // Update pedido with vendedor
+      if (selectedVendedor !== (pedido.vendedor_id || "")) {
+        const { error: pedidoError } = await supabase
+          .from("ebd_shopify_pedidos")
+          .update({ vendedor_id: selectedVendedor || null })
+          .eq("id", pedido.id);
+        if (pedidoError) throw pedidoError;
+      }
+
+      // If cliente exists, update tipo_cliente and vendedor_id
+      if (pedido.cliente_id) {
+        const updateData: Record<string, any> = {};
+        
+        if (selectedTipoCliente) {
+          updateData.tipo_cliente = selectedTipoCliente;
+        }
+        if (selectedVendedor) {
+          updateData.vendedor_id = selectedVendedor;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          const { error: clienteError } = await supabase
+            .from("ebd_clientes")
+            .update(updateData)
+            .eq("id", pedido.cliente_id);
+          if (clienteError) throw clienteError;
+        }
+      } else if (pedido.customer_email) {
+        // Try to find or create cliente by email
+        const { data: existingCliente } = await supabase
+          .from("ebd_clientes")
+          .select("id")
+          .eq("email_superintendente", pedido.customer_email.toLowerCase())
+          .maybeSingle();
+
+        if (existingCliente) {
+          // Update existing cliente
+          const updateData: Record<string, any> = {};
+          if (selectedTipoCliente) updateData.tipo_cliente = selectedTipoCliente;
+          if (selectedVendedor) updateData.vendedor_id = selectedVendedor;
+
+          if (Object.keys(updateData).length > 0) {
+            const { error } = await supabase
+              .from("ebd_clientes")
+              .update(updateData)
+              .eq("id", existingCliente.id);
+            if (error) throw error;
+          }
+
+          // Link pedido to cliente
+          const { error: linkError } = await supabase
+            .from("ebd_shopify_pedidos")
+            .update({ cliente_id: existingCliente.id })
+            .eq("id", pedido.id);
+          if (linkError) throw linkError;
+        } else {
+          // Create new cliente
+          const { data: newCliente, error: createError } = await supabase
+            .from("ebd_clientes")
+            .insert({
+              nome_igreja: pedido.customer_name || "Cliente Online",
+              email_superintendente: pedido.customer_email?.toLowerCase(),
+              tipo_cliente: selectedTipoCliente || "PESSOA FÍSICA",
+              vendedor_id: selectedVendedor || null,
+              status_ativacao_ebd: false,
+            })
+            .select("id")
+            .single();
+
+          if (createError) throw createError;
+
+          // Link pedido to new cliente
+          const { error: linkError } = await supabase
+            .from("ebd_shopify_pedidos")
+            .update({ cliente_id: newCliente.id })
+            .eq("id", pedido.id);
+          if (linkError) throw linkError;
+        }
+      }
+    },
+    onSuccess: () => {
+      toast.success("Atribuição salva com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["ebd-shopify-pedidos-online"] });
+      queryClient.invalidateQueries({ queryKey: ["clientes-para-atribuir"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedor-clientes-para-ativar"] });
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      toast.error("Erro ao salvar atribuição", {
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+      });
+    },
+  });
+
+  if (!pedido) return null;
+
+  const orderDate = pedido.order_date || pedido.created_at;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Pedido #{pedido.order_number}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Order Info */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Data do Pedido</p>
+              <p className="font-medium">
+                {format(new Date(orderDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Status</p>
+              <Badge>{pedido.status_pagamento}</Badge>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Customer Info */}
+          <div className="space-y-2">
+            <h4 className="font-semibold flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Cliente
+            </h4>
+            <div className="grid gap-2 text-sm pl-6">
+              <p className="font-medium">
+                {pedido.cliente?.nome_igreja || pedido.customer_name || "Não identificado"}
+              </p>
+              {pedido.customer_email && (
+                <p className="text-muted-foreground flex items-center gap-1">
+                  <Mail className="h-3 w-3" />
+                  {pedido.customer_email}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Financial Info */}
+          <div className="space-y-2">
+            <h4 className="font-semibold flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Valores
+            </h4>
+            <div className="grid grid-cols-2 gap-2 text-sm pl-6">
+              <p>Produtos:</p>
+              <p className="text-right">
+                R$ {((pedido.valor_total || 0) - (pedido.valor_frete || 0)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+              <p>Frete:</p>
+              <p className="text-right">
+                R$ {(pedido.valor_frete || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="font-semibold">Total:</p>
+              <p className="text-right font-semibold">
+                R$ {(pedido.valor_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+
+          {pedido.codigo_rastreio && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  Rastreio
+                </h4>
+                <p className="text-sm pl-6">
+                  {pedido.url_rastreio ? (
+                    <a
+                      href={pedido.url_rastreio}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      {pedido.codigo_rastreio}
+                    </a>
+                  ) : (
+                    pedido.codigo_rastreio
+                  )}
+                </p>
+              </div>
+            </>
+          )}
+
+          <Separator />
+
+          {/* Attribution Section */}
+          <div className="space-y-4 bg-muted/50 p-4 rounded-lg">
+            <h4 className="font-semibold">Atribuição e Classificação</h4>
+
+            <div className="space-y-2">
+              <Label htmlFor="vendedor">Atribuir Vendedor</Label>
+              <Select value={selectedVendedor} onValueChange={setSelectedVendedor}>
+                <SelectTrigger id="vendedor">
+                  <SelectValue placeholder="Selecione um vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sem vendedor</SelectItem>
+                  {vendedores.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tipoCliente">Classificar Tipo de Cliente</Label>
+              <Select value={selectedTipoCliente} onValueChange={setSelectedTipoCliente}>
+                <SelectTrigger id="tipoCliente">
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPOS_CLIENTE.map((tipo) => (
+                    <SelectItem key={tipo} value={tipo}>
+                      {tipo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Salvar Atribuição
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -42,11 +42,13 @@ import {
   CheckCircle,
   RefreshCw,
   Loader2,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
+import { PedidoOnlineDetailDialog } from "@/components/admin/PedidoOnlineDetailDialog";
 
 interface ShopifyPedido {
   id: string;
@@ -68,6 +70,7 @@ interface ShopifyPedido {
   url_rastreio: string | null;
   cliente?: {
     nome_igreja: string;
+    tipo_cliente: string | null;
   } | null;
   vendedor?: {
     nome: string;
@@ -130,6 +133,8 @@ export default function PedidosOnline() {
   }>({ from: undefined, to: undefined });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [hasAutoSynced, setHasAutoSynced] = useState(false);
+  const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   const syncOrdersMutation = useMutation({
     mutationFn: async () => {
@@ -192,7 +197,7 @@ export default function PedidosOnline() {
         .select(
           `
           *,
-          cliente:ebd_clientes(nome_igreja),
+          cliente:ebd_clientes(nome_igreja, tipo_cliente),
           vendedor:vendedores(nome)
         `
         )
@@ -510,11 +515,12 @@ export default function PedidosOnline() {
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead>Status Pgto</TableHead>
                     <TableHead>Rastreio</TableHead>
+                    <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPedidos.map((pedido) => (
-                    <TableRow key={pedido.id}>
+                    <TableRow key={pedido.id} className="cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedPedido(pedido); setDetailDialogOpen(true); }}>
                       <TableCell className="font-medium">
                         #{pedido.order_number}
                       </TableCell>
@@ -530,7 +536,7 @@ export default function PedidosOnline() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {pedido.vendedor?.nome || '-'}
+                        {pedido.vendedor?.nome || <span className="text-muted-foreground">Não atribuído</span>}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
                         R$ {(pedido.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -546,6 +552,7 @@ export default function PedidosOnline() {
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="flex items-center gap-1 text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               {pedido.codigo_rastreio}
                               <ExternalLink className="h-3 w-3" />
@@ -557,6 +564,16 @@ export default function PedidosOnline() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); setSelectedPedido(pedido); setDetailDialogOpen(true); }}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -565,6 +582,13 @@ export default function PedidosOnline() {
           )}
         </CardContent>
       </Card>
+
+      {/* Detail Dialog */}
+      <PedidoOnlineDetailDialog
+        pedido={selectedPedido}
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+      />
     </div>
   );
 }
