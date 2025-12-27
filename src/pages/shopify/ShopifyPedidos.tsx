@@ -30,6 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
 import { FaturamentoSelectionDialog } from "@/components/shopify/FaturamentoSelectionDialog";
+import { DescontoRevendedorBanner } from "@/components/shopify/DescontoRevendedorBanner";
 import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import {
   Select,
@@ -853,11 +854,27 @@ export default function ShopifyPedidos() {
                     </div>
                     
                     <div className="flex-shrink-0 space-y-4 pt-4 border-t bg-background">
+                      {/* Banner de desconto para revendedores */}
+                      {selectedCliente?.tipo_cliente?.toUpperCase() === 'REVENDEDOR' && items.length > 0 && (
+                        <DescontoRevendedorBanner valorTotal={totalPrice} />
+                      )}
+                      
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-semibold">Total</span>
-                        <span className="text-xl font-bold">
-                          R$ {totalPrice.toFixed(2)}
-                        </span>
+                        <div className="text-right">
+                          {selectedCliente?.tipo_cliente?.toUpperCase() === 'REVENDEDOR' && totalPrice >= 299.90 && (
+                            <span className="text-sm text-muted-foreground line-through block">
+                              R$ {totalPrice.toFixed(2)}
+                            </span>
+                          )}
+                          <span className="text-xl font-bold">
+                            {selectedCliente?.tipo_cliente?.toUpperCase() === 'REVENDEDOR' && totalPrice >= 299.90 ? (
+                              `R$ ${(totalPrice * (1 - calcularDescontoRevendedor(totalPrice).desconto / 100)).toFixed(2)}`
+                            ) : (
+                              `R$ ${totalPrice.toFixed(2)}`
+                            )}
+                          </span>
+                        </div>
                       </div>
                       
                         <Button 
