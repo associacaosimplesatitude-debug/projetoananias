@@ -479,7 +479,7 @@ export default function AdminEBD() {
           created_at,
           cliente:ebd_clientes(tipo_cliente)
         `)
-        .eq('status', 'FATURADO');
+        .in('status', ['FATURADO', 'PAGO']);
       if (error) throw error;
       return data || [];
     },
