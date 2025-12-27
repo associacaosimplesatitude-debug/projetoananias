@@ -149,6 +149,9 @@ serve(async (req) => {
     let page = 1;
     let hasMore = true;
 
+    let retryCount = 0;
+    const maxRetries = 3;
+
     while (hasMore) {
       const url = `https://www.bling.com.br/Api/v3/contatos?pagina=${page}&limite=${limit}`;
 
@@ -164,19 +167,45 @@ serve(async (req) => {
 
       if (resp.status === 401) {
         accessToken = await refreshBlingToken(supabase, blingConfig);
+        retryCount = 0;
         continue;
       }
 
       if (resp.status === 429) {
+        console.log(`Rate limit na página ${page}, aguardando 2s...`);
         await delay(2000);
+        continue;
+      }
+
+      // Retry logic para erros 500 (erro interno do Bling)
+      if (resp.status === 500) {
+        retryCount++;
+        console.log(`Erro 500 do Bling na página ${page}, tentativa ${retryCount}/${maxRetries}`);
+        
+        if (retryCount >= maxRetries) {
+          console.error(`Máximo de tentativas atingido para página ${page}`);
+          // Pular esta página e continuar com a próxima
+          page++;
+          retryCount = 0;
+          await delay(3000);
+          continue;
+        }
+        
+        await delay(3000); // Espera 3 segundos antes de tentar novamente
         continue;
       }
 
       const json = await resp.json();
       if (!resp.ok) {
         console.error("Erro ao listar contatos:", resp.status, JSON.stringify(json));
-        throw new Error(`Erro ao listar contatos do Bling: ${resp.status}`);
+        // Em vez de lançar erro, logar e continuar
+        page++;
+        retryCount = 0;
+        await delay(1000);
+        continue;
       }
+      
+      retryCount = 0; // Reset retry count on success
 
       const contatos = (json?.data || []) as any[];
       for (const c of contatos) {
