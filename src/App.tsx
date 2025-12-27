@@ -48,6 +48,7 @@ import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import BlingIntegration from "./pages/admin/BlingIntegration";
+import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 import DashboardRedirect from "./components/DashboardRedirect";
@@ -626,6 +627,7 @@ const App = () => (
                       <Route path="catalogo" element={<AdminEBD />} />
                       <Route path="gestao-tutoriais" element={<GestaoTutoriais />} />
                       <Route path="tutoriais" element={<Tutoriais />} />
+                      <Route path="shopify" element={<ShopifyIntegration />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
