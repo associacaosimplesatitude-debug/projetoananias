@@ -22,7 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { Loader2, User, Mail, Package, Truck, DollarSign, IdCard } from "lucide-react";
+import { Loader2, User, Mail, Package, Truck, DollarSign, IdCard, MapPin, Phone } from "lucide-react";
 
 interface ShopifyPedido {
   id: string;
@@ -37,6 +37,14 @@ interface ShopifyPedido {
   customer_email: string | null;
   customer_name: string | null;
   customer_document?: string | null;
+  customer_phone?: string | null;
+  endereco_rua?: string | null;
+  endereco_numero?: string | null;
+  endereco_complemento?: string | null;
+  endereco_bairro?: string | null;
+  endereco_cidade?: string | null;
+  endereco_estado?: string | null;
+  endereco_cep?: string | null;
   created_at: string;
   order_date?: string | null;
   codigo_rastreio: string | null;
@@ -273,8 +281,54 @@ export function PedidoOnlineDetailDialog({
                   {pedido.customer_email}
                 </p>
               )}
+
+              {pedido.customer_phone && (
+                <p className="text-muted-foreground flex items-center gap-1">
+                  <Phone className="h-3 w-3" />
+                  {pedido.customer_phone}
+                </p>
+              )}
             </div>
           </div>
+
+          <Separator />
+
+          {/* Endereço de Entrega */}
+          {(pedido.endereco_rua || pedido.endereco_cidade) && (
+            <>
+              <div className="space-y-2">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Endereço de Entrega
+                </h4>
+                <div className="text-sm pl-6 space-y-1">
+                  {pedido.endereco_rua && (
+                    <p>
+                      {pedido.endereco_rua}
+                      {pedido.endereco_numero && `, ${pedido.endereco_numero}`}
+                    </p>
+                  )}
+                  {pedido.endereco_complemento && (
+                    <p className="text-muted-foreground">{pedido.endereco_complemento}</p>
+                  )}
+                  {pedido.endereco_bairro && (
+                    <p>{pedido.endereco_bairro}</p>
+                  )}
+                  {(pedido.endereco_cidade || pedido.endereco_estado) && (
+                    <p>
+                      {pedido.endereco_cidade}
+                      {pedido.endereco_estado && ` - ${pedido.endereco_estado}`}
+                    </p>
+                  )}
+                  {pedido.endereco_cep && (
+                    <p className="text-muted-foreground">CEP: {pedido.endereco_cep}</p>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+            </>
+          )}
 
           <Separator />
 

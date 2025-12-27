@@ -63,9 +63,15 @@ interface ShopifyPedido {
   customer_email: string | null;
   customer_name: string | null;
   customer_document?: string | null;
-  // created_at is legacy but now will be aligned with the real order date
+  customer_phone?: string | null;
+  endereco_rua?: string | null;
+  endereco_numero?: string | null;
+  endereco_complemento?: string | null;
+  endereco_bairro?: string | null;
+  endereco_cidade?: string | null;
+  endereco_estado?: string | null;
+  endereco_cep?: string | null;
   created_at: string;
-  // preferred field for the real order date
   order_date?: string | null;
   codigo_rastreio: string | null;
   url_rastreio: string | null;
