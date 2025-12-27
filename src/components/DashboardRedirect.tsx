@@ -31,21 +31,21 @@ export default function DashboardRedirect() {
     enabled: !!user?.email && !authLoading,
   });
 
-  // Check if user is a superintendent (from ebd_clientes)
-  const { data: superintendente, isLoading: superintendenteLoading } = useQuery({
-    queryKey: ["is-superintendente-redirect", user?.id],
+  // Check if user is a superintendent (from ebd_clientes) - also get tipo_cliente
+  const { data: ebdCliente, isLoading: ebdClienteLoading } = useQuery({
+    queryKey: ["is-ebd-cliente-redirect", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       
       const { data, error } = await supabase
         .from("ebd_clientes")
-        .select("id, status_ativacao_ebd")
+        .select("id, status_ativacao_ebd, tipo_cliente")
         .eq("superintendente_user_id", user.id)
         .eq("status_ativacao_ebd", true)
         .maybeSingle();
 
       if (error) {
-        console.error("Error checking superintendente status:", error);
+        console.error("Error checking ebd_cliente status:", error);
         return null;
       }
       return data;
@@ -138,7 +138,7 @@ export default function DashboardRedirect() {
     enabled: !!user?.id && !authLoading,
   });
 
-  const isLoading = modulesLoading || alunoLoading || authLoading || professorLoading || vendedorLoading || superintendenteLoading || leadLoading;
+  const isLoading = modulesLoading || alunoLoading || authLoading || professorLoading || vendedorLoading || ebdClienteLoading || leadLoading;
 
   if (isLoading) {
     return (
@@ -152,7 +152,7 @@ export default function DashboardRedirect() {
   console.log('DashboardRedirect - Final decision:', {
     role,
     vendedor: !!vendedor,
-    superintendente: !!superintendente,
+    ebdCliente: ebdCliente,
     leadReativacao: !!leadReativacao,
     leadReativacaoData: leadReativacao,
     professor: !!professor,
@@ -185,8 +185,14 @@ export default function DashboardRedirect() {
     return <Navigate to="/vendedor" replace />;
   }
 
-  // PRIORITY 1: If user is a superintendent (from ebd_clientes), redirect to EBD dashboard
-  if (superintendente) {
+  // PRIORITY 1: If user is a REVENDEDOR (from ebd_clientes), redirect to shopify-pedidos
+  if (ebdCliente?.tipo_cliente === 'REVENDEDOR') {
+    console.log('DashboardRedirect - Redirecting REVENDEDOR to /ebd/shopify-pedidos');
+    return <Navigate to="/ebd/shopify-pedidos" replace />;
+  }
+
+  // PRIORITY 2: If user is a superintendent (from ebd_clientes), redirect to EBD dashboard
+  if (ebdCliente) {
     console.log('DashboardRedirect - Redirecting superintendente to /ebd/dashboard');
     return <Navigate to="/ebd/dashboard" replace />;
   }
