@@ -23,14 +23,24 @@ type ShopifyOrder = {
     default_address?: {
       company?: string | null;
     } | null;
+    // Metafields podem conter CPF/CNPJ
+    metafield?: { value: string } | null;
   } | null;
   tags: string | null;
   note_attributes?: Array<{ name: string; value: string }>;
+  note?: string | null;
   total_price: string;
   shipping_lines?: Array<{ price: string }>;
   billing_address?: {
     company?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
   } | null;
+  shipping_address?: {
+    company?: string | null;
+  } | null;
+  // Custom attributes para checkout brasileiro
+  custom_attributes?: Array<{ name: string; value: string }>;
 };
 
 function getNextPageInfo(linkHeader: string | null): string | null {
@@ -58,25 +68,49 @@ function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId
   let clienteId: string | null = null;
   let customerDocument: string | null = null;
 
-  if (order.note_attributes && Array.isArray(order.note_attributes)) {
-    for (const attr of order.note_attributes) {
-      if (attr?.name === "vendedor_id") vendedorId = attr.value;
-      if (attr?.name === "cliente_id") clienteId = attr.value;
-      // Shopify armazena CPF/CNPJ em note_attributes ou campos customizados
-      if (attr?.name?.toLowerCase() === "cpf" || attr?.name?.toLowerCase() === "cnpj" || attr?.name?.toLowerCase() === "cpf_cnpj" || attr?.name?.toLowerCase() === "document") {
-        customerDocument = attr.value;
-      }
+  // 1. Busca em note_attributes (mais comum para apps de checkout brasileiro)
+  const allAttributes = [
+    ...(order.note_attributes || []),
+    ...(order.custom_attributes || []),
+  ];
+
+  for (const attr of allAttributes) {
+    if (attr?.name === "vendedor_id") vendedorId = attr.value;
+    if (attr?.name === "cliente_id") clienteId = attr.value;
+    
+    // Busca por diversos nomes possíveis para CPF/CNPJ
+    const attrNameLower = (attr?.name || "").toLowerCase().replace(/[_\s]/g, "");
+    const docFields = ["cpf", "cnpj", "cpfcnpj", "document", "taxid", "registroempresa", "registrodaempresa", "documento", "cpf/cnpj"];
+    if (docFields.some(f => attrNameLower.includes(f)) && attr.value) {
+      customerDocument = attr.value;
     }
   }
 
-  // Shopify também pode enviar CPF/CNPJ no campo "company" do billing_address
+  // 2. Busca no campo "note" do pedido (alguns apps colocam lá)
+  if (!customerDocument && order.note) {
+    // Tenta extrair CPF/CNPJ do note
+    const cpfMatch = order.note.match(/(?:cpf|cnpj)[:\s]*([0-9.\-\/]+)/i);
+    if (cpfMatch) {
+      customerDocument = cpfMatch[1];
+    }
+  }
+
+  // 3. Busca no campo "company" dos endereços
   if (!customerDocument) {
-    const company = order.billing_address?.company || order.customer?.default_address?.company;
-    // Verifica se parece com CPF (11 dígitos) ou CNPJ (14 dígitos)
-    if (company) {
-      const digits = company.replace(/\D/g, "");
-      if (digits.length === 11 || digits.length === 14) {
-        customerDocument = company;
+    const possibleSources = [
+      order.billing_address?.company,
+      order.shipping_address?.company,
+      order.customer?.default_address?.company,
+    ];
+    
+    for (const company of possibleSources) {
+      if (company) {
+        const digits = company.replace(/\D/g, "");
+        // CPF tem 11 dígitos, CNPJ tem 14 dígitos
+        if (digits.length === 11 || digits.length === 14) {
+          customerDocument = company;
+          break;
+        }
       }
     }
   }
@@ -85,6 +119,9 @@ function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId
     const tagMatch = order.tags.match(/vendedor_([a-f0-9-]+)/i);
     if (tagMatch) vendedorId = tagMatch[1];
   }
+
+  // Log detalhado para debugging
+  console.log(`Order ${order.name}: document=${customerDocument}, note_attrs=${JSON.stringify(order.note_attributes)}, billing_company=${order.billing_address?.company}`);
 
   return { vendedorId, clienteId, customerDocument };
 }
