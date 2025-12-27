@@ -268,8 +268,8 @@ function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive('/tutoriais')}>
-                  <RouterNavLink to="/tutoriais">
+                <SidebarMenuButton asChild isActive={isActive('/admin/tutoriais')}>
+                  <RouterNavLink to="/admin/tutoriais">
                     <Video className="h-4 w-4" />
                     <span>Tutoriais</span>
                   </RouterNavLink>
