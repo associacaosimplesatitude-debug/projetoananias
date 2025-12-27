@@ -596,7 +596,7 @@ const App = () => (
                       <Route path="orders" element={<AdminOrders />} />
                       <Route path="bling" element={<BlingIntegration />} />
                       <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
-                      <Route path="tutoriais" element={<Tutoriais />} />
+                      <Route path="tutoriais" element={<GestaoTutoriais />} />
                     </Route>
                     <Route
                       path="/admin/ebd"
