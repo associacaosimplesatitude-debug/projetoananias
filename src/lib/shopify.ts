@@ -221,15 +221,63 @@ export async function fetchShopifyProducts(first: number = 250, query?: string):
   return allProducts;
 }
 
-export async function createStorefrontCheckout(items: CartItem[]): Promise<string> {
+export interface BuyerInfo {
+  email?: string | null;
+  phone?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  address?: {
+    address1?: string | null;
+    address2?: string | null;
+    city?: string | null;
+    province?: string | null;
+    zip?: string | null;
+    country?: string;
+  } | null;
+}
+
+export async function createStorefrontCheckout(items: CartItem[], buyerInfo?: BuyerInfo): Promise<string> {
   const lines = items.map(item => ({
     quantity: item.quantity,
     merchandiseId: item.variantId,
   }));
 
-  const cartData = await storefrontApiRequest(CART_CREATE_MUTATION, {
-    input: { lines },
-  });
+  // Build input with optional buyer identity
+  const input: Record<string, unknown> = { lines };
+  
+  if (buyerInfo) {
+    const buyerIdentity: Record<string, unknown> = {};
+    
+    if (buyerInfo.email) {
+      buyerIdentity.email = buyerInfo.email;
+    }
+    if (buyerInfo.phone) {
+      buyerIdentity.phone = buyerInfo.phone;
+    }
+    
+    // Add delivery address preferences if available
+    if (buyerInfo.address) {
+      buyerIdentity.deliveryAddressPreferences = [{
+        deliveryAddress: {
+          address1: buyerInfo.address.address1 || '',
+          address2: buyerInfo.address.address2 || '',
+          city: buyerInfo.address.city || '',
+          province: buyerInfo.address.province || '',
+          zip: buyerInfo.address.zip || '',
+          country: buyerInfo.address.country || 'BR',
+          firstName: buyerInfo.firstName || '',
+          lastName: buyerInfo.lastName || '',
+          phone: buyerInfo.phone || '',
+        }
+      }];
+    }
+    
+    if (Object.keys(buyerIdentity).length > 0) {
+      input.buyerIdentity = buyerIdentity;
+    }
+  }
+
+  const cartData = await storefrontApiRequest(CART_CREATE_MUTATION, { input });
 
   if (cartData.data.cartCreate.userErrors.length > 0) {
     throw new Error(`Cart creation failed: ${cartData.data.cartCreate.userErrors.map((e: { message: string }) => e.message).join(', ')}`);
