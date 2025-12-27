@@ -32,6 +32,7 @@ interface ShopifyPedidoCG {
   status_pagamento: string;
   customer_email: string | null;
   customer_name: string | null;
+  customer_document?: string | null;
   valor_total: number;
   valor_frete: number;
   codigo_rastreio: string | null;
@@ -281,11 +282,7 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
               <div className="flex items-center gap-2 md:col-span-2">
                 <IdCard className="h-4 w-4 text-muted-foreground" />
                 <span>
-                  {existingCliente?.cnpj
-                    ? `CNPJ: ${existingCliente.cnpj}`
-                    : existingCliente?.cpf
-                      ? `CPF: ${existingCliente.cpf}`
-                      : "CPF/CNPJ: -"}
+                  CPF/CNPJ: {pedido.customer_document || existingCliente?.cnpj || existingCliente?.cpf || "-"}
                 </span>
               </div>
             </div>

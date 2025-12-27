@@ -44,7 +44,32 @@ interface ShopifyOrder {
     tracking_url?: string;
   }>;
   line_items?: ShopifyLineItem[];
+  note_attributes?: Array<{ name: string; value: string }>;
+  note?: string | null;
   created_at: string;
+}
+
+function extractCustomerDocument(order: ShopifyOrder): string | null {
+  // 1. Busca em note_attributes
+  if (order.note_attributes && Array.isArray(order.note_attributes)) {
+    for (const attr of order.note_attributes) {
+      const attrNameLower = (attr?.name || "").toLowerCase().replace(/[_\s\/]/g, "");
+      const docFields = ["cpf", "cnpj", "cpfcnpj", "document", "taxid", "documento"];
+      if (docFields.some(f => attrNameLower.includes(f)) && attr.value) {
+        return attr.value;
+      }
+    }
+  }
+
+  // 2. Busca no campo "note" do pedido
+  if (order.note) {
+    const cpfMatch = order.note.match(/(?:cpf|cnpj)[:\s]*([0-9.\-\/]+)/i);
+    if (cpfMatch) {
+      return cpfMatch[1];
+    }
+  }
+
+  return null;
 }
 
 function getNextPageInfo(linkHeader: string | null): string | null {
@@ -122,6 +147,10 @@ serve(async (req) => {
         : "";
 
       const tracking = order.fulfillments?.[0];
+      const customerDocument = extractCustomerDocument(order);
+      
+      // Log para debug
+      console.log(`Order ${order.name}: document=${customerDocument}, note_attrs=${JSON.stringify(order.note_attributes)}`);
 
       return {
         shopify_order_id: order.id,
@@ -129,6 +158,7 @@ serve(async (req) => {
         status_pagamento: order.financial_status,
         customer_email: order.customer?.email || order.email,
         customer_name: customerName,
+        customer_document: customerDocument,
         valor_total: parseFloat(order.total_price) || 0,
         valor_frete: parseFloat(shippingPrice) || 0,
         codigo_rastreio: tracking?.tracking_number || null,
