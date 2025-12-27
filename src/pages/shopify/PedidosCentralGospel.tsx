@@ -73,15 +73,23 @@ export default function PedidosCentralGospel() {
         body: { financial_status: "paid", status: "any" },
       });
       if (error) throw error;
-      return data;
+      return data as { success?: boolean; synced?: number; error?: string; details?: string };
     },
     onSuccess: (data) => {
-      toast.success(`${data.synced} pedidos sincronizados com sucesso!`);
+      toast.success("Pedidos sincronizados", {
+        description: `Sincronizados: ${data?.synced ?? 0}`,
+      });
       queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-cg"] });
     },
-    onError: (error) => {
-      console.error("Sync error:", error);
-      toast.error("Erro ao sincronizar pedidos");
+    onError: (err: any) => {
+      console.error("Falha ao sincronizar pedidos (cg-shopify-sync-orders)", err);
+      const description =
+        err?.context?.body?.error ||
+        err?.context?.body?.details ||
+        err?.message ||
+        "Erro desconhecido";
+
+      toast.error("Falha ao sincronizar pedidos", { description });
     },
   });
 
