@@ -94,11 +94,12 @@ interface PedidoCGDetailDialogProps {
 }
 
 const TIPOS_CLIENTE = [
-  { value: "Igreja CNPJ", label: "Igreja CNPJ" },
-  { value: "Igreja CPF", label: "Igreja CPF" },
-  { value: "IGREJA ADVECS", label: "IGREJA ADVECS" },
-  { value: "VAREJO", label: "VAREJO" },
-  { value: "LIVRARIA", label: "LIVRARIA" },
+  { value: "ADVECS", label: "ADVECS" },
+  { value: "IGREJA CNPJ", label: "IGREJA CNPJ" },
+  { value: "IGREJA CPF", label: "IGREJA CPF" },
+  { value: "LOJISTA", label: "LOJISTA" },
+  { value: "REPRESENTANTE", label: "REPRESENTANTE" },
+  { value: "PESSOA FÍSICA", label: "PESSOA FÍSICA" },
   { value: "REVENDEDOR", label: "REVENDEDOR" },
 ];
 
