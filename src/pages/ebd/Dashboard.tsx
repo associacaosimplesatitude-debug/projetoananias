@@ -36,6 +36,30 @@ export default function EBDDashboard() {
   const { user } = useAuth();
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
 
+  // Revendedor não deve acessar o dashboard do superintendente
+  const { data: ebdClienteTipo, isLoading: ebdClienteTipoLoading } = useQuery({
+    queryKey: ["ebd-cliente-tipo-dashboard", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("ebd_clientes")
+        .select("tipo_cliente")
+        .eq("superintendente_user_id", user.id)
+        .eq("status_ativacao_ebd", true)
+        .maybeSingle();
+      if (error) return null;
+      return data?.tipo_cliente ?? null;
+    },
+    enabled: !!user?.id,
+  });
+
+  useEffect(() => {
+    if (ebdClienteTipoLoading) return;
+    if (ebdClienteTipo === "REVENDEDOR") {
+      navigate("/ebd/shopify-pedidos", { replace: true });
+    }
+  }, [ebdClienteTipo, ebdClienteTipoLoading, navigate]);
+
   // Check if user needs to change default password
   const { data: profileData } = useQuery({
     queryKey: ['profile-password-check', user?.id],
