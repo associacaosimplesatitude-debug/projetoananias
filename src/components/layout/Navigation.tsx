@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from '@/components/NavLink';
 import { UserProfileDropdown } from './UserProfileDropdown';
-import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus, ShoppingBag, ShoppingCart, Link2, UserCheck, Store } from 'lucide-react';
+import { Church, Users, TrendingUp, TrendingDown, LayoutDashboard, Building, DollarSign, UserCog, BarChart3, Settings, FileText, Building2, ArrowLeftRight, ChevronDown, Palette, BookOpen, Plus, ShoppingBag, ShoppingCart, Link2, UserCheck, Store, Video } from 'lucide-react';
 import logoAnanias from '@/assets/logo_ananias_horizontal.png';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -545,6 +545,32 @@ export const Navigation = () => {
                   >
                     <Settings className="h-4 w-4" />
                     <span className="hidden sm:inline">Admin</span>
+                  </NavLink>
+                </>
+              )}
+
+              {/* Tutoriais - para todos os perfis EBD */}
+              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+                <>
+                  <style>
+                    {`
+                      #nav-item-tutoriais.active {
+                        background-color: ${accentColor} !important;
+                      }
+                    `}
+                  </style>
+                  <NavLink
+                    id="nav-item-tutoriais"
+                    to="/tutoriais"
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                      'hover:bg-white/10'
+                    )}
+                    style={{ color: navTextColor, opacity: 0.8 }}
+                    activeClassName="active"
+                  >
+                    <Video className="h-4 w-4" />
+                    <span className="hidden sm:inline">Tutoriais</span>
                   </NavLink>
                 </>
               )}

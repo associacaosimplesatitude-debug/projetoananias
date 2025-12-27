@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Home, Users, BookOpen, Calendar, User } from "lucide-react";
+import { Home, Users, BookOpen, Calendar, User, Video } from "lucide-react";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { useDomainBranding } from "@/hooks/useDomainBranding";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -12,6 +12,7 @@ const menuItems = [
   { path: "/ebd/aluno/aulas", label: "Aulas", icon: BookOpen },
   { path: "/ebd/aluno/leituras", label: "Leitura", icon: Calendar },
   { path: "/ebd/aluno/perfil", label: "Perfil", icon: User },
+  { path: "/tutoriais", label: "Tutoriais", icon: Video },
 ];
 
 export function AlunoNavigation() {

@@ -116,6 +116,8 @@ import PedidosAdvecs from "./pages/shopify/PedidosAdvecs";
 import PedidosAtacado from "./pages/shopify/PedidosAtacado";
 import EBDLogin from "./pages/EBDLogin";
 import LandingEBD from "./pages/LandingEBD";
+import Tutoriais from "./pages/Tutoriais";
+import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
 
 // Public Pages
 import PropostaDigital from "./pages/PropostaDigital";
@@ -161,6 +163,7 @@ const App = () => (
                       } 
                     />
                     <Route path="/my-profile" element={<MyProfile />} />
+                    <Route path="/tutoriais" element={<Tutoriais />} />
                     <Route 
                       path="/diretoria-form" 
                       element={
@@ -715,6 +718,7 @@ const App = () => (
                       <Route path="leads" element={<AdminEBD />} />
                       <Route path="vendedores" element={<AdminEBD />} />
                       <Route path="catalogo" element={<AdminEBD />} />
+                      <Route path="gestao-tutoriais" element={<GestaoTutoriais />} />
                     </Route>
                     <Route
                       path="/admin/bling"

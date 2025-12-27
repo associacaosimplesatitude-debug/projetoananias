@@ -7,7 +7,8 @@ import {
   BookOpen, 
   ClipboardList,
   Trophy,
-  BarChart3
+  BarChart3,
+  Video
 } from "lucide-react";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -21,6 +22,7 @@ const menuItems = [
   { path: "/ebd/professor/lancamentos", label: "Lançamentos", icon: ClipboardList },
   { path: "/ebd/professor/quizzes", label: "Quizzes", icon: Trophy },
   { path: "/ebd/professor/relatorios", label: "Relatórios", icon: BarChart3 },
+  { path: "/tutoriais", label: "Tutoriais", icon: Video },
 ];
 
 export function ProfessorNavigation() {

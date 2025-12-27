@@ -3219,6 +3219,65 @@ export type Database = {
         }
         Relationships: []
       }
+      tutoriais: {
+        Row: {
+          categorias: string[] | null
+          created_at: string
+          descricao: string | null
+          id: string
+          link_video: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          categorias?: string[] | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          link_video: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          categorias?: string[] | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          link_video?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tutoriais_perfis: {
+        Row: {
+          created_at: string
+          id: string
+          perfil: Database["public"]["Enums"]["tutorial_perfil"]
+          tutorial_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          perfil: Database["public"]["Enums"]["tutorial_perfil"]
+          tutorial_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          perfil?: Database["public"]["Enums"]["tutorial_perfil"]
+          tutorial_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutoriais_perfis_tutorial_id_fkey"
+            columns: ["tutorial_id"]
+            isOneToOne: false
+            referencedRelation: "tutoriais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -3457,6 +3516,14 @@ export type Database = {
       desafio_pergunta_tipo: "DESBLOQUEIO" | "CHARADA"
       desafio_status: "CONFIGURANDO" | "PRONTO" | "EM_ANDAMENTO" | "FINALIZADO"
       desafio_tipo_publico: "PROFESSORES" | "ALUNOS"
+      tutorial_perfil:
+        | "VENDEDORES"
+        | "GERENTES"
+        | "FINANCEIRO"
+        | "PROFESSORES"
+        | "ALUNOS"
+        | "SUPERINTENDENTES"
+        | "ADMINISTRADOR_GERAL"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3604,6 +3671,15 @@ export const Constants = {
       desafio_pergunta_tipo: ["DESBLOQUEIO", "CHARADA"],
       desafio_status: ["CONFIGURANDO", "PRONTO", "EM_ANDAMENTO", "FINALIZADO"],
       desafio_tipo_publico: ["PROFESSORES", "ALUNOS"],
+      tutorial_perfil: [
+        "VENDEDORES",
+        "GERENTES",
+        "FINANCEIRO",
+        "PROFESSORES",
+        "ALUNOS",
+        "SUPERINTENDENTES",
+        "ADMINISTRADOR_GERAL",
+      ],
     },
   },
 } as const
