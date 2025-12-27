@@ -56,19 +56,20 @@ interface CadastrarClienteDialogProps {
   clienteParaEditar?: Cliente | null;
 }
 
-// Opções padronizadas com o Gerente EBD
+// Opções padronizadas - EXATAS conforme solicitação
 const TIPOS_CLIENTE = [
   { value: "", label: "Não classificado" },
-  { value: "Igreja CNPJ", label: "Igreja CNPJ" },
-  { value: "Igreja CPF", label: "Igreja CPF" },
-  { value: "IGREJA ADVECS", label: "IGREJA ADVECS" },
-  { value: "VAREJO", label: "VAREJO" },
-  { value: "LIVRARIA", label: "LIVRARIA" },
+  { value: "ADVECS", label: "ADVECS" },
+  { value: "IGREJA CNPJ", label: "IGREJA CNPJ" },
+  { value: "IGREJA CPF", label: "IGREJA CPF" },
+  { value: "LOJISTA", label: "LOJISTA" },
+  { value: "REPRESENTANTE", label: "REPRESENTANTE" },
+  { value: "PESSOA FÍSICA", label: "PESSOA FÍSICA" },
   { value: "REVENDEDOR", label: "REVENDEDOR" },
 ];
 
 // Tipos que usam CPF ao invés de CNPJ
-const TIPOS_COM_CPF = ["Igreja CPF"];
+const TIPOS_COM_CPF = ["IGREJA CPF", "PESSOA FÍSICA"];
 // Tipos que podem ter documento opcional ou não definido
 const TIPOS_SEM_DOCUMENTO_OBRIGATORIO = [""];
 
@@ -127,13 +128,14 @@ export function CadastrarClienteDialog({
       
       // Converter tipos antigos para os novos (compatibilidade)
       let tipoClienteNormalizado = tipoCliente;
-      if (tipoCliente === "ADVECS") tipoClienteNormalizado = "IGREJA ADVECS";
+      if (tipoCliente === "IGREJA ADVECS") tipoClienteNormalizado = "ADVECS";
       if (tipoCliente === "IGREJA (Não-ADVECS)") {
-        tipoClienteNormalizado = possuiCnpj ? "Igreja CNPJ" : "Igreja CPF";
+        tipoClienteNormalizado = possuiCnpj ? "IGREJA CNPJ" : "IGREJA CPF";
       }
-      if (tipoCliente === "PESSOA FÍSICA") tipoClienteNormalizado = "Igreja CPF";
-      if (tipoCliente === "LOJISTA") tipoClienteNormalizado = "VAREJO";
-      if (tipoCliente === "REPRESENTANTE") tipoClienteNormalizado = "REVENDEDOR";
+      if (tipoCliente === "Igreja CNPJ") tipoClienteNormalizado = "IGREJA CNPJ";
+      if (tipoCliente === "Igreja CPF") tipoClienteNormalizado = "IGREJA CPF";
+      if (tipoCliente === "VAREJO") tipoClienteNormalizado = "LOJISTA";
+      if (tipoCliente === "LIVRARIA") tipoClienteNormalizado = "LOJISTA";
       
       // Se o tipo não existe nas novas opções, usar "none" (não classificado)
       const tiposValidos = TIPOS_CLIENTE.map(t => t.value);

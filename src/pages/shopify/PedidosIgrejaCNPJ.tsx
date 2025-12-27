@@ -122,14 +122,14 @@ export default function PedidosIgrejaCNPJ() {
   const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
-  // First fetch all clients with tipo_cliente = 'igreja_cnpj' and vendedor assigned
+  // First fetch all clients with tipo_cliente = 'IGREJA CNPJ' (or legacy 'Igreja CNPJ') and vendedor assigned
   const { data: clientesCNPJ } = useQuery({
     queryKey: ["ebd-clientes-igreja-cnpj"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ebd_clientes")
         .select("id, nome_igreja, email_superintendente, tipo_cliente, vendedor_id, vendedor:vendedores(nome)")
-        .eq("tipo_cliente", "Igreja CNPJ")
+        .in("tipo_cliente", ["IGREJA CNPJ", "Igreja CNPJ"])
         .not("vendedor_id", "is", null);
 
       if (error) throw error;
