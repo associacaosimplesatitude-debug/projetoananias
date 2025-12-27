@@ -85,7 +85,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.cg-shopify-sync-orders]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ebd-instant-signup]
 verify_jwt = false
