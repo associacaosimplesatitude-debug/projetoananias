@@ -243,16 +243,6 @@ function AdminSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
-                {isAdmin && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/gestao-tutoriais')}>
-                      <RouterNavLink to="/admin/ebd/gestao-tutoriais">
-                        <Video className="h-4 w-4" />
-                        <span>Tutoriais</span>
-                      </RouterNavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
