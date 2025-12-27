@@ -11,6 +11,12 @@ import {
   DollarSign,
   Target,
   UserPlus,
+  Church,
+  Building2,
+  Store,
+  Handshake,
+  User,
+  ShoppingBag,
 } from "lucide-react";
 import { format, isThisMonth, parseISO, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { useState } from "react";
@@ -103,6 +109,16 @@ export default function VendedorDashboard() {
     const diasSemLogin = differenceInDays(new Date(), new Date(c.ultimo_login));
     return diasSemLogin > 30;
   });
+
+  // Contagem por tipo de cliente
+  const clientesPorTipo = {
+    advecs: clientes.filter(c => c.tipo_cliente === "ADVECS").length,
+    igreja: clientes.filter(c => c.tipo_cliente === "IGREJA (Não-ADVECS)").length,
+    lojista: clientes.filter(c => c.tipo_cliente === "LOJISTA").length,
+    representante: clientes.filter(c => c.tipo_cliente === "REPRESENTANTE").length,
+    revendedor: clientes.filter(c => c.tipo_cliente === "REVENDEDOR").length,
+    pessoaFisica: clientes.filter(c => c.tipo_cliente === "PESSOA FÍSICA").length,
+  };
 
   const comissaoMes = vendasMes * ((vendedor?.comissao_percentual || 0) / 100);
   const metaMensal = vendedor?.meta_mensal_valor || 0;
@@ -199,7 +215,72 @@ export default function VendedorDashboard() {
         </Card>
       </div>
 
-      {/* KPIs - Row 2: Sales */}
+      {/* Cards de Segmentação por Tipo de Cliente */}
+      <div>
+        <h3 className="text-lg font-semibold mb-4">Segmentação da Carteira</h3>
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <Card className="border-purple-200 dark:border-purple-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium text-purple-700 dark:text-purple-300">ADVECS</CardTitle>
+              <Church className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{clientesPorTipo.advecs}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium text-blue-700 dark:text-blue-300">Igrejas</CardTitle>
+              <Building2 className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{clientesPorTipo.igreja}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-orange-200 dark:border-orange-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium text-orange-700 dark:text-orange-300">Lojistas</CardTitle>
+              <Store className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{clientesPorTipo.lojista}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-teal-200 dark:border-teal-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium text-teal-700 dark:text-teal-300">Representantes</CardTitle>
+              <Handshake className="h-4 w-4 text-teal-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-teal-700 dark:text-teal-300">{clientesPorTipo.representante}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-200 dark:border-amber-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium text-amber-700 dark:text-amber-300">Revendedores</CardTitle>
+              <ShoppingBag className="h-4 w-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{clientesPorTipo.revendedor}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-700">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium text-slate-700 dark:text-slate-300">Pessoa Física</CardTitle>
+              <User className="h-4 w-4 text-slate-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">{clientesPorTipo.pessoaFisica}</div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
