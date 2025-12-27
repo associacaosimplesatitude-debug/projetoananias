@@ -18,6 +18,7 @@ import {
   DollarSign,
   Settings,
   LayoutDashboard,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -85,6 +86,24 @@ function AdminSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Navegação */}
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <RouterNavLink to="/admin">
+                      <ArrowLeft className="h-4 w-4" />
+                      <span>Voltar ao Admin Geral</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
         {/* Visão Geral */}
         <SidebarGroup>
           <SidebarGroupLabel>Visão Geral</SidebarGroupLabel>
