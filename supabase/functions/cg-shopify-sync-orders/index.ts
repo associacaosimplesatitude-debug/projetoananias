@@ -191,7 +191,24 @@ serve(async (req) => {
     console.log(`Total orders fetched: ${allOrders.length}`);
 
     // Process and upsert orders
-    const ordersToUpsert = allOrders.map((order) => {
+    const ordersToUpsert = allOrders.map((order, index) => {
+      // DEBUG: Log raw order JSON for first 3 orders to identify CPF/CNPJ location
+      if (index < 3) {
+        console.log(`=== DEBUG ORDER #${order.name} RAW JSON ===`);
+        console.log(`note_attributes: ${JSON.stringify(order.note_attributes)}`);
+        console.log(`shipping_address: ${JSON.stringify(order.shipping_address)}`);
+        console.log(`customer.default_address: ${JSON.stringify(order.customer?.default_address)}`);
+        // Log the entire order to find hidden fields
+        console.log(`FULL ORDER KEYS: ${Object.keys(order).join(", ")}`);
+        // Check for additional fields that might contain CPF
+        const orderAny = order as any;
+        if (orderAny.note) console.log(`note: ${orderAny.note}`);
+        if (orderAny.attributes) console.log(`attributes: ${JSON.stringify(orderAny.attributes)}`);
+        if (orderAny.custom_attributes) console.log(`custom_attributes: ${JSON.stringify(orderAny.custom_attributes)}`);
+        if (orderAny.tax_lines) console.log(`tax_lines: ${JSON.stringify(orderAny.tax_lines)}`);
+        console.log(`=== END DEBUG ORDER #${order.name} ===`);
+      }
+
       const shippingPrice =
         order.total_shipping_price_set?.shop_money?.amount ||
         order.shipping_lines?.[0]?.price ||
@@ -203,14 +220,57 @@ serve(async (req) => {
 
       const tracking = order.fulfillments?.[0];
 
-      // Extract CPF/CNPJ from note_attributes (common Shopify checkout field)
+      // Extract CPF/CNPJ - check multiple possible locations
       let customerDocument: string | null = null;
-      if (order.note_attributes) {
-        const cpfAttr = order.note_attributes.find(
-          (a) => a.name.toLowerCase() === "cpf" || a.name.toLowerCase() === "cnpj" || a.name.toLowerCase() === "cpf/cnpj" || a.name.toLowerCase() === "documento"
-        );
+      
+      // 1. Check note_attributes (common for checkout apps)
+      if (order.note_attributes && order.note_attributes.length > 0) {
+        const cpfAttr = order.note_attributes.find((a) => {
+          const nameLower = a.name.toLowerCase();
+          return nameLower.includes("cpf") || 
+                 nameLower.includes("cnpj") || 
+                 nameLower.includes("documento") ||
+                 nameLower.includes("document") ||
+                 nameLower.includes("tax") ||
+                 nameLower.includes("nif") ||
+                 nameLower.includes("vat");
+        });
         if (cpfAttr) {
           customerDocument = cpfAttr.value;
+          console.log(`Found CPF/CNPJ in note_attributes for order ${order.name}: ${customerDocument}`);
+        }
+      }
+      
+      // 2. Check address2 field (some stores put CPF there)
+      if (!customerDocument && order.shipping_address?.address2) {
+        const addr2 = order.shipping_address.address2;
+        // Check if address2 looks like a CPF/CNPJ (contains mostly numbers)
+        const numbersOnly = addr2.replace(/\D/g, "");
+        if (numbersOnly.length === 11 || numbersOnly.length === 14) {
+          customerDocument = addr2;
+          console.log(`Found CPF/CNPJ in address2 for order ${order.name}: ${customerDocument}`);
+        }
+      }
+      
+      // 3. Check customer default_address.address2
+      if (!customerDocument && order.customer?.default_address?.address2) {
+        const addr2 = order.customer.default_address.address2;
+        const numbersOnly = addr2.replace(/\D/g, "");
+        if (numbersOnly.length === 11 || numbersOnly.length === 14) {
+          customerDocument = addr2;
+          console.log(`Found CPF/CNPJ in customer.default_address.address2 for order ${order.name}: ${customerDocument}`);
+        }
+      }
+
+      // 4. Check order note field
+      const orderAny = order as any;
+      if (!customerDocument && orderAny.note) {
+        const noteStr = String(orderAny.note);
+        // Try to extract CPF/CNPJ pattern from note
+        const cpfMatch = noteStr.match(/(?:cpf|cnpj|documento)[:\s]*([0-9.\-\/]+)/i);
+        if (cpfMatch) {
+          customerDocument = cpfMatch[1];
+          console.log(`Found CPF/CNPJ in note for order ${order.name}: ${customerDocument}`);
         }
       }
 
