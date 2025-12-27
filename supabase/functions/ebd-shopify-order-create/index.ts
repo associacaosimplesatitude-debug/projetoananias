@@ -23,6 +23,7 @@ interface Cliente {
   endereco_cidade: string | null;
   endereco_estado: string | null;
   vendedor_id?: string | null;
+  tipo_cliente?: string | null;
 }
 
 interface CartItem {
@@ -255,8 +256,33 @@ serve(async (req) => {
       noteAttributes.push({ name: "forma_pagamento", value: "FATURAMENTO" });
     }
 
+    // Adicionar tipo_cliente aos note_attributes para rastreamento
+    if (cliente.tipo_cliente) {
+      noteAttributes.push({ name: "tipo_cliente", value: cliente.tipo_cliente });
+    }
+
     // Build tags - Shopify has a 40 character limit per tag
-    const orderTags = isFaturamento ? "ebd_order,faturamento_b2b" : "ebd_order";
+    // Adicionar tag baseada no tipo_cliente para classificação
+    const tipoClienteTag = cliente.tipo_cliente?.toUpperCase().replace(/[^A-Z]/g, '_') || '';
+    let orderTags = isFaturamento ? "ebd_order,faturamento_b2b" : "ebd_order";
+    
+    // Adicionar tag de classificação baseada no tipo_cliente
+    if (cliente.tipo_cliente) {
+      const tipoUpper = cliente.tipo_cliente.toUpperCase();
+      if (tipoUpper.includes('ADVEC')) {
+        orderTags += ',tipo_advecs';
+      } else if (tipoUpper.includes('IGREJA')) {
+        orderTags += ',tipo_igreja';
+      } else if (tipoUpper.includes('REVENDEDOR')) {
+        orderTags += ',tipo_revendedor';
+      } else if (tipoUpper.includes('LOJISTA')) {
+        orderTags += ',tipo_lojista';
+      } else if (tipoUpper.includes('REPRESENTANTE')) {
+        orderTags += ',tipo_representante';
+      } else if (tipoUpper.includes('PESSOA')) {
+        orderTags += ',tipo_pessoa_fisica';
+      }
+    }
 
     // Build note with faturamento info
     let orderNote = `Pedido criado via EBD - Cliente: ${cliente.nome_igreja}`;
