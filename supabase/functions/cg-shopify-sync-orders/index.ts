@@ -196,16 +196,13 @@ serve(async (req) => {
       if (index < 3) {
         console.log(`=== DEBUG ORDER #${order.name} RAW JSON ===`);
         console.log(`note_attributes: ${JSON.stringify(order.note_attributes)}`);
-        console.log(`shipping_address: ${JSON.stringify(order.shipping_address)}`);
-        console.log(`customer.default_address: ${JSON.stringify(order.customer?.default_address)}`);
-        // Log the entire order to find hidden fields
-        console.log(`FULL ORDER KEYS: ${Object.keys(order).join(", ")}`);
-        // Check for additional fields that might contain CPF
-        const orderAny = order as any;
-        if (orderAny.note) console.log(`note: ${orderAny.note}`);
-        if (orderAny.attributes) console.log(`attributes: ${JSON.stringify(orderAny.attributes)}`);
-        if (orderAny.custom_attributes) console.log(`custom_attributes: ${JSON.stringify(orderAny.custom_attributes)}`);
-        if (orderAny.tax_lines) console.log(`tax_lines: ${JSON.stringify(orderAny.tax_lines)}`);
+        console.log(`billing_address: ${JSON.stringify((order as any).billing_address)}`);
+        console.log(`customer FULL: ${JSON.stringify(order.customer)}`);
+        console.log(`order.note: ${(order as any).note}`);
+        console.log(`order.tags: ${(order as any).tags}`);
+        console.log(`order.phone: ${(order as any).phone}`);
+        // Log metafields if available
+        if ((order as any).metafields) console.log(`metafields: ${JSON.stringify((order as any).metafields)}`);
         console.log(`=== END DEBUG ORDER #${order.name} ===`);
       }
 
