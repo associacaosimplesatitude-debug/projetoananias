@@ -45,6 +45,7 @@ interface ShopifyPedidoCG {
   status_pagamento: string;
   customer_email: string | null;
   customer_name: string | null;
+  customer_document?: string | null;
   valor_total: number;
   valor_frete: number;
   codigo_rastreio: string | null;

@@ -2777,6 +2777,7 @@ export type Database = {
         Row: {
           codigo_rastreio: string | null
           created_at: string
+          customer_document: string | null
           customer_email: string | null
           customer_name: string | null
           id: string
@@ -2792,6 +2793,7 @@ export type Database = {
         Insert: {
           codigo_rastreio?: string | null
           created_at?: string
+          customer_document?: string | null
           customer_email?: string | null
           customer_name?: string | null
           id?: string
@@ -2807,6 +2809,7 @@ export type Database = {
         Update: {
           codigo_rastreio?: string | null
           created_at?: string
+          customer_document?: string | null
           customer_email?: string | null
           customer_name?: string | null
           id?: string
