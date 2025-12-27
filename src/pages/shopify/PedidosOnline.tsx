@@ -149,7 +149,7 @@ export default function PedidosOnline() {
         body: { financial_status: "paid", status: "any" },
       });
       if (error) throw error;
-      return data as { success?: boolean; synced?: number; error?: string };
+      return data as { success?: boolean; synced?: number; error?: string; details?: string };
     },
     onSuccess: (data) => {
       toast.success("Pedidos sincronizados", {
@@ -157,9 +157,16 @@ export default function PedidosOnline() {
       });
       queryClient.invalidateQueries({ queryKey: ["ebd-shopify-pedidos-online"] });
     },
-    onError: (err) => {
+    onError: (err: any) => {
+      console.error("Falha ao sincronizar pedidos (ebd-shopify-sync-orders)", err);
+      const description =
+        err?.context?.body?.error ||
+        err?.context?.body?.details ||
+        err?.message ||
+        "Erro desconhecido";
+
       toast.error("Falha ao sincronizar pedidos", {
-        description: err instanceof Error ? err.message : "Erro desconhecido",
+        description,
       });
     },
   });
