@@ -9,6 +9,17 @@ const corsHeaders = {
 const SHOPIFY_STORE_DOMAIN = "kgg1pq-6r.myshopify.com";
 const SHOPIFY_API_VERSION = "2024-01";
 
+interface ShopifyLineItem {
+  id: number;
+  title: string;
+  variant_title: string | null;
+  quantity: number;
+  price: string;
+  sku: string | null;
+  product_id: number | null;
+  variant_id: number | null;
+}
+
 interface ShopifyOrder {
   id: number;
   name: string;
@@ -32,6 +43,7 @@ interface ShopifyOrder {
     tracking_number?: string;
     tracking_url?: string;
   }>;
+  line_items?: ShopifyLineItem[];
   created_at: string;
 }
 
@@ -140,11 +152,55 @@ serve(async (req) => {
       }
     }
 
+    // Now sync line items for each order
+    let totalItemsSynced = 0;
+    
+    for (const order of allOrders) {
+      if (!order.line_items || order.line_items.length === 0) continue;
+
+      // First, get the pedido_id from our database
+      const { data: pedidoData, error: pedidoError } = await supabase
+        .from("ebd_shopify_pedidos_cg")
+        .select("id")
+        .eq("shopify_order_id", order.id)
+        .single();
+
+      if (pedidoError || !pedidoData) {
+        console.error(`Could not find pedido for shopify_order_id ${order.id}`);
+        continue;
+      }
+
+      const itemsToUpsert = order.line_items.map((item) => ({
+        pedido_id: pedidoData.id,
+        shopify_line_item_id: item.id,
+        product_title: item.title,
+        variant_title: item.variant_title,
+        quantity: item.quantity,
+        price: parseFloat(item.price) || 0,
+        sku: item.sku,
+        shopify_product_id: item.product_id,
+        shopify_variant_id: item.variant_id,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("ebd_shopify_pedidos_cg_itens")
+        .upsert(itemsToUpsert, { onConflict: "shopify_line_item_id" });
+
+      if (itemsError) {
+        console.error(`Error upserting items for order ${order.name}:`, itemsError);
+      } else {
+        totalItemsSynced += itemsToUpsert.length;
+      }
+    }
+
+    console.log(`Total line items synced: ${totalItemsSynced}`);
+
     return new Response(
       JSON.stringify({
         success: true,
         synced: ordersToUpsert.length,
-        message: `Synced ${ordersToUpsert.length} orders from Central Gospel store`,
+        items_synced: totalItemsSynced,
+        message: `Synced ${ordersToUpsert.length} orders and ${totalItemsSynced} line items from Central Gospel store`,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

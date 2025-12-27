@@ -60,7 +60,6 @@ function AdminSidebar() {
   );
 
   const pedidosSubItems = [
-    { to: "/admin/ebd/pedidos-igrejas", icon: Church, label: "Igrejas" },
     { to: "/admin/ebd/pedidos-online", icon: ShoppingBag, label: "Online" },
     { to: "/admin/ebd/pedidos-advecs", icon: Church, label: "ADVECS" },
     { to: "/admin/ebd/pedidos-atacado", icon: Boxes, label: "Atacado" },

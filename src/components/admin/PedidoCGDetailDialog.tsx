@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, User, Mail, MapPin, Phone, Package, Truck, ExternalLink } from "lucide-react";
+import { Loader2, User, Mail, Package, Truck, ExternalLink, ShoppingBag, Church } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -56,6 +57,15 @@ interface EbdCliente {
   status_ativacao_ebd: boolean;
 }
 
+interface PedidoItem {
+  id: string;
+  product_title: string;
+  variant_title: string | null;
+  quantity: number;
+  price: number;
+  sku: string | null;
+}
+
 interface PedidoCGDetailDialogProps {
   pedido: ShopifyPedidoCG | null;
   open: boolean;
@@ -63,7 +73,8 @@ interface PedidoCGDetailDialogProps {
 }
 
 const TIPOS_CLIENTE = [
-  { value: "IGREJA (Não-ADVECS)", label: "IGREJA (Não-ADVECS)" },
+  { value: "Igreja CNPJ", label: "Igreja CNPJ" },
+  { value: "Igreja CPF", label: "Igreja CPF" },
   { value: "IGREJA ADVECS", label: "IGREJA ADVECS" },
   { value: "VAREJO", label: "VAREJO" },
   { value: "LIVRARIA", label: "LIVRARIA" },
@@ -90,6 +101,7 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
 
   const [selectedVendedor, setSelectedVendedor] = useState<string>("");
   const [selectedTipoCliente, setSelectedTipoCliente] = useState<string>("");
+  const [nomeIgreja, setNomeIgreja] = useState<string>("");
 
   // Fetch vendedores
   const { data: vendedores = [] } = useQuery({
@@ -104,6 +116,22 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
       return data as Vendedor[];
     },
     enabled: open && canManage,
+  });
+
+  // Fetch line items for this order
+  const { data: lineItems = [], isLoading: isLoadingItems } = useQuery({
+    queryKey: ["pedido-cg-itens", pedido?.id],
+    queryFn: async () => {
+      if (!pedido?.id) return [];
+      const { data, error } = await supabase
+        .from("ebd_shopify_pedidos_cg_itens")
+        .select("*")
+        .eq("pedido_id", pedido.id)
+        .order("product_title");
+      if (error) throw error;
+      return data as PedidoItem[];
+    },
+    enabled: open && !!pedido?.id,
   });
 
   // Fetch existing client by email
@@ -127,11 +155,13 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
     if (existingCliente) {
       setSelectedVendedor(existingCliente.vendedor_id || "");
       setSelectedTipoCliente(existingCliente.tipo_cliente || "");
+      setNomeIgreja(existingCliente.nome_igreja || "");
     } else {
       setSelectedVendedor("");
       setSelectedTipoCliente("");
+      setNomeIgreja(pedido?.customer_name || "");
     }
-  }, [existingCliente]);
+  }, [existingCliente, pedido]);
 
   // Mutation to create or update cliente
   const saveClienteMutation = useMutation({
@@ -139,7 +169,7 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
       if (!pedido) throw new Error("Pedido não encontrado");
 
       const clienteData = {
-        nome_igreja: pedido.customer_name || "Cliente sem nome",
+        nome_igreja: nomeIgreja || pedido.customer_name || "Cliente sem nome",
         email_superintendente: pedido.customer_email,
         vendedor_id: selectedVendedor || null,
         tipo_cliente: selectedTipoCliente || null,
@@ -150,6 +180,7 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
         const { error } = await supabase
           .from("ebd_clientes")
           .update({
+            nome_igreja: clienteData.nome_igreja,
             vendedor_id: clienteData.vendedor_id,
             tipo_cliente: clienteData.tipo_cliente,
           })
@@ -248,6 +279,49 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
             </div>
           </div>
 
+          {/* Products List */}
+          <Separator />
+          <div className="space-y-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4" />
+              Produtos do Pedido
+            </h3>
+            {isLoadingItems ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando produtos...
+              </div>
+            ) : lineItems.length > 0 ? (
+              <div className="space-y-2">
+                {lineItems.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium">{item.product_title}</p>
+                      {item.variant_title && item.variant_title !== "Default Title" && (
+                        <p className="text-sm text-muted-foreground">{item.variant_title}</p>
+                      )}
+                      {item.sku && (
+                        <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">
+                        {item.quantity}x {item.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Total: {(item.quantity * item.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Nenhum produto encontrado. Sincronize os pedidos para carregar os itens.
+              </p>
+            )}
+          </div>
+
           {/* Tracking Info */}
           {pedido.codigo_rastreio && (
             <>
@@ -280,7 +354,10 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
             <>
               <Separator />
               <div className="space-y-4">
-                <h3 className="font-semibold">Atribuição e Classificação</h3>
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Church className="h-4 w-4" />
+                  Atribuição e Classificação
+                </h3>
 
                 {isLoadingCliente ? (
                   <div className="flex items-center gap-2 text-muted-foreground">
@@ -301,6 +378,19 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
                         )}
                       </div>
                     )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="nome-igreja">Nome da Igreja/Instituição</Label>
+                      <Input
+                        id="nome-igreja"
+                        value={nomeIgreja}
+                        onChange={(e) => setNomeIgreja(e.target.value)}
+                        placeholder="Ex: Igreja Batista da Lagoinha"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Preencha após contato com o cliente
+                      </p>
+                    </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="vendedor">Atribuir Vendedor</Label>
