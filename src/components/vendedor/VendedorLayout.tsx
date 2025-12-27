@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { Outlet, NavLink as RouterNavLink, useLocation } from "react-router-dom";
 import { 
   Users, 
   Clock, 
@@ -9,8 +9,19 @@ import {
   LayoutDashboard,
   Video
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 
 const menuItems = [
   { to: "/vendedor", icon: LayoutDashboard, label: "Painel do Vendedor", end: true },
@@ -20,45 +31,55 @@ const menuItems = [
   { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco" },
   { to: "/vendedor/leads", icon: UserCheck, label: "Reativação" },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
-  { to: "/tutoriais", icon: Video, label: "Tutoriais" },
+  { to: "/vendedor/tutoriais", icon: Video, label: "Tutoriais" },
 ];
 
 export function VendedorLayout() {
-  return (
-    <div className="min-h-screen flex flex-col">
-      {/* Navigation Bar Only */}
-      <header className="border-b bg-background">
-        <nav className="container mx-auto px-4">
-          <div className="flex items-center gap-1 overflow-x-auto py-3">
-            {menuItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )
-                }
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </NavLink>
-            ))}
-            <div className="ml-auto">
-              <UserProfileDropdown />
-            </div>
-          </div>
-        </nav>
-      </header>
+  const location = useLocation();
+  
+  const isActive = (path: string) => {
+    if (path === "/vendedor") {
+      return location.pathname === "/vendedor";
+    }
+    return location.pathname.startsWith(path);
+  };
 
-      {/* Main Content */}
-      <main className="flex-1 container mx-auto p-6">
-        <Outlet />
-      </main>
-    </div>
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        <Sidebar>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupLabel>Vendedor</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {menuItems.map((item) => (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild isActive={isActive(item.to)}>
+                        <RouterNavLink to={item.to} end={item.end}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </RouterNavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+        </Sidebar>
+
+        <div className="flex-1 flex flex-col">
+          <header className="border-b bg-background px-4 py-3 flex items-center justify-between">
+            <SidebarTrigger />
+            <UserProfileDropdown />
+          </header>
+
+          <main className="flex-1 p-6 overflow-auto">
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 }
