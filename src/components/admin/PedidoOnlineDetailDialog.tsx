@@ -64,12 +64,12 @@ interface Vendedor {
 }
 
 const TIPOS_CLIENTE = [
-  "ADVECS",
-  "IGREJA (Não-ADVECS)",
-  "LOJISTA",
-  "REPRESENTANTE",
-  "REVENDEDOR",
-  "PESSOA FÍSICA",
+  { value: "Igreja CNPJ", label: "Igreja CNPJ" },
+  { value: "Igreja CPF", label: "Igreja CPF" },
+  { value: "IGREJA ADVECS", label: "IGREJA ADVECS" },
+  { value: "VAREJO", label: "VAREJO" },
+  { value: "LIVRARIA", label: "LIVRARIA" },
+  { value: "REVENDEDOR", label: "REVENDEDOR" },
 ];
 
 interface PedidoOnlineDetailDialogProps {
@@ -445,8 +445,8 @@ export function PedidoOnlineDetailDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {TIPOS_CLIENTE.map((tipo) => (
-                    <SelectItem key={tipo} value={tipo}>
-                      {tipo}
+                    <SelectItem key={tipo.value} value={tipo.value}>
+                      {tipo.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
