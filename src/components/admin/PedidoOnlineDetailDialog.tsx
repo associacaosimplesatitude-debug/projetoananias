@@ -323,12 +323,12 @@ export function PedidoOnlineDetailDialog({
 
             <div className="space-y-2">
               <Label htmlFor="vendedor">Atribuir Vendedor</Label>
-              <Select value={selectedVendedor} onValueChange={setSelectedVendedor}>
+              <Select value={selectedVendedor || "__none__"} onValueChange={(val) => setSelectedVendedor(val === "__none__" ? "" : val)}>
                 <SelectTrigger id="vendedor">
                   <SelectValue placeholder="Selecione um vendedor" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sem vendedor</SelectItem>
+                  <SelectItem value="__none__">Sem vendedor</SelectItem>
                   {vendedores.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.nome}
