@@ -9,6 +9,22 @@ const corsHeaders = {
 const SHOPIFY_STORE_DOMAIN = "revendacentralgospel.myshopify.com";
 const SHOPIFY_API_VERSION = "2025-01";
 
+type ShopifyAddress = {
+  first_name?: string | null;
+  last_name?: string | null;
+  company?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  province?: string | null;
+  province_code?: string | null;
+  country?: string | null;
+  country_code?: string | null;
+  zip?: string | null;
+  phone?: string | null;
+  name?: string | null;
+};
+
 type ShopifyOrder = {
   id: number;
   name: string;
@@ -16,14 +32,13 @@ type ShopifyOrder = {
   created_at: string;
   updated_at: string;
   email: string | null;
+  phone?: string | null;
   customer: { 
     first_name: string | null; 
     last_name: string | null; 
     email: string | null;
-    default_address?: {
-      company?: string | null;
-    } | null;
-    // Metafields podem conter CPF/CNPJ
+    phone?: string | null;
+    default_address?: ShopifyAddress | null;
     metafield?: { value: string } | null;
   } | null;
   tags: string | null;
@@ -31,15 +46,8 @@ type ShopifyOrder = {
   note?: string | null;
   total_price: string;
   shipping_lines?: Array<{ price: string }>;
-  billing_address?: {
-    company?: string | null;
-    first_name?: string | null;
-    last_name?: string | null;
-  } | null;
-  shipping_address?: {
-    company?: string | null;
-  } | null;
-  // Custom attributes para checkout brasileiro
+  billing_address?: ShopifyAddress | null;
+  shipping_address?: ShopifyAddress | null;
   custom_attributes?: Array<{ name: string; value: string }>;
 };
 
@@ -63,7 +71,23 @@ function getNextPageInfo(linkHeader: string | null): string | null {
   return null;
 }
 
-function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId: string | null; customerDocument: string | null } {
+interface ExtractedData {
+  vendedorId: string | null;
+  clienteId: string | null;
+  customerDocument: string | null;
+  endereco: {
+    rua: string | null;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    estado: string | null;
+    cep: string | null;
+  };
+  telefone: string | null;
+}
+
+function extractOrderData(order: ShopifyOrder): ExtractedData {
   let vendedorId: string | null = null;
   let clienteId: string | null = null;
   let customerDocument: string | null = null;
@@ -80,7 +104,7 @@ function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId
     
     // Busca por diversos nomes possíveis para CPF/CNPJ
     const attrNameLower = (attr?.name || "").toLowerCase().replace(/[_\s]/g, "");
-    const docFields = ["cpf", "cnpj", "cpfcnpj", "document", "taxid", "registroempresa", "registrodaempresa", "documento", "cpf/cnpj"];
+    const docFields = ["cpf", "cnpj", "cpfcnpj", "document", "taxid", "registroempresa", "registrodaempresa", "documento", "cpf/cnpj", "registrodaempresa"];
     if (docFields.some(f => attrNameLower.includes(f)) && attr.value) {
       customerDocument = attr.value;
     }
@@ -95,7 +119,7 @@ function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId
     }
   }
 
-  // 3. Busca no campo "company" dos endereços
+  // 3. Busca no campo "company" dos endereços (comum em checkouts brasileiros)
   if (!customerDocument) {
     const possibleSources = [
       order.billing_address?.company,
@@ -120,10 +144,43 @@ function extractIds(order: ShopifyOrder): { vendedorId: string | null; clienteId
     if (tagMatch) vendedorId = tagMatch[1];
   }
 
-  // Log detalhado para debugging
-  console.log(`Order ${order.name}: document=${customerDocument}, note_attrs=${JSON.stringify(order.note_attributes)}, billing_company=${order.billing_address?.company}`);
+  // Extrai endereço de entrega (prioridade: shipping_address > billing_address > customer.default_address)
+  const addr = order.shipping_address || order.billing_address || order.customer?.default_address || null;
+  
+  // Separa rua e número do address1 (formato comum: "Rua Nome, 123")
+  let rua = addr?.address1 || null;
+  let numero: string | null = null;
+  
+  if (rua) {
+    // Tenta extrair número do final do address1
+    const numeroMatch = rua.match(/,?\s*(\d+[A-Za-z]?)\s*$/);
+    if (numeroMatch) {
+      numero = numeroMatch[1];
+      rua = rua.replace(/,?\s*\d+[A-Za-z]?\s*$/, '').trim();
+    }
+  }
 
-  return { vendedorId, clienteId, customerDocument };
+  // Extrai telefone (prioridade: order.phone > shipping_address.phone > customer.phone)
+  const telefone = order.phone || addr?.phone || order.customer?.phone || null;
+
+  // Log detalhado para debugging
+  console.log(`Order ${order.name}: document=${customerDocument}, phone=${telefone}, address=${JSON.stringify(addr)}, note_attrs=${JSON.stringify(order.note_attributes)}`);
+
+  return {
+    vendedorId,
+    clienteId,
+    customerDocument,
+    endereco: {
+      rua,
+      numero,
+      complemento: addr?.address2 || null,
+      bairro: null, // Shopify não tem campo separado para bairro - pode vir no address2
+      cidade: addr?.city || null,
+      estado: addr?.province_code || addr?.province || null,
+      cep: addr?.zip || null,
+    },
+    telefone,
+  };
 }
 
 serve(async (req) => {
@@ -205,7 +262,7 @@ serve(async (req) => {
     }
 
     const rows = allOrders.map((order) => {
-      const { vendedorId, clienteId, customerDocument } = extractIds(order);
+      const extracted = extractOrderData(order);
 
       const valorFrete = order.shipping_lines && order.shipping_lines.length > 0 ? parseFloat(order.shipping_lines[0].price) : 0;
       const valorTotal = parseFloat(order.total_price);
@@ -218,18 +275,24 @@ serve(async (req) => {
       return {
         shopify_order_id: order.id,
         order_number: order.name,
-        vendedor_id: vendedorId,
-        cliente_id: clienteId,
-        status_pagamento: order.financial_status, // keep canonical Shopify status
+        vendedor_id: extracted.vendedorId,
+        cliente_id: extracted.clienteId,
+        status_pagamento: order.financial_status,
         valor_total: valorTotal,
         valor_frete: valorFrete,
         valor_para_meta: valorParaMeta,
         customer_email: order.email || order.customer?.email || null,
         customer_name: customerName,
-        customer_document: customerDocument,
-        // IMPORTANT: use Shopify's real order date for metrics
+        customer_document: extracted.customerDocument,
+        customer_phone: extracted.telefone,
+        endereco_rua: extracted.endereco.rua,
+        endereco_numero: extracted.endereco.numero,
+        endereco_complemento: extracted.endereco.complemento,
+        endereco_bairro: extracted.endereco.bairro,
+        endereco_cidade: extracted.endereco.cidade,
+        endereco_estado: extracted.endereco.estado,
+        endereco_cep: extracted.endereco.cep,
         order_date: order.created_at,
-        // Keep created_at aligned to the real order date as well (legacy screens still use created_at)
         created_at: order.created_at,
         updated_at: order.updated_at,
       };
