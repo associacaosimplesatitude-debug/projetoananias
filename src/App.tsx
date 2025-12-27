@@ -115,6 +115,8 @@ import PedidosShopee from "./pages/shopify/PedidosShopee";
 import PedidosMercadoLivre from "./pages/shopify/PedidosMercadoLivre";
 import PedidosAdvecs from "./pages/shopify/PedidosAdvecs";
 import PedidosAtacado from "./pages/shopify/PedidosAtacado";
+import PedidosIgrejaCPF from "./pages/shopify/PedidosIgrejaCPF";
+import PedidosIgrejaCNPJ from "./pages/shopify/PedidosIgrejaCNPJ";
 import EBDLogin from "./pages/EBDLogin";
 import LandingEBD from "./pages/LandingEBD";
 import Tutoriais from "./pages/Tutoriais";
@@ -611,6 +613,8 @@ const App = () => (
                       <Route path="aprovacao-faturamento" element={<AprovacaoFaturamento />} />
                       <Route path="pedidos-igrejas" element={<PedidosOnline />} />
                       <Route path="pedidos-online" element={<PedidosCentralGospel />} />
+                      <Route path="pedidos-igreja-cpf" element={<PedidosIgrejaCPF />} />
+                      <Route path="pedidos-igreja-cnpj" element={<PedidosIgrejaCNPJ />} />
                       <Route path="pedidos-advecs" element={<PedidosAdvecs />} />
                       <Route path="pedidos-atacado" element={<PedidosAtacado />} />
                       <Route path="pedidos-amazon" element={<PedidosAmazon />} />
