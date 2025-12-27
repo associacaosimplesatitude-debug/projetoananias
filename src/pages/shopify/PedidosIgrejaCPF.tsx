@@ -122,28 +122,99 @@ export default function PedidosIgrejaCPF() {
   const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
-  const { data: pedidos, isLoading } = useQuery({
-    queryKey: ["ebd-shopify-pedidos-igreja-cpf"],
+  // First fetch all clients with tipo_cliente = 'igreja_cpf' and vendedor assigned
+  const { data: clientesCPF } = useQuery({
+    queryKey: ["ebd-clientes-igreja-cpf"],
     queryFn: async () => {
       const { data, error } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja, email_superintendente, tipo_cliente, vendedor_id, vendedor:vendedores(nome)")
+        .eq("tipo_cliente", "Igreja CPF")
+        .not("vendedor_id", "is", null);
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: pedidos, isLoading } = useQuery({
+    queryKey: ["ebd-shopify-pedidos-igreja-cpf", clientesCPF],
+    queryFn: async () => {
+      if (!clientesCPF || clientesCPF.length === 0) return [];
+
+      // Create a map of emails to clients for quick lookup
+      const emailToClient = new Map<string, typeof clientesCPF[0]>();
+      clientesCPF.forEach(c => {
+        if (c.email_superintendente) {
+          emailToClient.set(c.email_superintendente.toLowerCase(), c);
+        }
+      });
+
+      // Fetch orders from ebd_shopify_pedidos (linked by cliente_id)
+      const { data: pedidosVinculados, error: err1 } = await supabase
         .from("ebd_shopify_pedidos")
-        .select(
-          `
+        .select(`
           *,
           cliente:ebd_clientes(nome_igreja, tipo_cliente, vendedor_id),
           vendedor:vendedores(nome)
-        `
-        )
+        `)
         .neq("status_pagamento", "Faturado")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      
-      // Filter: only orders from clients with tipo_cliente = 'igreja_cpf' AND vendedor_id is not null
-      return (data as ShopifyPedido[])
+      if (err1) throw err1;
+
+      // Fetch orders from Central Gospel table
+      const { data: pedidosCG, error: err2 } = await supabase
+        .from("ebd_shopify_pedidos_cg")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (err2) throw err2;
+
+      // Filter pedidos vinculados by tipo_cliente
+      const filteredVinculados = (pedidosVinculados || [])
         .filter((p) => isPaidStatus(p.status_pagamento))
-        .filter((p) => p.cliente?.tipo_cliente === "igreja_cpf" && p.cliente?.vendedor_id);
+        .filter((p) => p.cliente?.tipo_cliente === "Igreja CPF" && p.cliente?.vendedor_id)
+        .map(p => ({
+          ...p,
+          source: 'ebd_shopify_pedidos' as const,
+        }));
+
+      // Match Central Gospel orders by email with CPF clients
+      const matchedCG = (pedidosCG || [])
+        .filter((p) => isPaidStatus(p.status_pagamento))
+        .filter((p) => {
+          if (!p.customer_email) return false;
+          return emailToClient.has(p.customer_email.toLowerCase());
+        })
+        .map(p => {
+          const cliente = emailToClient.get(p.customer_email!.toLowerCase())!;
+          return {
+            ...p,
+            cliente_id: cliente.id,
+            vendedor_id: cliente.vendedor_id,
+            cliente: {
+              nome_igreja: cliente.nome_igreja,
+              tipo_cliente: cliente.tipo_cliente,
+              vendedor_id: cliente.vendedor_id,
+            },
+            vendedor: cliente.vendedor,
+            valor_para_meta: p.valor_total,
+            source: 'ebd_shopify_pedidos_cg' as const,
+          };
+        });
+
+      // Combine and deduplicate by order_number
+      const allOrders = [...filteredVinculados, ...matchedCG];
+      const seen = new Set<string>();
+      return allOrders.filter(p => {
+        const key = p.order_number;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     },
+    enabled: !!clientesCPF,
   });
 
   const getPedidoDate = (pedido: ShopifyPedido) => pedido.order_date || pedido.created_at;
