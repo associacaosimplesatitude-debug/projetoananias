@@ -53,7 +53,7 @@ export function ClientesParaAtribuirCard() {
 
   const handleClick = () => {
     // Navegar para a página de pedidos online
-    navigate("/admin/ebd/pedidos-igrejas");
+    navigate("/admin/ebd/pedidos-online");
   };
 
   return (
