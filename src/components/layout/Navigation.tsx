@@ -143,10 +143,13 @@ export const Navigation = () => {
   ];
 
   // Links separados para Catálogo (não mais dropdown)
-  const clientCatalogoLinks = [
-    { to: '/ebd/shopify-pedidos', icon: Store, label: 'Catálogo de Produtos' },
-    { to: '/ebd/pedidos', icon: ShoppingBag, label: 'Meus Pedidos' },
-  ];
+  // Para REVENDEDOR, não exibe o link de Catálogo aqui (já está na nav principal)
+  const clientCatalogoLinks = isRevendedor
+    ? [{ to: '/ebd/pedidos', icon: ShoppingBag, label: 'Meus Pedidos' }]
+    : [
+        { to: '/ebd/shopify-pedidos', icon: Store, label: 'Catálogo de Produtos' },
+        { to: '/ebd/pedidos', icon: ShoppingBag, label: 'Meus Pedidos' },
+      ];
 
   const clientNavItems = [
     ...(hasReoboteIgrejas ? [
