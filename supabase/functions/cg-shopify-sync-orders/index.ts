@@ -115,9 +115,10 @@ serve(async (req) => {
     const status = body.status || "any";
     const createdAtMin = body.created_at_min as string | undefined;
     const createdAtMax = body.created_at_max as string | undefined;
+    const syncItems = body.sync_items === true;
 
     console.log(
-      `Syncing orders with financial_status: ${financialStatus}, status: ${status}, created_at_min: ${createdAtMin ?? "-"}, created_at_max: ${createdAtMax ?? "-"}`
+      `Syncing orders with financial_status: ${financialStatus}, status: ${status}, created_at_min: ${createdAtMin ?? "-"}, created_at_max: ${createdAtMax ?? "-"}, sync_items: ${syncItems}`
     );
 
     let allOrders: ShopifyOrder[] = [];
@@ -207,46 +208,50 @@ serve(async (req) => {
       }
     }
 
-    // Now sync line items for each order
+    // Optionally sync line items (can be heavy and trigger gateway 5xx).
     let totalItemsSynced = 0;
-    
-    for (const order of allOrders) {
-      if (!order.line_items || order.line_items.length === 0) continue;
 
-      // First, get the pedido_id from our database
-      const { data: pedidoData, error: pedidoError } = await supabase
-        .from("ebd_shopify_pedidos_cg")
-        .select("id")
-        .eq("shopify_order_id", order.id)
-        .single();
+    if (syncItems) {
+      for (const order of allOrders) {
+        if (!order.line_items || order.line_items.length === 0) continue;
 
-      if (pedidoError || !pedidoData) {
-        console.error(`Could not find pedido for shopify_order_id ${order.id}`);
-        continue;
+        // First, get the pedido_id from our database
+        const { data: pedidoData, error: pedidoError } = await supabase
+          .from("ebd_shopify_pedidos_cg")
+          .select("id")
+          .eq("shopify_order_id", order.id)
+          .single();
+
+        if (pedidoError || !pedidoData) {
+          console.error(`Could not find pedido for shopify_order_id ${order.id}`);
+          continue;
+        }
+
+        const itemsToUpsert = order.line_items.map((item) => ({
+          pedido_id: pedidoData.id,
+          shopify_line_item_id: item.id,
+          product_title: item.title,
+          variant_title: item.variant_title,
+          quantity: item.quantity,
+          price: parseFloat(item.price) || 0,
+          sku: item.sku,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("ebd_shopify_pedidos_cg_itens")
+          .upsert(itemsToUpsert, { onConflict: "shopify_line_item_id" });
+
+        if (itemsError) {
+          console.error(`Error upserting items for order ${order.name}:`, itemsError);
+        } else {
+          totalItemsSynced += itemsToUpsert.length;
+        }
       }
 
-      const itemsToUpsert = order.line_items.map((item) => ({
-        pedido_id: pedidoData.id,
-        shopify_line_item_id: item.id,
-        product_title: item.title,
-        variant_title: item.variant_title,
-        quantity: item.quantity,
-        price: parseFloat(item.price) || 0,
-        sku: item.sku,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("ebd_shopify_pedidos_cg_itens")
-        .upsert(itemsToUpsert, { onConflict: "shopify_line_item_id" });
-
-      if (itemsError) {
-        console.error(`Error upserting items for order ${order.name}:`, itemsError);
-      } else {
-        totalItemsSynced += itemsToUpsert.length;
-      }
+      console.log(`Total line items synced: ${totalItemsSynced}`);
+    } else {
+      console.log("Skipping line items sync (sync_items=false)");
     }
-
-    console.log(`Total line items synced: ${totalItemsSynced}`);
 
     return new Response(
       JSON.stringify({
