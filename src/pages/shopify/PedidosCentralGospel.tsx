@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { RefreshCw, Package, Search, Calendar, Users, DollarSign } from "lucide-react";
+import { RefreshCw, Package, Search, Calendar, Users, DollarSign, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,8 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
+import { PedidoCGDetailDialog } from "@/components/admin/PedidoCGDetailDialog";
+
 type DateFilter = "today" | "7days" | "30days" | "thisMonth" | "custom" | "all";
 
 type CanonicalFinancialStatus = "paid" | "pending" | "refunded" | "voided" | "partially_refunded" | "partially_paid" | "authorized" | "unknown";
@@ -47,22 +49,23 @@ interface ShopifyPedidoCG {
   valor_frete: number;
   codigo_rastreio: string | null;
   url_rastreio: string | null;
-  // created_at is legacy but now will be aligned with the real order date
   created_at: string;
-  // preferred field for the real order date
   order_date?: string | null;
   updated_at: string;
 }
 
 export default function PedidosCentralGospel() {
   const queryClient = useQueryClient();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isGerenteEbd } = useUserRole();
+  const canManage = isAdmin || isGerenteEbd;
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("30days");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
   });
+  const [selectedPedido, setSelectedPedido] = useState<ShopifyPedidoCG | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const syncOrdersMutation = useMutation({
     mutationFn: async () => {
@@ -338,6 +341,7 @@ export default function PedidosCentralGospel() {
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Rastreio</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -350,17 +354,25 @@ export default function PedidosCentralGospel() {
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredPedidos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Nenhum pedido encontrado
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredPedidos.map((pedido) => (
-                    <TableRow key={pedido.id}>
+                    <TableRow 
+                      key={pedido.id} 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => {
+                        setSelectedPedido(pedido);
+                        setDialogOpen(true);
+                      }}
+                    >
                       <TableCell className="font-medium">{pedido.order_number}</TableCell>
                       <TableCell>{formatDate(getPedidoDate(pedido))}</TableCell>
                       <TableCell>
@@ -381,6 +393,7 @@ export default function PedidosCentralGospel() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               {pedido.codigo_rastreio}
                             </a>
@@ -391,6 +404,19 @@ export default function PedidosCentralGospel() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPedido(pedido);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -399,6 +425,13 @@ export default function PedidosCentralGospel() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Detail Dialog */}
+      <PedidoCGDetailDialog
+        pedido={selectedPedido}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </div>
   );
 }
