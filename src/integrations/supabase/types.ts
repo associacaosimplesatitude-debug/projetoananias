@@ -2826,7 +2826,7 @@ export type Database = {
           price: number
           product_title: string
           quantity: number
-          shopify_line_item_id: number | null
+          shopify_line_item_id: number
           sku: string | null
           total_discount: number
           variant_title: string | null
@@ -2838,7 +2838,7 @@ export type Database = {
           price?: number
           product_title: string
           quantity?: number
-          shopify_line_item_id?: number | null
+          shopify_line_item_id: number
           sku?: string | null
           total_discount?: number
           variant_title?: string | null
@@ -2850,7 +2850,7 @@ export type Database = {
           price?: number
           product_title?: string
           quantity?: number
-          shopify_line_item_id?: number | null
+          shopify_line_item_id?: number
           sku?: string | null
           total_discount?: number
           variant_title?: string | null
