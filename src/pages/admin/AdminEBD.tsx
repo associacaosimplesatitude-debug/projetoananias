@@ -1547,6 +1547,7 @@ export default function AdminEBD() {
             vendedores={vendedores || []}
             shopifyOrders={shopifyOrders}
             blingOrders={marketplacePedidos}
+            propostasFaturadas={propostasFaturadasMeta}
           />
 
           {/* Church Progress Cards - Aulas Restantes */}

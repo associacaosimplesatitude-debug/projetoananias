@@ -45,10 +45,22 @@ interface Vendedor {
   meta_mensal_valor: number;
 }
 
+interface PropostaFaturada {
+  id: string;
+  vendedor_id: string | null;
+  valor_total: number;
+  valor_frete: number | null;
+  created_at: string;
+  cliente?: {
+    tipo_cliente: string | null;
+  } | null;
+}
+
 interface VendedoresSummaryCardsProps {
   vendedores: Vendedor[];
   shopifyOrders: any[];
   blingOrders: any[];
+  propostasFaturadas?: PropostaFaturada[];
 }
 
 interface StandardCardProps {
@@ -102,6 +114,7 @@ export function VendedoresSummaryCards({
   vendedores,
   shopifyOrders,
   blingOrders,
+  propostasFaturadas = [],
 }: VendedoresSummaryCardsProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>("month");
   const [customDateRange, setCustomDateRange] = useState<{
@@ -364,6 +377,23 @@ export function VendedoresSummaryCards({
       }
     });
 
+    // Process Propostas Faturadas
+    propostasFaturadas.forEach(proposta => {
+      if (!proposta.vendedor_id) return;
+      
+      const propostaDate = proposta.created_at ? parseISO(proposta.created_at) : null;
+      if (!propostaDate) return;
+
+      const vendedorData = vendedorSales.get(proposta.vendedor_id);
+      if (!vendedorData) return;
+
+      if (isWithinInterval(propostaDate, { start: dateRange.start, end: dateRange.end })) {
+        // Valor para meta = valor_total - valor_frete
+        const valorParaMeta = Number(proposta.valor_total || 0) - Number(proposta.valor_frete || 0);
+        vendedorData.vendas += valorParaMeta;
+      }
+    });
+
     // Convert to array and calculate metrics
     const ranking = Array.from(vendedorSales.values()).map(data => {
       const meta = data.vendedor.meta_mensal_valor || 0;
@@ -386,7 +416,7 @@ export function VendedoresSummaryCards({
 
     // Sort by vendas descending
     return ranking.sort((a, b) => b.vendas - a.vendas);
-  }, [vendedores, shopifyOrders, dateRange, dateFilter]);
+  }, [vendedores, shopifyOrders, propostasFaturadas, dateRange, dateFilter]);
 
   const getRankIcon = (index: number) => {
     if (index === 0) return <Trophy className="h-5 w-5 text-yellow-500" />;
