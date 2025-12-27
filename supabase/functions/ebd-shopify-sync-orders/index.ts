@@ -23,8 +23,8 @@ type ShopifyOrder = {
     default_address?: {
       company?: string | null;
     } | null;
+    // Metafields podem conter CPF/CNPJ
     metafield?: { value: string } | null;
-    metafields?: Array<{ key: string; value: string }>;
   } | null;
   tags: string | null;
   note_attributes?: Array<{ name: string; value: string }>;
@@ -39,12 +39,8 @@ type ShopifyOrder = {
   shipping_address?: {
     company?: string | null;
   } | null;
+  // Custom attributes para checkout brasileiro
   custom_attributes?: Array<{ name: string; value: string }>;
-  // Para lojas brasileiras, CPF/CNPJ pode estar em buyer_accepts_marketing ou tax_lines
-  tax_lines?: Array<{ title?: string; rate?: number }>;
-  // Novos campos para checkout brasileiro
-  checkout_id?: number;
-  order_status_url?: string;
 };
 
 function getNextPageInfo(linkHeader: string | null): string | null {
@@ -173,12 +169,6 @@ serve(async (req) => {
       if (pageInfo) url.searchParams.set("page_info", pageInfo);
 
       console.log("Fetching orders page", { i, pageInfo });
-
-      // Adiciona fields extras para pegar note_attributes
-      const fieldsParam = "id,name,financial_status,created_at,updated_at,email,customer,tags,note_attributes,note,total_price,shipping_lines,billing_address,shipping_address";
-      if (!pageInfo) {
-        url.searchParams.set("fields", fieldsParam);
-      }
 
       const resp = await fetch(url.toString(), {
         method: "GET",
