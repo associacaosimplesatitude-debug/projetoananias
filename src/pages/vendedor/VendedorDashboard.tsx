@@ -64,7 +64,7 @@ export default function VendedorDashboard() {
         .from("vendedor_propostas")
         .select("valor_total, valor_frete")
         .eq("vendedor_id", vendedor.id)
-        .eq("status", "FATURADO")
+        .in("status", ["FATURADO", "PAGO"])
         .gte("created_at", inicioMes)
         .lte("created_at", fimMes);
       
