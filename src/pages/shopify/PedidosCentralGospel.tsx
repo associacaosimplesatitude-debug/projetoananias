@@ -110,13 +110,32 @@ export default function PedidosCentralGospel() {
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["shopify-pedidos-cg"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Busca todos os pedidos CG
+      const { data: allPedidos, error: pedidosError } = await supabase
         .from("ebd_shopify_pedidos_cg")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      return (data || []) as ShopifyPedidoCG[];
+      if (pedidosError) throw pedidosError;
+
+      // Busca emails de clientes EBD vinculados para excluí-los
+      const { data: clientes } = await supabase
+        .from("ebd_clientes")
+        .select("email_superintendente")
+        .not("email_superintendente", "is", null);
+
+      const clienteEmails = new Set(
+        (clientes || [])
+          .map((c) => c.email_superintendente?.toLowerCase())
+          .filter(Boolean)
+      );
+
+      // Exclui pedidos cujo email corresponde a um cliente EBD
+      const pedidosFiltrados = (allPedidos || []).filter(
+        (p) => !p.customer_email || !clienteEmails.has(p.customer_email.toLowerCase())
+      );
+
+      return pedidosFiltrados as ShopifyPedidoCG[];
     },
   });
 

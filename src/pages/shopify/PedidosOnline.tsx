@@ -192,6 +192,7 @@ export default function PedidosOnline() {
     queryKey: ["ebd-shopify-pedidos-online"],
     queryFn: async () => {
       // "Pedidos Online" = pedidos pagos (Shopify) e não inclui fluxo B2B/Blíng (status "Faturado")
+      // Também exclui pedidos já vinculados a clientes (cliente_id não nulo)
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select(
@@ -202,6 +203,7 @@ export default function PedidosOnline() {
         `
         )
         .neq("status_pagamento", "Faturado")
+        .is("cliente_id", null)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
