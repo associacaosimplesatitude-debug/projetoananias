@@ -68,6 +68,14 @@ interface EbdCliente {
   status_ativacao_ebd: boolean;
   cpf?: string | null;
   cnpj?: string | null;
+  nome_responsavel?: string | null;
+  endereco_rua?: string | null;
+  endereco_numero?: string | null;
+  endereco_complemento?: string | null;
+  endereco_bairro?: string | null;
+  endereco_cidade?: string | null;
+  endereco_estado?: string | null;
+  endereco_cep?: string | null;
 }
 
 interface PedidoItem {
@@ -181,26 +189,79 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
     mutationFn: async () => {
       if (!pedido) throw new Error("Pedido não encontrado");
 
+      // Determinar se é CPF ou CNPJ com base no tamanho do documento
+      const documento = pedido.customer_document?.replace(/\D/g, "") || null;
+      const isCnpj = documento && documento.length === 14;
+      const isCpf = documento && documento.length === 11;
+
       const clienteData = {
         nome_igreja: nomeIgreja || pedido.customer_name || "Cliente sem nome",
         email_superintendente: pedido.customer_email,
         vendedor_id: selectedVendedor || null,
         tipo_cliente: selectedTipoCliente || null,
+        // Campos de endereço do pedido
+        endereco_rua: pedido.endereco_rua || null,
+        endereco_numero: pedido.endereco_numero || null,
+        endereco_complemento: pedido.endereco_complemento || null,
+        endereco_bairro: pedido.endereco_bairro || null,
+        endereco_cidade: pedido.endereco_cidade || null,
+        endereco_estado: pedido.endereco_estado || null,
+        endereco_cep: pedido.endereco_cep || null,
+        // Telefone como responsável (do pedido)
+        telefone: pedido.endereco_telefone || null,
+        nome_responsavel: pedido.endereco_nome || pedido.customer_name || null,
+        // CPF/CNPJ
+        cnpj: isCnpj ? pedido.customer_document : null,
+        cpf: isCpf ? pedido.customer_document : null,
       };
 
       if (existingCliente) {
-        // Update existing cliente
+        // Update existing cliente - preencher campos vazios
+        const updateData: Record<string, any> = {
+          nome_igreja: clienteData.nome_igreja,
+          vendedor_id: clienteData.vendedor_id,
+          tipo_cliente: clienteData.tipo_cliente,
+        };
+        
+        // Só atualiza campos se estiverem vazios no cliente existente ou se tivermos dados novos
+        if (clienteData.endereco_cidade && !existingCliente.endereco_cidade) {
+          updateData.endereco_cidade = clienteData.endereco_cidade;
+        }
+        if (clienteData.endereco_estado && !existingCliente.endereco_estado) {
+          updateData.endereco_estado = clienteData.endereco_estado;
+        }
+        if (clienteData.endereco_cep && !existingCliente.endereco_cep) {
+          updateData.endereco_cep = clienteData.endereco_cep;
+        }
+        if (clienteData.endereco_rua && !existingCliente.endereco_rua) {
+          updateData.endereco_rua = clienteData.endereco_rua;
+        }
+        if (clienteData.endereco_numero && !existingCliente.endereco_numero) {
+          updateData.endereco_numero = clienteData.endereco_numero;
+        }
+        if (clienteData.endereco_bairro && !existingCliente.endereco_bairro) {
+          updateData.endereco_bairro = clienteData.endereco_bairro;
+        }
+        if (clienteData.nome_responsavel && !existingCliente.nome_responsavel) {
+          updateData.nome_responsavel = clienteData.nome_responsavel;
+        }
+        if (clienteData.telefone && !existingCliente.telefone) {
+          updateData.telefone = clienteData.telefone;
+        }
+        if (clienteData.cnpj && !existingCliente.cnpj) {
+          updateData.cnpj = clienteData.cnpj;
+        }
+        if (clienteData.cpf && !existingCliente.cpf) {
+          updateData.cpf = clienteData.cpf;
+        }
+
         const { error } = await supabase
           .from("ebd_clientes")
-          .update({
-            nome_igreja: clienteData.nome_igreja,
-            vendedor_id: clienteData.vendedor_id,
-            tipo_cliente: clienteData.tipo_cliente,
-          })
+          .update(updateData)
           .eq("id", existingCliente.id);
         if (error) throw error;
       } else {
-        // Create new cliente
+        // Create new cliente with all data
         const { error } = await supabase.from("ebd_clientes").insert(clienteData);
         if (error) throw error;
       }

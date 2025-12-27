@@ -170,6 +170,24 @@ export function PedidoOnlineDetailDialog({
           const updateData: Record<string, any> = {};
           if (selectedTipoCliente) updateData.tipo_cliente = selectedTipoCliente;
           if (selectedVendedor) updateData.vendedor_id = selectedVendedor;
+          
+          // Preencher campos de endereço e documento se vazios
+          if (pedido.endereco_cidade) updateData.endereco_cidade = pedido.endereco_cidade;
+          if (pedido.endereco_estado) updateData.endereco_estado = pedido.endereco_estado;
+          if (pedido.endereco_cep) updateData.endereco_cep = pedido.endereco_cep;
+          if (pedido.endereco_rua) updateData.endereco_rua = pedido.endereco_rua;
+          if (pedido.endereco_numero) updateData.endereco_numero = pedido.endereco_numero;
+          if (pedido.endereco_bairro) updateData.endereco_bairro = pedido.endereco_bairro;
+          if (pedido.customer_name) updateData.nome_responsavel = pedido.customer_name;
+          if (pedido.customer_phone) updateData.telefone = pedido.customer_phone;
+          
+          // CPF/CNPJ
+          const documento = pedido.customer_document?.replace(/\D/g, "") || null;
+          if (documento && documento.length === 14) {
+            updateData.cnpj = pedido.customer_document;
+          } else if (documento && documento.length === 11) {
+            updateData.cpf = pedido.customer_document;
+          }
 
           if (Object.keys(updateData).length > 0) {
             const { error } = await supabase
@@ -186,7 +204,12 @@ export function PedidoOnlineDetailDialog({
             .eq("id", pedido.id);
           if (linkError) throw linkError;
         } else {
-          // Create new cliente
+          // Determinar CPF/CNPJ
+          const documento = pedido.customer_document?.replace(/\D/g, "") || null;
+          const isCnpj = documento && documento.length === 14;
+          const isCpf = documento && documento.length === 11;
+
+          // Create new cliente with all data from pedido
           const { data: newCliente, error: createError } = await supabase
             .from("ebd_clientes")
             .insert({
@@ -195,6 +218,17 @@ export function PedidoOnlineDetailDialog({
               tipo_cliente: selectedTipoCliente || "PESSOA FÍSICA",
               vendedor_id: selectedVendedor || null,
               status_ativacao_ebd: false,
+              // Campos de endereço
+              endereco_rua: pedido.endereco_rua || null,
+              endereco_numero: pedido.endereco_numero || null,
+              endereco_bairro: pedido.endereco_bairro || null,
+              endereco_cidade: pedido.endereco_cidade || null,
+              endereco_estado: pedido.endereco_estado || null,
+              endereco_cep: pedido.endereco_cep || null,
+              nome_responsavel: pedido.customer_name || null,
+              telefone: pedido.customer_phone || null,
+              cnpj: isCnpj ? pedido.customer_document : null,
+              cpf: isCpf ? pedido.customer_document : null,
             })
             .select("id")
             .single();
