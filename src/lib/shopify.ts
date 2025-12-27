@@ -2,7 +2,7 @@
 export const SHOPIFY_API_VERSION = '2025-07';
 export const SHOPIFY_STORE_PERMANENT_DOMAIN = 'kgg1pq-6r.myshopify.com';
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_STOREFRONT_TOKEN = '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';
+export const SHOPIFY_STOREFRONT_TOKEN = 'c78c16b4700e0976119b0f8c6a3b129f';
 
 export interface ShopifyProduct {
   node: {
