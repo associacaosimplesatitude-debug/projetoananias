@@ -48,6 +48,25 @@ export const Navigation = () => {
     enabled: !!user?.id,
   });
 
+  // Check if current user is a REVENDEDOR (from ebd_clientes)
+  const { data: ebdClienteTipo } = useQuery({
+    queryKey: ["ebd-cliente-tipo-nav", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("ebd_clientes")
+        .select("tipo_cliente")
+        .eq("superintendente_user_id", user.id)
+        .eq("status_ativacao_ebd", true)
+        .maybeSingle();
+      if (error) return null;
+      return data?.tipo_cliente ?? null;
+    },
+    enabled: !!user?.id,
+  });
+
+  const isRevendedor = ebdClienteTipo === 'REVENDEDOR';
+
   // Get church ID for EBD registration
   const { data: churchData } = useQuery({
     queryKey: ["user-church-nav", user?.id],
@@ -87,11 +106,17 @@ export const Navigation = () => {
 
   // EBD-only navigation items
   const ebdOnlyNavItems = [
-    {
-      to: '/ebd/dashboard',
-      icon: LayoutDashboard,
-      label: 'Dashboard',
-    },
+    isRevendedor
+      ? {
+          to: '/ebd/shopify-pedidos',
+          icon: Store,
+          label: 'Catálogo de Produtos',
+        }
+      : {
+          to: '/ebd/dashboard',
+          icon: LayoutDashboard,
+          label: 'Dashboard',
+        },
   ];
 
   const ebdMembrosDropdown = [
@@ -144,9 +169,9 @@ export const Navigation = () => {
     ] : []),
     ...(activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD ? [
       {
-        to: '/ebd/dashboard',
-        icon: LayoutDashboard,
-        label: 'Dashboard EBD',
+        to: isRevendedor ? '/ebd/shopify-pedidos' : '/ebd/dashboard',
+        icon: isRevendedor ? Store : LayoutDashboard,
+        label: isRevendedor ? 'Catálogo de Produtos' : 'Dashboard EBD',
       },
     ] : []),
   ];
@@ -405,7 +430,7 @@ export const Navigation = () => {
               )}
               
               {/* EBD Membros e Turmas Dropdown */}
-              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+              {!isRevendedor && (hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger 
                     className={cn(
@@ -439,7 +464,7 @@ export const Navigation = () => {
               )}
 
               {/* EBD Planejamento Dropdown */}
-              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+              {!isRevendedor && (hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger 
                     className={cn(
@@ -465,7 +490,7 @@ export const Navigation = () => {
               )}
 
               {/* EBD Acompanhamento Dropdown */}
-              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+              {!isRevendedor && (hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger 
                     className={cn(
@@ -524,7 +549,7 @@ export const Navigation = () => {
               )}
 
               {/* Admin - Botão Direto */}
-              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+              {!isRevendedor && (hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
                 <>
                   <style>
                     {`
@@ -550,7 +575,7 @@ export const Navigation = () => {
               )}
 
               {/* Tutoriais - para todos os perfis EBD */}
-              {(hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
+              {!isRevendedor && (hasOnlyReoboteEBD || (activeModules?.includes('REOBOTE EBD') && !hasOnlyReoboteEBD)) && (
                 <>
                   <style>
                     {`
