@@ -111,14 +111,14 @@ export default function VendedorDashboard() {
     return diasSemLogin > 30;
   });
 
-  // Contagem por tipo de cliente
+  // Contagem por tipo de cliente (novos tipos padronizados)
   const clientesPorTipo = {
-    advecs: clientes.filter(c => c.tipo_cliente === "ADVECS").length,
-    igreja: clientes.filter(c => c.tipo_cliente === "IGREJA (Não-ADVECS)").length,
-    lojista: clientes.filter(c => c.tipo_cliente === "LOJISTA").length,
-    representante: clientes.filter(c => c.tipo_cliente === "REPRESENTANTE").length,
-    revendedor: clientes.filter(c => c.tipo_cliente === "REVENDEDOR").length,
-    pessoaFisica: clientes.filter(c => c.tipo_cliente === "PESSOA FÍSICA").length,
+    igrejaCnpj: clientes.filter(c => c.tipo_cliente === "Igreja CNPJ").length,
+    igrejaCpf: clientes.filter(c => c.tipo_cliente === "Igreja CPF").length,
+    igrejaAdvecs: clientes.filter(c => c.tipo_cliente === "IGREJA ADVECS" || c.tipo_cliente === "ADVECS").length,
+    varejo: clientes.filter(c => c.tipo_cliente === "VAREJO" || c.tipo_cliente === "LOJISTA").length,
+    livraria: clientes.filter(c => c.tipo_cliente === "LIVRARIA").length,
+    revendedor: clientes.filter(c => c.tipo_cliente === "REVENDEDOR" || c.tipo_cliente === "REPRESENTANTE" || c.tipo_cliente === "PESSOA FÍSICA").length,
   };
 
   const comissaoMes = vendasMes * ((vendedor?.comissao_percentual || 0) / 100);
@@ -220,63 +220,63 @@ export default function VendedorDashboard() {
       <div>
         <h3 className="text-lg font-semibold mb-4">Segmentação da Carteira</h3>
         <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-          <Card className="border-purple-200 dark:border-purple-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium text-purple-700 dark:text-purple-300">ADVECS</CardTitle>
-              <Church className="h-4 w-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{clientesPorTipo.advecs}</div>
-            </CardContent>
-          </Card>
-
           <Card className="border-blue-200 dark:border-blue-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium text-blue-700 dark:text-blue-300">Igrejas</CardTitle>
+              <CardTitle className="text-xs font-medium text-blue-700 dark:text-blue-300">Igreja CNPJ</CardTitle>
               <Building2 className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{clientesPorTipo.igreja}</div>
+              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{clientesPorTipo.igrejaCnpj}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-cyan-200 dark:border-cyan-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium text-cyan-700 dark:text-cyan-300">Igreja CPF</CardTitle>
+              <User className="h-4 w-4 text-cyan-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-cyan-700 dark:text-cyan-300">{clientesPorTipo.igrejaCpf}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-purple-200 dark:border-purple-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-xs font-medium text-purple-700 dark:text-purple-300">IGREJA ADVECS</CardTitle>
+              <Church className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{clientesPorTipo.igrejaAdvecs}</div>
             </CardContent>
           </Card>
 
           <Card className="border-orange-200 dark:border-orange-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium text-orange-700 dark:text-orange-300">Lojistas</CardTitle>
+              <CardTitle className="text-xs font-medium text-orange-700 dark:text-orange-300">VAREJO</CardTitle>
               <Store className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{clientesPorTipo.lojista}</div>
+              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{clientesPorTipo.varejo}</div>
             </CardContent>
           </Card>
 
-          <Card className="border-teal-200 dark:border-teal-800">
+          <Card className="border-emerald-200 dark:border-emerald-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium text-teal-700 dark:text-teal-300">Representantes</CardTitle>
-              <Handshake className="h-4 w-4 text-teal-500" />
+              <CardTitle className="text-xs font-medium text-emerald-700 dark:text-emerald-300">LIVRARIA</CardTitle>
+              <ShoppingBag className="h-4 w-4 text-emerald-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-teal-700 dark:text-teal-300">{clientesPorTipo.representante}</div>
+              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{clientesPorTipo.livraria}</div>
             </CardContent>
           </Card>
 
           <Card className="border-amber-200 dark:border-amber-800">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium text-amber-700 dark:text-amber-300">Revendedores</CardTitle>
-              <ShoppingBag className="h-4 w-4 text-amber-500" />
+              <CardTitle className="text-xs font-medium text-amber-700 dark:text-amber-300">REVENDEDOR</CardTitle>
+              <Handshake className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{clientesPorTipo.revendedor}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200 dark:border-slate-700">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium text-slate-700 dark:text-slate-300">Pessoa Física</CardTitle>
-              <User className="h-4 w-4 text-slate-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">{clientesPorTipo.pessoaFisica}</div>
             </CardContent>
           </Card>
         </div>
