@@ -6,7 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SHOPIFY_STORE = "kgg1pq-6r.myshopify.com";
+// IMPORTANT: This project Shopify connector is linked to this store domain.
+const SHOPIFY_STORE = "revendacentralgospel.myshopify.com";
 const SHOPIFY_API_VERSION = "2025-07";
 
 interface Cliente {
@@ -39,9 +40,9 @@ serve(async (req) => {
   }
 
   try {
-    // Use SHOPIFY_ACCESS_TOKEN managed by Lovable connector for kgg1pq-6r.myshopify.com
+    // Use SHOPIFY_ACCESS_TOKEN managed by Lovable Shopify connector
     const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
-    
+
     if (!SHOPIFY_ACCESS_TOKEN) {
       console.error("SHOPIFY_ACCESS_TOKEN not configured");
       return new Response(
@@ -49,6 +50,8 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log("Shopify store:", SHOPIFY_STORE, "API:", SHOPIFY_API_VERSION);
 
     // Get vendedor_id from request body or from authenticated user
     const { 
