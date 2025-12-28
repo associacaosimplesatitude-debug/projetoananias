@@ -6,8 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SHOPIFY_STORE = "revendacentralgospel.myshopify.com";
-const SHOPIFY_API_VERSION = "2025-01";
+const SHOPIFY_STORE = "kgg1pq-6r.myshopify.com";
+const SHOPIFY_API_VERSION = "2025-07";
 
 interface Cliente {
   id: string;
@@ -384,9 +384,21 @@ serve(async (req) => {
     if (!draftOrderResponse.ok) {
       const errorText = await draftOrderResponse.text();
       console.error("Failed to create draft order:", errorText);
+
+      const isUnavailable =
+        errorText.toLowerCase().includes("no longer available") ||
+        errorText.toLowerCase().includes("not available") ||
+        errorText.toLowerCase().includes("out of stock");
+
       return new Response(
-        JSON.stringify({ error: "Falha ao criar pedido no Shopify", details: errorText }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: isUnavailable
+            ? "Um ou mais produtos do carrinho não estão mais disponíveis no Shopify. Remova o item e tente novamente."
+            : "Falha ao criar pedido no Shopify",
+          errorType: isUnavailable ? "PRODUCT_UNAVAILABLE" : "SHOPIFY_ERROR",
+          details: errorText,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
