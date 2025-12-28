@@ -6,8 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SHOPIFY_STORE = "revendacentralgospel.myshopify.com";
-const SHOPIFY_API_VERSION = "2025-01";
+const SHOPIFY_STORE = "kgg1pq-6r.myshopify.com";
+const SHOPIFY_API_VERSION = "2025-07";
 
 interface Cliente {
   id: string;
@@ -39,10 +39,11 @@ serve(async (req) => {
   }
 
   try {
-    const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN");
+    // Use SHOPIFY_ACCESS_TOKEN managed by Lovable connector for kgg1pq-6r.myshopify.com
+    const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
     
     if (!SHOPIFY_ACCESS_TOKEN) {
-      console.error("SHOPIFY_ADMIN_ACCESS_TOKEN not configured");
+      console.error("SHOPIFY_ACCESS_TOKEN not configured");
       return new Response(
         JSON.stringify({ error: "Shopify not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
