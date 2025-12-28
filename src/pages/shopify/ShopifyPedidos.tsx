@@ -737,9 +737,21 @@ export default function ShopifyPedidos() {
         try {
           // Try to parse if it's a JSON string
           const parsed = JSON.parse(error.message);
-          errorMessage = parsed.error || error.message;
+          const detailsStr = parsed.details || '';
+          
+          // Check for product unavailable errors
+          if (detailsStr.includes('no longer available') || detailsStr.includes('not available')) {
+            errorMessage = 'Um ou mais produtos no carrinho não estão mais disponíveis. Por favor, remova os itens indisponíveis e tente novamente.';
+          } else {
+            errorMessage = parsed.error || error.message;
+          }
         } catch {
-          errorMessage = error.message;
+          // Check for product unavailable in plain message
+          if (error.message.includes('no longer available') || error.message.includes('não estão mais disponíveis')) {
+            errorMessage = 'Um ou mais produtos no carrinho não estão mais disponíveis. Por favor, remova os itens indisponíveis e tente novamente.';
+          } else {
+            errorMessage = error.message;
+          }
         }
       }
       toast.error(errorMessage, { duration: 8000 });

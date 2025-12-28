@@ -280,7 +280,19 @@ export async function createStorefrontCheckout(items: CartItem[], buyerInfo?: Bu
   const cartData = await storefrontApiRequest(CART_CREATE_MUTATION, { input });
 
   if (cartData.data.cartCreate.userErrors.length > 0) {
-    throw new Error(`Cart creation failed: ${cartData.data.cartCreate.userErrors.map((e: { message: string }) => e.message).join(', ')}`);
+    const errorMessages = cartData.data.cartCreate.userErrors.map((e: { message: string }) => e.message);
+    // Check for common Shopify errors and translate to user-friendly messages
+    const hasUnavailableProduct = errorMessages.some((msg: string) => 
+      msg.toLowerCase().includes('no longer available') || 
+      msg.toLowerCase().includes('not available') ||
+      msg.toLowerCase().includes('out of stock')
+    );
+    
+    if (hasUnavailableProduct) {
+      throw new Error('Um ou mais produtos no carrinho não estão mais disponíveis. Por favor, remova os itens indisponíveis e tente novamente.');
+    }
+    
+    throw new Error(`Erro ao criar carrinho: ${errorMessages.join(', ')}`);
   }
 
   const cart = cartData.data.cartCreate.cart;
