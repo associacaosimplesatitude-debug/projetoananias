@@ -6,8 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SHOPIFY_STORE = "kgg1pq-6r.myshopify.com";
-const SHOPIFY_API_VERSION = "2025-07";
+const SHOPIFY_STORE = "revendacentralgospel.myshopify.com";
+const SHOPIFY_API_VERSION = "2025-01";
 
 interface Cliente {
   id: string;
