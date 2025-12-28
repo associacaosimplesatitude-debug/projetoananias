@@ -6,8 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// IMPORTANT: This project Shopify connector is linked to this store domain.
-const SHOPIFY_STORE = "revendacentralgospel.myshopify.com";
+// LOJA CORRETA - kgg1pq-6r.myshopify.com
+const SHOPIFY_STORE = "kgg1pq-6r.myshopify.com";
 const SHOPIFY_API_VERSION = "2025-07";
 
 interface Cliente {
@@ -40,8 +40,8 @@ serve(async (req) => {
   }
 
   try {
-    // Use SHOPIFY_ACCESS_TOKEN managed by Lovable Shopify connector
-    const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
+    // Token para loja kgg1pq-6r.myshopify.com
+    const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN");
 
     if (!SHOPIFY_ACCESS_TOKEN) {
       console.error("SHOPIFY_ACCESS_TOKEN not configured");
