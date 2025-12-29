@@ -547,17 +547,59 @@ serve(async (req) => {
       );
     }
 
-    // For normal orders, return proper checkout URL
-    // The invoice_url is the checkout URL for the draft order
-    // Append channel=online_store to ensure proper checkout access
-    let checkoutUrl = draftOrder.invoice_url;
-    
-    if (checkoutUrl) {
-      // Ensure the URL has the online_store channel parameter
-      const url = new URL(checkoutUrl);
-      url.searchParams.set('channel', 'online_store');
-      checkoutUrl = url.toString();
-      console.log("Checkout URL generated:", checkoutUrl);
+    // For normal orders, resolve the FINAL checkout URL (must be /checkouts/...) from the invoice URL.
+    // Shopify draft orders provide an invoice URL which often redirects (e.g., /invoices/... -> /checkouts/do/... -> /checkouts/...).
+    const invoiceUrlRaw = draftOrder.invoice_url;
+
+    const resolveFinalCheckoutUrl = async (startUrl: string) => {
+      let current = new URL(startUrl);
+
+      // follow a few redirects manually to get the final /checkouts/... URL
+      for (let i = 0; i < 6; i++) {
+        const res = await fetch(current.toString(), {
+          method: "GET",
+          redirect: "manual",
+          headers: {
+            // Make sure Shopify returns the same redirect chain as a browser
+            "User-Agent": "Mozilla/5.0 (DraftOrderCheckoutResolver)",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          },
+        });
+
+        const isRedirect = res.status >= 300 && res.status < 400;
+        if (!isRedirect) return current.toString();
+
+        const location = res.headers.get("location");
+        if (!location) return current.toString();
+
+        // Location may be relative
+        current = new URL(location, current.origin);
+
+        // If we reached /checkouts/<token>, stop early
+        if (current.pathname.includes("/checkouts/") && !current.pathname.includes("/checkouts/do")) {
+          return current.toString();
+        }
+      }
+
+      return current.toString();
+    };
+
+    let checkoutUrl: string | null = null;
+
+    if (invoiceUrlRaw) {
+      try {
+        const resolved = await resolveFinalCheckoutUrl(invoiceUrlRaw);
+        const url = new URL(resolved);
+        url.searchParams.set("channel", "online_store");
+        checkoutUrl = url.toString();
+        console.log("Checkout URL resolved:", checkoutUrl);
+      } catch (e) {
+        console.warn("Failed to resolve final checkout URL. Falling back to invoice_url.", e);
+        const url = new URL(invoiceUrlRaw);
+        url.searchParams.set("channel", "online_store");
+        checkoutUrl = url.toString();
+        console.log("Checkout URL fallback (invoice_url):", checkoutUrl);
+      }
     } else {
       console.warn("No invoice_url returned from draft order:", draftOrder.id);
     }
