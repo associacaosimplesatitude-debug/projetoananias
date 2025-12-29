@@ -214,6 +214,31 @@ export function SalesChannelCards({
       (o) => o.status_pagamento === "paid" || o.status_pagamento === "Pago" || o.status_pagamento === "Faturado"
     );
 
+    // Separar pedidos de igrejas por tipo: CNPJ, CPF e Lojistas
+    const igrejasCNPJOrders = paidShopifyOrders.filter((o) => {
+      const cnpj = o.cliente?.cnpj;
+      const tipoCliente = o.cliente?.tipo_cliente;
+      return cnpj && cnpj.trim() !== '' && tipoCliente !== 'Lojista';
+    });
+    const igrejasCPFOrders = paidShopifyOrders.filter((o) => {
+      const cnpj = o.cliente?.cnpj;
+      const tipoCliente = o.cliente?.tipo_cliente;
+      return (!cnpj || cnpj.trim() === '') && tipoCliente !== 'Lojista';
+    });
+    const lojistasOrders = paidShopifyOrders.filter((o) => {
+      const tipoCliente = o.cliente?.tipo_cliente;
+      return tipoCliente === 'Lojista';
+    });
+
+    const igrejasCNPJFiltered = filterByRange(igrejasCNPJOrders);
+    const valorIgrejasCNPJ = igrejasCNPJFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    
+    const igrejasCPFFiltered = filterByRange(igrejasCPFOrders);
+    const valorIgrejasCPF = igrejasCPFFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+    
+    const lojistasFiltered = filterByRange(lojistasOrders);
+    const valorLojistas = lojistasFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
+
     const igrejasFiltered = filterByRange(paidShopifyOrders);
     const valorIgrejas = igrejasFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
 
@@ -259,6 +284,12 @@ export function SalesChannelCards({
       valorOnline,
       qtdIgrejas: igrejasFiltered.length,
       valorIgrejas,
+      qtdIgrejasCNPJ: igrejasCNPJFiltered.length,
+      valorIgrejasCNPJ,
+      qtdIgrejasCPF: igrejasCPFFiltered.length,
+      valorIgrejasCPF,
+      qtdLojistas: lojistasFiltered.length,
+      valorLojistas,
       valorTotal,
       qtdTotal,
       comissao,
@@ -497,7 +528,7 @@ export function SalesChannelCards({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <StandardCard
             icon={<ShoppingCart className="h-4 w-4 text-blue-600" />}
-            title="Pedidos Online"
+            title="E-commerce"
             value={formatCurrency(periodMetrics.valorOnline)}
             periodLabel={`${periodMetrics.qtdOnline} pedidos`}
             colorClass="text-blue-700 dark:text-blue-300"
@@ -506,13 +537,33 @@ export function SalesChannelCards({
           />
 
           <StandardCard
-            icon={<Church className="h-4 w-4 text-green-600" />}
-            title="Pedidos Igrejas"
-            value={formatCurrency(periodMetrics.valorIgrejas)}
-            periodLabel={`${periodMetrics.qtdIgrejas} pedidos`}
+            icon={<Building2 className="h-4 w-4 text-green-600" />}
+            title="Igreja CNPJ"
+            value={formatCurrency(periodMetrics.valorIgrejasCNPJ)}
+            periodLabel={`${periodMetrics.qtdIgrejasCNPJ} pedidos`}
             colorClass="text-green-700 dark:text-green-300"
             borderColorClass="border-green-200 dark:border-green-800"
             bgClass="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
+          />
+
+          <StandardCard
+            icon={<Church className="h-4 w-4 text-emerald-600" />}
+            title="Igreja CPF"
+            value={formatCurrency(periodMetrics.valorIgrejasCPF)}
+            periodLabel={`${periodMetrics.qtdIgrejasCPF} pedidos`}
+            colorClass="text-emerald-700 dark:text-emerald-300"
+            borderColorClass="border-emerald-200 dark:border-emerald-800"
+            bgClass="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
+          />
+
+          <StandardCard
+            icon={<Store className="h-4 w-4 text-lime-600" />}
+            title="Lojistas"
+            value={formatCurrency(periodMetrics.valorLojistas)}
+            periodLabel={`${periodMetrics.qtdLojistas} pedidos`}
+            colorClass="text-lime-700 dark:text-lime-300"
+            borderColorClass="border-lime-200 dark:border-lime-800"
+            bgClass="bg-gradient-to-br from-lime-50 to-lime-100 dark:from-lime-950 dark:to-lime-900"
           />
 
           <StandardCard
