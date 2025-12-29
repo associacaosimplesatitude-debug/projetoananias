@@ -213,22 +213,45 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
     enabled: clienteIds.length > 0,
   });
 
-  // Fetch Shopify orders for this vendedor
+  // Fetch Shopify orders for this vendedor (by vendedor_id OR cliente_id of their clients)
   const { data: shopifyPedidos = [], isLoading: isLoadingShopify } = useQuery({
-    queryKey: ["vendedor-shopify-pedidos", vendedorId],
+    queryKey: ["vendedor-shopify-pedidos", vendedorId, clienteIds],
     queryFn: async () => {
-      // Fetch orders by vendedor_id (RLS policy allows vendedor to see their own)
-      const { data, error } = await supabase
+      // First, fetch orders directly by vendedor_id
+      const { data: byVendedor, error: vendedorError } = await supabase
         .from("ebd_shopify_pedidos")
         .select("*")
         .eq("vendedor_id", vendedorId)
         .order("created_at", { ascending: false });
       
-      if (error) {
-        console.error("Error fetching shopify pedidos:", error);
-        throw error;
+      if (vendedorError) {
+        console.error("Error fetching shopify pedidos by vendedor:", vendedorError);
+        throw vendedorError;
       }
-      return (data || []) as ShopifyPedido[];
+
+      // Also fetch orders by cliente_id for this vendedor's clients
+      let byCliente: ShopifyPedido[] = [];
+      if (clienteIds.length > 0) {
+        const { data: clienteData, error: clienteError } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select("*")
+          .in("cliente_id", clienteIds)
+          .order("created_at", { ascending: false });
+        
+        if (clienteError) {
+          console.error("Error fetching shopify pedidos by cliente:", clienteError);
+        } else {
+          byCliente = (clienteData || []) as ShopifyPedido[];
+        }
+      }
+
+      // Merge and deduplicate by id
+      const allPedidos = [...(byVendedor || []), ...byCliente];
+      const uniquePedidos = Array.from(
+        new Map(allPedidos.map(p => [p.id, p])).values()
+      ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      return uniquePedidos as ShopifyPedido[];
     },
     enabled: !!vendedorId,
   });
