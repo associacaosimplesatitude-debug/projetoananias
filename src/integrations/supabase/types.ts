@@ -1285,6 +1285,8 @@ export type Database = {
           cnpj: string | null
           cpf: string | null
           created_at: string
+          cupom_aniversario_ano: number | null
+          cupom_aniversario_usado: boolean | null
           data_aniversario_pastor: string | null
           data_aniversario_superintendente: string | null
           data_inicio_ebd: string | null
@@ -1323,6 +1325,8 @@ export type Database = {
           cnpj?: string | null
           cpf?: string | null
           created_at?: string
+          cupom_aniversario_ano?: number | null
+          cupom_aniversario_usado?: boolean | null
           data_aniversario_pastor?: string | null
           data_aniversario_superintendente?: string | null
           data_inicio_ebd?: string | null
@@ -1361,6 +1365,8 @@ export type Database = {
           cnpj?: string | null
           cpf?: string | null
           created_at?: string
+          cupom_aniversario_ano?: number | null
+          cupom_aniversario_usado?: boolean | null
           data_aniversario_pastor?: string | null
           data_aniversario_superintendente?: string | null
           data_inicio_ebd?: string | null
@@ -2355,6 +2361,7 @@ export type Database = {
           product_title: string | null
           revista_id: string
           sku: string | null
+          tipo_material: string | null
           updated_at: string
         }
         Insert: {
@@ -2364,6 +2371,7 @@ export type Database = {
           product_title?: string | null
           revista_id: string
           sku?: string | null
+          tipo_material?: string | null
           updated_at?: string
         }
         Update: {
@@ -2373,6 +2381,7 @@ export type Database = {
           product_title?: string | null
           revista_id?: string
           sku?: string | null
+          tipo_material?: string | null
           updated_at?: string
         }
         Relationships: [
