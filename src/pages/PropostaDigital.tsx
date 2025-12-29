@@ -244,31 +244,31 @@ export default function PropostaDigital() {
           throw new Error(orderData.error);
         }
 
-        // Save cartUrl and update status to AGUARDANDO_PAGAMENTO
-        const cartUrl = orderData?.cartUrl || orderData?.invoiceUrl;
-        console.log("Cart URL received from edge function:", cartUrl);
-        
-        if (cartUrl) {
+        // Save checkout URL and update status to AGUARDANDO_PAGAMENTO
+        const checkoutUrl = orderData?.checkoutUrl || orderData?.cartUrl || orderData?.invoiceUrl;
+        console.log("Checkout URL received from backend:", checkoutUrl);
+
+        if (checkoutUrl) {
           console.log("Saving payment_link and updating status...");
           const { error: updateError } = await supabase
             .from("vendedor_propostas")
-            .update({ 
+            .update({
               status: "AGUARDANDO_PAGAMENTO",
-              payment_link: cartUrl 
+              payment_link: checkoutUrl,
             })
             .eq("token", token!);
-          
+
           if (updateError) {
             console.error("Error saving payment_link:", updateError);
           } else {
-            console.log("Payment link saved, redirecting to:", cartUrl);
+            console.log("Payment link saved, redirecting to:", checkoutUrl);
           }
 
-          // Redirect directly to cart URL 
-          window.location.href = cartUrl;
+          // Redirect direto para a página de carrinho/pagamento (checkout)
+          window.location.assign(checkoutUrl);
           return data; // Return early since we're redirecting
         } else {
-          console.error("No cartUrl received from edge function:", orderData);
+          console.error("No checkoutUrl received from backend:", orderData);
         }
       }
 
