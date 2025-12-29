@@ -548,45 +548,35 @@ serve(async (req) => {
     }
 
     // ===================================================================
-    // LINK DE CARRINHO PÚBLICO (NUNCA usar checkout URLs - eles expiram!)
+    // LINK DE PAGAMENTO DO DRAFT ORDER (com dados do cliente preenchidos)
     // ===================================================================
-    // Links de checkout (/checkouts/...) são vinculados à sessão do navegador
-    // e não podem ser compartilhados. Por isso, usamos links de carrinho:
-    // https://www.centralgospel.com.br/cart/VARIANT_ID:QTD,VARIANT_ID2:QTD2
+    // O invoice_url do Draft Order é o link oficial de pagamento da Shopify
+    // que já vem com os dados do cliente (nome, endereço, email) preenchidos.
+    // Este link é permanente e pode ser compartilhado.
     // ===================================================================
     
-    // Domínio público da loja (não o myshopify.com)
-    const SHOPIFY_PUBLIC_DOMAIN = "www.centralgospel.com.br";
+    // Get the invoice_url from the draft order - this is the payment link with customer data
+    const invoiceUrl = draftOrder.invoice_url;
     
-    // Extrair variant IDs numéricos e construir link de carrinho
-    const cartItems: string[] = items.map((item: CartItem) => {
-      // O variantId pode vir em formato GraphQL: "gid://shopify/ProductVariant/123456789"
-      // Precisamos extrair apenas o ID numérico
-      let numericVariantId = item.variantId;
-      
-      if (item.variantId.includes("gid://shopify/ProductVariant/")) {
-        numericVariantId = item.variantId.split("/").pop() || item.variantId;
-      }
-      
-      return `${numericVariantId}:${item.quantity}`;
-    });
-    
-    // Construir link de carrinho público
-    const cartUrl = `https://${SHOPIFY_PUBLIC_DOMAIN}/cart/${cartItems.join(",")}`;
-    
-    console.log("Cart URL (público e permanente):", cartUrl);
+    console.log("Draft Order Invoice URL (com dados do cliente):", invoiceUrl);
     console.log("Draft Order ID:", draftOrder.id, "Name:", draftOrder.name);
     
-    // Nota: O draft order ainda é criado para controle interno e para aplicar
-    // descontos no backend se necessário, mas o link enviado ao cliente é o do carrinho
+    // Add channel=online_store to ensure checkout works without password
+    let finalInvoiceUrl = invoiceUrl;
+    if (invoiceUrl && !invoiceUrl.includes('channel=')) {
+      const separator = invoiceUrl.includes('?') ? '&' : '?';
+      finalInvoiceUrl = `${invoiceUrl}${separator}channel=online_store`;
+    }
+    
+    console.log("Final Invoice URL:", finalInvoiceUrl);
 
     return new Response(
       JSON.stringify({
         success: true,
         draftOrderId: draftOrder.id,
-        invoiceUrl: cartUrl,       // Link de carrinho (público, permanente)
-        checkoutUrl: cartUrl,      // Mesmo link para compatibilidade
-        cartUrl: cartUrl,          // Link explícito de carrinho
+        invoiceUrl: finalInvoiceUrl,    // Link de pagamento com dados do cliente
+        checkoutUrl: finalInvoiceUrl,   // Mesmo link para compatibilidade
+        cartUrl: finalInvoiceUrl,       // Mesmo link para compatibilidade
         orderName: draftOrder.name,
         vendedorId: finalVendedorId,
         isFaturamento: false,
