@@ -547,14 +547,27 @@ serve(async (req) => {
       );
     }
 
-    // For normal orders, return invoice URL
-    const invoiceUrl = draftOrder.invoice_url;
+    // For normal orders, return proper checkout URL
+    // The invoice_url is the checkout URL for the draft order
+    // Append channel=online_store to ensure proper checkout access
+    let checkoutUrl = draftOrder.invoice_url;
+    
+    if (checkoutUrl) {
+      // Ensure the URL has the online_store channel parameter
+      const url = new URL(checkoutUrl);
+      url.searchParams.set('channel', 'online_store');
+      checkoutUrl = url.toString();
+      console.log("Checkout URL generated:", checkoutUrl);
+    } else {
+      console.warn("No invoice_url returned from draft order:", draftOrder.id);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         draftOrderId: draftOrder.id,
-        invoiceUrl: invoiceUrl,
+        invoiceUrl: checkoutUrl,
+        checkoutUrl: checkoutUrl, // Also provide as checkoutUrl for clarity
         orderName: draftOrder.name,
         vendedorId: finalVendedorId,
         isFaturamento: false,

@@ -204,11 +204,67 @@ export default function PropostaDigital() {
         .single();
 
       if (error) throw error;
+      
+      // For standard payment (not B2B), automatically create draft order and open checkout
+      if (!proposta?.pode_faturar) {
+        const clienteData = {
+          id: "",
+          nome_igreja: proposta!.cliente_nome,
+          cnpj: proposta!.cliente_cnpj || "",
+          email_superintendente: null,
+          telefone: null,
+          nome_responsavel: proposta!.cliente_nome,
+          endereco_cep: proposta!.cliente_endereco?.cep || null,
+          endereco_rua: proposta!.cliente_endereco?.rua || null,
+          endereco_numero: proposta!.cliente_endereco?.numero || null,
+          endereco_bairro: proposta!.cliente_endereco?.bairro || null,
+          endereco_cidade: proposta!.cliente_endereco?.cidade || null,
+          endereco_estado: proposta!.cliente_endereco?.estado || null,
+        };
+
+        const selectedShipping = shippingOptions.find(opt => opt.type === selectedFrete);
+
+        const { data: orderData, error: orderError } = await supabase.functions.invoke('ebd-shopify-order-create', {
+          body: {
+            cliente: clienteData,
+            items: proposta!.itens,
+            valor_frete: (selectedShipping?.cost || 0).toString(),
+            metodo_frete: selectedFrete || 'free',
+            desconto_percentual: (proposta!.desconto_percentual || 0).toString(),
+          }
+        });
+
+        if (orderError) {
+          console.error("Error creating order:", orderError);
+          throw new Error("Erro ao criar pedido. Entre em contato com o vendedor.");
+        }
+
+        if (orderData?.error) {
+          throw new Error(orderData.error);
+        }
+
+        // Update status to AGUARDANDO_PAGAMENTO
+        await supabase
+          .from("vendedor_propostas")
+          .update({ status: "AGUARDANDO_PAGAMENTO" })
+          .eq("token", token!);
+
+        // Open checkout URL in new tab
+        const checkoutUrl = orderData?.checkoutUrl || orderData?.invoiceUrl;
+        if (checkoutUrl) {
+          window.open(checkoutUrl, '_blank');
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["proposta", token] });
-      toast.success("Proposta confirmada com sucesso!");
+      if (proposta?.pode_faturar) {
+        toast.success("Proposta confirmada com sucesso!");
+      } else {
+        toast.success("Proposta confirmada! Redirecionando para pagamento...");
+      }
     },
     onError: (error: any) => {
       toast.error("Erro ao confirmar proposta: " + error.message);
