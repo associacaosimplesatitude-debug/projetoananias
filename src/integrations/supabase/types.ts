@@ -1290,6 +1290,7 @@ export type Database = {
           data_inicio_ebd: string | null
           data_proxima_compra: string | null
           desconto_faturamento: number | null
+          desconto_onboarding: number | null
           dia_aula: string | null
           email_superintendente: string | null
           endereco_bairro: string | null
@@ -1303,6 +1304,8 @@ export type Database = {
           nome_igreja: string
           nome_responsavel: string | null
           nome_superintendente: string | null
+          onboarding_concluido: boolean | null
+          onboarding_concluido_em: string | null
           pode_faturar: boolean
           possui_cnpj: boolean | null
           rg: string | null
@@ -1325,6 +1328,7 @@ export type Database = {
           data_inicio_ebd?: string | null
           data_proxima_compra?: string | null
           desconto_faturamento?: number | null
+          desconto_onboarding?: number | null
           dia_aula?: string | null
           email_superintendente?: string | null
           endereco_bairro?: string | null
@@ -1338,6 +1342,8 @@ export type Database = {
           nome_igreja: string
           nome_responsavel?: string | null
           nome_superintendente?: string | null
+          onboarding_concluido?: boolean | null
+          onboarding_concluido_em?: string | null
           pode_faturar?: boolean
           possui_cnpj?: boolean | null
           rg?: string | null
@@ -1360,6 +1366,7 @@ export type Database = {
           data_inicio_ebd?: string | null
           data_proxima_compra?: string | null
           desconto_faturamento?: number | null
+          desconto_onboarding?: number | null
           dia_aula?: string | null
           email_superintendente?: string | null
           endereco_bairro?: string | null
@@ -1373,6 +1380,8 @@ export type Database = {
           nome_igreja?: string
           nome_responsavel?: string | null
           nome_superintendente?: string | null
+          onboarding_concluido?: boolean | null
+          onboarding_concluido_em?: string | null
           pode_faturar?: boolean
           possui_cnpj?: boolean | null
           rg?: string | null
@@ -2052,6 +2061,54 @@ export type Database = {
           },
         ]
       }
+      ebd_onboarding_progress: {
+        Row: {
+          church_id: string
+          completada: boolean
+          completada_em: string | null
+          created_at: string
+          etapa_id: number
+          id: string
+          revista_identificada_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          church_id: string
+          completada?: boolean
+          completada_em?: string | null
+          created_at?: string
+          etapa_id: number
+          id?: string
+          revista_identificada_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          church_id?: string
+          completada?: boolean
+          completada_em?: string | null
+          created_at?: string
+          etapa_id?: number
+          id?: string
+          revista_identificada_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_onboarding_progress_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_onboarding_progress_revista_identificada_id_fkey"
+            columns: ["revista_identificada_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_revistas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_pedidos: {
         Row: {
           approved_at: string | null
@@ -2286,6 +2343,44 @@ export type Database = {
             columns: ["turma_id"]
             isOneToOne: false
             referencedRelation: "ebd_turmas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_produto_revista_mapping: {
+        Row: {
+          bling_produto_id: number | null
+          created_at: string
+          id: string
+          product_title: string | null
+          revista_id: string
+          sku: string | null
+          updated_at: string
+        }
+        Insert: {
+          bling_produto_id?: number | null
+          created_at?: string
+          id?: string
+          product_title?: string | null
+          revista_id: string
+          sku?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bling_produto_id?: number | null
+          created_at?: string
+          id?: string
+          product_title?: string | null
+          revista_id?: string
+          sku?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_produto_revista_mapping_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_revistas"
             referencedColumns: ["id"]
           },
         ]
