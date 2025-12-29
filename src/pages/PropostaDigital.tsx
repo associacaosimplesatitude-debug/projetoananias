@@ -29,8 +29,11 @@ interface ShippingOption {
 interface Proposta {
   id: string;
   token: string;
+  cliente_id: string | null;
   cliente_nome: string;
   cliente_cnpj: string | null;
+  cliente_email: string | null; // Email do cliente (via ebd_clientes)
+  cliente_telefone: string | null; // Telefone do cliente (via ebd_clientes)
   cliente_endereco: {
     rua?: string;
     numero?: string;
@@ -67,21 +70,32 @@ export default function PropostaDigital() {
   const { data: proposta, isLoading, error } = useQuery({
     queryKey: ["proposta", token],
     queryFn: async () => {
+      // Buscar proposta com join no cliente para pegar email/telefone
       const { data, error } = await supabase
         .from("vendedor_propostas")
-        .select("*")
+        .select(`
+          *,
+          ebd_clientes:cliente_id (
+            email_superintendente,
+            telefone
+          )
+        `)
         .eq("token", token!)
         .single();
 
       if (error) throw error;
       
       // Parse itens from JSON if necessary
+      const clienteData = data.ebd_clientes as { email_superintendente: string | null; telefone: string | null } | null;
+      
       const parsedData = {
         ...data,
         itens: typeof data.itens === 'string' ? JSON.parse(data.itens) : data.itens,
         cliente_endereco: typeof data.cliente_endereco === 'string' 
           ? JSON.parse(data.cliente_endereco) 
           : data.cliente_endereco,
+        cliente_email: clienteData?.email_superintendente || null,
+        cliente_telefone: clienteData?.telefone || null,
       };
       
       return parsedData as Proposta;
@@ -209,11 +223,11 @@ export default function PropostaDigital() {
       // For standard payment (not B2B), automatically create draft order and open checkout
       if (!proposta?.pode_faturar) {
         const clienteData = {
-          id: "",
+          id: proposta!.cliente_id || "",
           nome_igreja: proposta!.cliente_nome,
           cnpj: proposta!.cliente_cnpj || "",
-          email_superintendente: null,
-          telefone: null,
+          email_superintendente: proposta!.cliente_email || null,
+          telefone: proposta!.cliente_telefone || null,
           nome_responsavel: proposta!.cliente_nome,
           endereco_cep: proposta!.cliente_endereco?.cep || null,
           endereco_rua: proposta!.cliente_endereco?.rua || null,
