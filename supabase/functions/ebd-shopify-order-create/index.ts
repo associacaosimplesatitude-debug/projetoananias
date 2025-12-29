@@ -113,8 +113,55 @@ serve(async (req) => {
       return true;
     };
 
-    // Prefer email do cliente, mas se estiver vazio/inválido, gera um fallback válido
+    // Prefer email do cliente. Se estiver vazio/inválido, tenta buscar no cadastro (ebd_clientes) e só então gera fallback.
     let customerEmail = (cliente.email_superintendente || "").trim().toLowerCase();
+
+    const isUuid = (value: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+    if (!customerEmail || !isValidEmail(customerEmail)) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+        const cnpjClean = cliente.cnpj ? cliente.cnpj.replace(/\D/g, "") : "";
+        const canLookupById = !!cliente.id && isUuid(cliente.id);
+
+        let lookupQuery = supabase
+          .from("ebd_clientes")
+          .select("email_superintendente")
+          .limit(1);
+
+        if (canLookupById) {
+          lookupQuery = lookupQuery.eq("id", cliente.id);
+        } else if (cnpjClean) {
+          const cnpjRaw = (cliente.cnpj || "").trim();
+          if (cnpjRaw && cnpjRaw !== cnpjClean) {
+            // tenta tanto o CNPJ "limpo" quanto o formato com pontuação
+            lookupQuery = lookupQuery.or(`cnpj.eq.${cnpjClean},cnpj.eq.${cnpjRaw}`);
+          } else {
+            lookupQuery = lookupQuery.eq("cnpj", cnpjClean);
+          }
+          lookupQuery = lookupQuery.eq("nome_igreja", cliente.nome_igreja);
+        }
+
+        const { data: clienteDb, error: clienteDbError } = await lookupQuery.maybeSingle();
+
+        if (clienteDbError) {
+          console.warn("Email lookup failed (ebd_clientes):", clienteDbError);
+        }
+
+        const dbEmail = (clienteDb?.email_superintendente || "").trim().toLowerCase();
+        if (dbEmail && isValidEmail(dbEmail)) {
+          customerEmail = dbEmail;
+          console.log("Using email from cadastro:", customerEmail);
+        }
+      } catch (e) {
+        console.warn("Email lookup exception:", e);
+      }
+    }
+
     if (!customerEmail || !isValidEmail(customerEmail)) {
       const timestamp = Date.now();
       const cnpjClean = cliente.cnpj ? cliente.cnpj.replace(/\D/g, "") : "";
