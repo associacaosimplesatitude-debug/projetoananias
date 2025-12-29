@@ -46,6 +46,7 @@ import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
+import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
@@ -251,7 +252,7 @@ const App = () => (
             } 
           />
                     
-                    {/* EBD Routes */}
+                    {/* EBD Index Route (redirect) */}
                     <Route 
                       path="/ebd" 
                       element={
@@ -260,215 +261,44 @@ const App = () => (
                         </ModuleProtectedRoute>
                       } 
                     />
-                    <Route 
-                      path="/ebd/dashboard" 
+                    
+                    {/* EBD Superintendent Routes with Sidebar Layout */}
+                    <Route
+                      path="/ebd"
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDDashboard />
+                          <EBDLayout />
                         </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/students" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDStudents />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/teachers" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDTeachers />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/turmas" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDClassrooms />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/turmas/nova" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDClassroomForm />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/turmas/editar" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDClassroomForm />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/quizzes" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDQuizzes />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/schedule" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDSchedule />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/planejamento" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDPlanejamento />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/escala" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDSchedule />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/catalogo" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDCatalogo />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/carrinho" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDCarrinho />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/checkout" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDCheckout />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/checkout-bling" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDCheckoutBling />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/pedidos" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDMyOrders />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/my-orders" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDMyOrders />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/order-success" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDOrderSuccess />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/age-ranges" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDAgeRanges />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/frequencia/relatorio" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDFrequenciaRelatorio />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/admin" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDAdmin />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/lancamento" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDLancamentoManual />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/area-aluno" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDAreaAluno />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/meu-perfil" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDAlunoPerfil />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-
-                    <Route 
-                      path="/ebd/desafio-biblico" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDDesafioBiblico />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/desafio-biblico/:desafioId/jogar" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDDesafioLiderPlay />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/desafio-biblico/:desafioId/acompanhar" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <EBDDesafioAcompanhamento />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
+                      }
+                    >
+                      <Route path="dashboard" element={<EBDDashboard />} />
+                      <Route path="students" element={<EBDStudents />} />
+                      <Route path="teachers" element={<EBDTeachers />} />
+                      <Route path="turmas" element={<EBDClassrooms />} />
+                      <Route path="turmas/nova" element={<EBDClassroomForm />} />
+                      <Route path="turmas/editar" element={<EBDClassroomForm />} />
+                      <Route path="quizzes" element={<EBDQuizzes />} />
+                      <Route path="schedule" element={<EBDSchedule />} />
+                      <Route path="planejamento" element={<EBDPlanejamento />} />
+                      <Route path="escala" element={<EBDSchedule />} />
+                      <Route path="catalogo" element={<EBDCatalogo />} />
+                      <Route path="carrinho" element={<EBDCarrinho />} />
+                      <Route path="checkout" element={<EBDCheckout />} />
+                      <Route path="checkout-bling" element={<EBDCheckoutBling />} />
+                      <Route path="pedidos" element={<EBDMyOrders />} />
+                      <Route path="my-orders" element={<EBDMyOrders />} />
+                      <Route path="order-success" element={<EBDOrderSuccess />} />
+                      <Route path="age-ranges" element={<EBDAgeRanges />} />
+                      <Route path="frequencia/relatorio" element={<EBDFrequenciaRelatorio />} />
+                      <Route path="admin" element={<EBDAdmin />} />
+                      <Route path="lancamento" element={<EBDLancamentoManual />} />
+                      <Route path="lancamento-manual" element={<EBDLancamentoManual />} />
+                      <Route path="area-aluno" element={<EBDAreaAluno />} />
+                      <Route path="meu-perfil" element={<EBDAlunoPerfil />} />
+                      <Route path="desafio-biblico" element={<EBDDesafioBiblico />} />
+                      <Route path="desafio-biblico/:desafioId/jogar" element={<EBDDesafioLiderPlay />} />
+                      <Route path="desafio-biblico/:desafioId/acompanhar" element={<EBDDesafioAcompanhamento />} />
+                    </Route>
 
                     {/* Aluno Module Routes */}
                     <Route 
