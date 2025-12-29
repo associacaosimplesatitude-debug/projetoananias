@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ForcePasswordChangeDialog } from "@/components/ebd/ForcePasswordChangeDialog";
+import { OnboardingProgressCard } from "@/components/ebd/OnboardingProgressCard";
 import { format, subWeeks, startOfWeek, endOfWeek, isToday, isSameMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -366,8 +367,11 @@ export default function EBDDashboard() {
         </div>
       </div>
 
-        {/* Micro-KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Card de Onboarding/Gamificação */}
+      <OnboardingProgressCard churchId={churchId} />
+
+      {/* Micro-KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Total de Alunos */}
           <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
             <CardContent className="p-4">
