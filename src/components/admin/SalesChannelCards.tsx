@@ -214,20 +214,18 @@ export function SalesChannelCards({
       (o) => o.status_pagamento === "paid" || o.status_pagamento === "Pago" || o.status_pagamento === "Faturado"
     );
 
-    // Separar pedidos de igrejas por tipo: CNPJ, CPF e Lojistas
+    // Separar pedidos de igrejas por tipo_cliente (normalizado para maiúsculas)
     const igrejasCNPJOrders = paidShopifyOrders.filter((o) => {
-      const cnpj = o.cliente?.cnpj;
-      const tipoCliente = o.cliente?.tipo_cliente;
-      return cnpj && cnpj.trim() !== '' && tipoCliente !== 'Lojista';
+      const tipoCliente = (o.cliente?.tipo_cliente || '').toUpperCase();
+      return tipoCliente.includes('IGREJA') && tipoCliente.includes('CNPJ');
     });
     const igrejasCPFOrders = paidShopifyOrders.filter((o) => {
-      const cnpj = o.cliente?.cnpj;
-      const tipoCliente = o.cliente?.tipo_cliente;
-      return (!cnpj || cnpj.trim() === '') && tipoCliente !== 'Lojista';
+      const tipoCliente = (o.cliente?.tipo_cliente || '').toUpperCase();
+      return tipoCliente.includes('IGREJA') && tipoCliente.includes('CPF');
     });
     const lojistasOrders = paidShopifyOrders.filter((o) => {
-      const tipoCliente = o.cliente?.tipo_cliente;
-      return tipoCliente === 'Lojista';
+      const tipoCliente = (o.cliente?.tipo_cliente || '').toUpperCase();
+      return tipoCliente.includes('LOJISTA');
     });
 
     const igrejasCNPJFiltered = filterByRange(igrejasCNPJOrders);
