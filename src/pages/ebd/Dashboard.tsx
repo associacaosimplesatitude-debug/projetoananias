@@ -345,27 +345,26 @@ export default function EBDDashboard() {
   const showEmptyState = !churchId;
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Dashboard do Superintendente</h1>
-            <p className="text-muted-foreground">
-              {churchData?.church_name || 'Escola Bíblica Dominical'}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => navigate("/ebd/lancamento")} className="gap-2">
-              <ClipboardList className="h-4 w-4" />
-              Lançamento Manual
-            </Button>
-            <Button onClick={() => navigate("/ebd/desafio-biblico")} variant="outline" className="gap-2">
-              <Gamepad2 className="h-4 w-4" />
-              Desafio Bíblico
-            </Button>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Dashboard do Superintendente</h1>
+          <p className="text-muted-foreground">
+            {churchData?.church_name || 'Escola Bíblica Dominical'}
+          </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => navigate("/ebd/lancamento-manual")} className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Lançamento Manual
+          </Button>
+          <Button onClick={() => navigate("/ebd/desafio-biblico")} variant="outline" className="gap-2">
+            <Gamepad2 className="h-4 w-4" />
+            Desafio Bíblico
+          </Button>
+        </div>
+      </div>
 
         {/* Micro-KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -727,12 +726,11 @@ export default function EBDDashboard() {
             </CardContent>
           </Card>
         </div>
-      </div>
 
-      <ForcePasswordChangeDialog 
-        open={showPasswordDialog} 
-        onOpenChange={setShowPasswordDialog}
-      />
-    </div>
+        <ForcePasswordChangeDialog 
+          open={showPasswordDialog} 
+          onOpenChange={setShowPasswordDialog}
+        />
+      </div>
   );
 }
