@@ -547,137 +547,46 @@ serve(async (req) => {
       );
     }
 
-    // For normal orders, use the Storefront API to create a proper Cart/Checkout
-    // The draft order invoice_url doesn't work well for sharing (redirects to homepage when copied)
-    // Instead, we create a cart with the same items using the Storefront API
-
-    const SHOPIFY_STOREFRONT_TOKEN = Deno.env.get("SHOPIFY_STOREFRONT_ACCESS_TOKEN");
+    // ===================================================================
+    // LINK DE CARRINHO PÚBLICO (NUNCA usar checkout URLs - eles expiram!)
+    // ===================================================================
+    // Links de checkout (/checkouts/...) são vinculados à sessão do navegador
+    // e não podem ser compartilhados. Por isso, usamos links de carrinho:
+    // https://www.centralgospel.com.br/cart/VARIANT_ID:QTD,VARIANT_ID2:QTD2
+    // ===================================================================
     
-    let checkoutUrl: string | null = null;
+    // Domínio público da loja (não o myshopify.com)
+    const SHOPIFY_PUBLIC_DOMAIN = "www.centralgospel.com.br";
     
-    if (SHOPIFY_STOREFRONT_TOKEN) {
-      try {
-        console.log("Creating Storefront Cart for shareable checkout link...");
-        
-        // Build cart lines from items
-        const cartLines = items.map((item: CartItem) => {
-          // Apply discount to price if applicable
-          const originalPrice = parseFloat(item.price);
-          const discountedPrice = descontoPercentual > 0
-            ? Math.round(originalPrice * (1 - descontoPercentual / 100) * 100) / 100
-            : originalPrice;
-          
-          return {
-            merchandiseId: item.variantId,
-            quantity: item.quantity,
-          };
-        });
-
-        // Create cart using Storefront API
-        const cartCreateMutation = `
-          mutation cartCreate($input: CartInput!) {
-            cartCreate(input: $input) {
-              cart {
-                id
-                checkoutUrl
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }
-        `;
-
-        const storefrontUrl = `https://${SHOPIFY_STORE}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-        
-        const cartResponse = await fetch(storefrontUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Storefront-Access-Token": SHOPIFY_STOREFRONT_TOKEN,
-          },
-          body: JSON.stringify({
-            query: cartCreateMutation,
-            variables: {
-              input: {
-                lines: cartLines,
-                // Add buyer identity if we have email
-                ...(cliente.email_superintendente && {
-                  buyerIdentity: {
-                    email: cliente.email_superintendente,
-                  },
-                }),
-                // Add discount code if applicable (note: cart discounts work differently)
-                // For percentage discounts we'd need a discount code in Shopify
-              },
-            },
-          }),
-        });
-
-        const cartData = await cartResponse.json();
-        console.log("Storefront Cart response:", JSON.stringify(cartData));
-
-        // Check for top-level errors (like UNAUTHORIZED) or userErrors
-        const hasTopLevelErrors = cartData?.errors && cartData.errors.length > 0;
-        const hasUserErrors = cartData?.data?.cartCreate?.userErrors?.length > 0;
-
-        if (cartData?.data?.cartCreate?.cart?.checkoutUrl) {
-          const rawCheckoutUrl = cartData.data.cartCreate.cart.checkoutUrl;
-          const url = new URL(rawCheckoutUrl);
-          url.searchParams.set("channel", "online_store");
-          checkoutUrl = url.toString();
-          console.log("Storefront Checkout URL created:", checkoutUrl);
-        } else if (hasTopLevelErrors || hasUserErrors) {
-          console.warn("Storefront API errors, falling back to invoice_url");
-          if (hasTopLevelErrors) console.error("Top-level errors:", cartData.errors);
-          if (hasUserErrors) console.error("User errors:", cartData.data.cartCreate.userErrors);
-          // Fall back to invoice URL
-          if (draftOrder.invoice_url) {
-            const url = new URL(draftOrder.invoice_url);
-            url.searchParams.set("channel", "online_store");
-            checkoutUrl = url.toString();
-            console.log("Fallback to invoice_url:", checkoutUrl);
-          }
-        } else {
-          // No checkout URL and no explicit errors - still fallback
-          console.warn("No checkoutUrl in response, falling back to invoice_url");
-          if (draftOrder.invoice_url) {
-            const url = new URL(draftOrder.invoice_url);
-            url.searchParams.set("channel", "online_store");
-            checkoutUrl = url.toString();
-            console.log("Fallback to invoice_url (no checkout):", checkoutUrl);
-          }
-        }
-      } catch (storefrontError) {
-        console.error("Storefront API error:", storefrontError);
-        // Fall back to invoice URL
-        if (draftOrder.invoice_url) {
-          const url = new URL(draftOrder.invoice_url);
-          url.searchParams.set("channel", "online_store");
-          checkoutUrl = url.toString();
-          console.log("Fallback to invoice_url after error:", checkoutUrl);
-        }
+    // Extrair variant IDs numéricos e construir link de carrinho
+    const cartItems: string[] = items.map((item: CartItem) => {
+      // O variantId pode vir em formato GraphQL: "gid://shopify/ProductVariant/123456789"
+      // Precisamos extrair apenas o ID numérico
+      let numericVariantId = item.variantId;
+      
+      if (item.variantId.includes("gid://shopify/ProductVariant/")) {
+        numericVariantId = item.variantId.split("/").pop() || item.variantId;
       }
-    } else {
-      // No storefront token, use invoice URL as fallback
-      console.warn("SHOPIFY_STOREFRONT_ACCESS_TOKEN not configured, using invoice_url");
-      if (draftOrder.invoice_url) {
-        const url = new URL(draftOrder.invoice_url);
-        url.searchParams.set("channel", "online_store");
-        checkoutUrl = url.toString();
-        console.log("Invoice URL (no storefront token):", checkoutUrl);
-      } else {
-        console.warn("No invoice_url returned from draft order:", draftOrder.id);
-      }
-    }
+      
+      return `${numericVariantId}:${item.quantity}`;
+    });
+    
+    // Construir link de carrinho público
+    const cartUrl = `https://${SHOPIFY_PUBLIC_DOMAIN}/cart/${cartItems.join(",")}`;
+    
+    console.log("Cart URL (público e permanente):", cartUrl);
+    console.log("Draft Order ID:", draftOrder.id, "Name:", draftOrder.name);
+    
+    // Nota: O draft order ainda é criado para controle interno e para aplicar
+    // descontos no backend se necessário, mas o link enviado ao cliente é o do carrinho
 
     return new Response(
       JSON.stringify({
         success: true,
         draftOrderId: draftOrder.id,
-        invoiceUrl: checkoutUrl,
-        checkoutUrl: checkoutUrl, // Also provide as checkoutUrl for clarity
+        invoiceUrl: cartUrl,       // Link de carrinho (público, permanente)
+        checkoutUrl: cartUrl,      // Mesmo link para compatibilidade
+        cartUrl: cartUrl,          // Link explícito de carrinho
         orderName: draftOrder.name,
         vendedorId: finalVendedorId,
         isFaturamento: false,
