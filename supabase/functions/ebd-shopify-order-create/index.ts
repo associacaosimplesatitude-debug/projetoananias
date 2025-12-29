@@ -618,20 +618,35 @@ serve(async (req) => {
         const cartData = await cartResponse.json();
         console.log("Storefront Cart response:", JSON.stringify(cartData));
 
+        // Check for top-level errors (like UNAUTHORIZED) or userErrors
+        const hasTopLevelErrors = cartData?.errors && cartData.errors.length > 0;
+        const hasUserErrors = cartData?.data?.cartCreate?.userErrors?.length > 0;
+
         if (cartData?.data?.cartCreate?.cart?.checkoutUrl) {
           const rawCheckoutUrl = cartData.data.cartCreate.cart.checkoutUrl;
           const url = new URL(rawCheckoutUrl);
           url.searchParams.set("channel", "online_store");
           checkoutUrl = url.toString();
           console.log("Storefront Checkout URL created:", checkoutUrl);
-        } else if (cartData?.data?.cartCreate?.userErrors?.length > 0) {
-          console.error("Cart creation errors:", cartData.data.cartCreate.userErrors);
+        } else if (hasTopLevelErrors || hasUserErrors) {
+          console.warn("Storefront API errors, falling back to invoice_url");
+          if (hasTopLevelErrors) console.error("Top-level errors:", cartData.errors);
+          if (hasUserErrors) console.error("User errors:", cartData.data.cartCreate.userErrors);
           // Fall back to invoice URL
           if (draftOrder.invoice_url) {
             const url = new URL(draftOrder.invoice_url);
             url.searchParams.set("channel", "online_store");
             checkoutUrl = url.toString();
             console.log("Fallback to invoice_url:", checkoutUrl);
+          }
+        } else {
+          // No checkout URL and no explicit errors - still fallback
+          console.warn("No checkoutUrl in response, falling back to invoice_url");
+          if (draftOrder.invoice_url) {
+            const url = new URL(draftOrder.invoice_url);
+            url.searchParams.set("channel", "online_store");
+            checkoutUrl = url.toString();
+            console.log("Fallback to invoice_url (no checkout):", checkoutUrl);
           }
         }
       } catch (storefrontError) {
