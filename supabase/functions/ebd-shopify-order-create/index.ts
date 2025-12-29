@@ -547,61 +547,114 @@ serve(async (req) => {
       );
     }
 
-    // For normal orders, resolve the FINAL checkout URL (must be /checkouts/...) from the invoice URL.
-    // Shopify draft orders provide an invoice URL which often redirects (e.g., /invoices/... -> /checkouts/do/... -> /checkouts/...).
-    const invoiceUrlRaw = draftOrder.invoice_url;
+    // For normal orders, use the Storefront API to create a proper Cart/Checkout
+    // The draft order invoice_url doesn't work well for sharing (redirects to homepage when copied)
+    // Instead, we create a cart with the same items using the Storefront API
 
-    const resolveFinalCheckoutUrl = async (startUrl: string) => {
-      let current = new URL(startUrl);
-
-      // follow a few redirects manually to get the final /checkouts/... URL
-      for (let i = 0; i < 6; i++) {
-        const res = await fetch(current.toString(), {
-          method: "GET",
-          redirect: "manual",
-          headers: {
-            // Make sure Shopify returns the same redirect chain as a browser
-            "User-Agent": "Mozilla/5.0 (DraftOrderCheckoutResolver)",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          },
+    const SHOPIFY_STOREFRONT_TOKEN = Deno.env.get("SHOPIFY_STOREFRONT_ACCESS_TOKEN");
+    
+    let checkoutUrl: string | null = null;
+    
+    if (SHOPIFY_STOREFRONT_TOKEN) {
+      try {
+        console.log("Creating Storefront Cart for shareable checkout link...");
+        
+        // Build cart lines from items
+        const cartLines = items.map((item: CartItem) => {
+          // Apply discount to price if applicable
+          const originalPrice = parseFloat(item.price);
+          const discountedPrice = descontoPercentual > 0
+            ? Math.round(originalPrice * (1 - descontoPercentual / 100) * 100) / 100
+            : originalPrice;
+          
+          return {
+            merchandiseId: item.variantId,
+            quantity: item.quantity,
+          };
         });
 
-        const isRedirect = res.status >= 300 && res.status < 400;
-        if (!isRedirect) return current.toString();
+        // Create cart using Storefront API
+        const cartCreateMutation = `
+          mutation cartCreate($input: CartInput!) {
+            cartCreate(input: $input) {
+              cart {
+                id
+                checkoutUrl
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `;
 
-        const location = res.headers.get("location");
-        if (!location) return current.toString();
+        const storefrontUrl = `https://${SHOPIFY_STORE}/api/${SHOPIFY_API_VERSION}/graphql.json`;
+        
+        const cartResponse = await fetch(storefrontUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Storefront-Access-Token": SHOPIFY_STOREFRONT_TOKEN,
+          },
+          body: JSON.stringify({
+            query: cartCreateMutation,
+            variables: {
+              input: {
+                lines: cartLines,
+                // Add buyer identity if we have email
+                ...(cliente.email_superintendente && {
+                  buyerIdentity: {
+                    email: cliente.email_superintendente,
+                  },
+                }),
+                // Add discount code if applicable (note: cart discounts work differently)
+                // For percentage discounts we'd need a discount code in Shopify
+              },
+            },
+          }),
+        });
 
-        // Location may be relative
-        current = new URL(location, current.origin);
+        const cartData = await cartResponse.json();
+        console.log("Storefront Cart response:", JSON.stringify(cartData));
 
-        // If we reached /checkouts/<token>, stop early
-        if (current.pathname.includes("/checkouts/") && !current.pathname.includes("/checkouts/do")) {
-          return current.toString();
+        if (cartData?.data?.cartCreate?.cart?.checkoutUrl) {
+          const rawCheckoutUrl = cartData.data.cartCreate.cart.checkoutUrl;
+          const url = new URL(rawCheckoutUrl);
+          url.searchParams.set("channel", "online_store");
+          checkoutUrl = url.toString();
+          console.log("Storefront Checkout URL created:", checkoutUrl);
+        } else if (cartData?.data?.cartCreate?.userErrors?.length > 0) {
+          console.error("Cart creation errors:", cartData.data.cartCreate.userErrors);
+          // Fall back to invoice URL
+          if (draftOrder.invoice_url) {
+            const url = new URL(draftOrder.invoice_url);
+            url.searchParams.set("channel", "online_store");
+            checkoutUrl = url.toString();
+            console.log("Fallback to invoice_url:", checkoutUrl);
+          }
+        }
+      } catch (storefrontError) {
+        console.error("Storefront API error:", storefrontError);
+        // Fall back to invoice URL
+        if (draftOrder.invoice_url) {
+          const url = new URL(draftOrder.invoice_url);
+          url.searchParams.set("channel", "online_store");
+          checkoutUrl = url.toString();
+          console.log("Fallback to invoice_url after error:", checkoutUrl);
         }
       }
-
-      return current.toString();
-    };
-
-    let checkoutUrl: string | null = null;
-
-    if (invoiceUrlRaw) {
-      try {
-        const resolved = await resolveFinalCheckoutUrl(invoiceUrlRaw);
-        const url = new URL(resolved);
-        url.searchParams.set("channel", "online_store");
-        checkoutUrl = url.toString();
-        console.log("Checkout URL resolved:", checkoutUrl);
-      } catch (e) {
-        console.warn("Failed to resolve final checkout URL. Falling back to invoice_url.", e);
-        const url = new URL(invoiceUrlRaw);
-        url.searchParams.set("channel", "online_store");
-        checkoutUrl = url.toString();
-        console.log("Checkout URL fallback (invoice_url):", checkoutUrl);
-      }
     } else {
-      console.warn("No invoice_url returned from draft order:", draftOrder.id);
+      // No storefront token, use invoice URL as fallback
+      console.warn("SHOPIFY_STOREFRONT_ACCESS_TOKEN not configured, using invoice_url");
+      if (draftOrder.invoice_url) {
+        const url = new URL(draftOrder.invoice_url);
+        url.searchParams.set("channel", "online_store");
+        checkoutUrl = url.toString();
+        console.log("Invoice URL (no storefront token):", checkoutUrl);
+      } else {
+        console.warn("No invoice_url returned from draft order:", draftOrder.id);
+      }
     }
 
     return new Response(
