@@ -254,9 +254,10 @@ export default function PropostaDigital() {
           })
           .eq("token", token!);
 
-        // Open cart URL in new tab
+        // Redirect directly to cart URL (avoids popup blocker)
         if (cartUrl) {
-          window.open(cartUrl, '_blank');
+          window.location.href = cartUrl;
+          return data; // Return early, no need for toast since we're redirecting
         }
       }
 
