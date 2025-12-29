@@ -101,3 +101,9 @@ verify_jwt = true
 
 [functions.bling-sync-marketplace-orders]
 verify_jwt = true
+
+[functions.bling-advec-total]
+verify_jwt = true
+
+[functions.create-admin-user]
+verify_jwt = false
