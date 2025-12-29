@@ -295,15 +295,19 @@ export default function VendedorPedidosPage() {
         throw new Error(data.error);
       }
 
-      // Update proposta status to AGUARDANDO_PAGAMENTO
+      // Update proposta status to AGUARDANDO_PAGAMENTO and save payment_link
+      const cartUrl = data?.cartUrl || data?.invoiceUrl;
       await supabase
         .from("vendedor_propostas")
-        .update({ status: "AGUARDANDO_PAGAMENTO" })
+        .update({ 
+          status: "AGUARDANDO_PAGAMENTO",
+          payment_link: cartUrl 
+        })
         .eq("id", proposta.id);
 
-      if (data?.invoiceUrl) {
+      if (cartUrl) {
         toast.success("Link de pagamento gerado com sucesso!");
-        window.open(data.invoiceUrl, '_blank');
+        window.open(cartUrl, '_blank');
         refetch();
       } else {
         throw new Error("Resposta inesperada do servidor");
@@ -420,7 +424,7 @@ export default function VendedorPedidosPage() {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        {proposta.status === "PROPOSTA_ACEITA" && (
+                        {(proposta.status === "PROPOSTA_ACEITA" || proposta.status === "AGUARDANDO_PAGAMENTO") && !proposta.pode_faturar && (
                           <Button 
                             variant="default" 
                             size="sm"
@@ -429,12 +433,25 @@ export default function VendedorPedidosPage() {
                           >
                             {processingPropostaId === proposta.id ? (
                               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            ) : proposta.pode_faturar && proposta.prazo_faturamento_selecionado ? (
-                              <FileText className="h-4 w-4 mr-1" />
                             ) : (
                               <CreditCard className="h-4 w-4 mr-1" />
                             )}
-                            {proposta.pode_faturar && proposta.prazo_faturamento_selecionado ? "Enviar p/ Financeiro" : "Gerar Link Pagamento"}
+                            {proposta.status === "AGUARDANDO_PAGAMENTO" ? "Reenviar Link" : "Gerar Link Pagamento"}
+                          </Button>
+                        )}
+                        {proposta.status === "PROPOSTA_ACEITA" && proposta.pode_faturar && (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={() => handleGeneratePaymentLink(proposta)}
+                            disabled={processingPropostaId === proposta.id}
+                          >
+                            {processingPropostaId === proposta.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <FileText className="h-4 w-4 mr-1" />
+                            )}
+                            Enviar p/ Financeiro
                           </Button>
                         )}
                         {(proposta.status === "PROPOSTA_PENDENTE" || proposta.status === "PROPOSTA_ACEITA") && (

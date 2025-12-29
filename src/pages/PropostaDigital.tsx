@@ -52,6 +52,7 @@ interface Proposta {
   prazo_faturamento_selecionado: string | null;
   vendedor_nome: string | null;
   prazos_disponiveis: string[] | null;
+  payment_link: string | null;
 }
 
 export default function PropostaDigital() {
@@ -243,16 +244,19 @@ export default function PropostaDigital() {
           throw new Error(orderData.error);
         }
 
-        // Update status to AGUARDANDO_PAGAMENTO
+        // Save cartUrl and update status to AGUARDANDO_PAGAMENTO
+        const cartUrl = orderData?.cartUrl || orderData?.invoiceUrl;
         await supabase
           .from("vendedor_propostas")
-          .update({ status: "AGUARDANDO_PAGAMENTO" })
+          .update({ 
+            status: "AGUARDANDO_PAGAMENTO",
+            payment_link: cartUrl 
+          })
           .eq("token", token!);
 
-        // Open checkout URL in new tab
-        const checkoutUrl = orderData?.checkoutUrl || orderData?.invoiceUrl;
-        if (checkoutUrl) {
-          window.open(checkoutUrl, '_blank');
+        // Open cart URL in new tab
+        if (cartUrl) {
+          window.open(cartUrl, '_blank');
         }
       }
 
@@ -310,6 +314,7 @@ export default function PropostaDigital() {
 
   const isPending = proposta.status === "PROPOSTA_PENDENTE";
   const isAccepted = proposta.status === "PROPOSTA_ACEITA";
+  const isAguardandoPagamento = proposta.status === "AGUARDANDO_PAGAMENTO";
 
   // Calculate installment values
   const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * proposta.desconto_percentual / 100);
@@ -361,6 +366,30 @@ export default function PropostaDigital() {
           </div>
         )}
 
+        {/* Aguardando Pagamento Banner with Payment Button */}
+        {isAguardandoPagamento && proposta.payment_link && (
+          <Card className="border-2 border-yellow-400 bg-yellow-50">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center gap-4">
+                <div className="text-center">
+                  <p className="font-semibold text-yellow-800 text-lg">Proposta Confirmada - Aguardando Pagamento</p>
+                  <p className="text-sm text-yellow-700">
+                    Clique no botão abaixo para finalizar sua compra
+                  </p>
+                </div>
+                <Button
+                  onClick={() => window.open(proposta.payment_link!, '_blank')}
+                  className="w-full h-14 text-lg bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+                  size="lg"
+                >
+                  <CreditCard className="w-5 h-5 mr-2" />
+                  Ir para Pagamento
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Client Info */}
         <Card>
           <CardHeader className="pb-3">
@@ -369,8 +398,8 @@ export default function PropostaDigital() {
                 <Building2 className="h-5 w-5" />
                 Dados do Cliente
               </CardTitle>
-              <Badge variant={isPending ? "secondary" : "default"}>
-                {isPending ? "Pendente" : "Confirmada"}
+              <Badge variant={isPending ? "secondary" : isAguardandoPagamento ? "outline" : "default"}>
+                {isPending ? "Pendente" : isAguardandoPagamento ? "Aguardando Pagamento" : "Confirmada"}
               </Badge>
             </div>
           </CardHeader>
