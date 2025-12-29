@@ -246,18 +246,29 @@ export default function PropostaDigital() {
 
         // Save cartUrl and update status to AGUARDANDO_PAGAMENTO
         const cartUrl = orderData?.cartUrl || orderData?.invoiceUrl;
-        await supabase
-          .from("vendedor_propostas")
-          .update({ 
-            status: "AGUARDANDO_PAGAMENTO",
-            payment_link: cartUrl 
-          })
-          .eq("token", token!);
-
-        // Redirect directly to cart URL (avoids popup blocker)
+        console.log("Cart URL received from edge function:", cartUrl);
+        
         if (cartUrl) {
+          console.log("Saving payment_link and updating status...");
+          const { error: updateError } = await supabase
+            .from("vendedor_propostas")
+            .update({ 
+              status: "AGUARDANDO_PAGAMENTO",
+              payment_link: cartUrl 
+            })
+            .eq("token", token!);
+          
+          if (updateError) {
+            console.error("Error saving payment_link:", updateError);
+          } else {
+            console.log("Payment link saved, redirecting to:", cartUrl);
+          }
+
+          // Redirect directly to cart URL 
           window.location.href = cartUrl;
-          return data; // Return early, no need for toast since we're redirecting
+          return data; // Return early since we're redirecting
+        } else {
+          console.error("No cartUrl received from edge function:", orderData);
         }
       }
 
