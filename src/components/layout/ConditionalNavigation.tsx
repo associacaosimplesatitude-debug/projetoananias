@@ -74,6 +74,11 @@ export function ConditionalNavigation({ children }: ConditionalNavigationProps) 
   const isVendedorRoute = location.pathname.startsWith('/vendedor');
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isAdminEbdRoute = location.pathname.startsWith('/admin/ebd');
+  
+  // EBD superintendent routes (with sidebar layout)
+  const isEbdSuperintendentRoute = location.pathname.startsWith('/ebd/') && 
+    !isAlunoRoute && 
+    !isProfessorRoute;
  
   // Hide main navigation if:
   // 1. User is aluno and on aluno routes
@@ -82,13 +87,15 @@ export function ConditionalNavigation({ children }: ConditionalNavigationProps) 
   // 4. User is admin and on admin routes (has sidebar)
   // 5. User is gerente EBD and on admin EBD routes
   // 6. User is financeiro and on admin EBD routes
+  // 7. On EBD superintendent routes (dashboard, students, etc) - has sidebar layout
   const shouldHideNavigation = 
     (isAluno && isAlunoRoute) || 
     (isProfessor && isProfessorRoute) ||
     (isVendedor && isVendedorRoute) ||
     (role === 'admin' && isAdminRoute) ||
     (isGerenteEbd && isAdminEbdRoute) ||
-    (isFinanceiro && isAdminEbdRoute);
+    (isFinanceiro && isAdminEbdRoute) ||
+    isEbdSuperintendentRoute;
 
   if (shouldHideNavigation) {
     return <>{children}</>;
