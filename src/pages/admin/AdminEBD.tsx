@@ -291,7 +291,7 @@ export default function AdminEBD() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
-        .select("*")
+        .select("*, cliente:ebd_clientes(cnpj, tipo_cliente)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
