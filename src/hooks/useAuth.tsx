@@ -109,9 +109,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+    // Always clear local state and redirect, even if signOut fails
+    setSession(null);
+    setUser(null);
     setRole(null);
-    navigate('/auth');
+    navigate('/ebd-login');
   };
 
   return (
