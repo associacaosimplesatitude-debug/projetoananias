@@ -376,6 +376,77 @@ serve(async (req) => {
           }
         }
 
+        // Fallback: listar produtos (paginação limitada) e fazer match local.
+        // Isso resolve casos em que o filtro "nome" não retorna resultados por limitações do Bling.
+        const normalizedTarget = normalize(productName);
+        const keywords = palavrasSignificativas
+          .map((p) => normalize(p))
+          .filter((p) => p.length >= 4)
+          .slice(0, 6);
+
+        const MAX_PAGES = 5;
+        const LIMIT = 100;
+
+        for (let page = 1; page <= MAX_PAGES; page++) {
+          console.log(`Fallback: listando produtos do Bling (página ${page}/${MAX_PAGES}) para match local...`);
+
+          const listResponse = await fetch(
+            `https://www.bling.com.br/Api/v3/produtos?pagina=${page}&limite=${LIMIT}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept': 'application/json',
+              },
+            }
+          );
+
+          if (!listResponse.ok) {
+            const errorText = await listResponse.text();
+            console.log(`Fallback: erro HTTP ao listar produtos. Status: ${listResponse.status}. Body: ${errorText}`);
+            break;
+          }
+
+          const listData = await listResponse.json();
+          const produtos = listData.data || [];
+          console.log(`Fallback: Bling retornou ${produtos.length} produtos na página ${page}`);
+
+          if (!Array.isArray(produtos) || produtos.length === 0) break;
+
+          // 1) match exato
+          const exact = produtos.find((p: any) => normalize(p.nome || '') === normalizedTarget);
+          if (exact?.id) {
+            console.log(`Produto encontrado (fallback match exato): ${exact.nome} -> ID ${exact.id}`);
+            return exact.id;
+          }
+
+          // 2) match por inclusão
+          const includes = produtos.find((p: any) => {
+            const n = normalize(p.nome || '');
+            return n && (n.includes(normalizedTarget) || normalizedTarget.includes(n));
+          });
+          if (includes?.id) {
+            console.log(`Produto encontrado (fallback match inclusão): ${includes.nome} -> ID ${includes.id}`);
+            return includes.id;
+          }
+
+          // 3) match por keywords
+          if (keywords.length) {
+            const kw = produtos.find((p: any) => {
+              const n = normalize(p.nome || '');
+              const hits = keywords.filter((k) => n.includes(k)).length;
+              return hits >= Math.min(2, keywords.length);
+            });
+
+            if (kw?.id) {
+              console.log(`Produto encontrado (fallback match keywords): ${kw.nome} -> ID ${kw.id}`);
+              return kw.id;
+            }
+          }
+
+          // Se veio menos que LIMIT, não há mais páginas.
+          if (produtos.length < LIMIT) break;
+        }
+
         console.log(`Nenhum produto encontrado para: ${productName}`);
         return null;
       } catch (error) {
