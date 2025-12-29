@@ -15,9 +15,12 @@ export interface OnboardingProgress {
   etapas: OnboardingEtapa[];
   revistaIdentificadaId: string | null;
   revistaIdentificadaTitulo: string | null;
+  revistaIdentificadaImagem: string | null;
   progressoPercentual: number;
   concluido: boolean;
   descontoObtido: number | null;
+  dataAniversario: string | null;
+  cupomAniversarioDisponivel: boolean;
 }
 
 const ETAPAS_CONFIG: Omit<OnboardingEtapa, "completada" | "completadaEm">[] = [
@@ -26,7 +29,10 @@ const ETAPAS_CONFIG: Omit<OnboardingEtapa, "completada" | "completadaEm">[] = [
   { id: 3, titulo: "Cadastrar Professor", descricao: "Cadastre pelo menos 1 professor" },
   { id: 4, titulo: "Definir Data de Início", descricao: "Marque a data de início das aulas" },
   { id: 5, titulo: "Criar Escala", descricao: "Adicione professores às aulas (crie a escala inicial)" },
+  { id: 6, titulo: "Data de Aniversário", descricao: "Informe sua data de aniversário para ganhar um presente especial!" },
 ];
+
+const TOTAL_ETAPAS = 6;
 
 // Função para calcular o desconto baseado no valor da compra
 export const calcularDesconto = (valorCompra: number): { percentual: number; valorMaximo: number } => {
@@ -37,6 +43,25 @@ export const calcularDesconto = (valorCompra: number): { percentual: number; val
   } else {
     return { percentual: 20, valorMaximo: Math.min(valorCompra * 0.20, 300 * 0.20) };
   }
+};
+
+// Verificar se é o aniversário do superintendente
+export const verificarAniversario = (dataAniversario: string | null): boolean => {
+  if (!dataAniversario) return false;
+  
+  const hoje = new Date();
+  const [ano, mes, dia] = dataAniversario.split("-").map(Number);
+  
+  return hoje.getDate() === dia && (hoje.getMonth() + 1) === mes;
+};
+
+// Função para identificar se é revista BASE (Aluno) ou SUPORTE (Professor)
+const identificarTipoRevista = (titulo: string): "BASE" | "SUPORTE" => {
+  const tituloUpper = titulo.toUpperCase();
+  if (tituloUpper.includes("PROFESSOR") || tituloUpper.includes("MESTRE")) {
+    return "SUPORTE";
+  }
+  return "BASE"; // Padrão é BASE (Aluno)
 };
 
 export const useOnboardingProgress = (churchId: string | null) => {
@@ -56,10 +81,10 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       if (etapasError) throw etapasError;
 
-      // Buscar se onboarding já foi concluído
+      // Buscar dados do cliente incluindo aniversário
       const { data: clienteData, error: clienteError } = await supabase
         .from("ebd_clientes")
-        .select("onboarding_concluido, desconto_onboarding")
+        .select("onboarding_concluido, desconto_onboarding, data_aniversario_superintendente, cupom_aniversario_usado, cupom_aniversario_ano")
         .eq("id", churchId)
         .maybeSingle();
 
@@ -76,14 +101,16 @@ export const useOnboardingProgress = (churchId: string | null) => {
       // Obter revista identificada (da etapa 1)
       const revistaId = etapasMap.get(1)?.revistaId || null;
       let revistaTitulo: string | null = null;
+      let revistaImagem: string | null = null;
       
       if (revistaId) {
         const { data: revistaData } = await supabase
           .from("ebd_revistas")
-          .select("titulo")
+          .select("titulo, imagem_url")
           .eq("id", revistaId)
           .single();
         revistaTitulo = revistaData?.titulo || null;
+        revistaImagem = revistaData?.imagem_url || null;
       }
 
       // Montar etapas
@@ -94,51 +121,72 @@ export const useOnboardingProgress = (churchId: string | null) => {
       }));
 
       const etapasCompletas = etapas.filter((e) => e.completada).length;
-      const progressoPercentual = Math.round((etapasCompletas / 5) * 100);
+      const progressoPercentual = Math.round((etapasCompletas / TOTAL_ETAPAS) * 100);
+
+      // Verificar se cupom de aniversário está disponível
+      const anoAtual = new Date().getFullYear();
+      const dataAniversario = clienteData?.data_aniversario_superintendente || null;
+      const cupomUsadoEsteAno = clienteData?.cupom_aniversario_ano === anoAtual && clienteData?.cupom_aniversario_usado;
+      const ehAniversario = verificarAniversario(dataAniversario);
+      const cupomAniversarioDisponivel = ehAniversario && !cupomUsadoEsteAno;
 
       return {
         etapas,
         revistaIdentificadaId: revistaId,
         revistaIdentificadaTitulo: revistaTitulo,
+        revistaIdentificadaImagem: revistaImagem,
         progressoPercentual,
         concluido: clienteData?.onboarding_concluido || false,
         descontoObtido: clienteData?.desconto_onboarding || null,
+        dataAniversario,
+        cupomAniversarioDisponivel,
       } as OnboardingProgress;
     },
     enabled: !!churchId,
   });
 
-  // Identificar revista mais recente do cliente
+  // Identificar revista mais recente do cliente - APENAS REVISTAS BASE (ALUNO)
   const { data: revistaIdentificada } = useQuery({
     queryKey: ["ebd-revista-identificada", churchId],
     queryFn: async () => {
       if (!churchId) return null;
 
-      // Primeiro, tentar pelo cliente_id no ebd_shopify_pedidos
-      const { data: pedidoData, error: pedidoError } = await supabase
+      // Buscar todos os itens de pedidos do cliente
+      const { data: pedidosData, error: pedidoError } = await supabase
         .from("ebd_shopify_pedidos")
         .select(`
           id,
           order_date,
           ebd_shopify_pedidos_itens(
             revista_id,
+            quantidade,
             ebd_revistas(id, titulo, imagem_url)
           )
         `)
         .eq("cliente_id", churchId)
         .eq("status_pagamento", "paid")
         .order("order_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(5);
 
-      const item = pedidoData?.ebd_shopify_pedidos_itens?.[0] as any;
-      if (item?.ebd_revistas) {
-        const revista = item.ebd_revistas;
-        return {
-          id: revista.id,
-          titulo: revista.titulo,
-          imagemUrl: revista.imagem_url,
-        };
+      if (pedidosData && pedidosData.length > 0) {
+        // Iterar pelos pedidos e encontrar a primeira revista BASE (Aluno)
+        for (const pedido of pedidosData) {
+          const itens = (pedido as any).ebd_shopify_pedidos_itens || [];
+          for (const item of itens) {
+            const revista = item.ebd_revistas;
+            if (revista && revista.titulo) {
+              const tipo = identificarTipoRevista(revista.titulo);
+              if (tipo === "BASE") {
+                return {
+                  id: revista.id,
+                  titulo: revista.titulo,
+                  imagemUrl: revista.imagem_url,
+                  quantidade: item.quantidade || 1,
+                };
+              }
+            }
+          }
+        }
       }
 
       // Fallback: buscar pelo planejamento mais recente
@@ -154,11 +202,15 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       if (planejamentoData?.revista) {
         const revista = planejamentoData.revista as any;
-        return {
-          id: revista.id,
-          titulo: revista.titulo,
-          imagemUrl: revista.imagem_url,
-        };
+        // Verificar se é BASE
+        if (revista.titulo && identificarTipoRevista(revista.titulo) === "BASE") {
+          return {
+            id: revista.id,
+            titulo: revista.titulo,
+            imagemUrl: revista.imagem_url,
+            quantidade: 1,
+          };
+        }
       }
 
       return null;
@@ -168,7 +220,7 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
   // Mutation para marcar etapa como concluída
   const marcarEtapaMutation = useMutation({
-    mutationFn: async ({ etapaId, revistaId }: { etapaId: number; revistaId?: string }) => {
+    mutationFn: async ({ etapaId, revistaId, dataAniversario }: { etapaId: number; revistaId?: string; dataAniversario?: string }) => {
       if (!churchId) throw new Error("Church ID não encontrado");
 
       const { error } = await supabase
@@ -186,6 +238,14 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       if (error) throw error;
 
+      // Se é a etapa 6 (aniversário), salvar a data
+      if (etapaId === 6 && dataAniversario) {
+        await supabase
+          .from("ebd_clientes")
+          .update({ data_aniversario_superintendente: dataAniversario })
+          .eq("id", churchId);
+      }
+
       // Verificar se todas as etapas foram concluídas
       const { data: todasEtapas } = await supabase
         .from("ebd_onboarding_progress")
@@ -194,8 +254,8 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       const etapasCompletas = todasEtapas?.filter((e: any) => e.completada).length || 0;
 
-      // Se todas as 5 etapas foram concluídas, calcular e salvar o desconto
-      if (etapasCompletas >= 5) {
+      // Se todas as 6 etapas foram concluídas, calcular e salvar o desconto
+      if (etapasCompletas >= TOTAL_ETAPAS) {
         // Calcular desconto baseado no valor do último pedido
         const { data: ultimoPedido } = await supabase
           .from("ebd_shopify_pedidos")
@@ -234,6 +294,29 @@ export const useOnboardingProgress = (churchId: string | null) => {
     },
     onError: (error) => {
       console.error("Erro ao marcar etapa:", error);
+    },
+  });
+
+  // Mutation para usar cupom de aniversário
+  const usarCupomAniversarioMutation = useMutation({
+    mutationFn: async () => {
+      if (!churchId) throw new Error("Church ID não encontrado");
+
+      const anoAtual = new Date().getFullYear();
+      
+      await supabase
+        .from("ebd_clientes")
+        .update({
+          cupom_aniversario_usado: true,
+          cupom_aniversario_ano: anoAtual,
+        })
+        .eq("id", churchId);
+
+      return { sucesso: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ebd-onboarding-progress", churchId] });
+      toast.success("🎂 Cupom de aniversário de R$50 aplicado! Aproveite sua compra!", { duration: 6000 });
     },
   });
 
@@ -290,6 +373,11 @@ export const useOnboardingProgress = (churchId: string | null) => {
         marcarEtapaMutation.mutate({ etapaId: 5 });
       }
     }
+
+    // Etapa 6: Verificar se tem data de aniversário cadastrada
+    if (!progressData.etapas[5]?.completada && progressData.dataAniversario) {
+      marcarEtapaMutation.mutate({ etapaId: 6 });
+    }
   }, [churchId, progressData, marcarEtapaMutation]);
 
   // Verificar etapas automaticamente ao carregar
@@ -328,9 +416,11 @@ export const useOnboardingProgress = (churchId: string | null) => {
     progress: progressData,
     revistaIdentificada,
     isLoading,
-    marcarEtapa: (etapaId: number, revistaId?: string) => 
-      marcarEtapaMutation.mutate({ etapaId, revistaId }),
+    marcarEtapa: (etapaId: number, revistaId?: string, dataAniversario?: string) => 
+      marcarEtapaMutation.mutate({ etapaId, revistaId, dataAniversario }),
     verificarEtapas: verificarEtapasAutomaticamente,
     isMarking: marcarEtapaMutation.isPending,
+    usarCupomAniversario: usarCupomAniversarioMutation.mutate,
+    isUsandoCupom: usarCupomAniversarioMutation.isPending,
   };
 };
