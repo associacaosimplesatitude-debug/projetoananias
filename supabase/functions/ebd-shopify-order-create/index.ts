@@ -101,27 +101,36 @@ serve(async (req) => {
     console.log("Frete:", metodoFreteRecebido, "Valor:", valorFreteRecebido);
 
     // Step 1: Search for existing customer or create new one
-    // Generate a fallback email using CNPJ, or timestamp + sanitized church name if no CNPJ
-    let customerEmail = cliente.email_superintendente;
-    if (!customerEmail) {
-      const cnpjClean = cliente.cnpj ? cliente.cnpj.replace(/\D/g, '') : '';
-      if (cnpjClean) {
-        customerEmail = `${cnpjClean}@cliente.centralgospel.com.br`;
-      } else {
-        // Use timestamp and sanitized church name as fallback
-        const timestamp = Date.now();
-        const sanitizedName = cliente.nome_igreja
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-z0-9]/g, '')
-          .substring(0, 20);
-        customerEmail = `${sanitizedName}${timestamp}@cliente.centralgospel.com.br`;
-      }
+    // IMPORTANT: Shopify pode validar o domínio do e-mail. Então usamos um domínio corporativo conhecido.
+    const FALLBACK_EMAIL_DOMAIN = "editoracentralgospel.com";
+
+    const isValidEmail = (email: string) => {
+      const value = email.trim().toLowerCase();
+      // Simple but strict enough for our needs
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return false;
+      const domain = value.split("@")[1] || "";
+      if (domain.includes("..")) return false;
+      return true;
+    };
+
+    // Prefer email do cliente, mas se estiver vazio/inválido, gera um fallback válido
+    let customerEmail = (cliente.email_superintendente || "").trim().toLowerCase();
+    if (!customerEmail || !isValidEmail(customerEmail)) {
+      const timestamp = Date.now();
+      const cnpjClean = cliente.cnpj ? cliente.cnpj.replace(/\D/g, "") : "";
+      const base = (cnpjClean || cliente.nome_igreja || "cliente")
+        .toString()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "")
+        .substring(0, 20) || "cliente";
+
+      customerEmail = `${base}.${timestamp}@${FALLBACK_EMAIL_DOMAIN}`;
     }
-    
+
     console.log("Customer email:", customerEmail);
-    
+
     // Search for customer by email
     const searchResponse = await fetch(
       `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/customers/search.json?query=email:${encodeURIComponent(customerEmail)}`,
