@@ -3450,6 +3450,7 @@ export type Database = {
           id: string
           itens: Json
           metodo_frete: string | null
+          payment_link: string | null
           pode_faturar: boolean | null
           prazo_faturamento_selecionado: string | null
           prazos_disponiveis: string[] | null
@@ -3473,6 +3474,7 @@ export type Database = {
           id?: string
           itens?: Json
           metodo_frete?: string | null
+          payment_link?: string | null
           pode_faturar?: boolean | null
           prazo_faturamento_selecionado?: string | null
           prazos_disponiveis?: string[] | null
@@ -3496,6 +3498,7 @@ export type Database = {
           id?: string
           itens?: Json
           metodo_frete?: string | null
+          payment_link?: string | null
           pode_faturar?: boolean | null
           prazo_faturamento_selecionado?: string | null
           prazos_disponiveis?: string[] | null
