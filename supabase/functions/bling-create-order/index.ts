@@ -269,61 +269,111 @@ serve(async (req) => {
     // Função auxiliar para buscar produto no Bling pelo nome
     async function findBlingProductByName(productName: string): Promise<number | null> {
       try {
-        // Buscar produto pelo nome - usar apenas as primeiras palavras para melhorar resultados
-        // O Bling pode ter problemas com nomes muito longos ou com acentos
-        const searchTerms = productName.split(' ').slice(0, 4).join(' ');
-        console.log(`Buscando produto no Bling com termo: "${searchTerms}"`);
+        // Normalizar para comparação (remover acentos e case)
+        const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
         
-        const searchResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=100&nome=${encodeURIComponent(searchTerms)}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/json',
-            },
-          }
-        );
-
-        if (!searchResponse.ok) {
-          const errorText = await searchResponse.text();
-          console.log(`Erro HTTP ao buscar produto por nome: ${productName}. Status: ${searchResponse.status}. Body: ${errorText}`);
-          return null;
+        // Estratégias de busca em ordem de prioridade:
+        // 1. Buscar palavras-chave significativas (sem artigos/preposições)
+        // 2. Buscar primeiras 3-4 palavras
+        // 3. Buscar palavra mais longa/única do título
+        
+        const palavrasIgnorar = ['a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'na', 'no', 'nas', 'nos', 'para', 'por', 'com', 'um', 'uma', 'uns', 'umas', '-', 'livro', 'revista'];
+        const palavras = productName.split(/\s+/).filter(p => p.length > 0);
+        const palavrasSignificativas = palavras.filter(p => !palavrasIgnorar.includes(p.toLowerCase()) && p.length > 2);
+        
+        // Diferentes termos de busca para tentar
+        const searchAttempts: string[] = [];
+        
+        // 1. Palavras significativas (max 3)
+        if (palavrasSignificativas.length >= 2) {
+          searchAttempts.push(palavrasSignificativas.slice(0, 3).join(' '));
         }
-
-        const searchData = await searchResponse.json();
-        const produtos = searchData.data || [];
         
-        console.log(`Bling retornou ${produtos.length} produtos para busca "${searchTerms}"`);
-
-        if (produtos.length > 0) {
-          // Normalizar para comparação (remover acentos e case)
-          const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-          const normalizedSearch = normalize(productName);
+        // 2. Primeiras 5 palavras originais
+        if (palavras.length >= 3) {
+          searchAttempts.push(palavras.slice(0, 5).join(' '));
+        }
+        
+        // 3. Palavra mais longa (provavelmente mais única)
+        const palavraMaisLonga = palavras.reduce((a, b) => a.length > b.length ? a : b, '');
+        if (palavraMaisLonga.length > 4) {
+          searchAttempts.push(palavraMaisLonga);
+        }
+        
+        // 4. Primeiras 3 palavras
+        searchAttempts.push(palavras.slice(0, 3).join(' '));
+        
+        // Remover duplicatas
+        const uniqueAttempts = [...new Set(searchAttempts)];
+        
+        for (const searchTerms of uniqueAttempts) {
+          console.log(`Buscando produto no Bling com termo: "${searchTerms}"`);
           
-          // Tentar encontrar match exato primeiro
-          const exactMatch = produtos.find((p: any) =>
-            normalize(p.nome || '') === normalizedSearch
+          const searchResponse = await fetch(
+            `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=100&nome=${encodeURIComponent(searchTerms)}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept': 'application/json',
+              },
+            }
           );
 
-          if (exactMatch) {
-            console.log(`Produto encontrado (match exato): ${exactMatch.nome} -> ID ${exactMatch.id}`);
-            return exactMatch.id;
+          if (!searchResponse.ok) {
+            const errorText = await searchResponse.text();
+            console.log(`Erro HTTP ao buscar produto por nome: ${productName}. Status: ${searchResponse.status}. Body: ${errorText}`);
+            continue; // Tentar próximo termo
           }
 
-          // Tentar match por inclusão de texto normalizado
-          const partialMatch = produtos.find((p: any) => {
-            const normalizedProduto = normalize(p.nome || '');
-            return normalizedSearch.includes(normalizedProduto) || normalizedProduto.includes(normalizedSearch);
-          });
+          const searchData = await searchResponse.json();
+          const produtos = searchData.data || [];
+          
+          console.log(`Bling retornou ${produtos.length} produtos para busca "${searchTerms}"`);
 
-          if (partialMatch) {
-            console.log(`Produto encontrado (match parcial): ${partialMatch.nome} -> ID ${partialMatch.id}`);
-            return partialMatch.id;
+          if (produtos.length > 0) {
+            const normalizedSearch = normalize(productName);
+            
+            // Tentar encontrar match exato primeiro
+            const exactMatch = produtos.find((p: any) =>
+              normalize(p.nome || '') === normalizedSearch
+            );
+
+            if (exactMatch) {
+              console.log(`Produto encontrado (match exato): ${exactMatch.nome} -> ID ${exactMatch.id}`);
+              return exactMatch.id;
+            }
+
+            // Tentar match por inclusão de texto normalizado
+            const partialMatch = produtos.find((p: any) => {
+              const normalizedProduto = normalize(p.nome || '');
+              return normalizedSearch.includes(normalizedProduto) || normalizedProduto.includes(normalizedSearch);
+            });
+
+            if (partialMatch) {
+              console.log(`Produto encontrado (match parcial): ${partialMatch.nome} -> ID ${partialMatch.id}`);
+              return partialMatch.id;
+            }
+
+            // Match por palavras-chave significativas
+            const keywordMatch = produtos.find((p: any) => {
+              const normalizedProduto = normalize(p.nome || '');
+              const matchCount = palavrasSignificativas.filter(palavra => 
+                normalizedProduto.includes(normalize(palavra))
+              ).length;
+              return matchCount >= Math.min(2, palavrasSignificativas.length);
+            });
+
+            if (keywordMatch) {
+              console.log(`Produto encontrado (match por palavras-chave): ${keywordMatch.nome} -> ID ${keywordMatch.id}`);
+              return keywordMatch.id;
+            }
+
+            // Se ainda assim não houver match, usar o primeiro resultado se temos alta confiança
+            if (produtos.length === 1) {
+              console.log(`Produto encontrado (único resultado): ${produtos[0].nome} -> ID ${produtos[0].id}`);
+              return produtos[0].id;
+            }
           }
-
-          // Se ainda assim não houver match, usar o primeiro resultado
-          console.log(`Produto encontrado (primeiro resultado): ${produtos[0].nome} -> ID ${produtos[0].id}`);
-          return produtos[0].id;
         }
 
         console.log(`Nenhum produto encontrado para: ${productName}`);
