@@ -101,7 +101,26 @@ serve(async (req) => {
     console.log("Frete:", metodoFreteRecebido, "Valor:", valorFreteRecebido);
 
     // Step 1: Search for existing customer or create new one
-    const customerEmail = cliente.email_superintendente || `${cliente.cnpj.replace(/\D/g, '')}@placeholder.com`;
+    // Generate a fallback email using CNPJ, or timestamp + sanitized church name if no CNPJ
+    let customerEmail = cliente.email_superintendente;
+    if (!customerEmail) {
+      const cnpjClean = cliente.cnpj ? cliente.cnpj.replace(/\D/g, '') : '';
+      if (cnpjClean) {
+        customerEmail = `${cnpjClean}@cliente.centralgospel.com.br`;
+      } else {
+        // Use timestamp and sanitized church name as fallback
+        const timestamp = Date.now();
+        const sanitizedName = cliente.nome_igreja
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, '')
+          .substring(0, 20);
+        customerEmail = `${sanitizedName}${timestamp}@cliente.centralgospel.com.br`;
+      }
+    }
+    
+    console.log("Customer email:", customerEmail);
     
     // Search for customer by email
     const searchResponse = await fetch(
