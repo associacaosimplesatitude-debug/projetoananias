@@ -266,6 +266,25 @@ serve(async (req) => {
     // Calcular desconto total da venda
     let descontoTotalVenda = 0;
     
+    // Helper: delay para respeitar rate limit do Bling (3 req/s)
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    // Helper: fetch com retry automático para 429
+    async function blingFetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const response = await fetch(url, options);
+        if (response.status === 429) {
+          const waitTime = attempt * 1000; // 1s, 2s, 3s
+          console.log(`Rate limit atingido (429). Aguardando ${waitTime}ms antes de tentar novamente (tentativa ${attempt}/${maxRetries})...`);
+          await delay(waitTime);
+          continue;
+        }
+        return response;
+      }
+      // Última tentativa sem retry
+      return fetch(url, options);
+    }
+
     // Função auxiliar para buscar produto no Bling pelo nome
     async function findBlingProductByName(productName: string): Promise<number | null> {
       try {
@@ -309,7 +328,10 @@ serve(async (req) => {
         for (const searchTerms of uniqueAttempts) {
           console.log(`Buscando produto no Bling com termo: "${searchTerms}"`);
           
-          const searchResponse = await fetch(
+          // Delay entre buscas para respeitar rate limit
+          await delay(350);
+          
+          const searchResponse = await blingFetchWithRetry(
             `https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=100&nome=${encodeURIComponent(searchTerms)}`,
             {
               headers: {
@@ -390,7 +412,10 @@ serve(async (req) => {
         for (let page = 1; page <= MAX_PAGES; page++) {
           console.log(`Fallback: listando produtos do Bling (página ${page}/${MAX_PAGES}) para match local...`);
 
-          const listResponse = await fetch(
+          // Delay entre páginas para respeitar rate limit
+          await delay(400);
+
+          const listResponse = await blingFetchWithRetry(
             `https://www.bling.com.br/Api/v3/produtos?pagina=${page}&limite=${LIMIT}`,
             {
               headers: {
