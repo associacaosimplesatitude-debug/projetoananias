@@ -1214,44 +1214,24 @@ export default function ShopifyPedidos() {
               Proposta Gerada com Sucesso!
             </DialogTitle>
             <DialogDescription>
-              Copie o link abaixo e envie ao cliente para que ele confirme a compra.
+              Copie a mensagem abaixo e envie ao cliente para que ele confirme a compra.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex items-center gap-2">
-              <Input 
-                value={propostaLink} 
-                readOnly 
-                className="flex-1 font-mono text-sm"
-              />
-              <Button
-                variant={linkCopied ? "default" : "outline"}
-                size="icon"
-                onClick={handleCopyLink}
-                className={linkCopied ? "bg-green-600 hover:bg-green-700" : ""}
-              >
-                {linkCopied ? (
-                  <CheckCircle className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            
             {/* Standard Message Template */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
               <p className="text-sm font-medium text-blue-800">Mensagem padrão para enviar ao cliente:</p>
               <div className="bg-white rounded border p-3 text-sm text-muted-foreground whitespace-pre-line">
 {`Prezado(a) ${propostaClienteNome || '[Nome do Cliente]'},
 
-Segue a Proposta Digital de Pedido que preparamos para você.
+Segue a Proposta Digital de Pedido que preparamos especialmente para você.
 
-Por favor, clique no link abaixo para conferir todos os detalhes, quantidades, formas de entrega e condições de pagamento:
+Por favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:
 
 ${propostaLink}
 
-Após conferir, clique no botão "CONFIRMAR COMPRA" na página para dar andamento ao seu pedido.
+Após conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.
 
 Qualquer dúvida, estou à disposição!
 
@@ -1265,13 +1245,13 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`}
                 onClick={async () => {
                   const message = `Prezado(a) ${propostaClienteNome || '[Nome do Cliente]'},
 
-Segue a Proposta Digital de Pedido que preparamos para você.
+Segue a Proposta Digital de Pedido que preparamos especialmente para você.
 
-Por favor, clique no link abaixo para conferir todos os detalhes, quantidades, formas de entrega e condições de pagamento:
+Por favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:
 
 ${propostaLink}
 
-Após conferir, clique no botão "CONFIRMAR COMPRA" na página para dar andamento ao seu pedido.
+Após conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.
 
 Qualquer dúvida, estou à disposição!
 
@@ -1298,13 +1278,9 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
             </div>
           </div>
           
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-center">
             <Button variant="outline" onClick={handleClosePropostaDialog}>
               Fechar
-            </Button>
-            <Button onClick={handleCopyLink} className="bg-yellow-500 hover:bg-yellow-600 text-black">
-              <Copy className="h-4 w-4 mr-2" />
-              {linkCopied ? "Copiado!" : "Copiar Link"}
             </Button>
           </div>
         </DialogContent>
