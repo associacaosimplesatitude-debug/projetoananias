@@ -155,7 +155,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
             <div className="flex-1">
               <h3 className="text-lg font-bold text-green-700 dark:text-green-400 flex items-center gap-2">
                 <Sparkles className="h-5 w-5" />
-                {progress.modoRecompra ? "Nova Revista Configurada!" : "Parabéns! Onboarding Completo!"}
+                {progress.modoRecompra ? "Revista Configurada com Sucesso!" : "Parabéns! Onboarding Completo!"}
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Você ganhou <span className="font-bold text-green-600">{progress.descontoObtido}% de desconto</span> na sua próxima compra
@@ -238,7 +238,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
               <div>
                 <CardTitle className="text-lg">
                   {progress.modoRecompra 
-                    ? "Configure sua Nova Revista e Ganhe Desconto!" 
+                    ? "Configure a Revista e Ganhe Desconto!" 
                     : "Complete seu Setup e Ganhe Desconto!"}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
