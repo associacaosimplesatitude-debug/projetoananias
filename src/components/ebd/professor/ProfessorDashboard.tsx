@@ -275,12 +275,12 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
       {/* Grid de Cards */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Card Desafio Bíblico */}
-        {user && turmas[0] && (
+        {user && (
           <DesafioBiblicoCard
             churchId={professor.church_id}
             userId={user.id}
             userType="professor"
-            turmaId={turmas[0].id}
+            turmaId={proximaAula?.turma?.id ?? turmas?.[0]?.id ?? professor.turma_id ?? null}
           />
         )}
 
