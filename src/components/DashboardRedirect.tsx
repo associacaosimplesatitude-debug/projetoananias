@@ -37,18 +37,19 @@ export default function DashboardRedirect() {
     queryFn: async () => {
       if (!user?.id) return null;
       
+      // Use .limit(1) instead of .maybeSingle() to handle users with multiple clients
       const { data, error } = await supabase
         .from("ebd_clientes")
         .select("id, status_ativacao_ebd, tipo_cliente")
         .eq("superintendente_user_id", user.id)
         .eq("status_ativacao_ebd", true)
-        .maybeSingle();
+        .limit(1);
 
       if (error) {
         console.error("Error checking ebd_cliente status:", error);
         return null;
       }
-      return data;
+      return data && data.length > 0 ? data[0] : null;
     },
     enabled: !!user?.id && !authLoading,
   });
