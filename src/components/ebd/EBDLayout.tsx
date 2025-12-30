@@ -15,6 +15,7 @@ import {
   Gamepad2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DescontoSidebarBadge } from "./DescontoSidebarBadge";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
@@ -217,6 +218,11 @@ function EBDSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Botão de Desconto Garantido */}
+        <div className="mt-auto p-4 group-data-[collapsible=icon]:p-2">
+          <DescontoSidebarBadge />
+        </div>
       </SidebarContent>
     </Sidebar>
   );
