@@ -17,9 +17,10 @@ import {
   Sparkles,
   ChevronRight,
   Cake,
-  Heart
+  Heart,
+  RefreshCw
 } from "lucide-react";
-import { useOnboardingProgress, calcularDesconto } from "@/hooks/useOnboardingProgress";
+import { useOnboardingProgress, calcularDesconto, RevistaBaseNaoAplicada } from "@/hooks/useOnboardingProgress";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -30,25 +31,42 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface OnboardingProgressCardProps {
   churchId: string | null;
 }
 
-const ETAPA_ICONS = [BookOpen, Users, GraduationCap, CalendarDays, ClipboardList, Cake];
-const ETAPA_ROUTES = [
-  "/ebd/catalogo",
-  "/ebd/classrooms",
-  "/ebd/teachers",
-  "/ebd/planejamento",
-  "/ebd/schedule",
-  null, // Etapa 6 abre dialog
-];
+const ETAPA_ICONS: Record<number, any> = {
+  1: BookOpen,
+  2: Users,
+  3: GraduationCap,
+  4: CalendarDays,
+  5: ClipboardList,
+  6: Cake,
+};
+
+const ETAPA_ROUTES: Record<number, string | null> = {
+  1: null, // Abre dialog de seleção de revistas
+  2: "/ebd/classrooms",
+  3: "/ebd/teachers",
+  4: "/ebd/planejamento",
+  5: "/ebd/schedule",
+  6: null, // Abre dialog de aniversário
+};
 
 export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps) {
   const navigate = useNavigate();
-  const { progress, revistaIdentificada, isLoading, marcarEtapa, usarCupomAniversario, isUsandoCupom } = useOnboardingProgress(churchId);
+  const { 
+    progress, 
+    revistasNaoAplicadas, 
+    isLoading, 
+    marcarEtapa, 
+    usarCupomAniversario, 
+    isUsandoCupom 
+  } = useOnboardingProgress(churchId);
   const [showAniversarioDialog, setShowAniversarioDialog] = useState(false);
+  const [showRevistasDialog, setShowRevistasDialog] = useState(false);
   const [dataAniversario, setDataAniversario] = useState("");
 
   if (isLoading) {
@@ -108,8 +126,8 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     );
   }
 
-  // Se o onboarding foi concluído, mostrar card de parabéns
-  if (progress.concluido) {
+  // Se o onboarding foi concluído (e não há revistas novas), mostrar card de parabéns
+  if (progress.concluido && revistasNaoAplicadas.length === 0) {
     return (
       <Card className="bg-gradient-to-br from-green-500/20 via-emerald-500/10 to-background border-green-500/30 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -123,10 +141,11 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
             <div className="flex-1">
               <h3 className="text-lg font-bold text-green-700 dark:text-green-400 flex items-center gap-2">
                 <Sparkles className="h-5 w-5" />
-                Parabéns! Onboarding Completo!
+                {progress.modoRecompra ? "Nova Revista Configurada!" : "Parabéns! Onboarding Completo!"}
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Você ganhou <span className="font-bold text-green-600">{progress.descontoObtido}% de desconto</span> na sua próxima compra + Brinde de Aniversário!
+                Você ganhou <span className="font-bold text-green-600">{progress.descontoObtido}% de desconto</span> na sua próxima compra
+                {!progress.modoRecompra && " + Brinde de Aniversário"}!
               </p>
             </div>
             <Button 
@@ -144,16 +163,23 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
 
   // Encontrar a próxima etapa não completada
   const proximaEtapa = progress.etapas.find((e) => !e.completada);
-  const etapaAtualIndex = proximaEtapa ? proximaEtapa.id - 1 : 5;
+  const totalEtapas = progress.etapas.length;
 
   const handleEtapaClick = (etapaId: number) => {
     if (etapaId === 6) {
-      // Etapa de aniversário - abrir dialog
       setShowAniversarioDialog(true);
-    } else if (etapaId === 1 && revistaIdentificada) {
-      navigate("/ebd/catalogo");
+    } else if (etapaId === 1) {
+      // Etapa de aplicar revista - mostrar dialog se há múltiplas revistas
+      if (revistasNaoAplicadas.length > 1) {
+        setShowRevistasDialog(true);
+      } else if (revistasNaoAplicadas.length === 1) {
+        // Só uma revista, ir direto para o catálogo/planejamento
+        navigate("/ebd/planejamento");
+      } else {
+        navigate("/ebd/catalogo");
+      }
     } else {
-      const route = ETAPA_ROUTES[etapaId - 1];
+      const route = ETAPA_ROUTES[etapaId];
       if (route) navigate(route);
     }
   };
@@ -164,6 +190,12 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
       setShowAniversarioDialog(false);
       setDataAniversario("");
     }
+  };
+
+  const handleAplicarRevista = (revista: RevistaBaseNaoAplicada) => {
+    setShowRevistasDialog(false);
+    // Navegar para o planejamento com a revista selecionada
+    navigate(`/ebd/planejamento?revista_id=${revista.id}`);
   };
 
   return (
@@ -177,12 +209,24 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <Gift className="h-6 w-6 text-primary" />
+                {progress.modoRecompra ? (
+                  <RefreshCw className="h-6 w-6 text-primary" />
+                ) : (
+                  <Gift className="h-6 w-6 text-primary" />
+                )}
               </div>
               <div>
-                <CardTitle className="text-lg">Complete seu Setup e Ganhe Desconto!</CardTitle>
+                <CardTitle className="text-lg">
+                  {progress.modoRecompra 
+                    ? "Configure sua Nova Revista e Ganhe Desconto!" 
+                    : "Complete seu Setup e Ganhe Desconto!"}
+                </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Até <span className="font-bold text-primary">30% de desconto</span> na próxima compra + Brinde de Aniversário
+                  {progress.modoRecompra ? (
+                    <>Até <span className="font-bold text-primary">30% de desconto</span> na próxima compra</>
+                  ) : (
+                    <>Até <span className="font-bold text-primary">30% de desconto</span> na próxima compra + Brinde de Aniversário</>
+                  )}
                 </p>
               </div>
             </div>
@@ -197,14 +241,41 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
           <div className="space-y-2">
             <Progress value={progress.progressoPercentual} className="h-3" />
             <p className="text-xs text-muted-foreground text-center">
-              {progress.etapas.filter((e) => e.completada).length} de 6 etapas concluídas
+              {progress.etapas.filter((e) => e.completada).length} de {totalEtapas} etapas concluídas
             </p>
           </div>
 
+          {/* Revistas não aplicadas (se houver múltiplas) */}
+          {revistasNaoAplicadas.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <BookOpen className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                  {revistasNaoAplicadas.length} revista(s) aguardando configuração
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {revistasNaoAplicadas.slice(0, 3).map((revista) => (
+                  <Badge key={revista.id} variant="secondary" className="text-xs">
+                    {revista.titulo} ({revista.quantidade}x)
+                  </Badge>
+                ))}
+                {revistasNaoAplicadas.length > 3 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{revistasNaoAplicadas.length - 3} mais
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Etapas */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-            {progress.etapas.map((etapa, index) => {
-              const Icon = ETAPA_ICONS[index];
+          <div className={cn(
+            "grid gap-2",
+            totalEtapas <= 2 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-6"
+          )}>
+            {progress.etapas.map((etapa) => {
+              const Icon = ETAPA_ICONS[etapa.id] || BookOpen;
               const isCompleta = etapa.completada;
               const isAtual = proximaEtapa?.id === etapa.id;
               
@@ -262,7 +333,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
                   {(() => {
-                    const Icon = ETAPA_ICONS[proximaEtapa.id - 1];
+                    const Icon = ETAPA_ICONS[proximaEtapa.id] || BookOpen;
                     return <Icon className="h-4 w-4 text-primary" />;
                   })()}
                 </div>
@@ -294,10 +365,12 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
             <span className="flex items-center gap-1">
               R$501+: <strong className="text-foreground">30% off</strong>
             </span>
-            <span className="flex items-center gap-1">
-              <Cake className="h-3 w-3" />
-              Aniversário: <strong className="text-foreground">R$50</strong>
-            </span>
+            {!progress.modoRecompra && (
+              <span className="flex items-center gap-1">
+                <Cake className="h-3 w-3" />
+                Aniversário: <strong className="text-foreground">R$50</strong>
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -333,6 +406,52 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
               Salvar e Ganhar Cupom
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para selecionar revista para aplicar */}
+      <Dialog open={showRevistasDialog} onOpenChange={setShowRevistasDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" />
+              Escolha uma Revista para Aplicar
+            </DialogTitle>
+            <DialogDescription>
+              Você tem {revistasNaoAplicadas.length} revistas aguardando configuração. Selecione uma para vincular a uma turma.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[400px]">
+            <div className="space-y-3 py-4">
+              {revistasNaoAplicadas.map((revista) => (
+                <div 
+                  key={revista.id}
+                  className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  {revista.imagemUrl ? (
+                    <img 
+                      src={revista.imagemUrl} 
+                      alt={revista.titulo}
+                      className="w-16 h-20 object-cover rounded"
+                    />
+                  ) : (
+                    <div className="w-16 h-20 bg-muted rounded flex items-center justify-center">
+                      <BookOpen className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h4 className="font-medium">{revista.titulo}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Quantidade: {revista.quantidade} unidade(s)
+                    </p>
+                  </div>
+                  <Button onClick={() => handleAplicarRevista(revista)}>
+                    Aplicar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </>
