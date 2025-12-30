@@ -70,10 +70,7 @@ export default function EBDConteudoBiblico() {
   // Form state
   const [formData, setFormData] = useState({
     licao_numero: 1,
-    texto_aureo: "",
     plano_leitura_texto: "",
-    pergunta: "",
-    resposta_correta: "",
   });
   const [parsedReferences, setParsedReferences] = useState<Array<{ livro: string; versiculo: string }>>([]);
 
@@ -113,7 +110,7 @@ export default function EBDConteudoBiblico() {
     const refs = parsedReferences;
     return {
       licao_numero: formData.licao_numero,
-      texto_aureo: formData.texto_aureo || null,
+      texto_aureo: null,
       dia1_livro: refs[0]?.livro || "",
       dia1_versiculo: refs[0]?.versiculo || "",
       dia2_livro: refs[1]?.livro || "",
@@ -126,8 +123,8 @@ export default function EBDConteudoBiblico() {
       dia5_versiculo: refs[4]?.versiculo || "",
       dia6_livro: refs[5]?.livro || "",
       dia6_versiculo: refs[5]?.versiculo || "",
-      pergunta: formData.pergunta,
-      resposta_correta: formData.resposta_correta,
+      pergunta: "",
+      resposta_correta: "",
     };
   };
 
@@ -219,10 +216,7 @@ export default function EBDConteudoBiblico() {
   const resetForm = () => {
     setFormData({
       licao_numero: 1,
-      texto_aureo: "",
       plano_leitura_texto: "",
-      pergunta: "",
-      resposta_correta: "",
     });
     setParsedReferences([]);
     setEditingConteudo(null);
@@ -249,10 +243,7 @@ export default function EBDConteudoBiblico() {
     const planoTexto = textLines.join('\n');
     setFormData({
       licao_numero: conteudo.licao_numero,
-      texto_aureo: conteudo.texto_aureo || "",
       plano_leitura_texto: planoTexto,
-      pergunta: conteudo.pergunta,
-      resposta_correta: conteudo.resposta_correta,
     });
     setParsedReferences(parseReferences(planoTexto));
     setDialogOpen(true);
@@ -380,9 +371,6 @@ export default function EBDConteudoBiblico() {
                           </span>
                         ))}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        <strong>Pergunta:</strong> {conteudo.pergunta.substring(0, 50)}...
-                      </p>
                     </CardContent>
                   </Card>
                 ))}
@@ -402,34 +390,24 @@ export default function EBDConteudoBiblico() {
           </DialogHeader>
           <ScrollArea className="max-h-[calc(90vh-120px)]">
             <form onSubmit={handleSubmit} className="space-y-6 p-1">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Lição</Label>
-                  <Select
-                    value={formData.licao_numero.toString()}
-                    onValueChange={(v) => setFormData({ ...formData, licao_numero: parseInt(v) })}
-                    disabled={!!editingConteudo}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getAvailableLicoes().map((num) => (
-                        <SelectItem key={num} value={num.toString()}>
-                          Lição {num}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Texto Áureo (opcional)</Label>
-                  <Input
-                    value={formData.texto_aureo}
-                    onChange={(e) => setFormData({ ...formData, texto_aureo: e.target.value })}
-                    placeholder="Ex: João 3:16"
-                  />
-                </div>
+              <div>
+                <Label>Lição</Label>
+                <Select
+                  value={formData.licao_numero.toString()}
+                  onValueChange={(v) => setFormData({ ...formData, licao_numero: parseInt(v) })}
+                  disabled={!!editingConteudo}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAvailableLicoes().map((num) => (
+                      <SelectItem key={num} value={num.toString()}>
+                        Lição {num}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-4">
@@ -470,27 +448,6 @@ export default function EBDConteudoBiblico() {
                 )}
               </div>
 
-              <div className="space-y-4">
-                <h3 className="font-medium">Gamificação</h3>
-                <div>
-                  <Label>Pergunta</Label>
-                  <Textarea
-                    value={formData.pergunta}
-                    onChange={(e) => setFormData({ ...formData, pergunta: e.target.value })}
-                    placeholder="Digite a pergunta sobre a lição..."
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Resposta Correta</Label>
-                  <Input
-                    value={formData.resposta_correta}
-                    onChange={(e) => setFormData({ ...formData, resposta_correta: e.target.value })}
-                    placeholder="Digite a resposta correta..."
-                    required
-                  />
-                </div>
-              </div>
 
               <div className="flex justify-end gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
