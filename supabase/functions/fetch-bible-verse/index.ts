@@ -150,8 +150,8 @@ async function fetchVerseFromAPI(ref: ParsedReference): Promise<string | null> {
       return null;
     }
 
-    // Format the text
-    const verseText = verses.map((v: any) => `${v.number} ${v.text}`).join(' ');
+    // Format the text - each verse on a new line without numbers
+    const verseText = verses.map((v: any) => v.text.trim()).join('\n\n');
     return verseText;
   } catch (error) {
     console.error(`Error fetching verse ${ref.book} ${ref.chapter}:`, error);
