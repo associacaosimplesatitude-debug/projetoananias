@@ -23,6 +23,8 @@ export interface OnboardingProgress {
   revistaIdentificadaId: string | null;
   revistaIdentificadaTitulo: string | null;
   revistaIdentificadaImagem: string | null;
+  revistaIdentificadaFaixaEtaria: string | null;
+  revistaIdentificadaNumLicoes: number | null;
   progressoPercentual: number;
   concluido: boolean;
   descontoObtido: number | null;
@@ -286,15 +288,19 @@ export const useOnboardingProgress = (churchId: string | null) => {
       const revistaId = etapasMap.get(1)?.revistaId || null;
       let revistaTitulo: string | null = null;
       let revistaImagem: string | null = null;
+      let revistaFaixaEtaria: string | null = null;
+      let revistaNumLicoes: number | null = null;
       
       if (revistaId) {
         const { data: revistaData } = await supabase
           .from("ebd_revistas")
-          .select("titulo, imagem_url")
+          .select("titulo, imagem_url, faixa_etaria_alvo, num_licoes")
           .eq("id", revistaId)
           .single();
         revistaTitulo = revistaData?.titulo || null;
         revistaImagem = revistaData?.imagem_url || null;
+        revistaFaixaEtaria = revistaData?.faixa_etaria_alvo || null;
+        revistaNumLicoes = revistaData?.num_licoes || 13;
       }
 
       // Montar etapas
@@ -324,6 +330,8 @@ export const useOnboardingProgress = (churchId: string | null) => {
         revistaIdentificadaId: revistaId,
         revistaIdentificadaTitulo: revistaTitulo,
         revistaIdentificadaImagem: revistaImagem,
+        revistaIdentificadaFaixaEtaria: revistaFaixaEtaria,
+        revistaIdentificadaNumLicoes: revistaNumLicoes,
         progressoPercentual,
         concluido,
         descontoObtido: clienteData?.desconto_onboarding || null,
