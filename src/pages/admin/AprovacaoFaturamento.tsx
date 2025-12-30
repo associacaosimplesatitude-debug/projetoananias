@@ -209,57 +209,74 @@ export default function AprovacaoFaturamento() {
         },
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      // Verificar erros da edge function
+      if (error) {
+        console.error("Erro na edge function:", error);
+        throw new Error(error.message || "Erro ao chamar edge function");
+      }
+      
+      // Verificar se a resposta contém erro do Bling
+      if (data?.error) {
+        console.error("Erro do Bling:", data.error);
+        throw new Error(data.error);
+      }
 
-      // Atualiza para FATURADO após sucesso no Bling
-      await supabase
+      // Verificar se temos dados de sucesso do Bling
+      if (!data?.success || (!data?.bling_order_id && !data?.bling_order_number)) {
+        console.error("Resposta inesperada:", data);
+        throw new Error("Resposta inesperada do servidor Bling");
+      }
+
+      // SUCESSO: Atualiza para FATURADO após sucesso confirmado no Bling
+      const { error: updateError } = await supabase
         .from("vendedor_propostas")
         .update({ status: "FATURADO" })
         .eq("id", proposta.id);
-
-      if (data?.success && (data?.bling_order_id || data?.bling_order_number)) {
-        const blingIdentifier = data.bling_order_number || data.bling_order_id;
-        
-        // Calcular valor para meta (valor produtos - sem frete)
-        const valorParaMeta = valorProdutos;
-        
-        // Criar registro em ebd_shopify_pedidos para contabilizar na meta do vendedor
-        const itensResumo = proposta.itens.map(i => `${i.quantity}x ${i.title}`).join(", ");
-        
-        const { error: insertError } = await supabase
-          .from("ebd_shopify_pedidos")
-          .insert({
-            shopify_order_id: data.bling_order_id || Math.floor(Math.random() * 1000000000),
-            order_number: `BLING-${blingIdentifier}`,
-            vendedor_id: proposta.vendedor_id,
-            cliente_id: proposta.cliente_id,
-            valor_total: valorTotal,
-            valor_frete: valorFrete,
-            valor_para_meta: valorParaMeta,
-            status_pagamento: "Faturado",
-            customer_email: proposta.cliente?.email_superintendente || null,
-            customer_name: proposta.cliente_nome,
-            order_date: new Date().toISOString(),
-          });
-        
-        if (insertError) {
-          console.error("Erro ao inserir pedido para meta:", insertError);
-        }
-        
-        toast.success("Pedido aprovado e enviado para faturamento!", {
-          description: `Prazo: ${prazo} dias • Pedido Bling: ${blingIdentifier}`,
-          duration: 5000,
-        });
-        // Invalidate queries to update vendedor panel
-        queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
-        queryClient.invalidateQueries({ queryKey: ["vendedor-propostas"] });
-        queryClient.invalidateQueries({ queryKey: ["vendedor-vendas-mes"] });
-        queryClient.invalidateQueries({ queryKey: ["ebd-shopify-orders"] });
-        refetch();
-      } else {
-        throw new Error("Resposta inesperada do servidor");
+      
+      if (updateError) {
+        console.error("Erro ao atualizar status:", updateError);
+        throw new Error("Pedido criado no Bling mas erro ao atualizar status local");
       }
+
+      const blingIdentifier = data.bling_order_number || data.bling_order_id;
+      
+      // Calcular valor para meta (valor produtos - sem frete)
+      const valorParaMeta = valorProdutos;
+      
+      // Criar registro em ebd_shopify_pedidos para contabilizar na meta do vendedor
+      const itensResumo = proposta.itens.map(i => `${i.quantity}x ${i.title}`).join(", ");
+      
+      const { error: insertError } = await supabase
+        .from("ebd_shopify_pedidos")
+        .insert({
+          shopify_order_id: data.bling_order_id || Math.floor(Math.random() * 1000000000),
+          order_number: `BLING-${blingIdentifier}`,
+          vendedor_id: proposta.vendedor_id,
+          cliente_id: proposta.cliente_id,
+          valor_total: valorTotal,
+          valor_frete: valorFrete,
+          valor_para_meta: valorParaMeta,
+          status_pagamento: "Faturado",
+          customer_email: proposta.cliente?.email_superintendente || null,
+          customer_name: proposta.cliente_nome,
+          order_date: new Date().toISOString(),
+        });
+      
+      if (insertError) {
+        console.error("Erro ao inserir pedido para meta:", insertError);
+      }
+      
+      toast.success("Pedido aprovado e enviado para faturamento!", {
+        description: `Prazo: ${prazo} dias • Pedido Bling: ${blingIdentifier}`,
+        duration: 5000,
+      });
+      
+      // Invalidate queries to update vendedor panel
+      queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedor-propostas"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedor-vendas-mes"] });
+      queryClient.invalidateQueries({ queryKey: ["ebd-shopify-orders"] });
+      refetch();
     } catch (error: unknown) {
       console.error("Erro ao aprovar e faturar pedido:", error);
       
