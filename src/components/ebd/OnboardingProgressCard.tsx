@@ -169,13 +169,11 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     if (etapaId === 6) {
       setShowAniversarioDialog(true);
     } else if (etapaId === 1) {
-      // Etapa de aplicar revista - mostrar dialog se há múltiplas revistas
-      if (revistasNaoAplicadas.length > 1) {
+      // Etapa de aplicar revista - sempre mostrar dialog para escolher
+      if (revistasNaoAplicadas.length > 0) {
         setShowRevistasDialog(true);
-      } else if (revistasNaoAplicadas.length === 1) {
-        // Só uma revista, ir direto para o catálogo/planejamento
-        navigate("/ebd/planejamento");
       } else {
+        // Sem revistas disponíveis, ir para o catálogo
         navigate("/ebd/catalogo");
       }
     } else {
