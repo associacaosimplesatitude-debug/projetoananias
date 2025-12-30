@@ -12,6 +12,8 @@ import { Link } from "react-router-dom";
 import { format, startOfWeek, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Json } from "@/integrations/supabase/types";
+import { DesafioBiblicoCard } from "../DesafioBiblicoCard";
+import { useAuth } from "@/hooks/useAuth";
 
 const NIVEIS = [
   { nome: "Bronze", pontos: 0, cor: "bg-amber-700" },
@@ -33,6 +35,7 @@ interface AlunoDashboardProps {
 }
 
 export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
+  const { user } = useAuth();
   const nivelAtual = NIVEIS.find((n) => n.nome === aluno.nivel) || NIVEIS[0];
   const proximoNivel = NIVEIS.find((n) => n.pontos > aluno.pontos_totais);
   const progressoNivel = proximoNivel
@@ -237,6 +240,16 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
 
       {/* Cards de Ação */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Card Desafio Bíblico */}
+        {user && (
+          <DesafioBiblicoCard
+            churchId={aluno.church_id}
+            userId={user.id}
+            userType="aluno"
+            turmaId={aluno.turma_id}
+          />
+        )}
+
         {/* Card 1: Leitura Diária */}
         <Card className={`border-2 ${leituraFeita ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" : "border-yellow-500/50"}`}>
           <CardHeader className="pb-2">

@@ -1547,6 +1547,53 @@ export type Database = {
           },
         ]
       }
+      ebd_desafio_leitura_registro: {
+        Row: {
+          church_id: string
+          conteudo_id: string
+          created_at: string
+          data_agendada: string
+          data_leitura: string
+          dia_numero: number
+          id: string
+          pontos_ganhos: number
+          user_id: string
+          user_type: string
+        }
+        Insert: {
+          church_id: string
+          conteudo_id: string
+          created_at?: string
+          data_agendada: string
+          data_leitura?: string
+          dia_numero: number
+          id?: string
+          pontos_ganhos?: number
+          user_id: string
+          user_type: string
+        }
+        Update: {
+          church_id?: string
+          conteudo_id?: string
+          created_at?: string
+          data_agendada?: string
+          data_leitura?: string
+          dia_numero?: number
+          id?: string
+          pontos_ganhos?: number
+          user_id?: string
+          user_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_desafio_leitura_registro_conteudo_id_fkey"
+            columns: ["conteudo_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_desafio_biblico_conteudo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_devocionais: {
         Row: {
           church_id: string

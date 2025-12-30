@@ -80,6 +80,7 @@ import EBDAreaAluno from "./pages/ebd/AreaAluno";
 import EBDDesafioBiblico from "./pages/ebd/DesafioBiblico";
 import EBDDesafioLiderPlay from "./pages/ebd/DesafioLiderPlay";
 import EBDDesafioAcompanhamento from "./pages/ebd/DesafioAcompanhamento";
+import EBDDesafioLeituraRelatorio from "./pages/ebd/DesafioLeituraRelatorio";
 import EBDAlunoPerfil from "./pages/ebd/AlunoPerfil";
 
 // Aluno Module Pages
@@ -292,6 +293,7 @@ const App = () => (
                       <Route path="order-success" element={<EBDOrderSuccess />} />
                       <Route path="age-ranges" element={<EBDAgeRanges />} />
                       <Route path="frequencia/relatorio" element={<EBDFrequenciaRelatorio />} />
+                      <Route path="relatorios/leitura-diaria" element={<EBDDesafioLeituraRelatorio />} />
                       <Route path="admin" element={<EBDAdmin />} />
                       <Route path="lancamento" element={<EBDLancamentoManual />} />
                       <Route path="lancamento-manual" element={<EBDLancamentoManual />} />
