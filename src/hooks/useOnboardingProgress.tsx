@@ -80,7 +80,7 @@ export const identificarTipoRevista = (titulo: string): "BASE" | "SUPORTE" => {
 export const useOnboardingProgress = (churchId: string | null) => {
   const queryClient = useQueryClient();
 
-  // Buscar todas as revistas BASE não aplicadas
+  // Buscar todas as revistas BASE não aplicadas (de pedidos + lançamento manual)
   const { data: revistasNaoAplicadas } = useQuery({
     queryKey: ["ebd-revistas-nao-aplicadas", churchId],
     queryFn: async (): Promise<RevistaBaseNaoAplicada[]> => {
@@ -102,6 +102,15 @@ export const useOnboardingProgress = (churchId: string | null) => {
         .eq("status_pagamento", "paid")
         .order("order_date", { ascending: false });
 
+      // Buscar revistas lançadas manualmente
+      const { data: historicoManual } = await supabase
+        .from("ebd_historico_revistas_manual")
+        .select(`
+          revista_id,
+          ebd_revistas(id, titulo, imagem_url)
+        `)
+        .eq("cliente_id", churchId);
+
       // Buscar revistas já aplicadas (que têm planejamento)
       const { data: planejamentosData } = await supabase
         .from("ebd_planejamento")
@@ -113,6 +122,7 @@ export const useOnboardingProgress = (churchId: string | null) => {
       const revistasBase: RevistaBaseNaoAplicada[] = [];
       const revistasProcessadas = new Set<string>();
 
+      // Processar revistas de pedidos
       if (pedidosData) {
         for (const pedido of pedidosData) {
           const itens = (pedido as any).ebd_shopify_pedidos_itens || [];
@@ -130,6 +140,26 @@ export const useOnboardingProgress = (churchId: string | null) => {
                   quantidade: item.quantidade || 1,
                 });
               }
+            }
+          }
+        }
+      }
+
+      // Processar revistas lançadas manualmente
+      if (historicoManual) {
+        for (const item of historicoManual) {
+          const revista = (item as any).ebd_revistas;
+          if (revista && revista.titulo) {
+            const tipo = identificarTipoRevista(revista.titulo);
+            // Apenas revistas BASE que não foram aplicadas e não foram processadas ainda
+            if (tipo === "BASE" && !revistasAplicadas.has(revista.id) && !revistasProcessadas.has(revista.id)) {
+              revistasProcessadas.add(revista.id);
+              revistasBase.push({
+                id: revista.id,
+                titulo: revista.titulo,
+                imagemUrl: revista.imagem_url,
+                quantidade: 1,
+              });
             }
           }
         }
@@ -174,6 +204,15 @@ export const useOnboardingProgress = (churchId: string | null) => {
         .eq("cliente_id", churchId)
         .eq("status_pagamento", "paid");
 
+      // Buscar revistas lançadas manualmente
+      const { data: historicoManualProgress } = await supabase
+        .from("ebd_historico_revistas_manual")
+        .select(`
+          revista_id,
+          ebd_revistas(id, titulo)
+        `)
+        .eq("cliente_id", churchId);
+
       const { data: planejamentosData } = await supabase
         .from("ebd_planejamento")
         .select("revista_id")
@@ -181,7 +220,7 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       const revistasAplicadas = new Set(planejamentosData?.map(p => p.revista_id) || []);
       
-      // Verificar se há revistas BASE não aplicadas
+      // Verificar se há revistas BASE não aplicadas (de pedidos)
       let temRevistaBaseNaoAplicada = false;
       if (pedidosData) {
         for (const pedido of pedidosData) {
@@ -197,6 +236,20 @@ export const useOnboardingProgress = (churchId: string | null) => {
             }
           }
           if (temRevistaBaseNaoAplicada) break;
+        }
+      }
+
+      // Verificar também revistas lançadas manualmente
+      if (!temRevistaBaseNaoAplicada && historicoManualProgress) {
+        for (const item of historicoManualProgress) {
+          const revista = (item as any).ebd_revistas;
+          if (revista && revista.titulo) {
+            const tipo = identificarTipoRevista(revista.titulo);
+            if (tipo === "BASE" && !revistasAplicadas.has(revista.id)) {
+              temRevistaBaseNaoAplicada = true;
+              break;
+            }
+          }
         }
       }
 
