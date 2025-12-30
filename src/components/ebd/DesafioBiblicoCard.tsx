@@ -420,15 +420,27 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
                 </p>
               </div>
 
-              <ScrollArea className="h-[200px] border rounded-lg p-4 bg-muted/30">
+              <ScrollArea className="h-[250px] border rounded-lg p-4 bg-muted/30">
                 {loadingVersiculo ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <p className="text-base leading-relaxed whitespace-pre-wrap">
-                    {versiculoTexto}
-                  </p>
+                  <div className="text-base leading-relaxed space-y-3">
+                    {versiculoTexto.split('\n\n').map((section, idx) => {
+                      const lines = section.split('\n');
+                      const title = lines[0]?.replace(/\*\*/g, '') || '';
+                      const text = lines.slice(1).join('\n');
+                      return (
+                        <div key={idx}>
+                          {title && (
+                            <p className="font-semibold text-primary mb-1">{title}</p>
+                          )}
+                          <p className="text-muted-foreground">{text || title}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </ScrollArea>
 
