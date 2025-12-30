@@ -5,9 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ProfessorNavigation } from "@/components/ebd/professor/ProfessorNavigation";
 import { format, subWeeks } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { ClipboardList, Users, BookOpen, Trophy, ArrowRight } from "lucide-react";
 
 export default function ProfessorLancamentos() {
@@ -112,149 +110,144 @@ export default function ProfessorLancamentos() {
   ];
 
   return (
-    <>
-      <ProfessorNavigation />
-      <div className="container mx-auto py-6 px-4">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <ClipboardList className="h-6 w-6" />
-              Lançamentos
-            </h1>
-            <p className="text-muted-foreground">
-              Registre chamadas, ofertas e pontuações
-            </p>
-          </div>
-
-          {/* Opções de Lançamento */}
-          <div className="grid gap-4 md:grid-cols-3">
-            {lancamentoOptions.map((option) => {
-              const Icon = option.icon;
-              return (
-                <Card 
-                  key={option.title}
-                  className="cursor-pointer hover:border-primary/50 transition-colors"
-                  onClick={() => navigate(option.path)}
-                >
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col items-center text-center space-y-3">
-                      <div className={`p-3 rounded-full bg-muted ${option.color}`}>
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <h3 className="font-semibold">{option.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {option.description}
-                      </p>
-                      <Button variant="outline" className="gap-2 w-full">
-                        Acessar
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-
-          {/* Turmas para Lançamento */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Minhas Turmas</CardTitle>
-              <CardDescription>
-                Selecione uma turma para fazer lançamentos
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="animate-pulse space-y-3">
-                  {[1, 2].map(i => (
-                    <div key={i} className="h-16 bg-muted rounded-lg" />
-                  ))}
-                </div>
-              ) : turmas && turmas.length > 0 ? (
-                <div className="space-y-3">
-                  {turmas.map((turma) => (
-                    <div
-                      key={turma.id}
-                      className="flex items-center justify-between p-4 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
-                    >
-                      <div>
-                        <h3 className="font-semibold">{turma.nome}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {turma.faixa_etaria}
-                        </p>
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/ebd/lancamento?turma=${turma.id}`)}
-                      >
-                        Lançar
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    Nenhuma turma vinculada.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Histórico de Lançamentos */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Últimos Lançamentos</CardTitle>
-              <CardDescription>
-                Histórico das últimas 4 semanas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {ultimosLancamentos && ultimosLancamentos.length > 0 ? (
-                <div className="space-y-3">
-                  {ultimosLancamentos.map((lancamento) => (
-                    <div
-                      key={lancamento.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-background"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">
-                            {format(new Date(lancamento.data), "dd/MM/yyyy")}
-                          </Badge>
-                          <span className="font-medium">{lancamento.turma?.nome}</span>
-                        </div>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                          {lancamento.num_visitantes !== null && lancamento.num_visitantes > 0 && (
-                            <span>{lancamento.num_visitantes} visitante(s)</span>
-                          )}
-                          {lancamento.valor_ofertas !== null && Number(lancamento.valor_ofertas) > 0 && (
-                            <span>R$ {Number(lancamento.valor_ofertas).toFixed(2)}</span>
-                          )}
-                          {lancamento.num_biblias !== null && lancamento.num_biblias > 0 && (
-                            <span>{lancamento.num_biblias} bíblia(s)</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    Nenhum lançamento registrado recentemente.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <ClipboardList className="h-6 w-6" />
+          Lançamentos
+        </h1>
+        <p className="text-muted-foreground">
+          Registre chamadas, ofertas e pontuações
+        </p>
       </div>
-    </>
+
+      {/* Opções de Lançamento */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {lancamentoOptions.map((option) => {
+          const Icon = option.icon;
+          return (
+            <Card 
+              key={option.title}
+              className="cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => navigate(option.path)}
+            >
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <div className={`p-3 rounded-full bg-muted ${option.color}`}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <h3 className="font-semibold">{option.title}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {option.description}
+                  </p>
+                  <Button variant="outline" className="gap-2 w-full">
+                    Acessar
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Turmas para Lançamento */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Minhas Turmas</CardTitle>
+          <CardDescription>
+            Selecione uma turma para fazer lançamentos
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="animate-pulse space-y-3">
+              {[1, 2].map(i => (
+                <div key={i} className="h-16 bg-muted rounded-lg" />
+              ))}
+            </div>
+          ) : turmas && turmas.length > 0 ? (
+            <div className="space-y-3">
+              {turmas.map((turma) => (
+                <div
+                  key={turma.id}
+                  className="flex items-center justify-between p-4 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
+                >
+                  <div>
+                    <h3 className="font-semibold">{turma.nome}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {turma.faixa_etaria}
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate(`/ebd/lancamento?turma=${turma.id}`)}
+                  >
+                    Lançar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                Nenhuma turma vinculada.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Histórico de Lançamentos */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Últimos Lançamentos</CardTitle>
+          <CardDescription>
+            Histórico das últimas 4 semanas
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {ultimosLancamentos && ultimosLancamentos.length > 0 ? (
+            <div className="space-y-3">
+              {ultimosLancamentos.map((lancamento) => (
+                <div
+                  key={lancamento.id}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-background"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">
+                        {format(new Date(lancamento.data), "dd/MM/yyyy")}
+                      </Badge>
+                      <span className="font-medium">{lancamento.turma?.nome}</span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                      {lancamento.num_visitantes !== null && lancamento.num_visitantes > 0 && (
+                        <span>{lancamento.num_visitantes} visitante(s)</span>
+                      )}
+                      {lancamento.valor_ofertas !== null && Number(lancamento.valor_ofertas) > 0 && (
+                        <span>R$ {Number(lancamento.valor_ofertas).toFixed(2)}</span>
+                      )}
+                      {lancamento.num_biblias !== null && lancamento.num_biblias > 0 && (
+                        <span>{lancamento.num_biblias} bíblia(s)</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                Nenhum lançamento registrado recentemente.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

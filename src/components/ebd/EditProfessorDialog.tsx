@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, User, Loader2 } from "lucide-react";
+import { Camera, User, Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ interface Professor {
   telefone: string | null;
   avatar_url: string | null;
   is_active: boolean;
+  user_id?: string | null;
 }
 
 interface EditProfessorDialogProps {
@@ -33,10 +34,14 @@ export function EditProfessorDialog({ open, onOpenChange, professor, churchId }:
     email: "",
     telefone: "",
     avatar_url: "",
+    senha: "",
+    confirmarSenha: "",
   });
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showCropDialog, setShowCropDialog] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (professor) {
@@ -45,6 +50,8 @@ export function EditProfessorDialog({ open, onOpenChange, professor, churchId }:
         email: professor.email || "",
         telefone: professor.telefone || "",
         avatar_url: professor.avatar_url || "",
+        senha: "",
+        confirmarSenha: "",
       });
     }
   }, [professor]);
@@ -97,6 +104,51 @@ export function EditProfessorDialog({ open, onOpenChange, professor, churchId }:
     mutationFn: async () => {
       if (!professor) throw new Error("Professor não encontrado");
 
+      // Validate password if provided
+      if (formData.senha) {
+        if (formData.senha.length < 6) {
+          throw new Error("A senha deve ter pelo menos 6 caracteres");
+        }
+        if (formData.senha !== formData.confirmarSenha) {
+          throw new Error("As senhas não coincidem");
+        }
+      }
+
+      // If changing password or creating user for existing professor
+      if (formData.senha && formData.email) {
+        const { data: userData, error: userError } = await supabase.functions.invoke('create-professor-user', {
+          body: {
+            email: formData.email.trim(),
+            password: formData.senha,
+            fullName: formData.nome_completo.trim(),
+            churchId,
+          },
+        });
+
+        if (userError) {
+          console.error("Error updating professor user:", userError);
+          throw new Error(userError.message || "Erro ao atualizar usuário");
+        }
+
+        // Update professor with user_id if new user was created
+        if (userData?.userId && !professor.user_id) {
+          const { error: updateError } = await supabase
+            .from("ebd_professores")
+            .update({
+              nome_completo: formData.nome_completo,
+              email: formData.email || null,
+              telefone: formData.telefone || null,
+              avatar_url: formData.avatar_url || null,
+              user_id: userData.userId,
+            })
+            .eq("id", professor.id);
+
+          if (updateError) throw updateError;
+          return;
+        }
+      }
+
+      // Regular update without password change
       const { error } = await supabase
         .from("ebd_professores")
         .update({
@@ -114,9 +166,9 @@ export function EditProfessorDialog({ open, onOpenChange, professor, churchId }:
       toast.success("Professor atualizado com sucesso!");
       onOpenChange(false);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Erro ao atualizar professor:", error);
-      toast.error("Erro ao atualizar professor");
+      toast.error(error.message || "Erro ao atualizar professor");
     },
   });
 
@@ -129,10 +181,12 @@ export function EditProfessorDialog({ open, onOpenChange, professor, churchId }:
     updateMutation.mutate();
   };
 
+  const hasUserAccess = !!professor?.user_id;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Professor</DialogTitle>
           </DialogHeader>
@@ -194,6 +248,63 @@ export function EditProfessorDialog({ open, onOpenChange, professor, churchId }:
                 onChange={(e) => setFormData(prev => ({ ...prev, telefone: e.target.value }))}
                 placeholder="(00) 00000-0000"
               />
+            </div>
+
+            <div className="border-t pt-4 mt-4">
+              <p className="text-sm font-medium mb-2">
+                {hasUserAccess ? "Alterar Senha de Acesso" : "Criar Acesso ao Sistema"}
+              </p>
+              {!hasUserAccess && (
+                <p className="text-xs text-muted-foreground mb-3">
+                  Preencha os campos abaixo para criar acesso ao sistema para este professor.
+                </p>
+              )}
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="senha">{hasUserAccess ? "Nova Senha" : "Senha *"}</Label>
+                  <div className="relative">
+                    <Input
+                      id="senha"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.senha}
+                      onChange={(e) => setFormData(prev => ({ ...prev, senha: e.target.value }))}
+                      placeholder={hasUserAccess ? "Deixe em branco para manter" : "Mínimo 6 caracteres"}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmarSenha">Confirmar Senha</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirmarSenha"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={formData.confirmarSenha}
+                      onChange={(e) => setFormData(prev => ({ ...prev, confirmarSenha: e.target.value }))}
+                      placeholder="Repita a senha"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-2 pt-4">

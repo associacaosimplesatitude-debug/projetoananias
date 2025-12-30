@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ProfessorNavigation } from "@/components/ebd/professor/ProfessorNavigation";
 import { Users, Trophy, TrendingUp } from "lucide-react";
 
 export default function ProfessorClasse() {
@@ -109,115 +108,110 @@ export default function ProfessorClasse() {
   };
 
   return (
-    <>
-      <ProfessorNavigation />
-      <div className="container mx-auto py-6 px-4">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Users className="h-6 w-6" />
-              Minha Classe
-            </h1>
-            <p className="text-muted-foreground">
-              Gerencie seus alunos e acompanhe o desempenho
-            </p>
-          </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Users className="h-6 w-6" />
+          Minha Classe
+        </h1>
+        <p className="text-muted-foreground">
+          Gerencie seus alunos e acompanhe o desempenho
+        </p>
+      </div>
 
-          {/* Resumo das Turmas */}
-          {turmas && turmas.length > 0 && (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {turmas.map((turma) => {
-                const turmaAlunos = alunos?.filter(a => a.turma_id === turma.id) || [];
-                const totalPontos = turmaAlunos.reduce((acc, a) => acc + (a.pontos_totais || 0), 0);
-                const mediaPontos = turmaAlunos.length > 0 
-                  ? Math.round(totalPontos / turmaAlunos.length) 
-                  : 0;
+      {/* Resumo das Turmas */}
+      {turmas && turmas.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {turmas.map((turma) => {
+            const turmaAlunos = alunos?.filter(a => a.turma_id === turma.id) || [];
+            const totalPontos = turmaAlunos.reduce((acc, a) => acc + (a.pontos_totais || 0), 0);
+            const mediaPontos = turmaAlunos.length > 0 
+              ? Math.round(totalPontos / turmaAlunos.length) 
+              : 0;
 
-                return (
-                  <Card key={turma.id}>
-                    <CardHeader>
-                      <CardTitle className="text-lg">{turma.nome}</CardTitle>
-                      <CardDescription>{turma.faixa_etaria}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">{turmaAlunos.length} alunos</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">{mediaPontos} pts média</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+            return (
+              <Card key={turma.id}>
+                <CardHeader>
+                  <CardTitle className="text-lg">{turma.nome}</CardTitle>
+                  <CardDescription>{turma.faixa_etaria}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{turmaAlunos.length} alunos</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{mediaPontos} pts média</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Lista de Alunos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5" />
+            Alunos por Pontuação
+          </CardTitle>
+          <CardDescription>
+            {alunos?.length || 0} aluno(s) matriculado(s)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="animate-pulse space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-16 bg-muted rounded-lg" />
+              ))}
+            </div>
+          ) : alunos && alunos.length > 0 ? (
+            <div className="space-y-3">
+              {alunos.map((aluno, index) => (
+                <div
+                  key={aluno.id}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg font-bold text-muted-foreground w-6">
+                      {index + 1}º
+                    </span>
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={aluno.avatar_url || undefined} />
+                      <AvatarFallback>{getInitials(aluno.nome_completo)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h3 className="font-medium">{aluno.nome_completo}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {aluno.turma?.nome}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getNivelColor(aluno.nivel)}>
+                      {aluno.nivel}
+                    </Badge>
+                    <Badge variant="outline">{aluno.pontos_totais} pts</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                Nenhum aluno matriculado nas suas turmas.
+              </p>
             </div>
           )}
-
-          {/* Lista de Alunos */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Alunos por Pontuação
-              </CardTitle>
-              <CardDescription>
-                {alunos?.length || 0} aluno(s) matriculado(s)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="animate-pulse space-y-3">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="h-16 bg-muted rounded-lg" />
-                  ))}
-                </div>
-              ) : alunos && alunos.length > 0 ? (
-                <div className="space-y-3">
-                  {alunos.map((aluno, index) => (
-                    <div
-                      key={aluno.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg font-bold text-muted-foreground w-6">
-                          {index + 1}º
-                        </span>
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={aluno.avatar_url || undefined} />
-                          <AvatarFallback>{getInitials(aluno.nome_completo)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h3 className="font-medium">{aluno.nome_completo}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {aluno.turma?.nome}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getNivelColor(aluno.nivel)}>
-                          {aluno.nivel}
-                        </Badge>
-                        <Badge variant="outline">{aluno.pontos_totais} pts</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    Nenhum aluno matriculado nas suas turmas.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
