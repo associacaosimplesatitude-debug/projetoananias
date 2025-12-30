@@ -38,6 +38,7 @@ const ETAPAS_PRIMEIRO_ONBOARDING: Omit<OnboardingEtapa, "completada" | "completa
   { id: 3, titulo: "Cadastrar Professor", descricao: "Cadastre pelo menos 1 professor" },
   { id: 4, titulo: "Definir Data de Início", descricao: "Marque a data de início das aulas" },
   { id: 5, titulo: "Criar Escala", descricao: "Adicione professores às aulas (crie a escala inicial)" },
+  { id: 7, titulo: "Configurar Lançamento", descricao: "Configure como será feita a chamada e lançamentos" },
   { id: 6, titulo: "Data de Aniversário", descricao: "Informe sua data de aniversário para ganhar um presente especial!" },
 ];
 
