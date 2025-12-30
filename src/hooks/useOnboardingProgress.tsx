@@ -281,13 +281,8 @@ export const useOnboardingProgress = (churchId: string | null) => {
         });
       });
 
-      // Se está usando etapas simplificadas (revista adicional), resetar apenas etapas 1-5
-      // para forçar configuração da nova revista
-      if (usarEtapasSimplificadas && temRevistaBaseNaoAplicada) {
-        [1, 2, 3, 4, 5].forEach(etapaId => {
-          etapasMap.set(etapaId, { completada: false, completadaEm: null, revistaId: null });
-        });
-      }
+      // NÃO resetar etapas aqui - o progresso real vem do banco de dados
+      // A verificação automática já marca as etapas conforme o usuário avança
 
       // Obter revista identificada (da etapa 1)
       const revistaId = etapasMap.get(1)?.revistaId || null;
