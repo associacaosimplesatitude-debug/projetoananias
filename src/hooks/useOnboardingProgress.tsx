@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -82,8 +82,8 @@ export const identificarTipoRevista = (titulo: string): "BASE" | "SUPORTE" => {
 
 export const useOnboardingProgress = (churchId: string | null) => {
   const queryClient = useQueryClient();
+  const lastCompletionToastAtRef = useRef(0);
 
-  // Buscar todas as revistas BASE não aplicadas (de pedidos + lançamento manual)
   const { data: revistasNaoAplicadas } = useQuery({
     queryKey: ["ebd-revistas-nao-aplicadas", churchId],
     queryFn: async (): Promise<RevistaBaseNaoAplicada[]> => {
@@ -313,6 +313,36 @@ export const useOnboardingProgress = (churchId: string | null) => {
       const etapasCompletas = etapas.filter((e) => e.completada).length;
       const progressoPercentual = Math.round((etapasCompletas / totalEtapas) * 100);
 
+      // Se todas as etapas foram concluídas, mas o cliente ainda não foi marcado como concluído,
+      // sincronizar para evitar loops de verificação/toast.
+      let concluidoCliente = clienteData?.onboarding_concluido || false;
+      let descontoCliente = clienteData?.desconto_onboarding || null;
+
+      if (!modoRecompra && etapasCompletas >= totalEtapas && !concluidoCliente) {
+        const { data: ultimoPedido } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select("valor_total")
+          .eq("cliente_id", churchId)
+          .order("order_date", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const valorCompra = ultimoPedido?.valor_total || 300;
+        const { percentual } = calcularDesconto(valorCompra);
+
+        await supabase
+          .from("ebd_clientes")
+          .update({
+            onboarding_concluido: true,
+            onboarding_concluido_em: new Date().toISOString(),
+            desconto_onboarding: percentual,
+          })
+          .eq("id", churchId);
+
+        concluidoCliente = true;
+        descontoCliente = percentual;
+      }
+
       // Verificar se cupom de aniversário está disponível
       const anoAtual = new Date().getFullYear();
       const dataAniversario = clienteData?.data_aniversario_superintendente || null;
@@ -321,9 +351,7 @@ export const useOnboardingProgress = (churchId: string | null) => {
       const cupomAniversarioDisponivel = ehAniversario && !cupomUsadoEsteAno;
 
       // No modo recompra, considerar concluído apenas se todas as etapas de recompra estão feitas
-      const concluido = modoRecompra 
-        ? etapas.every(e => e.completada)
-        : (clienteData?.onboarding_concluido || false);
+      const concluido = modoRecompra ? etapas.every(e => e.completada) : concluidoCliente;
 
       return {
         etapas,
@@ -334,7 +362,7 @@ export const useOnboardingProgress = (churchId: string | null) => {
         revistaIdentificadaNumLicoes: revistaNumLicoes,
         progressoPercentual,
         concluido,
-        descontoObtido: clienteData?.desconto_onboarding || null,
+        descontoObtido: descontoCliente,
         dataAniversario,
         cupomAniversarioDisponivel,
         modoRecompra,
@@ -417,12 +445,17 @@ export const useOnboardingProgress = (churchId: string | null) => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["ebd-onboarding-progress", churchId] });
       queryClient.invalidateQueries({ queryKey: ["ebd-revistas-nao-aplicadas", churchId] });
-      
+
+      // Evitar spam de toasts (ex.: verificações automáticas rodando em loop)
       if (data.concluido) {
-        const mensagem = data.modoRecompra 
-          ? `🎉 Parabéns! Você configurou a nova revista e ganhou ${data.desconto}% de desconto na próxima compra!`
-          : `🎉 Parabéns! Você completou o onboarding e ganhou ${data.desconto}% de desconto na próxima compra!`;
-        toast.success(mensagem, { duration: 8000 });
+        const now = Date.now();
+        if (now - lastCompletionToastAtRef.current > 8000) {
+          lastCompletionToastAtRef.current = now;
+          const mensagem = data.modoRecompra
+            ? `🎉 Parabéns! Você configurou a nova revista e ganhou ${data.desconto}% de desconto na próxima compra!`
+            : `🎉 Parabéns! Você completou o onboarding e ganhou ${data.desconto}% de desconto na próxima compra!`;
+          toast.success(mensagem, { duration: 8000 });
+        }
       }
     },
     onError: (error) => {
@@ -566,14 +599,14 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
   // Verificar etapas automaticamente ao carregar e quando mudar dados relevantes
   useEffect(() => {
-    if (progressData && !progressData.concluido && churchId) {
+    if (progressData && !progressData.concluido && churchId && !marcarEtapaMutation.isPending) {
       // Adicionar pequeno delay para garantir que os dados foram salvos
       const timer = setTimeout(() => {
         verificarEtapasAutomaticamente();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [progressData?.concluido, progressData?.modoRecompra, churchId, verificarEtapasAutomaticamente]);
+  }, [progressData?.concluido, progressData?.modoRecompra, churchId, verificarEtapasAutomaticamente, marcarEtapaMutation.isPending]);
 
   // Realtime subscription
   useEffect(() => {
