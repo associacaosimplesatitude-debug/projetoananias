@@ -223,7 +223,13 @@ export default function EBDConteudoBiblico() {
   };
 
   const openAddDialog = () => {
-    resetForm();
+    const firstAvailable = getAvailableLicoes()[0] ?? 1;
+    setEditingConteudo(null);
+    setFormData({
+      licao_numero: firstAvailable,
+      plano_leitura_texto: "",
+    });
+    setParsedReferences([]);
     setDialogOpen(true);
   };
 
