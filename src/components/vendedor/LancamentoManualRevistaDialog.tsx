@@ -95,13 +95,16 @@ export function LancamentoManualRevistaDialog({
   // Mutation para adicionar revista
   const adicionarMutation = useMutation({
     mutationFn: async (revistaId: string) => {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      if (authError || !userData.user) {
+        throw new Error("SESSION_EXPIRED");
+      }
       const { error } = await supabase
         .from("ebd_historico_revistas_manual")
         .insert({
           cliente_id: clienteId,
           revista_id: revistaId,
-          registrado_por: userData.user?.id,
+          registrado_por: userData.user.id,
         });
       if (error) throw error;
     },
@@ -111,8 +114,12 @@ export function LancamentoManualRevistaDialog({
     },
     onError: (error: any) => {
       console.error("Erro ao adicionar revista:", error);
-      if (error?.code === "23505") {
+      if (error?.message === "SESSION_EXPIRED") {
+        toast.error("Sua sessão expirou. Por favor, faça login novamente.");
+      } else if (error?.code === "23505") {
         toast.error("Esta revista já está no histórico do cliente.");
+      } else if (error?.code === "42501") {
+        toast.error("Sem permissão. Verifique se você está logado corretamente.");
       } else {
         toast.error("Erro ao adicionar revista ao histórico.");
       }
