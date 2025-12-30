@@ -36,22 +36,15 @@ interface MontarEscalaDialogProps {
   churchId?: string;
 }
 
-interface Licao {
+interface LicaoVirtual {
   id: string;
   numero_licao: number;
   titulo: string;
-  data_aula: string;
 }
 
 interface Professor {
   id: string;
   nome_completo: string;
-}
-
-interface EscalaItem {
-  licao_id: string;
-  professor_id: string;
-  data: string;
 }
 
 interface Turma {
@@ -94,21 +87,37 @@ export function MontarEscalaDialog({ planejamento, open, onOpenChange, churchId 
     enabled: !!churchId && open,
   });
 
-  // Buscar lições da revista
-  const { data: licoes } = useQuery({
+  // Buscar lições cadastradas da revista (se houver)
+  const { data: licoesCadastradas } = useQuery({
     queryKey: ['ebd-licoes-revista', planejamento.revista_id],
     queryFn: async () => {
+      if (!planejamento.revista_id) return [];
       const { data, error } = await supabase
         .from('ebd_licoes')
-        .select('*')
+        .select('id, numero_licao, titulo')
         .eq('revista_id', planejamento.revista_id)
         .order('numero_licao');
 
       if (error) throw error;
-      return data as Licao[];
+      return data as LicaoVirtual[];
     },
-    enabled: open,
+    enabled: open && !!planejamento.revista_id,
   });
+
+  // Gerar lições virtuais baseado no num_licoes da revista quando não há lições cadastradas
+  const licoes: LicaoVirtual[] = (() => {
+    if (licoesCadastradas && licoesCadastradas.length > 0) {
+      return licoesCadastradas;
+    }
+    
+    // Gerar lições virtuais de 1 a num_licoes
+    const numLicoes = planejamento.ebd_revistas?.num_licoes || 13;
+    return Array.from({ length: numLicoes }, (_, i) => ({
+      id: `virtual-${i + 1}`,
+      numero_licao: i + 1,
+      titulo: `Lição ${i + 1}`,
+    }));
+  })();
 
   // Buscar professores ativos
   const { data: professores } = useQuery({
