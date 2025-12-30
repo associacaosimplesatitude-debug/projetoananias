@@ -44,15 +44,17 @@ const ETAPA_ICONS: Record<number, any> = {
   4: CalendarDays,
   5: ClipboardList,
   6: Cake,
+  7: ClipboardList, // Configurar Lançamento
 };
 
 const ETAPA_ROUTES: Record<number, string | null> = {
   1: null, // Abre dialog de seleção de revistas
-  2: "/ebd/turmas",
+  2: "/ebd/turmas/nova",
   3: "/ebd/teachers",
   4: "/ebd/planejamento",
   5: "/ebd/schedule",
   6: null, // Abre dialog de aniversário
+  7: "/ebd/turmas", // Configurar lançamento nas turmas
 };
 
 export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps) {
