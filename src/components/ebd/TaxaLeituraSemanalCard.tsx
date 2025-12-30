@@ -49,7 +49,7 @@ export function TaxaLeituraSemanalCard({ churchId }: TaxaLeituraSemanalCardProps
     enabled: !!churchId,
   });
 
-  if (isLoading || !stats) return null;
+  const displayStats = stats || { taxa: 0, lendo: 0, total: 0 };
 
   return (
     <Card className="bg-gradient-to-br from-amber-500/10 to-orange-500/5 border-amber-500/20">
@@ -62,13 +62,13 @@ export function TaxaLeituraSemanalCard({ churchId }: TaxaLeituraSemanalCardProps
       <CardContent className="space-y-3">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-3xl font-bold text-amber-600">{stats.taxa}%</p>
+            <p className="text-3xl font-bold text-amber-600">{displayStats.taxa}%</p>
             <p className="text-xs text-muted-foreground">
-              {stats.lendo} de {stats.total} participantes
+              {displayStats.lendo} de {displayStats.total} participantes
             </p>
           </div>
         </div>
-        <Progress value={stats.taxa} className="h-2" />
+        <Progress value={displayStats.taxa} className="h-2" />
         <Button
           variant="ghost"
           size="sm"
