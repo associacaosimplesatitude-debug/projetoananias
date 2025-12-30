@@ -38,30 +38,41 @@ export default function EBDClassrooms() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Buscar church_id
+  // Buscar o identificador do cliente EBD (para o superintendente) ou igreja (no contexto admin)
   const { data: churchData, isLoading: loadingChurch, error: churchError } = useQuery({
     queryKey: ["church-data", clientId],
     queryFn: async () => {
+      // Admin (visualizando um cliente específico)
       if (clientId) {
         const { data, error } = await supabase
           .from("churches")
-          .select("*")
+          .select("id, church_name")
           .eq("id", clientId)
-          .single();
-        if (error) throw error;
-        return data;
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Usuário não autenticado");
+          .maybeSingle();
 
-        const { data, error } = await supabase
-          .from("churches")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
         if (error) throw error;
+        if (!data) throw new Error("Igreja não encontrada");
         return data;
       }
+
+      // Superintendente (módulo EBD)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { data: cliente, error: clienteError } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja")
+        .eq("superintendente_user_id", user.id)
+        .eq("status_ativacao_ebd", true)
+        .maybeSingle();
+
+      if (clienteError) throw clienteError;
+      if (!cliente) throw new Error("Cliente EBD não encontrado para este usuário");
+
+      // Mantemos a interface mínima usada na tela (apenas .id)
+      return { id: cliente.id, church_name: cliente.nome_igreja } as any;
     },
   });
 
