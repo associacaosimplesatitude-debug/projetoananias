@@ -483,7 +483,16 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
     const usarSimplificadas = progressData.modoRecompra; // revista adicional
 
-    // Etapa 1: Verificar se aplicou pelo menos uma revista (reset quando tem novas)
+    // No modo revista adicional, NÃO fazer verificação automática
+    // As etapas devem ser marcadas manualmente quando o usuário navegar para as páginas
+    // Isso evita que dados de revistas anteriores marquem as etapas como concluídas
+    if (usarSimplificadas) {
+      return;
+    }
+
+    // Modo completo (primeira configuração) - verificar todas as etapas
+
+    // Etapa 1: Verificar se aplicou pelo menos uma revista
     if (!progressData.etapas.find(e => e.id === 1)?.completada) {
       const { data: planejamentos } = await supabase
         .from("ebd_planejamento")
@@ -547,24 +556,21 @@ export const useOnboardingProgress = (churchId: string | null) => {
       }
     }
 
-    // Etapas 6 e 7 só são verificadas se NÃO estiver no modo simplificado (revista adicional)
-    if (!usarSimplificadas) {
-      // Etapa 6: Verificar se tem data de aniversário cadastrada
-      if (!progressData.etapas.find(e => e.id === 6)?.completada && progressData.dataAniversario) {
-        marcarEtapaMutation.mutate({ etapaId: 6 });
-      }
+    // Etapa 6: Verificar se tem data de aniversário cadastrada
+    if (!progressData.etapas.find(e => e.id === 6)?.completada && progressData.dataAniversario) {
+      marcarEtapaMutation.mutate({ etapaId: 6 });
+    }
 
-      // Etapa 7: Verificar se configurou lançamento (tem turma ativa)
-      if (!progressData.etapas.find(e => e.id === 7)?.completada) {
-        const { count: turmasCount } = await supabase
-          .from("ebd_turmas")
-          .select("*", { count: "exact", head: true })
-          .eq("church_id", churchId)
-          .eq("is_active", true);
+    // Etapa 7: Verificar se configurou lançamento (tem turma ativa)
+    if (!progressData.etapas.find(e => e.id === 7)?.completada) {
+      const { count: turmasCount } = await supabase
+        .from("ebd_turmas")
+        .select("*", { count: "exact", head: true })
+        .eq("church_id", churchId)
+        .eq("is_active", true);
 
-        if (turmasCount && turmasCount > 0) {
-          marcarEtapaMutation.mutate({ etapaId: 7 });
-        }
+      if (turmasCount && turmasCount > 0) {
+        marcarEtapaMutation.mutate({ etapaId: 7 });
       }
     }
   }, [churchId, progressData, revistasNaoAplicadas, marcarEtapaMutation]);
