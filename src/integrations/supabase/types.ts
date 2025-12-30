@@ -2471,13 +2471,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ebd_professores_church_id_fkey"
-            columns: ["church_id"]
-            isOneToOne: false
-            referencedRelation: "churches"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ebd_professores_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
