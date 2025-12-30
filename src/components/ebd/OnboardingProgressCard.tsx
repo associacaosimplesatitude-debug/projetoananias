@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DefinirDataInicioDialog } from "./DefinirDataInicioDialog";
 
 interface OnboardingProgressCardProps {
   churchId: string | null;
@@ -77,6 +78,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
   }, [churchId, progress?.concluido]);
   const [showAniversarioDialog, setShowAniversarioDialog] = useState(false);
   const [showRevistasDialog, setShowRevistasDialog] = useState(false);
+  const [showDataInicioDialog, setShowDataInicioDialog] = useState(false);
   const [dataAniversario, setDataAniversario] = useState("");
 
   if (isLoading) {
@@ -186,6 +188,9 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
         // Sem revistas disponíveis, ir para o catálogo
         navigate("/ebd/catalogo");
       }
+    } else if (etapaId === 4) {
+      // Etapa de definir data de início - abrir dialog
+      setShowDataInicioDialog(true);
     } else {
       const route = ETAPA_ROUTES[etapaId];
       if (route) navigate(route);
@@ -464,6 +469,21 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog para definir data de início */}
+      <DefinirDataInicioDialog
+        revista={progress.revistaIdentificadaId ? {
+          id: progress.revistaIdentificadaId,
+          titulo: progress.revistaIdentificadaTitulo || "Revista",
+          faixa_etaria_alvo: progress.revistaIdentificadaFaixaEtaria || "",
+          imagem_url: progress.revistaIdentificadaImagem || null,
+          num_licoes: progress.revistaIdentificadaNumLicoes || 13,
+        } : null}
+        open={showDataInicioDialog}
+        onOpenChange={setShowDataInicioDialog}
+        churchId={churchId}
+        onComplete={() => marcarEtapa(4)}
+      />
     </>
   );
 }
