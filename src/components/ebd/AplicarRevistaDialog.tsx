@@ -38,6 +38,72 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FAIXAS_ETARIAS } from "@/constants/ebdFaixasEtarias";
 import { RevistaBaseNaoAplicada } from "@/hooks/useOnboardingProgress";
+import { storefrontApiRequest } from "@/lib/shopify";
+
+// Query para buscar produto por título com a descrição HTML
+const SEARCH_PRODUCT_WITH_DESCRIPTION = `
+  query SearchProductByTitle($query: String!) {
+    products(first: 1, query: $query) {
+      edges {
+        node {
+          id
+          title
+          descriptionHtml
+        }
+      }
+    }
+  }
+`;
+
+// Função para parsear as lições do HTML
+function parseLicoesFromHtml(html: string): string[] {
+  if (!html) return [];
+  
+  // Remover tags HTML e extrair texto de cada parágrafo
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const paragraphs = doc.querySelectorAll('p');
+  
+  const licoes: string[] = [];
+  let skipHeader = true;
+  
+  paragraphs.forEach((p) => {
+    const text = p.textContent?.trim() || '';
+    
+    // Pular parágrafos vazios
+    if (!text) return;
+    
+    // Pular o header "TÍTULO DAS LIÇÕES" ou similar
+    if (skipHeader && (
+      text.toUpperCase().includes('TÍTULO') || 
+      text.toUpperCase().includes('LIÇÕES') ||
+      text.toUpperCase().includes('LICOES')
+    )) {
+      return;
+    }
+    
+    skipHeader = false;
+    
+    // Adicionar apenas se parece um título de lição válido
+    if (text.length > 2 && text.length < 150 && licoes.length < 13) {
+      licoes.push(text);
+    }
+  });
+  
+  // Se não encontrou com a lógica de parágrafos, tentar extrair por formato numerado
+  if (licoes.length === 0) {
+    // Tenta dividir por números (1 - Título, 2 - Título, etc.)
+    const matches = html.match(/\d+\s*[–-]\s*[^<\n]+/g);
+    if (matches) {
+      matches.forEach(match => {
+        const titulo = match.replace(/^\d+\s*[–-]\s*/, '').trim();
+        if (titulo && licoes.length < 13) licoes.push(titulo);
+      });
+    }
+  }
+  
+  return licoes.slice(0, 13);
+}
 
 interface AplicarRevistaDialogProps {
   open: boolean;
@@ -163,6 +229,59 @@ export function AplicarRevistaDialog({
       return data as Professor[];
     },
     enabled: !!churchId && open,
+  });
+
+  // Buscar lições da revista selecionada via Shopify
+  const { data: licoesRevista, isLoading: loadingLicoes } = useQuery({
+    queryKey: ["ebd-licoes-shopify", selectedRevista?.id],
+    queryFn: async () => {
+      if (!selectedRevista) return [];
+      
+      try {
+        // Extrair palavras-chave do título da revista para busca
+        const titulo = selectedRevista.titulo
+          .replace(/\d+\s*(un|und|x)\s*/gi, '') // Remove quantidades (10un, 20und, 100x)
+          .replace(/revista\s*ebd/gi, '') // Remove "Revista EBD"
+          .replace(/professor|mestre|aluno/gi, '') // Remove tipo
+          .replace(/nº?\s*\d+/gi, '') // Remove números de edição
+          .replace(/jovens\s*e?\s*adultos|juniores|primários|pre-adolescentes|adolescentes/gi, '') // Remove faixa etária
+          .replace(/[-–]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        // Usar apenas palavras principais para a busca
+        const palavrasChave = titulo.split(' ').filter(p => p.length > 3).slice(0, 4);
+        const searchQuery = palavrasChave.join(' ');
+        
+        console.log('Buscando lições para:', searchQuery);
+        
+        const response = await storefrontApiRequest(SEARCH_PRODUCT_WITH_DESCRIPTION, {
+          query: searchQuery,
+        });
+        
+        const products = response.data?.products?.edges || [];
+        
+        if (products.length > 0) {
+          const descriptionHtml = products[0].node.descriptionHtml;
+          const licoes = parseLicoesFromHtml(descriptionHtml);
+          
+          console.log('Lições encontradas:', licoes.length, licoes);
+          
+          if (licoes.length > 0) {
+            return licoes;
+          }
+        }
+        
+        // Fallback: gerar lições genéricas se não encontrar
+        console.log('Nenhuma lição encontrada, usando fallback');
+        return Array.from({ length: 13 }, (_, i) => `Lição ${i + 1}`);
+      } catch (error) {
+        console.error("Erro ao buscar lições do Shopify:", error);
+        return Array.from({ length: 13 }, (_, i) => `Lição ${i + 1}`);
+      }
+    },
+    enabled: !!selectedRevista && open && currentStep >= 4, // Começar a buscar antes da etapa 5
+    staleTime: 1000 * 60 * 30, // Cache por 30 minutos
   });
 
   // Calcular datas das aulas
@@ -725,66 +844,79 @@ export function AplicarRevistaDialog({
                   Defina qual professor dará cada aula ou marque como "Sem aula" para feriados.
                 </p>
 
-                <div className="space-y-3">
-                  {aulasCalculadas.map((aula) => (
-                    <div key={aula.numero} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-sm font-bold text-primary">{aula.numero}</span>
-                          </div>
-                          <div>
-                            <p className="font-medium">Lição {aula.numero}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {format(aula.data, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-                            </p>
-                          </div>
-                        </div>
+                {loadingLicoes ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Carregando lições...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {aulasCalculadas.map((aula) => {
+                      const tituloLicao = licoesRevista?.[aula.numero - 1] || `Lição ${aula.numero}`;
+                      
+                      return (
+                        <div key={aula.numero} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-start gap-3 flex-1">
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                <span className="text-sm font-bold text-primary">{aula.numero}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm leading-tight">
+                                  {tituloLicao}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {format(aula.data, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                                </p>
+                              </div>
+                            </div>
 
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`sem-aula-${aula.numero}`}
-                            checked={semAula[aula.numero] || false}
-                            onCheckedChange={(checked) => {
-                              setSemAula(prev => ({ ...prev, [aula.numero]: checked as boolean }));
-                              if (checked) {
-                                setEscalas(prev => {
-                                  const newEscalas = { ...prev };
-                                  delete newEscalas[aula.numero];
-                                  return newEscalas;
-                                });
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={`sem-aula-${aula.numero}`}
-                            className="text-xs text-muted-foreground cursor-pointer"
-                          >
-                            Sem aula
-                          </label>
-                        </div>
-                      </div>
+                            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                              <Checkbox
+                                id={`sem-aula-${aula.numero}`}
+                                checked={semAula[aula.numero] || false}
+                                onCheckedChange={(checked) => {
+                                  setSemAula(prev => ({ ...prev, [aula.numero]: checked as boolean }));
+                                  if (checked) {
+                                    setEscalas(prev => {
+                                      const newEscalas = { ...prev };
+                                      delete newEscalas[aula.numero];
+                                      return newEscalas;
+                                    });
+                                  }
+                                }}
+                              />
+                              <label
+                                htmlFor={`sem-aula-${aula.numero}`}
+                                className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap"
+                              >
+                                Sem aula
+                              </label>
+                            </div>
+                          </div>
 
-                      {!semAula[aula.numero] && (
-                        <Select
-                          value={escalas[aula.numero] || ""}
-                          onValueChange={(value) => setEscalas(prev => ({ ...prev, [aula.numero]: value }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o professor" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {professores?.filter(p => selectedProfessores.includes(p.id)).map((professor) => (
-                              <SelectItem key={professor.id} value={professor.id}>
-                                {professor.nome_completo}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                          {!semAula[aula.numero] && (
+                            <Select
+                              value={escalas[aula.numero] || ""}
+                              onValueChange={(value) => setEscalas(prev => ({ ...prev, [aula.numero]: value }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o professor" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {professores?.filter(p => selectedProfessores.includes(p.id)).map((professor) => (
+                                  <SelectItem key={professor.id} value={professor.id}>
+                                    {professor.nome_completo}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
