@@ -47,6 +47,7 @@ import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
+import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
@@ -342,63 +343,23 @@ const App = () => (
                       } 
                     />
 
-                    {/* Professor Module Routes */}
-                    <Route 
-                      path="/ebd/professor" 
+                    {/* Professor Module Routes with Sidebar Layout */}
+                    <Route
+                      path="/ebd/professor"
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <ProfessorHome />
+                          <ProfessorLayout />
                         </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/professor/escala" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <ProfessorEscala />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/professor/classe" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <ProfessorClasse />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/professor/aulas" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <ProfessorAulas />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/professor/lancamentos" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <ProfessorLancamentos />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/professor/quizzes" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <ProfessorQuizzes />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/professor/relatorios" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <ProfessorRelatorios />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
+                      }
+                    >
+                      <Route index element={<ProfessorHome />} />
+                      <Route path="escala" element={<ProfessorEscala />} />
+                      <Route path="classe" element={<ProfessorClasse />} />
+                      <Route path="aulas" element={<ProfessorAulas />} />
+                      <Route path="lancamentos" element={<ProfessorLancamentos />} />
+                      <Route path="quizzes" element={<ProfessorQuizzes />} />
+                      <Route path="relatorios" element={<ProfessorRelatorios />} />
+                    </Route>
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
                     

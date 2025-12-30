@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookOpen } from "lucide-react";
-import { ProfessorNavigation } from "@/components/ebd/professor/ProfessorNavigation";
 import { ProfessorDashboard } from "@/components/ebd/professor/ProfessorDashboard";
 
 export default function ProfessorHome() {
@@ -66,43 +65,26 @@ export default function ProfessorHome() {
 
   if (isLoading) {
     return (
-      <>
-        <ProfessorNavigation />
-        <div className="container mx-auto py-6 px-4">
-          <div className="animate-pulse space-y-4">
-            <div className="h-32 bg-muted rounded-lg" />
-            <div className="h-64 bg-muted rounded-lg" />
-          </div>
-        </div>
-      </>
+      <div className="animate-pulse space-y-4">
+        <div className="h-32 bg-muted rounded-lg" />
+        <div className="h-64 bg-muted rounded-lg" />
+      </div>
     );
   }
 
   if (!professor) {
     return (
-      <>
-        <ProfessorNavigation />
-        <div className="container mx-auto py-6 px-4">
-          <Card>
-            <CardContent className="py-12 text-center">
-              <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Área do Professor</h2>
-              <p className="text-muted-foreground">
-                Você ainda não está cadastrado como professor em nenhuma turma da EBD.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </>
+      <Card>
+        <CardContent className="py-12 text-center">
+          <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Área do Professor</h2>
+          <p className="text-muted-foreground">
+            Você ainda não está cadastrado como professor em nenhuma turma da EBD.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
-  return (
-    <>
-      <ProfessorNavigation />
-      <div className="container mx-auto py-6 px-4">
-        <ProfessorDashboard professor={professor} turmas={turmas || []} />
-      </div>
-    </>
-  );
+  return <ProfessorDashboard professor={professor} turmas={turmas || []} />;
 }
