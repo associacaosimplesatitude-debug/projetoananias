@@ -97,6 +97,7 @@ export function ConfigurarLancamentoDialog({
       toast.success("Configurações de lançamento salvas!");
       queryClient.invalidateQueries({ queryKey: ["ebd-turmas"] });
       queryClient.invalidateQueries({ queryKey: ["ebd-turmas-config-lancamento", churchId] });
+      queryClient.invalidateQueries({ queryKey: ["ebd-onboarding-progress", churchId] });
       onOpenChange(false);
     },
     onError: (err: any) => {
