@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DefinirDataInicioDialog } from "./DefinirDataInicioDialog";
+import { ConfigurarLancamentoDialog } from "./ConfigurarLancamentoDialog";
 
 interface OnboardingProgressCardProps {
   churchId: string | null;
@@ -55,7 +56,7 @@ const ETAPA_ROUTES: Record<number, string | null> = {
   4: "/ebd/planejamento",
   5: "/ebd/schedule",
   6: null, // Abre dialog de aniversário
-  7: "/ebd/turmas", // Configurar lançamento nas turmas
+  7: null, // Abre dialog de configurar lançamento
 };
 
 export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps) {
@@ -79,6 +80,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
   const [showAniversarioDialog, setShowAniversarioDialog] = useState(false);
   const [showRevistasDialog, setShowRevistasDialog] = useState(false);
   const [showDataInicioDialog, setShowDataInicioDialog] = useState(false);
+  const [showConfigLancamentoDialog, setShowConfigLancamentoDialog] = useState(false);
   const [dataAniversario, setDataAniversario] = useState("");
 
   if (isLoading) {
@@ -191,6 +193,9 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     } else if (etapaId === 4) {
       // Etapa de definir data de início - abrir dialog
       setShowDataInicioDialog(true);
+    } else if (etapaId === 7) {
+      // Configurar lançamento - abrir modal
+      setShowConfigLancamentoDialog(true);
     } else {
       const route = ETAPA_ROUTES[etapaId];
       if (route) navigate(route);
@@ -423,6 +428,15 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog: Configurar Lançamento */}
+      {churchId && (
+        <ConfigurarLancamentoDialog
+          open={showConfigLancamentoDialog}
+          onOpenChange={setShowConfigLancamentoDialog}
+          churchId={churchId}
+        />
+      )}
 
       {/* Dialog para selecionar revista para aplicar */}
       <Dialog open={showRevistasDialog} onOpenChange={setShowRevistasDialog}>
