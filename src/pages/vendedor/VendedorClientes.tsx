@@ -31,7 +31,8 @@ import {
   Pencil,
   Trash2,
   Search,
-  Percent
+  Percent,
+  BookOpen
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,6 +46,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { DescontoFaturamentoDialog } from "@/components/vendedor/DescontoFaturamentoDialog";
+import { LancamentoManualRevistaDialog } from "@/components/vendedor/LancamentoManualRevistaDialog";
 import { useVendedor } from "@/hooks/useVendedor";
 import { toast } from "sonner";
 
@@ -86,6 +88,7 @@ export default function VendedorClientes() {
   const [clienteParaEditar, setClienteParaEditar] = useState<Cliente | null>(null);
   const [clienteParaExcluir, setClienteParaExcluir] = useState<Cliente | null>(null);
   const [clienteParaDesconto, setClienteParaDesconto] = useState<Cliente | null>(null);
+  const [clienteParaLancamento, setClienteParaLancamento] = useState<Cliente | null>(null);
   const [excluindo, setExcluindo] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -371,6 +374,15 @@ export default function VendedorClientes() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setClienteParaLancamento(cliente)}
+                          title="Lançamento manual de revistas"
+                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                        >
+                          <BookOpen className="h-4 w-4" />
+                        </Button>
                         {cliente.pode_faturar && (
                           <Button
                             variant="ghost"
@@ -434,6 +446,13 @@ export default function VendedorClientes() {
         onOpenChange={(open) => !open && setClienteParaDesconto(null)}
         cliente={clienteParaDesconto}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["vendedor-clientes", vendedor?.id] })}
+      />
+
+      <LancamentoManualRevistaDialog
+        open={!!clienteParaLancamento}
+        onOpenChange={(open) => !open && setClienteParaLancamento(null)}
+        clienteId={clienteParaLancamento?.id || ""}
+        clienteNome={clienteParaLancamento?.nome_igreja || ""}
       />
 
       <AlertDialog open={!!clienteParaExcluir} onOpenChange={(open) => !open && setClienteParaExcluir(null)}>

@@ -1758,6 +1758,45 @@ export type Database = {
           },
         ]
       }
+      ebd_historico_revistas_manual: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          id: string
+          registrado_por: string | null
+          revista_id: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          id?: string
+          registrado_por?: string | null
+          revista_id: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          id?: string
+          registrado_por?: string | null
+          revista_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_historico_revistas_manual_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_historico_revistas_manual_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_revistas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_leads_reativacao: {
         Row: {
           cnpj: string | null
