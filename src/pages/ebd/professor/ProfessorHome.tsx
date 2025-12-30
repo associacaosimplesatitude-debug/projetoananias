@@ -26,27 +26,37 @@ export default function ProfessorHome() {
     enabled: !!user?.id,
   });
 
-  // Fetch turmas vinculadas ao professor
+  // Fetch turmas vinculadas ao professor - busca via escalas + tabela de relacionamento + turma_id
   const { data: turmas, isLoading: turmasLoading } = useQuery({
     queryKey: ["professor-turmas", professor?.id],
     queryFn: async () => {
       if (!professor?.id) return [];
 
-      // Buscar turmas via tabela de relacionamento
-      const { data: vinculados, error: vinculadosError } = await supabase
+      const turmaIdsSet = new Set<string>();
+
+      // 1. Buscar turmas via tabela de relacionamento
+      const { data: vinculados } = await supabase
         .from("ebd_professores_turmas")
         .select("turma_id")
         .eq("professor_id", professor.id);
-
-      if (vinculadosError) throw vinculadosError;
-
-      const turmaIds = vinculados?.map(v => v.turma_id) || [];
       
-      // Adicionar turma principal se existir
-      if (professor.turma_id && !turmaIds.includes(professor.turma_id)) {
-        turmaIds.push(professor.turma_id);
+      vinculados?.forEach(v => turmaIdsSet.add(v.turma_id));
+
+      // 2. Adicionar turma principal se existir
+      if (professor.turma_id) {
+        turmaIdsSet.add(professor.turma_id);
       }
 
+      // 3. Buscar turmas via escalas onde o professor está alocado
+      const { data: escalas } = await supabase
+        .from("ebd_escalas")
+        .select("turma_id")
+        .eq("professor_id", professor.id)
+        .eq("sem_aula", false);
+      
+      escalas?.forEach(e => turmaIdsSet.add(e.turma_id));
+
+      const turmaIds = Array.from(turmaIdsSet);
       if (turmaIds.length === 0) return [];
 
       const { data: turmasData, error: turmasError } = await supabase
