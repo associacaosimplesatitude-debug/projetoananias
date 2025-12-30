@@ -60,8 +60,7 @@ export function DescontoSidebarBadge() {
         "hover:from-primary/90 hover:to-accent/90",
         "text-primary-foreground font-medium text-sm",
         "transition-all duration-200 transform hover:scale-[1.02]",
-        "shadow-lg shadow-primary/20",
-        "animate-pulse hover:animate-none"
+        "shadow-lg shadow-primary/20"
       )}
     >
       <div className="h-8 w-8 rounded-full bg-primary-foreground/15 flex items-center justify-center flex-shrink-0">
