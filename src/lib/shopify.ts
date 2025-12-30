@@ -1,8 +1,41 @@
 // Shopify Storefront API Configuration
+// Loja principal de revenda EBD Central Gospel
 export const SHOPIFY_API_VERSION = '2025-07';
-export const SHOPIFY_STORE_PERMANENT_DOMAIN = 'revendacentralgospel.myshopify.com';
+export const SHOPIFY_STORE_PERMANENT_DOMAIN = 'kgg1pq-6r.myshopify.com';
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_STOREFRONT_TOKEN = '6f4a9b541650594788cf6c1e0bfd8e5b';
+export const SHOPIFY_STOREFRONT_TOKEN = 'acced35bcf6ac2b59c79ee0ab2b8e57f';
+
+// Loja secundária para buscar descrições de lições (centralgospel.com.br)
+export const SHOPIFY_CENTRAL_GOSPEL_DOMAIN = '6b0dfa-e6.myshopify.com';
+export const SHOPIFY_CENTRAL_GOSPEL_URL = `https://${SHOPIFY_CENTRAL_GOSPEL_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
+export const SHOPIFY_CENTRAL_GOSPEL_TOKEN = 'efc78419b0f58ed38b9cc83b59e67879';
+
+// Função auxiliar para buscar na loja Central Gospel (descrições de produtos)
+export async function centralGospelApiRequest(query: string, variables: Record<string, unknown> = {}) {
+  const response = await fetch(SHOPIFY_CENTRAL_GOSPEL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Storefront-Access-Token': SHOPIFY_CENTRAL_GOSPEL_TOKEN
+    },
+    body: JSON.stringify({
+      query,
+      variables,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+  
+  if (data.errors) {
+    throw new Error(`Error calling Shopify: ${data.errors.map((e: { message: string }) => e.message).join(', ')}`);
+  }
+
+  return data;
+}
 
 export interface ShopifyProduct {
   node: {
