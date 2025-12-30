@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { EditProfessorDialog } from "@/components/ebd/EditProfessorDialog";
+import { CreateProfessorDialog } from "@/components/ebd/CreateProfessorDialog";
 import { toast } from "sonner";
 
 interface Professor {
@@ -27,6 +28,7 @@ export default function EBDTeachers() {
   const { clientId } = useParams();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const [creatingProfessor, setCreatingProfessor] = useState(false);
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
   const [deletingProfessor, setDeletingProfessor] = useState<Professor | null>(null);
 
@@ -134,6 +136,11 @@ export default function EBDTeachers() {
             <h1 className="text-3xl font-bold">Cadastro de Professores</h1>
             <p className="text-muted-foreground">Gerencie professores da EBD</p>
           </div>
+
+          <Button onClick={() => setCreatingProfessor(true)} className="gap-2">
+            <UserPlus className="h-4 w-4" />
+            Cadastrar professor
+          </Button>
         </div>
 
         <Card>
@@ -161,7 +168,11 @@ export default function EBDTeachers() {
               <div className="text-center py-12 text-muted-foreground">
                 <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhum professor encontrado</p>
-                <p className="text-sm">Use o menu CADASTRO para adicionar professores</p>
+                <p className="text-sm mb-4">Cadastre o primeiro professor para começar</p>
+                <Button onClick={() => setCreatingProfessor(true)} className="gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Cadastrar professor
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -222,6 +233,12 @@ export default function EBDTeachers() {
           </CardContent>
         </Card>
       </div>
+
+      <CreateProfessorDialog
+        open={creatingProfessor}
+        onOpenChange={setCreatingProfessor}
+        churchId={churchData.id}
+      />
 
       <EditProfessorDialog
         open={!!editingProfessor}
