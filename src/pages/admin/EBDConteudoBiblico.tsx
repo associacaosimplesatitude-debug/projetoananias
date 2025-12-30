@@ -71,21 +71,65 @@ export default function EBDConteudoBiblico() {
   const [formData, setFormData] = useState({
     licao_numero: 1,
     texto_aureo: "",
-    dia1_livro: "",
-    dia1_versiculo: "",
-    dia2_livro: "",
-    dia2_versiculo: "",
-    dia3_livro: "",
-    dia3_versiculo: "",
-    dia4_livro: "",
-    dia4_versiculo: "",
-    dia5_livro: "",
-    dia5_versiculo: "",
-    dia6_livro: "",
-    dia6_versiculo: "",
+    plano_leitura_texto: "",
     pergunta: "",
     resposta_correta: "",
   });
+  const [parsedReferences, setParsedReferences] = useState<Array<{ livro: string; versiculo: string }>>([]);
+
+  // Parse Bible references from text
+  const parseReferences = (text: string) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    const refs: Array<{ livro: string; versiculo: string }> = [];
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      
+      // Match patterns like "Lamentações 3.22-23" or "1 João 3:16" or "Salmos 23.1-6"
+      const match = trimmed.match(/^(.+?)\s+(\d+[.:]\d+(?:-\d+)?(?:[.:]\d+)?)$/);
+      if (match) {
+        refs.push({ livro: match[1].trim(), versiculo: match[2].trim() });
+      } else {
+        // Try to split on last space before number
+        const lastNumMatch = trimmed.match(/^(.+?)\s+(\d.*)$/);
+        if (lastNumMatch) {
+          refs.push({ livro: lastNumMatch[1].trim(), versiculo: lastNumMatch[2].trim() });
+        }
+      }
+    }
+    
+    return refs.slice(0, 6);
+  };
+
+  // Update parsed references when text changes
+  const handlePlanoLeituraChange = (text: string) => {
+    setFormData({ ...formData, plano_leitura_texto: text });
+    setParsedReferences(parseReferences(text));
+  };
+
+  // Convert parsed references to form data for submission
+  const getSubmitData = () => {
+    const refs = parsedReferences;
+    return {
+      licao_numero: formData.licao_numero,
+      texto_aureo: formData.texto_aureo || null,
+      dia1_livro: refs[0]?.livro || "",
+      dia1_versiculo: refs[0]?.versiculo || "",
+      dia2_livro: refs[1]?.livro || "",
+      dia2_versiculo: refs[1]?.versiculo || "",
+      dia3_livro: refs[2]?.livro || "",
+      dia3_versiculo: refs[2]?.versiculo || "",
+      dia4_livro: refs[3]?.livro || "",
+      dia4_versiculo: refs[3]?.versiculo || "",
+      dia5_livro: refs[4]?.livro || "",
+      dia5_versiculo: refs[4]?.versiculo || "",
+      dia6_livro: refs[5]?.livro || "",
+      dia6_versiculo: refs[5]?.versiculo || "",
+      pergunta: formData.pergunta,
+      resposta_correta: formData.resposta_correta,
+    };
+  };
 
   // Fetch revistas
   const { data: revistas = [] } = useQuery({
@@ -120,25 +164,10 @@ export default function EBDConteudoBiblico() {
 
   // Save mutation
   const saveMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (submitData: ReturnType<typeof getSubmitData>) => {
       const payload = {
         revista_id: selectedRevista,
-        licao_numero: data.licao_numero,
-        texto_aureo: data.texto_aureo || null,
-        dia1_livro: data.dia1_livro,
-        dia1_versiculo: data.dia1_versiculo,
-        dia2_livro: data.dia2_livro,
-        dia2_versiculo: data.dia2_versiculo,
-        dia3_livro: data.dia3_livro,
-        dia3_versiculo: data.dia3_versiculo,
-        dia4_livro: data.dia4_livro,
-        dia4_versiculo: data.dia4_versiculo,
-        dia5_livro: data.dia5_livro,
-        dia5_versiculo: data.dia5_versiculo,
-        dia6_livro: data.dia6_livro,
-        dia6_versiculo: data.dia6_versiculo,
-        pergunta: data.pergunta,
-        resposta_correta: data.resposta_correta,
+        ...submitData,
       };
 
       if (editingConteudo) {
@@ -191,21 +220,11 @@ export default function EBDConteudoBiblico() {
     setFormData({
       licao_numero: 1,
       texto_aureo: "",
-      dia1_livro: "",
-      dia1_versiculo: "",
-      dia2_livro: "",
-      dia2_versiculo: "",
-      dia3_livro: "",
-      dia3_versiculo: "",
-      dia4_livro: "",
-      dia4_versiculo: "",
-      dia5_livro: "",
-      dia5_versiculo: "",
-      dia6_livro: "",
-      dia6_versiculo: "",
+      plano_leitura_texto: "",
       pergunta: "",
       resposta_correta: "",
     });
+    setParsedReferences([]);
     setEditingConteudo(null);
   };
 
@@ -216,24 +235,26 @@ export default function EBDConteudoBiblico() {
 
   const openEditDialog = (conteudo: ConteudoBiblico) => {
     setEditingConteudo(conteudo);
+    
+    // Reconstruct the text from the 6 days
+    const textLines = [];
+    for (let i = 1; i <= 6; i++) {
+      const livro = conteudo[`dia${i}_livro` as keyof ConteudoBiblico];
+      const versiculo = conteudo[`dia${i}_versiculo` as keyof ConteudoBiblico];
+      if (livro && versiculo) {
+        textLines.push(`${livro} ${versiculo}`);
+      }
+    }
+    
+    const planoTexto = textLines.join('\n');
     setFormData({
       licao_numero: conteudo.licao_numero,
       texto_aureo: conteudo.texto_aureo || "",
-      dia1_livro: conteudo.dia1_livro,
-      dia1_versiculo: conteudo.dia1_versiculo,
-      dia2_livro: conteudo.dia2_livro,
-      dia2_versiculo: conteudo.dia2_versiculo,
-      dia3_livro: conteudo.dia3_livro,
-      dia3_versiculo: conteudo.dia3_versiculo,
-      dia4_livro: conteudo.dia4_livro,
-      dia4_versiculo: conteudo.dia4_versiculo,
-      dia5_livro: conteudo.dia5_livro,
-      dia5_versiculo: conteudo.dia5_versiculo,
-      dia6_livro: conteudo.dia6_livro,
-      dia6_versiculo: conteudo.dia6_versiculo,
+      plano_leitura_texto: planoTexto,
       pergunta: conteudo.pergunta,
       resposta_correta: conteudo.resposta_correta,
     });
+    setParsedReferences(parseReferences(planoTexto));
     setDialogOpen(true);
   };
 
@@ -243,7 +264,11 @@ export default function EBDConteudoBiblico() {
       toast.error("Selecione uma revista");
       return;
     }
-    saveMutation.mutate(formData);
+    if (parsedReferences.length < 6) {
+      toast.error("Informe as 6 referências bíblicas (uma por linha)");
+      return;
+    }
+    saveMutation.mutate(getSubmitData());
   };
 
   // Get available licoes for dropdown
@@ -408,33 +433,41 @@ export default function EBDConteudoBiblico() {
               </div>
 
               <div className="space-y-4">
-                <h3 className="font-medium">Leituras Diárias (6 dias antes da aula)</h3>
-                {DIAS.map((dia) => (
-                  <div key={dia.num} className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>{dia.label} - Livro</Label>
-                      <Input
-                        value={formData[`dia${dia.num}_livro` as keyof typeof formData] as string}
-                        onChange={(e) =>
-                          setFormData({ ...formData, [`dia${dia.num}_livro`]: e.target.value })
-                        }
-                        placeholder="Ex: Lamentações"
-                        required
-                      />
+                <div>
+                  <Label>Plano de Leitura Diária (Cole aqui as 6 referências, uma por linha)</Label>
+                  <Textarea
+                    value={formData.plano_leitura_texto}
+                    onChange={(e) => handlePlanoLeituraChange(e.target.value)}
+                    placeholder={`Exemplo:\nLamentações 3.22-23\nSalmos 23.1-6\nJoão 3.16-17\nRomanos 8.28-30\n1 Coríntios 13.1-8\nFilipenses 4.6-7`}
+                    rows={8}
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Formato: Livro Capítulo.Versículo (ex: Lamentações 3.22-23)
+                  </p>
+                </div>
+                
+                {parsedReferences.length > 0 && (
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <h4 className="text-sm font-medium mb-2">Referências identificadas ({parsedReferences.length}/6):</h4>
+                    <div className="grid grid-cols-1 gap-1">
+                      {parsedReferences.map((ref, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-sm">
+                          <Badge variant={parsedReferences.length === 6 ? "default" : "secondary"} className="w-12 justify-center">
+                            Dia {idx + 1}
+                          </Badge>
+                          <span className="text-muted-foreground">{ref.livro}</span>
+                          <span>{ref.versiculo}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <Label>Versículo</Label>
-                      <Input
-                        value={formData[`dia${dia.num}_versiculo` as keyof typeof formData] as string}
-                        onChange={(e) =>
-                          setFormData({ ...formData, [`dia${dia.num}_versiculo`]: e.target.value })
-                        }
-                        placeholder="Ex: 3.22-23"
-                        required
-                      />
-                    </div>
+                    {parsedReferences.length < 6 && (
+                      <p className="text-xs text-destructive mt-2">
+                        Faltam {6 - parsedReferences.length} referência(s)
+                      </p>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
 
               <div className="space-y-4">
