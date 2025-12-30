@@ -30,7 +30,7 @@ export default function EBDTeachers() {
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
   const [deletingProfessor, setDeletingProfessor] = useState<Professor | null>(null);
 
-  const { data: churchData } = useQuery({
+  const { data: churchData, isLoading: isLoadingChurch } = useQuery({
     queryKey: ["user-church", clientId],
     queryFn: async () => {
       if (clientId) {
@@ -40,14 +40,30 @@ export default function EBDTeachers() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data, error } = await supabase
+      // Primeiro tentar buscar em ebd_clientes (superintendentes EBD)
+      const { data: ebdCliente } = await supabase
+        .from("ebd_clientes")
+        .select("id")
+        .eq("superintendente_user_id", user.id)
+        .eq("status_ativacao_ebd", true)
+        .maybeSingle();
+
+      if (ebdCliente) {
+        return { id: ebdCliente.id };
+      }
+
+      // Fallback para churches (clientes tradicionais)
+      const { data: church } = await supabase
         .from("churches")
         .select("id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (church) {
+        return { id: church.id };
+      }
+
+      throw new Error("Nenhuma igreja encontrada para este usuário");
     },
   });
 
@@ -92,10 +108,20 @@ export default function EBDTeachers() {
     },
   });
 
-  if (!churchData) {
+  if (isLoadingChurch) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!churchData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Nenhuma igreja encontrada</p>
+        </div>
       </div>
     );
   }
