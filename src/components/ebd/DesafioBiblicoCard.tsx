@@ -64,7 +64,12 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
       // 1) Tenta encontrar o planejamento vigente
       const { data: vigente, error: vigenteError } = await supabase
         .from("ebd_planejamento")
-        .select("revista_id, data_inicio, data_termino")
+        .select(`
+          revista_id, 
+          data_inicio, 
+          data_termino,
+          revista:ebd_revistas!ebd_planejamento_revista_id_fkey(titulo)
+        `)
         .eq("church_id", churchId)
         .lte("data_inicio", hoje)
         .gte("data_termino", hoje)
@@ -73,54 +78,105 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
         .maybeSingle();
 
       if (vigenteError) throw vigenteError;
-      if (vigente?.revista_id) return vigente;
+      if (vigente?.revista_id) return {
+        ...vigente,
+        revista_titulo: (vigente.revista as any)?.titulo || null
+      };
 
       // 2) Fallback: pega o último planejamento cadastrado (mesmo fora do período)
       const { data: ultimo, error: ultimoError } = await supabase
         .from("ebd_planejamento")
-        .select("revista_id, data_inicio, data_termino")
+        .select(`
+          revista_id, 
+          data_inicio, 
+          data_termino,
+          revista:ebd_revistas!ebd_planejamento_revista_id_fkey(titulo)
+        `)
         .eq("church_id", churchId)
         .order("data_inicio", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (ultimoError) throw ultimoError;
-      return ultimo;
+      return ultimo ? {
+        ...ultimo,
+        revista_titulo: (ultimo.revista as any)?.titulo || null
+      } : null;
     },
     enabled: !!churchId,
   });
 
   // Buscar a próxima escala para saber a data da aula
   const { data: proximaAula } = useQuery({
-    queryKey: ["proxima-aula-desafio", turmaId],
+    queryKey: ["proxima-aula-desafio", churchId, turmaId],
     queryFn: async () => {
-      if (!turmaId) return null;
+      if (!churchId) return null;
       
       const hoje = format(new Date(), "yyyy-MM-dd");
-      const { data, error } = await supabase
+      
+      // 1) Se tem turmaId, buscar da turma específica
+      if (turmaId) {
+        const { data, error } = await supabase
+          .from("ebd_escalas")
+          .select("data, turma_id")
+          .eq("turma_id", turmaId)
+          .eq("sem_aula", false)
+          .gte("data", hoje)
+          .order("data", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data) return data;
+      }
+      
+      // 2) Fallback: buscar próxima aula de qualquer turma da igreja
+      const { data: fallback, error: fallbackError } = await supabase
         .from("ebd_escalas")
-        .select("data")
-        .eq("turma_id", turmaId)
+        .select("data, turma_id")
+        .eq("church_id", churchId)
         .eq("sem_aula", false)
         .gte("data", hoje)
         .order("data", { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (fallbackError) throw fallbackError;
+      return fallback;
     },
-    enabled: !!turmaId,
+    enabled: !!churchId,
   });
 
-  // Buscar conteúdo bíblico da revista atual
+  // Buscar conteúdo bíblico da revista atual - calcula qual lição baseado na data da aula
   const { data: conteudo } = useQuery({
-    queryKey: ["conteudo-biblico-semana", planejamento?.revista_id],
+    queryKey: ["conteudo-biblico-semana", planejamento?.revista_id, proximaAula?.data, planejamento?.data_inicio],
     queryFn: async () => {
       if (!planejamento?.revista_id) return null;
+      
+      // Calcular qual lição corresponde à próxima aula
+      let licaoNumero = 1;
+      
+      if (proximaAula?.data && planejamento?.data_inicio) {
+        const dataAula = parseISO(proximaAula.data);
+        const dataInicio = parseISO(planejamento.data_inicio);
+        
+        // Cada lição dura ~1 semana, calcular quantas semanas se passaram
+        const diffTime = dataAula.getTime() - dataInicio.getTime();
+        const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+        licaoNumero = Math.max(1, diffWeeks + 1);
+      }
 
-      // Por simplicidade, buscar a lição 1 ou a próxima disponível
-      const { data, error } = await supabase
+      // Tentar buscar a lição calculada
+      const { data: licaoCalculada } = await supabase
+        .from("ebd_desafio_biblico_conteudo")
+        .select("*")
+        .eq("revista_id", planejamento.revista_id)
+        .eq("licao_numero", licaoNumero)
+        .maybeSingle();
+
+      if (licaoCalculada) return licaoCalculada as ConteudoBiblico;
+
+      // Fallback: buscar qualquer lição disponível (a primeira)
+      const { data: fallback, error } = await supabase
         .from("ebd_desafio_biblico_conteudo")
         .select("*")
         .eq("revista_id", planejamento.revista_id)
@@ -129,7 +185,7 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
         .maybeSingle();
 
       if (error) throw error;
-      return data as ConteudoBiblico | null;
+      return fallback as ConteudoBiblico | null;
     },
     enabled: !!planejamento?.revista_id,
   });
@@ -221,11 +277,11 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
 
     try {
       const { data, error } = await supabase.functions.invoke("fetch-bible-verse", {
-        body: { book: livro, verse: versiculo },
+        body: { livro, versiculo },
       });
 
       if (error) throw error;
-      setVersiculoTexto(data?.text || "Texto não disponível");
+      setVersiculoTexto(data?.texto || data?.text || "Texto não disponível");
     } catch (err) {
       console.error("Erro ao buscar versículo:", err);
       setVersiculoTexto("Não foi possível carregar o texto. Consulte sua Bíblia.");
@@ -241,7 +297,26 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
     buscarVersiculo(dia.livro, dia.versiculo);
   };
 
+  // Mostrar mensagem explicativa quando não há conteúdo
   if (!conteudo || diasLeitura.length === 0) {
+    // Determinar motivo
+    let motivo = "";
+    let detalhes = "";
+    
+    if (!planejamento?.revista_id) {
+      motivo = "Não há planejamento de revista ativo para esta igreja.";
+    } else if (!proximaAula?.data) {
+      motivo = "Não há próxima aula agendada na escala.";
+      if (planejamento.revista_titulo) {
+        detalhes = `Revista configurada: ${planejamento.revista_titulo}`;
+      }
+    } else {
+      motivo = "Ainda não há conteúdo cadastrado para a lição atual.";
+      if (planejamento.revista_titulo) {
+        detalhes = `Revista: ${planejamento.revista_titulo}. Solicite o cadastro do conteúdo bíblico ao administrador.`;
+      }
+    }
+    
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -250,10 +325,15 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
             Desafio Bíblico da Semana
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            O desafio ainda não está disponível para esta igreja (sem planejamento/revista ativa ou sem próxima aula na escala).
+            {motivo}
           </p>
+          {detalhes && (
+            <p className="text-xs text-muted-foreground">
+              {detalhes}
+            </p>
+          )}
         </CardContent>
       </Card>
     );
