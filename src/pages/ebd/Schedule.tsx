@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, User, CheckCircle2 } from "lucide-react";
+import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, User, CheckCircle2, Plus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -14,10 +14,12 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { EditarEscalaDialog } from "@/components/ebd/EditarEscalaDialog";
+import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
 import { Progress } from "@/components/ui/progress";
 
 interface Planejamento {
   id: string;
+  revista_id?: string;
   data_inicio: string;
   data_termino: string;
   dia_semana: string;
@@ -26,12 +28,14 @@ interface Planejamento {
     titulo: string;
     imagem_url: string | null;
     faixa_etaria_alvo: string;
+    num_licoes?: number;
   };
   turma?: {
     id: string;
     nome: string;
     faixa_etaria: string;
   };
+  temEscalas?: boolean;
 }
 
 interface Escala {
@@ -60,19 +64,39 @@ export default function EBDSchedule() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [escalaToEdit, setEscalaToEdit] = useState<Escala | null>(null);
   const [escalaToDelete, setEscalaToDelete] = useState<Escala | null>(null);
+  const [showMontarEscalaDialog, setShowMontarEscalaDialog] = useState(false);
+  const [planejamentoParaMontarEscala, setPlanejamentoParaMontarEscala] = useState<any>(null);
 
-  // Buscar dados da igreja
+  // Buscar dados da igreja (suporta ebd_clientes e churches)
   const { data: churchData } = useQuery({
-    queryKey: ['church-data', user?.id],
+    queryKey: ['church-data-ebd', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from('churches')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-      if (error) throw error;
-      return data;
+      
+      // Primeiro tentar buscar em ebd_clientes (superintendentes EBD)
+      const { data: ebdCliente } = await supabase
+        .from("ebd_clientes")
+        .select("id")
+        .eq("superintendente_user_id", user.id)
+        .eq("status_ativacao_ebd", true)
+        .maybeSingle();
+
+      if (ebdCliente) {
+        return { id: ebdCliente.id };
+      }
+
+      // Fallback para churches (clientes tradicionais)
+      const { data: church } = await supabase
+        .from("churches")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (church) {
+        return { id: church.id };
+      }
+
+      return null;
     },
     enabled: !!user?.id,
   });
@@ -88,6 +112,7 @@ export default function EBDSchedule() {
         .from('ebd_planejamento')
         .select(`
           id,
+          revista_id,
           data_inicio,
           data_termino,
           dia_semana,
@@ -118,6 +143,7 @@ export default function EBDSchedule() {
           e.data >= plan.data_inicio && e.data <= plan.data_termino
         );
         const turma = escalasDoPlan?.[0]?.turma;
+        const temEscalas = escalasDoPlan && escalasDoPlan.length > 0;
         
         // Calcular progresso: aulas ministradas (datas passadas sem sem_aula)
         const aulasMinistradas = escalasDoPlan?.filter(e => 
@@ -130,11 +156,16 @@ export default function EBDSchedule() {
         return {
           ...plan,
           turma,
+          temEscalas,
           progresso: { ministradas: aulasMinistradas, total: totalLicoes, percentual }
         };
       });
 
-      return result as unknown as (Planejamento & { progresso: { ministradas: number; total: number; percentual: number } })[];
+      return result as unknown as (Planejamento & { 
+        revista_id: string;
+        temEscalas: boolean;
+        progresso: { ministradas: number; total: number; percentual: number } 
+      })[];
     },
     enabled: !!churchData?.id,
   });
@@ -312,10 +343,35 @@ export default function EBDSchedule() {
                               </div>
                             </div>
                           </div>
-                          <Button size="sm" onClick={() => setSelectedPlanejamento(planejamento)} className="flex-shrink-0">
-                            <Eye className="w-4 h-4 mr-2" />
-                            Ver Escala
-                          </Button>
+                          {(planejamento as any).temEscalas ? (
+                            <Button size="sm" onClick={() => setSelectedPlanejamento(planejamento)} className="flex-shrink-0">
+                              <Eye className="w-4 h-4 mr-2" />
+                              Ver Escala
+                            </Button>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              onClick={() => {
+                                setPlanejamentoParaMontarEscala({
+                                  id: planejamento.id,
+                                  revista_id: (planejamento as any).revista_id,
+                                  data_inicio: planejamento.data_inicio,
+                                  dia_semana: planejamento.dia_semana,
+                                  data_termino: planejamento.data_termino,
+                                  ebd_revistas: {
+                                    id: planejamento.revista?.id,
+                                    titulo: planejamento.revista?.titulo,
+                                    num_licoes: planejamento.revista?.num_licoes || 13
+                                  }
+                                });
+                                setShowMontarEscalaDialog(true);
+                              }} 
+                              className="flex-shrink-0"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Criar Escala
+                            </Button>
+                          )}
                         </div>
                       </Card>
                     ))
@@ -577,6 +633,19 @@ export default function EBDSchedule() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Dialog para montar escala */}
+        {planejamentoParaMontarEscala && (
+          <MontarEscalaDialog
+            planejamento={planejamentoParaMontarEscala}
+            open={showMontarEscalaDialog}
+            onOpenChange={(open) => {
+              setShowMontarEscalaDialog(open);
+              if (!open) setPlanejamentoParaMontarEscala(null);
+            }}
+            churchId={churchData?.id}
+          />
+        )}
       </div>
     </div>
   );
