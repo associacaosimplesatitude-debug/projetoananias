@@ -38,7 +38,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FAIXAS_ETARIAS } from "@/constants/ebdFaixasEtarias";
 import { RevistaBaseNaoAplicada } from "@/hooks/useOnboardingProgress";
-import { storefrontApiRequest } from "@/lib/shopify";
+import { centralGospelApiRequest } from "@/lib/shopify";
 
 // Query para buscar produto por título com a descrição HTML
 const SEARCH_PRODUCT_WITH_DESCRIPTION = `
@@ -231,7 +231,7 @@ export function AplicarRevistaDialog({
     enabled: !!churchId && open,
   });
 
-  // Buscar lições da revista selecionada via Shopify
+  // Buscar lições da revista selecionada via Shopify Central Gospel
   const { data: licoesRevista, isLoading: loadingLicoes } = useQuery({
     queryKey: ["ebd-licoes-shopify", selectedRevista?.id],
     queryFn: async () => {
@@ -239,48 +239,72 @@ export function AplicarRevistaDialog({
       
       try {
         // Extrair palavras-chave do título da revista para busca
+        // Exemplo: "Revista EBD Jovens e Adultos nº 07 - O Homem, O Pecado e a Salvação - Aluno (10un)"
+        // Queremos buscar por: "O Homem O Pecado e a Salvação"
         const titulo = selectedRevista.titulo
-          .replace(/\d+\s*(un|und|x)\s*/gi, '') // Remove quantidades (10un, 20und, 100x)
+          .replace(/\d+\s*(un|und|x)\s*/gi, '') // Remove quantidades
+          .replace(/\(\d+\s*(un|und|x)\s*\)/gi, '') // Remove (10un)
           .replace(/revista\s*ebd/gi, '') // Remove "Revista EBD"
           .replace(/professor|mestre|aluno/gi, '') // Remove tipo
           .replace(/nº?\s*\d+/gi, '') // Remove números de edição
-          .replace(/jovens\s*e?\s*adultos|juniores|primários|pre-adolescentes|adolescentes/gi, '') // Remove faixa etária
+          .replace(/jovens\s*e?\s*adultos|juniores|primários|pre-adolescentes|adolescentes|crianças/gi, '') // Remove faixa etária
           .replace(/[-–]/g, ' ')
           .replace(/\s+/g, ' ')
           .trim();
         
-        // Usar apenas palavras principais para a busca
-        const palavrasChave = titulo.split(' ').filter(p => p.length > 3).slice(0, 4);
+        // Usar palavras principais para a busca
+        const palavrasChave = titulo.split(' ').filter(p => p.length > 2).slice(0, 5);
         const searchQuery = palavrasChave.join(' ');
         
-        console.log('Buscando lições para:', searchQuery);
+        console.log('Buscando lições na Central Gospel para:', searchQuery);
         
-        const response = await storefrontApiRequest(SEARCH_PRODUCT_WITH_DESCRIPTION, {
-          query: searchQuery,
+        // Buscar na loja Central Gospel que tem as descrições completas
+        const response = await centralGospelApiRequest(SEARCH_PRODUCT_WITH_DESCRIPTION, {
+          query: `title:*${searchQuery}*`,
         });
         
         const products = response.data?.products?.edges || [];
         
+        console.log('Produtos encontrados:', products.length);
+        
         if (products.length > 0) {
           const descriptionHtml = products[0].node.descriptionHtml;
+          console.log('HTML da descrição:', descriptionHtml?.substring(0, 500));
+          
           const licoes = parseLicoesFromHtml(descriptionHtml);
           
-          console.log('Lições encontradas:', licoes.length, licoes);
+          console.log('Lições extraídas:', licoes.length, licoes);
           
-          if (licoes.length > 0) {
+          if (licoes.length >= 10) {
+            return licoes;
+          }
+        }
+        
+        // Tentar busca alternativa sem wildcard
+        const response2 = await centralGospelApiRequest(SEARCH_PRODUCT_WITH_DESCRIPTION, {
+          query: searchQuery,
+        });
+        
+        const products2 = response2.data?.products?.edges || [];
+        
+        if (products2.length > 0) {
+          const descriptionHtml = products2[0].node.descriptionHtml;
+          const licoes = parseLicoesFromHtml(descriptionHtml);
+          
+          if (licoes.length >= 10) {
             return licoes;
           }
         }
         
         // Fallback: gerar lições genéricas se não encontrar
-        console.log('Nenhuma lição encontrada, usando fallback');
+        console.log('Nenhuma lição encontrada com descrição completa, usando fallback');
         return Array.from({ length: 13 }, (_, i) => `Lição ${i + 1}`);
       } catch (error) {
         console.error("Erro ao buscar lições do Shopify:", error);
         return Array.from({ length: 13 }, (_, i) => `Lição ${i + 1}`);
       }
     },
-    enabled: !!selectedRevista && open && currentStep >= 4, // Começar a buscar antes da etapa 5
+    enabled: !!selectedRevista && open && currentStep >= 4,
     staleTime: 1000 * 60 * 30, // Cache por 30 minutos
   });
 
