@@ -262,9 +262,21 @@ export default function AprovacaoFaturamento() {
       }
     } catch (error: unknown) {
       console.error("Erro ao aprovar e faturar pedido:", error);
-      toast.error("Erro ao aprovar pedido", {
-        description: error instanceof Error ? error.message : "Erro desconhecido",
-      });
+      
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      const isStockError = errorMessage.toLowerCase().includes("estoque insuficiente");
+      
+      if (isStockError) {
+        toast.error("Erro de estoque no Bling", {
+          description: errorMessage,
+          duration: 10000,
+        });
+      } else {
+        toast.error("Erro ao aprovar pedido", {
+          description: errorMessage,
+        });
+      }
+      
       // Reverter status em caso de erro
       await supabase
         .from("vendedor_propostas")
