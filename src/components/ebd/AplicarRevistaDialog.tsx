@@ -759,7 +759,7 @@ export function AplicarRevistaDialog({
                     <span className="ml-2 text-muted-foreground">Carregando lições...</span>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
                     {aulasCalculadas.map((aula) => {
                       const rawTitulo = licoesRevista?.[aula.numero - 1] || `Lição ${aula.numero}`;
                       const tituloLicao = /^lição\s*\d+/i.test(rawTitulo)
