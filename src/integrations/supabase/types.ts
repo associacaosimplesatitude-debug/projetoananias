@@ -1606,7 +1606,7 @@ export type Database = {
           data: string
           id: string
           observacao: string | null
-          professor_id: string
+          professor_id: string | null
           sem_aula: boolean
           tipo: string
           turma_id: string
@@ -1619,7 +1619,7 @@ export type Database = {
           data: string
           id?: string
           observacao?: string | null
-          professor_id: string
+          professor_id?: string | null
           sem_aula?: boolean
           tipo: string
           turma_id: string
@@ -1632,7 +1632,7 @@ export type Database = {
           data?: string
           id?: string
           observacao?: string | null
-          professor_id?: string
+          professor_id?: string | null
           sem_aula?: boolean
           tipo?: string
           turma_id?: string
