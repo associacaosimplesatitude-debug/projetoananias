@@ -43,14 +43,15 @@ export default function EBDDashboard() {
     queryKey: ["ebd-cliente-tipo-dashboard", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
+      // Use .limit(1) to handle users with multiple clients
       const { data, error } = await supabase
         .from("ebd_clientes")
         .select("tipo_cliente")
         .eq("superintendente_user_id", user.id)
         .eq("status_ativacao_ebd", true)
-        .maybeSingle();
+        .limit(1);
       if (error) return null;
-      return data?.tipo_cliente ?? null;
+      return data && data.length > 0 ? data[0].tipo_cliente : null;
     },
     enabled: !!user?.id,
   });
@@ -105,14 +106,15 @@ export default function EBDDashboard() {
     queryKey: ['ebd-cliente-onboarding', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
+      // Use .limit(1) to handle users with multiple clients
       const { data, error } = await supabase
         .from('ebd_clientes')
         .select('id, nome_igreja')
         .eq('superintendente_user_id', user.id)
         .eq('status_ativacao_ebd', true)
-        .maybeSingle();
+        .limit(1);
       if (error) throw error;
-      return data;
+      return data && data.length > 0 ? data[0] : null;
     },
     enabled: !!user?.id,
   });

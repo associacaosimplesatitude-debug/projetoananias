@@ -86,18 +86,19 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     queryFn: async () => {
       if (!user?.id) return false;
       
+      // Use .limit(1) instead of .maybeSingle() to handle users with multiple clients
       const { data, error } = await supabase
         .from('ebd_clientes')
         .select('id')
         .eq('superintendente_user_id', user.id)
         .eq('status_ativacao_ebd', true)
-        .maybeSingle();
+        .limit(1);
 
       if (error) {
         console.error('Error checking superintendente status:', error);
         return false;
       }
-      return !!data;
+      return data && data.length > 0;
     },
     enabled: !!user?.id && !loading,
   });
