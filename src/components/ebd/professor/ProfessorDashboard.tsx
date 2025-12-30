@@ -19,6 +19,7 @@ import {
   Check,
   Gamepad2,
 } from "lucide-react";
+import { DesafioBiblicoCard } from "../DesafioBiblicoCard";
 
 interface ProfessorDashboardProps {
   professor: {
@@ -273,6 +274,16 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
 
       {/* Grid de Cards */}
       <div className="grid gap-4 md:grid-cols-2">
+        {/* Card Desafio Bíblico */}
+        {user && turmas[0] && (
+          <DesafioBiblicoCard
+            churchId={professor.church_id}
+            userId={user.id}
+            userType="professor"
+            turmaId={turmas[0].id}
+          />
+        )}
+
         {/* Card de Alerta: Lançamentos Pendentes */}
         {lancamentosPendentes?.hasPending && (
           <Card className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20">
