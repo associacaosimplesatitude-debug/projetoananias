@@ -281,8 +281,26 @@ export const useOnboardingProgress = (churchId: string | null) => {
         });
       });
 
-      // NÃO resetar etapas aqui - o progresso real vem do banco de dados
-      // A verificação automática já marca as etapas conforme o usuário avança
+      // Se está no modo revista adicional e tem revistas não aplicadas,
+      // resetar as etapas 1-5 no BANCO DE DADOS para forçar nova configuração
+      if (usarEtapasSimplificadas && temRevistaBaseNaoAplicada) {
+        // Verificar se a etapa 1 ainda está marcada como completa (precisa resetar)
+        const etapa1AindaCompleta = etapasMap.get(1)?.completada === true;
+        
+        if (etapa1AindaCompleta) {
+          // Resetar etapas 1-5 no banco
+          await supabase
+            .from("ebd_onboarding_progress")
+            .update({ completada: false, completada_em: null, revista_identificada_id: null })
+            .eq("church_id", churchId)
+            .in("etapa_id", [1, 2, 3, 4, 5]);
+          
+          // Atualizar o mapa local
+          [1, 2, 3, 4, 5].forEach(etapaId => {
+            etapasMap.set(etapaId, { completada: false, completadaEm: null, revistaId: null });
+          });
+        }
+      }
 
       // Obter revista identificada (da etapa 1)
       const revistaId = etapasMap.get(1)?.revistaId || null;
