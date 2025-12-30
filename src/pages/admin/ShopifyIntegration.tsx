@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { 
   SHOPIFY_STORE_PERMANENT_DOMAIN, 
-  SHOPIFY_STOREFRONT_TOKEN,
   SHOPIFY_API_VERSION,
   SHOPIFY_STOREFRONT_URL,
   fetchShopifyProducts 
@@ -141,26 +140,18 @@ export default function ShopifyIntegration() {
             <Label>Storefront Access Token</Label>
             <div className="flex items-center gap-2">
               <Input 
-                type={showToken ? "text" : "password"}
-                value={SHOPIFY_STOREFRONT_TOKEN} 
+                type="password"
+                value="••••••••••••••••••••" 
                 readOnly 
                 className="font-mono text-sm"
               />
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => setShowToken(!showToken)}
-              >
-                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => copyToClipboard(SHOPIFY_STOREFRONT_TOKEN, "Token")}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
+              <Badge variant="secondary">
+                Configurado via Secret
+              </Badge>
             </div>
+            <p className="text-xs text-muted-foreground">
+              O token está armazenado de forma segura nos secrets do projeto.
+            </p>
           </div>
 
           <div className="space-y-2">
