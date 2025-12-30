@@ -57,8 +57,12 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
   const { data: planejamento } = useQuery({
     queryKey: ["planejamento-desafio", churchId],
     queryFn: async () => {
+      if (!churchId) return null;
+
       const hoje = format(new Date(), "yyyy-MM-dd");
-      const { data, error } = await supabase
+
+      // 1) Tenta encontrar o planejamento vigente
+      const { data: vigente, error: vigenteError } = await supabase
         .from("ebd_planejamento")
         .select("revista_id, data_inicio, data_termino")
         .eq("church_id", churchId)
@@ -68,9 +72,22 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (vigenteError) throw vigenteError;
+      if (vigente?.revista_id) return vigente;
+
+      // 2) Fallback: pega o último planejamento cadastrado (mesmo fora do período)
+      const { data: ultimo, error: ultimoError } = await supabase
+        .from("ebd_planejamento")
+        .select("revista_id, data_inicio, data_termino")
+        .eq("church_id", churchId)
+        .order("data_inicio", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ultimoError) throw ultimoError;
+      return ultimo;
     },
+    enabled: !!churchId,
   });
 
   // Buscar a próxima escala para saber a data da aula
@@ -225,7 +242,21 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
   };
 
   if (!conteudo || diasLeitura.length === 0) {
-    return null;
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2">
+            <BookMarked className="h-5 w-5" />
+            Desafio Bíblico da Semana
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            O desafio ainda não está disponível para esta igreja (sem planejamento/revista ativa ou sem próxima aula na escala).
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const leiturasCompletas = leiturasFeitas.length;
