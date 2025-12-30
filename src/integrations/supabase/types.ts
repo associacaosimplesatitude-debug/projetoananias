@@ -3114,15 +3114,7 @@ export type Database = {
           responsavel_pontuacao?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "ebd_turmas_church_id_fkey"
-            columns: ["church_id"]
-            isOneToOne: false
-            referencedRelation: "churches"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       financial_entries: {
         Row: {
