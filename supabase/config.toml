@@ -107,3 +107,12 @@ verify_jwt = true
 
 [functions.create-admin-user]
 verify_jwt = false
+
+[functions.create-professor-user]
+verify_jwt = true
+
+[functions.create-aluno-user]
+verify_jwt = true
+
+[functions.fetch-bible-verse]
+verify_jwt = false

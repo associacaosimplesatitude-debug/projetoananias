@@ -41,6 +41,7 @@ import BrandingCustomization from "./pages/admin/BrandingCustomization";
 import ClientModules from "./pages/admin/ClientModules";
 import AdminEBDCurriculo from "./pages/admin/EBDCurriculo";
 import AdminEBDQuizMestre from "./pages/admin/EBDQuizMestre";
+import AdminEBDConteudoBiblico from "./pages/admin/EBDConteudoBiblico";
 import AdminOrders from "./pages/admin/Orders";
 import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
@@ -419,6 +420,7 @@ const App = () => (
                       <Route path="gestao-tutoriais" element={<GestaoTutoriais />} />
                       <Route path="tutoriais" element={<Tutoriais />} />
                       <Route path="shopify" element={<ShopifyIntegration />} />
+                      <Route path="conteudo-biblico" element={<AdminEBDConteudoBiblico />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
