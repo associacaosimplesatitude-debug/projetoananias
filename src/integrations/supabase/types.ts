@@ -1470,6 +1470,83 @@ export type Database = {
           },
         ]
       }
+      ebd_desafio_biblico_conteudo: {
+        Row: {
+          created_at: string
+          dia1_livro: string
+          dia1_versiculo: string
+          dia2_livro: string
+          dia2_versiculo: string
+          dia3_livro: string
+          dia3_versiculo: string
+          dia4_livro: string
+          dia4_versiculo: string
+          dia5_livro: string
+          dia5_versiculo: string
+          dia6_livro: string
+          dia6_versiculo: string
+          id: string
+          licao_numero: number
+          pergunta: string
+          resposta_correta: string
+          revista_id: string
+          texto_aureo: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dia1_livro: string
+          dia1_versiculo: string
+          dia2_livro: string
+          dia2_versiculo: string
+          dia3_livro: string
+          dia3_versiculo: string
+          dia4_livro: string
+          dia4_versiculo: string
+          dia5_livro: string
+          dia5_versiculo: string
+          dia6_livro: string
+          dia6_versiculo: string
+          id?: string
+          licao_numero: number
+          pergunta: string
+          resposta_correta: string
+          revista_id: string
+          texto_aureo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dia1_livro?: string
+          dia1_versiculo?: string
+          dia2_livro?: string
+          dia2_versiculo?: string
+          dia3_livro?: string
+          dia3_versiculo?: string
+          dia4_livro?: string
+          dia4_versiculo?: string
+          dia5_livro?: string
+          dia5_versiculo?: string
+          dia6_livro?: string
+          dia6_versiculo?: string
+          id?: string
+          licao_numero?: number
+          pergunta?: string
+          resposta_correta?: string
+          revista_id?: string
+          texto_aureo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_desafio_biblico_conteudo_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_revistas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_devocionais: {
         Row: {
           church_id: string
