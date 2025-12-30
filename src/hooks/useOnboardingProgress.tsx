@@ -348,18 +348,17 @@ export const useOnboardingProgress = (churchId: string | null) => {
     mutationFn: async ({ etapaId, revistaId, dataAniversario }: { etapaId: number; revistaId?: string; dataAniversario?: string }) => {
       if (!churchId) throw new Error("Church ID não encontrado");
 
+      const payload: any = {
+        church_id: churchId,
+        etapa_id: etapaId,
+        completada: true,
+        completada_em: new Date().toISOString(),
+        ...(etapaId === 1 && revistaId ? { revista_identificada_id: revistaId } : {}),
+      };
+
       const { error } = await supabase
         .from("ebd_onboarding_progress")
-        .upsert(
-          {
-            church_id: churchId,
-            etapa_id: etapaId,
-            completada: true,
-            completada_em: new Date().toISOString(),
-            revista_identificada_id: etapaId === 1 ? revistaId : undefined,
-          },
-          { onConflict: "church_id,etapa_id" }
-        );
+        .upsert(payload, { onConflict: "church_id,etapa_id" });
 
       if (error) throw error;
 

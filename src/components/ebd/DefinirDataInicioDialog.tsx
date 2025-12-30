@@ -144,8 +144,6 @@ export function DefinirDataInicioDialog({
     salvarMutation.mutate();
   };
 
-  if (!revista) return null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
@@ -159,133 +157,154 @@ export function DefinirDataInicioDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Card da revista */}
-          <div className="flex gap-4 p-4 border rounded-lg bg-muted/30">
-            {revista.imagem_url ? (
-              <img
-                src={revista.imagem_url}
-                alt={revista.titulo}
-                className="w-24 h-32 object-cover rounded-lg shadow-md"
-              />
-            ) : (
-              <div className="w-24 h-32 bg-primary/10 rounded-lg flex items-center justify-center">
-                <BookOpen className="h-8 w-8 text-primary" />
-              </div>
-            )}
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg">{revista.titulo}</h3>
-              <Badge variant="secondary" className="mt-1">
-                {revista.faixa_etaria_alvo}
-              </Badge>
-              <p className="text-sm text-muted-foreground mt-2">
-                {revista.num_licoes || 13} lições
+        {!revista ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm text-muted-foreground">
+                Nenhuma revista foi aplicada ainda. Para definir a data de início, primeiro aplique a revista na etapa 1.
               </p>
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Fechar
+              </Button>
+            </DialogFooter>
           </div>
-
-          {/* Seleção de dia e data */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Dia da Aula</Label>
-              <Select value={diaSemana} onValueChange={setDiaSemana}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o dia da semana" />
-                </SelectTrigger>
-                <SelectContent>
-                  {diasSemana.map((dia) => (
-                    <SelectItem key={dia.value} value={dia.value}>
-                      {dia.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Data de Início</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !dataInicio && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dataInicio ? format(dataInicio, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : "Selecione a data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dataInicio}
-                    onSelect={setDataInicio}
-                    initialFocus
-                    locale={ptBR}
-                    className="pointer-events-auto"
+        ) : (
+          <>
+            <div className="space-y-6">
+              {/* Card da revista */}
+              <div className="flex gap-4 p-4 border rounded-lg bg-muted/30">
+                {revista.imagem_url ? (
+                  <img
+                    src={revista.imagem_url}
+                    alt={`Revista ${revista.titulo}`}
+                    className="w-24 h-32 object-cover rounded-lg shadow-md"
+                    loading="lazy"
                   />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          {/* Resumo das aulas calculadas */}
-          {diaSemana && dataInicio && aulasCalculadas.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  Calendário das Aulas
-                </h4>
-                <div className="text-sm text-muted-foreground">
-                  Término: <span className="font-semibold text-foreground">
-                    {dataTermino && format(dataTermino, "dd/MM/yyyy", { locale: ptBR })}
-                  </span>
+                ) : (
+                  <div className="w-24 h-32 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <BookOpen className="h-8 w-8 text-primary" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">{revista.titulo}</h3>
+                  <Badge variant="secondary" className="mt-1">
+                    {revista.faixa_etaria_alvo}
+                  </Badge>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {revista.num_licoes || 13} lições
+                  </p>
                 </div>
               </div>
-              
-              <ScrollArea className="h-[200px] border rounded-lg p-3">
+
+              {/* Seleção de dia e data */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  {aulasCalculadas.map((aula) => (
-                    <div 
-                      key={aula.numero}
-                      className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-md"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-bold text-primary">{aula.numero}</span>
-                        </div>
-                        <span className="text-sm font-medium">Lição {aula.numero}</span>
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        {format(aula.data, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                  <Label>Dia da Aula</Label>
+                  <Select value={diaSemana} onValueChange={setDiaSemana}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o dia da semana" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {diasSemana.map((dia) => (
+                        <SelectItem key={dia.value} value={dia.value}>
+                          {dia.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Data de Início</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !dataInicio && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dataInicio
+                          ? format(dataInicio, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                          : "Selecione a data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dataInicio}
+                        onSelect={setDataInicio}
+                        initialFocus
+                        locale={ptBR}
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Resumo das aulas calculadas */}
+              {diaSemana && dataInicio && aulasCalculadas.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      Calendário das Aulas
+                    </h4>
+                    <div className="text-sm text-muted-foreground">
+                      Término:{" "}
+                      <span className="font-semibold text-foreground">
+                        {dataTermino && format(dataTermino, "dd/MM/yyyy", { locale: ptBR })}
                       </span>
                     </div>
-                  ))}
+                  </div>
+
+                  <ScrollArea className="h-[200px] border rounded-lg p-3">
+                    <div className="space-y-2">
+                      {aulasCalculadas.map((aula) => (
+                        <div
+                          key={aula.numero}
+                          className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-md"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="text-sm font-bold text-primary">{aula.numero}</span>
+                            </div>
+                            <span className="text-sm font-medium">Lição {aula.numero}</span>
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {format(aula.data, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+
+                  <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border border-primary/20">
+                    <span className="text-sm font-medium">Total de Aulas</span>
+                    <Badge variant="default">{aulasCalculadas.length} aulas</Badge>
+                  </div>
                 </div>
-              </ScrollArea>
-
-              <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border border-primary/20">
-                <span className="text-sm font-medium">Total de Aulas</span>
-                <Badge variant="default">{aulasCalculadas.length} aulas</Badge>
-              </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSalvar}
-            disabled={salvarMutation.isPending || !diaSemana || !dataInicio}
-          >
-            {salvarMutation.isPending ? 'Salvando...' : 'Salvar Data de Início'}
-          </Button>
-        </DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSalvar}
+                disabled={salvarMutation.isPending || !diaSemana || !dataInicio}
+              >
+                {salvarMutation.isPending ? "Salvando..." : "Salvar Data de Início"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
