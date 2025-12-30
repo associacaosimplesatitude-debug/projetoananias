@@ -190,10 +190,12 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     }
   };
 
-  const handleAplicarRevista = (revista: RevistaBaseNaoAplicada) => {
+  const handleAplicarRevista = async (revista: RevistaBaseNaoAplicada) => {
     setShowRevistasDialog(false);
-    // Navegar para o planejamento com a revista selecionada
-    navigate(`/ebd/planejamento?revista_id=${revista.id}`);
+    // Marcar a etapa 1 como concluída com a revista selecionada
+    await marcarEtapa(1, revista.id);
+    // Navegar para cadastrar turma (próxima etapa do onboarding)
+    navigate("/ebd/classrooms");
   };
 
   return (
