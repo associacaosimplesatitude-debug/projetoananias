@@ -291,32 +291,52 @@ serve(async (req) => {
         // Normalizar para comparação (remover acentos e case)
         const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
         
-        // Estratégias de busca em ordem de prioridade:
-        // 1. Buscar palavras-chave significativas (sem artigos/preposições)
-        // 2. Buscar primeiras 3-4 palavras
-        // 3. Buscar palavra mais longa/única do título
+        // Extrair informações importantes do nome do produto
+        // Ex: "Revista EBD N08 Jovens e Adultos - O Cativeiro Babilônico ALUNO"
+        // Partes importantes: N08 (número), "Jovens e Adultos" ou "Juniores" (faixa), ALUNO/PROFESSOR (tipo)
+        const normalizedSearch = normalize(productName);
         
-        const palavrasIgnorar = ['a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'na', 'no', 'nas', 'nos', 'para', 'por', 'com', 'um', 'uma', 'uns', 'umas', '-', 'livro', 'revista'];
+        // Detectar número da revista (N01, N02, N08, etc.)
+        const numeroRevistaMatch = productName.match(/N(\d+)/i);
+        const numeroRevista = numeroRevistaMatch ? numeroRevistaMatch[1].padStart(2, '0') : null;
+        
+        // Detectar tipo (ALUNO ou PROFESSOR)
+        const isAluno = /aluno/i.test(productName);
+        const isProfessor = /professor/i.test(productName);
+        const tipo = isAluno ? 'aluno' : (isProfessor ? 'professor' : null);
+        
+        // Detectar faixa etária
+        const faixaEtaria = normalizedSearch.includes('jovens e adultos') ? 'jovens e adultos' :
+                           normalizedSearch.includes('adolescentes') || normalizedSearch.includes('adolecentes') ? 'adolescentes' :
+                           normalizedSearch.includes('juniores') ? 'juniores' :
+                           normalizedSearch.includes('jardim de infancia') || normalizedSearch.includes('jardim de infância') ? 'jardim de infancia' :
+                           normalizedSearch.includes('discipulado') ? 'discipulado' :
+                           normalizedSearch.includes('passo a passo') ? 'passo a passo' :
+                           null;
+        
+        console.log(`Buscando produto: "${productName}"`);
+        console.log(`  -> Número: ${numeroRevista}, Tipo: ${tipo}, Faixa: ${faixaEtaria}`);
+        
+        const palavrasIgnorar = ['a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'na', 'no', 'nas', 'nos', 'para', 'por', 'com', 'um', 'uma', 'uns', 'umas', '-', 'livro', 'revista', 'ebd'];
         const palavras = productName.split(/\s+/).filter(p => p.length > 0);
         const palavrasSignificativas = palavras.filter(p => !palavrasIgnorar.includes(p.toLowerCase()) && p.length > 2);
         
         // Diferentes termos de busca para tentar
         const searchAttempts: string[] = [];
         
-        // 1. Palavras significativas (max 3)
+        // 1. Buscar com número da revista + tipo se disponível
+        if (numeroRevista && tipo) {
+          searchAttempts.push(`N${numeroRevista} ${tipo}`);
+        }
+        
+        // 2. Palavras significativas (max 4)
         if (palavrasSignificativas.length >= 2) {
-          searchAttempts.push(palavrasSignificativas.slice(0, 3).join(' '));
+          searchAttempts.push(palavrasSignificativas.slice(0, 4).join(' '));
         }
         
-        // 2. Primeiras 5 palavras originais
+        // 3. Primeiras 6 palavras originais
         if (palavras.length >= 3) {
-          searchAttempts.push(palavras.slice(0, 5).join(' '));
-        }
-        
-        // 3. Palavra mais longa (provavelmente mais única)
-        const palavraMaisLonga = palavras.reduce((a, b) => a.length > b.length ? a : b, '');
-        if (palavraMaisLonga.length > 4) {
-          searchAttempts.push(palavraMaisLonga);
+          searchAttempts.push(palavras.slice(0, 6).join(' '));
         }
         
         // 4. Primeiras 3 palavras
@@ -324,6 +344,73 @@ serve(async (req) => {
         
         // Remover duplicatas
         const uniqueAttempts = [...new Set(searchAttempts)];
+        
+        // Função para calcular score de match
+        const calculateMatchScore = (produtoNome: string): number => {
+          const normalizedProduto = normalize(produtoNome);
+          let score = 0;
+          
+          // Match exato = 1000 pontos
+          if (normalizedProduto === normalizedSearch) {
+            return 1000;
+          }
+          
+          // Match de número da revista (muito importante)
+          if (numeroRevista) {
+            const produtoNumero = produtoNome.match(/N(\d+)/i);
+            if (produtoNumero && produtoNumero[1].padStart(2, '0') === numeroRevista) {
+              score += 100;
+            } else {
+              // Se o número não bate, penalizar fortemente
+              score -= 200;
+            }
+          }
+          
+          // Match de tipo (ALUNO/PROFESSOR)
+          if (tipo) {
+            if (tipo === 'aluno' && /aluno/i.test(produtoNome)) {
+              score += 50;
+            } else if (tipo === 'professor' && /professor/i.test(produtoNome)) {
+              score += 50;
+            } else if (tipo === 'aluno' && /professor/i.test(produtoNome)) {
+              // Tipo diferente, penalizar muito
+              score -= 100;
+            } else if (tipo === 'professor' && /aluno/i.test(produtoNome)) {
+              score -= 100;
+            }
+          }
+          
+          // Match de faixa etária
+          if (faixaEtaria) {
+            const normalizedProdutoCheck = normalizedProduto;
+            if (faixaEtaria === 'jovens e adultos' && normalizedProdutoCheck.includes('jovens e adultos')) {
+              score += 30;
+            } else if (faixaEtaria === 'adolescentes' && (normalizedProdutoCheck.includes('adolescentes') || normalizedProdutoCheck.includes('adolecentes'))) {
+              score += 30;
+            } else if (faixaEtaria === 'juniores' && normalizedProdutoCheck.includes('juniores')) {
+              score += 30;
+            } else if (faixaEtaria === 'jardim de infancia' && normalizedProdutoCheck.includes('jardim')) {
+              score += 30;
+            } else if (faixaEtaria === 'discipulado' && normalizedProdutoCheck.includes('discipulado')) {
+              score += 30;
+            } else if (faixaEtaria === 'passo a passo' && normalizedProdutoCheck.includes('passo a passo')) {
+              score += 30;
+            }
+          }
+          
+          // Match por inclusão
+          if (normalizedSearch.includes(normalizedProduto) || normalizedProduto.includes(normalizedSearch)) {
+            score += 20;
+          }
+          
+          // Match de palavras significativas
+          const matchedWords = palavrasSignificativas.filter(palavra => 
+            normalizedProduto.includes(normalize(palavra))
+          ).length;
+          score += matchedWords * 5;
+          
+          return score;
+        };
         
         for (const searchTerms of uniqueAttempts) {
           console.log(`Buscando produto no Bling com termo: "${searchTerms}"`);
@@ -353,9 +440,25 @@ serve(async (req) => {
           console.log(`Bling retornou ${produtos.length} produtos para busca "${searchTerms}"`);
 
           if (produtos.length > 0) {
-            const normalizedSearch = normalize(productName);
+            // Calcular score para cada produto
+            const produtosComScore = produtos.map((p: any) => ({
+              ...p,
+              matchScore: calculateMatchScore(p.nome || '')
+            }));
             
-            // Tentar encontrar match exato primeiro
+            // Ordenar por score descendente
+            produtosComScore.sort((a: any, b: any) => b.matchScore - a.matchScore);
+            
+            const melhorMatch = produtosComScore[0];
+            console.log(`Melhor match: "${melhorMatch.nome}" com score ${melhorMatch.matchScore}`);
+            
+            // Só aceitar se o score for positivo e razoável
+            if (melhorMatch.matchScore >= 50) {
+              console.log(`Produto encontrado (score ${melhorMatch.matchScore}): ${melhorMatch.nome} -> ID ${melhorMatch.id}`);
+              return melhorMatch.id;
+            }
+            
+            // Match exato
             const exactMatch = produtos.find((p: any) =>
               normalize(p.nome || '') === normalizedSearch
             );
@@ -364,49 +467,12 @@ serve(async (req) => {
               console.log(`Produto encontrado (match exato): ${exactMatch.nome} -> ID ${exactMatch.id}`);
               return exactMatch.id;
             }
-
-            // Tentar match por inclusão de texto normalizado
-            const partialMatch = produtos.find((p: any) => {
-              const normalizedProduto = normalize(p.nome || '');
-              return normalizedSearch.includes(normalizedProduto) || normalizedProduto.includes(normalizedSearch);
-            });
-
-            if (partialMatch) {
-              console.log(`Produto encontrado (match parcial): ${partialMatch.nome} -> ID ${partialMatch.id}`);
-              return partialMatch.id;
-            }
-
-            // Match por palavras-chave significativas
-            const keywordMatch = produtos.find((p: any) => {
-              const normalizedProduto = normalize(p.nome || '');
-              const matchCount = palavrasSignificativas.filter(palavra => 
-                normalizedProduto.includes(normalize(palavra))
-              ).length;
-              return matchCount >= Math.min(2, palavrasSignificativas.length);
-            });
-
-            if (keywordMatch) {
-              console.log(`Produto encontrado (match por palavras-chave): ${keywordMatch.nome} -> ID ${keywordMatch.id}`);
-              return keywordMatch.id;
-            }
-
-            // Se ainda assim não houver match, usar o primeiro resultado se temos alta confiança
-            if (produtos.length === 1) {
-              console.log(`Produto encontrado (único resultado): ${produtos[0].nome} -> ID ${produtos[0].id}`);
-              return produtos[0].id;
-            }
           }
         }
 
         // Fallback: listar produtos (paginação limitada) e fazer match local.
         // Isso resolve casos em que o filtro "nome" não retorna resultados por limitações do Bling.
-        const normalizedTarget = normalize(productName);
-        const keywords = palavrasSignificativas
-          .map((p) => normalize(p))
-          .filter((p) => p.length >= 4)
-          .slice(0, 6);
-
-        const MAX_PAGES = 5;
+        const MAX_PAGES = 3;
         const LIMIT = 100;
 
         for (let page = 1; page <= MAX_PAGES; page++) {
@@ -437,35 +503,21 @@ serve(async (req) => {
 
           if (!Array.isArray(produtos) || produtos.length === 0) break;
 
-          // 1) match exato
-          const exact = produtos.find((p: any) => normalize(p.nome || '') === normalizedTarget);
-          if (exact?.id) {
-            console.log(`Produto encontrado (fallback match exato): ${exact.nome} -> ID ${exact.id}`);
-            return exact.id;
-          }
-
-          // 2) match por inclusão
-          const includes = produtos.find((p: any) => {
-            const n = normalize(p.nome || '');
-            return n && (n.includes(normalizedTarget) || normalizedTarget.includes(n));
-          });
-          if (includes?.id) {
-            console.log(`Produto encontrado (fallback match inclusão): ${includes.nome} -> ID ${includes.id}`);
-            return includes.id;
-          }
-
-          // 3) match por keywords
-          if (keywords.length) {
-            const kw = produtos.find((p: any) => {
-              const n = normalize(p.nome || '');
-              const hits = keywords.filter((k) => n.includes(k)).length;
-              return hits >= Math.min(2, keywords.length);
-            });
-
-            if (kw?.id) {
-              console.log(`Produto encontrado (fallback match keywords): ${kw.nome} -> ID ${kw.id}`);
-              return kw.id;
-            }
+          // Calcular score para cada produto usando a mesma função
+          const produtosComScore = produtos.map((p: any) => ({
+            ...p,
+            matchScore: calculateMatchScore(p.nome || '')
+          }));
+          
+          // Ordenar por score descendente
+          produtosComScore.sort((a: any, b: any) => b.matchScore - a.matchScore);
+          
+          const melhorMatch = produtosComScore[0];
+          
+          // Só aceitar se o score for muito alto (mais rigoroso no fallback)
+          if (melhorMatch && melhorMatch.matchScore >= 80) {
+            console.log(`Produto encontrado (fallback score ${melhorMatch.matchScore}): ${melhorMatch.nome} -> ID ${melhorMatch.id}`);
+            return melhorMatch.id;
           }
 
           // Se veio menos que LIMIT, não há mais páginas.
