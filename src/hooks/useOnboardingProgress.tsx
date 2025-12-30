@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -82,7 +82,6 @@ export const identificarTipoRevista = (titulo: string): "BASE" | "SUPORTE" => {
 
 export const useOnboardingProgress = (churchId: string | null) => {
   const queryClient = useQueryClient();
-  const lastCompletionToastAtRef = useRef(0);
 
   const { data: revistasNaoAplicadas } = useQuery({
     queryKey: ["ebd-revistas-nao-aplicadas", churchId],
@@ -446,17 +445,8 @@ export const useOnboardingProgress = (churchId: string | null) => {
       queryClient.invalidateQueries({ queryKey: ["ebd-onboarding-progress", churchId] });
       queryClient.invalidateQueries({ queryKey: ["ebd-revistas-nao-aplicadas", churchId] });
 
-      // Evitar spam de toasts (ex.: verificações automáticas rodando em loop)
-      if (data.concluido) {
-        const now = Date.now();
-        if (now - lastCompletionToastAtRef.current > 8000) {
-          lastCompletionToastAtRef.current = now;
-          const mensagem = data.modoRecompra
-            ? `🎉 Parabéns! Você configurou a nova revista e ganhou ${data.desconto}% de desconto na próxima compra!`
-            : `🎉 Parabéns! Você completou o onboarding e ganhou ${data.desconto}% de desconto na próxima compra!`;
-          toast.success(mensagem, { duration: 8000 });
-        }
-      }
+      // Aviso removido: não exibir toast automático de "Parabéns".
+      void data;
     },
     onError: (error) => {
       console.error("Erro ao marcar etapa:", error);
