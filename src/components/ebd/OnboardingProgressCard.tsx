@@ -48,7 +48,7 @@ const ETAPA_ICONS: Record<number, any> = {
 
 const ETAPA_ROUTES: Record<number, string | null> = {
   1: null, // Abre dialog de seleção de revistas
-  2: "/ebd/classrooms",
+  2: "/ebd/turmas",
   3: "/ebd/teachers",
   4: "/ebd/planejamento",
   5: "/ebd/schedule",
@@ -195,7 +195,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     // Marcar a etapa 1 como concluída com a revista selecionada
     await marcarEtapa(1, revista.id);
     // Navegar para cadastrar turma (próxima etapa do onboarding)
-    navigate("/ebd/classrooms");
+    navigate("/ebd/turmas");
   };
 
   return (
