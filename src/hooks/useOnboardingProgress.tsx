@@ -546,6 +546,21 @@ export const useOnboardingProgress = (churchId: string | null) => {
       if (!progressData.etapas.find(e => e.id === 6)?.completada && progressData.dataAniversario) {
         marcarEtapaMutation.mutate({ etapaId: 6 });
       }
+
+      // Etapa 7: Verificar se configurou lançamento em alguma turma
+      // Uma turma é considerada configurada se responsavel_chamada foi definido (sempre tem valor)
+      // Verificamos se há pelo menos 1 turma ativa
+      if (!progressData.etapas.find(e => e.id === 7)?.completada) {
+        const { count: turmasCount } = await supabase
+          .from("ebd_turmas")
+          .select("*", { count: "exact", head: true })
+          .eq("church_id", churchId)
+          .eq("is_active", true);
+
+        if (turmasCount && turmasCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 7 });
+        }
+      }
     }
   }, [churchId, progressData, revistasNaoAplicadas, marcarEtapaMutation]);
 
