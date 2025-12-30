@@ -3,19 +3,20 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Users, UserPlus, User } from "lucide-react";
+import { Search, Users, UserPlus, User, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import MemberSearchDialog from "@/components/ebd/MemberSearchDialog";
 import ActivateMemberDialog from "@/components/ebd/ActivateMemberDialog";
+import { CadastrarAlunoDialog } from "@/components/ebd/CadastrarAlunoDialog";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
 export default function EBDStudents() {
   const { clientId } = useParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [activateMemberOpen, setActivateMemberOpen] = useState(false);
+  const [cadastrarAlunoOpen, setCadastrarAlunoOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
 
   // Get church ID - use clientId from route if available (admin view), otherwise get user's church
@@ -91,16 +92,24 @@ export default function EBDStudents() {
             <h1 className="text-3xl font-bold">Cadastro de Alunos</h1>
             <p className="text-muted-foreground">Gerencie alunos da EBD</p>
           </div>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              console.log("Abrindo busca de membros. Church ID:", churchData.id);
-              setMemberSearchOpen(true);
-            }}
-          >
-            <Search className="w-4 h-4 mr-2" />
-            Buscar Membro
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setCadastrarAlunoOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Cadastrar Aluno
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                console.log("Abrindo busca de membros. Church ID:", churchData.id);
+                setMemberSearchOpen(true);
+              }}
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Buscar Membro
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -189,6 +198,13 @@ export default function EBDStudents() {
         open={activateMemberOpen}
         onOpenChange={setActivateMemberOpen}
         member={selectedMember}
+        churchId={churchData.id}
+        onSuccess={handleSuccess}
+      />
+
+      <CadastrarAlunoDialog
+        open={cadastrarAlunoOpen}
+        onOpenChange={setCadastrarAlunoOpen}
         churchId={churchData.id}
         onSuccess={handleSuccess}
       />

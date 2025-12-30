@@ -204,22 +204,7 @@ function EBDSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Configurações */}
-          <SidebarGroup>
-            <SidebarGroupLabel>Configurações</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive('/ebd/age-ranges')}>
-                    <RouterNavLink to="/ebd/age-ranges">
-                      <Settings className="h-4 w-4" />
-                      <span>Faixas Etárias</span>
-                    </RouterNavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {/* Removido: Faixas Etárias não é mais necessário */}
         </div>
 
         {/* Botão fixo no rodapé do sidebar */}
