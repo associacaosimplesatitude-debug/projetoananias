@@ -27,6 +27,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ForcePasswordChangeDialog } from "@/components/ebd/ForcePasswordChangeDialog";
 import { OnboardingProgressCard } from "@/components/ebd/OnboardingProgressCard";
+import { TaxaLeituraSemanalCard } from "@/components/ebd/TaxaLeituraSemanalCard";
 import { format, subWeeks, startOfWeek, endOfWeek, isToday, isSameMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -448,6 +449,9 @@ export default function EBDDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Card de Taxa de Leitura Semanal */}
+        <TaxaLeituraSemanalCard churchId={churchId} />
 
         {/* Segunda linha de widgets */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
