@@ -542,12 +542,16 @@ export const useOnboardingProgress = (churchId: string | null) => {
     }
   }, [churchId, progressData, revistasNaoAplicadas, marcarEtapaMutation]);
 
-  // Verificar etapas automaticamente ao carregar
+  // Verificar etapas automaticamente ao carregar e quando mudar dados relevantes
   useEffect(() => {
-    if (progressData && !progressData.concluido) {
-      verificarEtapasAutomaticamente();
+    if (progressData && !progressData.concluido && churchId) {
+      // Adicionar pequeno delay para garantir que os dados foram salvos
+      const timer = setTimeout(() => {
+        verificarEtapasAutomaticamente();
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [progressData?.concluido, progressData?.modoRecompra]);
+  }, [progressData?.concluido, progressData?.modoRecompra, churchId, verificarEtapasAutomaticamente]);
 
   // Realtime subscription
   useEffect(() => {
