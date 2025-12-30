@@ -264,7 +264,9 @@ export default function EBDConteudoBiblico() {
 
   // Get available licoes for dropdown
   const getAvailableLicoes = () => {
-    const numLicoes = selectedRevistaData?.num_licoes || 13;
+    const numLicoes = selectedRevistaData?.num_licoes && selectedRevistaData.num_licoes > 0 
+      ? selectedRevistaData.num_licoes 
+      : 13;
     const usedLicoes = conteudos.map((c) => c.licao_numero);
     const allLicoes = Array.from({ length: numLicoes }, (_, i) => i + 1);
     
@@ -273,6 +275,8 @@ export default function EBDConteudoBiblico() {
     }
     return allLicoes.filter((l) => !usedLicoes.includes(l));
   };
+
+  const availableLicoes = getAvailableLicoes();
 
   return (
     <div className="space-y-6">
@@ -310,7 +314,7 @@ export default function EBDConteudoBiblico() {
               </Select>
             </div>
             {selectedRevista && (
-              <Button onClick={openAddDialog} disabled={getAvailableLicoes().length === 0}>
+              <Button onClick={openAddDialog} disabled={availableLicoes.length === 0}>
                 <Plus className="h-4 w-4 mr-2" />
                 Adicionar Conteúdo
               </Button>
@@ -401,7 +405,7 @@ export default function EBDConteudoBiblico() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {getAvailableLicoes().map((num) => (
+                    {availableLicoes.map((num) => (
                       <SelectItem key={num} value={num.toString()}>
                         Lição {num}
                       </SelectItem>
