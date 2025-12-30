@@ -5,82 +5,83 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Bible book abbreviations mapping for the API
-const bookAbbreviations: Record<string, string> = {
-  "genesis": "gn", "gênesis": "gn", "gn": "gn",
-  "exodus": "ex", "êxodo": "ex", "ex": "ex",
-  "leviticus": "lv", "levítico": "lv", "lv": "lv",
-  "numbers": "nm", "números": "nm", "nm": "nm",
-  "deuteronomy": "dt", "deuteronômio": "dt", "dt": "dt",
-  "joshua": "js", "josué": "js", "js": "js",
-  "judges": "jz", "juízes": "jz", "jz": "jz",
-  "ruth": "rt", "rute": "rt", "rt": "rt",
-  "1samuel": "1sm", "1 samuel": "1sm", "1sm": "1sm",
-  "2samuel": "2sm", "2 samuel": "2sm", "2sm": "2sm",
-  "1kings": "1rs", "1 reis": "1rs", "1rs": "1rs",
-  "2kings": "2rs", "2 reis": "2rs", "2rs": "2rs",
-  "1chronicles": "1cr", "1 crônicas": "1cr", "1cr": "1cr",
-  "2chronicles": "2cr", "2 crônicas": "2cr", "2cr": "2cr",
-  "ezra": "ed", "esdras": "ed", "ed": "ed",
-  "nehemiah": "ne", "neemias": "ne", "ne": "ne",
-  "esther": "et", "ester": "et", "et": "et",
-  "job": "jó", "jó": "jó",
-  "psalms": "sl", "salmos": "sl", "sl": "sl", "salmo": "sl",
-  "proverbs": "pv", "provérbios": "pv", "pv": "pv",
-  "ecclesiastes": "ec", "eclesiastes": "ec", "ec": "ec",
-  "songofsolomon": "ct", "cânticos": "ct", "cantares": "ct", "ct": "ct",
-  "isaiah": "is", "isaías": "is", "is": "is",
-  "jeremiah": "jr", "jeremias": "jr", "jr": "jr",
-  "lamentations": "lm", "lamentações": "lm", "lm": "lm",
-  "ezekiel": "ez", "ezequiel": "ez", "ez": "ez",
-  "daniel": "dn", "dn": "dn",
-  "hosea": "os", "oseias": "os", "oséias": "os", "os": "os",
-  "joel": "jl", "jl": "jl",
-  "amos": "am", "amós": "am", "am": "am",
-  "obadiah": "ob", "obadias": "ob", "ob": "ob",
-  "jonah": "jn", "jonas": "jn",
-  "micah": "mq", "miqueias": "mq", "miquéias": "mq", "mq": "mq",
-  "nahum": "na", "naum": "na", "na": "na",
-  "habakkuk": "hc", "habacuque": "hc", "hc": "hc",
-  "zephaniah": "sf", "sofonias": "sf", "sf": "sf",
-  "haggai": "ag", "ageu": "ag", "ag": "ag",
-  "zechariah": "zc", "zacarias": "zc", "zc": "zc",
-  "malachi": "ml", "malaquias": "ml", "ml": "ml",
-  "matthew": "mt", "mateus": "mt", "mt": "mt",
-  "mark": "mc", "marcos": "mc", "mc": "mc",
-  "luke": "lc", "lucas": "lc", "lc": "lc",
-  "john": "jo", "joão": "jo", "jo": "jo",
-  "acts": "at", "atos": "at", "at": "at",
-  "romans": "rm", "romanos": "rm", "rm": "rm",
-  "1corinthians": "1co", "1 coríntios": "1co", "1co": "1co",
-  "2corinthians": "2co", "2 coríntios": "2co", "2co": "2co",
-  "galatians": "gl", "gálatas": "gl", "gl": "gl",
-  "ephesians": "ef", "efésios": "ef", "ef": "ef",
-  "philippians": "fp", "filipenses": "fp", "fp": "fp",
-  "colossians": "cl", "colossenses": "cl", "cl": "cl",
-  "1thessalonians": "1ts", "1 tessalonicenses": "1ts", "1ts": "1ts",
-  "2thessalonians": "2ts", "2 tessalonicenses": "2ts", "2ts": "2ts",
-  "1timothy": "1tm", "1 timóteo": "1tm", "1tm": "1tm",
-  "2timothy": "2tm", "2 timóteo": "2tm", "2tm": "2tm",
-  "titus": "tt", "tito": "tt", "tt": "tt",
-  "philemon": "fm", "filemom": "fm", "fm": "fm",
-  "hebrews": "hb", "hebreus": "hb", "hb": "hb",
-  "james": "tg", "tiago": "tg", "tg": "tg",
-  "1peter": "1pe", "1 pedro": "1pe", "1pe": "1pe",
-  "2peter": "2pe", "2 pedro": "2pe", "2pe": "2pe",
-  "1john": "1jo", "1 joão": "1jo", "1jo": "1jo",
-  "2john": "2jo", "2 joão": "2jo", "2jo": "2jo",
-  "3john": "3jo", "3 joão": "3jo", "3jo": "3jo",
-  "jude": "jd", "judas": "jd", "jd": "jd",
-  "revelation": "ap", "apocalipse": "ap", "ap": "ap",
+// Bible book name mapping for bible-api.com (uses English names)
+const bookNameToEnglish: Record<string, string> = {
+  "gênesis": "genesis", "genesis": "genesis", "gn": "genesis",
+  "êxodo": "exodus", "exodo": "exodus", "ex": "exodus",
+  "levítico": "leviticus", "levitico": "leviticus", "lv": "leviticus",
+  "números": "numbers", "numeros": "numbers", "nm": "numbers",
+  "deuteronômio": "deuteronomy", "deuteronomio": "deuteronomy", "dt": "deuteronomy",
+  "josué": "joshua", "josue": "joshua", "js": "joshua",
+  "juízes": "judges", "juizes": "judges", "jz": "judges",
+  "rute": "ruth", "rt": "ruth",
+  "1 samuel": "1samuel", "1samuel": "1samuel", "1sm": "1samuel",
+  "2 samuel": "2samuel", "2samuel": "2samuel", "2sm": "2samuel",
+  "1 reis": "1kings", "1reis": "1kings", "1rs": "1kings",
+  "2 reis": "2kings", "2reis": "2kings", "2rs": "2kings",
+  "1 crônicas": "1chronicles", "1cronicas": "1chronicles", "1cr": "1chronicles",
+  "2 crônicas": "2chronicles", "2cronicas": "2chronicles", "2cr": "2chronicles",
+  "esdras": "ezra", "ed": "ezra",
+  "neemias": "nehemiah", "ne": "nehemiah",
+  "ester": "esther", "et": "esther",
+  "jó": "job", "jo": "job",
+  "salmos": "psalms", "salmo": "psalms", "sl": "psalms",
+  "provérbios": "proverbs", "proverbios": "proverbs", "pv": "proverbs",
+  "eclesiastes": "ecclesiastes", "ec": "ecclesiastes",
+  "cânticos": "songofsolomon", "cantares": "songofsolomon", "ct": "songofsolomon",
+  "isaías": "isaiah", "isaias": "isaiah", "is": "isaiah",
+  "jeremias": "jeremiah", "jr": "jeremiah",
+  "lamentações": "lamentations", "lamentacoes": "lamentations", "lm": "lamentations",
+  "ezequiel": "ezekiel", "ez": "ezekiel",
+  "daniel": "daniel", "dn": "daniel",
+  "oseias": "hosea", "oséias": "hosea", "os": "hosea",
+  "joel": "joel", "jl": "joel",
+  "amós": "amos", "amos": "amos", "am": "amos",
+  "obadias": "obadiah", "ob": "obadiah",
+  "jonas": "jonah", "jn": "jonah",
+  "miqueias": "micah", "miquéias": "micah", "mq": "micah",
+  "naum": "nahum", "na": "nahum",
+  "habacuque": "habakkuk", "hc": "habakkuk",
+  "sofonias": "zephaniah", "sf": "zephaniah",
+  "ageu": "haggai", "ag": "haggai",
+  "zacarias": "zechariah", "zc": "zechariah",
+  "malaquias": "malachi", "ml": "malachi",
+  "mateus": "matthew", "mt": "matthew",
+  "marcos": "mark", "mc": "mark",
+  "lucas": "luke", "lc": "luke",
+  "joão": "john", "joao": "john",
+  "atos": "acts", "at": "acts",
+  "romanos": "romans", "rm": "romans",
+  "1 coríntios": "1corinthians", "1corintios": "1corinthians", "1co": "1corinthians",
+  "2 coríntios": "2corinthians", "2corintios": "2corinthians", "2co": "2corinthians",
+  "gálatas": "galatians", "galatas": "galatians", "gl": "galatians",
+  "efésios": "ephesians", "efesios": "ephesians", "ef": "ephesians",
+  "filipenses": "philippians", "fp": "philippians",
+  "colossenses": "colossians", "cl": "colossians",
+  "1 tessalonicenses": "1thessalonians", "1tessalonicenses": "1thessalonians", "1ts": "1thessalonians",
+  "2 tessalonicenses": "2thessalonians", "2tessalonicenses": "2thessalonians", "2ts": "2thessalonians",
+  "1 timóteo": "1timothy", "1timoteo": "1timothy", "1tm": "1timothy",
+  "2 timóteo": "2timothy", "2timoteo": "2timothy", "2tm": "2timothy",
+  "tito": "titus", "tt": "titus",
+  "filemom": "philemon", "fm": "philemon",
+  "hebreus": "hebrews", "hb": "hebrews",
+  "tiago": "james", "tg": "james",
+  "1 pedro": "1peter", "1pedro": "1peter", "1pe": "1peter",
+  "2 pedro": "2peter", "2pedro": "2peter", "2pe": "2peter",
+  "1 joão": "1john", "1joao": "1john", "1jo": "1john",
+  "2 joão": "2john", "2joao": "2john", "2jo": "2john",
+  "3 joão": "3john", "3joao": "3john", "3jo": "3john",
+  "judas": "jude", "jd": "jude",
+  "apocalipse": "revelation", "ap": "revelation",
 };
 
 function normalizeBookName(book: string): string {
   const normalized = book.toLowerCase().trim();
-  return bookAbbreviations[normalized] || normalized;
+  return bookNameToEnglish[normalized] || normalized;
 }
 
 interface ParsedReference {
+  originalBook: string;
   book: string;
   chapter: number;
   startVerse: number | null;
@@ -88,7 +89,6 @@ interface ParsedReference {
 }
 
 function parseReference(reference: string): ParsedReference | null {
-  // Handle formats like "Êxodo 14.14", "Josué 6", "2 Coríntios 10.3-5"
   const cleaned = reference.trim();
   
   // Match book name (can include number prefix like "1 Samuel", "2 Coríntios")
@@ -100,20 +100,30 @@ function parseReference(reference: string): ParsedReference | null {
   }
   
   const [, book, chapterStr, startVerseStr, endVerseStr] = match;
+  const originalBook = book.trim();
   
   return {
-    book: book.trim(),
+    originalBook,
+    book: normalizeBookName(originalBook),
     chapter: parseInt(chapterStr),
     startVerse: startVerseStr ? parseInt(startVerseStr) : null,
     endVerse: endVerseStr ? parseInt(endVerseStr) : null,
   };
 }
 
-async function fetchVerseFromAPI(ref: ParsedReference): Promise<string | null> {
-  const bookAbbr = normalizeBookName(ref.book);
+async function fetchVerseFromAPI(ref: ParsedReference): Promise<{ text: string; verses: string[] } | null> {
+  // Build the reference string for bible-api.com
+  // Format: "john 3:16" or "john 3:16-18"
+  let refString = `${ref.book}${ref.chapter}`;
+  if (ref.startVerse !== null) {
+    refString += `:${ref.startVerse}`;
+    if (ref.endVerse !== null) {
+      refString += `-${ref.endVerse}`;
+    }
+  }
   
-  // Using ARC (Almeida Revista e Corrigida) version
-  const apiUrl = `https://www.abibliadigital.com.br/api/verses/arc/${bookAbbr}/${ref.chapter}`;
+  // Using bible-api.com with Almeida version (almeida)
+  const apiUrl = `https://bible-api.com/${encodeURIComponent(refString)}?translation=almeida`;
   
   console.log(`Fetching from API: ${apiUrl}`);
   
@@ -125,42 +135,48 @@ async function fetchVerseFromAPI(ref: ParsedReference): Promise<string | null> {
     });
 
     if (!response.ok) {
-      console.error(`Bible API error for ${ref.book} ${ref.chapter}: ${response.status}`);
+      console.error(`Bible API error for ${refString}: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
     
-    let verses = data.verses || [];
+    if (data.error) {
+      console.error(`Bible API returned error: ${data.error}`);
+      return null;
+    }
+
+    // bible-api.com returns verses array with { book_name, chapter, verse, text }
+    const verses = data.verses || [];
     
-    // Filter to specific verses if provided
-    if (ref.startVerse !== null) {
-      const startV = ref.startVerse;
-      const endV = ref.endVerse;
-      verses = verses.filter((v: any) => {
-        const verseNum = v.number;
-        if (endV !== null) {
-          return verseNum >= startV && verseNum <= endV;
-        }
-        return verseNum === startV;
-      });
+    if (verses.length === 0 && data.text) {
+      // Some responses return just text
+      return {
+        text: data.text.trim(),
+        verses: [data.text.trim()]
+      };
     }
 
     if (verses.length === 0) {
       return null;
     }
 
-    // Format the text - each verse on a new line without numbers
-    const verseText = verses.map((v: any) => v.text.trim()).join('\n\n');
-    return verseText;
+    // Format each verse on its own line
+    const verseTexts = verses.map((v: any) => v.text.trim());
+    const combinedText = verseTexts.join('\n\n');
+    
+    return {
+      text: combinedText,
+      verses: verseTexts
+    };
   } catch (error) {
-    console.error(`Error fetching verse ${ref.book} ${ref.chapter}:`, error);
+    console.error(`Error fetching verse ${refString}:`, error);
     return null;
   }
 }
 
 function formatReferenceTitle(ref: ParsedReference): string {
-  let title = `${ref.book} ${ref.chapter}`;
+  let title = `${ref.originalBook} ${ref.chapter}`;
   if (ref.startVerse !== null) {
     title += `.${ref.startVerse}`;
     if (ref.endVerse !== null) {
@@ -171,7 +187,6 @@ function formatReferenceTitle(ref: ParsedReference): string {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -201,7 +216,7 @@ serve(async (req) => {
     
     console.log(`Found ${references.length} references to fetch`);
 
-    const results: { referencia: string; texto: string }[] = [];
+    const results: { referencia: string; texto: string; versiculos: string[] }[] = [];
     
     for (const refString of references) {
       const parsed = parseReference(refString);
@@ -209,28 +224,37 @@ serve(async (req) => {
       if (!parsed) {
         results.push({
           referencia: refString,
-          texto: `Leia ${refString}`
+          texto: `Referência não reconhecida: ${refString}`,
+          versiculos: []
         });
         continue;
       }
       
-      const verseText = await fetchVerseFromAPI(parsed);
+      const verseData = await fetchVerseFromAPI(parsed);
       
-      if (verseText) {
+      if (verseData) {
         results.push({
           referencia: formatReferenceTitle(parsed),
-          texto: verseText
+          texto: verseData.text,
+          versiculos: verseData.verses
         });
       } else {
         results.push({
           referencia: formatReferenceTitle(parsed),
-          texto: `Leia ${formatReferenceTitle(parsed)} na sua Bíblia.`
+          texto: `Texto não disponível para ${formatReferenceTitle(parsed)}. Consulte sua Bíblia.`,
+          versiculos: []
         });
       }
     }
     
-    // Combine all results
-    const combinedText = results.map(r => `**${r.referencia}**\n${r.texto}`).join('\n\n');
+    // Combine all results with clear separation
+    const combinedText = results.map(r => {
+      if (results.length > 1) {
+        return `📖 ${r.referencia}\n\n${r.texto}`;
+      }
+      return r.texto;
+    }).join('\n\n---\n\n');
+    
     const allReferences = results.map(r => r.referencia).join('; ');
     
     console.log(`Successfully processed ${results.length} references`);
@@ -249,7 +273,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Erro ao buscar versículo',
-        texto: 'Consulte sua Bíblia para ler o texto.',
+        texto: 'Não foi possível carregar o texto. Consulte sua Bíblia.',
         referencia: ''
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

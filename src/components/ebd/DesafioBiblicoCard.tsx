@@ -420,24 +420,30 @@ export function DesafioBiblicoCard({ churchId, userId, userType, turmaId }: Desa
                 </p>
               </div>
 
-              <ScrollArea className="h-[250px] border rounded-lg p-4 bg-muted/30">
+              <ScrollArea className="h-[280px] border rounded-lg p-4 bg-muted/30">
                 {loadingVersiculo ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : (
-                  <div className="text-base leading-relaxed space-y-3">
-                    {versiculoTexto.split('\n\n').map((section, idx) => {
-                      const lines = section.split('\n');
-                      const title = lines[0]?.replace(/\*\*/g, '') || '';
-                      const text = lines.slice(1).join('\n');
+                  <div className="text-base leading-relaxed">
+                    {versiculoTexto.split('\n\n').map((paragraph, idx) => {
+                      // Check if it's a section separator
+                      if (paragraph.trim() === '---') {
+                        return <hr key={idx} className="my-4 border-muted" />;
+                      }
+                      // Check if it starts with emoji (section title for multiple refs)
+                      if (paragraph.startsWith('📖')) {
+                        return (
+                          <p key={idx} className="font-semibold text-primary mt-4 mb-2 first:mt-0">
+                            {paragraph}
+                          </p>
+                        );
+                      }
                       return (
-                        <div key={idx}>
-                          {title && (
-                            <p className="font-semibold text-primary mb-1">{title}</p>
-                          )}
-                          <p className="text-muted-foreground">{text || title}</p>
-                        </div>
+                        <p key={idx} className="text-foreground mb-3 last:mb-0 leading-7">
+                          {paragraph}
+                        </p>
                       );
                     })}
                   </div>
