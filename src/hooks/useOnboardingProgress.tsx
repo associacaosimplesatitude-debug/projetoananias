@@ -11,6 +11,13 @@ export interface OnboardingEtapa {
   completadaEm: string | null;
 }
 
+export interface RevistaBaseNaoAplicada {
+  id: string;
+  titulo: string;
+  imagemUrl: string | null;
+  quantidade: number;
+}
+
 export interface OnboardingProgress {
   etapas: OnboardingEtapa[];
   revistaIdentificadaId: string | null;
@@ -21,10 +28,12 @@ export interface OnboardingProgress {
   descontoObtido: number | null;
   dataAniversario: string | null;
   cupomAniversarioDisponivel: boolean;
+  modoRecompra: boolean; // Indica se está no modo de recompra (simplificado)
 }
 
-const ETAPAS_CONFIG: Omit<OnboardingEtapa, "completada" | "completadaEm">[] = [
-  { id: 1, titulo: "Aplicar Revista", descricao: "Clique em 'Aplicar Agora' na revista identificada" },
+// Etapas do primeiro onboarding (completo)
+const ETAPAS_PRIMEIRO_ONBOARDING: Omit<OnboardingEtapa, "completada" | "completadaEm">[] = [
+  { id: 1, titulo: "Aplicar Revista", descricao: "Aplique pelo menos uma das revistas compradas" },
   { id: 2, titulo: "Cadastrar Turma", descricao: "Cadastre pelo menos 1 turma" },
   { id: 3, titulo: "Cadastrar Professor", descricao: "Cadastre pelo menos 1 professor" },
   { id: 4, titulo: "Definir Data de Início", descricao: "Marque a data de início das aulas" },
@@ -32,7 +41,11 @@ const ETAPAS_CONFIG: Omit<OnboardingEtapa, "completada" | "completadaEm">[] = [
   { id: 6, titulo: "Data de Aniversário", descricao: "Informe sua data de aniversário para ganhar um presente especial!" },
 ];
 
-const TOTAL_ETAPAS = 6;
+// Etapas da gamificação de recompra (simplificada)
+const ETAPAS_RECOMPRA: Omit<OnboardingEtapa, "completada" | "completadaEm">[] = [
+  { id: 1, titulo: "Aplicar Nova Revista", descricao: "Aplique a nova revista comprada" },
+  { id: 4, titulo: "Definir Data de Início", descricao: "Defina a data de início das aulas para a nova revista" },
+];
 
 // Função para calcular o desconto baseado no valor da compra
 export const calcularDesconto = (valorCompra: number): { percentual: number; valorMaximo: number } => {
@@ -56,7 +69,7 @@ export const verificarAniversario = (dataAniversario: string | null): boolean =>
 };
 
 // Função para identificar se é revista BASE (Aluno) ou SUPORTE (Professor)
-const identificarTipoRevista = (titulo: string): "BASE" | "SUPORTE" => {
+export const identificarTipoRevista = (titulo: string): "BASE" | "SUPORTE" => {
   const tituloUpper = titulo.toUpperCase();
   if (tituloUpper.includes("PROFESSOR") || tituloUpper.includes("MESTRE")) {
     return "SUPORTE";
@@ -66,6 +79,66 @@ const identificarTipoRevista = (titulo: string): "BASE" | "SUPORTE" => {
 
 export const useOnboardingProgress = (churchId: string | null) => {
   const queryClient = useQueryClient();
+
+  // Buscar todas as revistas BASE não aplicadas
+  const { data: revistasNaoAplicadas } = useQuery({
+    queryKey: ["ebd-revistas-nao-aplicadas", churchId],
+    queryFn: async (): Promise<RevistaBaseNaoAplicada[]> => {
+      if (!churchId) return [];
+
+      // Buscar todas as revistas BASE dos pedidos pagos
+      const { data: pedidosData } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select(`
+          id,
+          order_date,
+          ebd_shopify_pedidos_itens(
+            revista_id,
+            quantidade,
+            ebd_revistas(id, titulo, imagem_url)
+          )
+        `)
+        .eq("cliente_id", churchId)
+        .eq("status_pagamento", "paid")
+        .order("order_date", { ascending: false });
+
+      // Buscar revistas já aplicadas (que têm planejamento)
+      const { data: planejamentosData } = await supabase
+        .from("ebd_planejamento")
+        .select("revista_id")
+        .eq("church_id", churchId);
+
+      const revistasAplicadas = new Set(planejamentosData?.map(p => p.revista_id) || []);
+
+      const revistasBase: RevistaBaseNaoAplicada[] = [];
+      const revistasProcessadas = new Set<string>();
+
+      if (pedidosData) {
+        for (const pedido of pedidosData) {
+          const itens = (pedido as any).ebd_shopify_pedidos_itens || [];
+          for (const item of itens) {
+            const revista = item.ebd_revistas;
+            if (revista && revista.titulo) {
+              const tipo = identificarTipoRevista(revista.titulo);
+              // Apenas revistas BASE que não foram aplicadas e não foram processadas ainda
+              if (tipo === "BASE" && !revistasAplicadas.has(revista.id) && !revistasProcessadas.has(revista.id)) {
+                revistasProcessadas.add(revista.id);
+                revistasBase.push({
+                  id: revista.id,
+                  titulo: revista.titulo,
+                  imagemUrl: revista.imagem_url,
+                  quantidade: item.quantidade || 1,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      return revistasBase;
+    },
+    enabled: !!churchId,
+  });
 
   // Buscar progresso do onboarding
   const { data: progressData, isLoading } = useQuery({
@@ -81,12 +154,59 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       if (etapasError) throw etapasError;
 
-      // Buscar dados do cliente incluindo aniversário
-      const { data: clienteData, error: clienteError } = await supabase
+      // Buscar dados do cliente
+      const { data: clienteData } = await supabase
         .from("ebd_clientes")
         .select("onboarding_concluido, desconto_onboarding, data_aniversario_superintendente, cupom_aniversario_usado, cupom_aniversario_ano")
         .eq("id", churchId)
         .maybeSingle();
+
+      // Verificar se há revistas BASE não aplicadas (indica recompra)
+      const { data: pedidosData } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select(`
+          id,
+          ebd_shopify_pedidos_itens(
+            revista_id,
+            ebd_revistas(id, titulo)
+          )
+        `)
+        .eq("cliente_id", churchId)
+        .eq("status_pagamento", "paid");
+
+      const { data: planejamentosData } = await supabase
+        .from("ebd_planejamento")
+        .select("revista_id")
+        .eq("church_id", churchId);
+
+      const revistasAplicadas = new Set(planejamentosData?.map(p => p.revista_id) || []);
+      
+      // Verificar se há revistas BASE não aplicadas
+      let temRevistaBaseNaoAplicada = false;
+      if (pedidosData) {
+        for (const pedido of pedidosData) {
+          const itens = (pedido as any).ebd_shopify_pedidos_itens || [];
+          for (const item of itens) {
+            const revista = item.ebd_revistas;
+            if (revista && revista.titulo) {
+              const tipo = identificarTipoRevista(revista.titulo);
+              if (tipo === "BASE" && !revistasAplicadas.has(revista.id)) {
+                temRevistaBaseNaoAplicada = true;
+                break;
+              }
+            }
+          }
+          if (temRevistaBaseNaoAplicada) break;
+        }
+      }
+
+      // Determinar se é modo recompra: onboarding já foi concluído uma vez E tem nova revista não aplicada
+      const primeiroOnboardingConcluido = clienteData?.onboarding_concluido === true;
+      const modoRecompra = primeiroOnboardingConcluido && temRevistaBaseNaoAplicada;
+
+      // Selecionar configuração de etapas baseado no modo
+      const etapasConfig = modoRecompra ? ETAPAS_RECOMPRA : ETAPAS_PRIMEIRO_ONBOARDING;
+      const totalEtapas = etapasConfig.length;
 
       // Montar o mapa de etapas completadas
       const etapasMap = new Map<number, { completada: boolean; completadaEm: string | null; revistaId: string | null }>();
@@ -97,6 +217,16 @@ export const useOnboardingProgress = (churchId: string | null) => {
           revistaId: e.revista_identificada_id,
         });
       });
+
+      // Se é modo recompra, resetar progresso das etapas 1 e 4 se não aplicou a nova revista
+      if (modoRecompra) {
+        // Verificar se etapa 1 (aplicar revista) está "concluída" mas ainda tem revistas não aplicadas
+        // Nesse caso, resetar para forçar aplicação das novas revistas
+        if (temRevistaBaseNaoAplicada) {
+          etapasMap.set(1, { completada: false, completadaEm: null, revistaId: null });
+          etapasMap.set(4, { completada: false, completadaEm: null, revistaId: null });
+        }
+      }
 
       // Obter revista identificada (da etapa 1)
       const revistaId = etapasMap.get(1)?.revistaId || null;
@@ -114,14 +244,14 @@ export const useOnboardingProgress = (churchId: string | null) => {
       }
 
       // Montar etapas
-      const etapas: OnboardingEtapa[] = ETAPAS_CONFIG.map((config) => ({
+      const etapas: OnboardingEtapa[] = etapasConfig.map((config) => ({
         ...config,
         completada: etapasMap.get(config.id)?.completada || false,
         completadaEm: etapasMap.get(config.id)?.completadaEm || null,
       }));
 
       const etapasCompletas = etapas.filter((e) => e.completada).length;
-      const progressoPercentual = Math.round((etapasCompletas / TOTAL_ETAPAS) * 100);
+      const progressoPercentual = Math.round((etapasCompletas / totalEtapas) * 100);
 
       // Verificar se cupom de aniversário está disponível
       const anoAtual = new Date().getFullYear();
@@ -130,90 +260,23 @@ export const useOnboardingProgress = (churchId: string | null) => {
       const ehAniversario = verificarAniversario(dataAniversario);
       const cupomAniversarioDisponivel = ehAniversario && !cupomUsadoEsteAno;
 
+      // No modo recompra, considerar concluído apenas se todas as etapas de recompra estão feitas
+      const concluido = modoRecompra 
+        ? etapas.every(e => e.completada)
+        : (clienteData?.onboarding_concluido || false);
+
       return {
         etapas,
         revistaIdentificadaId: revistaId,
         revistaIdentificadaTitulo: revistaTitulo,
         revistaIdentificadaImagem: revistaImagem,
         progressoPercentual,
-        concluido: clienteData?.onboarding_concluido || false,
+        concluido,
         descontoObtido: clienteData?.desconto_onboarding || null,
         dataAniversario,
         cupomAniversarioDisponivel,
+        modoRecompra,
       } as OnboardingProgress;
-    },
-    enabled: !!churchId,
-  });
-
-  // Identificar revista mais recente do cliente - APENAS REVISTAS BASE (ALUNO)
-  const { data: revistaIdentificada } = useQuery({
-    queryKey: ["ebd-revista-identificada", churchId],
-    queryFn: async () => {
-      if (!churchId) return null;
-
-      // Buscar todos os itens de pedidos do cliente
-      const { data: pedidosData, error: pedidoError } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select(`
-          id,
-          order_date,
-          ebd_shopify_pedidos_itens(
-            revista_id,
-            quantidade,
-            ebd_revistas(id, titulo, imagem_url)
-          )
-        `)
-        .eq("cliente_id", churchId)
-        .eq("status_pagamento", "paid")
-        .order("order_date", { ascending: false })
-        .limit(5);
-
-      if (pedidosData && pedidosData.length > 0) {
-        // Iterar pelos pedidos e encontrar a primeira revista BASE (Aluno)
-        for (const pedido of pedidosData) {
-          const itens = (pedido as any).ebd_shopify_pedidos_itens || [];
-          for (const item of itens) {
-            const revista = item.ebd_revistas;
-            if (revista && revista.titulo) {
-              const tipo = identificarTipoRevista(revista.titulo);
-              if (tipo === "BASE") {
-                return {
-                  id: revista.id,
-                  titulo: revista.titulo,
-                  imagemUrl: revista.imagem_url,
-                  quantidade: item.quantidade || 1,
-                };
-              }
-            }
-          }
-        }
-      }
-
-      // Fallback: buscar pelo planejamento mais recente
-      const { data: planejamentoData } = await supabase
-        .from("ebd_planejamento")
-        .select(`
-          revista:ebd_revistas(id, titulo, imagem_url)
-        `)
-        .eq("church_id", churchId)
-        .order("data_inicio", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (planejamentoData?.revista) {
-        const revista = planejamentoData.revista as any;
-        // Verificar se é BASE
-        if (revista.titulo && identificarTipoRevista(revista.titulo) === "BASE") {
-          return {
-            id: revista.id,
-            titulo: revista.titulo,
-            imagemUrl: revista.imagem_url,
-            quantidade: 1,
-          };
-        }
-      }
-
-      return null;
     },
     enabled: !!churchId,
   });
@@ -246,16 +309,24 @@ export const useOnboardingProgress = (churchId: string | null) => {
           .eq("id", churchId);
       }
 
+      const modoRecompra = progressData?.modoRecompra || false;
+      const etapasConfig = modoRecompra ? ETAPAS_RECOMPRA : ETAPAS_PRIMEIRO_ONBOARDING;
+      const totalEtapas = etapasConfig.length;
+
       // Verificar se todas as etapas foram concluídas
       const { data: todasEtapas } = await supabase
         .from("ebd_onboarding_progress")
-        .select("completada")
+        .select("etapa_id, completada")
         .eq("church_id", churchId);
 
-      const etapasCompletas = todasEtapas?.filter((e: any) => e.completada).length || 0;
+      // Contar apenas as etapas relevantes para o modo atual
+      const etapasRelevantes = etapasConfig.map(e => e.id);
+      const etapasCompletas = todasEtapas?.filter((e: any) => 
+        e.completada && etapasRelevantes.includes(e.etapa_id)
+      ).length || 0;
 
-      // Se todas as 6 etapas foram concluídas, calcular e salvar o desconto
-      if (etapasCompletas >= TOTAL_ETAPAS) {
+      // Se todas as etapas foram concluídas
+      if (etapasCompletas >= totalEtapas) {
         // Calcular desconto baseado no valor do último pedido
         const { data: ultimoPedido } = await supabase
           .from("ebd_shopify_pedidos")
@@ -277,19 +348,20 @@ export const useOnboardingProgress = (churchId: string | null) => {
           })
           .eq("id", churchId);
 
-        return { concluido: true, desconto: percentual };
+        return { concluido: true, desconto: percentual, modoRecompra };
       }
 
-      return { concluido: false };
+      return { concluido: false, modoRecompra };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["ebd-onboarding-progress", churchId] });
+      queryClient.invalidateQueries({ queryKey: ["ebd-revistas-nao-aplicadas", churchId] });
       
       if (data.concluido) {
-        toast.success(
-          `🎉 Parabéns! Você completou o onboarding e ganhou ${data.desconto}% de desconto na próxima compra!`,
-          { duration: 8000 }
-        );
+        const mensagem = data.modoRecompra 
+          ? `🎉 Parabéns! Você configurou a nova revista e ganhou ${data.desconto}% de desconto na próxima compra!`
+          : `🎉 Parabéns! Você completou o onboarding e ganhou ${data.desconto}% de desconto na próxima compra!`;
+        toast.success(mensagem, { duration: 8000 });
       }
     },
     onError: (error) => {
@@ -324,68 +396,104 @@ export const useOnboardingProgress = (churchId: string | null) => {
   const verificarEtapasAutomaticamente = useCallback(async () => {
     if (!churchId || !progressData) return;
 
-    // Etapa 2: Verificar se tem turmas
-    if (!progressData.etapas[1]?.completada) {
-      const { count: turmasCount } = await supabase
-        .from("ebd_turmas")
-        .select("*", { count: "exact", head: true })
-        .eq("church_id", churchId)
-        .eq("is_active", true);
+    const modoRecompra = progressData.modoRecompra;
 
-      if (turmasCount && turmasCount > 0) {
-        marcarEtapaMutation.mutate({ etapaId: 2 });
+    if (modoRecompra) {
+      // No modo recompra, verificar apenas etapas 1 e 4
+      // Etapa 1: Verificar se aplicou pelo menos uma nova revista
+      if (!progressData.etapas.find(e => e.id === 1)?.completada) {
+        const { data: planejamentos } = await supabase
+          .from("ebd_planejamento")
+          .select("revista_id")
+          .eq("church_id", churchId);
+        
+        // Se tem planejamento, a etapa 1 está completa
+        if (planejamentos && planejamentos.length > 0) {
+          // Mas precisamos verificar se ainda tem revistas não aplicadas
+          // Se não tem mais revistas não aplicadas, marcar como concluída
+          if (!revistasNaoAplicadas || revistasNaoAplicadas.length === 0) {
+            marcarEtapaMutation.mutate({ etapaId: 1 });
+          }
+        }
+      }
+
+      // Etapa 4: Verificar se tem planejamento com data de início
+      if (!progressData.etapas.find(e => e.id === 4)?.completada) {
+        const { count: planejamentosCount } = await supabase
+          .from("ebd_planejamento")
+          .select("*", { count: "exact", head: true })
+          .eq("church_id", churchId);
+
+        if (planejamentosCount && planejamentosCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 4 });
+        }
+      }
+    } else {
+      // Modo completo (primeiro onboarding)
+      
+      // Etapa 2: Verificar se tem turmas
+      if (!progressData.etapas.find(e => e.id === 2)?.completada) {
+        const { count: turmasCount } = await supabase
+          .from("ebd_turmas")
+          .select("*", { count: "exact", head: true })
+          .eq("church_id", churchId)
+          .eq("is_active", true);
+
+        if (turmasCount && turmasCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 2 });
+        }
+      }
+
+      // Etapa 3: Verificar se tem professores
+      if (!progressData.etapas.find(e => e.id === 3)?.completada) {
+        const { count: professoresCount } = await supabase
+          .from("ebd_professores")
+          .select("*", { count: "exact", head: true })
+          .eq("church_id", churchId)
+          .eq("is_active", true);
+
+        if (professoresCount && professoresCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 3 });
+        }
+      }
+
+      // Etapa 4: Verificar se tem planejamento com data de início
+      if (!progressData.etapas.find(e => e.id === 4)?.completada) {
+        const { count: planejamentosCount } = await supabase
+          .from("ebd_planejamento")
+          .select("*", { count: "exact", head: true })
+          .eq("church_id", churchId);
+
+        if (planejamentosCount && planejamentosCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 4 });
+        }
+      }
+
+      // Etapa 5: Verificar se tem escalas
+      if (!progressData.etapas.find(e => e.id === 5)?.completada) {
+        const { count: escalasCount } = await supabase
+          .from("ebd_escalas")
+          .select("*", { count: "exact", head: true })
+          .eq("church_id", churchId);
+
+        if (escalasCount && escalasCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 5 });
+        }
+      }
+
+      // Etapa 6: Verificar se tem data de aniversário cadastrada
+      if (!progressData.etapas.find(e => e.id === 6)?.completada && progressData.dataAniversario) {
+        marcarEtapaMutation.mutate({ etapaId: 6 });
       }
     }
-
-    // Etapa 3: Verificar se tem professores
-    if (!progressData.etapas[2]?.completada) {
-      const { count: professoresCount } = await supabase
-        .from("ebd_professores")
-        .select("*", { count: "exact", head: true })
-        .eq("church_id", churchId)
-        .eq("is_active", true);
-
-      if (professoresCount && professoresCount > 0) {
-        marcarEtapaMutation.mutate({ etapaId: 3 });
-      }
-    }
-
-    // Etapa 4: Verificar se tem planejamento com data de início
-    if (!progressData.etapas[3]?.completada) {
-      const { count: planejamentosCount } = await supabase
-        .from("ebd_planejamento")
-        .select("*", { count: "exact", head: true })
-        .eq("church_id", churchId);
-
-      if (planejamentosCount && planejamentosCount > 0) {
-        marcarEtapaMutation.mutate({ etapaId: 4 });
-      }
-    }
-
-    // Etapa 5: Verificar se tem escalas
-    if (!progressData.etapas[4]?.completada) {
-      const { count: escalasCount } = await supabase
-        .from("ebd_escalas")
-        .select("*", { count: "exact", head: true })
-        .eq("church_id", churchId);
-
-      if (escalasCount && escalasCount > 0) {
-        marcarEtapaMutation.mutate({ etapaId: 5 });
-      }
-    }
-
-    // Etapa 6: Verificar se tem data de aniversário cadastrada
-    if (!progressData.etapas[5]?.completada && progressData.dataAniversario) {
-      marcarEtapaMutation.mutate({ etapaId: 6 });
-    }
-  }, [churchId, progressData, marcarEtapaMutation]);
+  }, [churchId, progressData, revistasNaoAplicadas, marcarEtapaMutation]);
 
   // Verificar etapas automaticamente ao carregar
   useEffect(() => {
     if (progressData && !progressData.concluido) {
       verificarEtapasAutomaticamente();
     }
-  }, [progressData?.concluido]);
+  }, [progressData?.concluido, progressData?.modoRecompra]);
 
   // Realtime subscription
   useEffect(() => {
@@ -403,6 +511,7 @@ export const useOnboardingProgress = (churchId: string | null) => {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["ebd-onboarding-progress", churchId] });
+          queryClient.invalidateQueries({ queryKey: ["ebd-revistas-nao-aplicadas", churchId] });
         }
       )
       .subscribe();
@@ -414,7 +523,7 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
   return {
     progress: progressData,
-    revistaIdentificada,
+    revistasNaoAplicadas: revistasNaoAplicadas || [],
     isLoading,
     marcarEtapa: (etapaId: number, revistaId?: string, dataAniversario?: string) => 
       marcarEtapaMutation.mutate({ etapaId, revistaId, dataAniversario }),
