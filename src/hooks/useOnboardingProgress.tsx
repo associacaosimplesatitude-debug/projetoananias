@@ -501,10 +501,76 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
     const usarSimplificadas = progressData.modoRecompra; // revista adicional
 
-    // No modo revista adicional, NÃO fazer verificação automática
-    // As etapas devem ser marcadas manualmente quando o usuário navegar para as páginas
-    // Isso evita que dados de revistas anteriores marquem as etapas como concluídas
+    // No modo revista adicional, verificar etapas 2-5 apenas com base em dados CRIADOS após aplicar a revista
+    // (evita puxar turmas/professores/escalas antigas e marcar tudo como concluído)
     if (usarSimplificadas) {
+      const inicioConfiguracao = progressData.etapas.find(e => e.id === 1)?.completadaEm;
+      const revistaIdAtual = progressData.revistaIdentificadaId;
+
+      if (!inicioConfiguracao) return;
+
+      // Etapa 2: Turmas criadas após o início
+      if (!progressData.etapas.find(e => e.id === 2)?.completada) {
+        const { count: turmasCount, data: turmasData } = await supabase
+          .from("ebd_turmas")
+          .select("id", { count: "exact" })
+          .eq("church_id", churchId)
+          .eq("is_active", true)
+          .gte("created_at", inicioConfiguracao);
+
+        if (turmasCount && turmasCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 2 });
+        }
+
+        // Etapa 3: Professores criados após o início (ou vinculados a turmas novas)
+        if (!progressData.etapas.find(e => e.id === 3)?.completada) {
+          const turmaIds = (turmasData || []).map((t: any) => t.id).filter(Boolean);
+
+          const professoresQuery = supabase
+            .from("ebd_professores")
+            .select("id", { count: "exact" })
+            .eq("church_id", churchId)
+            .eq("is_active", true)
+            .gte("created_at", inicioConfiguracao);
+
+          const { count: professoresCount } = await professoresQuery;
+
+          if ((professoresCount && professoresCount > 0) || turmaIds.length > 0) {
+            // Se criou turma nova, o próximo passo é professor; mas só marcamos professor quando existir pelo menos 1 professor novo.
+            if (professoresCount && professoresCount > 0) {
+              marcarEtapaMutation.mutate({ etapaId: 3 });
+            }
+          }
+        }
+      }
+
+      // Etapa 4: Planejamento da revista atual criado após o início
+      if (!progressData.etapas.find(e => e.id === 4)?.completada && revistaIdAtual) {
+        const { count: planejamentosCount } = await supabase
+          .from("ebd_planejamento")
+          .select("*", { count: "exact", head: true })
+          .eq("church_id", churchId)
+          .eq("revista_id", revistaIdAtual)
+          .gte("created_at", inicioConfiguracao);
+
+        if (planejamentosCount && planejamentosCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 4 });
+        }
+      }
+
+      // Etapa 5: Escalas criadas após o início
+      if (!progressData.etapas.find(e => e.id === 5)?.completada) {
+        const { count: escalasCount } = await supabase
+          .from("ebd_escalas")
+          .select("*", { count: "exact", head: true })
+          .eq("church_id", churchId)
+          .gte("created_at", inicioConfiguracao);
+
+        if (escalasCount && escalasCount > 0) {
+          marcarEtapaMutation.mutate({ etapaId: 5 });
+        }
+      }
+
       return;
     }
 
