@@ -38,72 +38,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FAIXAS_ETARIAS } from "@/constants/ebdFaixasEtarias";
 import { RevistaBaseNaoAplicada } from "@/hooks/useOnboardingProgress";
-import { centralGospelApiRequest } from "@/lib/shopify";
 
-// Query para buscar produto por título com a descrição HTML
-const SEARCH_PRODUCT_WITH_DESCRIPTION = `
-  query SearchProductByTitle($query: String!) {
-    products(first: 1, query: $query) {
-      edges {
-        node {
-          id
-          title
-          descriptionHtml
-        }
-      }
-    }
-  }
-`;
-
-// Função para parsear as lições do HTML
-function parseLicoesFromHtml(html: string): string[] {
-  if (!html) return [];
-  
-  // Remover tags HTML e extrair texto de cada parágrafo
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const paragraphs = doc.querySelectorAll('p');
-  
-  const licoes: string[] = [];
-  let skipHeader = true;
-  
-  paragraphs.forEach((p) => {
-    const text = p.textContent?.trim() || '';
-    
-    // Pular parágrafos vazios
-    if (!text) return;
-    
-    // Pular o header "TÍTULO DAS LIÇÕES" ou similar
-    if (skipHeader && (
-      text.toUpperCase().includes('TÍTULO') || 
-      text.toUpperCase().includes('LIÇÕES') ||
-      text.toUpperCase().includes('LICOES')
-    )) {
-      return;
-    }
-    
-    skipHeader = false;
-    
-    // Adicionar apenas se parece um título de lição válido
-    if (text.length > 2 && text.length < 150 && licoes.length < 13) {
-      licoes.push(text);
-    }
-  });
-  
-  // Se não encontrou com a lógica de parágrafos, tentar extrair por formato numerado
-  if (licoes.length === 0) {
-    // Tenta dividir por números (1 - Título, 2 - Título, etc.)
-    const matches = html.match(/\d+\s*[–-]\s*[^<\n]+/g);
-    if (matches) {
-      matches.forEach(match => {
-        const titulo = match.replace(/^\d+\s*[–-]\s*/, '').trim();
-        if (titulo && licoes.length < 13) licoes.push(titulo);
-      });
-    }
-  }
-  
-  return licoes.slice(0, 13);
-}
 
 interface AplicarRevistaDialogProps {
   open: boolean;
@@ -231,81 +166,31 @@ export function AplicarRevistaDialog({
     enabled: !!churchId && open,
   });
 
-  // Buscar lições da revista selecionada via Shopify Central Gospel
+  // Buscar títulos das lições INTERNAMENTE (banco) - não usar Shopify
   const { data: licoesRevista, isLoading: loadingLicoes } = useQuery({
-    queryKey: ["ebd-licoes-shopify", selectedRevista?.id],
+    queryKey: ["ebd-licoes-revista", selectedRevista?.id],
     queryFn: async () => {
-      if (!selectedRevista) return [];
-      
-      try {
-        // Extrair palavras-chave do título da revista para busca
-        // Exemplo: "Revista EBD Jovens e Adultos nº 07 - O Homem, O Pecado e a Salvação - Aluno (10un)"
-        // Queremos buscar por: "O Homem O Pecado e a Salvação"
-        const titulo = selectedRevista.titulo
-          .replace(/\d+\s*(un|und|x)\s*/gi, '') // Remove quantidades
-          .replace(/\(\d+\s*(un|und|x)\s*\)/gi, '') // Remove (10un)
-          .replace(/revista\s*ebd/gi, '') // Remove "Revista EBD"
-          .replace(/professor|mestre|aluno/gi, '') // Remove tipo
-          .replace(/nº?\s*\d+/gi, '') // Remove números de edição
-          .replace(/jovens\s*e?\s*adultos|juniores|primários|pre-adolescentes|adolescentes|crianças/gi, '') // Remove faixa etária
-          .replace(/[-–]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        // Usar palavras principais para a busca
-        const palavrasChave = titulo.split(' ').filter(p => p.length > 2).slice(0, 5);
-        const searchQuery = palavrasChave.join(' ');
-        
-        console.log('Buscando lições na Central Gospel para:', searchQuery);
-        
-        // Buscar na loja Central Gospel que tem as descrições completas
-        const response = await centralGospelApiRequest(SEARCH_PRODUCT_WITH_DESCRIPTION, {
-          query: `title:*${searchQuery}*`,
-        });
-        
-        const products = response.data?.products?.edges || [];
-        
-        console.log('Produtos encontrados:', products.length);
-        
-        if (products.length > 0) {
-          const descriptionHtml = products[0].node.descriptionHtml;
-          console.log('HTML da descrição:', descriptionHtml?.substring(0, 500));
-          
-          const licoes = parseLicoesFromHtml(descriptionHtml);
-          
-          console.log('Lições extraídas:', licoes.length, licoes);
-          
-          if (licoes.length >= 10) {
-            return licoes;
-          }
-        }
-        
-        // Tentar busca alternativa sem wildcard
-        const response2 = await centralGospelApiRequest(SEARCH_PRODUCT_WITH_DESCRIPTION, {
-          query: searchQuery,
-        });
-        
-        const products2 = response2.data?.products?.edges || [];
-        
-        if (products2.length > 0) {
-          const descriptionHtml = products2[0].node.descriptionHtml;
-          const licoes = parseLicoesFromHtml(descriptionHtml);
-          
-          if (licoes.length >= 10) {
-            return licoes;
-          }
-        }
-        
-        // Fallback: gerar lições genéricas se não encontrar
-        console.log('Nenhuma lição encontrada com descrição completa, usando fallback');
-        return Array.from({ length: 13 }, (_, i) => `Lição ${i + 1}`);
-      } catch (error) {
-        console.error("Erro ao buscar lições do Shopify:", error);
-        return Array.from({ length: 13 }, (_, i) => `Lição ${i + 1}`);
-      }
+      if (!selectedRevista?.id) return [];
+
+      const { data, error } = await supabase
+        .from("ebd_licoes")
+        .select("numero_licao, titulo")
+        .eq("revista_id", selectedRevista.id)
+        .order("numero_licao");
+
+      if (error) throw error;
+
+      const byNumero = new Map<number, string>();
+      (data || []).forEach((l: any) => {
+        const n = Number(l.numero_licao);
+        if (Number.isFinite(n) && l.titulo) byNumero.set(n, l.titulo);
+      });
+
+      // Retorna sempre 13 posições (1..13), usando fallback se algum título estiver faltando no banco
+      return Array.from({ length: 13 }, (_, i) => byNumero.get(i + 1) || `Lição ${i + 1}`);
     },
     enabled: !!selectedRevista && open && currentStep >= 4,
-    staleTime: 1000 * 60 * 30, // Cache por 30 minutos
+    staleTime: 1000 * 60 * 30,
   });
 
   // Calcular datas das aulas
@@ -876,7 +761,10 @@ export function AplicarRevistaDialog({
                 ) : (
                   <div className="space-y-3">
                     {aulasCalculadas.map((aula) => {
-                      const tituloLicao = licoesRevista?.[aula.numero - 1] || `Lição ${aula.numero}`;
+                      const rawTitulo = licoesRevista?.[aula.numero - 1] || `Lição ${aula.numero}`;
+                      const tituloLicao = /^lição\s*\d+/i.test(rawTitulo)
+                        ? rawTitulo
+                        : `Lição ${aula.numero}: ${rawTitulo}`;
                       
                       return (
                         <div key={aula.numero} className="border rounded-lg p-4">
