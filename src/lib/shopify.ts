@@ -1,9 +1,11 @@
 // Shopify Storefront API Configuration
-// Loja principal (única) usada pelo sistema
+// Loja principal (única) usada pelo sistema: kgg1pq-6r.myshopify.com
+// O token é armazenado em secret e usado via edge function
+import { supabase } from "@/integrations/supabase/client";
+
 export const SHOPIFY_API_VERSION = '2025-07';
 export const SHOPIFY_STORE_PERMANENT_DOMAIN = 'kgg1pq-6r.myshopify.com';
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_STOREFRONT_TOKEN = 'acced35bcf6ac2b59c79ee0ab2b8e57f';
 
 export interface ShopifyProduct {
   node: {
@@ -162,64 +164,22 @@ const CART_CREATE_MUTATION = `
   }
 `;
 
-export async function storefrontApiRequest(query: string, variables: Record<string, unknown> = {}) {
-  const response = await fetch(SHOPIFY_STOREFRONT_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Storefront-Access-Token': SHOPIFY_STOREFRONT_TOKEN
-    },
-    body: JSON.stringify({
-      query,
-      variables,
-    }),
-  });
-
-  if (response.status === 402) {
-    throw new Error('Shopify API access requires an active Shopify billing plan.');
-  }
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
-  
-  if (data.errors) {
-    throw new Error(`Error calling Shopify: ${data.errors.map((e: { message: string }) => e.message).join(', ')}`);
-  }
-
-  return data;
-}
-
+// Buscar produtos via Edge Function (usa token do secret)
 export async function fetchShopifyProducts(first: number = 250, query?: string): Promise<ShopifyProduct[]> {
-  const allProducts: ShopifyProduct[] = [];
-  let hasNextPage = true;
-  let cursor: string | null = null;
+  const { data, error } = await supabase.functions.invoke('shopify-storefront-products', {
+    body: { first, query }
+  });
   
-  // Buscar todos os produtos com paginação (máximo 250 por requisição)
-  while (hasNextPage) {
-    const data = await storefrontApiRequest(STOREFRONT_QUERY, { 
-      first: Math.min(first, 250), // Shopify max is 250
-      query,
-      after: cursor 
-    });
-    
-    const products = data.data.products.edges;
-    const pageInfo = data.data.products.pageInfo;
-    
-    allProducts.push(...products);
-    
-    hasNextPage = pageInfo.hasNextPage;
-    cursor = pageInfo.endCursor;
-    
-    // Se já buscamos o suficiente, parar
-    if (allProducts.length >= first) {
-      hasNextPage = false;
-    }
+  if (error) {
+    console.error('Error fetching Shopify products:', error);
+    throw new Error(`Erro ao buscar produtos: ${error.message}`);
   }
   
-  return allProducts;
+  if (!data.success) {
+    throw new Error(data.error || 'Erro desconhecido ao buscar produtos');
+  }
+  
+  return data.products || [];
 }
 
 export interface BuyerInfo {
@@ -243,11 +203,11 @@ export async function createStorefrontCheckout(items: CartItem[], buyerInfo?: Bu
     merchandiseId: item.variantId,
   }));
 
-  // Build input with optional buyer identity
-  const input: Record<string, unknown> = { lines };
+  // Build buyer identity if provided
+  let buyerIdentity: Record<string, unknown> | undefined;
   
   if (buyerInfo) {
-    const buyerIdentity: Record<string, unknown> = {};
+    buyerIdentity = {};
     
     if (buyerInfo.email) {
       buyerIdentity.email = buyerInfo.email;
@@ -273,36 +233,32 @@ export async function createStorefrontCheckout(items: CartItem[], buyerInfo?: Bu
       }];
     }
     
-    if (Object.keys(buyerIdentity).length > 0) {
-      input.buyerIdentity = buyerIdentity;
+    if (Object.keys(buyerIdentity).length === 0) {
+      buyerIdentity = undefined;
     }
   }
 
-  const cartData = await storefrontApiRequest(CART_CREATE_MUTATION, { input });
+  const { data, error } = await supabase.functions.invoke('shopify-storefront-checkout', {
+    body: { lines, buyerIdentity }
+  });
 
-  if (cartData.data.cartCreate.userErrors.length > 0) {
-    const errorMessages = cartData.data.cartCreate.userErrors.map((e: { message: string }) => e.message);
-    // Check for common Shopify errors and translate to user-friendly messages
-    const hasUnavailableProduct = errorMessages.some((msg: string) => 
-      msg.toLowerCase().includes('no longer available') || 
-      msg.toLowerCase().includes('not available') ||
-      msg.toLowerCase().includes('out of stock')
-    );
+  if (error) {
+    console.error('Error creating checkout:', error);
+    throw new Error(`Erro ao criar checkout: ${error.message}`);
+  }
+
+  if (!data.success) {
+    const errorMessage = data.error || 'Erro desconhecido';
     
-    if (hasUnavailableProduct) {
+    // Check for common Shopify errors
+    if (errorMessage.toLowerCase().includes('no longer available') || 
+        errorMessage.toLowerCase().includes('not available') ||
+        errorMessage.toLowerCase().includes('out of stock')) {
       throw new Error('Um ou mais produtos no carrinho não estão mais disponíveis. Por favor, remova os itens indisponíveis e tente novamente.');
     }
     
-    throw new Error(`Erro ao criar carrinho: ${errorMessages.join(', ')}`);
+    throw new Error(errorMessage);
   }
 
-  const cart = cartData.data.cartCreate.cart;
-  
-  if (!cart.checkoutUrl) {
-    throw new Error('No checkout URL returned from Shopify');
-  }
-
-  const url = new URL(cart.checkoutUrl);
-  url.searchParams.set('channel', 'online_store');
-  return url.toString();
+  return data.checkoutUrl;
 }
