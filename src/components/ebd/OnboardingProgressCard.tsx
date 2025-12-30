@@ -34,6 +34,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DefinirDataInicioDialog } from "./DefinirDataInicioDialog";
 import { ConfigurarLancamentoDialog } from "./ConfigurarLancamentoDialog";
+import { AplicarRevistaDialog } from "./AplicarRevistaDialog";
 
 interface OnboardingProgressCardProps {
   churchId: string | null;
@@ -78,7 +79,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     }
   }, [churchId, progress?.concluido]);
   const [showAniversarioDialog, setShowAniversarioDialog] = useState(false);
-  const [showRevistasDialog, setShowRevistasDialog] = useState(false);
+  const [showAplicarRevistaDialog, setShowAplicarRevistaDialog] = useState(false);
   const [showDataInicioDialog, setShowDataInicioDialog] = useState(false);
   const [showConfigLancamentoDialog, setShowConfigLancamentoDialog] = useState(false);
   const [dataAniversario, setDataAniversario] = useState("");
@@ -182,17 +183,14 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
   const handleEtapaClick = (etapaId: number) => {
     if (etapaId === 6) {
       setShowAniversarioDialog(true);
-    } else if (etapaId === 1) {
-      // Etapa de aplicar revista - sempre mostrar dialog para escolher
+    } else if (etapaId === 1 || etapaId === 2 || etapaId === 3 || etapaId === 4 || etapaId === 5) {
+      // Etapas 1-5: abrir o wizard integrado de configuração de revista
       if (revistasNaoAplicadas.length > 0) {
-        setShowRevistasDialog(true);
+        setShowAplicarRevistaDialog(true);
       } else {
         // Sem revistas disponíveis, ir para o catálogo
         navigate("/ebd/catalogo");
       }
-    } else if (etapaId === 4) {
-      // Etapa de definir data de início - abrir dialog
-      setShowDataInicioDialog(true);
     } else if (etapaId === 7) {
       // Configurar lançamento - abrir modal
       setShowConfigLancamentoDialog(true);
@@ -210,12 +208,9 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     }
   };
 
-  const handleAplicarRevista = async (revista: RevistaBaseNaoAplicada) => {
-    setShowRevistasDialog(false);
-    // Marcar a etapa 1 como concluída com a revista selecionada
-    await marcarEtapa(1, revista.id);
-    // Navegar para cadastrar turma (próxima etapa do onboarding)
-    navigate("/ebd/turmas");
+  const handleConfigComplete = () => {
+    // Refetch progress após configuração
+    verificarEtapas();
   };
 
   return (
@@ -438,65 +433,14 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
         />
       )}
 
-      {/* Dialog para selecionar revista para aplicar */}
-      <Dialog open={showRevistasDialog} onOpenChange={setShowRevistasDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-primary" />
-              Escolha uma Revista para Aplicar
-            </DialogTitle>
-            <DialogDescription>
-              Você tem {revistasNaoAplicadas.length} revistas aguardando configuração. Selecione uma para vincular a uma turma.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[400px]">
-            <div className="space-y-3 py-4">
-              {revistasNaoAplicadas.map((revista) => (
-                <div 
-                  key={revista.id}
-                  className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  {revista.imagemUrl ? (
-                    <img 
-                      src={revista.imagemUrl} 
-                      alt={revista.titulo}
-                      className="w-16 h-20 object-cover rounded"
-                    />
-                  ) : (
-                    <div className="w-16 h-20 bg-muted rounded flex items-center justify-center">
-                      <BookOpen className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <h4 className="font-medium">{revista.titulo}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Quantidade: {revista.quantidade} unidade(s)
-                    </p>
-                  </div>
-                  <Button onClick={() => handleAplicarRevista(revista)}>
-                    Aplicar
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog para definir data de início */}
-      <DefinirDataInicioDialog
-        revista={progress.revistaIdentificadaId ? {
-          id: progress.revistaIdentificadaId,
-          titulo: progress.revistaIdentificadaTitulo || "Revista",
-          faixa_etaria_alvo: progress.revistaIdentificadaFaixaEtaria || "",
-          imagem_url: progress.revistaIdentificadaImagem || null,
-          num_licoes: progress.revistaIdentificadaNumLicoes || 13,
-        } : null}
-        open={showDataInicioDialog}
-        onOpenChange={setShowDataInicioDialog}
+      {/* Dialog integrado para configurar revista */}
+      <AplicarRevistaDialog
+        open={showAplicarRevistaDialog}
+        onOpenChange={setShowAplicarRevistaDialog}
         churchId={churchId}
-        onComplete={() => marcarEtapa(4)}
+        revistasNaoAplicadas={revistasNaoAplicadas}
+        onComplete={handleConfigComplete}
+        marcarEtapa={marcarEtapa}
       />
     </>
   );
