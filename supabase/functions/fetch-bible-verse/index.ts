@@ -52,8 +52,8 @@ const bookNameToEnglish: Record<string, string> = {
   "joão": "john", "joao": "john",
   "atos": "acts", "at": "acts",
   "romanos": "romans", "rm": "romans",
-  "1 coríntios": "1corinthians", "1corintios": "1corinthians", "1co": "1corinthians",
-  "2 coríntios": "2corinthians", "2corintios": "2corinthians", "2co": "2corinthians",
+  "1 coríntios": "1 corinthians", "1corintios": "1 corinthians", "1co": "1 corinthians",
+  "2 coríntios": "2 corinthians", "2corintios": "2 corinthians", "2co": "2 corinthians",
   "gálatas": "galatians", "galatas": "galatians", "gl": "galatians",
   "efésios": "ephesians", "efesios": "ephesians", "ef": "ephesians",
   "filipenses": "philippians", "fp": "philippians",
@@ -75,9 +75,22 @@ const bookNameToEnglish: Record<string, string> = {
   "apocalipse": "revelation", "ap": "revelation",
 };
 
+function normalizeKey(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const bookNameToEnglishNormalized: Record<string, string> = Object.fromEntries(
+  Object.entries(bookNameToEnglish).map(([k, v]) => [normalizeKey(k), v])
+);
+
 function normalizeBookName(book: string): string {
-  const normalized = book.toLowerCase().trim();
-  return bookNameToEnglish[normalized] || normalized;
+  const key = normalizeKey(book);
+  return bookNameToEnglishNormalized[key] || key;
 }
 
 interface ParsedReference {
@@ -113,8 +126,8 @@ function parseReference(reference: string): ParsedReference | null {
 
 async function fetchVerseFromAPI(ref: ParsedReference): Promise<{ text: string; verses: string[] } | null> {
   // Build the reference string for bible-api.com
-  // Format: "john 3:16" or "john 3:16-18"
-  let refString = `${ref.book}${ref.chapter}`;
+  // Format: "john 3:16" or "2corinthians 10:3-5"
+  let refString = `${ref.book} ${ref.chapter}`;
   if (ref.startVerse !== null) {
     refString += `:${ref.startVerse}`;
     if (ref.endVerse !== null) {
