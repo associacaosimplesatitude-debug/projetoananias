@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -65,8 +65,16 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     isLoading, 
     marcarEtapa, 
     usarCupomAniversario, 
-    isUsandoCupom 
+    isUsandoCupom,
+    verificarEtapas,
   } = useOnboardingProgress(churchId);
+  
+  // Verificar etapas ao montar o componente
+  useEffect(() => {
+    if (churchId && progress && !progress.concluido) {
+      verificarEtapas();
+    }
+  }, [churchId, progress?.concluido]);
   const [showAniversarioDialog, setShowAniversarioDialog] = useState(false);
   const [showRevistasDialog, setShowRevistasDialog] = useState(false);
   const [dataAniversario, setDataAniversario] = useState("");
