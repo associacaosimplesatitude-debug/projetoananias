@@ -83,7 +83,7 @@ export default function EBDDashboard() {
     }
   }, [profileData]);
 
-  // Get the church ID for the superintendent
+  // Get the church ID for the superintendent (usado pela maioria das tabelas EBD)
   const { data: churchData } = useQuery({
     queryKey: ['owner-church', user?.id],
     queryFn: async () => {
@@ -99,9 +99,25 @@ export default function EBDDashboard() {
     enabled: !!user?.id,
   });
 
-  const churchId = churchData?.id;
+  // Get the EBD cliente id (usado pela gamificação/onboarding)
+  const { data: ebdClienteData } = useQuery({
+    queryKey: ['ebd-cliente-onboarding', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('id, nome_igreja')
+        .eq('superintendente_user_id', user.id)
+        .eq('status_ativacao_ebd', true)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
 
-  // Fetch total alunos
+  const churchId = churchData?.id;
+  const ebdClienteId = ebdClienteData?.id ?? null;
   const { data: totalAlunos = 0 } = useQuery({
     queryKey: ['ebd-total-alunos', churchId],
     queryFn: async () => {
@@ -368,9 +384,7 @@ export default function EBDDashboard() {
       </div>
 
       {/* Card de Onboarding/Gamificação */}
-      <OnboardingProgressCard churchId={churchId} />
-
-      {/* Micro-KPIs */}
+      <OnboardingProgressCard churchId={ebdClienteId} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Total de Alunos */}
           <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
