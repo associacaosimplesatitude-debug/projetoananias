@@ -93,11 +93,22 @@ export function ConfigurarLancamentoDialog({
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Marcar etapa 7 como concluída
+      await supabase
+        .from("ebd_onboarding_progress")
+        .upsert({
+          church_id: churchId,
+          etapa_id: 7,
+          completada: true,
+          completada_em: new Date().toISOString(),
+        }, { onConflict: "church_id,etapa_id" });
+
       toast.success("Configurações de lançamento salvas!");
       queryClient.invalidateQueries({ queryKey: ["ebd-turmas"] });
       queryClient.invalidateQueries({ queryKey: ["ebd-turmas-config-lancamento", churchId] });
       queryClient.invalidateQueries({ queryKey: ["ebd-onboarding-progress", churchId] });
+      queryClient.invalidateQueries({ queryKey: ["ebd-onboarding-progress"] });
       onOpenChange(false);
     },
     onError: (err: any) => {
