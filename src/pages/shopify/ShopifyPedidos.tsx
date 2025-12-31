@@ -602,6 +602,13 @@ export default function ShopifyPedidos() {
         cep: selectedCliente.endereco_cep
       };
 
+      // Calcular o percentual de desconto real a salvar
+      // Para ADVEC: usar o percentual calculado (que reflete os 50% por produto)
+      // Para outros: usar o desconto percentual passado ou calculado
+      const descontoPercentualFinal = descontoCalculado 
+        ? descontoCalculado.descontoPercentual 
+        : descontoPercent;
+
       // Salvar proposta no banco
       const { data, error } = await supabase
         .from("vendedor_propostas")
@@ -615,7 +622,7 @@ export default function ShopifyPedidos() {
           valor_produtos: valorProdutos,
           valor_frete: valorFrete,
           valor_total: valorTotal,
-          desconto_percentual: descontoPercent,
+          desconto_percentual: descontoPercentualFinal,
           status: "PROPOSTA_PENDENTE",
           token: token,
           metodo_frete: frete?.type || null,

@@ -9,17 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { FileText, CreditCard, Clock, Receipt, CheckCircle2, Truck, Percent, Package } from "lucide-react";
+import { FileText, CreditCard, Clock, Receipt, CheckCircle2, Truck, Percent, Package, MapPin } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface ShippingOption {
-  type: 'pac' | 'sedex' | 'free';
+  type: 'pac' | 'sedex' | 'free' | 'retirada';
   label: string;
   cost: number;
   days?: number;
+  endereco?: string;
+  horario?: string;
 }
 
 interface FaturamentoSelectionDialogProps {
@@ -75,11 +77,19 @@ export function FaturamentoSelectionDialog({
 
   const fetchShippingOptions = async () => {
     if (!clienteCep) {
-      // No CEP, show only free option if applicable
+      // No CEP, show only free option if applicable + retirada
       const options: ShippingOption[] = [];
       if (totalProdutos >= 199.90) {
         options.push({ type: 'free', label: 'Frete Grátis', cost: 0 });
       }
+      // Sempre adicionar opção de retirada
+      options.push({
+        type: 'retirada',
+        label: 'Retirada na Matriz',
+        cost: 0,
+        endereco: 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
       setShippingOptions(options);
       return;
     }
@@ -122,6 +132,15 @@ export function FaturamentoSelectionDialog({
         options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
       }
 
+      // Sempre adicionar opção de retirada na matriz
+      options.push({
+        type: 'retirada',
+        label: 'Retirada na Matriz',
+        cost: 0,
+        endereco: 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
+
       setShippingOptions(options);
       
       // Auto-select free if available, otherwise PAC
@@ -141,6 +160,14 @@ export function FaturamentoSelectionDialog({
       if (totalProdutos >= 199.90) {
         fallbackOptions.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
       }
+      // Sempre adicionar retirada
+      fallbackOptions.push({
+        type: 'retirada',
+        label: 'Retirada na Matriz',
+        cost: 0,
+        endereco: 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
       setShippingOptions(fallbackOptions);
     } finally {
       setIsLoadingShipping(false);
@@ -332,23 +359,39 @@ export function FaturamentoSelectionDialog({
                     <div
                       key={option.type}
                       className={cn(
-                        "flex items-center space-x-3 rounded-lg border p-3 cursor-pointer transition-all",
+                        "flex flex-col rounded-lg border p-3 cursor-pointer transition-all",
                         selectedFrete === option.type 
                           ? "border-primary bg-primary/5" 
                           : "border-muted hover:border-primary/50"
                       )}
                       onClick={() => setSelectedFrete(option.type)}
                     >
-                      <RadioGroupItem value={option.type} id={option.type} />
-                      <Label htmlFor={option.type} className="flex-1 cursor-pointer flex justify-between items-center">
-                        <span>{option.label}</span>
-                        <span className={cn(
-                          "font-semibold",
-                          option.cost === 0 ? "text-green-600" : ""
-                        )}>
-                          {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
-                        </span>
-                      </Label>
+                      <div className="flex items-center space-x-3">
+                        <RadioGroupItem value={option.type} id={option.type} />
+                        <Label htmlFor={option.type} className="flex-1 cursor-pointer flex justify-between items-center">
+                          <span>{option.label}</span>
+                          <span className={cn(
+                            "font-semibold",
+                            option.cost === 0 ? "text-green-600" : ""
+                          )}>
+                            {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
+                          </span>
+                        </Label>
+                      </div>
+                      {option.type === 'retirada' && option.endereco && (
+                        <div className="ml-7 mt-2 text-xs text-muted-foreground">
+                          <p className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {option.endereco}
+                          </p>
+                          {option.horario && (
+                            <p className="flex items-center gap-1 mt-0.5">
+                              <Clock className="h-3 w-3" />
+                              {option.horario}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </RadioGroup>
