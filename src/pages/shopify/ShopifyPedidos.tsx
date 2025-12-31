@@ -32,6 +32,10 @@ import { useVendedor } from "@/hooks/useVendedor";
 import { FaturamentoSelectionDialog } from "@/components/shopify/FaturamentoSelectionDialog";
 import { DescontoRevendedorBanner } from "@/components/shopify/DescontoRevendedorBanner";
 import { CartQuantityField } from "@/components/shopify/CartQuantityField";
+import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
+import { FormaEnvioSection, FormaEnvio, MATRIZ_CONFIG } from "@/components/shopify/FormaEnvioSection";
+import { DescontoBanner } from "@/components/shopify/DescontoBanner";
+import { calcularDescontosCarrinho, calcularDescontoRevendedor } from "@/lib/descontosShopify";
 import {
   Select,
   SelectContent,
@@ -81,19 +85,9 @@ interface Cliente {
   desconto_faturamento: number | null;
   tipo_cliente?: string | null;
   vendedor?: Vendedor | null;
+  onboarding_concluido?: boolean | null;
+  superintendente_user_id?: string | null;
 }
-
-// Função para calcular desconto escalonado para REVENDEDORES
-const calcularDescontoRevendedor = (valorTotal: number): { faixa: string; desconto: number } => {
-  if (valorTotal >= 699.90) {
-    return { faixa: 'Ouro', desconto: 30 };
-  } else if (valorTotal >= 499.90) {
-    return { faixa: 'Prata', desconto: 25 };
-  } else if (valorTotal >= 299.90) {
-    return { faixa: 'Bronze', desconto: 20 };
-  }
-  return { faixa: '', desconto: 0 };
-};
 
 export default function ShopifyPedidos() {
   const navigate = useNavigate();
@@ -123,6 +117,21 @@ export default function ShopifyPedidos() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [messageCopied, setMessageCopied] = useState(false);
   const [propostaClienteNome, setPropostaClienteNome] = useState<string>("");
+  
+  // Estados para endereço e forma de envio
+  const [selectedEndereco, setSelectedEndereco] = useState<any>(null);
+  const [formaEnvio, setFormaEnvio] = useState<FormaEnvio>("entrega");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Fetch current user ID
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+    };
+    fetchUser();
+  }, []);
+
   // Definir categorias e subcategorias
   const categories = [
     { 
@@ -945,28 +954,82 @@ export default function ShopifyPedidos() {
                         ))}
                       </div>
                     </div>
+                      
+                    {/* Endereço de Entrega */}
+                    {selectedCliente && (
+                      <div className="border-t pt-4 px-2">
+                        <EnderecoEntregaSection
+                          userId={currentUserId || selectedCliente.superintendente_user_id || null}
+                          clienteEndereco={{
+                            rua: selectedCliente.endereco_rua,
+                            numero: selectedCliente.endereco_numero,
+                            bairro: selectedCliente.endereco_bairro,
+                            cidade: selectedCliente.endereco_cidade,
+                            estado: selectedCliente.endereco_estado,
+                            cep: selectedCliente.endereco_cep
+                          }}
+                          clienteNome={selectedCliente.nome_igreja}
+                          selectedEndereco={selectedEndereco}
+                          onEnderecoChange={setSelectedEndereco}
+                        />
+                      </div>
+                    )}
+
+                    {/* Forma de Envio */}
+                    {selectedCliente && (
+                      <div className="border-t pt-4 px-2">
+                        <FormaEnvioSection
+                          value={formaEnvio}
+                          onChange={setFormaEnvio}
+                        />
+                      </div>
+                    )}
                     
                     <div className="flex-shrink-0 space-y-4 pt-4 border-t bg-background">
-                      {/* Banner de desconto para revendedores */}
-                      {selectedCliente?.tipo_cliente?.toUpperCase() === 'REVENDEDOR' && items.length > 0 && (
-                        <DescontoRevendedorBanner valorTotal={totalPrice} />
-                      )}
+                      {/* Banner de desconto dinâmico */}
+                      {selectedCliente && items.length > 0 && (() => {
+                        const calculo = calcularDescontosCarrinho(
+                          items,
+                          selectedCliente.tipo_cliente,
+                          selectedCliente.onboarding_concluido || false,
+                          selectedCliente.desconto_faturamento || 0
+                        );
+                        return <DescontoBanner calculo={calculo} />;
+                      })()}
                       
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-semibold">Total</span>
                         <div className="text-right">
-                          {selectedCliente?.tipo_cliente?.toUpperCase() === 'REVENDEDOR' && totalPrice >= 299.90 && (
-                            <span className="text-sm text-muted-foreground line-through block">
+                          {selectedCliente && (() => {
+                            const calculo = calcularDescontosCarrinho(
+                              items,
+                              selectedCliente.tipo_cliente,
+                              selectedCliente.onboarding_concluido || false,
+                              selectedCliente.desconto_faturamento || 0
+                            );
+                            if (calculo.descontoValor > 0) {
+                              return (
+                                <>
+                                  <span className="text-sm text-muted-foreground line-through block">
+                                    R$ {calculo.subtotal.toFixed(2)}
+                                  </span>
+                                  <span className="text-xl font-bold">
+                                    R$ {calculo.total.toFixed(2)}
+                                  </span>
+                                </>
+                              );
+                            }
+                            return (
+                              <span className="text-xl font-bold">
+                                R$ {totalPrice.toFixed(2)}
+                              </span>
+                            );
+                          })()}
+                          {!selectedCliente && (
+                            <span className="text-xl font-bold">
                               R$ {totalPrice.toFixed(2)}
                             </span>
                           )}
-                          <span className="text-xl font-bold">
-                            {selectedCliente?.tipo_cliente?.toUpperCase() === 'REVENDEDOR' && totalPrice >= 299.90 ? (
-                              `R$ ${(totalPrice * (1 - calcularDescontoRevendedor(totalPrice).desconto / 100)).toFixed(2)}`
-                            ) : (
-                              `R$ ${totalPrice.toFixed(2)}`
-                            )}
-                          </span>
                         </div>
                       </div>
                       
