@@ -24,6 +24,7 @@ import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDi
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import { AulasRestantesCard } from "@/components/vendedor/AulasRestantesCard";
 import { ClientesParaAtivarCard } from "@/components/vendedor/ClientesParaAtivarCard";
+import { AniversariantesCard } from "@/components/ebd/AniversariantesCard";
 import { useVendedor } from "@/hooks/useVendedor";
 
 export default function VendedorDashboard() {
@@ -343,6 +344,19 @@ export default function VendedorDashboard() {
 
       {/* Aulas Restantes Card */}
       <AulasRestantesCard vendedorId={vendedor.id} />
+
+      {/* Card de Aniversariantes */}
+      <AniversariantesCard 
+        igrejas={clientes.map(c => ({
+          id: c.id,
+          nome: c.nome_igreja,
+          data_aniversario_pastor: c.data_aniversario_pastor,
+          data_aniversario_superintendente: c.data_aniversario_superintendente,
+          cupom_aniversario_usado: c.cupom_aniversario_usado,
+          tipo_cliente: c.tipo_cliente,
+          responsavel: c.nome_responsavel || c.nome_superintendente,
+        }))}
+      />
 
       {/* Lead Scoring KPIs */}
       <LeadScoringKPIs vendedorId={vendedor.id} />

@@ -1303,6 +1303,7 @@ export type Database = {
           endereco_numero: string | null
           endereco_rua: string | null
           id: string
+          modal_aniversario_visualizado_em: string | null
           nome_igreja: string
           nome_responsavel: string | null
           nome_superintendente: string | null
@@ -1343,6 +1344,7 @@ export type Database = {
           endereco_numero?: string | null
           endereco_rua?: string | null
           id?: string
+          modal_aniversario_visualizado_em?: string | null
           nome_igreja: string
           nome_responsavel?: string | null
           nome_superintendente?: string | null
@@ -1383,6 +1385,7 @@ export type Database = {
           endereco_numero?: string | null
           endereco_rua?: string | null
           id?: string
+          modal_aniversario_visualizado_em?: string | null
           nome_igreja?: string
           nome_responsavel?: string | null
           nome_superintendente?: string | null
@@ -1406,6 +1409,56 @@ export type Database = {
             columns: ["vendedor_id"]
             isOneToOne: false
             referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_creditos: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          descricao: string | null
+          id: string
+          pedido_id: string | null
+          tipo: string
+          updated_at: string
+          usado: boolean
+          usado_em: string | null
+          validade: string | null
+          valor: number
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          pedido_id?: string | null
+          tipo: string
+          updated_at?: string
+          usado?: boolean
+          usado_em?: string | null
+          validade?: string | null
+          valor?: number
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          pedido_id?: string | null
+          tipo?: string
+          updated_at?: string
+          usado?: boolean
+          usado_em?: string | null
+          validade?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_creditos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
             referencedColumns: ["id"]
           },
         ]
