@@ -122,7 +122,17 @@ export function DefinirDataInicioDialog({
 
       if (updateError) throw updateError;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Marcar etapa 4 como concluída
+      await supabase
+        .from("ebd_onboarding_progress")
+        .upsert({
+          church_id: churchId,
+          etapa_id: 4,
+          completada: true,
+          completada_em: new Date().toISOString(),
+        }, { onConflict: "church_id,etapa_id" });
+
       queryClient.invalidateQueries({ queryKey: ['ebd-planejamentos'] });
       queryClient.invalidateQueries({ queryKey: ['ebd-onboarding-progress'] });
       toast.success('Data de início definida com sucesso!');
