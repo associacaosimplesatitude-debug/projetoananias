@@ -52,14 +52,6 @@ export function AlunoLayout() {
 
   const SidebarContent = ({ onItemClick }: { onItemClick?: () => void }) => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="p-4 border-b border-white/10 flex items-center justify-center">
-        {sidebarCollapsed ? (
-          <img src={logoUrl} alt="Logo" className="h-8 w-8 object-contain" />
-        ) : (
-          <img src={logoUrl} alt="Logo" className="h-10 max-w-[160px] object-contain" />
-        )}
-      </div>
 
       {/* Menu Items */}
       <nav className="flex-1 py-4 overflow-y-auto">
