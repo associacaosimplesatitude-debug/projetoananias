@@ -1,16 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,16 +14,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { 
   ShoppingCart, 
-  CheckCircle,
-  XCircle,
   UserPlus,
   Play,
-  MapPin,
-  Pencil,
-  Trash2,
   Search,
   Percent,
-  BookOpen
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,6 +32,7 @@ import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { DescontoFaturamentoDialog } from "@/components/vendedor/DescontoFaturamentoDialog";
 import { LancamentoManualRevistaDialog } from "@/components/vendedor/LancamentoManualRevistaDialog";
+import { ClienteCard } from "@/components/ebd/ClienteCard";
 import { useVendedor } from "@/hooks/useVendedor";
 import { toast } from "sonner";
 
@@ -78,6 +64,8 @@ interface Cliente {
   senha_temporaria: string | null;
   pode_faturar: boolean;
   desconto_faturamento: number | null;
+  cupom_aniversario_usado: boolean | null;
+  cupom_aniversario_ano: number | null;
 }
 
 export default function VendedorClientes() {
@@ -99,7 +87,6 @@ export default function VendedorClientes() {
     queryFn: async () => {
       if (!vendedor?.id) return [];
 
-      // 1) Clientes cadastrados diretamente na carteira do vendedor
       const { data: ebdClientesData, error: ebdClientesError } = await supabase
         .from("ebd_clientes")
         .select("*")
@@ -107,15 +94,12 @@ export default function VendedorClientes() {
         .order("created_at", { ascending: false });
       if (ebdClientesError) throw ebdClientesError;
 
-      // 2) Clientes com Módulo EBD (assinaturas) atribuídos ao vendedor via tabela churches
       const { data: assinaturasData, error: assinaturasError } = await supabase
         .from("assinaturas")
-        .select(
-          `
+        .select(`
           cliente_id,
           church:churches(id, church_name, city, state, vendedor_id)
-        `
-        )
+        `)
         .eq("status", "Ativo");
       if (assinaturasError) throw assinaturasError;
 
@@ -151,10 +135,11 @@ export default function VendedorClientes() {
             senha_temporaria: null,
             pode_faturar: false,
             desconto_faturamento: null,
+            cupom_aniversario_usado: null,
+            cupom_aniversario_ano: null,
           } as Cliente;
         });
 
-      // Evita duplicar quando o mesmo ID também existe em ebd_clientes
       const ebdClientesIds = new Set((ebdClientesData || []).map((c: any) => c.id));
       const merged = [
         ...(ebdClientesData || []),
@@ -165,6 +150,34 @@ export default function VendedorClientes() {
     },
     enabled: !!vendedor?.id,
   });
+
+  // Fetch credits for all clients
+  const clienteIds = clientes.map(c => c.id);
+  const { data: creditos = [] } = useQuery({
+    queryKey: ["clientes-creditos", clienteIds],
+    queryFn: async () => {
+      if (clienteIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("ebd_creditos")
+        .select("*")
+        .in("cliente_id", clienteIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: clienteIds.length > 0,
+  });
+
+  // Calculate credits per client
+  const getCreditosForCliente = (clienteId: string) => {
+    const clienteCreditos = creditos.filter(c => c.cliente_id === clienteId);
+    const disponiveis = clienteCreditos
+      .filter(c => !c.usado && (!c.validade || new Date(c.validade) >= new Date()))
+      .reduce((sum, c) => sum + Number(c.valor), 0);
+    const usados = clienteCreditos
+      .filter(c => c.usado)
+      .reduce((sum, c) => sum + Number(c.valor), 0);
+    return { disponiveis, usados };
+  };
 
   const loading = vendedorLoading || clientesLoading;
 
@@ -185,7 +198,6 @@ export default function VendedorClientes() {
     if (!clienteParaExcluir) return;
     setExcluindo(true);
     try {
-      // Check if client has orders
       const { count: ordersCount } = await supabase
         .from("ebd_shopify_pedidos")
         .select("*", { count: "exact", head: true })
@@ -218,27 +230,8 @@ export default function VendedorClientes() {
     }
   };
 
-  const formatDocumento = (cliente: Cliente) => {
-    const doc = cliente.cnpj || cliente.cpf || "";
-    if (doc.length === 14) {
-      return doc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-    } else if (doc.length === 11) {
-      return doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    }
-    return doc;
-  };
-
-  const getLocalizacao = (cliente: Cliente) => {
-    if (cliente.endereco_cidade && cliente.endereco_estado) {
-      return `${cliente.endereco_cidade}/${cliente.endereco_estado}`;
-    }
-    return "-";
-  };
-
-  // Get unique estados for filter
   const estadosUnicos = [...new Set(clientes.map(c => c.endereco_estado).filter(Boolean))].sort();
 
-  // Filter clients
   const filteredClientes = clientes.filter((cliente) => {
     const matchesSearch = 
       cliente.nome_igreja.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -321,111 +314,67 @@ export default function VendedorClientes() {
               {clientes.length === 0 ? "Nenhum cliente cadastrado" : "Nenhum cliente encontrado com os filtros selecionados"}
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Responsável</TableHead>
-                  <TableHead>Localização</TableHead>
-                  <TableHead>CNPJ/CPF</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClientes.map((cliente) => (
-                  <TableRow key={cliente.id}>
-                    <TableCell className="font-medium">{cliente.nome_igreja}</TableCell>
-                    <TableCell>{cliente.nome_responsavel || cliente.nome_superintendente || "-"}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        {getLocalizacao(cliente)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{formatDocumento(cliente)}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        {cliente.status_ativacao_ebd ? (
-                          <Badge variant="default" className="bg-green-500 w-fit">
-                            <CheckCircle className="mr-1 h-3 w-3" />
-                            Ativo
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="w-fit">
-                            <XCircle className="mr-1 h-3 w-3" />
-                            Pendente
-                          </Badge>
-                        )}
-                        {cliente.pode_faturar && (
-                          <Badge variant="outline" className="w-fit text-blue-600 border-blue-300 bg-blue-50">
-                            B2B {cliente.desconto_faturamento ? `(-${cliente.desconto_faturamento}%)` : ''}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditarCliente(cliente)}
-                          title="Editar cliente"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setClienteParaLancamento(cliente)}
-                          title="Lançamento manual de revistas"
-                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                        >
-                          <BookOpen className="h-4 w-4" />
-                        </Button>
-                        {cliente.pode_faturar && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setClienteParaDesconto(cliente)}
-                            title="Configurar desconto de faturamento"
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          >
-                            <Percent className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setClienteParaExcluir(cliente)}
-                          title="Excluir cliente"
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleFazerPedido(cliente)}
-                        >
-                          <ShoppingCart className="mr-1 h-4 w-4" />
-                          PEDIDO
-                        </Button>
-                        {!cliente.status_ativacao_ebd && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleAtivarPainel(cliente)}
-                          >
-                            <Play className="mr-1 h-4 w-4" />
-                            ATIVAR
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredClientes.map((cliente) => (
+                <div key={cliente.id} className="relative">
+                  <ClienteCard
+                    cliente={{
+                      id: cliente.id,
+                      nome_igreja: cliente.nome_igreja,
+                      nome_responsavel: cliente.nome_responsavel,
+                      nome_superintendente: cliente.nome_superintendente,
+                      endereco_cidade: cliente.endereco_cidade,
+                      endereco_estado: cliente.endereco_estado,
+                      cnpj: cliente.cnpj,
+                      cpf: cliente.cpf,
+                      status_ativacao_ebd: cliente.status_ativacao_ebd,
+                      tipo_cliente: cliente.tipo_cliente,
+                      data_aniversario_pastor: cliente.data_aniversario_pastor,
+                      data_aniversario_superintendente: cliente.data_aniversario_superintendente,
+                      cupom_aniversario_usado: cliente.cupom_aniversario_usado,
+                      cupom_aniversario_ano: cliente.cupom_aniversario_ano,
+                    }}
+                    creditos={getCreditosForCliente(cliente.id)}
+                    onEdit={() => handleEditarCliente(cliente)}
+                    onLancamentoManual={() => setClienteParaLancamento(cliente)}
+                    isAdmin={false}
+                  />
+                  {/* Action buttons overlay */}
+                  <div className="absolute bottom-14 right-4 flex gap-1">
+                    {cliente.pode_faturar && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setClienteParaDesconto(cliente)}
+                        title="Configurar desconto de faturamento"
+                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      >
+                        <Percent className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleFazerPedido(cliente)}
+                      className="h-8"
+                    >
+                      <ShoppingCart className="mr-1 h-4 w-4" />
+                      Pedido
+                    </Button>
+                    {!cliente.status_ativacao_ebd && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleAtivarPainel(cliente)}
+                        className="h-8"
+                      >
+                        <Play className="mr-1 h-4 w-4" />
+                        Ativar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -458,18 +407,14 @@ export default function VendedorClientes() {
       <AlertDialog open={!!clienteParaExcluir} onOpenChange={(open) => !open && setClienteParaExcluir(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Cliente</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o cliente <strong>{clienteParaExcluir?.nome_igreja}</strong>?
+              Tem certeza que deseja excluir o cliente "{clienteParaExcluir?.nome_igreja}"? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={excluindo}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleExcluirCliente}
-              disabled={excluindo}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={handleExcluirCliente} disabled={excluindo}>
               {excluindo ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
