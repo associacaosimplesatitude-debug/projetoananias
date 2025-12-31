@@ -645,18 +645,10 @@ export const useOnboardingProgress = (churchId: string | null) => {
       marcarEtapaMutation.mutate({ etapaId: 6 });
     }
 
-    // Etapa 7: Verificar se configurou lançamento (tem turma ativa)
-    if (!progressData.etapas.find(e => e.id === 7)?.completada) {
-      const { count: turmasCount } = await supabase
-        .from("ebd_turmas")
-        .select("*", { count: "exact", head: true })
-        .eq("church_id", churchId)
-        .eq("is_active", true);
-
-      if (turmasCount && turmasCount > 0) {
-        marcarEtapaMutation.mutate({ etapaId: 7 });
-      }
-    }
+    // Etapa 7: Verificar se configurou lançamento
+    // Essa etapa deve ser marcada MANUALMENTE pelo usuário ao abrir o dialog de configuração
+    // Não verificar automaticamente baseado em turmas - isso era um bug que marcava 
+    // a etapa 7 junto com a etapa 2 (ambas verificavam turmas)
   }, [churchId, progressData, revistasNaoAplicadas, marcarEtapaMutation]);
 
   // Verificar etapas automaticamente ao carregar e quando mudar dados relevantes
