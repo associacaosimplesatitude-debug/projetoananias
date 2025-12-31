@@ -965,7 +965,7 @@ export default function ShopifyPedidos() {
                     {selectedCliente && (
                       <div className="border-t pt-4 px-2">
                         <EnderecoEntregaSection
-                          userId={currentUserId || selectedCliente.superintendente_user_id || null}
+                          clienteId={selectedCliente.id}
                           clienteEndereco={{
                             rua: selectedCliente.endereco_rua,
                             numero: selectedCliente.endereco_numero,

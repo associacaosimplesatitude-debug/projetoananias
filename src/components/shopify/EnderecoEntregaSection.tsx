@@ -28,7 +28,7 @@ interface Endereco {
 }
 
 interface EnderecoEntregaSectionProps {
-  userId: string | null;
+  clienteId: string | null;
   clienteEndereco?: {
     rua?: string | null;
     numero?: string | null;
@@ -43,7 +43,7 @@ interface EnderecoEntregaSectionProps {
 }
 
 export function EnderecoEntregaSection({
-  userId,
+  clienteId,
   clienteEndereco,
   clienteNome,
   onEnderecoChange,
@@ -60,20 +60,20 @@ export function EnderecoEntregaSection({
 
   const queryClient = useQueryClient();
 
-  // Fetch saved addresses
+  // Fetch saved addresses for this specific client
   const { data: enderecosSalvos } = useQuery({
-    queryKey: ["enderecos-entrega", userId],
+    queryKey: ["enderecos-entrega", clienteId],
     queryFn: async () => {
-      if (!userId) return [];
+      if (!clienteId) return [];
       const { data, error } = await supabase
         .from("ebd_endereco_entrega")
         .select("*")
-        .eq("user_id", userId)
+        .eq("user_id", clienteId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as Endereco[];
     },
-    enabled: !!userId
+    enabled: !!clienteId
   });
 
   // Create principal address from cliente data
@@ -137,13 +137,13 @@ export function EnderecoEntregaSection({
   // Save new address
   const saveEndereco = useMutation({
     mutationFn: async () => {
-      if (!userId) throw new Error("Usuário não autenticado");
+      if (!clienteId) throw new Error("Cliente não selecionado");
       
-      // Check if address with same name already exists for this user
+      // Check if address with same name already exists for this client
       const { data: existing } = await supabase
         .from("ebd_endereco_entrega")
         .select("id")
-        .eq("user_id", userId)
+        .eq("user_id", clienteId)
         .eq("nome", newEndereco.nome)
         .maybeSingle();
       
@@ -174,7 +174,7 @@ export function EnderecoEntregaSection({
         const { data, error } = await supabase
           .from("ebd_endereco_entrega")
           .insert({
-            user_id: userId,
+            user_id: clienteId,
             nome: newEndereco.nome,
             sobrenome: newEndereco.sobrenome || null,
             cpf_cnpj: newEndereco.cpf_cnpj || null,
@@ -195,7 +195,7 @@ export function EnderecoEntregaSection({
       }
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["enderecos-entrega", userId] });
+      queryClient.invalidateQueries({ queryKey: ["enderecos-entrega", clienteId] });
       setShowAddDialog(false);
       setNewEndereco({
         nome: "", sobrenome: "", cpf_cnpj: "", email: "", telefone: "",
@@ -249,7 +249,7 @@ export function EnderecoEntregaSection({
               {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
           </CollapsibleTrigger>
-          {userId && (
+          {clienteId && (
             <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setShowAddDialog(true)}>
               <Plus className="h-3 w-3 mr-1" />
               Novo
@@ -317,7 +317,7 @@ export function EnderecoEntregaSection({
         <Card className="border-dashed">
           <CardContent className="p-3 text-center">
             <p className="text-xs text-muted-foreground mb-2">Nenhum endereço cadastrado</p>
-            {userId && (
+            {clienteId && (
               <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
                 <Plus className="h-3 w-3 mr-1" />
                 Cadastrar
