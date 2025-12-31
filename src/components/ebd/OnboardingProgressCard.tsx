@@ -98,6 +98,24 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
 
   if (!progress) return null;
 
+  const revistaParaDataInicio = progress.revistaIdentificadaId
+    ? {
+        id: progress.revistaIdentificadaId,
+        titulo: progress.revistaIdentificadaTitulo || "",
+        faixa_etaria_alvo: progress.revistaIdentificadaFaixaEtaria || "",
+        imagem_url: progress.revistaIdentificadaImagem,
+        num_licoes: progress.revistaIdentificadaNumLicoes || 13,
+      }
+    : revistasNaoAplicadas.length === 1
+      ? {
+          id: revistasNaoAplicadas[0].id,
+          titulo: revistasNaoAplicadas[0].titulo,
+          faixa_etaria_alvo: "",
+          imagem_url: revistasNaoAplicadas[0].imagemUrl,
+          num_licoes: 13,
+        }
+      : null;
+
   // Card especial de aniversário
   if (progress.cupomAniversarioDisponivel) {
     return (
@@ -465,13 +483,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
         open={showDataInicioDialog}
         onOpenChange={setShowDataInicioDialog}
         churchId={churchId}
-        revista={progress?.revistaIdentificadaId ? {
-          id: progress.revistaIdentificadaId,
-          titulo: progress.revistaIdentificadaTitulo || "",
-          faixa_etaria_alvo: progress.revistaIdentificadaFaixaEtaria || "",
-          imagem_url: progress.revistaIdentificadaImagem,
-          num_licoes: progress.revistaIdentificadaNumLicoes || 13,
-        } : null}
+        revista={revistaParaDataInicio}
         onComplete={handleConfigComplete}
       />
     </>
