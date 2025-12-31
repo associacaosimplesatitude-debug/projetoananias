@@ -114,13 +114,13 @@ export function calcularDescontosCarrinho(
     items.forEach(item => {
       const isProdutoEspecial = isProdutoAdvec50(item.product.node.title, item.product.node.id);
       const precoUnitario = parseFloat(item.price.amount);
-      
+      const percentual = isProdutoEspecial ? 50 : 40;
+
       if (isProdutoEspecial) {
         itensAdvec50.push(item.product.node.title);
-        valorComDesconto += (precoUnitario * 0.5) * item.quantity; // 50% off
-      } else {
-        valorComDesconto += precoUnitario * item.quantity; // Preço normal
       }
+
+      valorComDesconto += (precoUnitario * (1 - percentual / 100)) * item.quantity;
     });
     
     const descontoValor = subtotal - valorComDesconto;
