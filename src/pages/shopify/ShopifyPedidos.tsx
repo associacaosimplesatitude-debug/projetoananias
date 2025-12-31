@@ -35,7 +35,7 @@ import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
 
 import { DescontoBanner } from "@/components/shopify/DescontoBanner";
-import { calcularDescontosCarrinho, calcularDescontoRevendedor } from "@/lib/descontosShopify";
+import { calcularDescontosCarrinho, calcularDescontoRevendedor, isProdutoAdvec50 } from "@/lib/descontosShopify";
 import {
   Select,
   SelectContent,
@@ -576,14 +576,27 @@ export default function ShopifyPedidos() {
         valorTotal = valorProdutos - valorDesconto + valorFrete;
       }
 
-      // Preparar itens para salvar
-      const itensParaSalvar = items.map(item => ({
-        variantId: item.variantId,
-        quantity: item.quantity,
-        title: item.product.node.title,
-        price: item.price.amount,
-        imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null
-      }));
+      // Preparar itens para salvar (incluindo desconto por item para ADVEC)
+      const itensParaSalvar = items.map(item => {
+        // Calcular desconto individual para cada item
+        let descontoItem = descontoPercent; // Desconto padrão
+        
+        // Se for ADVEC, verificar se o produto tem desconto de 50%
+        if (descontoCalculado?.tipoDesconto === "advec_50") {
+          // Usar a função isProdutoAdvec50 para verificar corretamente
+          const isProdutoEspecial = isProdutoAdvec50(item.product.node.title, item.product.node.id);
+          descontoItem = isProdutoEspecial ? 50 : 40; // 50% para livros ADVEC, 40% para revistas
+        }
+        
+        return {
+          variantId: item.variantId,
+          quantity: item.quantity,
+          title: item.product.node.title,
+          price: item.price.amount,
+          imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
+          descontoItem: descontoItem
+        };
+      });
 
       // Preparar endereço - usar o endereço selecionado se existir, senão usar endereço do cliente
       const clienteEndereco = selectedEndereco ? {

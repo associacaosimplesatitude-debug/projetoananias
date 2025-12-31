@@ -17,6 +17,7 @@ interface PropostaItem {
   title: string;
   price: string;
   imageUrl?: string;
+  descontoItem?: number; // Desconto específico do item (50% para livros ADVEC, 40% para revistas, etc.)
 }
 
 interface ShippingOption {
@@ -363,8 +364,18 @@ export default function PropostaDigital() {
   const isAccepted = proposta.status === "PROPOSTA_ACEITA";
   const isAguardandoPagamento = proposta.status === "AGUARDANDO_PAGAMENTO";
 
-  // Calculate installment values
-  const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * proposta.desconto_percentual / 100);
+  // Calculate total discount by summing individual item discounts
+  const calcularDescontoTotal = () => {
+    return proposta.itens.reduce((total, item) => {
+      const precoOriginal = parseFloat(item.price) * item.quantity;
+      const descontoDoItem = item.descontoItem ?? proposta.desconto_percentual;
+      const valorDesconto = precoOriginal * (descontoDoItem / 100);
+      return total + valorDesconto;
+    }, 0);
+  };
+  
+  const descontoTotalCalculado = calcularDescontoTotal();
+  const valorComDesconto = proposta.valor_produtos - descontoTotalCalculado;
   const valorTotalFinal = valorComDesconto + proposta.valor_frete;
   const parcela2x = valorTotalFinal / 2;
   const parcela3x = valorTotalFinal / 3;
@@ -498,10 +509,12 @@ export default function PropostaDigital() {
             <div className="space-y-4">
               {proposta.itens.map((item, index) => {
                 const precoOriginal = parseFloat(item.price) * item.quantity;
-                const precoComDesconto = proposta.desconto_percentual > 0 
-                  ? precoOriginal * (1 - proposta.desconto_percentual / 100)
+                // Usar desconto individual do item se disponível, senão usar o desconto global
+                const descontoDoItem = item.descontoItem ?? proposta.desconto_percentual;
+                const precoComDesconto = descontoDoItem > 0 
+                  ? precoOriginal * (1 - descontoDoItem / 100)
                   : precoOriginal;
-                const temDesconto = proposta.desconto_percentual > 0;
+                const temDesconto = descontoDoItem > 0;
                 
                 return (
                   <div 
@@ -520,7 +533,14 @@ export default function PropostaDigital() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{item.title}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{item.title}</p>
+                        {temDesconto && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs flex-shrink-0">
+                            {descontoDoItem}% OFF
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         Quantidade: {item.quantity}
                       </p>
@@ -541,7 +561,7 @@ export default function PropostaDigital() {
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        R$ {parseFloat(item.price).toFixed(2)} cada
+                        R$ {(parseFloat(item.price) * (1 - descontoDoItem / 100)).toFixed(2)} cada
                       </p>
                     </div>
                   </div>
@@ -553,16 +573,16 @@ export default function PropostaDigital() {
             <div className="mt-6 pt-4 border-t space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotal dos produtos:</span>
-                <span className={proposta.desconto_percentual > 0 ? "text-muted-foreground line-through" : ""}>
+                <span className={descontoTotalCalculado > 0 ? "text-muted-foreground line-through" : ""}>
                   R$ {proposta.valor_produtos.toFixed(2)}
                 </span>
               </div>
               
-              {proposta.desconto_percentual > 0 && (
+              {descontoTotalCalculado > 0 && (
                 <>
                   <div className="flex justify-between text-sm text-green-600 font-medium">
-                    <span>Desconto ({proposta.desconto_percentual}%):</span>
-                    <span>- R$ {(proposta.valor_produtos * proposta.desconto_percentual / 100).toFixed(2)}</span>
+                    <span>Total de desconto:</span>
+                    <span>- R$ {descontoTotalCalculado.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm font-medium">
                     <span>Subtotal com desconto:</span>
@@ -606,12 +626,12 @@ export default function PropostaDigital() {
               </div>
               
               {/* "Você economizou" section */}
-              {proposta.desconto_percentual > 0 && (
+              {descontoTotalCalculado > 0 && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-center gap-2 text-green-700">
                     <CheckCircle className="h-5 w-5" />
                     <span className="font-semibold">
-                      Você economizou: R$ {(proposta.valor_produtos * proposta.desconto_percentual / 100).toFixed(2)}
+                      Você economizou: R$ {descontoTotalCalculado.toFixed(2)}
                     </span>
                   </div>
                 </div>
