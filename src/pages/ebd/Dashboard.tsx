@@ -20,6 +20,8 @@ import {
   Target,
   Crown,
   Gamepad2,
+  Gift,
+  Wallet,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +30,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { ForcePasswordChangeDialog } from "@/components/ebd/ForcePasswordChangeDialog";
 import { OnboardingProgressCard } from "@/components/ebd/OnboardingProgressCard";
 import { TaxaLeituraSemanalCard } from "@/components/ebd/TaxaLeituraSemanalCard";
+import { BirthdayCouponModal } from "@/components/ebd/BirthdayCouponModal";
+import { useBirthdayCheck } from "@/hooks/useBirthdayCheck";
+import { useEbdCreditos } from "@/hooks/useEbdCreditos";
 import { format, subWeeks, startOfWeek, endOfWeek, isToday, isSameMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -37,6 +42,8 @@ export default function EBDDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showBirthdayModal, setShowBirthdayModal] = useState(false);
+  const { birthdayInfo, refetch: refetchBirthday } = useBirthdayCheck();
 
   // Revendedor não deve acessar o dashboard do superintendente
   const { data: ebdClienteTipo, isLoading: ebdClienteTipoLoading } = useQuery({
@@ -122,6 +129,16 @@ export default function EBDDashboard() {
   // Usar ebdClienteId como churchId para clientes criados pelo vendedor
   const churchId = churchData?.id || ebdClienteData?.id;
   const ebdClienteId = ebdClienteData?.id ?? null;
+
+  // Créditos do cliente
+  const { totalDisponivel: creditosDisponiveis, totalUsado: creditosUsados } = useEbdCreditos(ebdClienteId);
+
+  // Mostrar modal de aniversário quando necessário
+  useEffect(() => {
+    if (birthdayInfo?.shouldShowModal) {
+      setShowBirthdayModal(true);
+    }
+  }, [birthdayInfo]);
 
   const { data: totalAlunos = 0 } = useQuery({
     queryKey: ['ebd-total-alunos', churchId],
@@ -390,6 +407,34 @@ export default function EBDDashboard() {
 
       {/* Card de Onboarding/Gamificação */}
       <OnboardingProgressCard churchId={ebdClienteId} />
+
+      {/* Card de Créditos Disponíveis */}
+      {(creditosDisponiveis > 0 || creditosUsados > 0) && (
+        <Card className="border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Wallet className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Créditos Disponíveis</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    R$ {creditosDisponiveis.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Já utilizados</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  R$ {creditosUsados.toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Total de Alunos */}
           <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
@@ -757,6 +802,18 @@ export default function EBDDashboard() {
           open={showPasswordDialog} 
           onOpenChange={setShowPasswordDialog}
         />
+
+        {/* Modal de Aniversário com Cupom */}
+        {birthdayInfo && (
+          <BirthdayCouponModal
+            open={showBirthdayModal}
+            onOpenChange={setShowBirthdayModal}
+            clienteId={birthdayInfo.clienteId}
+            nomeCliente={birthdayInfo.nomeCliente}
+            tipoAniversario={birthdayInfo.tipoAniversario}
+            onCouponRedeemed={() => refetchBirthday()}
+          />
+        )}
       </div>
   );
 }
