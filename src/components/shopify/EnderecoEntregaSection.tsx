@@ -138,27 +138,61 @@ export function EnderecoEntregaSection({
   const saveEndereco = useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error("Usuário não autenticado");
-      const { data, error } = await supabase
+      
+      // Check if address with same name already exists for this user
+      const { data: existing } = await supabase
         .from("ebd_endereco_entrega")
-        .insert({
-          user_id: userId,
-          nome: newEndereco.nome,
-          sobrenome: newEndereco.sobrenome || null,
-          cpf_cnpj: newEndereco.cpf_cnpj || null,
-          email: newEndereco.email || null,
-          telefone: newEndereco.telefone || null,
-          cep: newEndereco.cep,
-          rua: newEndereco.rua,
-          numero: newEndereco.numero,
-          complemento: newEndereco.complemento || null,
-          bairro: newEndereco.bairro,
-          cidade: newEndereco.cidade,
-          estado: newEndereco.estado
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+        .select("id")
+        .eq("user_id", userId)
+        .eq("nome", newEndereco.nome)
+        .maybeSingle();
+      
+      if (existing) {
+        // Update existing address
+        const { data, error } = await supabase
+          .from("ebd_endereco_entrega")
+          .update({
+            sobrenome: newEndereco.sobrenome || null,
+            cpf_cnpj: newEndereco.cpf_cnpj || null,
+            email: newEndereco.email || null,
+            telefone: newEndereco.telefone || null,
+            cep: newEndereco.cep,
+            rua: newEndereco.rua,
+            numero: newEndereco.numero,
+            complemento: newEndereco.complemento || null,
+            bairro: newEndereco.bairro,
+            cidade: newEndereco.cidade,
+            estado: newEndereco.estado
+          })
+          .eq("id", existing.id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      } else {
+        // Insert new address
+        const { data, error } = await supabase
+          .from("ebd_endereco_entrega")
+          .insert({
+            user_id: userId,
+            nome: newEndereco.nome,
+            sobrenome: newEndereco.sobrenome || null,
+            cpf_cnpj: newEndereco.cpf_cnpj || null,
+            email: newEndereco.email || null,
+            telefone: newEndereco.telefone || null,
+            cep: newEndereco.cep,
+            rua: newEndereco.rua,
+            numero: newEndereco.numero,
+            complemento: newEndereco.complemento || null,
+            bairro: newEndereco.bairro,
+            cidade: newEndereco.cidade,
+            estado: newEndereco.estado
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      }
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["enderecos-entrega", userId] });
