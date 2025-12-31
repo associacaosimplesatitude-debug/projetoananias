@@ -520,7 +520,13 @@ export default function ShopifyPedidos() {
       if (selectedCliente.pode_faturar) {
         setShowFaturamentoDialog(true);
       } else {
-        handleGeneratePropostaLink(null, 0, null);
+        // Para clientes que não podem faturar, calcular descontos (ADVEC, etc.)
+        const descontoCalculado = calcularDescontosCarrinho(
+          items, 
+          selectedCliente.tipo_cliente, 
+          selectedCliente.onboarding_concluido || false
+        );
+        handleGeneratePropostaLink(null, descontoCalculado.descontoPercentual, null, false, descontoCalculado);
       }
     } else {
       // Cliente final - checkout normal
@@ -538,7 +544,8 @@ export default function ShopifyPedidos() {
     faturamentoPrazos: string[] | null,
     descontoPercent: number = 0,
     frete: { type: string; cost: number } | null = null,
-    isFaturamentoB2B: boolean = false
+    isFaturamentoB2B: boolean = false,
+    descontoCalculado?: { subtotal: number; descontoValor: number; total: number; descontoPercentual: number; tipoDesconto?: string; faixa?: string; itensComDesconto50?: string[] }
   ) => {
     if (!selectedCliente || !vendedor) {
       toast.error("Dados incompletos");
@@ -551,11 +558,23 @@ export default function ShopifyPedidos() {
       // Gerar token único
       const token = crypto.randomUUID();
       
-      // Calcular valores
-      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
-      const valorDesconto = valorProdutos * (descontoPercent / 100);
-      const valorFrete = frete?.cost || 0;
-      const valorTotal = valorProdutos - valorDesconto + valorFrete;
+      // Calcular valores - usar desconto calculado se disponível (para ADVEC com 50% por produto)
+      let valorProdutos: number;
+      let valorDesconto: number;
+      let valorFrete = frete?.cost || 0;
+      let valorTotal: number;
+      
+      if (descontoCalculado) {
+        // Usar valores do cálculo específico (ADVEC, etc.)
+        valorProdutos = descontoCalculado.subtotal;
+        valorDesconto = descontoCalculado.descontoValor;
+        valorTotal = descontoCalculado.total + valorFrete;
+      } else {
+        // Cálculo tradicional com percentual fixo
+        valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
+        valorDesconto = valorProdutos * (descontoPercent / 100);
+        valorTotal = valorProdutos - valorDesconto + valorFrete;
+      }
 
       // Preparar itens para salvar
       const itensParaSalvar = items.map(item => ({
