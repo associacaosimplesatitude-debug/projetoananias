@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, Plus, Home, Building, Loader2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { MapPin, Plus, Home, Building, Loader2, ChevronDown, ChevronUp, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -51,25 +52,16 @@ export function EnderecoEntregaSection({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedId, setSelectedId] = useState<string>("principal");
   const [isLoadingCep, setIsLoadingCep] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [newEndereco, setNewEndereco] = useState({
-    nome: "",
-    sobrenome: "",
-    cpf_cnpj: "",
-    email: "",
-    telefone: "",
-    cep: "",
-    rua: "",
-    numero: "",
-    complemento: "",
-    bairro: "",
-    cidade: "",
-    estado: ""
+    nome: "", sobrenome: "", cpf_cnpj: "", email: "", telefone: "",
+    cep: "", rua: "", numero: "", complemento: "", bairro: "", cidade: "", estado: ""
   });
 
   const queryClient = useQueryClient();
 
   // Fetch saved addresses
-  const { data: enderecosSalvos, isLoading } = useQuery({
+  const { data: enderecosSalvos } = useQuery({
     queryKey: ["enderecos-entrega", userId],
     queryFn: async () => {
       if (!userId) return [];
@@ -112,6 +104,7 @@ export function EnderecoEntregaSection({
       const encontrado = enderecosSalvos?.find(e => e.id === id);
       onEnderecoChange(encontrado || null);
     }
+    setIsOpen(false);
   };
 
   // CEP lookup
@@ -191,73 +184,109 @@ export function EnderecoEntregaSection({
     return clean;
   };
 
+  // Get display name for selected address
+  const getSelectedDisplay = () => {
+    if (selectedId === "principal" && enderecoPrincipal) {
+      return {
+        nome: "Endereço Principal",
+        resumo: `${enderecoPrincipal.cidade}/${enderecoPrincipal.estado}`
+      };
+    }
+    const encontrado = enderecosSalvos?.find(e => e.id === selectedId);
+    if (encontrado) {
+      return {
+        nome: encontrado.nome,
+        resumo: `${encontrado.cidade}/${encontrado.estado}`
+      };
+    }
+    return null;
+  };
+
+  const selectedDisplay = getSelectedDisplay();
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium flex items-center gap-2">
-          <MapPin className="h-4 w-4" />
-          Endereço de Entrega
-        </Label>
-        {userId && (
-          <Button variant="ghost" size="sm" onClick={() => setShowAddDialog(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Novo
-          </Button>
-        )}
-      </div>
+    <div className="space-y-2">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex items-center justify-between">
+          <CollapsibleTrigger asChild>
+            <button className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors w-full text-left py-1">
+              <MapPin className="h-4 w-4 flex-shrink-0" />
+              <span className="flex-1">Endereço de Entrega</span>
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          </CollapsibleTrigger>
+          {userId && (
+            <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-3 w-3 mr-1" />
+              Novo
+            </Button>
+          )}
+        </div>
 
-      <RadioGroup value={selectedId} onValueChange={handleSelectEndereco}>
-        {/* Principal address */}
-        {enderecoPrincipal && (
-          <div className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer">
-            <RadioGroupItem value="principal" id="endereco-principal" className="mt-1" />
-            <label htmlFor="endereco-principal" className="flex-1 cursor-pointer">
-              <div className="flex items-center gap-2">
-                <Home className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">Endereço Principal</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {enderecoPrincipal.rua}, {enderecoPrincipal.numero}
-                {enderecoPrincipal.complemento && ` - ${enderecoPrincipal.complemento}`}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {enderecoPrincipal.bairro} - {enderecoPrincipal.cidade}/{enderecoPrincipal.estado}
-              </p>
-              <p className="text-xs text-muted-foreground">CEP: {formatCep(enderecoPrincipal.cep)}</p>
-            </label>
+        {/* Compact selected address preview (shown when collapsed) */}
+        {!isOpen && selectedDisplay && (
+          <div className="flex items-center gap-2 py-2 px-2 bg-muted/50 rounded-md text-xs">
+            <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+            <span className="font-medium">{selectedDisplay.nome}</span>
+            <span className="text-muted-foreground">• {selectedDisplay.resumo}</span>
           </div>
         )}
 
-        {/* Saved addresses */}
-        {enderecosSalvos?.map((endereco) => (
-          <div key={endereco.id} className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer">
-            <RadioGroupItem value={endereco.id} id={`endereco-${endereco.id}`} className="mt-1" />
-            <label htmlFor={`endereco-${endereco.id}`} className="flex-1 cursor-pointer">
-              <div className="flex items-center gap-2">
-                <Building className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">{endereco.nome}</span>
+        <CollapsibleContent className="space-y-2 pt-2">
+          <RadioGroup value={selectedId} onValueChange={handleSelectEndereco}>
+            {/* Principal address */}
+            {enderecoPrincipal && (
+              <div className={`flex items-start space-x-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
+                selectedId === "principal" ? "bg-primary/5 border-primary/30" : "hover:bg-muted/50"
+              }`}>
+                <RadioGroupItem value="principal" id="endereco-principal" className="mt-0.5 h-3.5 w-3.5" />
+                <label htmlFor="endereco-principal" className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-1.5">
+                    <Home className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">Endereço Principal</span>
+                  </div>
+                  <p className="text-muted-foreground mt-0.5 leading-tight">
+                    {enderecoPrincipal.rua}, {enderecoPrincipal.numero} • {enderecoPrincipal.bairro}
+                  </p>
+                  <p className="text-muted-foreground leading-tight">
+                    {enderecoPrincipal.cidade}/{enderecoPrincipal.estado} • CEP: {formatCep(enderecoPrincipal.cep)}
+                  </p>
+                </label>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {endereco.rua}, {endereco.numero}
-                {endereco.complemento && ` - ${endereco.complemento}`}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {endereco.bairro} - {endereco.cidade}/{endereco.estado}
-              </p>
-              <p className="text-xs text-muted-foreground">CEP: {formatCep(endereco.cep)}</p>
-            </label>
-          </div>
-        ))}
-      </RadioGroup>
+            )}
+
+            {/* Saved addresses */}
+            {enderecosSalvos?.map((endereco) => (
+              <div key={endereco.id} className={`flex items-start space-x-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
+                selectedId === endereco.id ? "bg-primary/5 border-primary/30" : "hover:bg-muted/50"
+              }`}>
+                <RadioGroupItem value={endereco.id} id={`endereco-${endereco.id}`} className="mt-0.5 h-3.5 w-3.5" />
+                <label htmlFor={`endereco-${endereco.id}`} className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-1.5">
+                    <Building className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium">{endereco.nome}</span>
+                  </div>
+                  <p className="text-muted-foreground mt-0.5 leading-tight">
+                    {endereco.rua}, {endereco.numero} • {endereco.bairro}
+                  </p>
+                  <p className="text-muted-foreground leading-tight">
+                    {endereco.cidade}/{endereco.estado} • CEP: {formatCep(endereco.cep)}
+                  </p>
+                </label>
+              </div>
+            ))}
+          </RadioGroup>
+        </CollapsibleContent>
+      </Collapsible>
 
       {!enderecoPrincipal && (!enderecosSalvos || enderecosSalvos.length === 0) && (
         <Card className="border-dashed">
-          <CardContent className="p-4 text-center">
-            <p className="text-sm text-muted-foreground mb-2">Nenhum endereço cadastrado</p>
+          <CardContent className="p-3 text-center">
+            <p className="text-xs text-muted-foreground mb-2">Nenhum endereço cadastrado</p>
             {userId && (
               <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
-                <Plus className="h-4 w-4 mr-1" />
-                Cadastrar Endereço
+                <Plus className="h-3 w-3 mr-1" />
+                Cadastrar
               </Button>
             )}
           </CardContent>
