@@ -16,7 +16,7 @@ export function DescontoSidebarBadge() {
 
       const { data: cliente, error } = await supabase
         .from("ebd_clientes")
-        .select("id, desconto_onboarding, onboarding_concluido")
+        .select("id, desconto_onboarding, onboarding_concluido, data_aniversario_superintendente")
         .eq("superintendente_user_id", user.id)
         .eq("status_ativacao_ebd", true)
         .maybeSingle();
@@ -33,8 +33,10 @@ export function DescontoSidebarBadge() {
 
       const etapasCompletas = count || 0;
 
-      // Se 7 etapas completas, sempre mostrar o badge
-      if (etapasCompletas >= 7) {
+      // Só considerar concluído automaticamente se:
+      // - tiver 7 etapas completas
+      // - e a data de aniversário (etapa final) estiver preenchida
+      if (etapasCompletas >= 7 && !!cliente.data_aniversario_superintendente) {
         return {
           ...cliente,
           onboarding_concluido: true,
