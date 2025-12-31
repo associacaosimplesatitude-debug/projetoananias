@@ -620,6 +620,29 @@ export default function PropostaDigital() {
           </CardContent>
         </Card>
 
+        {/* Delivery Address Section - Show for standard payment */}
+        {!proposta.pode_faturar && isPending && proposta.cliente_endereco && (
+          <Card className="border-2 border-blue-200 bg-blue-50/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-blue-800">
+                <MapPin className="h-5 w-5" />
+                Endereço de Entrega
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="p-3 bg-white rounded-lg border border-blue-200">
+                <p className="font-medium text-foreground">
+                  {proposta.cliente_endereco.rua}, {proposta.cliente_endereco.numero}
+                  {proposta.cliente_endereco.bairro && ` - ${proposta.cliente_endereco.bairro}`}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {proposta.cliente_endereco.cidade}/{proposta.cliente_endereco.estado} - CEP: {proposta.cliente_endereco.cep}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Shipping Selection for Standard Payment */}
         {!proposta.pode_faturar && isPending && (
           <Card className="border-2 border-green-200 bg-green-50/50">
