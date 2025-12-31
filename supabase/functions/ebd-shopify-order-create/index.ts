@@ -393,11 +393,11 @@ serve(async (req) => {
         shipping_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          // Shopify BR: send "Rua, Número" in address1 so it can prefill the Número field.
-          address1: [cliente.endereco_rua, cliente.endereco_numero].filter(Boolean).join(', '),
-          // Shopify BR: send Bairro in address2 so it can prefill the Bairro field.
-          // Complemento should NOT include número/bairro; keep it separate.
-          address2: cliente.endereco_bairro || "",
+          // Deixe o cliente digitar Número e Bairro no checkout:
+          // - address1: apenas a Rua
+          // - address2: apenas Complemento (opcional)
+          address1: `${cliente.endereco_rua || ""}`,
+          address2: `${cliente.endereco_complemento || ""}`,
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
           zip: cliente.endereco_cep || "",
@@ -409,8 +409,8 @@ serve(async (req) => {
         billing_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          address1: [cliente.endereco_rua, cliente.endereco_numero].filter(Boolean).join(', '),
-          address2: cliente.endereco_bairro || "",
+          address1: `${cliente.endereco_rua || ""}`,
+          address2: `${cliente.endereco_complemento || ""}`,
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
           zip: cliente.endereco_cep || "",
