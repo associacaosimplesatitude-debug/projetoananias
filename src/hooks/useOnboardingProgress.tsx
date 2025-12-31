@@ -336,12 +336,11 @@ export const useOnboardingProgress = (churchId: string | null) => {
       let concluidoCliente = clienteData?.onboarding_concluido || false;
       let descontoCliente = clienteData?.desconto_onboarding || null;
 
-      // Se não tem data de aniversário, nunca tratar como concluído no modo completo
-      if (!usarEtapasSimplificadas && !clienteData?.data_aniversario_superintendente) {
-        concluidoCliente = false;
-      }
-
-      if (!usarEtapasSimplificadas && etapasCompletas >= totalEtapas && !concluidoCliente) {
+      // IMPORTANTE: se o cliente JÁ está marcado como concluído no banco, respeitar esse estado
+      // (evita problema de clientes antigos que foram concluídos antes do bloqueio de data)
+      if (concluidoCliente) {
+        // Já está concluído, não forçar como pendente
+      } else if (!usarEtapasSimplificadas && etapasCompletas >= totalEtapas) {
         // Só considerar "setup concluído" se a data de aniversário (etapa final) foi salva.
         if (!clienteData?.data_aniversario_superintendente) {
           // Mantém como pendente até o superintendente informar a data.
