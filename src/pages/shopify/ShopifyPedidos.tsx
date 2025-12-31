@@ -559,15 +559,38 @@ export default function ShopifyPedidos() {
       const token = crypto.randomUUID();
       
       // Se o caller não passou o cálculo (ex.: fluxo de faturamento),
-      // ainda assim precisamos aplicar a regra ADVEC (livros 50% / revistas 40%).
-      const tipoCliente = (selectedCliente.tipo_cliente || "").toLowerCase();
-      const shouldAutoCalcAdvec = tipoCliente.includes("advec");
-      const autoCalc = !descontoCalculado && shouldAutoCalcAdvec
-        ? calcularDescontosCarrinho(items, selectedCliente.tipo_cliente, selectedCliente.onboarding_concluido || false)
-        : undefined;
+      // ainda assim precisamos aplicar a regra ADVEC:
+      // - APENAS 2 livros com 50%
+      // - TODOS os demais itens com 40% (padrão ADVEC)
+      const shouldAutoCalcAdvec = (selectedCliente.tipo_cliente || "").toLowerCase().includes("advec");
 
-      const descontoFinal =
-        descontoCalculado ?? (autoCalc?.tipoDesconto === "advec_50" ? autoCalc : undefined);
+      const calcularTotaisAdvec = () => {
+        const subtotal = items.reduce(
+          (sum, item) => sum + parseFloat(item.price.amount) * item.quantity,
+          0
+        );
+
+        const totalComDesconto = items.reduce((sum, item) => {
+          const percentual = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
+          const preco = parseFloat(item.price.amount);
+          return sum + preco * item.quantity * (1 - percentual / 100);
+        }, 0);
+
+        const descontoValor = subtotal - totalComDesconto;
+        const descontoPercentual = subtotal > 0 ? (descontoValor / subtotal) * 100 : 0;
+
+        return {
+          subtotal,
+          descontoValor,
+          total: totalComDesconto,
+          descontoPercentual: Math.round(descontoPercentual * 100) / 100,
+          tipoDesconto: "advec_50" as const,
+        };
+      };
+
+      const autoCalcAdvec = !descontoCalculado && shouldAutoCalcAdvec ? calcularTotaisAdvec() : undefined;
+
+      const descontoFinal = descontoCalculado ?? autoCalcAdvec;
 
       // Calcular valores
       let valorProdutos: number;
@@ -592,20 +615,9 @@ export default function ShopifyPedidos() {
         // Desconto padrão
         let descontoItem = descontoPercent;
 
-        // Para ADVEC: regra solicitada -> LIVROS 50% e REVISTAS 40%
-        if (descontoFinal?.tipoDesconto === "advec_50") {
-          const lowerTitle = item.product.node.title.toLowerCase();
-
-          const isRevistaEbd =
-            lowerTitle.includes("revista") ||
-            lowerTitle.includes("ebd") ||
-            lowerTitle.includes("estudo bíblico") ||
-            lowerTitle.includes("estudo biblico") ||
-            lowerTitle.includes("kit do professor") ||
-            lowerTitle.includes("kit professor") ||
-            lowerTitle.includes("infografico");
-
-          descontoItem = isRevistaEbd ? 40 : 50;
+        // Para ADVEC: apenas 2 produtos 50%, o restante 40%
+        if (shouldAutoCalcAdvec) {
+          descontoItem = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
         }
 
         return {
