@@ -380,46 +380,12 @@ serve(async (req) => {
       },
     };
 
-    // Add shipping address if available
-    if (cliente.endereco_rua) {
-      // Split name for shipping address too
-      const shippingFullName = cliente.nome_responsavel || cliente.nome_igreja || '';
-      const shippingNameParts = shippingFullName.trim().split(' ');
-      const shippingFirstName = shippingNameParts[0] || '';
-      const shippingLastName = shippingNameParts.slice(1).join(' ') || '';
-      
-      draftOrderPayload.draft_order = {
-        ...draftOrderPayload.draft_order as Record<string, unknown>,
-        shipping_address: {
-          first_name: shippingFirstName,
-          last_name: shippingLastName,
-          // Deixe o cliente digitar Número e Bairro no checkout:
-          // - address1: apenas a Rua
-          // - address2: apenas Complemento (opcional)
-          address1: `${cliente.endereco_rua || ""}`,
-          address2: `${cliente.endereco_complemento || ""}`,
-          city: cliente.endereco_cidade || "",
-          province: cliente.endereco_estado || "",
-          zip: cliente.endereco_cep || "",
-          country: "BR",
-          phone: cliente.telefone,
-          company: cliente.nome_igreja,
-        },
-        // Billing address mirrors shipping address
-        billing_address: {
-          first_name: shippingFirstName,
-          last_name: shippingLastName,
-          address1: `${cliente.endereco_rua || ""}`,
-          address2: `${cliente.endereco_complemento || ""}`,
-          city: cliente.endereco_cidade || "",
-          province: cliente.endereco_estado || "",
-          zip: cliente.endereco_cep || "",
-          country: "BR",
-          phone: cliente.telefone,
-          company: cliente.nome_igreja,
-        },
-      };
-    }
+    // IMPORTANT (Checkout BR): Não enviar shipping_address/billing_address no Draft Order.
+    // Quando esses campos são enviados, o checkout pode “travar” a edição de Número e Bairro.
+    // Assim o cliente consegue preencher/editar TODO o endereço no checkout.
+    //
+    // Mantemos apenas shipping_line (frete) e use_customer_default_address=false.
+    // O cliente informará CEP, Rua, Número, Bairro, etc. no checkout.
 
     // Add payment terms for B2B faturamento orders
     if (isFaturamento && faturamento_prazo) {
