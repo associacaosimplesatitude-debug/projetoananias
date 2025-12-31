@@ -3,21 +3,38 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Users, UserPlus, User, Plus } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Search, Users, UserPlus, User, Plus, Pencil, Trash2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import MemberSearchDialog from "@/components/ebd/MemberSearchDialog";
 import ActivateMemberDialog from "@/components/ebd/ActivateMemberDialog";
 import { CadastrarAlunoDialog } from "@/components/ebd/CadastrarAlunoDialog";
+import { EditarAlunoDialog } from "@/components/ebd/EditarAlunoDialog";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 export default function EBDStudents() {
   const { clientId } = useParams();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [activateMemberOpen, setActivateMemberOpen] = useState(false);
   const [cadastrarAlunoOpen, setCadastrarAlunoOpen] = useState(false);
+  const [editarAlunoOpen, setEditarAlunoOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
+  const [selectedAluno, setSelectedAluno] = useState<any>(null);
 
   // Get church ID - use clientId from route if available (admin view), otherwise get user's church
   const { data: churchData } = useQuery({
@@ -31,6 +48,18 @@ export default function EBDStudents() {
       // Otherwise, get the church for the logged-in user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+
+      // First check if user is a superintendente
+      const { data: clienteData } = await supabase
+        .from("ebd_clientes")
+        .select("id")
+        .eq("superintendente_user_id", user.id)
+        .eq("status_ativacao_ebd", true)
+        .maybeSingle();
+
+      if (clienteData) {
+        return { id: clienteData.id };
+      }
 
       const { data, error } = await supabase
         .from("churches")
@@ -65,6 +94,25 @@ export default function EBDStudents() {
     enabled: !!churchData?.id,
   });
 
+  const deleteAlunoMutation = useMutation({
+    mutationFn: async (alunoId: string) => {
+      const { error } = await supabase
+        .from("ebd_alunos")
+        .delete()
+        .eq("id", alunoId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ebd-alunos"] });
+      toast.success("Aluno excluído com sucesso!");
+      setDeleteDialogOpen(false);
+      setSelectedAluno(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Erro ao excluir aluno");
+    },
+  });
+
   const handleSelectMember = (member: any) => {
     setSelectedMember(member);
     setActivateMemberOpen(true);
@@ -72,6 +120,16 @@ export default function EBDStudents() {
 
   const handleSuccess = () => {
     refetchAlunos();
+  };
+
+  const handleEditAluno = (aluno: any) => {
+    setSelectedAluno(aluno);
+    setEditarAlunoOpen(true);
+  };
+
+  const handleDeleteAluno = (aluno: any) => {
+    setSelectedAluno(aluno);
+    setDeleteDialogOpen(true);
   };
 
   if (!churchData) {
@@ -146,7 +204,7 @@ export default function EBDStudents() {
                     <CardContent className="p-4">
                       <div className="flex items-start gap-4">
                         <Avatar className="h-12 w-12">
-                          <AvatarImage src={record.avatar_url} />
+                          <AvatarImage src={record.avatar_url} className="object-cover" />
                           <AvatarFallback>
                             <User className="h-6 w-6" />
                           </AvatarFallback>
@@ -176,6 +234,23 @@ export default function EBDStudents() {
                               </Badge>
                             )}
                           </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleEditAluno(record)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteAluno(record)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -208,6 +283,33 @@ export default function EBDStudents() {
         churchId={churchData.id}
         onSuccess={handleSuccess}
       />
+
+      <EditarAlunoDialog
+        open={editarAlunoOpen}
+        onOpenChange={setEditarAlunoOpen}
+        aluno={selectedAluno}
+        onSuccess={handleSuccess}
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Aluno</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o aluno "{selectedAluno?.nome_completo}"? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => selectedAluno && deleteAlunoMutation.mutate(selectedAluno.id)}
+            >
+              {deleteAlunoMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

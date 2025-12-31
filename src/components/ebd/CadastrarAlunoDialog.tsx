@@ -197,7 +197,7 @@ export function CadastrarAlunoDialog({
           {/* Avatar */}
           <div className="flex flex-col items-center gap-3">
             <Avatar className="h-20 w-20">
-              <AvatarImage src={avatarPreview || undefined} />
+              <AvatarImage src={avatarPreview || undefined} className="object-cover" />
               <AvatarFallback>
                 <User className="h-10 w-10" />
               </AvatarFallback>

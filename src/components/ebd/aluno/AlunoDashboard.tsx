@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   Trophy, Star, Flame, BookOpen, Calendar, 
-  HelpCircle, Heart, FileText, ChevronRight, Medal
+  HelpCircle, Heart, FileText, ChevronRight, Medal, User
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format, startOfWeek, addDays } from "date-fns";
@@ -151,24 +152,41 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
     enabled: !!aluno.turma_id,
   });
 
-  // Get current week lesson
+  // Get current week lesson with magazine and professor info
   const { data: aulaDaSemana } = useQuery({
-    queryKey: ["aula-da-semana", aluno.turma_id],
+    queryKey: ["aula-da-semana", aluno.turma_id, aluno.church_id],
     queryFn: async () => {
       if (!aluno.turma_id) return null;
 
       const hoje = new Date();
-      const { data, error } = await supabase
+      const hojeStr = format(hoje, "yyyy-MM-dd");
+
+      // Get the lesson
+      const { data: licao, error: licaoError } = await supabase
         .from("ebd_licoes")
-        .select("id, titulo, data_aula, numero_licao")
+        .select("id, titulo, data_aula, numero_licao, revista:ebd_revistas(id, titulo, imagem_url)")
         .eq("turma_id", aluno.turma_id)
-        .gte("data_aula", format(hoje, "yyyy-MM-dd"))
+        .gte("data_aula", hojeStr)
         .order("data_aula", { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (licaoError) throw licaoError;
+      if (!licao) return null;
+
+      // Get the professor from the schedule for this date
+      const { data: escala } = await supabase
+        .from("ebd_escalas")
+        .select("professor:ebd_professores(id, nome_completo, avatar_url)")
+        .eq("turma_id", aluno.turma_id)
+        .eq("data", licao.data_aula)
+        .eq("tipo", "titular")
+        .maybeSingle();
+
+      return {
+        ...licao,
+        professor: escala?.professor || null,
+      };
     },
     enabled: !!aluno.turma_id,
   });
@@ -321,17 +339,50 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
           <CardContent>
             {aulaDaSemana ? (
               <>
+                {/* Magazine info */}
+                {aulaDaSemana.revista && (
+                  <div className="flex items-center gap-2 mb-3">
+                    {aulaDaSemana.revista.imagem_url && (
+                      <img 
+                        src={aulaDaSemana.revista.imagem_url} 
+                        alt={aulaDaSemana.revista.titulo}
+                        className="h-12 w-9 object-cover rounded shadow-sm"
+                      />
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {aulaDaSemana.revista.titulo}
+                    </span>
+                  </div>
+                )}
+
                 {aulaDaSemana.numero_licao && (
                   <Badge variant="outline" className="mb-2">
                     Lição {aulaDaSemana.numero_licao}
                   </Badge>
                 )}
                 <p className="font-medium mb-2">{aulaDaSemana.titulo}</p>
-                <p className="text-sm text-muted-foreground mb-4">
+                <p className="text-sm text-muted-foreground mb-3">
                   {format(new Date(aulaDaSemana.data_aula), "EEEE, dd 'de' MMMM", {
                     locale: ptBR,
                   })}
                 </p>
+
+                {/* Professor info */}
+                {aulaDaSemana.professor && (
+                  <div className="flex items-center gap-2 mb-4 p-2 bg-background/50 rounded-lg">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={aulaDaSemana.professor.avatar_url || undefined} className="object-cover" />
+                      <AvatarFallback>
+                        <User className="h-4 w-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Professor(a)</p>
+                      <p className="text-sm font-medium">{aulaDaSemana.professor.nome_completo}</p>
+                    </div>
+                  </div>
+                )}
+
                 <Link to="/ebd/aluno/aulas">
                   <Button className="w-full" variant="outline">
                     Visualizar Aula
