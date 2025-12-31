@@ -336,6 +336,11 @@ export const useOnboardingProgress = (churchId: string | null) => {
       let concluidoCliente = clienteData?.onboarding_concluido || false;
       let descontoCliente = clienteData?.desconto_onboarding || null;
 
+      // Se não tem data de aniversário, nunca tratar como concluído no modo completo
+      if (!usarEtapasSimplificadas && !clienteData?.data_aniversario_superintendente) {
+        concluidoCliente = false;
+      }
+
       if (!usarEtapasSimplificadas && etapasCompletas >= totalEtapas && !concluidoCliente) {
         // Só considerar "setup concluído" se a data de aniversário (etapa final) foi salva.
         if (!clienteData?.data_aniversario_superintendente) {
@@ -453,6 +458,21 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       // Se todas as etapas foram concluídas
       if (etapasCompletas >= totalEtapas) {
+        // No modo completo (primeiro setup), só concluir se a data de aniversário foi salva
+        if (!usarSimplificadas) {
+          const { data: clienteCheck, error: clienteCheckError } = await supabase
+            .from("ebd_clientes")
+            .select("data_aniversario_superintendente")
+            .eq("id", churchId)
+            .maybeSingle();
+
+          if (clienteCheckError) throw clienteCheckError;
+
+          if (!clienteCheck?.data_aniversario_superintendente) {
+            return { concluido: false, modoRecompra: usarSimplificadas };
+          }
+        }
+
         // Calcular desconto baseado no valor do último pedido
         const { data: ultimoPedido } = await supabase
           .from("ebd_shopify_pedidos")

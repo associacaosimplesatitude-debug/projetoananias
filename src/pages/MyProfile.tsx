@@ -20,6 +20,9 @@ export default function MyProfile() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const [ebdClienteId, setEbdClienteId] = useState<string | null>(null);
+  const [dataAniversarioSuperintendente, setDataAniversarioSuperintendente] = useState('');
+
   useEffect(() => {
     if (user) {
       fetchProfile();
@@ -30,22 +33,39 @@ export default function MyProfile() {
     if (!user) return;
 
     setLoading(true);
-    const { data } = await supabase
-      .from('profiles')
-      .select('full_name, email, avatar_url')
-      .eq('id', user.id)
-      .single();
 
-    if (data) {
-      setFullName(data.full_name || '');
-      setEmail(data.email || '');
-      if (data.avatar_url) {
+    const [profileRes, ebdClienteRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('full_name, email, avatar_url')
+        .eq('id', user.id)
+        .single(),
+      supabase
+        .from('ebd_clientes')
+        .select('id, data_aniversario_superintendente')
+        .eq('superintendente_user_id', user.id)
+        .eq('status_ativacao_ebd', true)
+        .limit(1),
+    ]);
+
+    const { data: profileData } = profileRes;
+    const { data: ebdClientes } = ebdClienteRes;
+
+    if (profileData) {
+      setFullName(profileData.full_name || '');
+      setEmail(profileData.email || '');
+      if (profileData.avatar_url) {
         const { data: urlData } = supabase.storage
           .from('profile-avatars')
-          .getPublicUrl(data.avatar_url);
+          .getPublicUrl(profileData.avatar_url);
         setAvatarUrl(urlData.publicUrl);
       }
     }
+
+    const ebdCliente = ebdClientes && ebdClientes.length > 0 ? ebdClientes[0] : null;
+    setEbdClienteId(ebdCliente?.id ?? null);
+    setDataAniversarioSuperintendente(ebdCliente?.data_aniversario_superintendente || '');
+
     setLoading(false);
   };
 
@@ -85,12 +105,23 @@ export default function MyProfile() {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ full_name: fullName, email: email })
-        .eq('id', user.id);
+      const [{ error: profileError }, { error: clienteError }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .update({ full_name: fullName, email: email })
+          .eq('id', user.id),
+        ebdClienteId
+          ? supabase
+              .from('ebd_clientes')
+              .update({
+                data_aniversario_superintendente: dataAniversarioSuperintendente || null,
+              })
+              .eq('id', ebdClienteId)
+          : Promise.resolve({ error: null } as any),
+      ]);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+      if (clienteError) throw clienteError;
 
       toast.success('Perfil atualizado com sucesso!');
     } catch (error: any) {
@@ -213,6 +244,21 @@ export default function MyProfile() {
                   placeholder="seu@email.com"
                 />
               </div>
+
+              {ebdClienteId && (
+                <div>
+                  <Label htmlFor="dataAniversarioSuperintendente">Data de aniversário (Superintendente)</Label>
+                  <Input
+                    id="dataAniversarioSuperintendente"
+                    type="date"
+                    value={dataAniversarioSuperintendente}
+                    onChange={(e) => setDataAniversarioSuperintendente(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Essa data é usada para exibir no card do cliente e liberar o cupom de aniversário.
+                  </p>
+                </div>
+              )}
             </div>
 
             <Button onClick={handleSave} disabled={loading} className="w-full">
