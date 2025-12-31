@@ -49,6 +49,7 @@ import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
+import { AlunoLayout } from "@/components/ebd/aluno/AlunoLayout";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
@@ -304,47 +305,21 @@ const App = () => (
                       <Route path="desafio-biblico/:desafioId/acompanhar" element={<EBDDesafioAcompanhamento />} />
                     </Route>
 
-                    {/* Aluno Module Routes */}
-                    <Route 
-                      path="/ebd/aluno" 
+                    {/* Aluno Module Routes with Sidebar Layout */}
+                    <Route
+                      path="/ebd/aluno"
                       element={
                         <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <AlunoHome />
+                          <AlunoLayout />
                         </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/aluno/turma" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <AlunoTurma />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/aluno/aulas" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <AlunoAulasPage />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/aluno/leituras" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <AlunoLeiturasPage />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
-                    <Route 
-                      path="/ebd/aluno/perfil" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <AlunoPerfilPage />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
+                      }
+                    >
+                      <Route index element={<AlunoHome />} />
+                      <Route path="turma" element={<AlunoTurma />} />
+                      <Route path="aulas" element={<AlunoAulasPage />} />
+                      <Route path="leituras" element={<AlunoLeiturasPage />} />
+                      <Route path="perfil" element={<AlunoPerfilPage />} />
+                    </Route>
 
                     {/* Professor Module Routes with Sidebar Layout */}
                     <Route
