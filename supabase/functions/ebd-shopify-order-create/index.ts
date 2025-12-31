@@ -205,7 +205,7 @@ serve(async (req) => {
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '';
 
-        // Update customer with latest info
+        // Update customer with latest info - CLEAR addresses to avoid duplication in checkout
         await fetch(
           `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/customers/${customerId}.json`,
           {
@@ -221,12 +221,13 @@ serve(async (req) => {
                 phone: cliente.telefone,
                 tags: "ebd_cliente",
                 note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
-                // IMPORTANT: do not update addresses here to avoid duplicated/invalid addresses in checkout.
-                // Shipping/Billing address will be set explicitly on the Draft Order.
+                // Clear all addresses to prevent checkout from auto-filling with stale/duplicated data
+                addresses: [],
               },
             }),
           }
         );
+        console.log("Cleared customer addresses to prevent checkout duplication");
       }
     }
 
