@@ -240,7 +240,7 @@ export function DefinirDataInicioDialog({
                         onSelect={setDataInicio}
                         initialFocus
                         locale={ptBR}
-                        className="pointer-events-auto"
+                        className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
