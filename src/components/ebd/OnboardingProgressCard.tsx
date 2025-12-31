@@ -203,8 +203,8 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
       // Cadastrar Professor
       navigate("/ebd/teachers");
     } else if (etapaId === 4) {
-      // Definir Data de Início
-      navigate("/ebd/planejamento");
+      // Definir Data de Início - abrir dialog
+      setShowDataInicioDialog(true);
     } else if (etapaId === 5) {
       // Criar Escala
       navigate("/ebd/schedule");
@@ -458,6 +458,21 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
         revistasNaoAplicadas={revistasNaoAplicadas}
         onComplete={handleConfigComplete}
         marcarEtapa={marcarEtapa}
+      />
+
+      {/* Dialog: Definir Data de Início */}
+      <DefinirDataInicioDialog
+        open={showDataInicioDialog}
+        onOpenChange={setShowDataInicioDialog}
+        churchId={churchId}
+        revista={progress?.revistaIdentificadaId ? {
+          id: progress.revistaIdentificadaId,
+          titulo: progress.revistaIdentificadaTitulo || "",
+          faixa_etaria_alvo: progress.revistaIdentificadaFaixaEtaria || "",
+          imagem_url: progress.revistaIdentificadaImagem,
+          num_licoes: progress.revistaIdentificadaNumLicoes || 13,
+        } : null}
+        onComplete={handleConfigComplete}
       />
     </>
   );
