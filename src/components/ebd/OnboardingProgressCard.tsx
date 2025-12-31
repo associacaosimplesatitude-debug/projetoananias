@@ -183,14 +183,31 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
   const handleEtapaClick = (etapaId: number) => {
     if (etapaId === 6) {
       setShowAniversarioDialog(true);
-    } else if (etapaId === 1 || etapaId === 2 || etapaId === 3 || etapaId === 4 || etapaId === 5) {
-      // Etapas 1-5: abrir o wizard integrado de configuração de revista
-      if (revistasNaoAplicadas.length > 0) {
+    } else if (etapaId === 1) {
+      // Etapa 1 (Aplicar Revista):
+      // - Se tem MAIS de 1 revista não aplicada → abre modal para escolher
+      // - Se tem apenas 1 revista → segue o setup normal de 7 etapas (navega para rotas individuais)
+      // - Se não tem revistas → vai pro catálogo
+      if (revistasNaoAplicadas.length > 1) {
         setShowAplicarRevistaDialog(true);
+      } else if (revistasNaoAplicadas.length === 1) {
+        // Primeira revista: seguir setup de 7 etapas - ir para criar turma
+        navigate("/ebd/turmas/nova");
       } else {
-        // Sem revistas disponíveis, ir para o catálogo
         navigate("/ebd/catalogo");
       }
+    } else if (etapaId === 2) {
+      // Cadastrar Turma
+      navigate("/ebd/turmas/nova");
+    } else if (etapaId === 3) {
+      // Cadastrar Professor
+      navigate("/ebd/teachers");
+    } else if (etapaId === 4) {
+      // Definir Data de Início
+      navigate("/ebd/planejamento");
+    } else if (etapaId === 5) {
+      // Criar Escala
+      navigate("/ebd/schedule");
     } else if (etapaId === 7) {
       // Configurar lançamento - abrir modal
       setShowConfigLancamentoDialog(true);
