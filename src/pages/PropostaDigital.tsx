@@ -536,8 +536,11 @@ export default function PropostaDigital() {
                       <div className="flex items-center gap-2">
                         <p className="font-medium truncate">{item.title}</p>
                         {temDesconto && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs flex-shrink-0">
-                            {descontoDoItem}% OFF
+                          <Badge
+                            variant="secondary"
+                            className="bg-green-100 text-green-700 text-xs flex-shrink-0"
+                          >
+                            {descontoDoItem}% de desconto
                           </Badge>
                         )}
                       </div>
