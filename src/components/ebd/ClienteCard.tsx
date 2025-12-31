@@ -81,17 +81,22 @@ export function ClienteCard({
   };
 
   const currentYear = new Date().getFullYear();
-  
-  // Lógica do cupom:
-  // 1. Se não fez onboarding: "Aguardando Setup"
-  // 2. Se fez onboarding e já resgatou no ano: "Cupom XXXX Resgatado"
-  // 3. Se fez onboarding e não resgatou: "Cupom Disponível"
-  const setupPendente = cliente.onboarding_concluido !== true;
-  const cupomResgatado = 
-    cliente.cupom_aniversario_usado === true && 
-    cliente.cupom_aniversario_ano === currentYear;
-  const cupomDisponivel = !setupPendente && !cupomResgatado;
 
+  // Regras:
+  // - Setup pendente: onboarding_concluido !== true
+  // - Setup concluído mas sem data: "Aniversário não informado"
+  // - Com data + não resgatou no ano: "Cupom R$50 Disponível"
+  // - Com data + resgatou no ano: "Cupom {ano} Resgatado"
+  const setupPendente = cliente.onboarding_concluido !== true;
+  const aniversarioInformado = !!cliente.data_aniversario_superintendente;
+
+  const cupomResgatado =
+    !setupPendente &&
+    aniversarioInformado &&
+    cliente.cupom_aniversario_usado === true &&
+    cliente.cupom_aniversario_ano === currentYear;
+
+  const cupomDisponivel = !setupPendente && aniversarioInformado && !cupomResgatado;
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
@@ -181,7 +186,11 @@ export function ClienteCard({
             <div className="flex items-center gap-1.5 col-span-2">
               <Gift
                 className={`h-3.5 w-3.5 flex-shrink-0 ${
-                  cupomDisponivel ? "text-green-600" : setupPendente ? "text-orange-500" : "text-muted-foreground"
+                  cupomDisponivel
+                    ? "text-green-600"
+                    : setupPendente || !aniversarioInformado
+                      ? "text-orange-500"
+                      : "text-muted-foreground"
                 }`}
               />
               {setupPendente ? (
@@ -190,6 +199,13 @@ export function ClienteCard({
                   className="text-xs border-orange-300 text-orange-600"
                 >
                   Setup Pendente
+                </Badge>
+              ) : !aniversarioInformado ? (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-orange-300 text-orange-600"
+                >
+                  Aniversário não informado
                 </Badge>
               ) : cupomDisponivel ? (
                 <Badge
@@ -204,7 +220,6 @@ export function ClienteCard({
                 </Badge>
               )}
             </div>
-
             {/* Vendedor (apenas para admin) */}
             {isAdmin && cliente.vendedor_nome && (
               <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
