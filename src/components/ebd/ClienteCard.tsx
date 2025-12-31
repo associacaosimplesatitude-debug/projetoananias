@@ -32,6 +32,7 @@ interface Cliente {
   data_aniversario_superintendente: string | null;
   cupom_aniversario_usado: boolean | null;
   cupom_aniversario_ano: number | null;
+  onboarding_concluido: boolean | null;
   vendedor_nome?: string;
 }
 
@@ -77,9 +78,11 @@ export function ClienteCard({
   };
 
   const currentYear = new Date().getFullYear();
+  // Cupom só está disponível se o onboarding foi concluído E não foi usado este ano
   const cupomDisponivel =
-    !cliente.cupom_aniversario_usado ||
-    cliente.cupom_aniversario_ano !== currentYear;
+    cliente.onboarding_concluido === true &&
+    (!cliente.cupom_aniversario_usado ||
+      cliente.cupom_aniversario_ano !== currentYear);
 
   return (
     <Card className="hover:shadow-md transition-shadow">

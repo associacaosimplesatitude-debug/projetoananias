@@ -66,6 +66,7 @@ interface Cliente {
   desconto_faturamento: number | null;
   cupom_aniversario_usado: boolean | null;
   cupom_aniversario_ano: number | null;
+  onboarding_concluido: boolean | null;
 }
 
 export default function VendedorClientes() {
@@ -333,6 +334,7 @@ export default function VendedorClientes() {
                       data_aniversario_superintendente: cliente.data_aniversario_superintendente,
                       cupom_aniversario_usado: cliente.cupom_aniversario_usado,
                       cupom_aniversario_ano: cliente.cupom_aniversario_ano,
+                      onboarding_concluido: cliente.onboarding_concluido,
                     }}
                     creditos={getCreditosForCliente(cliente.id)}
                     onEdit={() => handleEditarCliente(cliente)}
