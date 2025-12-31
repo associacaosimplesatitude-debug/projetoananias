@@ -221,15 +221,8 @@ serve(async (req) => {
                 phone: cliente.telefone,
                 tags: "ebd_cliente",
                 note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
-                addresses: cliente.endereco_rua ? [{
-                  address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`,
-                  address2: [cliente.endereco_bairro, cliente.endereco_complemento].filter(Boolean).join(' - ') || '',
-                  city: cliente.endereco_cidade || "",
-                  province: cliente.endereco_estado || "",
-                  zip: cliente.endereco_cep || "",
-                  country: "BR",
-                  company: cliente.nome_igreja,
-                }] : undefined,
+                // IMPORTANT: do not update addresses here to avoid duplicated/invalid addresses in checkout.
+                // Shipping/Billing address will be set explicitly on the Draft Order.
               },
             }),
           }
@@ -263,15 +256,8 @@ serve(async (req) => {
               phone: cliente.telefone,
               tags: "ebd_cliente",
               note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
-              addresses: cliente.endereco_rua ? [{
-                address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`,
-                address2: [cliente.endereco_bairro, cliente.endereco_complemento].filter(Boolean).join(' - ') || '',
-                city: cliente.endereco_cidade || "",
-                province: cliente.endereco_estado || "",
-                zip: cliente.endereco_cep || "",
-                country: "BR",
-                company: cliente.nome_igreja,
-              }] : undefined,
+              // IMPORTANT: do not set addresses on customer creation to avoid duplicated/invalid addresses in checkout.
+              // Shipping/Billing address will be set explicitly on the Draft Order.
             },
           }),
         }
@@ -387,7 +373,9 @@ serve(async (req) => {
         tags: orderTags,
         note_attributes: noteAttributes,
         ...(customerId && { customer: { id: customerId } }),
-        use_customer_default_address: !!customerId,
+        // CRITICAL: prevent Shopify from mixing customer default address with the explicit shipping address
+        // which was causing duplicated/invalid addresses in checkout.
+        use_customer_default_address: false,
         ...(shippingLine && { shipping_line: shippingLine }),
       },
     };
@@ -405,8 +393,12 @@ serve(async (req) => {
         shipping_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`,
-          address2: [cliente.endereco_bairro, cliente.endereco_complemento].filter(Boolean).join(' - ') || '',
+          // Shopify BR checkout parses 'Número' and 'Bairro' better when address1 is only the street.
+          address1: `${cliente.endereco_rua || ''}`,
+          // Format: "[Número], [Bairro], [Complemento(opcional)]"
+          address2: [cliente.endereco_numero || 'S/N', cliente.endereco_bairro, cliente.endereco_complemento]
+            .filter(Boolean)
+            .join(', '),
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
           zip: cliente.endereco_cep || "",
@@ -418,8 +410,10 @@ serve(async (req) => {
         billing_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`,
-          address2: [cliente.endereco_bairro, cliente.endereco_complemento].filter(Boolean).join(' - ') || '',
+          address1: `${cliente.endereco_rua || ''}`,
+          address2: [cliente.endereco_numero || 'S/N', cliente.endereco_bairro, cliente.endereco_complemento]
+            .filter(Boolean)
+            .join(', '),
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
           zip: cliente.endereco_cep || "",
