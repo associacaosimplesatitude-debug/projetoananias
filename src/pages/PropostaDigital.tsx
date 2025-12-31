@@ -24,6 +24,8 @@ interface ShippingOption {
   label: string;
   cost: number;
   days?: number;
+  endereco?: string;
+  horario?: string;
 }
 
 interface Proposta {
@@ -153,10 +155,22 @@ export default function PropostaDigital() {
         });
       }
 
+      // Add Retirada na Matriz - always free
+      options.push({
+        type: 'retirada',
+        label: 'Retirada na Matriz',
+        cost: 0,
+        endereco: 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
+
       // Add free shipping if total >= R$199,90
       const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * (proposta.desconto_percentual || 0) / 100);
       if (valorComDesconto >= 199.90) {
+        // Insert free shipping before retirada
+        const retiradaOption = options.pop();
         options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
+        if (retiradaOption) options.push(retiradaOption);
       }
 
       setShippingOptions(options);
@@ -174,9 +188,16 @@ export default function PropostaDigital() {
       const fallbackOptions: ShippingOption[] = [
         { type: 'pac', label: 'PAC - 8 dias úteis', cost: 15, days: 8 },
         { type: 'sedex', label: 'SEDEX - 3 dias úteis', cost: 25, days: 3 },
+        { 
+          type: 'retirada', 
+          label: 'Retirada na Matriz', 
+          cost: 0,
+          endereco: 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ',
+          horario: 'Segunda a Sexta: 9h às 18h'
+        },
       ];
       if (valorComDesconto >= 199.90) {
-        fallbackOptions.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
+        fallbackOptions.splice(2, 0, { type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
       }
       setShippingOptions(fallbackOptions);
       if (valorComDesconto >= 199.90) {
@@ -353,6 +374,7 @@ export default function PropostaDigital() {
     if (!proposta.metodo_frete || proposta.metodo_frete === 'free') return 'Frete Grátis';
     if (proposta.metodo_frete === 'pac') return 'PAC (Correios)';
     if (proposta.metodo_frete === 'sedex') return 'SEDEX (Correios)';
+    if (proposta.metodo_frete === 'retirada') return 'Retirada na Matriz';
     return proposta.metodo_frete;
   };
 
@@ -626,14 +648,36 @@ export default function PropostaDigital() {
                   {shippingOptions.map((option) => (
                     <div 
                       key={option.type}
-                      className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-green-200 hover:border-green-400 transition-colors"
+                      className={`flex items-start space-x-3 p-3 bg-white rounded-lg border transition-colors ${
+                        option.type === 'retirada' 
+                          ? 'border-green-300 hover:border-green-500' 
+                          : 'border-green-200 hover:border-green-400'
+                      }`}
                     >
-                      <RadioGroupItem value={option.type} id={`frete-${option.type}`} />
-                      <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer flex justify-between items-center">
-                        <span className="font-medium">{option.label}</span>
-                        <span className={option.cost === 0 ? "text-green-600 font-semibold" : "font-semibold"}>
-                          {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
-                        </span>
+                      <RadioGroupItem value={option.type} id={`frete-${option.type}`} className="mt-1" />
+                      <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-medium flex items-center gap-2">
+                              {option.type === 'retirada' && <MapPin className="h-4 w-4 text-green-600" />}
+                              {option.label}
+                              {option.cost === 0 && (
+                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                  Frete Grátis
+                                </Badge>
+                              )}
+                            </span>
+                            {option.endereco && (
+                              <p className="text-xs text-muted-foreground mt-1">{option.endereco}</p>
+                            )}
+                            {option.horario && (
+                              <p className="text-xs text-muted-foreground">{option.horario}</p>
+                            )}
+                          </div>
+                          <span className={option.cost === 0 ? "text-green-600 font-semibold" : "font-semibold"}>
+                            {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
+                          </span>
+                        </div>
                       </Label>
                     </div>
                   ))}

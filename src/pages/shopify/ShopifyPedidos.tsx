@@ -33,7 +33,7 @@ import { FaturamentoSelectionDialog } from "@/components/shopify/FaturamentoSele
 import { DescontoRevendedorBanner } from "@/components/shopify/DescontoRevendedorBanner";
 import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
-import { FormaEnvioSection, FormaEnvio, MATRIZ_CONFIG } from "@/components/shopify/FormaEnvioSection";
+
 import { DescontoBanner } from "@/components/shopify/DescontoBanner";
 import { calcularDescontosCarrinho, calcularDescontoRevendedor } from "@/lib/descontosShopify";
 import {
@@ -118,9 +118,8 @@ export default function ShopifyPedidos() {
   const [messageCopied, setMessageCopied] = useState(false);
   const [propostaClienteNome, setPropostaClienteNome] = useState<string>("");
   
-  // Estados para endereço e forma de envio
+  // Estados para endereço
   const [selectedEndereco, setSelectedEndereco] = useState<any>(null);
-  const [formaEnvio, setFormaEnvio] = useState<FormaEnvio>("entrega");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Fetch current user ID
@@ -975,15 +974,6 @@ export default function ShopifyPedidos() {
                       </div>
                     )}
 
-                    {/* Forma de Envio */}
-                    {selectedCliente && (
-                      <div className="border-t pt-4 px-2">
-                        <FormaEnvioSection
-                          value={formaEnvio}
-                          onChange={setFormaEnvio}
-                        />
-                      </div>
-                    )}
                     
                     <div className="flex-shrink-0 space-y-4 pt-4 border-t bg-background">
                       {/* Banner de desconto dinâmico */}
