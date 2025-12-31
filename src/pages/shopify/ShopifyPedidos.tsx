@@ -566,8 +566,15 @@ export default function ShopifyPedidos() {
         imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null
       }));
 
-      // Preparar endereço
-      const clienteEndereco = {
+      // Preparar endereço - usar o endereço selecionado se existir, senão usar endereço do cliente
+      const clienteEndereco = selectedEndereco ? {
+        rua: selectedEndereco.rua,
+        numero: selectedEndereco.numero,
+        bairro: selectedEndereco.bairro,
+        cidade: selectedEndereco.cidade,
+        estado: selectedEndereco.estado,
+        cep: selectedEndereco.cep
+      } : {
         rua: selectedCliente.endereco_rua,
         numero: selectedCliente.endereco_numero,
         bairro: selectedCliente.endereco_bairro,
