@@ -558,17 +558,28 @@ export default function ShopifyPedidos() {
       // Gerar token único
       const token = crypto.randomUUID();
       
-      // Calcular valores - usar desconto calculado se disponível (para ADVEC com 50% por produto)
+      // Se o caller não passou o cálculo (ex.: fluxo de faturamento),
+      // ainda assim precisamos aplicar a regra ADVEC (livros 50% / revistas 40%).
+      const tipoCliente = (selectedCliente.tipo_cliente || "").toLowerCase();
+      const shouldAutoCalcAdvec = tipoCliente.includes("advec");
+      const autoCalc = !descontoCalculado && shouldAutoCalcAdvec
+        ? calcularDescontosCarrinho(items, selectedCliente.tipo_cliente, selectedCliente.onboarding_concluido || false)
+        : undefined;
+
+      const descontoFinal =
+        descontoCalculado ?? (autoCalc?.tipoDesconto === "advec_50" ? autoCalc : undefined);
+
+      // Calcular valores
       let valorProdutos: number;
       let valorDesconto: number;
       let valorFrete = frete?.cost || 0;
       let valorTotal: number;
-      
-      if (descontoCalculado) {
+
+      if (descontoFinal) {
         // Usar valores do cálculo específico (ADVEC, etc.)
-        valorProdutos = descontoCalculado.subtotal;
-        valorDesconto = descontoCalculado.descontoValor;
-        valorTotal = descontoCalculado.total + valorFrete;
+        valorProdutos = descontoFinal.subtotal;
+        valorDesconto = descontoFinal.descontoValor;
+        valorTotal = descontoFinal.total + valorFrete;
       } else {
         // Cálculo tradicional com percentual fixo
         valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
@@ -577,50 +588,57 @@ export default function ShopifyPedidos() {
       }
 
       // Preparar itens para salvar (incluindo desconto por item para ADVEC)
-      const itensParaSalvar = items.map(item => {
-        // Calcular desconto individual para cada item
-        let descontoItem = descontoPercent; // Desconto padrão
-        
-        // Se for ADVEC, verificar se o produto tem desconto de 50%
-        if (descontoCalculado?.tipoDesconto === "advec_50") {
-          // Usar a função isProdutoAdvec50 para verificar corretamente
-          const isProdutoEspecial = isProdutoAdvec50(item.product.node.title, item.product.node.id);
-          descontoItem = isProdutoEspecial ? 50 : 40; // 50% para livros ADVEC, 40% para revistas
+      const itensParaSalvar = items.map((item) => {
+        // Desconto padrão
+        let descontoItem = descontoPercent;
+
+        // Para ADVEC: regra solicitada -> LIVROS 50% e REVISTAS 40%
+        if (descontoFinal?.tipoDesconto === "advec_50") {
+          const lowerTitle = item.product.node.title.toLowerCase();
+
+          const isRevistaEbd =
+            lowerTitle.includes("revista") ||
+            lowerTitle.includes("ebd") ||
+            lowerTitle.includes("estudo bíblico") ||
+            lowerTitle.includes("estudo biblico") ||
+            lowerTitle.includes("kit do professor") ||
+            lowerTitle.includes("kit professor") ||
+            lowerTitle.includes("infografico");
+
+          descontoItem = isRevistaEbd ? 40 : 50;
         }
-        
+
         return {
           variantId: item.variantId,
           quantity: item.quantity,
           title: item.product.node.title,
           price: item.price.amount,
           imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
-          descontoItem: descontoItem
+          descontoItem,
         };
       });
 
-      // Preparar endereço - usar o endereço selecionado se existir, senão usar endereço do cliente
-      const clienteEndereco = selectedEndereco ? {
-        rua: selectedEndereco.rua,
-        numero: selectedEndereco.numero,
-        bairro: selectedEndereco.bairro,
-        cidade: selectedEndereco.cidade,
-        estado: selectedEndereco.estado,
-        cep: selectedEndereco.cep
-      } : {
-        rua: selectedCliente.endereco_rua,
-        numero: selectedCliente.endereco_numero,
-        bairro: selectedCliente.endereco_bairro,
-        cidade: selectedCliente.endereco_cidade,
-        estado: selectedCliente.endereco_estado,
-        cep: selectedCliente.endereco_cep
-      };
-
       // Calcular o percentual de desconto real a salvar
-      // Para ADVEC: usar o percentual calculado (que reflete os 50% por produto)
-      // Para outros: usar o desconto percentual passado ou calculado
-      const descontoPercentualFinal = descontoCalculado 
-        ? descontoCalculado.descontoPercentual 
-        : descontoPercent;
+      const descontoPercentualFinal = descontoFinal ? descontoFinal.descontoPercentual : descontoPercent;
+
+      // Preparar endereço - usar o endereço selecionado se existir, senão usar endereço do cliente
+      const clienteEndereco = selectedEndereco
+        ? {
+            rua: selectedEndereco.rua,
+            numero: selectedEndereco.numero,
+            bairro: selectedEndereco.bairro,
+            cidade: selectedEndereco.cidade,
+            estado: selectedEndereco.estado,
+            cep: selectedEndereco.cep,
+          }
+        : {
+            rua: selectedCliente.endereco_rua,
+            numero: selectedCliente.endereco_numero,
+            bairro: selectedCliente.endereco_bairro,
+            cidade: selectedCliente.endereco_cidade,
+            estado: selectedCliente.endereco_estado,
+            cep: selectedCliente.endereco_cep,
+          };
 
       // Salvar proposta no banco
       const { data, error } = await supabase
