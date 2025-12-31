@@ -72,8 +72,11 @@ export function ClienteCard({
   };
 
   const formatAniversario = (data: string | null) => {
-    if (!data) return null;
-    const [, month, day] = data.split("-");
+    if (!data) return "-";
+    const clean = data.includes("T") ? data.split("T")[0] : data;
+    const parts = clean.split("-");
+    if (parts.length < 3) return data;
+    const [, month, day] = parts;
     return `${day}/${month}`;
   };
 
@@ -149,28 +152,12 @@ export function ClienteCard({
             </div>
 
             {/* Aniversários */}
-            {(cliente.data_aniversario_pastor ||
-              cliente.data_aniversario_superintendente) && (
-              <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
-                <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate">
-                  {cliente.data_aniversario_pastor && (
-                    <>
-                      Pastor: {formatAniversario(cliente.data_aniversario_pastor)}
-                    </>
-                  )}
-                  {cliente.data_aniversario_pastor &&
-                    cliente.data_aniversario_superintendente &&
-                    " | "}
-                  {cliente.data_aniversario_superintendente && (
-                    <>
-                      Superint:{" "}
-                      {formatAniversario(cliente.data_aniversario_superintendente)}
-                    </>
-                  )}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+              <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">
+                Pastor: {formatAniversario(cliente.data_aniversario_pastor)} | Superint: {formatAniversario(cliente.data_aniversario_superintendente)}
+              </span>
+            </div>
 
             {/* Créditos */}
             <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -202,7 +189,7 @@ export function ClienteCard({
                   variant="outline"
                   className="text-xs border-orange-300 text-orange-600"
                 >
-                  Aguardando Setup
+                  Setup Pendente
                 </Badge>
               ) : cupomDisponivel ? (
                 <Badge
