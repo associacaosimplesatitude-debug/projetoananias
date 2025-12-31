@@ -222,8 +222,8 @@ serve(async (req) => {
                 tags: "ebd_cliente",
                 note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
                 addresses: cliente.endereco_rua ? [{
-                  address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
-                  address2: cliente.endereco_complemento || '',
+                  address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`,
+                  address2: [cliente.endereco_bairro, cliente.endereco_complemento].filter(Boolean).join(' - ') || '',
                   city: cliente.endereco_cidade || "",
                   province: cliente.endereco_estado || "",
                   zip: cliente.endereco_cep || "",
@@ -264,8 +264,8 @@ serve(async (req) => {
               tags: "ebd_cliente",
               note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
               addresses: cliente.endereco_rua ? [{
-                address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
-                address2: cliente.endereco_complemento || '',
+                address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`,
+                address2: [cliente.endereco_bairro, cliente.endereco_complemento].filter(Boolean).join(' - ') || '',
                 city: cliente.endereco_cidade || "",
                 province: cliente.endereco_estado || "",
                 zip: cliente.endereco_cep || "",
@@ -405,8 +405,8 @@ serve(async (req) => {
         shipping_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
-          address2: cliente.endereco_complemento || '',
+          address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`,
+          address2: [cliente.endereco_bairro, cliente.endereco_complemento].filter(Boolean).join(' - ') || '',
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
           zip: cliente.endereco_cep || "",
@@ -418,8 +418,8 @@ serve(async (req) => {
         billing_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
-          address2: cliente.endereco_complemento || '',
+          address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`,
+          address2: [cliente.endereco_bairro, cliente.endereco_complemento].filter(Boolean).join(' - ') || '',
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
           zip: cliente.endereco_cep || "",
