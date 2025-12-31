@@ -78,11 +78,16 @@ export function ClienteCard({
   };
 
   const currentYear = new Date().getFullYear();
-  // Cupom só está disponível se o onboarding foi concluído E não foi usado este ano
-  const cupomDisponivel =
-    cliente.onboarding_concluido === true &&
-    (!cliente.cupom_aniversario_usado ||
-      cliente.cupom_aniversario_ano !== currentYear);
+  
+  // Lógica do cupom:
+  // 1. Se não fez onboarding: "Aguardando Setup"
+  // 2. Se fez onboarding e já resgatou no ano: "Cupom XXXX Resgatado"
+  // 3. Se fez onboarding e não resgatou: "Cupom Disponível"
+  const setupPendente = cliente.onboarding_concluido !== true;
+  const cupomResgatado = 
+    cliente.cupom_aniversario_usado === true && 
+    cliente.cupom_aniversario_ano === currentYear;
+  const cupomDisponivel = !setupPendente && !cupomResgatado;
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -189,10 +194,17 @@ export function ClienteCard({
             <div className="flex items-center gap-1.5 col-span-2">
               <Gift
                 className={`h-3.5 w-3.5 flex-shrink-0 ${
-                  cupomDisponivel ? "text-green-600" : "text-muted-foreground"
+                  cupomDisponivel ? "text-green-600" : setupPendente ? "text-orange-500" : "text-muted-foreground"
                 }`}
               />
-              {cupomDisponivel ? (
+              {setupPendente ? (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-orange-300 text-orange-600"
+                >
+                  Aguardando Setup
+                </Badge>
+              ) : cupomDisponivel ? (
                 <Badge
                   variant="outline"
                   className="text-xs border-green-300 text-green-600"
