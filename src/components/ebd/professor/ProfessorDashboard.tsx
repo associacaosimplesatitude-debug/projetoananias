@@ -170,6 +170,28 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
     enabled: !!professor.id,
   });
 
+  // Fetch pontuação total do professor (leituras)
+  const { data: pontuacaoTotal = 0 } = useQuery({
+    queryKey: ["professor-pontuacao-total", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return 0;
+
+      const { data, error } = await supabase
+        .from("ebd_desafio_leitura_registro")
+        .select("pontos_ganhos")
+        .eq("user_id", user.id)
+        .eq("user_type", "professor");
+
+      if (error) {
+        console.error("Error fetching pontuacao:", error);
+        return 0;
+      }
+
+      return data?.reduce((acc, r) => acc + (r.pontos_ganhos || 0), 0) || 0;
+    },
+    enabled: !!user?.id,
+  });
+
   // Get próxima aula
   const proximaAula = escalas?.[0];
 
@@ -271,6 +293,24 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
           )}
         </CardContent>
       </Card>
+
+      {/* Card de Pontuação Total do Professor */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="bg-gradient-to-br from-amber-500/10 to-yellow-600/5 border-amber-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Minha Pontuação</p>
+                <p className="text-3xl font-bold text-amber-600">{pontuacaoTotal}</p>
+                <p className="text-xs text-muted-foreground">pontos acumulados</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <Trophy className="h-6 w-6 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Grid de Cards */}
       <div className="grid gap-4 md:grid-cols-2">
