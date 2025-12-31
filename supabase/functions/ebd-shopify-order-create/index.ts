@@ -21,7 +21,6 @@ interface Cliente {
   endereco_rua: string | null;
   endereco_numero: string | null;
   endereco_bairro: string | null;
-  endereco_complemento: string | null;
   endereco_cidade: string | null;
   endereco_estado: string | null;
   vendedor_id?: string | null;
@@ -205,7 +204,7 @@ serve(async (req) => {
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '';
 
-        // Update customer with latest info - CLEAR addresses to avoid duplication in checkout
+        // Update customer with latest info
         await fetch(
           `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/customers/${customerId}.json`,
           {
@@ -221,13 +220,19 @@ serve(async (req) => {
                 phone: cliente.telefone,
                 tags: "ebd_cliente",
                 note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
-                // Clear all addresses to prevent checkout from auto-filling with stale/duplicated data
-                addresses: [],
+                addresses: cliente.endereco_rua ? [{
+                  address1: cliente.endereco_rua || '',
+                  address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+                  city: cliente.endereco_cidade || "",
+                  province: cliente.endereco_estado || "",
+                  zip: cliente.endereco_cep || "",
+                  country: "BR",
+                  company: cliente.nome_igreja,
+                }] : undefined,
               },
             }),
           }
         );
-        console.log("Cleared customer addresses to prevent checkout duplication");
       }
     }
 
@@ -257,8 +262,15 @@ serve(async (req) => {
               phone: cliente.telefone,
               tags: "ebd_cliente",
               note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
-              // IMPORTANT: do not set addresses on customer creation to avoid duplicated/invalid addresses in checkout.
-              // Shipping/Billing address will be set explicitly on the Draft Order.
+              addresses: cliente.endereco_rua ? [{
+                address1: cliente.endereco_rua || '',
+                address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+                city: cliente.endereco_cidade || "",
+                province: cliente.endereco_estado || "",
+                zip: cliente.endereco_cep || "",
+                country: "BR",
+                company: cliente.nome_igreja,
+              }] : undefined,
             },
           }),
         }
@@ -374,19 +386,48 @@ serve(async (req) => {
         tags: orderTags,
         note_attributes: noteAttributes,
         ...(customerId && { customer: { id: customerId } }),
-        // CRITICAL: prevent Shopify from mixing customer default address with the explicit shipping address
-        // which was causing duplicated/invalid addresses in checkout.
-        use_customer_default_address: false,
+        use_customer_default_address: !!customerId,
         ...(shippingLine && { shipping_line: shippingLine }),
       },
     };
 
-    // IMPORTANT (Checkout BR): Não enviar shipping_address/billing_address no Draft Order.
-    // Quando esses campos são enviados, o checkout pode “travar” a edição de Número e Bairro.
-    // Assim o cliente consegue preencher/editar TODO o endereço no checkout.
-    //
-    // Mantemos apenas shipping_line (frete) e use_customer_default_address=false.
-    // O cliente informará CEP, Rua, Número, Bairro, etc. no checkout.
+    // Add shipping address if available
+    if (cliente.endereco_rua) {
+      // Split name for shipping address too
+      const shippingFullName = cliente.nome_responsavel || cliente.nome_igreja || '';
+      const shippingNameParts = shippingFullName.trim().split(' ');
+      const shippingFirstName = shippingNameParts[0] || '';
+      const shippingLastName = shippingNameParts.slice(1).join(' ') || '';
+      
+      draftOrderPayload.draft_order = {
+        ...draftOrderPayload.draft_order as Record<string, unknown>,
+        shipping_address: {
+          first_name: shippingFirstName,
+          last_name: shippingLastName,
+          address1: cliente.endereco_rua || '',
+          address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+          city: cliente.endereco_cidade || "",
+          province: cliente.endereco_estado || "",
+          zip: cliente.endereco_cep || "",
+          country: "BR",
+          phone: cliente.telefone,
+          company: cliente.nome_igreja,
+        },
+        // Also add billing address with CPF/CNPJ info
+        billing_address: {
+          first_name: shippingFirstName,
+          last_name: shippingLastName,
+          address1: cliente.endereco_rua || '',
+          address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+          city: cliente.endereco_cidade || "",
+          province: cliente.endereco_estado || "",
+          zip: cliente.endereco_cep || "",
+          country: "BR",
+          phone: cliente.telefone,
+          company: cliente.nome_igreja,
+        },
+      };
+    }
 
     // Add payment terms for B2B faturamento orders
     if (isFaturamento && faturamento_prazo) {
