@@ -24,22 +24,22 @@ export function DescontoSidebarBadge() {
       if (error) throw error;
       if (!cliente) return null;
 
-      // Se ainda não está marcado como concluído, mas as 7 etapas já foram feitas,
-      // exibimos o badge mesmo assim (evita inconsistências de sync).
-      if (!cliente.onboarding_concluido || !cliente.desconto_onboarding) {
-        const { count } = await supabase
-          .from("ebd_onboarding_progress")
-          .select("id", { count: "exact", head: true })
-          .eq("church_id", cliente.id)
-          .eq("completada", true);
+      // Se ainda não está marcado como concluído, verificar se as etapas foram completadas
+      const { count } = await supabase
+        .from("ebd_onboarding_progress")
+        .select("id", { count: "exact", head: true })
+        .eq("church_id", cliente.id)
+        .eq("completada", true);
 
-        if ((count || 0) >= 7) {
-          return {
-            ...cliente,
-            onboarding_concluido: true,
-            desconto_onboarding: cliente.desconto_onboarding ?? 20,
-          };
-        }
+      const etapasCompletas = count || 0;
+
+      // Se 7 etapas completas, sempre mostrar o badge
+      if (etapasCompletas >= 7) {
+        return {
+          ...cliente,
+          onboarding_concluido: true,
+          desconto_onboarding: cliente.desconto_onboarding ?? 20,
+        };
       }
 
       return cliente;

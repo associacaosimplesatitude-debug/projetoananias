@@ -110,14 +110,6 @@ function EBDSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive('/ebd/planejamento')}>
-                    <RouterNavLink to="/ebd/planejamento">
-                      <ClipboardList className="h-4 w-4" />
-                      <span>Planejamento</span>
-                    </RouterNavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/escala')}>
                     <RouterNavLink to="/ebd/escala">
                       <Calendar className="h-4 w-4" />

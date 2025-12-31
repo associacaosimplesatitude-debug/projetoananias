@@ -119,8 +119,10 @@ export default function EBDDashboard() {
     enabled: !!user?.id,
   });
 
-  const churchId = churchData?.id;
+  // Usar ebdClienteId como churchId para clientes criados pelo vendedor
+  const churchId = churchData?.id || ebdClienteData?.id;
   const ebdClienteId = ebdClienteData?.id ?? null;
+
   const { data: totalAlunos = 0 } = useQuery({
     queryKey: ['ebd-total-alunos', churchId],
     queryFn: async () => {
