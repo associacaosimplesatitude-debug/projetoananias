@@ -337,6 +337,25 @@ export const useOnboardingProgress = (churchId: string | null) => {
       let descontoCliente = clienteData?.desconto_onboarding || null;
 
       if (!usarEtapasSimplificadas && etapasCompletas >= totalEtapas && !concluidoCliente) {
+        // Só considerar "setup concluído" se a data de aniversário (etapa final) foi salva.
+        if (!clienteData?.data_aniversario_superintendente) {
+          // Mantém como pendente até o superintendente informar a data.
+          return {
+            etapas,
+            revistaIdentificadaId: revistaId,
+            revistaIdentificadaTitulo: revistaTitulo,
+            revistaIdentificadaImagem: revistaImagem,
+            revistaIdentificadaFaixaEtaria: revistaFaixaEtaria,
+            revistaIdentificadaNumLicoes: revistaNumLicoes,
+            progressoPercentual,
+            concluido: false,
+            descontoObtido: descontoCliente,
+            dataAniversario: null,
+            cupomAniversarioDisponivel: false,
+            modoRecompra: usarEtapasSimplificadas,
+          } as OnboardingProgress;
+        }
+
         const { data: ultimoPedido } = await supabase
           .from("ebd_shopify_pedidos")
           .select("valor_total")
@@ -360,7 +379,6 @@ export const useOnboardingProgress = (churchId: string | null) => {
         concluidoCliente = true;
         descontoCliente = percentual;
       }
-
       // Verificar se cupom de aniversário está disponível
       const anoAtual = new Date().getFullYear();
       const dataAniversario = clienteData?.data_aniversario_superintendente || null;
@@ -410,10 +428,11 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       // Se é a etapa 6 (aniversário), salvar a data
       if (etapaId === 6 && dataAniversario) {
-        await supabase
+        const { error: birthdayError } = await supabase
           .from("ebd_clientes")
           .update({ data_aniversario_superintendente: dataAniversario })
           .eq("id", churchId);
+        if (birthdayError) throw birthdayError;
       }
 
       const usarSimplificadas = progressData?.modoRecompra || false;
