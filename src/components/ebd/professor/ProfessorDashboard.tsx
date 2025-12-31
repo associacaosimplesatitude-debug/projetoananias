@@ -294,8 +294,9 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
         </CardContent>
       </Card>
 
-      {/* Card de Pontuação Total do Professor */}
+      {/* Grid de Cards Principais */}
       <div className="grid gap-4 md:grid-cols-3">
+        {/* Card de Pontuação */}
         <Card className="bg-gradient-to-br from-amber-500/10 to-yellow-600/5 border-amber-500/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -308,6 +309,60 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
                 <Trophy className="h-6 w-6 text-amber-600" />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Card: Status da Classe */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground">Minha Classe</p>
+              <Users className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div className="text-2xl font-bold text-primary">{alunosStats?.total || 0}</div>
+                <p className="text-xs text-muted-foreground">Alunos</p>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-600">{alunosStats?.mediaPresenca || 0}%</div>
+                <p className="text-xs text-muted-foreground">Frequência</p>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-amber-600">{alunosStats?.mediaPontos || 0}</div>
+                <p className="text-xs text-muted-foreground">Média Pts</p>
+              </div>
+            </div>
+            <Button 
+              variant="ghost" 
+              className="w-full mt-3 gap-2"
+              onClick={() => navigate("/ebd/professor/classe")}
+              size="sm"
+            >
+              Ver Detalhes
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Card de Turmas */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground">Turmas Vinculadas</p>
+              <BookOpen className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="text-3xl font-bold">{turmas.length}</p>
+            <p className="text-xs text-muted-foreground mb-3">turma(s) ativa(s)</p>
+            <Button 
+              variant="ghost" 
+              className="w-full gap-2"
+              onClick={() => navigate("/ebd/professor/escala")}
+              size="sm"
+            >
+              Ver Escala
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -354,48 +409,6 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
           </Card>
         )}
 
-        {/* Card: Status da Classe */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Status da Classe
-            </CardTitle>
-            <CardDescription>
-              {turmas.length} turma(s) vinculada(s)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">
-                  {alunosStats?.total || 0}
-                </div>
-                <p className="text-xs text-muted-foreground">Alunos</p>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {alunosStats?.mediaPresenca || 0}%
-                </div>
-                <p className="text-xs text-muted-foreground">Frequência</p>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-amber-600">
-                  {alunosStats?.mediaPontos || 0}
-                </div>
-                <p className="text-xs text-muted-foreground">Média Pts</p>
-              </div>
-            </div>
-            <Button 
-              variant="ghost" 
-              className="w-full mt-4 gap-2"
-              onClick={() => navigate("/ebd/professor/classe")}
-            >
-              Ver Detalhes
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
 
         {/* Card: Ações de Gamificação */}
         <Card>
