@@ -11,6 +11,7 @@ import { z } from 'zod';
 import logoAnanias from '@/assets/logo_ananias.png';
 import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 import { useDomainBranding } from '@/hooks/useDomainBranding';
+import { pushLoginSuccess, pushCadastroSuccess } from '@/lib/gtm';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
@@ -56,6 +57,7 @@ export default function Auth() {
       console.log('Vendedor check:', { vendedorData, vendedorError });
 
       if (vendedorData) {
+        pushLoginSuccess(user.id, 'Vendedor');
         console.log('Redirecting to /vendedor');
         navigate('/vendedor');
         return;
@@ -76,6 +78,7 @@ export default function Auth() {
           .from('ebd_clientes')
           .update({ ultimo_login: new Date().toISOString() })
           .eq('id', superintendenteData.id);
+        pushLoginSuccess(user.id, 'Superintendente');
         console.log('Redirecting to /ebd/dashboard (superintendente)');
         navigate('/ebd/dashboard');
         return;
@@ -118,6 +121,7 @@ export default function Auth() {
       console.log('Role check:', { roleData, roleError });
 
       if (roleData?.role === 'admin') {
+        pushLoginSuccess(user.id, 'Admin');
         console.log('Redirecting to /admin');
         navigate('/admin');
         return;
@@ -171,6 +175,7 @@ export default function Auth() {
         .maybeSingle();
 
       if (professorData) {
+        pushLoginSuccess(user.id, 'Professor');
         console.log('Redirecting to /ebd/professor');
         navigate('/ebd/professor');
         return;
@@ -185,6 +190,7 @@ export default function Auth() {
         .maybeSingle();
 
       if (alunoData) {
+        pushLoginSuccess(user.id, 'Aluno');
         console.log('Redirecting to /ebd/aluno');
         navigate('/ebd/aluno');
         return;
@@ -240,6 +246,8 @@ export default function Auth() {
             });
           }
         } else {
+          // Push cadastro success - user created (tipo Cliente/Igreja)
+          pushCadastroSuccess(email, 'Cliente/Igreja');
           toast({
             title: 'Conta criada com sucesso!',
             description: 'Você já pode fazer login.',

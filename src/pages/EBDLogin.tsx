@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import { pushLoginSuccess, pushCadastroSuccess } from '@/lib/gtm';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido').max(255),
@@ -52,6 +53,7 @@ export default function EBDLogin() {
         .maybeSingle();
 
       if (vendedorData) {
+        pushLoginSuccess(user.id, 'Vendedor');
         navigate('/vendedor');
         return;
       }
@@ -69,6 +71,7 @@ export default function EBDLogin() {
           .from('ebd_clientes')
           .update({ ultimo_login: new Date().toISOString() })
           .eq('id', superintendenteData.id);
+        pushLoginSuccess(user.id, 'Superintendente');
         navigate('/ebd/dashboard');
         return;
       }
@@ -101,6 +104,7 @@ export default function EBDLogin() {
         .maybeSingle();
 
       if (roleData?.role === 'admin') {
+        pushLoginSuccess(user.id, 'Admin');
         navigate('/admin');
         return;
       }
@@ -144,6 +148,7 @@ export default function EBDLogin() {
         .maybeSingle();
 
       if (professorData) {
+        pushLoginSuccess(user.id, 'Professor');
         navigate('/ebd/professor');
         return;
       }
@@ -157,6 +162,7 @@ export default function EBDLogin() {
         .maybeSingle();
 
       if (alunoData) {
+        pushLoginSuccess(user.id, 'Aluno');
         navigate('/ebd/aluno');
         return;
       }
@@ -209,6 +215,7 @@ export default function EBDLogin() {
             });
           }
         } else {
+          pushCadastroSuccess(email, 'Cliente/Igreja');
           toast({
             title: 'Conta criada com sucesso!',
             description: 'Redirecionando para o painel...',
