@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { CheckCircle, Loader2, MapPin, Building2, Package, ShoppingCart, Truck, CreditCard } from "lucide-react";
+import { pushPropostaAprovada } from "@/lib/gtm";
 
 interface PropostaItem {
   variantId: string;
@@ -312,6 +313,10 @@ export default function PropostaDigital() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["proposta", token] });
+      // Push GTM event for proposal approval
+      if (proposta) {
+        pushPropostaAprovada(proposta.id, proposta.valor_total);
+      }
       if (proposta?.pode_faturar) {
         toast.success("Proposta confirmada com sucesso!");
       } else {
