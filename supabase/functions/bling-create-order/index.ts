@@ -535,15 +535,50 @@ serve(async (req) => {
     // Cache simples para não bater no endpoint de estoque repetidas vezes
     const estoqueCache = new Map<number, number>();
 
-    // Busca saldo físico total no Bling (quando possível)
-    // NOTA: A verificação de estoque foi removida pois a API de saldos não retorna dados
-    // consistentes para todos os produtos. Deixamos o Bling validar ao criar a venda.
-    async function getBlingStock(produtoId: number): Promise<number | null> {
-      // Desabilitando verificação prévia de estoque - deixar o Bling validar
-      // O endpoint /estoques/saldos pode não retornar dados para todos os produtos
-      // especialmente quando usam depósitos ou configurações específicas
-      console.log(`[STOCK CHECK SKIP] Pulando verificação de estoque para produto ${produtoId} - deixando Bling validar`);
-      return null;
+    // Busca saldo físico/virtual no Bling (quando disponível)
+    // Observação: no painel do Bling geralmente aparece o **saldo físico**,
+    // mas a validação da venda costuma considerar o **saldo virtual/disponível** (saldo físico - reservas).
+    async function getBlingStock(produtoId: number): Promise<{ saldoFisico: number | null; saldoVirtual: number | null } | null> {
+      try {
+        if (estoqueCache.has(produtoId)) {
+          const cachedVirtual = estoqueCache.get(produtoId)!;
+          return { saldoFisico: null, saldoVirtual: cachedVirtual };
+        }
+
+        // Rate limit: respeitar espaçamento entre chamadas
+        await delay(350);
+
+        const url = `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`;
+        const resp = await blingFetchWithRetry(url, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+
+        if (!resp.ok) {
+          const body = await resp.text();
+          console.log(`[STOCK CHECK] Falha ao consultar saldo do produto ${produtoId}: status=${resp.status} body=${body}`);
+          return null;
+        }
+
+        const json = await resp.json();
+        const row = Array.isArray(json?.data) ? json.data.find((d: any) => Number(d?.id) === produtoId) : null;
+
+        const saldoFisico = row?.saldoFisico != null ? Number(row.saldoFisico) : null;
+        const saldoVirtual = row?.saldoVirtual != null ? Number(row.saldoVirtual) : null;
+
+        // Cache apenas o saldo virtual (mais importante pra validação)
+        if (saldoVirtual != null && !Number.isNaN(saldoVirtual)) {
+          estoqueCache.set(produtoId, saldoVirtual);
+        }
+
+        console.log(`[STOCK CHECK] produto=${produtoId} saldoFisico=${saldoFisico ?? 'n/a'} saldoVirtual=${saldoVirtual ?? 'n/a'}`);
+        return { saldoFisico, saldoVirtual };
+      } catch (e) {
+        console.log(`[STOCK CHECK] Erro ao consultar saldo do produto ${produtoId}: ${String(e)}`);
+        return null;
+      }
     }
 
     // Preparar itens (enviando o PREÇO LISTA + DESCONTO separados para exibição correta no Bling)
@@ -573,6 +608,22 @@ serve(async (req) => {
       const precoLista = Number(item.preco_cheio || item.valor);
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade);
+
+      // Checagem preventiva (para explicar discrepância entre “saldo físico” exibido no painel
+      // e o saldo “virtual/disponível” usado na validação da venda).
+      const stock = await getBlingStock(blingProdutoId);
+      if (stock?.saldoVirtual != null && !Number.isNaN(stock.saldoVirtual) && stock.saldoVirtual < quantidade) {
+        const fisicoTxt = stock.saldoFisico == null || Number.isNaN(stock.saldoFisico)
+          ? 'n/a'
+          : stock.saldoFisico.toFixed(2);
+        const virtualTxt = stock.saldoVirtual.toFixed(2);
+
+        throw new Error(
+          `Estoque insuficiente no Bling para: ${item.descricao}. ` +
+          `Saldo físico: ${fisicoTxt} • Saldo disponível (virtual): ${virtualTxt} • Solicitado: ${quantidade}. ` +
+          `Se o painel mostra saldo físico alto, pode haver reservas/pedidos pendentes ou estoque por depósito.`
+        );
+      }
 
       // Calcular desconto percentual do item
       // desconto_percentual_item = ((precoLista - precoComDesconto) / precoLista) * 100
@@ -924,10 +975,21 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Erro:', error);
+
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+
+    // Se já identificamos um erro de estoque na checagem preventiva, devolver 400 (para o frontend tratar corretamente)
+    const isInsufficientStock = errorMessage.toLowerCase().includes('estoque insuficiente');
+
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        error: errorMessage,
+        ...(isInsufficientStock ? { errorType: 'INSUFFICIENT_STOCK' } : {}),
+      }),
+      {
+        status: isInsufficientStock ? 400 : 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
   }
 });
