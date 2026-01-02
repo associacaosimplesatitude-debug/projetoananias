@@ -713,8 +713,9 @@ export const useOnboardingProgress = (churchId: string | null) => {
     }
 
     // Etapa 6: Verificar se tem data de aniversário cadastrada
+    // IMPORTANTE: Passar a data de aniversário para garantir que seja salva em ebd_clientes
     if (!progressData.etapas.find(e => e.id === 6)?.completada && progressData.dataAniversario) {
-      marcarEtapaMutation.mutate({ etapaId: 6 });
+      marcarEtapaMutation.mutate({ etapaId: 6, dataAniversario: progressData.dataAniversario });
     }
 
     // Etapa 7: Verificar se configurou lançamento
