@@ -7,7 +7,8 @@ import {
   UserCheck,
   Package,
   LayoutDashboard,
-  Video
+  Video,
+  Megaphone
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import {
@@ -26,6 +27,7 @@ import {
 const menuItems = [
   { to: "/vendedor", icon: LayoutDashboard, label: "Painel do Vendedor", end: true },
   { to: "/vendedor/clientes", icon: Users, label: "Clientes" },
+  { to: "/vendedor/leads-landing", icon: Megaphone, label: "Lead de Landing Page" },
   { to: "/vendedor/pendentes", icon: Clock, label: "Pendentes" },
   { to: "/vendedor/proximas-compras", icon: ShoppingCart, label: "Próximas Compras" },
   { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco" },
