@@ -260,7 +260,20 @@ export const useOnboardingProgress = (churchId: string | null) => {
 
       // Verificar se já completou as etapas 6 e 7 (configurações e aniversário)
       // Se sim, para revistas adicionais mostramos apenas etapas 1-5
-      const etapa6Completada = etapasData?.some((e: any) => e.etapa_id === 6 && e.completada) || false;
+      // IMPORTANTE: Etapa 6 só está realmente completa se tem data de aniversário
+      const etapa6NoProgress = etapasData?.find((e: any) => e.etapa_id === 6 && e.completada);
+      const etapa6TemData = !!clienteData?.data_aniversario_superintendente;
+      const etapa6Completada = etapa6NoProgress && etapa6TemData;
+      
+      // Se etapa 6 está marcada como completa mas não tem data, resetar no banco
+      if (etapa6NoProgress && !etapa6TemData) {
+        await supabase
+          .from("ebd_onboarding_progress")
+          .update({ completada: false, completada_em: null })
+          .eq("church_id", churchId)
+          .eq("etapa_id", 6);
+      }
+      
       const etapa7Completada = etapasData?.some((e: any) => e.etapa_id === 7 && e.completada) || false;
       const configuracoesJaFeitas = etapa6Completada && etapa7Completada;
       
@@ -274,9 +287,11 @@ export const useOnboardingProgress = (churchId: string | null) => {
       // Montar o mapa de etapas completadas
       const etapasMap = new Map<number, { completada: boolean; completadaEm: string | null; revistaId: string | null }>();
       etapasData?.forEach((e: any) => {
+        // Para etapa 6, só considerar completa se tiver a data de aniversário
+        const isCompleta = e.etapa_id === 6 ? (e.completada && etapa6TemData) : e.completada;
         etapasMap.set(e.etapa_id, {
-          completada: e.completada,
-          completadaEm: e.completada_em,
+          completada: isCompleta,
+          completadaEm: isCompleta ? e.completada_em : null,
           revistaId: e.revista_identificada_id,
         });
       });
