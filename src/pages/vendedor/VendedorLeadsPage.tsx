@@ -1,4 +1,4 @@
-import { VendedorLeadsTab } from "@/components/vendedor/VendedorLeadsTab";
+import { VendedorLeadsKanban } from "@/components/vendedor/VendedorLeadsKanban";
 import { useVendedor } from "@/hooks/useVendedor";
 
 export default function VendedorLeadsPage() {
@@ -13,12 +13,14 @@ export default function VendedorLeadsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 h-full">
       <div>
-        <h2 className="text-2xl font-bold">Leads</h2>
-        <p className="text-muted-foreground">Gestão de leads para reativação</p>
+        <h2 className="text-2xl font-bold">Leads de Landing Page</h2>
+        <p className="text-muted-foreground">
+          Gerencie seus leads atribuídos - arraste entre as colunas para atualizar o status
+        </p>
       </div>
-      <VendedorLeadsTab vendedorId={vendedor?.id || ""} />
+      <VendedorLeadsKanban vendedorId={vendedor?.id || ""} />
     </div>
   );
 }

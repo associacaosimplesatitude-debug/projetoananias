@@ -19,6 +19,7 @@ interface Lead {
   created_at: string;
   valor_fechamento?: number | null;
   data_fechamento?: string | null;
+  vendedor_id?: string | null;
 }
 
 interface LeadsLandingKPIsProps {
@@ -26,21 +27,39 @@ interface LeadsLandingKPIsProps {
 }
 
 export function LeadsLandingKPIs({ leads }: LeadsLandingKPIsProps) {
+  // Etapas avançadas (passaram do setup)
+  const etapasAposSetup = ["Contato", "Negociação", "Fechou"];
+  
   // Main KPIs
   const totalCadastros = leads.length;
-  const totalLogins = leads.filter(l => l.status_kanban === "Logou" || 
+  const totalLogins = leads.filter(l => 
+    l.status_kanban === "Logou" || 
     l.status_kanban === "Setup Preenchido" || 
-    l.status_kanban === "Contato" || 
-    l.status_kanban === "Negociação" || 
-    l.status_kanban === "Fechou").length;
-  const setupPreenchido = leads.filter(l => l.status_kanban === "Setup Preenchido" || 
-    l.status_kanban === "Contato" || 
-    l.status_kanban === "Negociação" || 
-    l.status_kanban === "Fechou").length;
-  const contatosRealizados = leads.filter(l => l.status_kanban === "Contato" || 
-    l.status_kanban === "Negociação" || 
-    l.status_kanban === "Fechou").length;
+    etapasAposSetup.includes(l.status_kanban || "")
+  ).length;
+  
+  // Setup preenchido = leads que preencheram setup (com ou sem vendedor) + etapas posteriores
+  const setupPreenchido = leads.filter(l => 
+    l.status_kanban === "Setup Preenchido" || 
+    etapasAposSetup.includes(l.status_kanban || "")
+  ).length;
+  
+  // Aguardando atribuição = Setup preenchido SEM vendedor
+  const aguardandoAtribuicao = leads.filter(l => 
+    l.status_kanban === "Setup Preenchido" && !l.vendedor_id
+  ).length;
+  
+  const contatosRealizados = leads.filter(l => 
+    etapasAposSetup.includes(l.status_kanban || "")
+  ).length;
+  
+  const negociacoes = leads.filter(l => 
+    l.status_kanban === "Negociação" || l.status_kanban === "Fechou"
+  ).length;
+  
   const fechamentos = leads.filter(l => l.status_kanban === "Fechou").length;
+  const cancelados = leads.filter(l => l.status_kanban === "Cancelado").length;
+  
   const valorTotal = leads
     .filter(l => l.status_kanban === "Fechou")
     .reduce((acc, l) => acc + (l.valor_fechamento || 0), 0);
