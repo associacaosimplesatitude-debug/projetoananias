@@ -5,22 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Gift, 
-  CheckCircle2, 
-  BookOpen, 
-  Users, 
-  GraduationCap, 
-  CalendarDays, 
+import { toast } from "sonner";
+import { z } from "zod";
+import {
+  Gift,
+  CheckCircle2,
+  BookOpen,
+  Users,
+  GraduationCap,
+  CalendarDays,
   ClipboardList,
   PartyPopper,
   Sparkles,
   ChevronRight,
   Cake,
   Heart,
-  RefreshCw
+  RefreshCw,
 } from "lucide-react";
-import { useOnboardingProgress, calcularDesconto, RevistaBaseNaoAplicada } from "@/hooks/useOnboardingProgress";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -62,12 +64,13 @@ const ETAPA_ROUTES: Record<number, string | null> = {
 
 export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps) {
   const navigate = useNavigate();
-  const { 
-    progress, 
-    revistasNaoAplicadas, 
-    isLoading, 
-    marcarEtapa, 
-    usarCupomAniversario, 
+  const {
+    progress,
+    revistasNaoAplicadas,
+    isLoading,
+    marcarEtapa,
+    marcarEtapaAsync,
+    usarCupomAniversario,
     isUsandoCupom,
     verificarEtapas,
   } = useOnboardingProgress(churchId);
@@ -235,11 +238,30 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
     }
   };
 
-  const handleSalvarAniversario = () => {
-    if (dataAniversario) {
-      marcarEtapa(6, undefined, dataAniversario);
+  const birthdaySchema = z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe uma data válida")
+    .refine((val) => {
+      const d = new Date(val + "T00:00:00");
+      return !Number.isNaN(d.getTime());
+    }, "Informe uma data válida");
+
+  const handleSalvarAniversario = async () => {
+    const parsed = birthdaySchema.safeParse(dataAniversario);
+    if (!parsed.success) {
+      toast.error("Data inválida", { description: parsed.error.issues[0]?.message });
+      return;
+    }
+
+    try {
+      await marcarEtapaAsync(6, undefined, parsed.data);
       setShowAniversarioDialog(false);
       setDataAniversario("");
+    } catch (e) {
+      // o toast já é exibido pelo hook; manter aqui por garantia
+      const msg = e instanceof Error ? e.message : "Tente novamente.";
+      toast.error("Não foi possível salvar a data", { description: msg });
     }
   };
 

@@ -561,6 +561,9 @@ export const useOnboardingProgress = (churchId: string | null) => {
     },
     onError: (error) => {
       console.error("Erro ao marcar etapa:", error);
+      toast.error("Não foi possível salvar esta etapa", {
+        description: error instanceof Error ? error.message : "Tente novamente.",
+      });
     },
   });
 
@@ -785,8 +788,10 @@ export const useOnboardingProgress = (churchId: string | null) => {
     progress: progressData,
     revistasNaoAplicadas: revistasNaoAplicadas || [],
     isLoading,
-    marcarEtapa: (etapaId: number, revistaId?: string, dataAniversario?: string) => 
+    marcarEtapa: (etapaId: number, revistaId?: string, dataAniversario?: string) =>
       marcarEtapaMutation.mutate({ etapaId, revistaId, dataAniversario }),
+    marcarEtapaAsync: (etapaId: number, revistaId?: string, dataAniversario?: string) =>
+      marcarEtapaMutation.mutateAsync({ etapaId, revistaId, dataAniversario }),
     verificarEtapas: verificarEtapasAutomaticamente,
     isMarking: marcarEtapaMutation.isPending,
     usarCupomAniversario: usarCupomAniversarioMutation.mutate,
