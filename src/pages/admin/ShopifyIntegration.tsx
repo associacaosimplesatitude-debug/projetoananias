@@ -19,6 +19,7 @@ import {
   EyeOff,
   AlertTriangle,
   Info,
+  Webhook,
 } from "lucide-react";
 import { 
   SHOPIFY_STORE_PERMANENT_DOMAIN, 
@@ -27,6 +28,7 @@ import {
   fetchShopifyProducts 
 } from "@/lib/shopify";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function ShopifyIntegration() {
   const [showToken, setShowToken] = useState(false);
@@ -56,6 +58,25 @@ export default function ShopifyIntegration() {
         message: error.message,
       });
       toast.error("Falha na conexão com Shopify", {
+        description: error.message,
+      });
+    },
+  });
+
+  // Register webhook mutation
+  const { mutate: registerWebhook, isPending: isRegisteringWebhook } = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('shopify-register-webhook');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success("Webhook configurado!", {
+        description: `Webhook orders/paid registrado com sucesso. ID: ${data.webhook_id}`,
+      });
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao registrar webhook", {
         description: error.message,
       });
     },
@@ -208,6 +229,55 @@ export default function ShopifyIntegration() {
                 )}
               </Badge>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Webhooks Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Webhook className="h-5 w-5" />
+            Webhooks
+          </CardTitle>
+          <CardDescription>
+            Configure webhooks para sincronização automática de pedidos
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertTitle>Webhook orders/paid</AlertTitle>
+            <AlertDescription>
+              Este webhook é necessário para atualizar automaticamente o Kanban quando um pedido PIX é confirmado.
+              Clique no botão abaixo para registrar o webhook na Shopify.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex items-center gap-4">
+            <Button 
+              onClick={() => registerWebhook()}
+              disabled={isRegisteringWebhook}
+            >
+              {isRegisteringWebhook ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Registrando...
+                </>
+              ) : (
+                <>
+                  <Webhook className="h-4 w-4 mr-2" />
+                  Registrar Webhook orders/paid
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="text-sm text-muted-foreground space-y-1">
+            <p><strong>URL do Webhook:</strong></p>
+            <code className="bg-muted px-2 py-1 rounded text-xs block overflow-auto">
+              https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/ebd-shopify-order-webhook
+            </code>
           </div>
         </CardContent>
       </Card>
