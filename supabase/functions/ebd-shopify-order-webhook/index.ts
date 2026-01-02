@@ -334,6 +334,55 @@ serve(async (req) => {
       } else {
         console.log("No matching proposal found for order:", order.id, "value:", valorTotal);
       }
+
+      // AUTO-UPDATE LANDING PAGE LEADS
+      // If a lead from landing page made a purchase, automatically move to "Fechou"
+      const customerEmail = order.email || order.customer?.email;
+      if (customerEmail) {
+        console.log("Checking for landing page lead with email:", customerEmail);
+        
+        // Find lead created via landing_page_form that is not yet closed
+        const { data: leadData, error: leadError } = await supabase
+          .from("ebd_leads_reativacao")
+          .select("id, status_kanban, vendedor_id")
+          .eq("email", customerEmail)
+          .eq("created_via", "landing_page_form")
+          .neq("status_kanban", "Fechou")
+          .maybeSingle();
+        
+        if (leadError) {
+          console.error("Error fetching landing page lead:", leadError);
+        } else if (leadData) {
+          console.log("Found landing page lead to update:", leadData.id);
+          
+          // Update lead to "Fechou" status with purchase value
+          const { error: updateLeadError } = await supabase
+            .from("ebd_leads_reativacao")
+            .update({
+              status_kanban: "Fechou",
+              status_lead: "Convertido",
+              valor_fechamento: valorTotal,
+              data_fechamento: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", leadData.id);
+          
+          if (updateLeadError) {
+            console.error("Error updating landing page lead status:", updateLeadError);
+          } else {
+            console.log("Landing page lead automatically closed:", leadData.id, "value:", valorTotal);
+            
+            // If lead has vendedor assigned, log for commission tracking
+            if (leadData.vendedor_id) {
+              console.log("Lead had vendedor assigned:", leadData.vendedor_id, "- commission applies");
+            } else {
+              console.log("Lead closed directly without vendedor - direct sale");
+            }
+          }
+        } else {
+          console.log("No pending landing page lead found for email:", customerEmail);
+        }
+      }
     }
 
     return new Response(
