@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { pushFormularioEnviado, pushCadastroSuccess } from '@/lib/gtm';
 import { 
   ClipboardList, 
   MessageCircle, 
@@ -36,13 +37,24 @@ const LandingEBD = () => {
     nomeResponsavel: '',
     email: '',
     telefone: '',
-    senha: ''
+    senha: '',
+    comoConheceu: ''
   });
+
+  const opcoesComoConheceu = [
+    'Google',
+    'YouTube',
+    'Meta Ads',
+    'Instagram',
+    'Facebook',
+    'Indicação',
+    'Outros'
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.nomeIgreja || !formData.nomeResponsavel || !formData.email || !formData.telefone || !formData.senha) {
+    if (!formData.nomeIgreja || !formData.nomeResponsavel || !formData.email || !formData.telefone || !formData.senha || !formData.comoConheceu) {
       toast.error('Por favor, preencha todos os campos');
       return;
     }
@@ -54,6 +66,9 @@ const LandingEBD = () => {
 
     setIsSubmitting(true);
     
+    // Push GTM event for form submission
+    pushFormularioEnviado('landing_ebd_cadastro');
+    
     try {
       // Call edge function to create account instantly
       const { data, error } = await supabase.functions.invoke('ebd-instant-signup', {
@@ -62,7 +77,10 @@ const LandingEBD = () => {
           nomeResponsavel: formData.nomeResponsavel,
           email: formData.email,
           telefone: formData.telefone,
-          senha: formData.senha
+          senha: formData.senha,
+          comoConheceu: formData.comoConheceu,
+          origemLead: 'Landing Page',
+          tipoLead: 'Auto Cadastro'
         }
       });
 
@@ -74,20 +92,11 @@ const LandingEBD = () => {
         return;
       }
 
-      // Log in the user automatically with their password
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.senha
-      });
+      // Push GTM event for signup success
+      pushCadastroSuccess(data?.userId || '', 'Cliente/Igreja');
 
-      if (signInError) {
-        toast.error('Conta criada! Faça login para acessar o painel.');
-        navigate('/login/ebd');
-        return;
-      }
-
-      toast.success('Conta criada com sucesso! Redirecionando...');
-      navigate('/ebd/dashboard');
+      toast.success('Conta criada com sucesso! Faça login para acessar o painel.');
+      navigate('/login/ebd');
     } catch (error: any) {
       console.error('Erro ao criar conta:', error);
       toast.error(error?.message || 'Erro ao criar conta. Tente novamente.');
@@ -440,7 +449,7 @@ const LandingEBD = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Nome do Responsável *
+                        SEU NOME *
                       </label>
                       <Input
                         placeholder="Seu nome completo"
@@ -483,6 +492,21 @@ const LandingEBD = () => {
                         onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
                         className="h-12"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Como nos conheceu? *
+                      </label>
+                      <select
+                        value={formData.comoConheceu}
+                        onChange={(e) => setFormData({ ...formData, comoConheceu: e.target.value })}
+                        className="h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="">Selecione uma opção</option>
+                        {opcoesComoConheceu.map((opcao) => (
+                          <option key={opcao} value={opcao}>{opcao}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <Button 

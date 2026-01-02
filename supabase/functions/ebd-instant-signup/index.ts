@@ -18,7 +18,7 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const { nomeIgreja, nomeResponsavel, email, telefone, senha } = await req.json();
+    const { nomeIgreja, nomeResponsavel, email, telefone, senha, comoConheceu, origemLead, tipoLead } = await req.json();
 
     if (!email || !nomeIgreja || !nomeResponsavel || !telefone || !senha) {
       throw new Error('Dados incompletos');
@@ -172,7 +172,10 @@ serve(async (req) => {
       telefone: telefone,
       status_lead: 'convertido',
       lead_score: 'quente',
-      conta_criada: true
+      conta_criada: true,
+      como_conheceu: comoConheceu || null,
+      origem_lead: origemLead || 'Landing Page',
+      tipo_lead: tipoLead || 'Auto Cadastro'
     });
 
     console.log(`[ebd-instant-signup] Successfully created instant account for: ${email}`);
@@ -182,6 +185,7 @@ serve(async (req) => {
         success: true,
         message: userAlreadyExists ? 'Conta já existe' : 'Conta criada com sucesso',
         email: email,
+        userId: userId,
         userAlreadyExists
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
