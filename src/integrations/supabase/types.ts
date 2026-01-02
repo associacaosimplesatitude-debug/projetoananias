@@ -1970,6 +1970,7 @@ export type Database = {
       ebd_leads_reativacao: {
         Row: {
           cnpj: string | null
+          como_conheceu: string | null
           conta_criada: boolean | null
           created_at: string
           data_followup: string | null
@@ -1989,8 +1990,10 @@ export type Database = {
           nome_igreja: string
           nome_responsavel: string | null
           observacoes: string | null
+          origem_lead: string | null
           status_lead: string
           telefone: string | null
+          tipo_lead: string | null
           total_compras_historico: number | null
           ultima_compra: string | null
           ultimo_login_ebd: string | null
@@ -2000,6 +2003,7 @@ export type Database = {
         }
         Insert: {
           cnpj?: string | null
+          como_conheceu?: string | null
           conta_criada?: boolean | null
           created_at?: string
           data_followup?: string | null
@@ -2019,8 +2023,10 @@ export type Database = {
           nome_igreja: string
           nome_responsavel?: string | null
           observacoes?: string | null
+          origem_lead?: string | null
           status_lead?: string
           telefone?: string | null
+          tipo_lead?: string | null
           total_compras_historico?: number | null
           ultima_compra?: string | null
           ultimo_login_ebd?: string | null
@@ -2030,6 +2036,7 @@ export type Database = {
         }
         Update: {
           cnpj?: string | null
+          como_conheceu?: string | null
           conta_criada?: boolean | null
           created_at?: string
           data_followup?: string | null
@@ -2049,8 +2056,10 @@ export type Database = {
           nome_igreja?: string
           nome_responsavel?: string | null
           observacoes?: string | null
+          origem_lead?: string | null
           status_lead?: string
           telefone?: string | null
+          tipo_lead?: string | null
           total_compras_historico?: number | null
           ultima_compra?: string | null
           ultimo_login_ebd?: string | null

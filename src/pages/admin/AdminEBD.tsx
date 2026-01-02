@@ -2043,6 +2043,8 @@ export default function AdminEBD() {
                     <TableHead>Igreja</TableHead>
                     <TableHead>Contato</TableHead>
                     <TableHead>Cidade/UF</TableHead>
+                    <TableHead>Como Conheceu</TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Score</TableHead>
                     <TableHead>Conta</TableHead>
@@ -2074,6 +2076,17 @@ export default function AdminEBD() {
                         {lead.endereco_cidade && lead.endereco_estado
                           ? `${lead.endereco_cidade}/${lead.endereco_estado}`
                           : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {(lead as any).como_conheceu || '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-xs">
+                          <span className="text-muted-foreground">{(lead as any).origem_lead || '-'}</span>
+                          <span className="text-muted-foreground">{(lead as any).tipo_lead || '-'}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge
