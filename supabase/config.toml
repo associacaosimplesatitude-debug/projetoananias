@@ -116,3 +116,6 @@ verify_jwt = true
 
 [functions.fetch-bible-verse]
 verify_jwt = false
+
+[functions.shopify-register-webhook]
+verify_jwt = true

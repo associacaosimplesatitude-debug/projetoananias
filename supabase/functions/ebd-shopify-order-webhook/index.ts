@@ -48,7 +48,7 @@ interface ShopifyOrder {
 // Function to fetch fulfillment data from Shopify
 async function fetchFulfillmentData(orderId: number): Promise<{ trackingNumber: string | null; trackingUrl: string | null }> {
   const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN");
-  const SHOPIFY_STORE_DOMAIN = "editoraananias.myshopify.com";
+  const SHOPIFY_STORE_DOMAIN = "kgg1pq-6r.myshopify.com";
   
   if (!SHOPIFY_ACCESS_TOKEN) {
     console.log("SHOPIFY_ADMIN_ACCESS_TOKEN not set, skipping fulfillment fetch");
