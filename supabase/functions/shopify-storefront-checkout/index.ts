@@ -54,6 +54,38 @@ const CART_CREATE_MUTATION = `
   }
 `;
 
+// Format phone number to E.164 format for Shopify
+function formatPhoneToE164(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  
+  // Remove all non-numeric characters
+  const digits = phone.replace(/\D/g, '');
+  
+  // If empty after cleaning, return null
+  if (!digits) return null;
+  
+  // If already has country code (starts with 55 and has 12-13 digits), add +
+  if (digits.length >= 12 && digits.startsWith('55')) {
+    return `+${digits}`;
+  }
+  
+  // Brazilian phone: add +55 prefix
+  // Mobile: 11 digits (2 area + 9 mobile)
+  // Landline: 10 digits (2 area + 8 landline)
+  if (digits.length === 10 || digits.length === 11) {
+    return `+55${digits}`;
+  }
+  
+  // If has 8-9 digits (no area code), we can't format properly, return null
+  if (digits.length < 10) {
+    console.log("Phone too short, skipping:", digits);
+    return null;
+  }
+  
+  // For other cases, just add + prefix
+  return `+${digits}`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -75,7 +107,38 @@ serve(async (req) => {
     const input: Record<string, unknown> = { lines };
     
     if (buyerIdentity && Object.keys(buyerIdentity).length > 0) {
-      input.buyerIdentity = buyerIdentity;
+      // Format phone numbers to E.164 format
+      const formattedBuyerIdentity = { ...buyerIdentity };
+      
+      // Format main phone
+      if (formattedBuyerIdentity.phone) {
+        const formattedPhone = formatPhoneToE164(formattedBuyerIdentity.phone);
+        if (formattedPhone) {
+          formattedBuyerIdentity.phone = formattedPhone;
+        } else {
+          delete formattedBuyerIdentity.phone;
+        }
+      }
+      
+      // Format phone in delivery address
+      if (formattedBuyerIdentity.deliveryAddressPreferences) {
+        formattedBuyerIdentity.deliveryAddressPreferences = formattedBuyerIdentity.deliveryAddressPreferences.map((pref: any) => {
+          if (pref.deliveryAddress?.phone) {
+            const formattedPhone = formatPhoneToE164(pref.deliveryAddress.phone);
+            return {
+              ...pref,
+              deliveryAddress: {
+                ...pref.deliveryAddress,
+                phone: formattedPhone || undefined
+              }
+            };
+          }
+          return pref;
+        });
+      }
+      
+      console.log("Formatted buyer identity:", JSON.stringify(formattedBuyerIdentity));
+      input.buyerIdentity = formattedBuyerIdentity;
     }
 
     const response = await fetch(
