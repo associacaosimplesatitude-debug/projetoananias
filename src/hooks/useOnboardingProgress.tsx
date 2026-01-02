@@ -433,6 +433,20 @@ export const useOnboardingProgress = (churchId: string | null) => {
     mutationFn: async ({ etapaId, revistaId, dataAniversario }: { etapaId: number; revistaId?: string; dataAniversario?: string }) => {
       if (!churchId) throw new Error("Church ID não encontrado");
 
+      // IMPORTANTE: Etapa 6 (aniversário) REQUER a data para ser marcada como completa
+      if (etapaId === 6 && !dataAniversario) {
+        throw new Error("Data de aniversário é obrigatória para completar esta etapa");
+      }
+
+      // Se é a etapa 6 (aniversário), salvar a data PRIMEIRO
+      if (etapaId === 6 && dataAniversario) {
+        const { error: birthdayError } = await supabase
+          .from("ebd_clientes")
+          .update({ data_aniversario_superintendente: dataAniversario })
+          .eq("id", churchId);
+        if (birthdayError) throw birthdayError;
+      }
+
       const payload: any = {
         church_id: churchId,
         etapa_id: etapaId,
@@ -446,15 +460,6 @@ export const useOnboardingProgress = (churchId: string | null) => {
         .upsert(payload, { onConflict: "church_id,etapa_id" });
 
       if (error) throw error;
-
-      // Se é a etapa 6 (aniversário), salvar a data
-      if (etapaId === 6 && dataAniversario) {
-        const { error: birthdayError } = await supabase
-          .from("ebd_clientes")
-          .update({ data_aniversario_superintendente: dataAniversario })
-          .eq("id", churchId);
-        if (birthdayError) throw birthdayError;
-      }
 
       const usarSimplificadas = progressData?.modoRecompra || false;
       const etapasConfig = usarSimplificadas ? ETAPAS_REVISTA_ADICIONAL : ETAPAS_COMPLETAS;
