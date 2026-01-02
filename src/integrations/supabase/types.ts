@@ -1974,6 +1974,7 @@ export type Database = {
           conta_criada: boolean | null
           created_at: string
           created_via: string | null
+          data_fechamento: string | null
           data_followup: string | null
           email: string | null
           email_aberto: boolean
@@ -2000,6 +2001,7 @@ export type Database = {
           ultima_compra: string | null
           ultimo_login_ebd: string | null
           updated_at: string
+          valor_fechamento: number | null
           valor_ultima_compra: number | null
           vendedor_id: string | null
         }
@@ -2009,6 +2011,7 @@ export type Database = {
           conta_criada?: boolean | null
           created_at?: string
           created_via?: string | null
+          data_fechamento?: string | null
           data_followup?: string | null
           email?: string | null
           email_aberto?: boolean
@@ -2035,6 +2038,7 @@ export type Database = {
           ultima_compra?: string | null
           ultimo_login_ebd?: string | null
           updated_at?: string
+          valor_fechamento?: number | null
           valor_ultima_compra?: number | null
           vendedor_id?: string | null
         }
@@ -2044,6 +2048,7 @@ export type Database = {
           conta_criada?: boolean | null
           created_at?: string
           created_via?: string | null
+          data_fechamento?: string | null
           data_followup?: string | null
           email?: string | null
           email_aberto?: boolean
@@ -2070,6 +2075,7 @@ export type Database = {
           ultima_compra?: string | null
           ultimo_login_ebd?: string | null
           updated_at?: string
+          valor_fechamento?: number | null
           valor_ultima_compra?: number | null
           vendedor_id?: string | null
         }
