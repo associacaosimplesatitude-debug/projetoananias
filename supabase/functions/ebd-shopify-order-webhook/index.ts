@@ -339,21 +339,69 @@ serve(async (req) => {
       // If a lead from landing page made a purchase, automatically move to "Fechou"
       const customerEmail = order.email || order.customer?.email;
       if (customerEmail) {
-        console.log("Checking for landing page lead with email:", customerEmail);
+        console.log("=== LEAD KANBAN UPDATE START ===");
+        console.log("Looking for landing page lead with email:", customerEmail);
         
-        // Find lead created via landing_page_form that is not yet closed
-        const { data: leadData, error: leadError } = await supabase
+        // First try: Find lead by direct email match
+        let leadData = null;
+        
+        const { data: directLead, error: directError } = await supabase
           .from("ebd_leads_reativacao")
-          .select("id, status_kanban, vendedor_id")
+          .select("id, status_kanban, vendedor_id, email, nome_igreja")
           .eq("email", customerEmail)
           .eq("created_via", "landing_page_form")
           .neq("status_kanban", "Fechou")
+          .neq("status_kanban", "Cancelado")
           .maybeSingle();
         
-        if (leadError) {
-          console.error("Error fetching landing page lead:", leadError);
-        } else if (leadData) {
-          console.log("Found landing page lead to update:", leadData.id);
+        if (directError) {
+          console.error("Error fetching lead by direct email:", directError);
+        } else if (directLead) {
+          leadData = directLead;
+          console.log("Found lead by direct email match:", leadData.id, leadData.nome_igreja);
+        }
+        
+        // Second try: If not found, look via ebd_clientes table
+        if (!leadData) {
+          console.log("No direct match, trying via ebd_clientes...");
+          
+          const { data: clienteData, error: clienteError } = await supabase
+            .from("ebd_clientes")
+            .select("id, email_superintendente, nome_igreja")
+            .eq("email_superintendente", customerEmail)
+            .maybeSingle();
+          
+          if (clienteError) {
+            console.error("Error fetching cliente:", clienteError);
+          } else if (clienteData) {
+            console.log("Found cliente:", clienteData.id, clienteData.nome_igreja);
+            
+            // Now find the lead by cliente's email
+            const { data: clienteLead, error: leadByClienteError } = await supabase
+              .from("ebd_leads_reativacao")
+              .select("id, status_kanban, vendedor_id, email, nome_igreja")
+              .eq("email", clienteData.email_superintendente)
+              .eq("created_via", "landing_page_form")
+              .neq("status_kanban", "Fechou")
+              .neq("status_kanban", "Cancelado")
+              .maybeSingle();
+            
+            if (leadByClienteError) {
+              console.error("Error fetching lead by cliente email:", leadByClienteError);
+            } else if (clienteLead) {
+              leadData = clienteLead;
+              console.log("Found lead via cliente:", leadData.id, leadData.nome_igreja);
+            }
+          }
+        }
+        
+        if (leadData) {
+          console.log("Updating lead to Fechou:", {
+            leadId: leadData.id,
+            currentStatus: leadData.status_kanban,
+            valorTotal,
+            hasVendedor: !!leadData.vendedor_id
+          });
           
           // Update lead to "Fechou" status with purchase value
           const { error: updateLeadError } = await supabase
@@ -370,7 +418,7 @@ serve(async (req) => {
           if (updateLeadError) {
             console.error("Error updating landing page lead status:", updateLeadError);
           } else {
-            console.log("Landing page lead automatically closed:", leadData.id, "value:", valorTotal);
+            console.log("✅ Lead automatically closed:", leadData.id, "value:", valorTotal);
             
             // If lead has vendedor assigned, log for commission tracking
             if (leadData.vendedor_id) {
@@ -381,7 +429,9 @@ serve(async (req) => {
           }
         } else {
           console.log("No pending landing page lead found for email:", customerEmail);
+          console.log("This might be a regular purchase, not from landing page form");
         }
+        console.log("=== LEAD KANBAN UPDATE END ===");
       }
     }
 
