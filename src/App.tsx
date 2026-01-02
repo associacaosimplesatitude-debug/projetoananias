@@ -46,6 +46,7 @@ import AdminOrders from "./pages/admin/Orders";
 import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
+import LeadsLandingPage from "./pages/admin/LeadsLandingPage";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
@@ -392,6 +393,7 @@ const App = () => (
                       <Route path="pedidos-mercadolivre" element={<PedidosMercadoLivre />} />
                       <Route path="clientes" element={<AdminEBD />} />
                       <Route path="leads" element={<AdminEBD />} />
+                      <Route path="leads-landing" element={<LeadsLandingPage />} />
                       <Route path="vendedores" element={<AdminEBD />} />
                       <Route path="catalogo" element={<AdminEBD />} />
                       <Route path="gestao-tutoriais" element={<GestaoTutoriais />} />
