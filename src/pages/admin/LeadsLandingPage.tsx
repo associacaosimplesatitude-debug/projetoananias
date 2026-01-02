@@ -26,8 +26,7 @@ export default function LeadsLandingPage() {
       const { data, error } = await supabase
         .from("ebd_leads_reativacao")
         .select("*")
-        .eq("origem_lead", "Landing Page")
-        .eq("tipo_lead", "Auto Cadastro")
+        .eq("created_via", "landing_page_form")
         .order("created_at", { ascending: false });
 
       if (error) throw error;

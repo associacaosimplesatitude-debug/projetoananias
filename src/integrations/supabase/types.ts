@@ -1973,6 +1973,7 @@ export type Database = {
           como_conheceu: string | null
           conta_criada: boolean | null
           created_at: string
+          created_via: string | null
           data_followup: string | null
           email: string | null
           email_aberto: boolean
@@ -2006,6 +2007,7 @@ export type Database = {
           como_conheceu?: string | null
           conta_criada?: boolean | null
           created_at?: string
+          created_via?: string | null
           data_followup?: string | null
           email?: string | null
           email_aberto?: boolean
@@ -2039,6 +2041,7 @@ export type Database = {
           como_conheceu?: string | null
           conta_criada?: boolean | null
           created_at?: string
+          created_via?: string | null
           data_followup?: string | null
           email?: string | null
           email_aberto?: boolean
