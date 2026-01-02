@@ -1992,6 +1992,7 @@ export type Database = {
           nome_responsavel: string | null
           observacoes: string | null
           origem_lead: string | null
+          status_kanban: string | null
           status_lead: string
           telefone: string | null
           tipo_lead: string | null
@@ -2026,6 +2027,7 @@ export type Database = {
           nome_responsavel?: string | null
           observacoes?: string | null
           origem_lead?: string | null
+          status_kanban?: string | null
           status_lead?: string
           telefone?: string | null
           tipo_lead?: string | null
@@ -2060,6 +2062,7 @@ export type Database = {
           nome_responsavel?: string | null
           observacoes?: string | null
           origem_lead?: string | null
+          status_kanban?: string | null
           status_lead?: string
           telefone?: string | null
           tipo_lead?: string | null
