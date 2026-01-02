@@ -170,12 +170,13 @@ serve(async (req) => {
       nome_responsavel: nomeResponsavel,
       email: email,
       telefone: telefone,
-      status_lead: 'convertido',
-      lead_score: 'quente',
+      status_lead: 'Convertido',
+      lead_score: 'Quente',
       conta_criada: true,
       como_conheceu: comoConheceu || null,
-      origem_lead: origemLead || 'Landing Page',
-      tipo_lead: tipoLead || 'Auto Cadastro'
+      origem_lead: 'Landing Page',
+      tipo_lead: 'Auto Cadastro',
+      created_via: 'landing_page_form'
     });
 
     console.log(`[ebd-instant-signup] Successfully created instant account for: ${email}`);
