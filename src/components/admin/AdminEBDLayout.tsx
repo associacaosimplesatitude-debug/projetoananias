@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   ArrowLeft,
   Settings,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -215,6 +216,16 @@ function AdminSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {isGerenteEbd && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/leads-landing')}>
+                      <RouterNavLink to="/admin/ebd/leads-landing">
+                        <Globe className="h-4 w-4" />
+                        <span>Lead de Landing Page</span>
+                      </RouterNavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/admin/ebd/vendedores')}>
                     <RouterNavLink to="/admin/ebd/vendedores">
