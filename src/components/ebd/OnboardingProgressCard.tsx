@@ -329,6 +329,11 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
               const isCompleta = etapa.completada;
               const isAtual = proximaEtapa?.id === etapa.id;
               
+              // Para etapa 1, tentar pegar imagem da revista
+              const revistaImagem = etapa.id === 1 && revistasNaoAplicadas.length > 0 
+                ? revistasNaoAplicadas[0].imagemUrl 
+                : null;
+              
               return (
                 <button
                   key={etapa.id}
@@ -344,7 +349,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
                   )}
                 >
                   <div className={cn(
-                    "h-10 w-10 rounded-full flex items-center justify-center",
+                    "h-10 w-10 rounded-full flex items-center justify-center overflow-hidden",
                     isCompleta 
                       ? "bg-green-500/20" 
                       : isAtual 
@@ -353,6 +358,12 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
                   )}>
                     {isCompleta ? (
                       <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : revistaImagem ? (
+                      <img 
+                        src={revistaImagem} 
+                        alt="Revista" 
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <Icon className={cn(
                         "h-5 w-5",
