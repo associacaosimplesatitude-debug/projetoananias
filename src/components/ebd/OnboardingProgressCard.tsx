@@ -145,7 +145,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
             <Button 
               onClick={() => {
                 usarCupomAniversario();
-                navigate("/vendedor/shopify");
+                navigate("/ebd/shopify-pedidos");
               }}
               disabled={isUsandoCupom}
               className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 gap-2 text-white"
@@ -182,7 +182,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
               </p>
             </div>
             <Button 
-              onClick={() => navigate("/vendedor/shopify")}
+              onClick={() => navigate("/ebd/shopify-pedidos")}
               className="bg-green-600 hover:bg-green-700 gap-2"
             >
               <Gift className="h-4 w-4" />
@@ -212,7 +212,7 @@ export function OnboardingProgressCard({ churchId }: OnboardingProgressCardProps
         // Primeira revista: seguir setup de 7 etapas - ir para criar turma
         navigate("/ebd/turmas/nova");
         } else {
-          navigate("/vendedor/shopify");
+          navigate("/ebd/shopify-pedidos");
         }
     } else if (etapaId === 2) {
       // Cadastrar Turma
