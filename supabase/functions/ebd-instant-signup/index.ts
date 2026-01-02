@@ -176,7 +176,8 @@ serve(async (req) => {
       como_conheceu: comoConheceu || null,
       origem_lead: 'Landing Page',
       tipo_lead: 'Auto Cadastro',
-      created_via: 'landing_page_form'
+      created_via: 'landing_page_form',
+      status_kanban: 'Cadastrou'
     });
 
     console.log(`[ebd-instant-signup] Successfully created instant account for: ${email}`);
