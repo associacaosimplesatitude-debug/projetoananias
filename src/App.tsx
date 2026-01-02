@@ -305,6 +305,7 @@ const App = () => (
                       <Route path="desafio-biblico" element={<EBDDesafioBiblico />} />
                       <Route path="desafio-biblico/:desafioId/jogar" element={<EBDDesafioLiderPlay />} />
                       <Route path="desafio-biblico/:desafioId/acompanhar" element={<EBDDesafioAcompanhamento />} />
+                      <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
                     </Route>
 
                     {/* Aluno Module Routes with Sidebar Layout */}
@@ -427,15 +428,6 @@ const App = () => (
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />
                     <Route path="/vendedor/ativacao" element={<VendedorAtivacaoEBD />} />
                     
-                    {/* EBD Shopify Route */}
-                    <Route 
-                      path="/ebd/shopify-pedidos" 
-                      element={
-                        <ModuleProtectedRoute requiredModule="REOBOTE EBD">
-                          <ShopifyPedidos />
-                        </ModuleProtectedRoute>
-                      } 
-                    />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                   </ConditionalNavigation>
