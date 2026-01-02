@@ -164,6 +164,33 @@ serve(async (req) => {
       }
     }
 
+    // Habilitar automaticamente a revista padrão para leads da Landing Page
+    // Revista EBD N07 Jovens e Adultos - O Homem, o Pecado e a Salvação ALUNO
+    const REVISTA_PADRAO_ID = 'db2b6859-189a-44b1-be9f-0aab89910d62';
+    
+    const { data: existingRevista } = await supabaseAdmin
+      .from('ebd_revistas_compradas')
+      .select('id')
+      .eq('church_id', churchId)
+      .eq('revista_id', REVISTA_PADRAO_ID)
+      .single();
+
+    if (!existingRevista) {
+      const { error: revistaError } = await supabaseAdmin
+        .from('ebd_revistas_compradas')
+        .insert({
+          church_id: churchId,
+          revista_id: REVISTA_PADRAO_ID,
+          preco_pago: 0, // Gratuito para leads da landing page
+        });
+
+      if (revistaError) {
+        console.error('[ebd-instant-signup] Error enabling default revista:', revistaError);
+      } else {
+        console.log(`[ebd-instant-signup] Enabled default revista for church: ${churchId}`);
+      }
+    }
+
     // Also save to leads table for tracking
     await supabaseAdmin.from('ebd_leads_reativacao').insert({
       nome_igreja: nomeIgreja,
