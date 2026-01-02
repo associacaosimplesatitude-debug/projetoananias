@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -8,6 +8,7 @@ import { Church, User, Mail, Phone, Calendar, MessageCircle, Target, GripVertica
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useState } from "react";
+import { LeadsLandingKPIs } from "@/components/admin/LeadsLandingKPIs";
 
 interface Lead {
   id: string;
@@ -21,6 +22,8 @@ interface Lead {
   tipo_lead: string | null;
   status_lead: string;
   status_kanban: string | null;
+  valor_fechamento: number | null;
+  data_fechamento: string | null;
 }
 
 const KANBAN_COLUMNS = [
@@ -134,6 +137,10 @@ export default function LeadsLandingPage() {
         </p>
       </div>
 
+      {/* KPIs */}
+      <LeadsLandingKPIs leads={leads || []} />
+
+      {/* Kanban */}
       <div className="flex gap-3 overflow-x-auto pb-4">
         {KANBAN_COLUMNS.map((column) => {
           const columnLeads = getLeadsByColumn(column.id);
@@ -141,7 +148,7 @@ export default function LeadsLandingPage() {
           return (
             <div
               key={column.id}
-              className={`flex-shrink-0 w-72 rounded-lg border-2 ${column.color}`}
+              className={`flex-shrink-0 w-64 rounded-lg border-2 ${column.color}`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, column.id)}
             >
@@ -157,7 +164,7 @@ export default function LeadsLandingPage() {
                 )}
               </div>
               
-              <ScrollArea className="h-[calc(100vh-280px)]">
+              <ScrollArea className="h-[calc(100vh-520px)]">
                 <div className="p-2 space-y-2">
                   {columnLeads.map((lead) => {
                     const campanha = getCampanhaFromComoConheceu(lead.como_conheceu);
