@@ -166,40 +166,24 @@ serve(async (req) => {
 
     // Habilitar automaticamente a revista padrão para leads da Landing Page
     // Revista EBD N07 Jovens e Adultos - O Homem, o Pecado e a Salvação ALUNO
+    // IMPORTANTE: Inserir em ebd_historico_revistas_manual para aparecer no setup
     const REVISTA_PADRAO_ID = 'db2b6859-189a-44b1-be9f-0aab89910d62';
     
-    const { data: existingRevista } = await supabaseAdmin
-      .from('ebd_revistas_compradas')
-      .select('id')
-      .eq('church_id', churchId)
-      .eq('revista_id', REVISTA_PADRAO_ID)
-      .single();
-
-    if (!existingRevista) {
-      const { error: revistaError } = await supabaseAdmin
-        .from('ebd_revistas_compradas')
-        .insert({
-          church_id: churchId,
-          revista_id: REVISTA_PADRAO_ID,
-          preco_pago: 0, // Gratuito para leads da landing page
-        });
-
-      if (revistaError) {
-        console.error('[ebd-instant-signup] Error enabling default revista:', revistaError);
-      } else {
-        console.log(`[ebd-instant-signup] Enabled default revista for church: ${churchId}`);
-      }
-    }
-
-    // Create or update ebd_clientes record for the landing page lead
+    // Primeiro verificar/criar o registro em ebd_clientes para obter o cliente_id
+    let clienteId: string | null = null;
+    
+    // Verificar se já existe cliente para este usuário
     const { data: existingCliente } = await supabaseAdmin
       .from('ebd_clientes')
       .select('id')
       .eq('superintendente_user_id', userId)
       .single();
-
-    if (!existingCliente) {
-      const { error: clienteError } = await supabaseAdmin
+    
+    if (existingCliente) {
+      clienteId = existingCliente.id;
+    } else {
+      // Criar o registro em ebd_clientes primeiro
+      const { data: novoCliente, error: clienteError } = await supabaseAdmin
         .from('ebd_clientes')
         .insert({
           nome_igreja: nomeIgreja,
@@ -207,17 +191,47 @@ serve(async (req) => {
           email_superintendente: email,
           telefone: telefone,
           superintendente_user_id: userId,
-          status_ativacao_ebd: true, // Ativo automaticamente para leads da landing page
+          status_ativacao_ebd: true,
           tipo_cliente: 'landing_page',
-        });
+        })
+        .select('id')
+        .single();
 
       if (clienteError) {
         console.error('[ebd-instant-signup] Error creating ebd_clientes:', clienteError);
       } else {
-        console.log(`[ebd-instant-signup] Created ebd_clientes for user: ${userId}`);
+        clienteId = novoCliente.id;
+        console.log(`[ebd-instant-signup] Created ebd_clientes: ${clienteId}`);
       }
     }
 
+    // Agora habilitar a revista padrão em ebd_historico_revistas_manual
+    if (clienteId) {
+      const { data: existingRevista } = await supabaseAdmin
+        .from('ebd_historico_revistas_manual')
+        .select('id')
+        .eq('cliente_id', clienteId)
+        .eq('revista_id', REVISTA_PADRAO_ID)
+        .single();
+
+      if (!existingRevista) {
+        const { error: revistaError } = await supabaseAdmin
+          .from('ebd_historico_revistas_manual')
+          .insert({
+            cliente_id: clienteId,
+            revista_id: REVISTA_PADRAO_ID,
+            registrado_por: userId,
+          });
+
+        if (revistaError) {
+          console.error('[ebd-instant-signup] Error enabling default revista:', revistaError);
+        } else {
+          console.log(`[ebd-instant-signup] Enabled default revista for cliente: ${clienteId}`);
+        }
+      }
+    }
+
+    // ebd_clientes já foi criado acima junto com a revista
     // Save to leads table for tracking with status_kanban = 'Cadastrou'
     const { error: leadError } = await supabaseAdmin.from('ebd_leads_reativacao').insert({
       nome_igreja: nomeIgreja,
