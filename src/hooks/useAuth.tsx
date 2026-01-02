@@ -71,11 +71,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     
     // Update ultimo_login for ebd_clientes if this user is a superintendente
     if (!error && data.user) {
+      // Get current cliente data to check if this is the first login
+      const { data: clienteData } = await supabase
+        .from('ebd_clientes')
+        .select('id, ultimo_login, email_superintendente')
+        .eq('superintendente_user_id', data.user.id)
+        .single();
+
+      const isFirstLogin = clienteData && !clienteData.ultimo_login;
+      
+      // Update ultimo_login
       supabase
         .from('ebd_clientes')
         .update({ ultimo_login: new Date().toISOString() })
         .eq('superintendente_user_id', data.user.id)
         .then(() => {});
+
+      // If first login, update lead kanban status to "Logou"
+      if (isFirstLogin && clienteData?.email_superintendente) {
+        supabase
+          .from('ebd_leads_reativacao')
+          .update({ status_kanban: 'Logou' })
+          .eq('email', clienteData.email_superintendente)
+          .eq('created_via', 'landing_page_form')
+          .eq('status_kanban', 'Cadastrou') // Only move if currently in "Cadastrou"
+          .then(({ error: leadError }) => {
+            if (leadError) {
+              console.error('Error updating lead kanban status:', leadError);
+            } else {
+              console.log('Lead moved to "Logou" on first login');
+            }
+          });
+      }
     }
     
     return { error };

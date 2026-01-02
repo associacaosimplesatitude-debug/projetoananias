@@ -191,8 +191,35 @@ serve(async (req) => {
       }
     }
 
-    // Also save to leads table for tracking
-    await supabaseAdmin.from('ebd_leads_reativacao').insert({
+    // Create or update ebd_clientes record for the landing page lead
+    const { data: existingCliente } = await supabaseAdmin
+      .from('ebd_clientes')
+      .select('id')
+      .eq('superintendente_user_id', userId)
+      .single();
+
+    if (!existingCliente) {
+      const { error: clienteError } = await supabaseAdmin
+        .from('ebd_clientes')
+        .insert({
+          nome_igreja: nomeIgreja,
+          nome_superintendente: nomeResponsavel,
+          email_superintendente: email,
+          telefone: telefone,
+          superintendente_user_id: userId,
+          status_ativacao_ebd: true, // Ativo automaticamente para leads da landing page
+          tipo_cliente: 'landing_page',
+        });
+
+      if (clienteError) {
+        console.error('[ebd-instant-signup] Error creating ebd_clientes:', clienteError);
+      } else {
+        console.log(`[ebd-instant-signup] Created ebd_clientes for user: ${userId}`);
+      }
+    }
+
+    // Save to leads table for tracking with status_kanban = 'Cadastrou'
+    const { error: leadError } = await supabaseAdmin.from('ebd_leads_reativacao').insert({
       nome_igreja: nomeIgreja,
       nome_responsavel: nomeResponsavel,
       email: email,
@@ -204,8 +231,14 @@ serve(async (req) => {
       origem_lead: 'Landing Page',
       tipo_lead: 'Auto Cadastro',
       created_via: 'landing_page_form',
-      status_kanban: 'Cadastrou'
+      status_kanban: 'Cadastrou' // Primeiro status no Kanban
     });
+
+    if (leadError) {
+      console.error('[ebd-instant-signup] Error creating lead:', leadError);
+    } else {
+      console.log(`[ebd-instant-signup] Created lead with status_kanban = Cadastrou`);
+    }
 
     console.log(`[ebd-instant-signup] Successfully created instant account for: ${email}`);
 

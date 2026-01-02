@@ -192,7 +192,7 @@ export const useOnboardingProgress = (churchId: string | null) => {
       // Buscar dados do cliente
       const { data: clienteData } = await supabase
         .from("ebd_clientes")
-        .select("onboarding_concluido, desconto_onboarding, data_aniversario_superintendente, cupom_aniversario_usado, cupom_aniversario_ano")
+        .select("onboarding_concluido, desconto_onboarding, data_aniversario_superintendente, cupom_aniversario_usado, cupom_aniversario_ano, email_superintendente")
         .eq("id", churchId)
         .maybeSingle();
 
@@ -380,6 +380,23 @@ export const useOnboardingProgress = (churchId: string | null) => {
           })
           .eq("id", churchId);
 
+        // Move lead to "Setup Preenchido" when onboarding is completed
+        if (clienteData?.email_superintendente) {
+          supabase
+            .from("ebd_leads_reativacao")
+            .update({ status_kanban: "Setup Preenchido" })
+            .eq("email", clienteData.email_superintendente)
+            .eq("created_via", "landing_page_form")
+            .eq("status_kanban", "Logou") // Only move if currently in "Logou"
+            .then(({ error: leadError }) => {
+              if (leadError) {
+                console.error("Error updating lead kanban status:", leadError);
+              } else {
+                console.log('Lead moved to "Setup Preenchido" on onboarding completion');
+              }
+            });
+        }
+
         concluidoCliente = true;
         descontoCliente = percentual;
       }
@@ -492,6 +509,23 @@ export const useOnboardingProgress = (churchId: string | null) => {
             desconto_onboarding: percentual,
           })
           .eq("id", churchId);
+
+        // Move lead to "Setup Preenchido" when onboarding is completed via mutation
+        // Get cliente email to update lead
+        const { data: clienteForLead } = await supabase
+          .from("ebd_clientes")
+          .select("email_superintendente")
+          .eq("id", churchId)
+          .single();
+
+        if (clienteForLead?.email_superintendente) {
+          await supabase
+            .from("ebd_leads_reativacao")
+            .update({ status_kanban: "Setup Preenchido" })
+            .eq("email", clienteForLead.email_superintendente)
+            .eq("created_via", "landing_page_form")
+            .eq("status_kanban", "Logou"); // Only move if currently in "Logou"
+        }
 
         return { concluido: true, desconto: percentual, modoRecompra: usarSimplificadas };
       }
