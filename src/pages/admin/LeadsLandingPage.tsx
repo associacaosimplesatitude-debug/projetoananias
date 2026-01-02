@@ -27,6 +27,7 @@ export default function LeadsLandingPage() {
         .from("ebd_leads_reativacao")
         .select("*")
         .eq("origem_lead", "Landing Page")
+        .eq("tipo_lead", "Auto Cadastro")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
