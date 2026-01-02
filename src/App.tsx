@@ -110,6 +110,7 @@ import VendedorPendentes from "./pages/vendedor/VendedorPendentes";
 import VendedorProximasCompras from "./pages/vendedor/VendedorProximasCompras";
 import VendedorEmRisco from "./pages/vendedor/VendedorEmRisco";
 import VendedorLeadsPage from "./pages/vendedor/VendedorLeadsPage";
+import VendedorLeadsLandingPage from "./pages/vendedor/VendedorLeadsLandingPage";
 import VendedorPedidosPage from "./pages/vendedor/VendedorPedidosPage";
 import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 
@@ -414,6 +415,7 @@ const App = () => (
                     <Route path="/vendedor" element={<VendedorLayout />}>
                       <Route index element={<VendedorDashboard />} />
                       <Route path="clientes" element={<VendedorClientes />} />
+                      <Route path="leads-landing" element={<VendedorLeadsLandingPage />} />
                       <Route path="pendentes" element={<VendedorPendentes />} />
                       <Route path="proximas-compras" element={<VendedorProximasCompras />} />
                       <Route path="em-risco" element={<VendedorEmRisco />} />
