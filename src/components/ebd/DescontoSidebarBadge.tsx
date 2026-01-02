@@ -55,7 +55,7 @@ export function DescontoSidebarBadge() {
 
   return (
     <button
-      onClick={() => navigate("/vendedor/shopify")}
+      onClick={() => navigate("/ebd/shopify-pedidos")}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-3 rounded-lg",
         "bg-gradient-to-r from-primary to-accent",
