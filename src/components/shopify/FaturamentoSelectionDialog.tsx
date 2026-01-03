@@ -57,7 +57,7 @@ export function FaturamentoSelectionDialog({
   canUseFreteManual = false,
 }: FaturamentoSelectionDialogProps) {
   const [selectedPrazos, setSelectedPrazos] = useState<string[]>([]);
-  const [step, setStep] = useState<'choice' | 'config' | 'config_padrao'>('choice');
+  const [step, setStep] = useState<'choice' | 'config' | 'config_padrao' | 'config_padrao_manual'>('choice');
   const [desconto, setDesconto] = useState<string>('');
   const [selectedFrete, setSelectedFrete] = useState<string>('');
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
@@ -191,6 +191,18 @@ export function FaturamentoSelectionDialog({
     }
   };
 
+  // Função auxiliar para resetar estado
+  const resetState = () => {
+    setSelectedPrazos([]);
+    setDesconto('');
+    setSelectedFrete('');
+    setTipoFrete('automatico');
+    setFreteManualTransportadora('');
+    setFreteManualValor('');
+    setFreteManualObservacao('');
+    setFreteManualPrazo('');
+  };
+
   const handleSelectFaturamento = () => {
     setStep('config');
   };
@@ -233,65 +245,7 @@ export function FaturamentoSelectionDialog({
     // Reset state for next time
     setTimeout(() => {
       setStep('choice');
-      setSelectedPrazos([]);
-      setDesconto('');
-      setSelectedFrete('');
-      setTipoFrete('automatico');
-      setFreteManualTransportadora('');
-      setFreteManualValor('');
-      setFreteManualObservacao('');
-      setFreteManualPrazo('');
-    }, 300);
-  };
-
-  // Handler para confirmar pagamento padrão com frete (vendedor/gerente)
-  const handleConfirmPagamentoPadrao = () => {
-    // Se for frete manual, validar campos obrigatórios
-    if (tipoFrete === 'manual') {
-      if (!freteManualTransportadora.trim()) {
-        toast.error('Informe a transportadora');
-        return;
-      }
-      if (!freteManualValor || parseFloat(freteManualValor) < 0) {
-        toast.error('Informe o valor do frete');
-        return;
-      }
-      
-      const shipping: ShippingOption = {
-        type: 'manual',
-        label: `Manual - ${freteManualTransportadora}`,
-        cost: parseFloat(freteManualValor),
-      };
-      
-      const freteManualData: FreteManualData = {
-        transportadora: freteManualTransportadora.trim(),
-        valor: parseFloat(freteManualValor),
-        observacao: freteManualObservacao.trim() || undefined,
-        prazoEstimado: freteManualPrazo.trim() || undefined,
-      };
-      
-      onSelectPagamentoPadrao(shipping, freteManualData);
-    } else {
-      // Frete automático - se selecionou um, passa ele, senão passa null (cliente escolhe)
-      if (selectedFrete) {
-        const shipping = shippingOptions.find(opt => opt.type === selectedFrete)!;
-        onSelectPagamentoPadrao(shipping);
-      } else {
-        onSelectPagamentoPadrao(null);
-      }
-    }
-    
-    // Reset state for next time
-    setTimeout(() => {
-      setStep('choice');
-      setSelectedPrazos([]);
-      setDesconto('');
-      setSelectedFrete('');
-      setTipoFrete('automatico');
-      setFreteManualTransportadora('');
-      setFreteManualValor('');
-      setFreteManualObservacao('');
-      setFreteManualPrazo('');
+      resetState();
     }, 300);
   };
 
@@ -299,14 +253,7 @@ export function FaturamentoSelectionDialog({
     onOpenChange(false);
     setTimeout(() => {
       setStep('choice');
-      setSelectedPrazos([]);
-      setDesconto('');
-      setSelectedFrete('');
-      setTipoFrete('automatico');
-      setFreteManualTransportadora('');
-      setFreteManualValor('');
-      setFreteManualObservacao('');
-      setFreteManualPrazo('');
+      resetState();
     }, 300);
   };
 
@@ -319,14 +266,7 @@ export function FaturamentoSelectionDialog({
       onSelectPagamentoPadrao();
       setTimeout(() => {
         setStep('choice');
-        setSelectedPrazos([]);
-        setDesconto('');
-        setSelectedFrete('');
-        setTipoFrete('automatico');
-        setFreteManualTransportadora('');
-        setFreteManualValor('');
-        setFreteManualObservacao('');
-        setFreteManualPrazo('');
+        resetState();
       }, 300);
     }
   };
@@ -664,203 +604,150 @@ export function FaturamentoSelectionDialog({
           </div>
         )}
 
-        {/* Step de configuração para Pagamento Padrão com frete manual (vendedor/gerente) */}
+        {/* Step de escolha de tipo de frete para Pagamento Padrão (vendedor/gerente) */}
         {step === 'config_padrao' && (
-          <div className="space-y-5 mt-4">
+          <div className="space-y-4 mt-4">
             <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg">
               <p className="text-sm text-green-800 dark:text-green-200">
-                <strong>Pagamento Padrão</strong> - Configure o frete ou deixe o cliente escolher na proposta.
+                <strong>Pagamento Padrão</strong> - Como deseja definir o frete?
               </p>
             </div>
 
-            {/* Shipping Selection */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium flex items-center gap-2">
-                <Truck className="h-4 w-4" />
-                Frete
-              </Label>
-              
-              {/* Seletor de tipo de frete */}
-              <div className="flex gap-2 p-1 bg-muted rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => setTipoFrete('automatico')}
-                  className={cn(
-                    "flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all",
-                    tipoFrete === 'automatico'
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Frete Automático
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipoFrete('manual')}
-                  className={cn(
-                    "flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all",
-                    tipoFrete === 'manual'
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Frete Manual (Cotação Externa)
-                </button>
-              </div>
-              
-              {tipoFrete === 'automatico' ? (
-                <>
-                  {isLoadingShipping ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground p-3">
-                      <Package className="h-4 w-4 animate-pulse" />
-                      Calculando frete...
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-xs text-muted-foreground">
-                        Selecione um frete ou deixe vazio para o cliente escolher na proposta:
-                      </p>
-                      <RadioGroup value={selectedFrete} onValueChange={setSelectedFrete} className="space-y-2">
-                        {shippingOptions.map((option) => (
-                          <div
-                            key={option.type}
-                            className={cn(
-                              "flex flex-col rounded-lg border p-3 cursor-pointer transition-all",
-                              selectedFrete === option.type 
-                                ? "border-primary bg-primary/5" 
-                                : "border-muted hover:border-primary/50"
-                            )}
-                            onClick={() => setSelectedFrete(option.type)}
-                          >
-                            <div className="flex items-center space-x-3">
-                              <RadioGroupItem value={option.type} id={`padrao-${option.type}`} />
-                              <Label htmlFor={`padrao-${option.type}`} className="flex-1 cursor-pointer flex justify-between items-center">
-                                <span>{option.label}</span>
-                                <span className={cn(
-                                  "font-semibold",
-                                  option.cost === 0 ? "text-green-600" : ""
-                                )}>
-                                  {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
-                                </span>
-                              </Label>
-                            </div>
-                            {option.type === 'retirada' && option.endereco && (
-                              <div className="ml-7 mt-2 text-xs text-muted-foreground">
-                                <p className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {option.endereco}
-                                </p>
-                                {option.horario && (
-                                  <p className="flex items-center gap-1 mt-0.5">
-                                    <Clock className="h-3 w-3" />
-                                    {option.horario}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </RadioGroup>
-                      {selectedFrete && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setSelectedFrete('')}
-                          className="text-muted-foreground"
-                        >
-                          Limpar seleção (cliente escolhe)
-                        </Button>
-                      )}
-                    </>
-                  )}
-                  {!clienteCep && (
-                    <p className="text-xs text-amber-600">
-                      CEP do cliente não cadastrado. Apenas frete grátis disponível.
+              {/* Opção Frete Automático - cliente escolhe */}
+              <Button
+                variant="outline"
+                className="w-full h-auto p-4 justify-start text-left border-2 hover:border-primary hover:bg-primary/5 transition-all"
+                onClick={() => {
+                  // Gera link direto, cliente escolhe frete na proposta
+                  onSelectPagamentoPadrao(null);
+                  setTimeout(() => {
+                    setStep('choice');
+                    resetState();
+                  }, 300);
+                }}
+              >
+                <div className="flex gap-4 items-start w-full">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Truck className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-base">Frete Automático</p>
+                    <p className="text-sm text-muted-foreground font-normal mt-1">
+                      O cliente escolherá a forma de entrega na proposta (PAC, SEDEX, Retirada, etc.)
                     </p>
-                  )}
-                </>
-              ) : (
-                /* Campos de Frete Manual */
-                <div className="space-y-3 p-4 border rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900">
-                  <div className="space-y-2">
-                    <Label htmlFor="transportadora-padrao" className="text-sm font-medium">
-                      Transportadora <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="transportadora-padrao"
-                      placeholder="Ex: Transportadora ABC, JadLog, etc."
-                      value={freteManualTransportadora}
-                      onChange={(e) => setFreteManualTransportadora(e.target.value)}
-                    />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="valorFrete-padrao" className="text-sm font-medium">
-                      Valor do Frete (R$) <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="valorFrete-padrao"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0,00"
-                      value={freteManualValor}
-                      onChange={(e) => setFreteManualValor(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="prazoEstimado-padrao" className="text-sm font-medium">
-                      Prazo Estimado <span className="text-muted-foreground text-xs">(opcional)</span>
-                    </Label>
-                    <Input
-                      id="prazoEstimado-padrao"
-                      placeholder="Ex: 5 a 7 dias úteis"
-                      value={freteManualPrazo}
-                      onChange={(e) => setFreteManualPrazo(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="observacaoFrete-padrao" className="text-sm font-medium">
-                      Observação Interna <span className="text-muted-foreground text-xs">(opcional)</span>
-                    </Label>
-                    <Input
-                      id="observacaoFrete-padrao"
-                      placeholder="Observação sobre a cotação (não visível ao cliente)"
-                      value={freteManualObservacao}
-                      onChange={(e) => setFreteManualObservacao(e.target.value)}
-                    />
-                  </div>
-                  
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
-                    O frete manual será somado ao total da proposta. O cliente não verá opções de frete.
-                  </p>
                 </div>
-              )}
+              </Button>
+
+              {/* Opção Frete Manual */}
+              <Button
+                variant="outline"
+                className="w-full h-auto p-4 justify-start text-left border-2 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-all"
+                onClick={() => setStep('config_padrao_manual')}
+              >
+                <div className="flex gap-4 items-start w-full">
+                  <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                    <Package className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-base">Frete Manual (Cotação Externa)</p>
+                    <p className="text-sm text-muted-foreground font-normal mt-1">
+                      Você define a transportadora e o valor do frete. Cliente não verá outras opções.
+                    </p>
+                  </div>
+                </div>
+              </Button>
             </div>
 
-            {/* Order Summary for Pagamento Padrão */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setStep('choice')}
+              >
+                Voltar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step de preenchimento do frete manual para Pagamento Padrão */}
+        {step === 'config_padrao_manual' && (
+          <div className="space-y-5 mt-4">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                <strong>Frete Manual</strong> - Informe os dados da cotação externa.
+              </p>
+            </div>
+
+            {/* Campos de Frete Manual */}
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="transportadora-padrao" className="text-sm font-medium">
+                  Transportadora <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="transportadora-padrao"
+                  placeholder="Ex: Transportadora ABC, JadLog, etc."
+                  value={freteManualTransportadora}
+                  onChange={(e) => setFreteManualTransportadora(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="valorFrete-padrao" className="text-sm font-medium">
+                  Valor do Frete (R$) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="valorFrete-padrao"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={freteManualValor}
+                  onChange={(e) => setFreteManualValor(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="prazoEstimado-padrao" className="text-sm font-medium">
+                  Prazo Estimado <span className="text-muted-foreground text-xs">(opcional)</span>
+                </Label>
+                <Input
+                  id="prazoEstimado-padrao"
+                  placeholder="Ex: 5 a 7 dias úteis"
+                  value={freteManualPrazo}
+                  onChange={(e) => setFreteManualPrazo(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="observacaoFrete-padrao" className="text-sm font-medium">
+                  Observação Interna <span className="text-muted-foreground text-xs">(opcional)</span>
+                </Label>
+                <Input
+                  id="observacaoFrete-padrao"
+                  placeholder="Observação sobre a cotação (não visível ao cliente)"
+                  value={freteManualObservacao}
+                  onChange={(e) => setFreteManualObservacao(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Order Summary */}
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotal</span>
                 <span>R$ {totalProdutos.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>Frete {tipoFrete === 'manual' && freteManualTransportadora && `(${freteManualTransportadora})`}</span>
-                <span className={valorFrete === 0 ? "text-green-600" : ""}>
-                  {tipoFrete === 'automatico' && !selectedFrete 
-                    ? 'Cliente escolhe' 
-                    : valorFrete === 0 ? 'Grátis' : `R$ ${valorFrete.toFixed(2)}`}
-                </span>
+                <span>Frete {freteManualTransportadora && `(${freteManualTransportadora})`}</span>
+                <span>{freteManualValorNum === 0 ? 'Grátis' : `R$ ${freteManualValorNum.toFixed(2)}`}</span>
               </div>
               <div className="border-t pt-2 flex justify-between font-semibold">
                 <span>Total</span>
-                <span className="text-lg">
-                  {tipoFrete === 'automatico' && !selectedFrete 
-                    ? `R$ ${totalProdutos.toFixed(2)} + frete` 
-                    : `R$ ${(totalProdutos + valorFrete).toFixed(2)}`}
-                </span>
+                <span className="text-lg">R$ {(totalProdutos + freteManualValorNum).toFixed(2)}</span>
               </div>
             </div>
 
@@ -869,16 +756,42 @@ export function FaturamentoSelectionDialog({
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => setStep('choice')}
+                onClick={() => setStep('config_padrao')}
               >
                 Voltar
               </Button>
               <Button
                 className="flex-1 bg-green-600 hover:bg-green-700"
-                onClick={handleConfirmPagamentoPadrao}
-                disabled={
-                  tipoFrete === 'manual' && (!freteManualTransportadora.trim() || !freteManualValor)
-                }
+                onClick={() => {
+                  if (!freteManualTransportadora.trim()) {
+                    toast.error('Informe a transportadora');
+                    return;
+                  }
+                  if (!freteManualValor || parseFloat(freteManualValor) < 0) {
+                    toast.error('Informe o valor do frete');
+                    return;
+                  }
+                  
+                  const shipping: ShippingOption = {
+                    type: 'manual',
+                    label: `Manual - ${freteManualTransportadora}`,
+                    cost: parseFloat(freteManualValor),
+                  };
+                  
+                  const freteManualData: FreteManualData = {
+                    transportadora: freteManualTransportadora.trim(),
+                    valor: parseFloat(freteManualValor),
+                    observacao: freteManualObservacao.trim() || undefined,
+                    prazoEstimado: freteManualPrazo.trim() || undefined,
+                  };
+                  
+                  onSelectPagamentoPadrao(shipping, freteManualData);
+                  setTimeout(() => {
+                    setStep('choice');
+                    resetState();
+                  }, 300);
+                }}
+                disabled={!freteManualTransportadora.trim() || !freteManualValor}
               >
                 <CreditCard className="w-4 h-4 mr-2" />
                 Gerar Proposta
