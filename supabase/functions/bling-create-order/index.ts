@@ -717,9 +717,22 @@ serve(async (req) => {
     // Preparar itens (enviando o PREÇO LISTA + DESCONTO separados para exibição correta no Bling)
     const itensBling = [];
 
-    // Descobrir depósito correto (via API) uma vez por execução
-    const depositoInfo = await getDepositoInfo();
-    const depositoId = depositoInfo.id;
+    // ⚠️ AJUSTE TEMPORÁRIO: NÃO enviar deposito.id no payload.
+    // Deixar o Bling usar o depósito padrão configurado no painel (ex: "Geral").
+    console.log('[DEPOSITO] Envio de deposito.id desativado: Bling usará o depósito padrão configurado.');
+
+    // Em paralelo, mantemos a descoberta de depósitos via API (/depositos) apenas para auditoria
+    // e para voltar a setar o depósito com ID real futuramente (sem chute).
+    try {
+      const depositos = await listDepositos();
+      const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase();
+      const geral = depositos.find((d) => normalize(d.descricao) === 'geral' || normalize(d.descricao).includes('geral'));
+      const padrao = depositos.find((d) => d.padrao);
+      console.log('[DEPOSITO] Candidato "Geral" (não aplicado):', geral ? JSON.stringify(geral) : 'não encontrado');
+      console.log('[DEPOSITO] Candidato Padrão (não aplicado):', padrao ? JSON.stringify(padrao) : 'não encontrado');
+    } catch (e) {
+      console.log('[DEPOSITO] Falha ao auditar depósitos (seguindo sem deposito.id):', String(e));
+    }
 
     // Total real baseado nos itens que vamos enviar ao Bling (após desconto)
     let totalBrutoBling = 0;
@@ -774,34 +787,23 @@ serve(async (req) => {
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade);
 
-      // Checagem preventiva por depósito (para evitar divergência entre depósitos)
-      const stock = await getBlingStock(blingProdutoId, depositoId);
+      // Checagem preventiva (SEM depósito): como não enviamos deposito.id, deixamos o Bling usar o padrão.
+      // Aqui consultamos o saldo agregado (sem filtro) apenas para sinalização.
+      const stock = await getBlingStock(blingProdutoId);
       if (stock?.saldoVirtual != null && !Number.isNaN(stock.saldoVirtual) && stock.saldoVirtual < quantidade) {
         const fisicoTxt = stock.saldoFisico == null || Number.isNaN(stock.saldoFisico)
           ? 'n/a'
           : stock.saldoFisico.toFixed(2);
         const virtualTxt = stock.saldoVirtual.toFixed(2);
 
-        // Sugerir depósito alternativo com saldo (se houver)
-        let sugestaoTxt = '';
-        try {
-          const depositos = await listDepositos();
-          for (const d of depositos) {
-            if (d.id === depositoId) continue;
-            const altStock = await getBlingStock(blingProdutoId, d.id);
-            if (altStock?.saldoVirtual != null && !Number.isNaN(altStock.saldoVirtual) && altStock.saldoVirtual >= quantidade) {
-              sugestaoTxt = ` Sugestão: usar o depósito "${d.descricao}" (id=${d.id}) com saldo disponível (virtual)=${altStock.saldoVirtual.toFixed(2)}.`;
-              break;
-            }
-          }
-        } catch (e) {
-          console.log('[STOCK CHECK] Não foi possível sugerir depósito alternativo:', String(e));
-        }
+        console.log(
+          `[STOCK CHECK] Saldo agregado insuficiente (sem depósito): produto=${blingProdutoId} saldoVirtual=${virtualTxt} solicitado=${quantidade}`
+        );
 
         throw new Error(
           `Estoque insuficiente no Bling para: ${item.descricao}. ` +
-          `Saldo no depósito "${depositoInfo.descricao}" (id=${depositoId}) insuficiente: saldo=${virtualTxt}, solicitado=${quantidade}. ` +
-          `Saldo físico: ${fisicoTxt} • Saldo disponível (virtual): ${virtualTxt}.${sugestaoTxt}`
+          `Saldo (agregado/sem depósito) insuficiente: saldo=${virtualTxt}, solicitado=${quantidade}. ` +
+          `Saldo físico: ${fisicoTxt} • Saldo disponível (virtual): ${virtualTxt}.`
         );
       }
 
@@ -846,7 +848,6 @@ serve(async (req) => {
       // Observação: o Bling interpreta `desconto` numérico como %, então 40 = 40%.
       // O Bling calcula: valor * (1 - desconto/100) * quantidade.
       // Total da venda = soma dos itens líquidos + frete.
-      console.log(`  - Depósito ID (selecionado via API): ${depositoId}`);
       console.log(`  - SKU: ${skuRecebido}`);
       console.log(`  - Quantidade solicitada: ${quantidade}`);
 
@@ -855,9 +856,6 @@ serve(async (req) => {
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
         valor: precoLista, // Preço de lista (cheio)
-        deposito: {
-          id: depositoId,
-        },
         // VÍNCULO OBRIGATÓRIO com o produto cadastrado
         produto: {
           codigo: skuRecebido,
@@ -1001,10 +999,6 @@ serve(async (req) => {
       contato: {
         id: contatoId,
       },
-      // DEPÓSITO (para compatibilidade): enviar também no root
-      deposito: {
-        id: depositoId,
-      },
       itens: itensBling,
       situacao: {
         // Usar status apropriado: 15 = Em Aberto, 9 = Atendido
@@ -1086,6 +1080,7 @@ serve(async (req) => {
       });
 
       responseData = await orderResponse.json();
+      console.log('[BLING] Response /pedidos/vendas (raw):', JSON.stringify(responseData, null, 2));
 
       // Retry em rate limit
       if (!orderResponse.ok && responseData?.error?.type === 'TOO_MANY_REQUESTS' && attempt < 2) {
