@@ -44,10 +44,11 @@ interface Creditos {
 interface ClienteCardProps {
   cliente: Cliente;
   creditos?: Creditos;
-  onEdit: () => void;
+  onEdit?: () => void;
   onDelete?: () => void;
-  onLancamentoManual: () => void;
+  onLancamentoManual?: () => void;
   isAdmin?: boolean;
+  isRepresentante?: boolean;
 }
 
 export function ClienteCard({
@@ -57,6 +58,7 @@ export function ClienteCard({
   onDelete,
   onLancamentoManual,
   isAdmin = false,
+  isRepresentante = false,
 }: ClienteCardProps) {
   const formatDocumento = (cnpj: string | null, cpf: string | null) => {
     const doc = cnpj || cpf || "";
@@ -156,70 +158,78 @@ export function ClienteCard({
               </span>
             </div>
 
-            {/* Aniversários */}
-            <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
-              <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">
-                Pastor: {formatAniversario(cliente.data_aniversario_pastor)} | Superint: {formatAniversario(cliente.data_aniversario_superintendente)}
-              </span>
-            </div>
-
-            {/* Créditos */}
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Wallet className="h-3.5 w-3.5 flex-shrink-0 text-green-600" />
-              <span>
-                Créditos:{" "}
-                <span className="font-semibold text-green-600">
-                  R$ {creditos.disponiveis.toFixed(2)}
+            {/* Aniversários - oculto para representante */}
+            {!isRepresentante && (
+              <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+                <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">
+                  Pastor: {formatAniversario(cliente.data_aniversario_pastor)} | Superint: {formatAniversario(cliente.data_aniversario_superintendente)}
                 </span>
-              </span>
-            </div>
+              </div>
+            )}
 
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <CreditCard className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>
-                Usados: R$ {creditos.usados.toFixed(2)}
-              </span>
-            </div>
+            {/* Créditos - oculto para representante */}
+            {!isRepresentante && (
+              <>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Wallet className="h-3.5 w-3.5 flex-shrink-0 text-green-600" />
+                  <span>
+                    Créditos:{" "}
+                    <span className="font-semibold text-green-600">
+                      R$ {creditos.disponiveis.toFixed(2)}
+                    </span>
+                  </span>
+                </div>
 
-            {/* Cupom Aniversário */}
-            <div className="flex items-center gap-1.5 col-span-2">
-              <Gift
-                className={`h-3.5 w-3.5 flex-shrink-0 ${
-                  cupomDisponivel
-                    ? "text-green-600"
-                    : setupPendente || !aniversarioInformado
-                      ? "text-orange-500"
-                      : "text-muted-foreground"
-                }`}
-              />
-              {setupPendente ? (
-                <Badge
-                  variant="outline"
-                  className="text-xs border-orange-300 text-orange-600"
-                >
-                  Setup Pendente
-                </Badge>
-              ) : !aniversarioInformado ? (
-                <Badge
-                  variant="outline"
-                  className="text-xs border-orange-300 text-orange-600"
-                >
-                  Aniversário não informado
-                </Badge>
-              ) : cupomDisponivel ? (
-                <Badge
-                  variant="outline"
-                  className="text-xs border-green-300 text-green-600"
-                >
-                  Cupom R$50 Disponível
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="text-xs">
-                  Cupom {currentYear} Resgatado
-                </Badge>
-              )}
-            </div>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <CreditCard className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span>
+                    Usados: R$ {creditos.usados.toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
+
+            {/* Cupom Aniversário - oculto para representante */}
+            {!isRepresentante && (
+              <div className="flex items-center gap-1.5 col-span-2">
+                <Gift
+                  className={`h-3.5 w-3.5 flex-shrink-0 ${
+                    cupomDisponivel
+                      ? "text-green-600"
+                      : setupPendente || !aniversarioInformado
+                        ? "text-orange-500"
+                        : "text-muted-foreground"
+                  }`}
+                />
+                {setupPendente ? (
+                  <Badge
+                    variant="outline"
+                    className="text-xs border-orange-300 text-orange-600"
+                  >
+                    Setup Pendente
+                  </Badge>
+                ) : !aniversarioInformado ? (
+                  <Badge
+                    variant="outline"
+                    className="text-xs border-orange-300 text-orange-600"
+                  >
+                    Aniversário não informado
+                  </Badge>
+                ) : cupomDisponivel ? (
+                  <Badge
+                    variant="outline"
+                    className="text-xs border-green-300 text-green-600"
+                  >
+                    Cupom R$50 Disponível
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs">
+                    Cupom {currentYear} Resgatado
+                  </Badge>
+                )}
+              </div>
+            )}
             {/* Vendedor (apenas para admin) */}
             {isAdmin && cliente.vendedor_nome && (
               <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
@@ -231,24 +241,29 @@ export function ClienteCard({
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onEdit}
-              className="h-8"
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Editar
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onLancamentoManual}
-              className="h-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-            >
-              <BookOpen className="h-4 w-4 mr-1" />
-              Revistas
-            </Button>
+            {onEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onEdit}
+                className="h-8"
+              >
+                <Pencil className="h-4 w-4 mr-1" />
+                Editar
+              </Button>
+            )}
+            {/* Botão Revistas - oculto para representante */}
+            {!isRepresentante && onLancamentoManual && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onLancamentoManual}
+                className="h-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              >
+                <BookOpen className="h-4 w-4 mr-1" />
+                Revistas
+              </Button>
+            )}
             {isAdmin && onDelete && (
               <Button
                 variant="ghost"

@@ -340,9 +340,10 @@ export default function VendedorClientes() {
                       onboarding_concluido: cliente.onboarding_concluido,
                     }}
                     creditos={getCreditosForCliente(cliente.id)}
-                    onEdit={isVendedor ? () => handleEditarCliente(cliente) : undefined}
+                    onEdit={() => handleEditarCliente(cliente)}
                     onLancamentoManual={isVendedor ? () => setClienteParaLancamento(cliente) : undefined}
                     isAdmin={false}
+                    isRepresentante={isRepresentante}
                   />
                   {/* Action buttons overlay */}
                   <div className="absolute bottom-14 right-4 flex gap-1">
