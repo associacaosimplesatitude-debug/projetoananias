@@ -587,6 +587,16 @@ export default function AdminEBDPropostasPage() {
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
+                        {(isFinanceiro || isGerenteEbd) && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setDeletePropostaId(proposta.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
