@@ -742,12 +742,18 @@ export default function ShopifyPedidos() {
     handleGeneratePropostaLink(prazos, desconto, frete, true, undefined, freteManual);
   };
 
-  const handleSelectPagamentoPadrao = () => {
+  const handleSelectPagamentoPadrao = (
+    frete?: { type: string; cost: number } | null,
+    freteManual?: FreteManualData
+  ) => {
     setShowFaturamentoDialog(false);
-    // Vendedor gera link de proposta sem faturamento B2B (cliente escolherá frete na proposta)
+    // Vendedor gera link de proposta sem faturamento B2B
     // Mas ainda aplica o desconto B2B do cliente, se houver
     const descontoCliente = selectedCliente?.desconto_faturamento || 0;
-    handleGeneratePropostaLink(null, descontoCliente, null, false);
+    
+    // Se vendedor/gerente definiu frete (manual ou automático), passa para a proposta
+    // Senão, cliente escolherá frete na proposta
+    handleGeneratePropostaLink(null, descontoCliente, frete || null, false, undefined, freteManual);
   };
 
   const handleCreateDraftOrder = async (
