@@ -28,6 +28,7 @@ interface PropostaItem {
   quantity: number;
   title: string;
   price: string;
+  sku?: string | null;
 }
 
 interface PropostaCliente {
