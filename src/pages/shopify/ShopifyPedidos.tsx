@@ -524,7 +524,8 @@ export default function ShopifyPedidos() {
     // Vendedor sempre gera link de proposta
     if (isVendedor) {
       // Check if client can use B2B invoicing for discount options
-      if (selectedCliente.pode_faturar) {
+      // OU se vendedor/gerente pode usar frete manual (mostrar diálogo também)
+      if (selectedCliente.pode_faturar || canUseFreteManual) {
         setShowFaturamentoDialog(true);
       } else {
         // Para clientes que não podem faturar, calcular descontos (ADVEC, etc.)
