@@ -15,6 +15,9 @@ import {
   CreditCard,
   Wallet,
   UserCog,
+  ShoppingCart,
+  Percent,
+  Play,
 } from "lucide-react";
 
 interface Cliente {
@@ -47,6 +50,11 @@ interface ClienteCardProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onLancamentoManual?: () => void;
+  onPedido?: () => void;
+  onDesconto?: () => void;
+  onAtivar?: () => void;
+  showDesconto?: boolean;
+  showAtivar?: boolean;
   isAdmin?: boolean;
   isRepresentante?: boolean;
 }
@@ -57,6 +65,11 @@ export function ClienteCard({
   onEdit,
   onDelete,
   onLancamentoManual,
+  onPedido,
+  onDesconto,
+  onAtivar,
+  showDesconto = false,
+  showAtivar = false,
   isAdmin = false,
   isRepresentante = false,
 }: ClienteCardProps) {
@@ -240,7 +253,30 @@ export function ClienteCard({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t flex-wrap">
+            {showDesconto && onDesconto && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDesconto}
+                title="Configurar desconto de faturamento"
+                className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              >
+                <Percent className="h-4 w-4 mr-1" />
+                Desconto
+              </Button>
+            )}
+            {onPedido && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onPedido}
+                className="h-8"
+              >
+                <ShoppingCart className="h-4 w-4 mr-1" />
+                Pedido
+              </Button>
+            )}
             {onEdit && (
               <Button
                 variant="ghost"
@@ -262,6 +298,16 @@ export function ClienteCard({
               >
                 <BookOpen className="h-4 w-4 mr-1" />
                 Revistas
+              </Button>
+            )}
+            {showAtivar && onAtivar && (
+              <Button
+                size="sm"
+                onClick={onAtivar}
+                className="h-8"
+              >
+                <Play className="h-4 w-4 mr-1" />
+                Ativar
               </Button>
             )}
             {isAdmin && onDelete && (
