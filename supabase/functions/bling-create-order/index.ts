@@ -1095,6 +1095,19 @@ serve(async (req) => {
     let responseData: any = null;
 
     for (let attempt = 0; attempt < 3; attempt++) {
+      // ✅ REGRA DEFINITIVA (aplicar como última etapa antes do envio, em TODA tentativa)
+      // - Não alterar transporte.contato (destinatário)
+      // - Garantir que o transportador seja definido SOMENTE em pedidoData.transporte.transportador.nome
+      if (frete_tipo === 'manual') {
+        pedidoData.transporte = pedidoData.transporte || {};
+        pedidoData.transporte.transportador = { nome: frete_transportadora || '' };
+        // Alguns campos do Bling podem ler o serviço logístico no nível do transporte.
+        pedidoData.transporte.servico_logistico = 'FRETE MANUAL';
+      }
+
+      // ✅ Log do payload FINAL COMPLETO que será enviado (por tentativa)
+      console.log(`PAYLOAD BLING FINAL (PRE-SEND) [attempt ${attempt + 1}/3]:`, JSON.stringify(pedidoData, null, 2));
+
       orderResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas', {
         method: 'POST',
         headers: {
