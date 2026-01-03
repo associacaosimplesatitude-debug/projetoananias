@@ -3752,6 +3752,8 @@ export type Database = {
       }
       vendedor_propostas: {
         Row: {
+          bling_order_id: number | null
+          bling_order_number: string | null
           cliente_cnpj: string | null
           cliente_endereco: Json | null
           cliente_id: string | null
@@ -3781,6 +3783,8 @@ export type Database = {
           vendedor_nome: string | null
         }
         Insert: {
+          bling_order_id?: number | null
+          bling_order_number?: string | null
           cliente_cnpj?: string | null
           cliente_endereco?: Json | null
           cliente_id?: string | null
@@ -3810,6 +3814,8 @@ export type Database = {
           vendedor_nome?: string | null
         }
         Update: {
+          bling_order_id?: number | null
+          bling_order_number?: string | null
           cliente_cnpj?: string | null
           cliente_endereco?: Json | null
           cliente_id?: string | null
