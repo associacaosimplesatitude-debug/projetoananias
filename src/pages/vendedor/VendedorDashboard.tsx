@@ -161,7 +161,7 @@ export default function VendedorDashboard() {
             Bem-vindo, {vendedor?.nome}
           </p>
         </div>
-        <Button onClick={() => setCadastrarClienteOpen(true)} disabled={isRepresentante}>
+        <Button onClick={() => setCadastrarClienteOpen(true)}>
           <UserPlus className="mr-2 h-4 w-4" />
           Novo Cliente
         </Button>
