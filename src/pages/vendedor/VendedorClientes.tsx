@@ -320,7 +320,7 @@ export default function VendedorClientes() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredClientes.map((cliente) => (
-                <div key={cliente.id} className="relative">
+                <div key={cliente.id} className="relative pb-12">
                   <ClienteCard
                     cliente={{
                       id: cliente.id,
@@ -345,15 +345,15 @@ export default function VendedorClientes() {
                     isAdmin={false}
                     isRepresentante={isRepresentante}
                   />
-                  {/* Action buttons overlay */}
-                  <div className="absolute bottom-14 right-4 flex gap-1">
+                  {/* Action buttons - inside card footer area */}
+                  <div className="absolute bottom-4 right-4 flex items-center gap-2">
                     {cliente.pode_faturar && (
                       <Button
-                        variant="ghost"
-                        size="icon"
+                        variant="outline"
+                        size="sm"
                         onClick={() => setClienteParaDesconto(cliente)}
                         title="Configurar desconto de faturamento"
-                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                       >
                         <Percent className="h-4 w-4" />
                       </Button>
