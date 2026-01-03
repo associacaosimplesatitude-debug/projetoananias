@@ -28,7 +28,7 @@ import { AniversariantesCard } from "@/components/ebd/AniversariantesCard";
 import { useVendedor } from "@/hooks/useVendedor";
 
 export default function VendedorDashboard() {
-  const { vendedor, isLoading: vendedorLoading, refetch } = useVendedor();
+  const { vendedor, isVendedor, isRepresentante, isLoading: vendedorLoading, refetch } = useVendedor();
   const [cadastrarClienteOpen, setCadastrarClienteOpen] = useState(false);
 
   const { data: clientes = [], isLoading: clientesLoading } = useQuery({
@@ -140,14 +140,16 @@ export default function VendedorDashboard() {
       <Card>
         <CardContent className="py-12 text-center">
           <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Painel do Vendedor</h2>
+          <h2 className="text-xl font-semibold mb-2">Painel do {isRepresentante ? 'Representante' : 'Vendedor'}</h2>
           <p className="text-muted-foreground">
-            Você ainda não está cadastrado como vendedor no sistema.
+            Você ainda não está cadastrado como {isRepresentante ? 'representante' : 'vendedor'} no sistema.
           </p>
         </CardContent>
       </Card>
     );
   }
+
+  const perfilLabel = isRepresentante ? 'Representante' : 'Vendedor';
 
   return (
     <div className="space-y-6">
@@ -159,11 +161,23 @@ export default function VendedorDashboard() {
             Bem-vindo, {vendedor?.nome}
           </p>
         </div>
-        <Button onClick={() => setCadastrarClienteOpen(true)}>
+        <Button onClick={() => setCadastrarClienteOpen(true)} disabled={isRepresentante}>
           <UserPlus className="mr-2 h-4 w-4" />
           Novo Cliente
         </Button>
       </div>
+
+      {/* Info banner for representante */}
+      {isRepresentante && (
+        <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
+          <CardContent className="py-3">
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              👋 Você está logado como <strong>Representante</strong>. 
+              Suas funções são focadas em vendas diretas aos clientes da sua carteira.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPIs - Row 1 */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -337,10 +351,12 @@ export default function VendedorDashboard() {
         </Card>
       </div>
 
-      {/* Card de Clientes para Ativar */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <ClientesParaAtivarCard vendedorId={vendedor.id} />
-      </div>
+      {/* Card de Clientes para Ativar - Only for vendedor */}
+      {isVendedor && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <ClientesParaAtivarCard vendedorId={vendedor.id} />
+        </div>
+      )}
 
       {/* Aulas Restantes Card */}
       <AulasRestantesCard vendedorId={vendedor.id} />
@@ -358,8 +374,8 @@ export default function VendedorDashboard() {
         }))}
       />
 
-      {/* Lead Scoring KPIs */}
-      <LeadScoringKPIs vendedorId={vendedor.id} />
+      {/* Lead Scoring KPIs - Only for vendedor */}
+      {isVendedor && <LeadScoringKPIs vendedorId={vendedor.id} />}
 
       {/* Cadastrar Cliente Dialog */}
       <CadastrarClienteDialog

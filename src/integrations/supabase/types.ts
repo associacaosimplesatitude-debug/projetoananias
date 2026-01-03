@@ -3851,6 +3851,7 @@ export type Database = {
           meta_mensal_valor: number
           nome: string
           status: string
+          tipo_perfil: string
           updated_at: string
         }
         Insert: {
@@ -3863,6 +3864,7 @@ export type Database = {
           meta_mensal_valor?: number
           nome: string
           status?: string
+          tipo_perfil?: string
           updated_at?: string
         }
         Update: {
@@ -3875,6 +3877,7 @@ export type Database = {
           meta_mensal_valor?: number
           nome?: string
           status?: string
+          tipo_perfil?: string
           updated_at?: string
         }
         Relationships: []
@@ -3924,6 +3927,7 @@ export type Database = {
         | "secretario"
         | "gerente_ebd"
         | "financeiro"
+        | "representante"
       church_permission:
         | "view_financial"
         | "edit_financial"
@@ -4077,6 +4081,7 @@ export const Constants = {
         "secretario",
         "gerente_ebd",
         "financeiro",
+        "representante",
       ],
       church_permission: [
         "view_financial",

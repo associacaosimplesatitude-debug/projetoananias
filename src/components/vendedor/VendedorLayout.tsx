@@ -8,9 +8,12 @@ import {
   Package,
   LayoutDashboard,
   Video,
-  Megaphone
+  Megaphone,
+  LucideIcon
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
+import { useVendedor } from "@/hooks/useVendedor";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sidebar,
   SidebarContent,
@@ -24,20 +27,30 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 
-const menuItems = [
-  { to: "/vendedor", icon: LayoutDashboard, label: "Painel do Vendedor", end: true },
+interface MenuItem {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  end?: boolean;
+  vendedorOnly?: boolean; // Items only visible to vendedor, not representante
+}
+
+// All menu items with visibility flags
+const allMenuItems: MenuItem[] = [
+  { to: "/vendedor", icon: LayoutDashboard, label: "Painel", end: true },
   { to: "/vendedor/clientes", icon: Users, label: "Clientes" },
-  { to: "/vendedor/leads-landing", icon: Megaphone, label: "Lead de Landing Page" },
-  { to: "/vendedor/pendentes", icon: Clock, label: "Pendentes" },
+  { to: "/vendedor/leads-landing", icon: Megaphone, label: "Lead de Landing Page", vendedorOnly: true },
+  { to: "/vendedor/pendentes", icon: Clock, label: "Pendentes", vendedorOnly: true },
   { to: "/vendedor/proximas-compras", icon: ShoppingCart, label: "Próximas Compras" },
-  { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco" },
-  { to: "/vendedor/leads", icon: UserCheck, label: "Reativação" },
+  { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco", vendedorOnly: true },
+  { to: "/vendedor/leads", icon: UserCheck, label: "Reativação", vendedorOnly: true },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
   { to: "/vendedor/tutoriais", icon: Video, label: "Tutoriais" },
 ];
 
 export function VendedorLayout() {
   const location = useLocation();
+  const { tipoPerfil, isRepresentante, isLoading } = useVendedor();
   
   const isActive = (path: string) => {
     if (path === "/vendedor") {
@@ -46,25 +59,55 @@ export function VendedorLayout() {
     return location.pathname.startsWith(path);
   };
 
+  // Filter menu items based on profile type
+  const menuItems = allMenuItems.filter(item => {
+    // If it's a vendedor-only item and user is representante, hide it
+    if (item.vendedorOnly && isRepresentante) {
+      return false;
+    }
+    return true;
+  });
+
+  // Get label based on profile type
+  const sidebarLabel = isRepresentante ? "Representante" : "Vendedor";
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <Sidebar>
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Vendedor</SidebarGroupLabel>
+              <SidebarGroupLabel>
+                {isLoading ? (
+                  <Skeleton className="h-4 w-20" />
+                ) : (
+                  sidebarLabel
+                )}
+              </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {menuItems.map((item) => (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild isActive={isActive(item.to)}>
-                        <RouterNavLink to={item.to} end={item.end}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.label}</span>
-                        </RouterNavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  {isLoading ? (
+                    // Loading skeleton for menu items
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <SidebarMenuItem key={i}>
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <Skeleton className="h-4 w-4" />
+                          <Skeleton className="h-4 w-24" />
+                        </div>
+                      </SidebarMenuItem>
+                    ))
+                  ) : (
+                    menuItems.map((item) => (
+                      <SidebarMenuItem key={item.to}>
+                        <SidebarMenuButton asChild isActive={isActive(item.to)}>
+                          <RouterNavLink to={item.to} end={item.end}>
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </RouterNavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))
+                  )}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

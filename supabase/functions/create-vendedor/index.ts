@@ -27,14 +27,14 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    console.log('Checking admin role for user:', user.id);
+    console.log('Checking admin/gerente role for user:', user.id);
 
-    // Check if user is admin using the has_role function via RPC or direct query
+    // Check if user is admin or gerente_ebd
     const { data: roleData, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
-      .eq('role', 'admin')
+      .in('role', ['admin', 'gerente_ebd'])
       .maybeSingle();
 
     if (roleError) {
@@ -43,16 +43,30 @@ serve(async (req) => {
     }
 
     if (!roleData) {
-      console.log('User is not admin');
-      throw new Error('Apenas administradores podem criar vendedores');
+      console.log('User is not admin or gerente_ebd');
+      throw new Error('Apenas administradores e gerentes podem criar vendedores/representantes');
     }
 
-    console.log('User is admin, proceeding with vendedor creation');
+    console.log('User has permission, proceeding with creation');
 
-    const { email, password, nome, foto_url, comissao_percentual, status, meta_mensal_valor } = await req.json();
+    const { 
+      email, 
+      password, 
+      nome, 
+      foto_url, 
+      comissao_percentual, 
+      status, 
+      meta_mensal_valor,
+      tipo_perfil = 'vendedor' // Default to vendedor if not specified
+    } = await req.json();
 
     if (!email || !password || !nome) {
       throw new Error('Email, senha e nome são obrigatórios');
+    }
+
+    // Validate tipo_perfil
+    if (!['vendedor', 'representante'].includes(tipo_perfil)) {
+      throw new Error('Tipo de perfil inválido. Use "vendedor" ou "representante"');
     }
 
     // Check if email already exists in vendedores table
@@ -63,7 +77,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existingVendedor) {
-      throw new Error('Já existe um vendedor com este email');
+      throw new Error('Já existe um vendedor/representante com este email');
     }
 
     console.log('Creating auth user for:', email);
@@ -103,7 +117,7 @@ serve(async (req) => {
       authUserId = authData.user.id;
     }
 
-    // Create vendedor
+    // Create vendedor with tipo_perfil
     const { data: vendedorData, error: vendedorError } = await supabaseAdmin
       .from('vendedores')
       .insert({
@@ -113,6 +127,7 @@ serve(async (req) => {
         comissao_percentual: comissao_percentual || 5,
         status: status || 'Ativo',
         meta_mensal_valor: meta_mensal_valor || 0,
+        tipo_perfil: tipo_perfil,
       })
       .select()
       .single();
@@ -125,12 +140,12 @@ serve(async (req) => {
       }
       
       if (vendedorError.message?.includes('duplicate key')) {
-        throw new Error('Já existe um vendedor com este email');
+        throw new Error('Já existe um vendedor/representante com este email');
       }
-      throw new Error(vendedorError.message || 'Erro ao criar vendedor');
+      throw new Error(vendedorError.message || 'Erro ao criar vendedor/representante');
     }
 
-    console.log('Vendedor created:', vendedorData.id);
+    console.log('Vendedor/Representante created:', vendedorData.id);
 
     // Create or update profile linking to vendedor
     const { error: profileError } = await supabaseAdmin
@@ -145,6 +160,23 @@ serve(async (req) => {
     if (profileError) {
       console.error('Profile creation error:', profileError);
       // Not critical, continue anyway
+    }
+
+    // Create user_role based on tipo_perfil
+    // For representante, we use the 'representante' role
+    // For vendedor, we don't create a specific role (they access via vendedores table)
+    if (tipo_perfil === 'representante') {
+      const { error: roleInsertError } = await supabaseAdmin
+        .from('user_roles')
+        .upsert({
+          user_id: authUserId,
+          role: 'representante',
+        });
+
+      if (roleInsertError) {
+        console.error('Role creation error:', roleInsertError);
+        // Not critical for operation, continue
+      }
     }
 
     return new Response(
