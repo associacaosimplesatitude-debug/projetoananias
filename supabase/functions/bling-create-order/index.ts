@@ -760,11 +760,23 @@ serve(async (req) => {
       // Observação: o Bling interpreta `desconto` numérico como %, então 40 = 40%.
       // O Bling calcula: valor * (1 - desconto/100) * quantidade.
       // Total da venda = soma dos itens líquidos + frete.
+      
+      // ID do depósito com estoque disponível (Depósito "Geral" no Bling)
+      // IMPORTANTE: Este ID deve ser configurado conforme o depósito correto no Bling
+      const DEPOSITO_ID = 14887764298; // ID do depósito "Geral" com estoque
+      
+      console.log(`  - Depósito ID: ${DEPOSITO_ID}`);
+      console.log(`  - SKU: ${skuRecebido}`);
+      console.log(`  - Quantidade solicitada: ${quantidade}`);
+      
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
         valor: precoLista, // Preço de lista (cheio)
+        deposito: {
+          id: DEPOSITO_ID
+        }
       };
 
       if (descontoPercentualItem > 0) {
