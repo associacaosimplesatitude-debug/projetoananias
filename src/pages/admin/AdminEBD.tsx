@@ -1528,11 +1528,6 @@ export default function AdminEBD() {
 
         {/* VENDAS TAB */}
         <TabsContent value="vendas" className="space-y-6">
-          {/* Card de Clientes para Atribuir */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <ClientesParaAtribuirCard />
-          </div>
-
           {/* Dashboard de Vendas - KPIs Consolidados */}
           <SalesChannelCards
             dashboardKPIs={dashboardKPIs}

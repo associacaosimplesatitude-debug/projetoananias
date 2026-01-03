@@ -1,10 +1,13 @@
 import { Outlet, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   TrendingUp, 
   Package, 
   Users, 
   UserX, 
   User,
+  UserPlus,
   BookOpen,
   FileText,
   ShoppingBag,
@@ -21,6 +24,7 @@ import {
   Settings,
   Globe,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,6 +63,34 @@ function AdminSidebar() {
   const [pedidosOpen, setPedidosOpen] = useState(
     location.pathname.includes('/admin/ebd/pedidos')
   );
+
+  // Query para contar clientes para atribuir
+  const { data: countSemVendedor = 0 } = useQuery({
+    queryKey: ["clientes-para-atribuir-menu"],
+    queryFn: async () => {
+      const { data: pedidosSemVendedor, error } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("id, customer_email, status_pagamento")
+        .is("vendedor_id", null)
+        .neq("status_pagamento", "Faturado");
+
+      if (error) throw error;
+
+      const emailsUnicos = new Set(
+        (pedidosSemVendedor || [])
+          .filter(p => {
+            const status = (p.status_pagamento || "").toLowerCase();
+            return status === "paid" || status === "pago" || status === "approved";
+          })
+          .map(p => p.customer_email?.toLowerCase())
+          .filter(Boolean)
+      );
+
+      return emailsUnicos.size;
+    },
+    staleTime: 1000 * 60 * 5,
+    enabled: !isFinanceiro, // Não carregar para financeiro
+  });
 
   const pedidosSubItems = [
     { to: "/admin/ebd/pedidos-online", icon: ShoppingBag, label: "Online" },
@@ -186,6 +218,32 @@ function AdminSidebar() {
                     <RouterNavLink to="/admin/ebd/aprovacao-faturamento">
                       <ClipboardCheck className="h-4 w-4" />
                       <span>Aprovação Faturamento</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Operacional - não mostrar para financeiro */}
+        {!isFinanceiro && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Operacional</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/pedidos-online')}>
+                    <RouterNavLink to="/admin/ebd/pedidos-online">
+                      <UserPlus className="h-4 w-4" />
+                      <span className="flex items-center gap-2">
+                        Clientes para Atribuir
+                        {countSemVendedor > 0 && (
+                          <Badge variant="destructive" className="text-xs px-1.5 py-0.5 min-w-[20px] h-5">
+                            {countSemVendedor}
+                          </Badge>
+                        )}
+                      </span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
