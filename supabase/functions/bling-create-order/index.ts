@@ -81,13 +81,17 @@ serve(async (req) => {
       itens,            // Itens com preço de lista (preco_cheio) e preço com desconto (valor)
       pedido_id,
       valor_frete,
-      metodo_frete,     // PAC, SEDEX, FREE
+      metodo_frete,     // PAC, SEDEX, FREE, manual
       forma_pagamento,  // PIX, CARTAO, BOLETO, FATURAMENTO
       faturamento_prazo, // 30, 60 ou 90 (apenas para FATURAMENTO)
       valor_produtos,   // Total dos produtos com desconto
       valor_total,      // Total final (produtos + frete)
       vendedor_nome,    // Vendor name for Bling
       desconto_percentual, // Discount percentage applied
+      // Dados de frete manual
+      frete_tipo,           // 'automatico' ou 'manual'
+      frete_transportadora, // Nome da transportadora (apenas para frete manual)
+      frete_observacao,     // Observação interna sobre o frete manual
     } = await req.json();
 
     if (!cliente || !itens || itens.length === 0) {
@@ -885,12 +889,23 @@ serve(async (req) => {
     const numeroPedido = `${timestamp}-${randomSuffix}`;
 
     // Mapear tipo de frete para nome do transportador
-    const tipoFreteMap: { [key: string]: { nome: string; servico: string } } = {
-      'pac': { nome: 'Correios', servico: 'PAC' },
-      'sedex': { nome: 'Correios', servico: 'SEDEX' },
-      'free': { nome: 'Frete Grátis', servico: 'FRETE GRATIS' },
-    };
-    const freteInfo = tipoFreteMap[metodo_frete?.toLowerCase()] || { nome: 'Correios', servico: metodo_frete || 'A Combinar' };
+    // Se for frete manual, usar o nome da transportadora fornecida
+    let freteInfo: { nome: string; servico: string };
+    if (frete_tipo === 'manual' && frete_transportadora) {
+      freteInfo = { nome: frete_transportadora, servico: 'FRETE MANUAL' };
+      console.log(`Frete manual: Transportadora = ${frete_transportadora}`);
+      if (frete_observacao) {
+        console.log(`Observação do frete: ${frete_observacao}`);
+      }
+    } else {
+      const tipoFreteMap: { [key: string]: { nome: string; servico: string } } = {
+        'pac': { nome: 'Correios', servico: 'PAC' },
+        'sedex': { nome: 'Correios', servico: 'SEDEX' },
+        'free': { nome: 'Frete Grátis', servico: 'FRETE GRATIS' },
+        'retirada': { nome: 'Retirada na Matriz', servico: 'RETIRADA' },
+      };
+      freteInfo = tipoFreteMap[metodo_frete?.toLowerCase()] || { nome: 'Correios', servico: metodo_frete || 'A Combinar' };
+    }
 
     // Mapear forma de pagamento
     const formaPagamentoMap: { [key: string]: string } = {
