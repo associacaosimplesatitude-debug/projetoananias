@@ -64,6 +64,11 @@ serve(async (req) => {
       desconto_percentual, // Discount percentage for B2B clients
       valor_frete,        // Shipping cost
       metodo_frete,       // PAC, SEDEX, or FREE
+      // Campos de frete manual
+      frete_tipo,           // 'manual' ou 'automatico'
+      frete_transportadora, // Nome da transportadora (apenas para frete manual)
+      frete_prazo_estimado, // Prazo estimado (apenas para frete manual)
+      frete_observacao,     // Observação interna sobre o frete manual
     } = await req.json() as { 
       cliente: Cliente; 
       items: CartItem[];
@@ -74,6 +79,10 @@ serve(async (req) => {
       desconto_percentual?: string;
       valor_frete?: string;
       metodo_frete?: string;
+      frete_tipo?: string;
+      frete_transportadora?: string;
+      frete_prazo_estimado?: string;
+      frete_observacao?: string;
     };
 
     if (!cliente || !items || items.length === 0) {
@@ -99,6 +108,7 @@ serve(async (req) => {
     console.log("Faturamento:", isFaturamento, "Prazo:", faturamento_prazo);
     console.log("Desconto:", descontoPercentual, "%");
     console.log("Frete:", metodoFreteRecebido, "Valor:", valorFreteRecebido);
+    console.log("Frete Manual:", frete_tipo, "Transportadora:", frete_transportadora);
 
     // Step 1: Search for existing customer or create new one
     // IMPORTANT: Shopify pode validar o domínio do e-mail. Então usamos um domínio corporativo conhecido.
@@ -373,8 +383,19 @@ serve(async (req) => {
     }
 
     // Build shipping line if frete is provided
+    // Para frete manual, usar o nome da transportadora no título
+    const isFreteManual = frete_tipo === 'manual' && frete_transportadora;
+    let shippingTitle = 'Frete';
+    if (isFreteManual) {
+      shippingTitle = `Frete Manual - ${frete_transportadora}`;
+    } else if (metodoFreteRecebido === 'sedex') {
+      shippingTitle = 'SEDEX (Correios)';
+    } else if (metodoFreteRecebido === 'pac') {
+      shippingTitle = 'PAC (Correios)';
+    }
+    
     const shippingLine = valorFreteRecebido > 0 ? {
-      title: metodoFreteRecebido === 'sedex' ? 'SEDEX (Correios)' : metodoFreteRecebido === 'pac' ? 'PAC (Correios)' : 'Frete',
+      title: shippingTitle,
       price: valorFreteRecebido.toFixed(2),
       custom: true,
     } : null;
@@ -544,13 +565,17 @@ serve(async (req) => {
           itens: itensBling,
           pedido_id: draftOrder.id,
           valor_frete: valorFreteRecebido,
-          metodo_frete: metodoFreteRecebido || 'free',
+          metodo_frete: frete_tipo === 'manual' ? 'manual' : (metodoFreteRecebido || 'free'),
           forma_pagamento: 'FATURAMENTO',
           faturamento_prazo: faturamento_prazo,
           valor_produtos: valorProdutos,
           valor_total: valorTotal,
           vendedor_nome: vendedor_nome, // Pass vendor name to Bling
           desconto_percentual: descontoPercentual,
+          // Campos de frete manual
+          frete_tipo: frete_tipo || 'automatico',
+          frete_transportadora: frete_transportadora || null,
+          frete_observacao: frete_observacao || null,
         }
       });
 
