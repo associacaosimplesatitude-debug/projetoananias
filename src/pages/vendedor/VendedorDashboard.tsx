@@ -384,6 +384,7 @@ export default function VendedorDashboard() {
         vendedorId={vendedor?.id || ""}
         onSuccess={refetch}
         clienteParaEditar={null}
+        isRepresentante={isRepresentante}
       />
     </div>
   );

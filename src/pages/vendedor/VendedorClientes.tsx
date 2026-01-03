@@ -394,6 +394,7 @@ export default function VendedorClientes() {
         vendedorId={vendedor?.id || ""}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["vendedor-clientes", vendedor?.id] })}
         clienteParaEditar={clienteParaEditar}
+        isRepresentante={isRepresentante}
       />
 
       <DescontoFaturamentoDialog
