@@ -3759,6 +3759,11 @@ export type Database = {
           confirmado_em: string | null
           created_at: string
           desconto_percentual: number | null
+          frete_definido_por: string | null
+          frete_observacao: string | null
+          frete_prazo_estimado: string | null
+          frete_tipo: string | null
+          frete_transportadora: string | null
           id: string
           itens: Json
           metodo_frete: string | null
@@ -3783,6 +3788,11 @@ export type Database = {
           confirmado_em?: string | null
           created_at?: string
           desconto_percentual?: number | null
+          frete_definido_por?: string | null
+          frete_observacao?: string | null
+          frete_prazo_estimado?: string | null
+          frete_tipo?: string | null
+          frete_transportadora?: string | null
           id?: string
           itens?: Json
           metodo_frete?: string | null
@@ -3807,6 +3817,11 @@ export type Database = {
           confirmado_em?: string | null
           created_at?: string
           desconto_percentual?: number | null
+          frete_definido_por?: string | null
+          frete_observacao?: string | null
+          frete_prazo_estimado?: string | null
+          frete_tipo?: string | null
+          frete_transportadora?: string | null
           id?: string
           itens?: Json
           metodo_frete?: string | null

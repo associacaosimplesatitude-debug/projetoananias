@@ -29,7 +29,8 @@ import { useShopifyCartStore } from "@/stores/shopifyCartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
-import { FaturamentoSelectionDialog } from "@/components/shopify/FaturamentoSelectionDialog";
+import { useUserRole } from "@/hooks/useUserRole";
+import { FaturamentoSelectionDialog, FreteManualData } from "@/components/shopify/FaturamentoSelectionDialog";
 import { DescontoRevendedorBanner } from "@/components/shopify/DescontoRevendedorBanner";
 import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
@@ -108,6 +109,7 @@ export default function ShopifyPedidos() {
     prazo: string;
     desconto: number;
     frete: { type: string; cost: number };
+    freteManual?: FreteManualData;
   } | null>(null);
   
   // Estados para proposta digital
@@ -272,10 +274,14 @@ export default function ShopifyPedidos() {
   };
   
   // Get vendedor info for the logged-in user
-  const { vendedor, isLoading: isLoadingVendedor } = useVendedor();
+  const { vendedor, isLoading: isLoadingVendedor, isRepresentante } = useVendedor();
+  const { isGerenteEbd, isAdmin } = useUserRole();
   
   // Check if user is a vendedor
   const isVendedor = !!vendedor;
+  
+  // Frete manual disponível para vendedor (não representante) e gerente/admin
+  const canUseFreteManual = (isVendedor && !isRepresentante) || isGerenteEbd || isAdmin;
   
   const { 
     items, 
@@ -546,7 +552,8 @@ export default function ShopifyPedidos() {
     descontoPercent: number = 0,
     frete: { type: string; cost: number } | null = null,
     isFaturamentoB2B: boolean = false,
-    descontoCalculado?: { subtotal: number; descontoValor: number; total: number; descontoPercentual: number; tipoDesconto?: string; faixa?: string; itensComDesconto50?: string[] }
+    descontoCalculado?: { subtotal: number; descontoValor: number; total: number; descontoPercentual: number; tipoDesconto?: string; faixa?: string; itensComDesconto50?: string[] },
+    freteManual?: FreteManualData
   ) => {
     if (!selectedCliente || !vendedor) {
       toast.error("Dados incompletos");
@@ -655,6 +662,8 @@ export default function ShopifyPedidos() {
           };
 
       // Salvar proposta no banco
+      const { data: userData } = await supabase.auth.getUser();
+      
       const { data, error } = await supabase
         .from("vendedor_propostas")
         .insert({
@@ -670,10 +679,16 @@ export default function ShopifyPedidos() {
           desconto_percentual: descontoPercentualFinal,
           status: "PROPOSTA_PENDENTE",
           token: token,
-          metodo_frete: frete?.type || null,
+          metodo_frete: freteManual ? 'manual' : (frete?.type || null),
           pode_faturar: isFaturamentoB2B,
           vendedor_nome: vendedor.nome || null,
-          prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null
+          prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null,
+          // Campos de frete manual
+          frete_tipo: freteManual ? 'manual' : 'automatico',
+          frete_transportadora: freteManual?.transportadora || null,
+          frete_observacao: freteManual?.observacao || null,
+          frete_prazo_estimado: freteManual?.prazoEstimado || null,
+          frete_definido_por: freteManual ? userData?.user?.id : null,
         })
         .select()
         .single();
@@ -720,11 +735,11 @@ export default function ShopifyPedidos() {
     setIsCartOpen(false);
   };
 
-  const handleSelectFaturamento = (prazos: string[], desconto: number, frete: { type: string; cost: number }) => {
-    setFaturamentoConfig({ prazo: prazos[0], desconto, frete });
+  const handleSelectFaturamento = (prazos: string[], desconto: number, frete: { type: string; cost: number }, freteManual?: FreteManualData) => {
+    setFaturamentoConfig({ prazo: prazos[0], desconto, frete, freteManual });
     setShowFaturamentoDialog(false);
     // Vendedor gera link de proposta com config de faturamento B2B
-    handleGeneratePropostaLink(prazos, desconto, frete, true);
+    handleGeneratePropostaLink(prazos, desconto, frete, true, undefined, freteManual);
   };
 
   const handleSelectPagamentoPadrao = () => {
@@ -1340,6 +1355,7 @@ export default function ShopifyPedidos() {
         descontoB2B={selectedCliente?.desconto_faturamento || null}
         onSelectFaturamento={handleSelectFaturamento}
         onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
+        canUseFreteManual={canUseFreteManual}
       />
 
       {/* Proposta Link Dialog */}

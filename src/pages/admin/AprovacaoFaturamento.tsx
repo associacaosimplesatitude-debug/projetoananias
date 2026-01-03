@@ -73,6 +73,11 @@ interface Proposta {
   confirmado_em: string | null;
   cliente?: PropostaCliente | null;
   vendedor?: Vendedor | null;
+  // Campos de frete manual
+  frete_tipo?: string | null;
+  frete_transportadora?: string | null;
+  frete_observacao?: string | null;
+  frete_prazo_estimado?: string | null;
 }
 
 export default function AprovacaoFaturamento() {
@@ -226,6 +231,10 @@ export default function AprovacaoFaturamento() {
           valor_total: valorTotal,
           vendedor_nome: proposta.vendedor_nome || proposta.vendedor?.nome,
           desconto_percentual: descontoPercentual,
+          // Dados de frete manual
+          frete_tipo: proposta.frete_tipo || 'automatico',
+          frete_transportadora: proposta.frete_transportadora,
+          frete_observacao: proposta.frete_observacao,
         },
       });
 
