@@ -990,6 +990,9 @@ export default function ShopifyPedidos() {
                               <p className="font-semibold text-sm mt-1">
                                 R$ {parseFloat(item.price.amount).toFixed(2)}
                               </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                SKU: {item.sku ? item.sku : "não informado"}
+                              </p>
                             </div>
                             
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -1299,6 +1302,9 @@ export default function ShopifyPedidos() {
                     <h3 className="font-medium text-sm line-clamp-2 mb-2">
                       {product.node.title}
                     </h3>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      SKU: {variant?.sku ? variant.sku : "não informado"}
+                    </p>
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-lg">
                         R$ {parseFloat(price).toFixed(2)}
