@@ -852,13 +852,14 @@ serve(async (req) => {
       console.log(`  - Quantidade solicitada: ${quantidade}`);
 
       const itemBling: any = {
+        codigo: skuRecebido, // CAMPO OBRIGATÓRIO: código do produto no Bling
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
         valor: precoLista, // Preço de lista (cheio)
         // VÍNCULO OBRIGATÓRIO com o produto cadastrado
         produto: {
-          codigo: skuRecebido,
+          id: blingProdutoId,
         },
       };
 
