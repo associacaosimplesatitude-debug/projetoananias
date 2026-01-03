@@ -646,9 +646,25 @@ serve(async (req) => {
       let blingProdutoId: number | null = null;
       let blingProdutoCodigo: string | null = null;
       
-      // Verificar se temos um SKU/código no item
-      const skuRecebido = String(item.sku ?? item.codigo ?? '').trim();
-      
+      // Log obrigatório para confirmar payload real
+      console.log("ITEM RECEBIDO:", JSON.stringify(item));
+      console.log("SKU candidates:", {
+        item_sku: (item as any).sku,
+        item_codigo: (item as any).codigo,
+        item_variantSku: (item as any).variantSku,
+        item_variant_id: (item as any).variantId,
+        item_produto_codigo: (item as any)?.produto?.codigo,
+      });
+
+      // Normalizar leitura do SKU/código (SKU é string; pode conter letras)
+      const skuRecebido = String(
+        (item as any).codigo ??
+          (item as any).sku ??
+          (item as any).variantSku ??
+          (item as any)?.produto?.codigo ??
+          ""
+      ).trim();
+
       console.log(`Processando item: "${item.descricao}"`);
       console.log(`  SKU recebido: "${skuRecebido}"`);
       
