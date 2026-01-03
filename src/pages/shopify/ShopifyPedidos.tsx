@@ -407,6 +407,7 @@ export default function ShopifyPedidos() {
       product,
       variantId: variant.id,
       variantTitle: variant.title,
+      sku: variant.sku || null,
       price: variant.price,
       quantity: 1,
       selectedOptions: variant.selectedOptions || []
@@ -626,6 +627,7 @@ export default function ShopifyPedidos() {
           title: item.product.node.title,
           price: item.price.amount,
           imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
+          sku: item.sku || null,
           descontoItem,
         };
       });

@@ -32,6 +32,7 @@ export interface ShopifyProduct {
         node: {
           id: string;
           title: string;
+          sku: string | null;
           price: {
             amount: string;
             currencyCode: string;
@@ -55,6 +56,7 @@ export interface CartItem {
   product: ShopifyProduct;
   variantId: string;
   variantTitle: string;
+  sku: string | null;
   price: {
     amount: string;
     currencyCode: string;
@@ -98,6 +100,7 @@ const STOREFRONT_QUERY = `
               node {
                 id
                 title
+                sku
                 price {
                   amount
                   currencyCode

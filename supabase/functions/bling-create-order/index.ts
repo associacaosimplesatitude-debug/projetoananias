@@ -285,7 +285,62 @@ serve(async (req) => {
       return fetch(url, options);
     }
 
-    // Função auxiliar para buscar produto no Bling pelo nome
+    // Função auxiliar para buscar produto no Bling pelo código (SKU)
+    async function findBlingProductBySku(sku: string): Promise<{ id: number; codigo: string } | null> {
+      try {
+        console.log(`Buscando produto no Bling pelo SKU/código: "${sku}"`);
+        
+        // Delay para respeitar rate limit
+        await delay(350);
+        
+        // Buscar diretamente pelo código usando o endpoint de produtos
+        const searchResponse = await blingFetchWithRetry(
+          `https://www.bling.com.br/Api/v3/produtos?codigo=${encodeURIComponent(sku)}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          }
+        );
+
+        if (!searchResponse.ok) {
+          const errorText = await searchResponse.text();
+          console.log(`Erro HTTP ao buscar produto por SKU: ${sku}. Status: ${searchResponse.status}. Body: ${errorText}`);
+          return null;
+        }
+
+        const searchData = await searchResponse.json();
+        const produtos = searchData.data || [];
+        
+        console.log(`Bling retornou ${produtos.length} produtos para SKU "${sku}"`);
+
+        if (produtos.length > 0) {
+          // Procurar match exato do código
+          const exactMatch = produtos.find((p: any) => 
+            String(p.codigo).trim().toLowerCase() === sku.trim().toLowerCase()
+          );
+          
+          if (exactMatch) {
+            console.log(`Produto encontrado por SKU exato: "${exactMatch.nome}" (código: ${exactMatch.codigo}) -> ID ${exactMatch.id}`);
+            return { id: exactMatch.id, codigo: exactMatch.codigo };
+          }
+          
+          // Se não houver match exato, usar o primeiro resultado
+          const firstProduct = produtos[0];
+          console.log(`Produto encontrado por SKU (primeiro resultado): "${firstProduct.nome}" (código: ${firstProduct.codigo}) -> ID ${firstProduct.id}`);
+          return { id: firstProduct.id, codigo: firstProduct.codigo };
+        }
+
+        console.log(`Nenhum produto encontrado para SKU: ${sku}`);
+        return null;
+      } catch (error) {
+        console.error(`Erro ao buscar produto por SKU: ${error}`);
+        return null;
+      }
+    }
+
+    // Função auxiliar para buscar produto no Bling pelo nome (fallback)
     async function findBlingProductByName(productName: string): Promise<number | null> {
       try {
         // Normalizar para comparação (remover acentos e case)
@@ -314,7 +369,7 @@ serve(async (req) => {
                            normalizedSearch.includes('passo a passo') ? 'passo a passo' :
                            null;
         
-        console.log(`Buscando produto: "${productName}"`);
+        console.log(`Buscando produto por nome: "${productName}"`);
         console.log(`  -> Número: ${numeroRevista}, Tipo: ${tipo}, Faixa: ${faixaEtaria}`);
         
         const palavrasIgnorar = ['a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'na', 'no', 'nas', 'nos', 'para', 'por', 'com', 'um', 'uma', 'uns', 'umas', '-', 'livro', 'revista', 'ebd'];
@@ -527,7 +582,7 @@ serve(async (req) => {
         console.log(`Nenhum produto encontrado para: ${productName}`);
         return null;
       } catch (error) {
-        console.error(`Erro ao buscar produto: ${error}`);
+        console.error(`Erro ao buscar produto por nome: ${error}`);
         return null;
       }
     }
@@ -588,18 +643,41 @@ serve(async (req) => {
     let totalBrutoBling = 0;
 
     for (const item of itens as any[]) {
-      let blingProdutoId = parseInt(item.codigo, 10);
-
-      // Se o código não é um número válido, buscar pelo nome no Bling
-      if (!blingProdutoId || isNaN(blingProdutoId)) {
-        console.log(`bling_produto_id inválido (${item.codigo}), buscando pelo nome: ${item.descricao}`);
+      let blingProdutoId: number | null = null;
+      let blingProdutoCodigo: string | null = null;
+      
+      // Verificar se temos um SKU/código no item
+      const skuRecebido = String(item.sku ?? item.codigo ?? '').trim();
+      
+      console.log(`Processando item: "${item.descricao}"`);
+      console.log(`  SKU recebido: "${skuRecebido}"`);
+      
+      // PRIORIDADE 1: Buscar pelo SKU se existir
+      if (skuRecebido && skuRecebido.length > 0) {
+        console.log(`Buscando produto SOMENTE por SKU: "${skuRecebido}"`);
+        
+        const produtoBySku = await findBlingProductBySku(skuRecebido);
+        
+        if (produtoBySku) {
+          blingProdutoId = produtoBySku.id;
+          blingProdutoCodigo = produtoBySku.codigo;
+          console.log(`Produto encontrado por SKU! ID: ${blingProdutoId}, Código: ${blingProdutoCodigo}`);
+        } else {
+          // SKU existe mas não foi encontrado no Bling
+          console.error(`ERRO: SKU "${skuRecebido}" não encontrado no Bling`);
+          throw new Error(`Produto não encontrado no Bling com SKU/código: "${skuRecebido}". Verifique se o código está cadastrado corretamente no Bling.`);
+        }
+      } else {
+        // PRIORIDADE 2: Se não tiver SKU, buscar pelo nome (fallback)
+        console.log(`SKU não informado, buscando pelo nome: "${item.descricao}"`);
+        
         const foundId = await findBlingProductByName(item.descricao);
         if (foundId) {
           blingProdutoId = foundId;
+          console.log(`Produto encontrado por nome! ID: ${blingProdutoId}`);
         } else {
           console.error(`ERRO: Não foi possível encontrar o produto no Bling: ${item.descricao}`);
-          // Retornar erro claro para o usuário
-          throw new Error(`Produto não encontrado no Bling: "${item.descricao}". Verifique se o produto está cadastrado no Bling com este nome ou associe o código do produto.`);
+          throw new Error(`Produto não encontrado no Bling: "${item.descricao}". Informe o SKU/código do produto ou verifique se está cadastrado no Bling.`);
         }
       }
 
@@ -651,8 +729,9 @@ serve(async (req) => {
       descontoTotalVenda += descontoTotalItem;
 
       console.log(`Item: ${item.descricao}`);
-      console.log(`  - código do produto (input): ${String(item.codigo ?? '')}`);
-      console.log(`  - bling_produto_id (fallback): ${blingProdutoId}`);
+      console.log(`  - SKU recebido: ${skuRecebido}`);
+      console.log(`  - bling_produto_id: ${blingProdutoId}`);
+      console.log(`  - bling_produto_codigo: ${blingProdutoCodigo || 'N/A'}`);
       console.log(`  - Preço Lista (enviado): R$ ${precoLista.toFixed(2)}`);
       console.log(`  - Desconto %: ${descontoPercentualItem.toFixed(2)}%`);
       console.log(`  - Preço Unit. Líquido (simulado): R$ ${precoUnitarioLiquido.toFixed(2)}`);
@@ -676,12 +755,10 @@ serve(async (req) => {
         itemBling.desconto = Number(descontoPercentualItem.toFixed(2));
       }
 
-      // Preferir enviar o CÓDIGO do produto (é o que aparece na coluna "Código" no Bling)
-      // para garantir vínculo e estoque corretos; se não houver, usar o ID encontrado.
-      const codigoProduto = String(item.codigo ?? '').trim();
-      if (codigoProduto) {
-        itemBling.produto = { codigo: codigoProduto };
-      } else if (blingProdutoId && !isNaN(blingProdutoId)) {
+      // Usar o código encontrado pelo SKU ou o ID do produto
+      if (blingProdutoCodigo) {
+        itemBling.produto = { codigo: blingProdutoCodigo };
+      } else if (blingProdutoId) {
         itemBling.produto = { id: blingProdutoId };
       }
 

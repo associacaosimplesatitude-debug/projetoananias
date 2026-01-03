@@ -26,6 +26,7 @@ interface PropostaItem {
   quantity: number;
   title: string;
   price: string;
+  sku?: string | null;
 }
 
 interface PropostaCliente {
@@ -147,7 +148,7 @@ export default function AprovacaoFaturamento() {
           : precoOriginal;
 
         return {
-          codigo: undefined,
+          sku: item.sku || undefined,
           descricao: item.title,
           unidade: "UN",
           quantidade: item.quantity,
