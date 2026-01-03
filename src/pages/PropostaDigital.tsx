@@ -411,6 +411,7 @@ export default function PropostaDigital() {
 
   // Format shipping method name
   const getFreteLabel = () => {
+    if (proposta.metodo_frete === 'manual' || proposta.frete_tipo === 'manual') return 'Frete (Manual)';
     if (!proposta.metodo_frete || proposta.metodo_frete === 'free') return 'Frete Grátis';
     if (proposta.metodo_frete === 'pac') return 'PAC (Correios)';
     if (proposta.metodo_frete === 'sedex') return 'SEDEX (Correios)';
@@ -635,8 +636,8 @@ export default function PropostaDigital() {
                 </>
               )}
               
-              {/* Shipping Section - Only show for B2B or when already confirmed */}
-              {(proposta.pode_faturar || !isPending) && (
+              {/* Shipping Section - Show for B2B, when already confirmed, OR when freight is manual */}
+              {(proposta.pode_faturar || !isPending || isFreteManualResolved) && (
                 <div className="flex justify-between text-sm items-center">
                   <span className="flex items-center gap-2">
                     <Truck className="h-4 w-4" />
@@ -648,8 +649,8 @@ export default function PropostaDigital() {
                 </div>
               )}
               
-              {/* For standard payment pending, show that shipping will be selected below */}
-              {!proposta.pode_faturar && isPending && (
+              {/* For standard payment pending (automatic freight), show that shipping will be selected below */}
+              {!proposta.pode_faturar && isPending && !isFreteManualResolved && (
                 <div className="flex justify-between text-sm items-center text-muted-foreground">
                   <span className="flex items-center gap-2">
                     <Truck className="h-4 w-4" />
@@ -662,7 +663,7 @@ export default function PropostaDigital() {
               <div className="flex justify-between text-lg font-bold pt-2 border-t">
                 <span>Total:</span>
                 <span>
-                  R$ {proposta.pode_faturar || !isPending 
+                  R$ {(proposta.pode_faturar || !isPending || isFreteManualResolved)
                     ? proposta.valor_total.toFixed(2)
                     : (valorComDesconto + (shippingOptions.find(opt => opt.type === selectedFrete)?.cost || 0)).toFixed(2)
                   }
