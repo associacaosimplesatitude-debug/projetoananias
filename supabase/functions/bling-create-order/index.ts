@@ -286,11 +286,14 @@ serve(async (req) => {
     }
 
     // Cache do depósito (para evitar chamar /depositos a cada pedido)
-    let cachedDepositoId: number | null = null;
+    type DepositoInfo = { id: number; descricao: string; padrao: boolean };
 
-    // Descobrir o depósito correto via API (sem chute)
-    async function getDepositoId(): Promise<number> {
-      if (cachedDepositoId) return cachedDepositoId;
+    let cachedDeposito: DepositoInfo | null = null;
+    let cachedDepositos: DepositoInfo[] | null = null;
+
+    // Listar depósitos via API (sem chute) + log completo para auditoria
+    async function listDepositos(): Promise<DepositoInfo[]> {
+      if (cachedDepositos) return cachedDepositos;
 
       console.log('[DEPOSITO] Buscando depósitos no Bling...');
       await delay(350);
@@ -308,31 +311,47 @@ serve(async (req) => {
       }
 
       const json = await resp.json();
-      const depositos: any[] = Array.isArray(json?.data) ? json.data : [];
+      const depositosRaw: any[] = Array.isArray(json?.data) ? json.data : [];
+
+      // Log obrigatório (id + descricao + padrao)
+      const audit = depositosRaw.map((d) => ({
+        id: d?.id,
+        descricao: d?.descricao ?? d?.nome,
+        padrao: Boolean(d?.padrao) || Boolean(d?.isPadrao) || Boolean(d?.default),
+      }));
+      console.log('[DEPOSITO] Retorno /depositos (audit):', JSON.stringify(audit, null, 2));
+      console.log('[DEPOSITO] Retorno /depositos (raw):', JSON.stringify(depositosRaw, null, 2));
+
+      cachedDepositos = audit
+        .filter((d) => d.id != null)
+        .map((d) => ({ id: Number(d.id), descricao: String(d.descricao ?? '').trim(), padrao: Boolean(d.padrao) }));
+
+      return cachedDepositos;
+    }
+
+    // Escolher depósito: preferir "Geral"; fallback para padrão
+    async function getDepositoInfo(): Promise<DepositoInfo> {
+      if (cachedDeposito) return cachedDeposito;
+
+      const depositos = await listDepositos();
 
       const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
-      // 1) Preferir depósito chamado "Geral" (nome/descricao)
       const geral = depositos.find((d) => {
-        const nome = normalize(d?.nome);
-        const descricao = normalize(d?.descricao);
-        return nome === 'geral' || descricao === 'geral' || nome.includes('geral') || descricao.includes('geral');
+        const descricao = normalize(d.descricao);
+        return descricao === 'geral' || descricao.includes('geral');
       });
 
-      // 2) Fallback: tentar depósito marcado como padrão (se existir)
-      const padrao = depositos.find((d) => Boolean(d?.padrao) || Boolean(d?.isPadrao) || Boolean(d?.default));
+      const padrao = depositos.find((d) => d.padrao);
 
       const chosen = geral ?? padrao;
-
-      console.log('[DEPOSITO] Resposta /depositos:', JSON.stringify(depositos, null, 2));
-
-      if (!chosen?.id) {
+      if (!chosen) {
         throw new Error('[DEPOSITO] Não foi possível identificar o depósito "Geral" (nem um padrão) no Bling. Verifique o cadastro de depósitos.');
       }
 
-      cachedDepositoId = Number(chosen.id);
-      console.log(`[DEPOSITO] Depósito selecionado: id=${cachedDepositoId} nome=${chosen?.nome ?? 'n/a'} descricao=${chosen?.descricao ?? 'n/a'}`);
-      return cachedDepositoId;
+      cachedDeposito = chosen;
+      console.log(`[DEPOSITO] Depósito selecionado: id=${chosen.id} descricao=${chosen.descricao} padrao=${chosen.padrao}`);
+      return chosen;
     }
 
     // Função auxiliar para buscar produto no Bling pelo código (SKU)
@@ -699,7 +718,8 @@ serve(async (req) => {
     const itensBling = [];
 
     // Descobrir depósito correto (via API) uma vez por execução
-    const depositoId = await getDepositoId();
+    const depositoInfo = await getDepositoInfo();
+    const depositoId = depositoInfo.id;
 
     // Total real baseado nos itens que vamos enviar ao Bling (após desconto)
     let totalBrutoBling = 0;
@@ -762,9 +782,26 @@ serve(async (req) => {
           : stock.saldoFisico.toFixed(2);
         const virtualTxt = stock.saldoVirtual.toFixed(2);
 
+        // Sugerir depósito alternativo com saldo (se houver)
+        let sugestaoTxt = '';
+        try {
+          const depositos = await listDepositos();
+          for (const d of depositos) {
+            if (d.id === depositoId) continue;
+            const altStock = await getBlingStock(blingProdutoId, d.id);
+            if (altStock?.saldoVirtual != null && !Number.isNaN(altStock.saldoVirtual) && altStock.saldoVirtual >= quantidade) {
+              sugestaoTxt = ` Sugestão: usar o depósito "${d.descricao}" (id=${d.id}) com saldo disponível (virtual)=${altStock.saldoVirtual.toFixed(2)}.`;
+              break;
+            }
+          }
+        } catch (e) {
+          console.log('[STOCK CHECK] Não foi possível sugerir depósito alternativo:', String(e));
+        }
+
         throw new Error(
           `Estoque insuficiente no Bling para: ${item.descricao}. ` +
-          `Depósito: ${depositoId} • Saldo físico: ${fisicoTxt} • Saldo disponível (virtual): ${virtualTxt} • Solicitado: ${quantidade}.`
+          `Saldo no depósito "${depositoInfo.descricao}" (id=${depositoId}) insuficiente: saldo=${virtualTxt}, solicitado=${quantidade}. ` +
+          `Saldo físico: ${fisicoTxt} • Saldo disponível (virtual): ${virtualTxt}.${sugestaoTxt}`
         );
       }
 
@@ -963,6 +1000,10 @@ serve(async (req) => {
       },
       contato: {
         id: contatoId,
+      },
+      // DEPÓSITO (para compatibilidade): enviar também no root
+      deposito: {
+        id: depositoId,
       },
       itens: itensBling,
       situacao: {
