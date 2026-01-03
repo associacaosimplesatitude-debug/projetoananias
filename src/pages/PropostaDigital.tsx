@@ -550,13 +550,20 @@ export default function PropostaDigital() {
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                         <span>Quantidade: {item.quantity}</span>
-                        {(item as any).sku && (
-                          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                            SKU: {(item as any).sku}
-                          </span>
-                        )}
+                        {(() => {
+                          const resolvedSku = (item as any).sku || (item as any).codigo || (item as any).variantSku || null;
+                          return resolvedSku ? (
+                            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                              SKU: {resolvedSku}
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-destructive/10 text-destructive px-1.5 py-0.5 rounded">
+                              SKU: não informado
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="text-right">
