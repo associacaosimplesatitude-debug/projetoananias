@@ -147,8 +147,12 @@ export default function AprovacaoFaturamento() {
           ? Math.round((precoOriginal * (1 - descontoPercentual / 100)) * 100) / 100
           : precoOriginal;
 
+        // Padronizar payload: sempre enviar código (SKU) para o Bling
+        const codigo = item.sku ?? undefined;
+
         return {
-          sku: item.sku || undefined,
+          codigo, // <- obrigatório
+          sku: codigo, // manter por compatibilidade
           descricao: item.title,
           unidade: "UN",
           quantidade: item.quantity,
