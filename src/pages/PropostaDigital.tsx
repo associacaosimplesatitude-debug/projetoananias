@@ -18,6 +18,7 @@ interface PropostaItem {
   title: string;
   price: string;
   imageUrl?: string;
+  sku?: string | null; // SKU do produto no Bling
   descontoItem?: number; // Desconto específico do item (50% para livros ADVEC, 40% para revistas, etc.)
 }
 
@@ -538,7 +539,7 @@ export default function PropostaDigital() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium truncate">{item.title}</p>
                         {temDesconto && (
                           <Badge
@@ -549,9 +550,14 @@ export default function PropostaDigital() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        Quantidade: {item.quantity}
-                      </p>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <span>Quantidade: {item.quantity}</span>
+                        {(item as any).sku && (
+                          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                            SKU: {(item as any).sku}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-right">
                       {temDesconto ? (
