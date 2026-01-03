@@ -114,7 +114,8 @@ export default function PropostaDigital() {
 
   // Fetch shipping options for standard payment (only if NOT manual freight)
   useEffect(() => {
-    if (proposta && !proposta.pode_faturar && proposta.status === "PROPOSTA_PENDENTE" && proposta.cliente_endereco?.cep && proposta.frete_tipo !== 'manual') {
+    const isFreteManualResolved = proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual';
+    if (proposta && !proposta.pode_faturar && proposta.status === "PROPOSTA_PENDENTE" && proposta.cliente_endereco?.cep && !isFreteManualResolved) {
       fetchShippingOptions();
     }
   }, [proposta]);
@@ -229,7 +230,7 @@ export default function PropostaDigital() {
         updateData.prazo_faturamento_selecionado = selectedPrazo;
       } else {
         // For standard payment
-        if (proposta?.frete_tipo === 'manual') {
+        if (proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual') {
           // Frete manual já está definido - manter valores existentes
           updateData.metodo_frete = 'manual';
           // valor_frete e valor_total já estão corretos no banco
@@ -273,7 +274,7 @@ export default function PropostaDigital() {
         };
 
         // Determinar frete a usar (manual ou selecionado pelo cliente)
-        const isFreteManual = proposta?.frete_tipo === 'manual';
+        const isFreteManual = proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual';
         const selectedShipping = !isFreteManual ? shippingOptions.find(opt => opt.type === selectedFrete) : null;
         const valorFreteUsado = isFreteManual ? proposta!.valor_frete : (selectedShipping?.cost || 0);
         const metodoFreteUsado = isFreteManual ? 'manual' : (selectedFrete || 'free');
@@ -390,6 +391,7 @@ export default function PropostaDigital() {
   const isPending = proposta.status === "PROPOSTA_PENDENTE";
   const isAccepted = proposta.status === "PROPOSTA_ACEITA";
   const isAguardandoPagamento = proposta.status === "AGUARDANDO_PAGAMENTO";
+  const isFreteManualResolved = proposta.frete_tipo === 'manual' || proposta.metodo_frete === 'manual';
 
   // Calculate total discount by summing individual item discounts
   const calcularDescontoTotal = () => {
@@ -711,12 +713,12 @@ export default function PropostaDigital() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-green-800">
                 <Truck className="h-5 w-5" />
-                {proposta.frete_tipo === 'manual' ? 'Forma de Entrega' : 'Escolha a Forma de Entrega'}
+                {isFreteManualResolved ? 'Forma de Entrega' : 'Escolha a Forma de Entrega'}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {/* Frete Manual - Exibir informações fixas */}
-              {proposta.frete_tipo === 'manual' ? (
+              {isFreteManualResolved ? (
                 <div className="p-4 bg-white rounded-lg border border-green-300">
                   <div className="flex justify-between items-start">
                     <div>
