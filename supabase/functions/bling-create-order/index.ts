@@ -1141,17 +1141,23 @@ serve(async (req) => {
 
     for (let attempt = 0; attempt < 3; attempt++) {
       // ✅ REGRA DEFINITIVA (aplicar como última etapa antes do envio, em TODA tentativa)
-      // - Não alterar transporte.contato (destinatário)
-      // - Garantir que o transportador seja definido SOMENTE em pedidoData.transporte.transportador
+      // - Para frete manual: transporte.contato.nome = nome do transportador (não cliente!)
+      // - transportador.nome também deve ser o transportador
       if (frete_tipo === 'manual') {
         pedidoData.transporte = pedidoData.transporte || {};
 
         const transportadorId = await resolveManualTransportadorId();
+        const nomeTransportador = String(frete_transportadora ?? '').trim();
 
-        // Definir SOMENTE aqui, como última linha antes do envio (evita sobrescrita anterior).
+        // Definir transportador
         pedidoData.transporte.transportador = transportadorId
-          ? { id: transportadorId, nome: String(frete_transportadora ?? '').trim() }
-          : { nome: String(frete_transportadora ?? '').trim() };
+          ? { id: transportadorId, nome: nomeTransportador }
+          : { nome: nomeTransportador };
+
+        // ✅ CORREÇÃO CRÍTICA: O Bling usa transporte.contato.nome como transportador!
+        // Então precisamos colocar o nome do transportador aqui também
+        pedidoData.transporte.contato = pedidoData.transporte.contato || {};
+        pedidoData.transporte.contato.nome = nomeTransportador;
 
         // Alguns campos do Bling podem ler o serviço logístico no nível do transporte.
         pedidoData.transporte.servico_logistico = 'FRETE MANUAL';
