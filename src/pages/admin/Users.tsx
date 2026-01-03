@@ -17,10 +17,10 @@ const createUserSchema = z.object({
   email: z.string().trim().email({ message: 'Email inválido' }).max(255),
   password: z.string().min(6, { message: 'Senha deve ter no mínimo 6 caracteres' }).max(100),
   fullName: z.string().trim().min(1, { message: 'Nome completo obrigatório' }).max(200),
-  role: z.enum(['admin', 'client', 'tesoureiro', 'secretario', 'gerente_ebd', 'financeiro'], { message: 'Role inválida' }),
+  role: z.enum(['admin', 'client', 'tesoureiro', 'secretario', 'gerente_ebd', 'financeiro', 'representante'], { message: 'Role inválida' }),
 });
 
-type UserRole = 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd' | 'financeiro';
+type UserRole = 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd' | 'financeiro' | 'representante';
 
 interface User {
   id: string;

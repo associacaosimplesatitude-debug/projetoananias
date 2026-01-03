@@ -72,7 +72,7 @@ interface Cliente {
 export default function VendedorClientes() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { vendedor, isLoading: vendedorLoading } = useVendedor();
+  const { vendedor, isVendedor, isRepresentante, isLoading: vendedorLoading } = useVendedor();
   const [cadastrarClienteOpen, setCadastrarClienteOpen] = useState(false);
   const [clienteParaEditar, setClienteParaEditar] = useState<Cliente | null>(null);
   const [clienteParaExcluir, setClienteParaExcluir] = useState<Cliente | null>(null);
@@ -268,10 +268,13 @@ export default function VendedorClientes() {
           <h2 className="text-2xl font-bold">Clientes</h2>
           <p className="text-muted-foreground">Lista completa de clientes na sua carteira</p>
         </div>
-        <Button onClick={() => setCadastrarClienteOpen(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Novo Cliente
-        </Button>
+        {/* Only vendedor can create new clients */}
+        {isVendedor && (
+          <Button onClick={() => setCadastrarClienteOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Novo Cliente
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -337,8 +340,8 @@ export default function VendedorClientes() {
                       onboarding_concluido: cliente.onboarding_concluido,
                     }}
                     creditos={getCreditosForCliente(cliente.id)}
-                    onEdit={() => handleEditarCliente(cliente)}
-                    onLancamentoManual={() => setClienteParaLancamento(cliente)}
+                    onEdit={isVendedor ? () => handleEditarCliente(cliente) : undefined}
+                    onLancamentoManual={isVendedor ? () => setClienteParaLancamento(cliente) : undefined}
                     isAdmin={false}
                   />
                   {/* Action buttons overlay */}
@@ -363,7 +366,8 @@ export default function VendedorClientes() {
                       <ShoppingCart className="mr-1 h-4 w-4" />
                       Pedido
                     </Button>
-                    {!cliente.status_ativacao_ebd && (
+                    {/* Only vendedor can activate panel */}
+                    {isVendedor && !cliente.status_ativacao_ebd && (
                       <Button
                         size="sm"
                         onClick={() => handleAtivarPainel(cliente)}

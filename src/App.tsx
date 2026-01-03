@@ -113,6 +113,7 @@ import VendedorLeadsPage from "./pages/vendedor/VendedorLeadsPage";
 import VendedorLeadsLandingPage from "./pages/vendedor/VendedorLeadsLandingPage";
 import VendedorPedidosPage from "./pages/vendedor/VendedorPedidosPage";
 import { VendedorLayout } from "./components/vendedor/VendedorLayout";
+import { VendedorProtectedRoute } from "./components/vendedor/VendedorProtectedRoute";
 
 // Shopify Pages
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
@@ -416,17 +417,37 @@ const App = () => (
                     <Route path="/vendedor" element={<VendedorLayout />}>
                       <Route index element={<VendedorDashboard />} />
                       <Route path="clientes" element={<VendedorClientes />} />
-                      <Route path="leads-landing" element={<VendedorLeadsLandingPage />} />
-                      <Route path="pendentes" element={<VendedorPendentes />} />
+                      <Route path="leads-landing" element={
+                        <VendedorProtectedRoute vendedorOnly>
+                          <VendedorLeadsLandingPage />
+                        </VendedorProtectedRoute>
+                      } />
+                      <Route path="pendentes" element={
+                        <VendedorProtectedRoute vendedorOnly>
+                          <VendedorPendentes />
+                        </VendedorProtectedRoute>
+                      } />
                       <Route path="proximas-compras" element={<VendedorProximasCompras />} />
-                      <Route path="em-risco" element={<VendedorEmRisco />} />
-                      <Route path="leads" element={<VendedorLeadsPage />} />
+                      <Route path="em-risco" element={
+                        <VendedorProtectedRoute vendedorOnly>
+                          <VendedorEmRisco />
+                        </VendedorProtectedRoute>
+                      } />
+                      <Route path="leads" element={
+                        <VendedorProtectedRoute vendedorOnly>
+                          <VendedorLeadsPage />
+                        </VendedorProtectedRoute>
+                      } />
                       <Route path="pedidos" element={<VendedorPedidosPage />} />
                       <Route path="shopify" element={<ShopifyPedidos />} />
                       <Route path="tutoriais" element={<Tutoriais />} />
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />
-                    <Route path="/vendedor/ativacao" element={<VendedorAtivacaoEBD />} />
+                    <Route path="/vendedor/ativacao" element={
+                      <VendedorProtectedRoute vendedorOnly>
+                        <VendedorAtivacaoEBD />
+                      </VendedorProtectedRoute>
+                    } />
                     
                     <Route path="*" element={<NotFound />} />
                   </Routes>

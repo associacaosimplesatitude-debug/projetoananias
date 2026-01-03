@@ -111,6 +111,7 @@ interface Vendedor {
   status: string;
   meta_mensal_valor: number;
   created_at: string;
+  tipo_perfil: 'vendedor' | 'representante';
 }
 
 interface Church {
@@ -206,6 +207,7 @@ export default function AdminEBD() {
     comissao_percentual: 5,
     status: 'Ativo',
     meta_mensal_valor: 0,
+    tipo_perfil: 'vendedor' as 'vendedor' | 'representante',
   });
 
   // Clientes EBD filter states
@@ -1132,20 +1134,22 @@ export default function AdminEBD() {
           comissao_percentual: data.comissao_percentual,
           status: data.status,
           meta_mensal_valor: data.meta_mensal_valor,
+          tipo_perfil: data.tipo_perfil,
         },
       });
       if (error) throw error;
       if (result.error) throw new Error(result.error);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['vendedores'] });
-      toast.success('Vendedor criado com sucesso!');
+      const perfilLabel = variables.tipo_perfil === 'representante' ? 'Representante' : 'Vendedor';
+      toast.success(`${perfilLabel} criado com sucesso!`);
       resetForm();
       setDialogOpen(false);
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Erro ao criar vendedor');
+      toast.error(error.message || 'Erro ao criar vendedor/representante');
     },
   });
 
@@ -1158,17 +1162,18 @@ export default function AdminEBD() {
         comissao_percentual: data.comissao_percentual,
         status: data.status,
         meta_mensal_valor: data.meta_mensal_valor,
+        tipo_perfil: data.tipo_perfil,
       }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendedores'] });
-      toast.success('Vendedor atualizado com sucesso!');
+      toast.success('Atualizado com sucesso!');
       resetForm();
       setDialogOpen(false);
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Erro ao atualizar vendedor');
+      toast.error(error.message || 'Erro ao atualizar');
     },
   });
 
@@ -1381,7 +1386,7 @@ export default function AdminEBD() {
   };
 
   const resetForm = () => {
-    setFormData({ nome: '', email: '', senha: '', foto_url: '', comissao_percentual: 5, status: 'Ativo', meta_mensal_valor: 0 });
+    setFormData({ nome: '', email: '', senha: '', foto_url: '', comissao_percentual: 5, status: 'Ativo', meta_mensal_valor: 0, tipo_perfil: 'vendedor' });
     setEditingVendedor(null);
     setShowPassword(false);
   };
@@ -1396,6 +1401,7 @@ export default function AdminEBD() {
       comissao_percentual: vendedor.comissao_percentual,
       status: vendedor.status,
       meta_mensal_valor: vendedor.meta_mensal_valor,
+      tipo_perfil: vendedor.tipo_perfil || 'vendedor',
     });
     setDialogOpen(true);
   };
@@ -2263,13 +2269,38 @@ export default function AdminEBD() {
 
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
-                <Button><UserPlus className="h-4 w-4 mr-2" />Novo Vendedor</Button>
+                <Button><UserPlus className="h-4 w-4 mr-2" />Novo Vendedor/Representante</Button>
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>{editingVendedor ? 'Editar Vendedor' : 'Novo Vendedor'}</DialogTitle>
+                  <DialogTitle>{editingVendedor ? `Editar ${formData.tipo_perfil === 'representante' ? 'Representante' : 'Vendedor'}` : 'Novo Vendedor/Representante'}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Tipo de Perfil - Only on creation */}
+                  {!editingVendedor && (
+                    <div className="space-y-2">
+                      <Label>Tipo de Perfil <span className="text-destructive">*</span></Label>
+                      <Select value={formData.tipo_perfil} onValueChange={(value: 'vendedor' | 'representante') => setFormData({ ...formData, tipo_perfil: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo de perfil" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="vendedor">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Vendedor</span>
+                              <span className="text-xs text-muted-foreground">Acesso completo: leads, prospecção, ativação</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="representante">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">Representante</span>
+                              <span className="text-xs text-muted-foreground">Apenas vendas diretas aos clientes da carteira</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Foto de Perfil</Label>
                     <div className="flex items-center gap-4">
@@ -2324,7 +2355,9 @@ export default function AdminEBD() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? 'Salvando...' : (editingVendedor ? 'Atualizar' : 'Criar Vendedor')}</Button>
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? 'Salvando...' : (editingVendedor ? 'Atualizar' : `Criar ${formData.tipo_perfil === 'representante' ? 'Representante' : 'Vendedor'}`)}
+                  </Button>
                 </form>
               </DialogContent>
             </Dialog>
@@ -2342,7 +2375,12 @@ export default function AdminEBD() {
                         <AvatarFallback>{vendedor.nome.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-semibold">{vendedor.nome}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold">{vendedor.nome}</p>
+                          <Badge variant={vendedor.tipo_perfil === 'representante' ? 'outline' : 'default'} className="text-xs">
+                            {vendedor.tipo_perfil === 'representante' ? 'Representante' : 'Vendedor'}
+                          </Badge>
+                        </div>
                         <p className="text-sm text-muted-foreground">{vendedor.email}</p>
                       </div>
                     </div>
@@ -2375,7 +2413,7 @@ export default function AdminEBD() {
             ))}
             {(!vendedores || vendedores.length === 0) && (
               <Card className="col-span-full">
-                <CardContent className="py-8 text-center text-muted-foreground">Nenhum vendedor cadastrado</CardContent>
+                <CardContent className="py-8 text-center text-muted-foreground">Nenhum vendedor ou representante cadastrado</CardContent>
               </Card>
             )}
           </div>
