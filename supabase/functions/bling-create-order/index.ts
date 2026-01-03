@@ -1094,13 +1094,65 @@ serve(async (req) => {
     let orderResponse: Response | undefined;
     let responseData: any = null;
 
+    // Resolver (1x) um possível ID de transportador no Bling para frete manual.
+    // Observação: o Bling tende a tratar transportador como um contato cadastrado; enviar só "nome" pode ser ignorado.
+    let manualTransportadorId: number | null = null;
+    const resolveManualTransportadorId = async (): Promise<number | null> => {
+      if (manualTransportadorId !== null) return manualTransportadorId;
+      if (frete_tipo !== 'manual' || !frete_transportadora) return null;
+
+      const name = String(frete_transportadora).trim();
+      if (!name) return null;
+
+      const tryUrls = [
+        `https://www.bling.com.br/Api/v3/contatos?nome=${encodeURIComponent(name)}`,
+        `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(name)}`,
+      ];
+
+      for (const url of tryUrls) {
+        try {
+          await sleep(350);
+          const resp = await blingFetchWithRetry(url, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          });
+
+          const json = await resp.json().catch(() => null);
+          const list: any[] = Array.isArray(json?.data) ? json.data : [];
+          const found = list.find((c: any) => String(c?.nome ?? '').trim().toLowerCase() === name.toLowerCase());
+
+          console.log('[BLING] Busca transportador (frete manual):', JSON.stringify({ url, count: list.length, foundId: found?.id ?? null }, null, 2));
+
+          if (found?.id != null) {
+            manualTransportadorId = Number(found.id);
+            return manualTransportadorId;
+          }
+        } catch (e) {
+          console.warn('[BLING] Falha ao buscar transportador por nome:', String(e));
+        }
+      }
+
+      // Não achou; manter apenas o nome.
+      manualTransportadorId = null;
+      return null;
+    };
+
     for (let attempt = 0; attempt < 3; attempt++) {
       // ✅ REGRA DEFINITIVA (aplicar como última etapa antes do envio, em TODA tentativa)
       // - Não alterar transporte.contato (destinatário)
-      // - Garantir que o transportador seja definido SOMENTE em pedidoData.transporte.transportador.nome
+      // - Garantir que o transportador seja definido SOMENTE em pedidoData.transporte.transportador
       if (frete_tipo === 'manual') {
         pedidoData.transporte = pedidoData.transporte || {};
-        pedidoData.transporte.transportador = { nome: frete_transportadora || '' };
+
+        const transportadorId = await resolveManualTransportadorId();
+
+        // Definir SOMENTE aqui, como última linha antes do envio (evita sobrescrita anterior).
+        pedidoData.transporte.transportador = transportadorId
+          ? { id: transportadorId, nome: String(frete_transportadora ?? '').trim() }
+          : { nome: String(frete_transportadora ?? '').trim() };
+
         // Alguns campos do Bling podem ler o serviço logístico no nível do transporte.
         pedidoData.transporte.servico_logistico = 'FRETE MANUAL';
       }
