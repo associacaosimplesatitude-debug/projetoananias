@@ -141,17 +141,32 @@ export default function AprovacaoFaturamento() {
       const valorFrete = proposta.valor_frete || 0;
       const metodoFrete = proposta.metodo_frete || "COMBINAR";
 
-      const itensBling = proposta.itens.map((item) => {
+      // Validar que todos os itens têm SKU antes de processar
+      const itensComSku = proposta.itens.map((item: any) => {
+        // Buscar SKU em múltiplos campos possíveis (compatibilidade)
+        const sku = item.sku || item.codigo || item.variantSku || null;
+        return { ...item, sku };
+      });
+      
+      const itensSemSku = itensComSku.filter(item => !item.sku);
+      if (itensSemSku.length > 0) {
+        const produtosSemSku = itensSemSku.map(i => i.title).join(", ");
+        throw new Error(`Produto(s) sem SKU no carrinho/proposta: ${produtosSemSku}. Não é possível faturar sem SKU.`);
+      }
+
+      const itensBling = itensComSku.map((item) => {
         const precoOriginal = Number(item.price);
         const precoComDesconto = descontoPercentual > 0
           ? Math.round((precoOriginal * (1 - descontoPercentual / 100)) * 100) / 100
           : precoOriginal;
 
-        // Padronizar payload: sempre enviar código (SKU) para o Bling
-        const codigo = item.sku ?? undefined;
+        // SKU validado acima - garantido não ser null/undefined
+        const codigo = String(item.sku).trim();
+
+        console.log(`[FATURAMENTO] Item: ${item.title} | SKU: ${codigo} | Qtd: ${item.quantity}`);
 
         return {
-          codigo, // <- obrigatório
+          codigo, // <- obrigatório para o Bling
           sku: codigo, // manter por compatibilidade
           descricao: item.title,
           unidade: "UN",
@@ -429,13 +444,34 @@ export default function AprovacaoFaturamento() {
                       )}
                     </div>
 
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Itens: </span>
-                      {proposta.itens.map((item, idx) => (
-                        <span key={idx}>
-                          {item.quantity}x {item.title}{idx < proposta.itens.length - 1 ? ", " : ""}
-                        </span>
-                      ))}
+                    <div className="text-sm space-y-1">
+                      <span className="text-muted-foreground">Itens:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {proposta.itens.map((item: any, idx) => {
+                          const itemSku = item.sku || item.codigo || null;
+                          const hasSku = !!itemSku;
+                          return (
+                            <span 
+                              key={idx} 
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                                hasSku ? 'bg-muted' : 'bg-destructive/10 text-destructive'
+                              }`}
+                            >
+                              {item.quantity}x {item.title.length > 40 ? item.title.substring(0, 40) + '...' : item.title}
+                              {hasSku ? (
+                                <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                  SKU: {itemSku}
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                  <AlertTriangle className="w-2 h-2 mr-0.5" />
+                                  SEM SKU
+                                </Badge>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                   
