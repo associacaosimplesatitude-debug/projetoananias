@@ -285,6 +285,56 @@ serve(async (req) => {
       return fetch(url, options);
     }
 
+    // Cache do depósito (para evitar chamar /depositos a cada pedido)
+    let cachedDepositoId: number | null = null;
+
+    // Descobrir o depósito correto via API (sem chute)
+    async function getDepositoId(): Promise<number> {
+      if (cachedDepositoId) return cachedDepositoId;
+
+      console.log('[DEPOSITO] Buscando depósitos no Bling...');
+      await delay(350);
+
+      const resp = await blingFetchWithRetry('https://www.bling.com.br/Api/v3/depositos', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new Error(`[DEPOSITO] Falha ao listar depósitos no Bling: status=${resp.status} body=${body}`);
+      }
+
+      const json = await resp.json();
+      const depositos: any[] = Array.isArray(json?.data) ? json.data : [];
+
+      const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
+      // 1) Preferir depósito chamado "Geral" (nome/descricao)
+      const geral = depositos.find((d) => {
+        const nome = normalize(d?.nome);
+        const descricao = normalize(d?.descricao);
+        return nome === 'geral' || descricao === 'geral' || nome.includes('geral') || descricao.includes('geral');
+      });
+
+      // 2) Fallback: tentar depósito marcado como padrão (se existir)
+      const padrao = depositos.find((d) => Boolean(d?.padrao) || Boolean(d?.isPadrao) || Boolean(d?.default));
+
+      const chosen = geral ?? padrao;
+
+      console.log('[DEPOSITO] Resposta /depositos:', JSON.stringify(depositos, null, 2));
+
+      if (!chosen?.id) {
+        throw new Error('[DEPOSITO] Não foi possível identificar o depósito "Geral" (nem um padrão) no Bling. Verifique o cadastro de depósitos.');
+      }
+
+      cachedDepositoId = Number(chosen.id);
+      console.log(`[DEPOSITO] Depósito selecionado: id=${cachedDepositoId} nome=${chosen?.nome ?? 'n/a'} descricao=${chosen?.descricao ?? 'n/a'}`);
+      return cachedDepositoId;
+    }
+
     // Função auxiliar para buscar produto no Bling pelo código (SKU)
     async function findBlingProductBySku(sku: string): Promise<{ id: number; codigo: string } | null> {
       try {
@@ -588,22 +638,27 @@ serve(async (req) => {
     }
 
     // Cache simples para não bater no endpoint de estoque repetidas vezes
-    const estoqueCache = new Map<number, number>();
+    const estoqueCache = new Map<string, number>();
 
     // Busca saldo físico/virtual no Bling (quando disponível)
     // Observação: no painel do Bling geralmente aparece o **saldo físico**,
     // mas a validação da venda costuma considerar o **saldo virtual/disponível** (saldo físico - reservas).
-    async function getBlingStock(produtoId: number): Promise<{ saldoFisico: number | null; saldoVirtual: number | null } | null> {
+    async function getBlingStock(
+      produtoId: number,
+      depositoId?: number
+    ): Promise<{ saldoFisico: number | null; saldoVirtual: number | null } | null> {
       try {
-        if (estoqueCache.has(produtoId)) {
-          const cachedVirtual = estoqueCache.get(produtoId)!;
+        const cacheKey = `${produtoId}:${depositoId ?? 'all'}`;
+        if (estoqueCache.has(cacheKey)) {
+          const cachedVirtual = estoqueCache.get(cacheKey)!;
           return { saldoFisico: null, saldoVirtual: cachedVirtual };
         }
 
         // Rate limit: respeitar espaçamento entre chamadas
         await delay(350);
 
-        const url = `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}`;
+        const depositFilter = depositoId ? `&idsDepositos[]=${encodeURIComponent(String(depositoId))}` : '';
+        const url = `https://www.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${produtoId}${depositFilter}`;
         const resp = await blingFetchWithRetry(url, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -613,7 +668,9 @@ serve(async (req) => {
 
         if (!resp.ok) {
           const body = await resp.text();
-          console.log(`[STOCK CHECK] Falha ao consultar saldo do produto ${produtoId}: status=${resp.status} body=${body}`);
+          console.log(
+            `[STOCK CHECK] Falha ao consultar saldo do produto ${produtoId} (deposito=${depositoId ?? 'all'}): status=${resp.status} body=${body}`
+          );
           return null;
         }
 
@@ -625,10 +682,12 @@ serve(async (req) => {
 
         // Cache apenas o saldo virtual (mais importante pra validação)
         if (saldoVirtual != null && !Number.isNaN(saldoVirtual)) {
-          estoqueCache.set(produtoId, saldoVirtual);
+          estoqueCache.set(cacheKey, saldoVirtual);
         }
 
-        console.log(`[STOCK CHECK] produto=${produtoId} saldoFisico=${saldoFisico ?? 'n/a'} saldoVirtual=${saldoVirtual ?? 'n/a'}`);
+        console.log(
+          `[STOCK CHECK] produto=${produtoId} deposito=${depositoId ?? 'all'} saldoFisico=${saldoFisico ?? 'n/a'} saldoVirtual=${saldoVirtual ?? 'n/a'}`
+        );
         return { saldoFisico, saldoVirtual };
       } catch (e) {
         console.log(`[STOCK CHECK] Erro ao consultar saldo do produto ${produtoId}: ${String(e)}`);
@@ -638,6 +697,9 @@ serve(async (req) => {
 
     // Preparar itens (enviando o PREÇO LISTA + DESCONTO separados para exibição correta no Bling)
     const itensBling = [];
+
+    // Descobrir depósito correto (via API) uma vez por execução
+    const depositoId = await getDepositoId();
 
     // Total real baseado nos itens que vamos enviar ao Bling (após desconto)
     let totalBrutoBling = 0;
@@ -668,33 +730,22 @@ serve(async (req) => {
       console.log(`Processando item: "${item.descricao}"`);
       console.log(`  SKU recebido: "${skuRecebido}"`);
       
-      // PRIORIDADE 1: Buscar pelo SKU se existir
-      if (skuRecebido && skuRecebido.length > 0) {
-        console.log(`Buscando produto SOMENTE por SKU: "${skuRecebido}"`);
-        
-        const produtoBySku = await findBlingProductBySku(skuRecebido);
-        
-        if (produtoBySku) {
-          blingProdutoId = produtoBySku.id;
-          blingProdutoCodigo = produtoBySku.codigo;
-          console.log(`Produto encontrado por SKU! ID: ${blingProdutoId}, Código: ${blingProdutoCodigo}`);
-        } else {
-          // SKU existe mas não foi encontrado no Bling
-          console.error(`ERRO: SKU "${skuRecebido}" não encontrado no Bling`);
-          throw new Error(`Produto não encontrado no Bling com SKU/código: "${skuRecebido}". Verifique se o código está cadastrado corretamente no Bling.`);
-        }
+      // SKU é obrigatório para criar pedido no Bling (sem fallback por nome)
+      if (!skuRecebido) {
+        throw new Error('Item sem SKU. Não é permitido criar pedido no Bling sem SKU.');
+      }
+
+      console.log(`Buscando produto SOMENTE por SKU: "${skuRecebido}"`);
+
+      const produtoBySku = await findBlingProductBySku(skuRecebido);
+
+      if (produtoBySku) {
+        blingProdutoId = produtoBySku.id;
+        blingProdutoCodigo = produtoBySku.codigo;
+        console.log(`Produto encontrado por SKU! ID: ${blingProdutoId}, Código: ${blingProdutoCodigo}`);
       } else {
-        // PRIORIDADE 2: Se não tiver SKU, buscar pelo nome (fallback)
-        console.log(`SKU não informado, buscando pelo nome: "${item.descricao}"`);
-        
-        const foundId = await findBlingProductByName(item.descricao);
-        if (foundId) {
-          blingProdutoId = foundId;
-          console.log(`Produto encontrado por nome! ID: ${blingProdutoId}`);
-        } else {
-          console.error(`ERRO: Não foi possível encontrar o produto no Bling: ${item.descricao}`);
-          throw new Error(`Produto não encontrado no Bling: "${item.descricao}". Informe o SKU/código do produto ou verifique se está cadastrado no Bling.`);
-        }
+        console.error(`ERRO: SKU "${skuRecebido}" não encontrado no Bling`);
+        throw new Error(`Produto não encontrado no Bling com SKU/código: "${skuRecebido}". Verifique se o código está cadastrado corretamente no Bling.`);
       }
 
       // preco_cheio = preço de tabela (sem desconto)
@@ -703,9 +754,8 @@ serve(async (req) => {
       const precoComDesconto = Number(item.valor);
       const quantidade = Number(item.quantidade);
 
-      // Checagem preventiva (para explicar discrepância entre “saldo físico” exibido no painel
-      // e o saldo “virtual/disponível” usado na validação da venda).
-      const stock = await getBlingStock(blingProdutoId);
+      // Checagem preventiva por depósito (para evitar divergência entre depósitos)
+      const stock = await getBlingStock(blingProdutoId, depositoId);
       if (stock?.saldoVirtual != null && !Number.isNaN(stock.saldoVirtual) && stock.saldoVirtual < quantidade) {
         const fisicoTxt = stock.saldoFisico == null || Number.isNaN(stock.saldoFisico)
           ? 'n/a'
@@ -714,8 +764,7 @@ serve(async (req) => {
 
         throw new Error(
           `Estoque insuficiente no Bling para: ${item.descricao}. ` +
-          `Saldo físico: ${fisicoTxt} • Saldo disponível (virtual): ${virtualTxt} • Solicitado: ${quantidade}. ` +
-          `Se o painel mostra saldo físico alto, pode haver reservas/pedidos pendentes ou estoque por depósito.`
+          `Depósito: ${depositoId} • Saldo físico: ${fisicoTxt} • Saldo disponível (virtual): ${virtualTxt} • Solicitado: ${quantidade}.`
         );
       }
 
@@ -760,34 +809,26 @@ serve(async (req) => {
       // Observação: o Bling interpreta `desconto` numérico como %, então 40 = 40%.
       // O Bling calcula: valor * (1 - desconto/100) * quantidade.
       // Total da venda = soma dos itens líquidos + frete.
-      
-      // ID do depósito com estoque disponível (Depósito "Geral" no Bling)
-      // IMPORTANTE: Este ID deve ser configurado conforme o depósito correto no Bling
-      const DEPOSITO_ID = 14887764298; // ID do depósito "Geral" com estoque
-      
-      console.log(`  - Depósito ID: ${DEPOSITO_ID}`);
+      console.log(`  - Depósito ID (selecionado via API): ${depositoId}`);
       console.log(`  - SKU: ${skuRecebido}`);
       console.log(`  - Quantidade solicitada: ${quantidade}`);
-      
+
       const itemBling: any = {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
         valor: precoLista, // Preço de lista (cheio)
         deposito: {
-          id: DEPOSITO_ID
-        }
+          id: depositoId,
+        },
+        // VÍNCULO OBRIGATÓRIO com o produto cadastrado
+        produto: {
+          codigo: skuRecebido,
+        },
       };
 
       if (descontoPercentualItem > 0) {
         itemBling.desconto = Number(descontoPercentualItem.toFixed(2));
-      }
-
-      // Usar o código encontrado pelo SKU ou o ID do produto
-      if (blingProdutoCodigo) {
-        itemBling.produto = { codigo: blingProdutoCodigo };
-      } else if (blingProdutoId) {
-        itemBling.produto = { id: blingProdutoId };
       }
 
       itensBling.push(itemBling);
@@ -981,7 +1022,7 @@ serve(async (req) => {
       };
     }
 
-    console.log('Criando pedido no Bling:', JSON.stringify(pedidoData, null, 2));
+    console.log("PAYLOAD BLING FINAL:", JSON.stringify(pedidoData, null, 2));
 
     // Bling aplica rate-limit bem agressivo (ex: 3 req/seg). Como este fluxo pode fazer
     // múltiplas chamadas (contato, busca produto, etc.), fazemos um pequeno delay antes
