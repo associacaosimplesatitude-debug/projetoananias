@@ -54,6 +54,7 @@ interface CadastrarClienteDialogProps {
   vendedorId: string;
   onSuccess: () => void;
   clienteParaEditar?: Cliente | null;
+  isRepresentante?: boolean;
 }
 
 // Opções padronizadas - EXATAS conforme solicitação
@@ -85,6 +86,7 @@ export function CadastrarClienteDialog({
   vendedorId,
   onSuccess,
   clienteParaEditar,
+  isRepresentante = false,
 }: CadastrarClienteDialogProps) {
   const [loading, setLoading] = useState(false);
   const [loadingBling, setLoadingBling] = useState(false);
@@ -92,7 +94,7 @@ export function CadastrarClienteDialog({
   const [blingClienteId, setBlingClienteId] = useState<number | null>(null);
   const [documentoJaBuscado, setDocumentoJaBuscado] = useState("");
   const [formData, setFormData] = useState({
-    tipo_cliente: "none" as string,
+    tipo_cliente: isRepresentante ? "REPRESENTANTE" : "none" as string,
     nome_igreja: "",
     nome_responsavel: "",
     email_superintendente: "",
@@ -287,7 +289,8 @@ export function CadastrarClienteDialog({
           endereco_bairro: clienteBling.endereco_bairro || prev.endereco_bairro,
           endereco_cidade: clienteBling.endereco_cidade || prev.endereco_cidade,
           endereco_estado: clienteBling.endereco_estado || prev.endereco_estado,
-          tipo_cliente: clienteBling.tipo_pessoa === 'F' ? 'PESSOA FÍSICA' : 'ADVECS',
+          // Não sobrescrever tipo_cliente para representantes
+          tipo_cliente: isRepresentante ? "REPRESENTANTE" : (clienteBling.tipo_pessoa === 'F' ? 'PESSOA FÍSICA' : 'ADVECS'),
         }));
         
         toast.success('Cliente encontrado no Bling! Dados preenchidos automaticamente.');
@@ -319,7 +322,7 @@ export function CadastrarClienteDialog({
 
   const resetForm = () => {
     setFormData({
-      tipo_cliente: "none",
+      tipo_cliente: isRepresentante ? "REPRESENTANTE" : "none",
       nome_igreja: "",
       nome_responsavel: "",
       email_superintendente: "",
@@ -551,34 +554,37 @@ export function CadastrarClienteDialog({
           <ScrollArea className="h-[60vh] pr-4">
             <div className="space-y-6">
               {/* 1. Tipo de Cliente - PRIMEIRO para determinar lógica do documento */}
-              <div className="space-y-2">
-                <Label>Tipo de Cliente *</Label>
-                <Select
-                  value={formData.tipo_cliente}
-                  onValueChange={(value) => {
-                    const usaCpf = TIPOS_COM_CPF.includes(value);
-                    const novoPossuiCnpj = !usaCpf;
-                    
-                    setFormData({ 
-                      ...formData, 
-                      tipo_cliente: value,
-                      possui_cnpj: novoPossuiCnpj,
-                      documento: formData.possui_cnpj !== novoPossuiCnpj ? "" : formData.documento
-                    });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_CLIENTE.map((tipo) => (
-                      <SelectItem key={tipo.value} value={tipo.value || "none"}>
-                        {tipo.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Ocultar para representantes - tipo é fixo como REPRESENTANTE */}
+              {!isRepresentante && (
+                <div className="space-y-2">
+                  <Label>Tipo de Cliente *</Label>
+                  <Select
+                    value={formData.tipo_cliente}
+                    onValueChange={(value) => {
+                      const usaCpf = TIPOS_COM_CPF.includes(value);
+                      const novoPossuiCnpj = !usaCpf;
+                      
+                      setFormData({ 
+                        ...formData, 
+                        tipo_cliente: value,
+                        possui_cnpj: novoPossuiCnpj,
+                        documento: formData.possui_cnpj !== novoPossuiCnpj ? "" : formData.documento
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_CLIENTE.map((tipo) => (
+                        <SelectItem key={tipo.value} value={tipo.value || "none"}>
+                          {tipo.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* 2. Documento (CNPJ/CPF) */}
               <div className="space-y-4">
