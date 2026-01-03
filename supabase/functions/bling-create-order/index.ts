@@ -289,6 +289,56 @@ serve(async (req) => {
       return fetch(url, options);
     }
 
+    // ============================================================
+    // ROTEAMENTO POR UF - FILIAL E DEPÓSITO
+    // ============================================================
+    // Regra de negócio:
+    // - Norte/Nordeste (AC,AP,AM,PA,RO,RR,TO,MA,PI,CE,RN,PB,PE,AL,SE,BA): 
+    //   Filial = "Polo Jaboatão dos Guararapes", Depósito = "PERNAMBUCO [ALFA]"
+    // - Demais regiões (Centro-Oeste, Sudeste, Sul):
+    //   Filial = "Matriz", Depósito = "Geral"
+    // ============================================================
+    
+    const UFS_NORTE_NORDESTE = ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO', 'MA', 'PI', 'CE', 'RN', 'PB', 'PE', 'AL', 'SE', 'BA'];
+    
+    // Detectar UF do endereço de entrega
+    const ufEntrega = endereco_entrega?.estado?.toUpperCase()?.trim() || '';
+    const isNorteNordeste = UFS_NORTE_NORDESTE.includes(ufEntrega);
+    
+    console.log('[BLING ROUTING] UF detectada:', ufEntrega);
+    
+    // Definir filial/loja baseado na região
+    // NOTA: Você precisa substituir os IDs abaixo pelos IDs reais das lojas/filiais no Bling
+    // Vamos buscar as lojas disponíveis para descobrir os IDs corretos
+    let filialSelecionada = '';
+    let lojaIdSelecionada: number | null = null;
+    let depositoSelecionado = '';
+    let depositoIdSelecionado: number | null = null;
+    
+    // Buscar lojas/filiais disponíveis no Bling
+    async function listLojas(): Promise<any[]> {
+      console.log('[BLING ROUTING] Buscando lojas/filiais no Bling...');
+      await delay(350);
+      
+      const resp = await blingFetchWithRetry('https://www.bling.com.br/Api/v3/lojas', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!resp.ok) {
+        const body = await resp.text();
+        console.warn('[BLING ROUTING] Falha ao listar lojas:', resp.status, body);
+        return [];
+      }
+      
+      const json = await resp.json();
+      const lojas = Array.isArray(json?.data) ? json.data : [];
+      console.log('[BLING ROUTING] Lojas disponíveis:', JSON.stringify(lojas, null, 2));
+      return lojas;
+    }
+    
     // Cache do depósito (para evitar chamar /depositos a cada pedido)
     type DepositoInfo = { id: number; descricao: string; padrao: boolean };
 
@@ -333,29 +383,130 @@ serve(async (req) => {
       return cachedDepositos;
     }
 
-    // Escolher depósito: preferir "Geral"; fallback para padrão
-    async function getDepositoInfo(): Promise<DepositoInfo> {
-      if (cachedDeposito) return cachedDeposito;
-
+    // Escolher depósito baseado na região
+    async function getDepositoPorRegiao(): Promise<DepositoInfo | null> {
       const depositos = await listDepositos();
-
       const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase();
-
+      
+      if (isNorteNordeste) {
+        // Procurar por "PERNAMBUCO [ALFA]" ou variações
+        const pernambucoDeposito = depositos.find((d) => {
+          const descricao = normalize(d.descricao);
+          return descricao.includes('pernambuco') || 
+                 descricao.includes('alfa') ||
+                 descricao.includes('jaboatao') ||
+                 descricao.includes('jaboatão');
+        });
+        
+        if (pernambucoDeposito) {
+          console.log('[BLING ROUTING] Depósito PERNAMBUCO encontrado:', pernambucoDeposito);
+          return pernambucoDeposito;
+        }
+        console.warn('[BLING ROUTING] Depósito PERNAMBUCO [ALFA] não encontrado, usando fallback...');
+      }
+      
+      // Fallback: procurar "Geral" ou padrão
       const geral = depositos.find((d) => {
         const descricao = normalize(d.descricao);
         return descricao === 'geral' || descricao.includes('geral');
       });
-
       const padrao = depositos.find((d) => d.padrao);
-
-      const chosen = geral ?? padrao;
-      if (!chosen) {
-        throw new Error('[DEPOSITO] Não foi possível identificar o depósito "Geral" (nem um padrão) no Bling. Verifique o cadastro de depósitos.');
+      
+      return geral ?? padrao ?? null;
+    }
+    
+    // Escolher loja/filial baseado na região
+    async function getFilialPorRegiao(): Promise<{ id: number; descricao: string } | null> {
+      const lojas = await listLojas();
+      const normalize = (v: unknown) => String(v ?? '').trim().toLowerCase();
+      
+      if (isNorteNordeste) {
+        // Procurar por "Polo Jaboatão dos Guararapes" ou variações
+        const poloJaboatao = lojas.find((l: any) => {
+          const descricao = normalize(l?.descricao ?? l?.nome ?? '');
+          return descricao.includes('jaboatao') || 
+                 descricao.includes('jaboatão') ||
+                 descricao.includes('polo') ||
+                 descricao.includes('pernambuco') ||
+                 descricao.includes('guararapes');
+        });
+        
+        if (poloJaboatao) {
+          console.log('[BLING ROUTING] Filial POLO JABOATÃO encontrada:', poloJaboatao);
+          return { id: poloJaboatao.id, descricao: poloJaboatao.descricao ?? poloJaboatao.nome };
+        }
+        console.warn('[BLING ROUTING] Filial POLO JABOATÃO não encontrada, usando Matriz como fallback...');
       }
-
-      cachedDeposito = chosen;
-      console.log(`[DEPOSITO] Depósito selecionado: id=${chosen.id} descricao=${chosen.descricao} padrao=${chosen.padrao}`);
-      return chosen;
+      
+      // Fallback: procurar "Matriz" ou primeira loja
+      const matriz = lojas.find((l: any) => {
+        const descricao = normalize(l?.descricao ?? l?.nome ?? '');
+        return descricao === 'matriz' || descricao.includes('matriz');
+      });
+      
+      if (matriz) {
+        return { id: matriz.id, descricao: matriz.descricao ?? matriz.nome };
+      }
+      
+      // Se não encontrar matriz, usar a primeira loja ou a configurada
+      if (lojas.length > 0) {
+        const primeira = lojas[0];
+        return { id: primeira.id, descricao: primeira.descricao ?? primeira.nome };
+      }
+      
+      return null;
+    }
+    
+    // Executar roteamento
+    try {
+      // Buscar filial correta
+      const filialInfo = await getFilialPorRegiao();
+      if (filialInfo) {
+        filialSelecionada = filialInfo.descricao;
+        lojaIdSelecionada = filialInfo.id;
+      } else {
+        // Fallback para config padrão
+        filialSelecionada = 'Matriz (config padrão)';
+        lojaIdSelecionada = config.loja_id || 205797806;
+      }
+      
+      // Buscar depósito correto
+      const depositoInfo = await getDepositoPorRegiao();
+      if (depositoInfo) {
+        depositoSelecionado = depositoInfo.descricao;
+        depositoIdSelecionado = depositoInfo.id;
+      } else {
+        depositoSelecionado = 'Geral (fallback)';
+        depositoIdSelecionado = null;
+      }
+    } catch (e) {
+      console.warn('[BLING ROUTING] Erro ao determinar filial/depósito:', String(e));
+      filialSelecionada = 'Matriz (erro)';
+      lojaIdSelecionada = config.loja_id || 205797806;
+      depositoSelecionado = 'Geral (erro)';
+      depositoIdSelecionado = null;
+    }
+    
+    // LOG OBRIGATÓRIO DE ROTEAMENTO
+    console.log('[BLING ROUTING] Filial selecionada:', {
+      unidadeNegocio: filialSelecionada,
+      lojaId: lojaIdSelecionada
+    });
+    console.log('[BLING ROUTING] Depósito selecionado:', depositoSelecionado);
+    console.log('[BLING ROUTING] Região:', isNorteNordeste ? 'Norte/Nordeste' : 'Centro-Oeste/Sudeste/Sul');
+    
+    // Manter compatibilidade com código existente de auditoria
+    async function getDepositoInfo(): Promise<DepositoInfo> {
+      if (cachedDeposito) return cachedDeposito;
+      
+      const depositoInfo = await getDepositoPorRegiao();
+      if (!depositoInfo) {
+        throw new Error('[DEPOSITO] Não foi possível identificar o depósito no Bling. Verifique o cadastro de depósitos.');
+      }
+      
+      cachedDeposito = depositoInfo;
+      console.log(`[DEPOSITO] Depósito selecionado: id=${depositoInfo.id} descricao=${depositoInfo.descricao} padrao=${depositoInfo.padrao}`);
+      return depositoInfo;
     }
 
     // Função auxiliar para buscar produto no Bling pelo código (SKU)
@@ -1006,26 +1157,45 @@ serve(async (req) => {
     }
 
     // Criar pedido no Bling com dados de transporte corretos
+    // USAR FILIAL E DEPÓSITO SELECIONADOS PELO ROTEAMENTO POR UF
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
+      // ✅ LOJA/FILIAL baseada no roteamento por UF
       loja: {
-        id: config.loja_id || 205797806,
+        id: lojaIdSelecionada || config.loja_id || 205797806,
       },
       contato: {
         id: contatoId,
       },
-      itens: itensBling,
+      itens: itensBling.map((item: any) => ({
+        ...item,
+        // ✅ DEPÓSITO baseado no roteamento por UF (se disponível)
+        ...(depositoIdSelecionado ? { deposito: { id: depositoIdSelecionado } } : {}),
+      })),
       situacao: {
         // Usar status apropriado: 15 = Em Aberto, 9 = Atendido
         // Para faturamento B2B, usar Em Aberto para aguardar emissão dos boletos
         id: isFaturamento ? 15 : 15,
       },
-      observacoes: observacoes + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : ''),
+      observacoes: observacoes 
+        + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
+        + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : '')
+        + ` | FILIAL: ${filialSelecionada} | DEPÓSITO: ${depositoSelecionado}`,
       parcelas,
       // Add vendedor (salesperson) if provided
       ...(vendedor_nome && { vendedor: { nome: vendedor_nome } }),
     };
+    
+    // LOG OBRIGATÓRIO DO PAYLOAD FINAL (antes de adicionar transporte)
+    console.log('[BLING PAYLOAD FINAL]', JSON.stringify({
+      lojaId: pedidoData.loja.id,
+      filial: filialSelecionada,
+      depositoId: depositoIdSelecionado,
+      deposito: depositoSelecionado,
+      ufEntrega: ufEntrega,
+      regiao: isNorteNordeste ? 'Norte/Nordeste' : 'Centro-Oeste/Sudeste/Sul',
+    }, null, 2));
 
     // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
     // Enviar também `pedido.desconto` faz o Bling aplicar desconto em duplicidade,
