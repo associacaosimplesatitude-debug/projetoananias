@@ -123,6 +123,33 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config);
     }
 
+    // ============================================================
+    // DEBUG TEMPORÁRIO: Listar todos os depósitos do Bling
+    // REMOVER APÓS OBTER OS IDs CORRETOS
+    // ============================================================
+    console.log('[DEBUG] Buscando lista de depósitos do Bling...');
+    try {
+      const depositosResponse = await fetch('https://www.bling.com.br/Api/v3/depositos?limite=100', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+      const depositosData = await depositosResponse.json();
+      console.log('[DEBUG] === LISTA DE DEPÓSITOS BLING ===');
+      if (depositosData.data && Array.isArray(depositosData.data)) {
+        depositosData.data.forEach((dep: any) => {
+          console.log(`[DEBUG] Depósito: id=${dep.id} | descricao="${dep.descricao}" | padrao=${dep.padrao}`);
+        });
+      } else {
+        console.log('[DEBUG] Resposta completa:', JSON.stringify(depositosData, null, 2));
+      }
+      console.log('[DEBUG] === FIM LISTA DEPÓSITOS ===');
+    } catch (depError) {
+      console.error('[DEBUG] Erro ao buscar depósitos:', depError);
+    }
+    // ============================================================
+
     // Determinar se é CPF ou CNPJ
     const documento = cliente.cpf_cnpj?.replace(/\D/g, '') || '';
     const tipoDocumento = documento.length > 11 ? 'J' : 'F';
