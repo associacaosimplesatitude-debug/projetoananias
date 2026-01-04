@@ -190,143 +190,227 @@ serve(async (req) => {
     }
 
 
-    const documento = cliente.cpf_cnpj?.replace(/\D/g, '') || '';
-    const tipoDocumento = documento.length > 11 ? 'J' : 'F';
+    // ============================================================
+    // GESTÃO DE CONTATO NO BLING - GARANTIR CPF/CNPJ E ENDEREÇO COMPLETO
+    // ============================================================
+    // REGRA: O contato DEVE ter CPF/CNPJ preenchido e endereço com número
+    // para que a NF possa ser emitida sem pendências cadastrais.
+    // ============================================================
+    
+    // 1) Sanitizar CPF/CNPJ (remover pontos, traços, espaços)
+    const documento = (cliente.cpf_cnpj || '').replace(/\D/g, '');
+    const tipoPessoa = documento.length === 14 ? 'J' : 'F'; // J = Jurídica (CNPJ), F = Física (CPF)
+    
+    // LOG OBRIGATÓRIO: Input do contato
+    console.log(`[CONTATO] input cpfCnpj=${documento} tipoPessoa=${tipoPessoa === 'J' ? 'PJ' : 'PF'}`);
+    
+    // Validar CPF/CNPJ
+    if (!documento || (documento.length !== 11 && documento.length !== 14)) {
+      console.error(`[CONTATO] ERRO: CPF/CNPJ inválido ou não fornecido: "${cliente.cpf_cnpj}" -> "${documento}"`);
+      throw new Error(`CPF/CNPJ obrigatório e deve ter 11 (CPF) ou 14 (CNPJ) dígitos. Recebido: ${documento.length} dígitos`);
+    }
     
     // Nome completo do cliente
     const nomeCompleto = cliente.sobrenome 
-      ? `${cliente.nome} ${cliente.sobrenome}` 
-      : cliente.nome;
-
-    // Criar ou buscar o contato do Cliente no Bling com endereço completo para NF
-    const contatoData: any = {
-      nome: nomeCompleto,
-      tipo: tipoDocumento,
-      numeroDocumento: documento,
-      email: cliente.email || '',
-      telefone: cliente.telefone?.replace(/\D/g, '') || '',
-      situacao: 'A', // A = Ativo (obrigatório para Bling API v3)
-    };
-
-    // Adicionar endereço ao contato (obrigatório para emissão de NF)
-    if (endereco_entrega) {
-      contatoData.endereco = {
-        endereco: endereco_entrega.rua || '',
-        numero: endereco_entrega.numero || 'S/N',
-        complemento: endereco_entrega.complemento || '',
-        bairro: endereco_entrega.bairro || '',
-        cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
-        municipio: endereco_entrega.cidade || '',
-        uf: endereco_entrega.estado || '',
-        pais: 'Brasil',
-      };
+      ? `${cliente.nome} ${cliente.sobrenome}`.trim()
+      : (cliente.nome || '').trim();
+    
+    if (!nomeCompleto) {
+      console.error('[CONTATO] ERRO: Nome do cliente não fornecido');
+      throw new Error('Nome do cliente é obrigatório');
     }
-
-    console.log('Criando contato do Cliente no Bling com endereço:', JSON.stringify(contatoData, null, 2));
-
-    const contatoResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
-      method: 'POST',
+    
+    // 2) Sanitizar endereço - NÚMERO nunca pode ficar vazio
+    const enderecoNumero = (endereco_entrega?.numero || '').toString().trim() || 'S/N';
+    const enderecoCep = (endereco_entrega?.cep || '').replace(/\D/g, '');
+    
+    console.log(`[CONTATO] Endereço: rua="${endereco_entrega?.rua}" numero="${enderecoNumero}" cep="${enderecoCep}"`);
+    
+    // 3) Montar payload do contato com todos os campos obrigatórios
+    const contatoPayloadCompleto: any = {
+      nome: nomeCompleto,
+      tipo: tipoPessoa,
+      numeroDocumento: documento, // CPF ou CNPJ - OBRIGATÓRIO
+      email: cliente.email || '',
+      telefone: (cliente.telefone || '').replace(/\D/g, ''),
+      situacao: 'A', // A = Ativo
+      // Endereço completo para NF (estrutura geral do Bling v3)
+      endereco: {
+        geral: {
+          endereco: endereco_entrega?.rua || '',
+          numero: enderecoNumero, // NUNCA vazio - usar S/N se não tiver
+          complemento: endereco_entrega?.complemento || '',
+          bairro: endereco_entrega?.bairro || '',
+          cep: enderecoCep,
+          municipio: endereco_entrega?.cidade || '',
+          uf: (endereco_entrega?.estado || '').toUpperCase(),
+          pais: 'Brasil',
+        },
+      },
+    };
+    
+    // IE para pessoa jurídica (se fornecido)
+    if (tipoPessoa === 'J' && cliente.ie) {
+      contatoPayloadCompleto.ie = cliente.ie.replace(/\D/g, '');
+    }
+    
+    console.log('[CONTATO] Payload completo:', JSON.stringify(contatoPayloadCompleto, null, 2));
+    
+    // 4) Tentar localizar contato existente no Bling pelo CPF/CNPJ
+    let contatoId: number | null = null;
+    let contatoEncontrado = false;
+    let contatoPrecisaAtualizar = false;
+    
+    // Delay para respeitar rate limit
+    const delayContato = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    await delayContato(350);
+    
+    // Buscar por numeroDocumento no Bling
+    console.log(`[CONTATO] Buscando contato existente por CPF/CNPJ: ${documento}`);
+    const searchUrl = `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`;
+    
+    const searchResponse = await fetch(searchUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify(contatoData),
     });
-
-    const contatoResult = await contatoResponse.json();
-    let contatoId: number | null = null;
-
-    if (contatoResponse.ok && contatoResult.data?.id) {
-      contatoId = contatoResult.data.id;
-      console.log('Contato criado com sucesso, ID:', contatoId);
-    } else if (contatoResult.error?.fields) {
-      // Se o contato já existe, tentar buscar pelo documento e atualizar
-      console.log('Contato pode já existir, buscando...');
+    
+    const searchResult = await searchResponse.json();
+    
+    if (searchResponse.ok && searchResult.data && searchResult.data.length > 0) {
+      // Encontrou contato existente
+      const contatoExistente = searchResult.data[0];
+      contatoId = contatoExistente.id;
+      contatoEncontrado = true;
       
-      if (documento) {
-        const searchResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/json',
-            },
-          }
-        );
-
-        const searchResult = await searchResponse.json();
-        if (searchResult.data && searchResult.data.length > 0) {
-          contatoId = searchResult.data[0].id;
-          console.log('Contato encontrado, ID:', contatoId);
-          
-          // Atualizar o contato existente com os dados de endereço
-          console.log('Atualizando contato existente com endereço...');
-          const updateResponse = await fetch(`https://www.bling.com.br/Api/v3/contatos/${contatoId}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify(contatoData),
-          });
-          
-          if (updateResponse.ok) {
-            console.log('Contato atualizado com sucesso');
-          } else {
-            console.log('Não foi possível atualizar contato, continuando...');
-          }
+      console.log(`[CONTATO] contato encontrado? sim - ID=${contatoId}`);
+      
+      // Buscar detalhes completos do contato para verificar campos
+      await delayContato(350);
+      const detailUrl = `https://www.bling.com.br/Api/v3/contatos/${contatoId}`;
+      const detailResponse = await fetch(detailUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (detailResponse.ok) {
+        const detailData = await detailResponse.json();
+        const contatoDetalhado = detailData?.data || {};
+        
+        // Verificar se falta CPF/CNPJ ou número no endereço
+        const docAtual = (contatoDetalhado.numeroDocumento || '').replace(/\D/g, '');
+        const enderecoAtual = contatoDetalhado.endereco?.geral || contatoDetalhado.endereco || {};
+        const numeroAtual = (enderecoAtual.numero || '').toString().trim();
+        
+        console.log(`[CONTATO] Dados atuais: cpfCnpj="${docAtual}" numero="${numeroAtual}"`);
+        
+        // Precisa atualizar se:
+        // - CPF/CNPJ está vazio ou diferente
+        // - Número do endereço está vazio
+        if (!docAtual || docAtual !== documento || !numeroAtual || numeroAtual === '') {
+          contatoPrecisaAtualizar = true;
+          console.log(`[CONTATO] Contato precisa atualização: docFaltando=${!docAtual || docAtual !== documento} numeroFaltando=${!numeroAtual}`);
         }
       }
+    } else {
+      console.log(`[CONTATO] contato encontrado? nao`);
     }
-
-    // Se não conseguiu criar ou encontrar contato, criar um genérico com endereço
-    // IMPORTANTE: NÃO enviar numeroDocumento no contato genérico pois pode ser rejeitado se inválido
-    if (!contatoId) {
-      console.log('Não foi possível criar/encontrar contato, criando consumidor genérico SEM documento...');
+    
+    // 5) Criar ou Atualizar contato conforme necessário
+    if (!contatoEncontrado) {
+      // Criar novo contato
+      console.log('[CONTATO] Criando novo contato no Bling...');
+      await delayContato(350);
       
-      const genericContatoData: any = {
-        nome: nomeCompleto || 'Consumidor Final',
-        tipo: 'F', // Sempre pessoa física para genérico
-        situacao: 'A', // A = Ativo (obrigatório para Bling API v3)
-      };
-
-      // Adicionar endereço mesmo para contato genérico
-      if (endereco_entrega) {
-        genericContatoData.endereco = {
-          endereco: endereco_entrega.rua || '',
-          numero: endereco_entrega.numero || 'S/N',
-          complemento: endereco_entrega.complemento || '',
-          bairro: endereco_entrega.bairro || '',
-          cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
-          municipio: endereco_entrega.cidade || '',
-          uf: endereco_entrega.estado || '',
-          pais: 'Brasil',
-        };
-      }
-
-      console.log('Tentando criar contato genérico:', JSON.stringify(genericContatoData, null, 2));
-
-      const genericResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
+      const createResponse = await fetch('https://www.bling.com.br/Api/v3/contatos', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify(genericContatoData),
+        body: JSON.stringify(contatoPayloadCompleto),
       });
-
-      const genericResult = await genericResponse.json();
-      if (genericResponse.ok && genericResult.data?.id) {
-        contatoId = genericResult.data.id;
-        console.log('Contato genérico criado, ID:', contatoId);
+      
+      const createResult = await createResponse.json();
+      
+      if (createResponse.ok && createResult.data?.id) {
+        contatoId = createResult.data.id;
+        console.log(`[CONTATO] criado id=${contatoId}`);
       } else {
-        console.error('Erro ao criar contato genérico:', genericResult);
-        // NÃO travar aqui - continuar sem contato se necessário
-        console.log('Continuando sem contato vinculado...');
+        // Se erro de duplicidade, tentar buscar novamente
+        console.log('[CONTATO] Erro ao criar:', JSON.stringify(createResult));
+        
+        // Tentar busca alternativa por nome
+        if (createResult.error?.fields || createResult.error?.type === 'VALIDATION_ERROR') {
+          console.log('[CONTATO] Tentando busca alternativa por nome...');
+          await delayContato(350);
+          
+          const altSearchUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(nomeCompleto.substring(0, 30))}`;
+          const altSearchResponse = await fetch(altSearchUrl, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          });
+          
+          const altSearchResult = await altSearchResponse.json();
+          if (altSearchResponse.ok && altSearchResult.data && altSearchResult.data.length > 0) {
+            // Procurar match exato de nome ou documento
+            const matchExato = altSearchResult.data.find((c: any) => {
+              const docMatch = (c.numeroDocumento || '').replace(/\D/g, '') === documento;
+              const nomeMatch = (c.nome || '').toLowerCase().trim() === nomeCompleto.toLowerCase().trim();
+              return docMatch || nomeMatch;
+            });
+            
+            if (matchExato) {
+              contatoId = matchExato.id;
+              contatoEncontrado = true;
+              contatoPrecisaAtualizar = true; // Forçar atualização para garantir dados completos
+              console.log(`[CONTATO] Encontrado via busca alternativa id=${contatoId}`);
+            }
+          }
+        }
+        
+        // Se ainda não encontrou, lançar erro (CPF/CNPJ é obrigatório)
+        if (!contatoId) {
+          console.error('[CONTATO] ERRO CRÍTICO: Não foi possível criar contato no Bling');
+          throw new Error('Falha ao criar contato no Bling. Verifique os dados do cliente.');
+        }
       }
+    }
+    
+    // 6) Atualizar contato se necessário
+    if (contatoId && contatoPrecisaAtualizar) {
+      console.log(`[CONTATO] Atualizando contato id=${contatoId} com dados completos...`);
+      await delayContato(350);
+      
+      const updateResponse = await fetch(`https://www.bling.com.br/Api/v3/contatos/${contatoId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(contatoPayloadCompleto),
+      });
+      
+      if (updateResponse.ok) {
+        console.log(`[CONTATO] atualizado id=${contatoId}`);
+      } else {
+        const updateError = await updateResponse.json();
+        console.warn('[CONTATO] Falha ao atualizar (continuando):', JSON.stringify(updateError));
+      }
+    }
+    
+    // LOG OBRIGATÓRIO: ID final do contato
+    console.log(`[CONTATO] FINAL: contatoId=${contatoId}`);
+    
+    if (!contatoId) {
+      throw new Error('Contato não foi criado/encontrado no Bling. CPF/CNPJ é obrigatório para emissão de NF.');
     }
 
     // Gerar identificadores únicos
@@ -1140,6 +1224,11 @@ serve(async (req) => {
     };
     
     // LOG OBRIGATÓRIO 3: Verificação do payload antes do POST
+    // Obter referência ao documento (sanitizado na seção de contato)
+    const documentoRef = (cliente.cpf_cnpj || '').replace(/\D/g, '');
+    const enderecoNumeroRef = (endereco_entrega?.numero || '').toString().trim() || 'S/N';
+    
+    console.log(`[PAYLOAD_CHECK] pedido.contato.id=${pedidoData.contato.id} transporte.etiqueta.numero=${enderecoNumeroRef}`);
     console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} payload.loja.unidadeNegocio.id=${pedidoData.loja.unidadeNegocio?.id || 'N/A'} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
 
     // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
@@ -1166,6 +1255,7 @@ serve(async (req) => {
         : freteInfo.servico;
 
       // ✅ ESTRUTURA CORRETA: transporte.etiqueta para endereço de entrega
+      // Usar enderecoNumeroRef que já foi sanitizado (nunca vazio)
       pedidoData.transporte = {
         fretePorConta,
         frete: valorFreteNum, // Valor do frete
@@ -1173,12 +1263,12 @@ serve(async (req) => {
         etiqueta: {
           nome: nomeCompleto,
           endereco: endereco_entrega.rua || '',
-          numero: endereco_entrega.numero || 'S/N',
+          numero: enderecoNumeroRef, // NUNCA vazio - usar S/N se não tiver
           complemento: endereco_entrega.complemento || '',
           bairro: endereco_entrega.bairro || '',
-          cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
+          cep: (endereco_entrega.cep || '').replace(/\D/g, ''),
           municipio: endereco_entrega.cidade || '',
-          uf: endereco_entrega.estado || '',
+          uf: (endereco_entrega.estado || '').toUpperCase(),
           nomePais: 'BRASIL',
         },
         volumes: [
@@ -1189,9 +1279,9 @@ serve(async (req) => {
         ],
         contato: {
           nome: nomeCompleto,
-          telefone: cliente.telefone?.replace(/\D/g, '') || '',
+          telefone: (cliente.telefone || '').replace(/\D/g, ''),
           // reforçar CPF/CNPJ também no contato de transporte
-          ...(documento ? { numeroDocumento: documento } : {}),
+          ...(documentoRef ? { numeroDocumento: documentoRef } : {}),
         },
       };
       
