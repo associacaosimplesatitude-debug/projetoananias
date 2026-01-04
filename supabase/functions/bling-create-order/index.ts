@@ -124,53 +124,42 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // DEBUG TEMPORÁRIO: Buscar Unidades de Negócio via Pedidos
+    // DEBUG TEMPORÁRIO: Buscar detalhes de um pedido para ver unidadeNegocio
     // REMOVER APÓS OBTER OS IDs CORRETOS
     // ============================================================
-    console.log('[DEBUG] Buscando pedidos recentes para extrair unidades de negócio...');
+    console.log('[DEBUG] Buscando detalhe de pedido para ver estrutura unidadeNegocio...');
     try {
-      // Buscar últimos 20 pedidos para ver as unidades de negócio usadas
-      const pedidosResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas?limite=20', {
+      // Buscar lista de pedidos
+      const pedidosResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas?limite=3', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
         },
       });
       const pedidosData = await pedidosResponse.json();
-      console.log('[DEBUG] === UNIDADES DE NEGÓCIO ENCONTRADAS EM PEDIDOS ===');
       
-      const unidadesVistas = new Map();
-      if (pedidosData.data && Array.isArray(pedidosData.data)) {
-        for (const pedido of pedidosData.data) {
-          // Buscar detalhes do pedido para ver a unidade de negócio
-          const detalheResponse = await fetch(`https://www.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`, {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/json',
-            },
-          });
-          const detalheData = await detalheResponse.json();
-          
-          if (detalheData.data?.loja?.unidadeNegocio) {
-            const un = detalheData.data.loja.unidadeNegocio;
-            if (!unidadesVistas.has(un.id)) {
-              unidadesVistas.set(un.id, un.descricao || 'sem descrição');
-              console.log(`[DEBUG] UnidadeNegocio: id=${un.id} | descricao="${un.descricao || 'N/A'}"`);
-            }
-          }
-          
-          // Limitar a 5 pedidos para não demorar muito
-          if (unidadesVistas.size >= 3) break;
+      if (pedidosData.data && pedidosData.data[0]) {
+        const pedidoId = pedidosData.data[0].id;
+        console.log(`[DEBUG] Buscando detalhes do pedido ${pedidoId}...`);
+        
+        const detalheResponse = await fetch(`https://www.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        const detalheData = await detalheResponse.json();
+        
+        // Logar a estrutura completa da loja
+        if (detalheData.data?.loja) {
+          console.log(`[DEBUG] Estrutura loja do pedido: ${JSON.stringify(detalheData.data.loja, null, 2)}`);
+        } else {
+          console.log(`[DEBUG] Pedido sem loja. Estrutura completa (primeiros 2000 chars): ${JSON.stringify(detalheData, null, 2).slice(0, 2000)}`);
         }
       }
-      
-      if (unidadesVistas.size === 0) {
-        console.log('[DEBUG] Nenhuma unidade de negócio encontrada nos pedidos');
-        console.log('[DEBUG] Resposta pedidos:', JSON.stringify(pedidosData, null, 2).slice(0, 1000));
-      }
-      console.log('[DEBUG] === FIM BUSCA UNIDADES ===');
+      console.log('[DEBUG] === FIM DEBUG PEDIDO ===');
     } catch (debugError) {
-      console.error('[DEBUG] Erro ao buscar pedidos:', debugError);
+      console.error('[DEBUG] Erro:', debugError);
     }
     // ============================================================
 
