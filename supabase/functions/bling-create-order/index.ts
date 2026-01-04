@@ -87,6 +87,28 @@ serve(async (req) => {
   }
 
   try {
+    const body = await req.json();
+    
+    // ============================================================
+    // DEBUG: LOGAR PAYLOAD DE ENTRADA
+    // ============================================================
+    console.log("[INPUT_KEYS]", Object.keys(body || {}));
+    console.log("[INPUT_CLIENTE_KEYS]", Object.keys(body?.cliente || {}));
+    console.log("[INPUT_CLIENTE]", JSON.stringify({
+      nome: body?.cliente?.nome,
+      email: body?.cliente?.email,
+      cpf: body?.cliente?.cpf,
+      cpf_cnpj: body?.cliente?.cpf_cnpj,
+      cpfCnpj: body?.cliente?.cpfCnpj,
+      documento: body?.cliente?.documento,
+      numeroDocumento: body?.cliente?.numeroDocumento,
+      tipoPessoa: body?.cliente?.tipoPessoa,
+    }, null, 2));
+    console.log("[INPUT_ENDERECO]", JSON.stringify({
+      ...body?.endereco_entrega,
+      etiqueta_cpf: body?.transporte?.etiqueta?.numeroDocumento,
+    }, null, 2));
+    
     const { 
       cliente,          // Dados do cliente do formulário (nome, sobrenome, cpf_cnpj, email, telefone)
       endereco_entrega, // Endereço de entrega do checkout (rua, numero, complemento, bairro, cep, cidade, estado)
@@ -104,7 +126,7 @@ serve(async (req) => {
       frete_tipo,           // 'automatico' ou 'manual'
       frete_transportadora, // Nome da transportadora (apenas para frete manual)
       frete_observacao,     // Observação interna sobre o frete manual
-    } = await req.json();
+    } = body;
 
     if (!cliente || !itens || itens.length === 0) {
       throw new Error('Dados do cliente e itens são obrigatórios');
@@ -197,17 +219,40 @@ serve(async (req) => {
     // para que a NF possa ser emitida sem pendências cadastrais.
     // ============================================================
     
-    // 1) Sanitizar CPF/CNPJ (remover pontos, traços, espaços)
-    const documento = (cliente.cpf_cnpj || '').replace(/\D/g, '');
+    // 1) EXTRAIR CPF/CNPJ de múltiplas possíveis fontes
+    const rawDoc = 
+      cliente?.cpf_cnpj ??
+      cliente?.cpfCnpj ??
+      cliente?.cpf ??
+      cliente?.cnpj ??
+      cliente?.documento ??
+      cliente?.numeroDocumento ??
+      endereco_entrega?.cpf_cnpj ??
+      body?.transporte?.etiqueta?.numeroDocumento ??
+      "";
+    
+    const documento = String(rawDoc).replace(/\D/g, ''); // Remove máscara (pontos, traços, espaços)
     const tipoPessoa = documento.length === 14 ? 'J' : 'F'; // J = Jurídica (CNPJ), F = Física (CPF)
     
-    // LOG OBRIGATÓRIO: Input do contato
-    console.log(`[CONTATO] input cpfCnpj=${documento} tipoPessoa=${tipoPessoa === 'J' ? 'PJ' : 'PF'}`);
+    // LOG OBRIGATÓRIO: Input do contato com debug
+    console.log(`[CONTATO] rawDoc="${rawDoc}" documento="${documento}" len=${documento.length} tipoPessoa=${tipoPessoa === 'J' ? 'PJ' : 'PF'}`);
+    console.log(`[CONTATO] Fonte usada: ${
+      cliente?.cpf_cnpj ? 'cliente.cpf_cnpj' :
+      cliente?.cpfCnpj ? 'cliente.cpfCnpj' :
+      cliente?.cpf ? 'cliente.cpf' :
+      cliente?.cnpj ? 'cliente.cnpj' :
+      cliente?.documento ? 'cliente.documento' :
+      cliente?.numeroDocumento ? 'cliente.numeroDocumento' :
+      endereco_entrega?.cpf_cnpj ? 'endereco_entrega.cpf_cnpj' :
+      body?.transporte?.etiqueta?.numeroDocumento ? 'transporte.etiqueta.numeroDocumento' :
+      'NENHUMA'
+    }`);
     
     // Validar CPF/CNPJ
     if (!documento || (documento.length !== 11 && documento.length !== 14)) {
-      console.error(`[CONTATO] ERRO: CPF/CNPJ inválido ou não fornecido: "${cliente.cpf_cnpj}" -> "${documento}"`);
-      throw new Error(`CPF/CNPJ obrigatório e deve ter 11 (CPF) ou 14 (CNPJ) dígitos. Recebido: ${documento.length} dígitos`);
+      const errorMsg = `[DOC_INVALIDO] docLen=${documento.length} rawDoc="${rawDoc}" clienteKeys=${JSON.stringify(Object.keys(cliente || {}))}`;
+      console.error(`[CONTATO] ERRO: ${errorMsg}`);
+      throw new Error(errorMsg);
     }
     
     // Nome completo do cliente
