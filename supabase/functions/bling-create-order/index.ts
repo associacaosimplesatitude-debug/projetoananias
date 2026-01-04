@@ -124,24 +124,30 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // DEBUG TEMPORÁRIO: Listar todas as lojas do Bling
+    // DEBUG TEMPORÁRIO: Listar Unidades de Negócio do Bling
     // REMOVER APÓS OBTER OS IDs CORRETOS
     // ============================================================
-    console.log('[DEBUG] Buscando lista de lojas do Bling...');
+    console.log('[DEBUG] Buscando Unidades de Negócio do Bling...');
     try {
-      // Endpoint correto para lojas virtuais/canais de venda
-      const lojasResponse = await fetch('https://www.bling.com.br/Api/v3/lojas-virtuais?limite=100', {
+      // Endpoint para empresas/unidades de negócio
+      const empresasResponse = await fetch('https://www.bling.com.br/Api/v3/empresas?limite=100', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
         },
       });
-      const lojasData = await lojasResponse.json();
-      console.log('[DEBUG] === LISTA DE LOJAS VIRTUAIS BLING ===');
-      console.log('[DEBUG] Resposta completa:', JSON.stringify(lojasData, null, 2));
-      console.log('[DEBUG] === FIM LISTA LOJAS ===');
-    } catch (lojaError) {
-      console.error('[DEBUG] Erro ao buscar lojas:', lojaError);
+      const empresasData = await empresasResponse.json();
+      console.log('[DEBUG] === LISTA DE EMPRESAS/UNIDADES DE NEGÓCIO BLING ===');
+      if (empresasData.data && Array.isArray(empresasData.data)) {
+        empresasData.data.forEach((emp: any) => {
+          console.log(`[DEBUG] Empresa: id=${emp.id} | nome="${emp.nome || emp.nomeFantasia || emp.razaoSocial}" | cnpj=${emp.cnpj}`);
+        });
+      } else {
+        console.log('[DEBUG] Resposta completa:', JSON.stringify(empresasData, null, 2));
+      }
+      console.log('[DEBUG] === FIM LISTA EMPRESAS ===');
+    } catch (empresaError) {
+      console.error('[DEBUG] Erro ao buscar empresas:', empresaError);
     }
     // ============================================================
 
@@ -325,15 +331,21 @@ serve(async (req) => {
     // ============================================================
     // VALIDAÇÃO DE SECRETS - SEM FALLBACKS
     // ============================================================
-    const BLING_LOJA_ID_MATRIZ_RJ_RAW = Deno.env.get('BLING_LOJA_ID_MATRIZ_RJ');
-    const BLING_LOJA_ID_POLO_PE_RAW = Deno.env.get('BLING_LOJA_ID_POLO_PE');
+    // Loja fixa: 2-FATURADOS (sempre 205797806)
+    const BLING_LOJA_FATURADOS_ID = 205797806;
+    
+    // Unidades de Negócio (empresas no Bling)
+    const BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ');
+    const BLING_UNIDADE_NEGOCIO_POLO_PE_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_POLO_PE');
+    
+    // Depósitos
     const BLING_DEPOSITO_ID_GERAL_RAW = Deno.env.get('BLING_DEPOSITO_ID_GERAL');
     const BLING_DEPOSITO_ID_PERNAMBUCO_RAW = Deno.env.get('BLING_DEPOSITO_ID_PERNAMBUCO');
     
     // Validar que todos os secrets estão configurados
     const missingSecrets: string[] = [];
-    if (!BLING_LOJA_ID_MATRIZ_RJ_RAW) missingSecrets.push('BLING_LOJA_ID_MATRIZ_RJ');
-    if (!BLING_LOJA_ID_POLO_PE_RAW) missingSecrets.push('BLING_LOJA_ID_POLO_PE');
+    if (!BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW) missingSecrets.push('BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ');
+    if (!BLING_UNIDADE_NEGOCIO_POLO_PE_RAW) missingSecrets.push('BLING_UNIDADE_NEGOCIO_ID_POLO_PE');
     if (!BLING_DEPOSITO_ID_GERAL_RAW) missingSecrets.push('BLING_DEPOSITO_ID_GERAL');
     if (!BLING_DEPOSITO_ID_PERNAMBUCO_RAW) missingSecrets.push('BLING_DEPOSITO_ID_PERNAMBUCO');
     
@@ -342,19 +354,19 @@ serve(async (req) => {
       throw new Error(`Configuração incompleta: faltam os secrets ${missingSecrets.join(', ')}`);
     }
     
-    const BLING_LOJA_ID_RJ = Number(BLING_LOJA_ID_MATRIZ_RJ_RAW);
-    const BLING_LOJA_ID_PE = Number(BLING_LOJA_ID_POLO_PE_RAW);
+    const BLING_UNIDADE_NEGOCIO_MATRIZ_RJ = Number(BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW);
+    const BLING_UNIDADE_NEGOCIO_POLO_PE = Number(BLING_UNIDADE_NEGOCIO_POLO_PE_RAW);
     const BLING_DEPOSITO_ID_RJ = Number(BLING_DEPOSITO_ID_GERAL_RAW);
     const BLING_DEPOSITO_ID_PE = Number(BLING_DEPOSITO_ID_PERNAMBUCO_RAW);
     
     // Validar que são números válidos
-    if (isNaN(BLING_LOJA_ID_RJ) || BLING_LOJA_ID_RJ <= 0) {
-      console.error('[SECRETS] ERRO: BLING_LOJA_ID_MATRIZ_RJ inválido:', BLING_LOJA_ID_MATRIZ_RJ_RAW);
-      throw new Error('BLING_LOJA_ID_MATRIZ_RJ tem valor inválido');
+    if (isNaN(BLING_UNIDADE_NEGOCIO_MATRIZ_RJ) || BLING_UNIDADE_NEGOCIO_MATRIZ_RJ <= 0) {
+      console.error('[SECRETS] ERRO: BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ inválido:', BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW);
+      throw new Error('BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ tem valor inválido');
     }
-    if (isNaN(BLING_LOJA_ID_PE) || BLING_LOJA_ID_PE <= 0) {
-      console.error('[SECRETS] ERRO: BLING_LOJA_ID_POLO_PE inválido:', BLING_LOJA_ID_POLO_PE_RAW);
-      throw new Error('BLING_LOJA_ID_POLO_PE tem valor inválido');
+    if (isNaN(BLING_UNIDADE_NEGOCIO_POLO_PE) || BLING_UNIDADE_NEGOCIO_POLO_PE <= 0) {
+      console.error('[SECRETS] ERRO: BLING_UNIDADE_NEGOCIO_ID_POLO_PE inválido:', BLING_UNIDADE_NEGOCIO_POLO_PE_RAW);
+      throw new Error('BLING_UNIDADE_NEGOCIO_ID_POLO_PE tem valor inválido');
     }
     if (isNaN(BLING_DEPOSITO_ID_RJ) || BLING_DEPOSITO_ID_RJ <= 0) {
       console.error('[SECRETS] ERRO: BLING_DEPOSITO_ID_GERAL inválido:', BLING_DEPOSITO_ID_GERAL_RAW);
@@ -375,25 +387,28 @@ serve(async (req) => {
     console.log(`[ROUTING] ufEntrega=${ufEntrega} isNorteNordeste=${isNorteNordeste}`);
     
     // Selecionar IDs baseado na região
-    let filialSelecionada = '';
-    let lojaIdSelecionada: number;
+    // LOJA é sempre a mesma (2-FATURADOS = 205797806)
+    // UNIDADE DE NEGÓCIO muda baseado na UF
+    let unidadeNegocioSelecionada = '';
+    let unidadeNegocioIdSelecionada: number;
     let depositoSelecionado = '';
     let depositoIdSelecionado: number;
     
     if (isNorteNordeste) {
-      filialSelecionada = 'Polo Jaboatão (PE)';
-      lojaIdSelecionada = BLING_LOJA_ID_PE;
+      unidadeNegocioSelecionada = 'Polo Jaboatão (PE)';
+      unidadeNegocioIdSelecionada = BLING_UNIDADE_NEGOCIO_POLO_PE;
       depositoSelecionado = 'PERNAMBUCO [ALFA]';
       depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
     } else {
-      filialSelecionada = 'Matriz (RJ)';
-      lojaIdSelecionada = BLING_LOJA_ID_RJ;
+      unidadeNegocioSelecionada = 'Matriz (RJ)';
+      unidadeNegocioIdSelecionada = BLING_UNIDADE_NEGOCIO_MATRIZ_RJ;
       depositoSelecionado = 'Geral';
       depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
     }
     
     // LOG OBRIGATÓRIO 2: IDs selecionados
-    console.log(`[ROUTING] lojaIdSelecionada=${lojaIdSelecionada} depositoIdSelecionado=${depositoIdSelecionado}`);
+    console.log(`[ROUTING] loja.id=${BLING_LOJA_FATURADOS_ID} unidadeNegocio.id=${unidadeNegocioIdSelecionada}`);
+    console.log(`[ROUTING] deposito.id=${depositoIdSelecionado}`);
     
     // Tipo para compatibilidade
     type DepositoInfo = { id: number; descricao: string; padrao: boolean };
@@ -1035,13 +1050,16 @@ serve(async (req) => {
     }
 
     // Criar pedido no Bling com dados de transporte corretos
-    // USAR FILIAL E DEPÓSITO SELECIONADOS PELO ROTEAMENTO POR UF
+    // USAR LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO BASEADA NA UF
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
-      // ✅ LOJA/FILIAL baseada no roteamento por UF (IDs fixos via env)
+      // ✅ LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO baseada no roteamento por UF
       loja: {
-        id: lojaIdSelecionada,
+        id: BLING_LOJA_FATURADOS_ID,
+        unidadeNegocio: {
+          id: unidadeNegocioIdSelecionada,
+        },
       },
       contato: {
         id: contatoId,
@@ -1059,14 +1077,14 @@ serve(async (req) => {
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
         + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : '')
-        + ` | FILIAL: ${filialSelecionada} | DEPÓSITO: ${depositoSelecionado}`,
+        + ` | UNIDADE: ${unidadeNegocioSelecionada} | DEPÓSITO: ${depositoSelecionado}`,
       parcelas,
       // Add vendedor (salesperson) if provided
       ...(vendedor_nome && { vendedor: { nome: vendedor_nome } }),
     };
     
     // LOG OBRIGATÓRIO 3: Verificação do payload antes do POST
-    console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
+    console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} payload.loja.unidadeNegocio.id=${pedidoData.loja.unidadeNegocio?.id} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
 
     // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
     // Enviar também `pedido.desconto` faz o Bling aplicar desconto em duplicidade,
