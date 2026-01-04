@@ -3,8 +3,9 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Users, UserPlus, User, Pencil, Trash2 } from "lucide-react";
+import { Search, Users, UserPlus, User, Pencil, Trash2, Crown } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -88,6 +89,64 @@ export default function EBDTeachers() {
       return data as Professor[];
     },
     enabled: !!churchData?.id,
+  });
+
+  // Query para buscar quais professores têm role de superintendente
+  const { data: superintendentesRoles } = useQuery({
+    queryKey: ["ebd-superintendentes-roles", churchData?.id],
+    queryFn: async () => {
+      if (!churchData?.id) return [];
+
+      const { data, error } = await supabase
+        .from("ebd_user_roles")
+        .select("user_id")
+        .eq("church_id", churchData.id)
+        .eq("role", "superintendente");
+
+      if (error) throw error;
+      return data?.map((r) => r.user_id) || [];
+    },
+    enabled: !!churchData?.id,
+  });
+
+  // Mutation para toggle superintendente
+  const toggleSuperintendenteMutation = useMutation({
+    mutationFn: async ({ userId, isSuperintendente }: { userId: string; isSuperintendente: boolean }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+
+      if (isSuperintendente) {
+        // Remover role
+        const { error } = await supabase
+          .from("ebd_user_roles")
+          .delete()
+          .eq("user_id", userId)
+          .eq("church_id", churchData!.id)
+          .eq("role", "superintendente");
+
+        if (error) throw error;
+      } else {
+        // Adicionar role
+        const { error } = await supabase
+          .from("ebd_user_roles")
+          .insert({
+            user_id: userId,
+            church_id: churchData!.id,
+            role: "superintendente",
+            granted_by: user.id,
+          });
+
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, { isSuperintendente }) => {
+      queryClient.invalidateQueries({ queryKey: ["ebd-superintendentes-roles"] });
+      toast.success(isSuperintendente ? "Acesso de superintendente removido!" : "Professor promovido a superintendente!");
+    },
+    onError: (error) => {
+      console.error("Erro ao alterar role:", error);
+      toast.error("Erro ao alterar permissão");
+    },
   });
 
   const deleteMutation = useMutation({
@@ -196,6 +255,12 @@ export default function EBDTeachers() {
                                 Acesso
                               </Badge>
                             )}
+                            {professor.user_id && superintendentesRoles?.includes(professor.user_id) && (
+                              <Badge className="bg-amber-500 text-white text-xs">
+                                <Crown className="w-3 h-3 mr-1" />
+                                Superintendente
+                              </Badge>
+                            )}
                           </div>
                           <div className="text-sm text-muted-foreground space-y-1">
                             {professor.email && <p>Email: {professor.email}</p>}
@@ -208,6 +273,31 @@ export default function EBDTeachers() {
                           </div>
                         </div>
                         <div className="flex gap-2">
+                          {professor.user_id && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant={superintendentesRoles?.includes(professor.user_id) ? "default" : "outline"}
+                                    size="icon"
+                                    onClick={() => toggleSuperintendenteMutation.mutate({
+                                      userId: professor.user_id!,
+                                      isSuperintendente: superintendentesRoles?.includes(professor.user_id!) || false,
+                                    })}
+                                    disabled={toggleSuperintendenteMutation.isPending}
+                                    className={superintendentesRoles?.includes(professor.user_id) ? "bg-amber-500 hover:bg-amber-600" : ""}
+                                  >
+                                    <Crown className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {superintendentesRoles?.includes(professor.user_id)
+                                    ? "Remover acesso de superintendente"
+                                    : "Promover a superintendente"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           <Button
                             variant="outline"
                             size="icon"
