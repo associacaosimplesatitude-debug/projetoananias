@@ -123,8 +123,33 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config);
     }
 
+    // ============================================================
+    // DEBUG TEMPORÁRIO: Listar todas as lojas do Bling
+    // REMOVER APÓS OBTER OS IDs CORRETOS
+    // ============================================================
+    console.log('[DEBUG] Buscando lista de lojas/empresas do Bling...');
+    try {
+      const lojasResponse = await fetch('https://www.bling.com.br/Api/v3/empresas?limite=100', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+      const lojasData = await lojasResponse.json();
+      console.log('[DEBUG] === LISTA DE EMPRESAS/LOJAS BLING ===');
+      if (lojasData.data && Array.isArray(lojasData.data)) {
+        lojasData.data.forEach((loja: any) => {
+          console.log(`[DEBUG] Empresa: id=${loja.id} | nome="${loja.nome || loja.nomeFantasia || loja.razaoSocial}" | cnpj=${loja.cnpj}`);
+        });
+      } else {
+        console.log('[DEBUG] Resposta completa:', JSON.stringify(lojasData, null, 2));
+      }
+      console.log('[DEBUG] === FIM LISTA EMPRESAS ===');
+    } catch (lojaError) {
+      console.error('[DEBUG] Erro ao buscar empresas:', lojaError);
+    }
+    // ============================================================
 
-    // Determinar se é CPF ou CNPJ
     const documento = cliente.cpf_cnpj?.replace(/\D/g, '') || '';
     const tipoDocumento = documento.length > 11 ? 'J' : 'F';
     
