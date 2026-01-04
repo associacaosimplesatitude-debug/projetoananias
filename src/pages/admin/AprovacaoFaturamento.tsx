@@ -32,7 +32,9 @@ interface PropostaItem {
 interface PropostaCliente {
   id: string;
   nome_igreja: string;
-  cnpj: string;
+  cnpj: string | null;
+  cpf: string | null;
+  tipo_cliente: string | null;
   email_superintendente: string | null;
   telefone: string | null;
   nome_responsavel: string | null;
@@ -99,6 +101,8 @@ export default function AprovacaoFaturamento() {
             id,
             nome_igreja,
             cnpj,
+            cpf,
+            tipo_cliente,
             email_superintendente,
             telefone,
             nome_responsavel,
@@ -129,6 +133,8 @@ export default function AprovacaoFaturamento() {
         id: proposta.cliente_id || "",
         nome_igreja: proposta.cliente_nome,
         cnpj: proposta.cliente_cnpj || "",
+        cpf: null as string | null,
+        tipo_cliente: null as string | null,
         email_superintendente: null,
         telefone: null,
         nome_responsavel: proposta.cliente_nome,
@@ -190,10 +196,13 @@ export default function AprovacaoFaturamento() {
         : Math.round(valorProdutosSemDesconto * 100) / 100;
       const valorTotal = Math.round((valorProdutos + valorFrete) * 100) / 100;
 
+      // Usar CPF ou CNPJ dependendo do tipo de cliente
+      const documentoCliente = clienteProposta.cpf || clienteProposta.cnpj || "";
+      
       const clienteBling = {
         nome: clienteProposta.nome_responsavel || clienteProposta.nome_igreja,
         sobrenome: null,
-        cpf_cnpj: clienteProposta.cnpj,
+        cpf_cnpj: documentoCliente,
         email: clienteProposta.email_superintendente,
         telefone: clienteProposta.telefone,
       };
