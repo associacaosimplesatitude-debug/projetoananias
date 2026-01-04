@@ -127,26 +127,21 @@ serve(async (req) => {
     // DEBUG TEMPORÁRIO: Listar todas as lojas do Bling
     // REMOVER APÓS OBTER OS IDs CORRETOS
     // ============================================================
-    console.log('[DEBUG] Buscando lista de lojas/empresas do Bling...');
+    console.log('[DEBUG] Buscando lista de lojas do Bling...');
     try {
-      const lojasResponse = await fetch('https://www.bling.com.br/Api/v3/empresas?limite=100', {
+      // Endpoint correto para lojas virtuais/canais de venda
+      const lojasResponse = await fetch('https://www.bling.com.br/Api/v3/lojas-virtuais?limite=100', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
         },
       });
       const lojasData = await lojasResponse.json();
-      console.log('[DEBUG] === LISTA DE EMPRESAS/LOJAS BLING ===');
-      if (lojasData.data && Array.isArray(lojasData.data)) {
-        lojasData.data.forEach((loja: any) => {
-          console.log(`[DEBUG] Empresa: id=${loja.id} | nome="${loja.nome || loja.nomeFantasia || loja.razaoSocial}" | cnpj=${loja.cnpj}`);
-        });
-      } else {
-        console.log('[DEBUG] Resposta completa:', JSON.stringify(lojasData, null, 2));
-      }
-      console.log('[DEBUG] === FIM LISTA EMPRESAS ===');
+      console.log('[DEBUG] === LISTA DE LOJAS VIRTUAIS BLING ===');
+      console.log('[DEBUG] Resposta completa:', JSON.stringify(lojasData, null, 2));
+      console.log('[DEBUG] === FIM LISTA LOJAS ===');
     } catch (lojaError) {
-      console.error('[DEBUG] Erro ao buscar empresas:', lojaError);
+      console.error('[DEBUG] Erro ao buscar lojas:', lojaError);
     }
     // ============================================================
 
