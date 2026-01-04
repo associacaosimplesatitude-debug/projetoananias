@@ -317,28 +317,30 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // ROTEAMENTO POR UF - FILIAL E DEPÓSITO (IDs FIXOS VIA ENV)
+    // ROTEAMENTO POR UF - LOJA FIXA, UNIDADE DE NEGÓCIO VARIÁVEL
     // ============================================================
     // Regra de negócio:
     // - Norte/Nordeste (AC,AP,AM,PA,RO,RR,TO,MA,PI,CE,RN,PB,PE,AL,SE,BA): 
-    //   Filial/Loja = BLING_LOJA_ID_POLO_PE, Depósito = BLING_DEPOSITO_ID_PERNAMBUCO
+    //   loja.id = 205797806, loja.unidadeNegocio.id = 1, Depósito = BLING_DEPOSITO_ID_PERNAMBUCO
     // - Demais regiões (Centro-Oeste, Sudeste, Sul):
-    //   Filial/Loja = BLING_LOJA_ID_MATRIZ_RJ, Depósito = BLING_DEPOSITO_ID_GERAL
+    //   loja.id = 205797806, loja.unidadeNegocio.id = 2, Depósito = BLING_DEPOSITO_ID_GERAL
     // ============================================================
     
     const UFS_NORTE_NORDESTE = ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO', 'MA', 'PI', 'CE', 'RN', 'PB', 'PE', 'AL', 'SE', 'BA'];
     
     // ============================================================
-    // VALIDAÇÃO DE SECRETS - SEM FALLBACKS
+    // CONFIGURAÇÃO DE IDs FIXOS
     // ============================================================
     // Loja fixa: 2-FATURADOS (sempre 205797806)
     const BLING_LOJA_FATURADOS_ID = 205797806;
     
-    // Unidades de Negócio (empresas no Bling) - OPCIONAL até descobrir os IDs
-    const BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ') || '';
-    const BLING_UNIDADE_NEGOCIO_POLO_PE_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_POLO_PE') || '';
+    // Unidades de Negócio FIXAS (sem depender de secrets)
+    // Norte/Nordeste -> unidadeNegocio.id = 1
+    // Outras UFs -> unidadeNegocio.id = 2
+    const UNIDADE_NEGOCIO_NORTE_NORDESTE = 1;
+    const UNIDADE_NEGOCIO_OUTRAS = 2;
     
-    // Depósitos - OBRIGATÓRIOS
+    // Depósitos - OBRIGATÓRIOS (via secrets)
     const BLING_DEPOSITO_ID_GERAL_RAW = Deno.env.get('BLING_DEPOSITO_ID_GERAL');
     const BLING_DEPOSITO_ID_PERNAMBUCO_RAW = Deno.env.get('BLING_DEPOSITO_ID_PERNAMBUCO');
     
@@ -352,9 +354,6 @@ serve(async (req) => {
       throw new Error(`Configuração incompleta: faltam os secrets ${missingSecrets.join(', ')}`);
     }
     
-    // Parse Unidades de Negócio (0 ou vazio = não usar)
-    const BLING_UNIDADE_NEGOCIO_MATRIZ_RJ = BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW ? Number(BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW) : 0;
-    const BLING_UNIDADE_NEGOCIO_POLO_PE = BLING_UNIDADE_NEGOCIO_POLO_PE_RAW ? Number(BLING_UNIDADE_NEGOCIO_POLO_PE_RAW) : 0;
     const BLING_DEPOSITO_ID_RJ = Number(BLING_DEPOSITO_ID_GERAL_RAW);
     const BLING_DEPOSITO_ID_PE = Number(BLING_DEPOSITO_ID_PERNAMBUCO_RAW);
     
@@ -368,25 +367,15 @@ serve(async (req) => {
       throw new Error('BLING_DEPOSITO_ID_PERNAMBUCO tem valor inválido');
     }
     
-    // Log de status das Unidades de Negócio
-    if (BLING_UNIDADE_NEGOCIO_MATRIZ_RJ > 0 && BLING_UNIDADE_NEGOCIO_POLO_PE > 0) {
-      console.log('[SECRETS] Unidades de Negócio configuradas OK');
-    } else {
-      console.log('[SECRETS] ⚠️ Unidades de Negócio NÃO configuradas (usando padrão do Bling)');
-    }
-    
     console.log('[SECRETS] Depósitos OK');
     
     // Detectar UF: primeiro de transporte.endereco.uf (se vier no request), fallback para endereco_entrega.estado
     const ufEntrega = (endereco_entrega?.uf || endereco_entrega?.estado || '').toUpperCase().trim();
     const isNorteNordeste = UFS_NORTE_NORDESTE.includes(ufEntrega);
     
-    // LOG OBRIGATÓRIO 1: UF e região
-    console.log(`[ROUTING] ufEntrega=${ufEntrega} isNorteNordeste=${isNorteNordeste}`);
-    
     // Selecionar IDs baseado na região
     // LOJA é sempre a mesma (2-FATURADOS = 205797806)
-    // UNIDADE DE NEGÓCIO muda baseado na UF
+    // UNIDADE DE NEGÓCIO muda baseado na UF: 1 para Norte/Nordeste, 2 para outras
     let unidadeNegocioSelecionada = '';
     let unidadeNegocioIdSelecionada: number;
     let depositoSelecionado = '';
@@ -394,19 +383,20 @@ serve(async (req) => {
     
     if (isNorteNordeste) {
       unidadeNegocioSelecionada = 'Polo Jaboatão (PE)';
-      unidadeNegocioIdSelecionada = BLING_UNIDADE_NEGOCIO_POLO_PE;
+      unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_NORTE_NORDESTE; // = 1
       depositoSelecionado = 'PERNAMBUCO [ALFA]';
       depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
     } else {
       unidadeNegocioSelecionada = 'Matriz (RJ)';
-      unidadeNegocioIdSelecionada = BLING_UNIDADE_NEGOCIO_MATRIZ_RJ;
+      unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS; // = 2
       depositoSelecionado = 'Geral';
       depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
     }
     
+    // LOG OBRIGATÓRIO 1: UF e unidadeNegocioId
+    console.log(`[ROUTING] ufEntrega=${ufEntrega} unidadeNegocioId=${unidadeNegocioIdSelecionada}`);
     // LOG OBRIGATÓRIO 2: IDs selecionados
-    console.log(`[ROUTING] loja.id=${BLING_LOJA_FATURADOS_ID} unidadeNegocio.id=${unidadeNegocioIdSelecionada}`);
-    console.log(`[ROUTING] deposito.id=${depositoIdSelecionado}`);
+    console.log(`[ROUTING] loja.id=${BLING_LOJA_FATURADOS_ID} deposito.id=${depositoIdSelecionado}`);
     
     // Tipo para compatibilidade
     type DepositoInfo = { id: number; descricao: string; padrao: boolean };
@@ -1048,27 +1038,23 @@ serve(async (req) => {
     }
 
     // Criar pedido no Bling com dados de transporte corretos
-    // USAR LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO BASEADA NA UF (se configurada)
+    // USAR LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO BASEADA NA UF
     
-    // Montar objeto loja - com ou sem unidadeNegocio dependendo da configuração
+    // Montar objeto loja - SEMPRE com unidadeNegocio (1 para N/NE, 2 para outras)
     const lojaPayload: any = {
       id: BLING_LOJA_FATURADOS_ID,
+      unidadeNegocio: {
+        id: unidadeNegocioIdSelecionada,
+      },
     };
     
-    // Só adiciona unidadeNegocio se estiver configurada corretamente
-    if (unidadeNegocioIdSelecionada > 0) {
-      lojaPayload.unidadeNegocio = {
-        id: unidadeNegocioIdSelecionada,
-      };
-      console.log(`[ROUTING] unidadeNegocio SERÁ enviada: ${unidadeNegocioIdSelecionada}`);
-    } else {
-      console.log(`[ROUTING] unidadeNegocio NÃO configurada - usando padrão do Bling`);
-    }
+    // LOG OBRIGATÓRIO antes do POST
+    console.log(`[ROUTING] ufEntrega=${ufEntrega} unidadeNegocioId=${unidadeNegocioIdSelecionada}`);
     
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
-      // ✅ LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO opcional
+      // ✅ LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO (1=N/NE, 2=outras)
       loja: lojaPayload,
       contato: {
         id: contatoId,
