@@ -129,25 +129,25 @@ serve(async (req) => {
     // ============================================================
     console.log('[DEBUG] Buscando Unidades de Negócio do Bling...');
     try {
-      // Endpoint para empresas/unidades de negócio
-      const empresasResponse = await fetch('https://www.bling.com.br/Api/v3/empresas?limite=100', {
+      // Endpoint específico para unidades de negócio
+      const unidadesResponse = await fetch('https://www.bling.com.br/Api/v3/empresas/unidades-negocios?limite=100', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
         },
       });
-      const empresasData = await empresasResponse.json();
-      console.log('[DEBUG] === LISTA DE EMPRESAS/UNIDADES DE NEGÓCIO BLING ===');
-      if (empresasData.data && Array.isArray(empresasData.data)) {
-        empresasData.data.forEach((emp: any) => {
-          console.log(`[DEBUG] Empresa: id=${emp.id} | nome="${emp.nome || emp.nomeFantasia || emp.razaoSocial}" | cnpj=${emp.cnpj}`);
+      const unidadesData = await unidadesResponse.json();
+      console.log('[DEBUG] === LISTA DE UNIDADES DE NEGÓCIO BLING ===');
+      if (unidadesData.data && Array.isArray(unidadesData.data)) {
+        unidadesData.data.forEach((un: any) => {
+          console.log(`[DEBUG] UnidadeNegocio: id=${un.id} | descricao="${un.descricao}" | empresa_id=${un.empresa?.id || 'N/A'}`);
         });
       } else {
-        console.log('[DEBUG] Resposta completa:', JSON.stringify(empresasData, null, 2));
+        console.log('[DEBUG] Resposta unidades (completa):', JSON.stringify(unidadesData, null, 2));
       }
-      console.log('[DEBUG] === FIM LISTA EMPRESAS ===');
-    } catch (empresaError) {
-      console.error('[DEBUG] Erro ao buscar empresas:', empresaError);
+      console.log('[DEBUG] === FIM LISTA UNIDADES ===');
+    } catch (unidadeError) {
+      console.error('[DEBUG] Erro ao buscar unidades:', unidadeError);
     }
     // ============================================================
 
