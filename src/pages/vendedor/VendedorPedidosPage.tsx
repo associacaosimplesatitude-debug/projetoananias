@@ -198,10 +198,12 @@ export default function VendedorPedidosPage() {
       const clienteBling = {
         nome: clienteProposta.nome_responsavel || clienteProposta.nome_igreja,
         sobrenome: null,
-        cpf_cnpj: clienteProposta.cnpj,
+        // a fonte da verdade do documento é o banco (via contato.id)
+        cpf_cnpj: "",
         email: clienteProposta.email_superintendente,
         telefone: clienteProposta.telefone,
       };
+
 
       const enderecoEntrega = clienteProposta.endereco_rua
         ? {
@@ -215,8 +217,11 @@ export default function VendedorPedidosPage() {
           }
         : null;
 
+      const contatoIdSistema = proposta.cliente_id || clienteProposta.id || null;
+
       const { data, error } = await supabase.functions.invoke("bling-create-order", {
         body: {
+          contato: contatoIdSistema ? { id: contatoIdSistema } : undefined,
           cliente: clienteBling,
           endereco_entrega: enderecoEntrega,
           itens: itensBling,
@@ -237,7 +242,20 @@ export default function VendedorPedidosPage() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        let msg = error.message || "Erro ao chamar função";
+        const jsonMatch = msg.match(/\{.*\}/);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            msg = parsed.error || parsed.message || msg;
+          } catch {
+            // ignore
+          }
+        }
+        throw new Error(msg);
+      }
+
       if (data?.error) throw new Error(data.error);
 
       await supabase

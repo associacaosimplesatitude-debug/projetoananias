@@ -196,49 +196,13 @@ export default function AprovacaoFaturamento() {
         : Math.round(valorProdutosSemDesconto * 100) / 100;
       const valorTotal = Math.round((valorProdutos + valorFrete) * 100) / 100;
 
-      // Usar CPF ou CNPJ dependendo do tipo de cliente.
-      // Se a relação `proposta.cliente` vier vazia, tenta buscar direto em `ebd_clientes`.
-      const sanitizeDoc = (v: unknown) => String(v ?? "").replace(/\D/g, "");
-
-      let documentoCliente = sanitizeDoc(clienteProposta.cpf || clienteProposta.cnpj || "");
-
-      if (!documentoCliente) {
-        // 1) tenta por ID
-        if (proposta.cliente_id) {
-          const { data: clienteDb, error: clienteDbError } = await supabase
-            .from("ebd_clientes")
-            .select("cpf, cnpj")
-            .eq("id", proposta.cliente_id)
-            .maybeSingle();
-
-          if (!clienteDbError && clienteDb) {
-            documentoCliente = sanitizeDoc(clienteDb.cpf || clienteDb.cnpj || "");
-          }
-        }
-
-        // 2) fallback: tenta por nome (para propostas antigas sem cliente_id)
-        if (!documentoCliente) {
-          const { data: clienteByName, error: clienteByNameError } = await supabase
-            .from("ebd_clientes")
-            .select("cpf, cnpj")
-            .eq("nome_igreja", clienteProposta.nome_igreja)
-            .limit(1)
-            .maybeSingle();
-
-          if (!clienteByNameError && clienteByName) {
-            documentoCliente = sanitizeDoc(clienteByName.cpf || clienteByName.cnpj || "");
-          }
-        }
-      }
-
-      if (documentoCliente.length !== 11 && documentoCliente.length !== 14) {
-        throw new Error("CPF/CNPJ do cliente ausente ou inválido. Abra o cliente e confira o documento.");
-      }
-
+      // CPF/CNPJ: não validar no front. A função bling-create-order buscará e validará
+      // SEMPRE no banco (public.ebd_clientes) usando contato.id.
       const clienteBling = {
         nome: clienteProposta.nome_responsavel || clienteProposta.nome_igreja,
         sobrenome: null,
-        cpf_cnpj: documentoCliente,
+        // manter por compatibilidade, mas a fonte da verdade é o banco
+        cpf_cnpj: "",
         email: clienteProposta.email_superintendente,
         telefone: clienteProposta.telefone,
       };
@@ -262,8 +226,12 @@ export default function AprovacaoFaturamento() {
         .eq("id", proposta.id);
 
       // Depois envia para o Bling
+      const contatoIdSistema = proposta.cliente_id || clienteProposta.id || null;
+
       const { data, error } = await supabase.functions.invoke("bling-create-order", {
         body: {
+          // Fonte da verdade do documento é o banco: enviar o ID do cliente do sistema
+          contato: contatoIdSistema ? { id: contatoIdSistema } : undefined,
           cliente: clienteBling,
           endereco_entrega: enderecoEntrega,
           itens: itensBling,
@@ -283,12 +251,24 @@ export default function AprovacaoFaturamento() {
         },
       });
 
-      // Verificar erros da edge function
+      // Verificar erros da função
       if (error) {
-        console.error("Erro na edge function:", error);
-        throw new Error(error.message || "Erro ao chamar edge function");
+        console.error("Erro na função bling-create-order:", error);
+
+        let msg = error.message || "Erro ao chamar função";
+        const jsonMatch = msg.match(/\{.*\}/);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            msg = parsed.error || parsed.message || msg;
+          } catch {
+            // ignore
+          }
+        }
+
+        throw new Error(msg);
       }
-      
+
       // Verificar se a resposta contém erro do Bling
       if (data?.error) {
         console.error("Erro do Bling:", data.error);
