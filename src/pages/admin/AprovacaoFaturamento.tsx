@@ -196,9 +196,45 @@ export default function AprovacaoFaturamento() {
         : Math.round(valorProdutosSemDesconto * 100) / 100;
       const valorTotal = Math.round((valorProdutos + valorFrete) * 100) / 100;
 
-      // Usar CPF ou CNPJ dependendo do tipo de cliente
-      const documentoCliente = clienteProposta.cpf || clienteProposta.cnpj || "";
-      
+      // Usar CPF ou CNPJ dependendo do tipo de cliente.
+      // Se a relação `proposta.cliente` vier vazia, tenta buscar direto em `ebd_clientes`.
+      const sanitizeDoc = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+
+      let documentoCliente = sanitizeDoc(clienteProposta.cpf || clienteProposta.cnpj || "");
+
+      if (!documentoCliente) {
+        // 1) tenta por ID
+        if (proposta.cliente_id) {
+          const { data: clienteDb, error: clienteDbError } = await supabase
+            .from("ebd_clientes")
+            .select("cpf, cnpj")
+            .eq("id", proposta.cliente_id)
+            .maybeSingle();
+
+          if (!clienteDbError && clienteDb) {
+            documentoCliente = sanitizeDoc(clienteDb.cpf || clienteDb.cnpj || "");
+          }
+        }
+
+        // 2) fallback: tenta por nome (para propostas antigas sem cliente_id)
+        if (!documentoCliente) {
+          const { data: clienteByName, error: clienteByNameError } = await supabase
+            .from("ebd_clientes")
+            .select("cpf, cnpj")
+            .eq("nome_igreja", clienteProposta.nome_igreja)
+            .limit(1)
+            .maybeSingle();
+
+          if (!clienteByNameError && clienteByName) {
+            documentoCliente = sanitizeDoc(clienteByName.cpf || clienteByName.cnpj || "");
+          }
+        }
+      }
+
+      if (documentoCliente.length !== 11 && documentoCliente.length !== 14) {
+        throw new Error("CPF/CNPJ do cliente ausente ou inválido. Abra o cliente e confira o documento.");
+      }
+
       const clienteBling = {
         nome: clienteProposta.nome_responsavel || clienteProposta.nome_igreja,
         sobrenome: null,
