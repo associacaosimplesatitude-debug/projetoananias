@@ -78,8 +78,7 @@ export default function EBDTeachers() {
   });
 
   // Check if current user can manage roles
-  const { canManage: canManageRoles } = useCanManageEbdRoles(churchData?.id);
-
+  const { canManage: canManageRoles, isLoading: isLoadingRoles } = useCanManageEbdRoles(churchData?.id);
   const { data: professores } = useQuery({
     queryKey: ["ebd-professores", churchData?.id, searchTerm],
     queryFn: async () => {
@@ -165,9 +164,22 @@ export default function EBDTeachers() {
     );
   }
 
+  // DEBUG: Log role management status
+  console.log("[ROLES DEBUG]", { 
+    churchId: churchData?.id, 
+    canManageRoles, 
+    isLoadingRoles 
+  });
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* DEBUG: Status temporário */}
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded text-sm">
+          <strong>DEBUG:</strong> Você está como superintendente: <strong>{canManageRoles ? "SIM" : "NÃO"}</strong>
+          {isLoadingRoles && " (carregando...)"}
+        </div>
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Cadastro de Professores</h1>
@@ -250,7 +262,7 @@ export default function EBDTeachers() {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
                           <Button
                             variant="outline"
                             size="icon"
@@ -259,41 +271,36 @@ export default function EBDTeachers() {
                             <Pencil className="h-4 w-4" />
                           </Button>
                           
-                          {canManageRoles && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setManagingAccess(professor)}>
-                                  <Shield className="h-4 w-4 mr-2" />
-                                  {professor.hasSuperintendenteRole 
-                                    ? "Remover acesso de Superintendente" 
-                                    : "Conceder acesso de Superintendente"}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => setDeletingProfessor(professor)}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Excluir professor
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                          
-                          {!canManageRoles && (
+                          {/* Botão visível para gerenciar superintendente */}
+                          {canManageRoles && professor.user_id && (
                             <Button
-                              variant="outline"
-                              size="icon"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => setDeletingProfessor(professor)}
+                              variant={professor.hasSuperintendenteRole ? "destructive" : "default"}
+                              size="sm"
+                              onClick={() => setManagingAccess(professor)}
+                              className="gap-1"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Shield className="h-4 w-4" />
+                              {professor.hasSuperintendenteRole 
+                                ? "Remover Superintendente" 
+                                : "Tornar Superintendente"}
                             </Button>
                           )}
+
+                          {/* Mensagem se professor não tem user_id */}
+                          {canManageRoles && !professor.user_id && (
+                            <span className="text-xs text-muted-foreground">
+                              (sem acesso ao sistema)
+                            </span>
+                          )}
+                          
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeletingProfessor(professor)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
