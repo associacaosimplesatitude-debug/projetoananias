@@ -334,18 +334,16 @@ serve(async (req) => {
     // Loja fixa: 2-FATURADOS (sempre 205797806)
     const BLING_LOJA_FATURADOS_ID = 205797806;
     
-    // Unidades de Negócio (empresas no Bling)
-    const BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ');
-    const BLING_UNIDADE_NEGOCIO_POLO_PE_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_POLO_PE');
+    // Unidades de Negócio (empresas no Bling) - OPCIONAL até descobrir os IDs
+    const BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ') || '';
+    const BLING_UNIDADE_NEGOCIO_POLO_PE_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_POLO_PE') || '';
     
-    // Depósitos
+    // Depósitos - OBRIGATÓRIOS
     const BLING_DEPOSITO_ID_GERAL_RAW = Deno.env.get('BLING_DEPOSITO_ID_GERAL');
     const BLING_DEPOSITO_ID_PERNAMBUCO_RAW = Deno.env.get('BLING_DEPOSITO_ID_PERNAMBUCO');
     
-    // Validar que todos os secrets estão configurados
+    // Validar apenas depósitos (obrigatórios)
     const missingSecrets: string[] = [];
-    if (!BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW) missingSecrets.push('BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ');
-    if (!BLING_UNIDADE_NEGOCIO_POLO_PE_RAW) missingSecrets.push('BLING_UNIDADE_NEGOCIO_ID_POLO_PE');
     if (!BLING_DEPOSITO_ID_GERAL_RAW) missingSecrets.push('BLING_DEPOSITO_ID_GERAL');
     if (!BLING_DEPOSITO_ID_PERNAMBUCO_RAW) missingSecrets.push('BLING_DEPOSITO_ID_PERNAMBUCO');
     
@@ -354,20 +352,13 @@ serve(async (req) => {
       throw new Error(`Configuração incompleta: faltam os secrets ${missingSecrets.join(', ')}`);
     }
     
-    const BLING_UNIDADE_NEGOCIO_MATRIZ_RJ = Number(BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW);
-    const BLING_UNIDADE_NEGOCIO_POLO_PE = Number(BLING_UNIDADE_NEGOCIO_POLO_PE_RAW);
+    // Parse Unidades de Negócio (0 ou vazio = não usar)
+    const BLING_UNIDADE_NEGOCIO_MATRIZ_RJ = BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW ? Number(BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW) : 0;
+    const BLING_UNIDADE_NEGOCIO_POLO_PE = BLING_UNIDADE_NEGOCIO_POLO_PE_RAW ? Number(BLING_UNIDADE_NEGOCIO_POLO_PE_RAW) : 0;
     const BLING_DEPOSITO_ID_RJ = Number(BLING_DEPOSITO_ID_GERAL_RAW);
     const BLING_DEPOSITO_ID_PE = Number(BLING_DEPOSITO_ID_PERNAMBUCO_RAW);
     
-    // Validar que são números válidos
-    if (isNaN(BLING_UNIDADE_NEGOCIO_MATRIZ_RJ) || BLING_UNIDADE_NEGOCIO_MATRIZ_RJ <= 0) {
-      console.error('[SECRETS] ERRO: BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ inválido:', BLING_UNIDADE_NEGOCIO_MATRIZ_RJ_RAW);
-      throw new Error('BLING_UNIDADE_NEGOCIO_ID_MATRIZ_RJ tem valor inválido');
-    }
-    if (isNaN(BLING_UNIDADE_NEGOCIO_POLO_PE) || BLING_UNIDADE_NEGOCIO_POLO_PE <= 0) {
-      console.error('[SECRETS] ERRO: BLING_UNIDADE_NEGOCIO_ID_POLO_PE inválido:', BLING_UNIDADE_NEGOCIO_POLO_PE_RAW);
-      throw new Error('BLING_UNIDADE_NEGOCIO_ID_POLO_PE tem valor inválido');
-    }
+    // Validar depósitos
     if (isNaN(BLING_DEPOSITO_ID_RJ) || BLING_DEPOSITO_ID_RJ <= 0) {
       console.error('[SECRETS] ERRO: BLING_DEPOSITO_ID_GERAL inválido:', BLING_DEPOSITO_ID_GERAL_RAW);
       throw new Error('BLING_DEPOSITO_ID_GERAL tem valor inválido');
@@ -377,7 +368,14 @@ serve(async (req) => {
       throw new Error('BLING_DEPOSITO_ID_PERNAMBUCO tem valor inválido');
     }
     
-    console.log('[SECRETS] Todos os secrets de roteamento OK');
+    // Log de status das Unidades de Negócio
+    if (BLING_UNIDADE_NEGOCIO_MATRIZ_RJ > 0 && BLING_UNIDADE_NEGOCIO_POLO_PE > 0) {
+      console.log('[SECRETS] Unidades de Negócio configuradas OK');
+    } else {
+      console.log('[SECRETS] ⚠️ Unidades de Negócio NÃO configuradas (usando padrão do Bling)');
+    }
+    
+    console.log('[SECRETS] Depósitos OK');
     
     // Detectar UF: primeiro de transporte.endereco.uf (se vier no request), fallback para endereco_entrega.estado
     const ufEntrega = (endereco_entrega?.uf || endereco_entrega?.estado || '').toUpperCase().trim();
@@ -1050,17 +1048,28 @@ serve(async (req) => {
     }
 
     // Criar pedido no Bling com dados de transporte corretos
-    // USAR LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO BASEADA NA UF
+    // USAR LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO BASEADA NA UF (se configurada)
+    
+    // Montar objeto loja - com ou sem unidadeNegocio dependendo da configuração
+    const lojaPayload: any = {
+      id: BLING_LOJA_FATURADOS_ID,
+    };
+    
+    // Só adiciona unidadeNegocio se estiver configurada corretamente
+    if (unidadeNegocioIdSelecionada > 0) {
+      lojaPayload.unidadeNegocio = {
+        id: unidadeNegocioIdSelecionada,
+      };
+      console.log(`[ROUTING] unidadeNegocio SERÁ enviada: ${unidadeNegocioIdSelecionada}`);
+    } else {
+      console.log(`[ROUTING] unidadeNegocio NÃO configurada - usando padrão do Bling`);
+    }
+    
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
-      // ✅ LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO baseada no roteamento por UF
-      loja: {
-        id: BLING_LOJA_FATURADOS_ID,
-        unidadeNegocio: {
-          id: unidadeNegocioIdSelecionada,
-        },
-      },
+      // ✅ LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO opcional
+      loja: lojaPayload,
       contato: {
         id: contatoId,
       },
@@ -1084,7 +1093,7 @@ serve(async (req) => {
     };
     
     // LOG OBRIGATÓRIO 3: Verificação do payload antes do POST
-    console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} payload.loja.unidadeNegocio.id=${pedidoData.loja.unidadeNegocio?.id} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
+    console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} payload.loja.unidadeNegocio.id=${pedidoData.loja.unidadeNegocio?.id || 'N/A'} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
 
     // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
     // Enviar também `pedido.desconto` faz o Bling aplicar desconto em duplicidade,
