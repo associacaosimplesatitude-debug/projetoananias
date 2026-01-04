@@ -1,27 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Users, UserPlus, User, Pencil, Trash2, Shield } from "lucide-react";
+import { Search, Users, UserPlus, User, Pencil, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { EditProfessorDialog } from "@/components/ebd/EditProfessorDialog";
 import { CreateProfessorDialog } from "@/components/ebd/CreateProfessorDialog";
-import { GrantSuperintendenteDialog } from "@/components/ebd/GrantSuperintendenteDialog";
-import { useEbdSuperintendenteEffective } from "@/hooks/useEbdSuperintendenteEffective";
 import { toast } from "sonner";
 
 interface Professor {
@@ -35,10 +24,6 @@ interface Professor {
   member_id: string | null;
 }
 
-interface ProfessorWithRoles extends Professor {
-  hasSuperintendenteRole: boolean;
-}
-
 export default function EBDTeachers() {
   const { clientId } = useParams();
   const queryClient = useQueryClient();
@@ -46,7 +31,6 @@ export default function EBDTeachers() {
   const [creatingProfessor, setCreatingProfessor] = useState(false);
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
   const [deletingProfessor, setDeletingProfessor] = useState<Professor | null>(null);
-  const [managingAccess, setManagingAccess] = useState<Professor | null>(null);
 
   const { data: churchData, isLoading: isLoadingChurch } = useQuery({
     queryKey: ["user-church", clientId],
@@ -85,17 +69,6 @@ export default function EBDTeachers() {
     },
   });
 
-  const {
-    uid,
-    isSuperOld,
-    isSuperNew,
-    effective,
-    old_check_source,
-    isLoading: isLoadingRoles,
-  } = useEbdSuperintendenteEffective(churchData?.id);
-
-  const canManageRoles = effective;
-
   const { data: professores } = useQuery({
     queryKey: ["ebd-professores", churchData?.id, searchTerm],
     queryFn: async () => {
@@ -112,35 +85,7 @@ export default function EBDTeachers() {
 
       const { data, error } = await query.order("nome_completo");
       if (error) throw error;
-
-      const professorUserIds = data
-        .filter((p: Professor) => p.user_id)
-        .map((p: Professor) => p.user_id as string);
-
-      // Buscar roles via RPC (security definer) para evitar recursão de RLS
-      const roleMap: Record<string, boolean> = {};
-
-      await Promise.all(
-        professorUserIds.map(async (profUserId) => {
-          const { data: hasRole, error: roleError } = await supabase.rpc("has_ebd_role", {
-            _user_id: profUserId,
-            _church_id: churchData.id,
-            _role: "superintendente",
-          });
-
-          if (roleError) {
-            console.error("[ROLES] roleMap error=", roleError);
-            return;
-          }
-
-          roleMap[profUserId] = !!hasRole;
-        })
-      );
-
-      return data.map((p: Professor) => ({
-        ...p,
-        hasSuperintendenteRole: p.user_id ? !!roleMap[p.user_id] : false,
-      })) as ProfessorWithRoles[];
+      return data as Professor[];
     },
     enabled: !!churchData?.id,
   });
@@ -165,12 +110,6 @@ export default function EBDTeachers() {
     },
   });
 
-  useEffect(() => {
-    console.log("[ROLES] old_check_source=", old_check_source);
-    console.log("[ROLES] auth.uid=", uid);
-    console.log("[ROLES] old=", isSuperOld, "new=", isSuperNew, "effective=", effective);
-  }, [old_check_source, uid, isSuperOld, isSuperNew, effective]);
-
   if (isLoadingChurch) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -189,16 +128,9 @@ export default function EBDTeachers() {
     );
   }
 
-
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* DEBUG: Status temporário */}
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded text-sm">
-          <strong>DEBUG:</strong> Você está como superintendente: <strong>{canManageRoles ? "SIM" : "NÃO"}</strong>
-          {isLoadingRoles && " (carregando...)"}
-        </div>
-
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Cadastro de Professores</h1>
@@ -255,16 +187,10 @@ export default function EBDTeachers() {
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
                             <h3 className="font-semibold">{professor.nome_completo}</h3>
                             <Badge variant="secondary">Professor</Badge>
-                            {professor.hasSuperintendenteRole && (
-                              <Badge className="bg-primary/10 text-primary border-primary/20">
-                                <Shield className="w-3 h-3 mr-1" />
-                                Superintendente
-                              </Badge>
-                            )}
-                            {professor.user_id && !professor.hasSuperintendenteRole && (
+                            {professor.user_id && (
                               <Badge variant="outline" className="text-xs">
                                 <UserPlus className="w-3 h-3 mr-1" />
                                 Acesso
@@ -281,7 +207,7 @@ export default function EBDTeachers() {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2 items-center">
+                        <div className="flex gap-2">
                           <Button
                             variant="outline"
                             size="icon"
@@ -289,29 +215,6 @@ export default function EBDTeachers() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          
-                          {/* Botão visível para gerenciar superintendente */}
-                          {canManageRoles && professor.user_id && (
-                            <Button
-                              variant={professor.hasSuperintendenteRole ? "destructive" : "default"}
-                              size="sm"
-                              onClick={() => setManagingAccess(professor)}
-                              className="gap-1"
-                            >
-                              <Shield className="h-4 w-4" />
-                              {professor.hasSuperintendenteRole 
-                                ? "Remover Superintendente" 
-                                : "Tornar Superintendente"}
-                            </Button>
-                          )}
-
-                          {/* Mensagem se professor não tem user_id */}
-                          {canManageRoles && !professor.user_id && (
-                            <span className="text-xs text-muted-foreground">
-                              (sem acesso ao sistema)
-                            </span>
-                          )}
-                          
                           <Button
                             variant="outline"
                             size="icon"
@@ -363,13 +266,6 @@ export default function EBDTeachers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <GrantSuperintendenteDialog
-        open={!!managingAccess}
-        onOpenChange={(open) => !open && setManagingAccess(null)}
-        professor={managingAccess}
-        churchId={churchData.id}
-      />
     </div>
   );
 }
