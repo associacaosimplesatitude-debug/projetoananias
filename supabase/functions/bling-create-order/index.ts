@@ -6,15 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Função para renovar o token do Bling
-async function refreshBlingToken(supabase: any, config: any): Promise<string> {
+// Estados do Norte e Nordeste que devem usar a integração PE
+const ESTADOS_NORTE_NORDESTE = [
+  'AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO', // Norte
+  'AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE' // Nordeste
+];
+
+// Função para determinar qual integração usar baseado no estado
+function checkIsNorteNordeste(estado: string | null | undefined): boolean {
+  if (!estado) return false;
+  return ESTADOS_NORTE_NORDESTE.includes(estado.toUpperCase().trim());
+}
+
+// Função para renovar o token do Bling (funciona para ambas as integrações)
+async function refreshBlingToken(supabase: any, config: any, tableName: string, clientId: string, clientSecret: string): Promise<string> {
   if (!config.refresh_token) {
     throw new Error('Refresh token não disponível');
   }
 
-  console.log('Renovando token do Bling...');
+  console.log(`[${tableName}] Renovando token do Bling...`);
   
-  const credentials = btoa(`${config.client_id}:${config.client_secret}`);
+  const credentials = btoa(`${clientId}:${clientSecret}`);
   
   const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
@@ -31,7 +43,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
   const tokenData = await tokenResponse.json();
 
   if (!tokenResponse.ok || tokenData.error) {
-    console.error('Erro ao renovar token:', tokenData);
+    console.error(`[${tableName}] Erro ao renovar token:`, tokenData);
     throw new Error(tokenData.error_description || 'Erro ao renovar token do Bling');
   }
 
@@ -41,7 +53,7 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
 
   // Atualizar tokens no banco
   const { error: updateError } = await supabase
-    .from('bling_config')
+    .from(tableName)
     .update({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
@@ -50,11 +62,11 @@ async function refreshBlingToken(supabase: any, config: any): Promise<string> {
     .eq('id', config.id);
 
   if (updateError) {
-    console.error('Erro ao salvar tokens:', updateError);
+    console.error(`[${tableName}] Erro ao salvar tokens:`, updateError);
     throw new Error('Erro ao salvar tokens renovados');
   }
 
-  console.log('Token renovado com sucesso! Expira em:', expiresAt.toISOString());
+  console.log(`[${tableName}] Token renovado com sucesso! Expira em:`, expiresAt.toISOString());
   return tokenData.access_token;
 }
 
@@ -102,25 +114,79 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Buscar configuração
-    const { data: config, error: configError } = await supabase
-      .from('bling_config')
-      .select('*')
-      .single();
+    // Determinar qual integração usar baseado no estado de entrega
+    const estadoEntrega = endereco_entrega?.estado?.toUpperCase()?.trim() || '';
+    const usarIntegracaoPE = checkIsNorteNordeste(estadoEntrega);
+    
+    console.log(`Estado de entrega: ${estadoEntrega} - Usar integração PE: ${usarIntegracaoPE}`);
 
-    if (configError || !config) {
-      throw new Error('Configuração não encontrada');
+    // Buscar configuração da integração correta
+    let config: any;
+    let configTableName: string;
+    let clientId: string;
+    let clientSecret: string;
+
+    if (usarIntegracaoPE) {
+      // Usar integração de Pernambuco para Norte/Nordeste
+      configTableName = 'bling_config_pe';
+      clientId = Deno.env.get('BLING_CLIENT_ID_PE') || '';
+      clientSecret = Deno.env.get('BLING_CLIENT_SECRET_PE') || '';
+      
+      const { data: configPE, error: configErrorPE } = await supabase
+        .from('bling_config_pe')
+        .select('*')
+        .single();
+      
+      if (configErrorPE || !configPE) {
+        console.warn('Configuração PE não encontrada, usando RJ como fallback');
+        // Fallback para RJ se PE não estiver configurado
+        configTableName = 'bling_config';
+        const { data: configRJ, error: configErrorRJ } = await supabase
+          .from('bling_config')
+          .select('*')
+          .single();
+        
+        if (configErrorRJ || !configRJ) {
+          throw new Error('Nenhuma configuração do Bling encontrada');
+        }
+        config = configRJ;
+        clientId = config.client_id;
+        clientSecret = config.client_secret;
+      } else {
+        config = configPE;
+        // Se PE não tiver token ainda, usar credenciais dos secrets
+        if (!clientId || !clientSecret) {
+          clientId = config.client_id || '';
+          clientSecret = config.client_secret || '';
+        }
+      }
+    } else {
+      // Usar integração RJ padrão
+      configTableName = 'bling_config';
+      const { data: configRJ, error: configErrorRJ } = await supabase
+        .from('bling_config')
+        .select('*')
+        .single();
+      
+      if (configErrorRJ || !configRJ) {
+        throw new Error('Configuração não encontrada');
+      }
+      config = configRJ;
+      clientId = config.client_id;
+      clientSecret = config.client_secret;
     }
 
+    console.log(`Usando integração: ${configTableName}`);
+
     if (!config.access_token) {
-      throw new Error('Token de acesso não configurado');
+      throw new Error(`Token de acesso não configurado para ${configTableName}`);
     }
 
     // Verificar se o token está expirado e renovar se necessário
     let accessToken = config.access_token;
     if (isTokenExpired(config.token_expires_at)) {
-      console.log('Token expirado ou próximo de expirar, renovando...');
-      accessToken = await refreshBlingToken(supabase, config);
+      console.log(`Token expirado ou próximo de expirar para ${configTableName}, renovando...`);
+      accessToken = await refreshBlingToken(supabase, config, configTableName, clientId, clientSecret);
     }
 
 
