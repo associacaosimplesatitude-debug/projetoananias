@@ -220,15 +220,17 @@ serve(async (req) => {
     // ============================================================
     
     // 1) EXTRAIR CPF/CNPJ de múltiplas possíveis fontes
+    // Usando || ao invés de ?? para ignorar strings vazias também
     const rawDoc = 
-      cliente?.cpf_cnpj ??
-      cliente?.cpfCnpj ??
-      cliente?.cpf ??
-      cliente?.cnpj ??
-      cliente?.documento ??
-      cliente?.numeroDocumento ??
-      endereco_entrega?.cpf_cnpj ??
-      body?.transporte?.etiqueta?.numeroDocumento ??
+      cliente?.cpf_cnpj ||
+      cliente?.cpfCnpj ||
+      cliente?.cpf ||
+      cliente?.cnpj ||
+      cliente?.documento ||
+      cliente?.numeroDocumento ||
+      endereco_entrega?.cpf_cnpj ||
+      endereco_entrega?.cpfCnpj ||
+      body?.transporte?.etiqueta?.numeroDocumento ||
       "";
     
     const documento = String(rawDoc).replace(/\D/g, ''); // Remove máscara (pontos, traços, espaços)
