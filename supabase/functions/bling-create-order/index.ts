@@ -368,14 +368,16 @@ serve(async (req) => {
     const UFS_NORTE_NORDESTE = ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO', 'MA', 'PI', 'CE', 'RN', 'PB', 'PE', 'AL', 'SE', 'BA'];
     
     // ============================================================
-    // CONFIGURAÇÃO DE IDs FIXOS
+    // CONFIGURAÇÃO DE IDs FIXOS (por região)
     // ============================================================
-    // Loja fixa: 2-FATURADOS (sempre 205797806)
+    // Norte/Nordeste -> Loja Pernambuco: 205882190
+    // Demais regiões -> Loja FATURADOS: 205797806
+    const BLING_LOJA_PERNAMBUCO_ID = 205882190;
     const BLING_LOJA_FATURADOS_ID = 205797806;
     
     // Unidades de Negócio FIXAS (sem depender de secrets)
-    // Norte/Nordeste -> unidadeNegocio.id = 1
-    // Outras UFs -> unidadeNegocio.id = 2
+    // Norte/Nordeste -> unidadeNegocio.id = 1 (Polo Pernambuco)
+    // Outras UFs -> unidadeNegocio.id = 2 (Matriz RJ)
     const UNIDADE_NEGOCIO_NORTE_NORDESTE = 1;
     const UNIDADE_NEGOCIO_OUTRAS = 2;
     
@@ -413,29 +415,36 @@ serve(async (req) => {
     const isNorteNordeste = UFS_NORTE_NORDESTE.includes(ufEntrega);
     
     // Selecionar IDs baseado na região
-    // LOJA é sempre a mesma (2-FATURADOS = 205797806)
+    // LOJA muda baseado na UF: Pernambuco (205882190) para N/NE, FATURADOS (205797806) para outras
     // UNIDADE DE NEGÓCIO muda baseado na UF: 1 para Norte/Nordeste, 2 para outras
+    let lojaSelecionada = '';
+    let lojaIdSelecionada: number;
     let unidadeNegocioSelecionada = '';
     let unidadeNegocioIdSelecionada: number;
     let depositoSelecionado = '';
     let depositoIdSelecionado: number;
     
     if (isNorteNordeste) {
+      lojaSelecionada = 'Pernambuco';
+      lojaIdSelecionada = BLING_LOJA_PERNAMBUCO_ID; // = 205882190
       unidadeNegocioSelecionada = 'Polo Jaboatão (PE)';
       unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_NORTE_NORDESTE; // = 1
       depositoSelecionado = 'PERNAMBUCO [ALFA]';
       depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
     } else {
+      lojaSelecionada = 'FATURADOS';
+      lojaIdSelecionada = BLING_LOJA_FATURADOS_ID; // = 205797806
       unidadeNegocioSelecionada = 'Matriz (RJ)';
       unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS; // = 2
       depositoSelecionado = 'Geral';
       depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
     }
     
-    // LOG OBRIGATÓRIO 1: UF e unidadeNegocioId
-    console.log(`[ROUTING] ufEntrega=${ufEntrega} unidadeNegocioId=${unidadeNegocioIdSelecionada}`);
+    // LOG OBRIGATÓRIO 1: UF e seleções
+    console.log(`[ROUTING] ufEntrega=${ufEntrega} isNorteNordeste=${isNorteNordeste}`);
+    console.log(`[ROUTING] loja=${lojaSelecionada} (${lojaIdSelecionada}) unidadeNegocio=${unidadeNegocioSelecionada} (${unidadeNegocioIdSelecionada})`);
     // LOG OBRIGATÓRIO 2: IDs selecionados
-    console.log(`[ROUTING] loja.id=${BLING_LOJA_FATURADOS_ID} deposito.id=${depositoIdSelecionado}`);
+    console.log(`[ROUTING] deposito.id=${depositoIdSelecionado}`);
     
     // Tipo para compatibilidade
     type DepositoInfo = { id: number; descricao: string; padrao: boolean };
@@ -1077,23 +1086,25 @@ serve(async (req) => {
     }
 
     // Criar pedido no Bling com dados de transporte corretos
-    // USAR LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO BASEADA NA UF
+    // USAR LOJA CORRETA BASEADA NA REGIÃO + UNIDADE DE NEGÓCIO
+    // Norte/Nordeste -> Loja Pernambuco (205882190) + Unidade 1
+    // Demais regiões -> Loja FATURADOS (205797806) + Unidade 2
     
-    // Montar objeto loja - SEMPRE com unidadeNegocio (1 para N/NE, 2 para outras)
+    // Montar objeto loja com unidadeNegocio baseado na região
     const lojaPayload: any = {
-      id: BLING_LOJA_FATURADOS_ID,
+      id: lojaIdSelecionada,
       unidadeNegocio: {
         id: unidadeNegocioIdSelecionada,
       },
     };
     
     // LOG OBRIGATÓRIO antes do POST
-    console.log(`[ROUTING] ufEntrega=${ufEntrega} unidadeNegocioId=${unidadeNegocioIdSelecionada}`);
+    console.log(`[BLING] Enviando para loja ${lojaSelecionada} (${lojaIdSelecionada}) - unidadeNegocio: ${unidadeNegocioIdSelecionada}`);
     
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
-      // ✅ LOJA FIXA (2-FATURADOS) + UNIDADE DE NEGÓCIO (1=N/NE, 2=outras)
+      // ✅ LOJA BASEADA NA REGIÃO + UNIDADE DE NEGÓCIO
       loja: lojaPayload,
       contato: {
         id: contatoId,
