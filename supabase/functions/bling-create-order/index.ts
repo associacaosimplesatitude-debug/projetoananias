@@ -1102,35 +1102,23 @@ serve(async (req) => {
     console.log(`[BLING] Enviando para loja ${lojaSelecionada} (${lojaIdSelecionada}) - unidadeNegocio: ${unidadeNegocioIdSelecionada}`);
     
     // ============================================================
-    // ESTRUTURA CORRETA BLING API v3:
-    // - Endereço de entrega vai em contato.enderecoEntrega (NÃO em transporte.endereco)
-    // - transporte contém apenas frete/transportador
+    // ESTRUTURA CORRETA BLING API v3 (Pedidos de Venda):
+    // - Endereço de entrega vai em transporte.etiqueta (NÃO em contato.enderecoEntrega)
+    // - contato.enderecoEntrega funciona apenas para cadastro de contatos
+    // - Para Pedidos de Venda, usar transporte.etiqueta
     // ============================================================
     
-    // Montar objeto contato com enderecoEntrega se disponível
+    // Contato simples (apenas ID)
     const contatoPayload: any = {
       id: contatoId,
     };
-    
-    // Se existir endereço de entrega, preencher contato.enderecoEntrega
-    if (endereco_entrega) {
-      contatoPayload.enderecoEntrega = {
-        endereco: endereco_entrega.rua || '',
-        numero: endereco_entrega.numero || 'S/N',
-        complemento: endereco_entrega.complemento || '',
-        bairro: endereco_entrega.bairro || '',
-        cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
-        municipio: endereco_entrega.cidade || '',
-        uf: endereco_entrega.estado || '',
-      };
-    }
     
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
       // ✅ LOJA BASEADA NA REGIÃO + UNIDADE DE NEGÓCIO
       loja: lojaPayload,
-      // ✅ CONTATO COM ENDEREÇO DE ENTREGA (API v3)
+      // ✅ CONTATO (apenas ID, endereço vai em transporte.etiqueta)
       contato: contatoPayload,
       // ✅ DEPÓSITO SEMPRE incluído baseado no roteamento por UF
       itens: itensBling.map((item: any) => ({
@@ -1153,11 +1141,6 @@ serve(async (req) => {
     
     // LOG OBRIGATÓRIO 3: Verificação do payload antes do POST
     console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} payload.loja.unidadeNegocio.id=${pedidoData.loja.unidadeNegocio?.id || 'N/A'} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
-    
-    // Log do endereço de entrega
-    if (pedidoData.contato.enderecoEntrega) {
-      console.log(`[ENDERECO_ENTREGA] Usando contato.enderecoEntrega: ${JSON.stringify(pedidoData.contato.enderecoEntrega)}`);
-    }
 
     // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
     // Enviar também `pedido.desconto` faz o Bling aplicar desconto em duplicidade,
@@ -1165,11 +1148,12 @@ serve(async (req) => {
     // Portanto, não enviar desconto total no nível do pedido.
 
 
-    // Adicionar transporte se tiver endereço de entrega (apenas frete/transportador, SEM endereco)
-    // ✅ API v3 Bling: endereço de entrega vai em contato.enderecoEntrega, NÃO em transporte.endereco
+    // Adicionar transporte com etiqueta (endereço de entrega) - ESTRUTURA CORRETA API v3
+    // ✅ Para Pedidos de Venda, o endereço de entrega vai em transporte.etiqueta
     if (endereco_entrega) {
-      // Para manter o total da venda consistente com as parcelas, enviamos frete por conta do remetente ('R').
-      const fretePorConta: 'R' | 'D' = 'R';
+      // Para manter o total da venda consistente com as parcelas, enviamos frete por conta do remetente (0 = CIF).
+      // 0 = CIF (Remetente), 1 = FOB (Destinatário), 2 = Terceiros
+      const fretePorConta = 0;
 
       // IMPORTANTE: Para frete manual, usar o nome da transportadora informada pelo vendedor
       // e NÃO usar o nome do cliente como fallback
@@ -1181,12 +1165,21 @@ serve(async (req) => {
         ? 'FRETE MANUAL' 
         : freteInfo.servico;
 
-      // ✅ transporte contém APENAS frete/transportador (sem endereco!)
+      // ✅ ESTRUTURA CORRETA: transporte.etiqueta para endereço de entrega
       pedidoData.transporte = {
         fretePorConta,
-        transportador: {
-          nome: transportadorNome,
-          servico_logistico: servicoLogistico,
+        frete: valorFreteNum, // Valor do frete
+        // ✅ ETIQUETA: Campo correto para endereço de entrega na API v3 de Pedidos de Venda
+        etiqueta: {
+          nome: nomeCompleto,
+          endereco: endereco_entrega.rua || '',
+          numero: endereco_entrega.numero || 'S/N',
+          complemento: endereco_entrega.complemento || '',
+          bairro: endereco_entrega.bairro || '',
+          cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
+          municipio: endereco_entrega.cidade || '',
+          uf: endereco_entrega.estado || '',
+          nomePais: 'BRASIL',
         },
         volumes: [
           {
@@ -1194,15 +1187,16 @@ serve(async (req) => {
             codigoRastreamento: '', // Será preenchido depois
           },
         ],
-        frete: valorFreteNum, // Valor do frete
         contato: {
           nome: nomeCompleto,
           telefone: cliente.telefone?.replace(/\D/g, '') || '',
           // reforçar CPF/CNPJ também no contato de transporte
           ...(documento ? { numeroDocumento: documento } : {}),
         },
-        // ❌ NÃO INCLUIR endereco aqui - vai em contato.enderecoEntrega
       };
+      
+      // Log do endereço de entrega
+      console.log(`[ENDERECO_ENTREGA] Usando transporte.etiqueta: ${JSON.stringify(pedidoData.transporte.etiqueta)}`);
     }
 
     console.log("PAYLOAD BLING FINAL:", JSON.stringify(pedidoData, null, 2));
