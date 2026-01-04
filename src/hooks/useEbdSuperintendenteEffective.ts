@@ -1,37 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { checkSuperintendenteOld } from "@/hooks/useIsSuperintendenteOld";
 
 export function useEbdSuperintendenteEffective(churchId?: string) {
   const { data, isLoading } = useQuery({
     queryKey: ["ebd-superintendente-effective", churchId],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const oldResult = await checkSuperintendenteOld();
 
-      const uid = user?.id ?? null;
+      const uid = oldResult.uid;
       if (!uid) {
         return {
           uid: null,
           isSuperOld: false,
           isSuperNew: false,
           effective: false,
+          old_check_source: oldResult.source,
         };
       }
 
-      // (A) Método antigo: ebd_clientes (mesma fonte usada no fluxo atual do dashboard)
-      const { data: clienteData, error: clienteError } = await supabase
-        .from("ebd_clientes")
-        .select("id")
-        .eq("superintendente_user_id", uid)
-        .eq("status_ativacao_ebd", true)
-        .limit(1);
-
-      if (clienteError) {
-        console.error("[ROLES] old check error=", clienteError);
-      }
-
-      const isSuperOld = !!(clienteData && clienteData.length > 0);
+      const isSuperOld = oldResult.isSuperOld;
 
       // (B) Método novo: role em ebd_user_roles (usar RPC security definer para evitar recursão de RLS)
       let isSuperNew = false;
@@ -54,6 +42,7 @@ export function useEbdSuperintendenteEffective(churchId?: string) {
         isSuperOld,
         isSuperNew,
         effective: isSuperOld || isSuperNew,
+        old_check_source: oldResult.source,
       };
     },
   });
@@ -63,6 +52,8 @@ export function useEbdSuperintendenteEffective(churchId?: string) {
     isSuperOld: data?.isSuperOld ?? false,
     isSuperNew: data?.isSuperNew ?? false,
     effective: data?.effective ?? false,
+    old_check_source:
+      data?.old_check_source ?? "src/components/DashboardRedirect.tsx (ebd_clientes OR ebd_leads_reativacao)",
     isLoading,
   };
 }
