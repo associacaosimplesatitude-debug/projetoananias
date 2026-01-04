@@ -73,39 +73,48 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config);
     }
 
-    // Tentar listar empresas/unidades (filiais) – requer escopo OAuth: empresas
-    const url = "https://www.bling.com.br/Api/v3/empresas?pagina=1&limite=100";
-    const resp = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-      },
-    });
+    // Alguns tenants do Bling retornam 404 para /empresas.
+    // Então testamos uma lista curta de endpoints candidatos e devolvemos o JSON bruto.
+    const candidates = [
+      "https://www.bling.com.br/Api/v3/empresas?pagina=1&limite=100",
+      "https://www.bling.com.br/Api/v3/canais-venda?pagina=1&limite=100",
+      "https://www.bling.com.br/Api/v3/depositos?pagina=1&limite=100",
+      "https://www.bling.com.br/Api/v3/lojas?pagina=1&limite=100",
+    ];
 
-    const rawText = await resp.text();
-    let json: any = null;
-    try {
-      json = rawText ? JSON.parse(rawText) : null;
-    } catch {
-      json = { raw: rawText };
+    const results: any[] = [];
+
+    for (const url of candidates) {
+      const resp = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+        },
+      });
+
+      const rawText = await resp.text();
+      let json: any = null;
+      try {
+        json = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        json = { raw: rawText };
+      }
+
+      results.push({
+        url,
+        ok: resp.ok,
+        status: resp.status,
+        data: json,
+      });
+
+      // Se algum endpoint respondeu OK, não precisa bater nos demais
+      if (resp.ok) break;
     }
 
-    return new Response(
-      JSON.stringify(
-        {
-          ok: resp.ok,
-          status: resp.status,
-          url,
-          data: json,
-        },
-        null,
-        2,
-      ),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({ results }, null, 2), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return new Response(JSON.stringify({ error: errorMessage }), {
