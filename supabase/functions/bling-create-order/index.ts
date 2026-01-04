@@ -219,73 +219,86 @@ serve(async (req) => {
     // para que a NF possa ser emitida sem pendências cadastrais.
     // ============================================================
     
-    // 1) EXTRAIR CPF/CNPJ de múltiplas possíveis fontes
-    // Usando || ao invés de ?? para ignorar strings vazias também
-    const rawDoc = 
-      cliente?.cpf_cnpj ||
-      cliente?.cpfCnpj ||
-      cliente?.cpf ||
-      cliente?.cnpj ||
-      cliente?.documento ||
-      cliente?.numeroDocumento ||
-      endereco_entrega?.cpf_cnpj ||
-      endereco_entrega?.cpfCnpj ||
-      body?.transporte?.etiqueta?.numeroDocumento ||
-      "";
-    
-    const documento = String(rawDoc).replace(/\D/g, ''); // Remove máscara (pontos, traços, espaços)
-    const tipoPessoa = documento.length === 14 ? 'J' : 'F'; // J = Jurídica (CNPJ), F = Física (CPF)
-    
-    // LOG OBRIGATÓRIO: Input do contato com debug
-    console.log(`[CONTATO] rawDoc="${rawDoc}" documento="${documento}" len=${documento.length} tipoPessoa=${tipoPessoa === 'J' ? 'PJ' : 'PF'}`);
-    console.log(`[CONTATO] Fonte usada: ${
-      cliente?.cpf_cnpj ? 'cliente.cpf_cnpj' :
-      cliente?.cpfCnpj ? 'cliente.cpfCnpj' :
-      cliente?.cpf ? 'cliente.cpf' :
-      cliente?.cnpj ? 'cliente.cnpj' :
-      cliente?.documento ? 'cliente.documento' :
-      cliente?.numeroDocumento ? 'cliente.numeroDocumento' :
-      endereco_entrega?.cpf_cnpj ? 'endereco_entrega.cpf_cnpj' :
-      body?.transporte?.etiqueta?.numeroDocumento ? 'transporte.etiqueta.numeroDocumento' :
-      'NENHUMA'
-    }`);
-    
-    // Validar CPF/CNPJ
-    if (!documento || (documento.length !== 11 && documento.length !== 14)) {
-      const errorMsg = `[DOC_INVALIDO] docLen=${documento.length} rawDoc="${rawDoc}" clienteKeys=${JSON.stringify(Object.keys(cliente || {}))}`;
-      console.error(`[CONTATO] ERRO: ${errorMsg}`);
-      throw new Error(errorMsg);
+    // 1) SEMPRE buscar CPF/CNPJ no banco (public.ebd_clientes) usando contato.id (UUID do nosso sistema)
+    const contatoSistemaId: string | null = body?.contato?.id || cliente?.id || body?.cliente_id || null;
+
+    if (!contatoSistemaId) {
+      console.warn('[DOC_DB] contatoSistemaId ausente no request (body.contato.id / cliente.id / body.cliente_id).');
     }
-    
-    // Nome completo do cliente
-    const nomeCompleto = cliente.sobrenome 
-      ? `${cliente.nome} ${cliente.sobrenome}`.trim()
-      : (cliente.nome || '').trim();
-    
+
+    const maskLast4 = (v: string) => {
+      const digits = String(v || '').replace(/\D/g, '');
+      if (!digits) return '';
+      const last4 = digits.slice(-4);
+      return `***${last4}`;
+    };
+
+    let clienteDb: any = null;
+
+    if (contatoSistemaId) {
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('cpf, cnpj, possui_cnpj, nome_igreja, telefone, email_superintendente, nome_responsavel')
+        .eq('id', contatoSistemaId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[DOC_DB] erro ao buscar cliente no banco:', error);
+        return new Response(
+          JSON.stringify({ error: 'Erro ao buscar cliente no banco.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      clienteDb = data;
+    }
+
+    const possuiCnpj = Boolean(clienteDb?.possui_cnpj);
+    const rawDocDb = possuiCnpj ? clienteDb?.cnpj : clienteDb?.cpf;
+    const documento = String(rawDocDb || '').replace(/\D/g, '');
+    const tipoPessoa = possuiCnpj ? 'J' : 'F';
+
+    // LOGS obrigatórios
+    console.log(`[DOC_DB] contatoId=${contatoSistemaId} possui_cnpj=${possuiCnpj} cpf=${maskLast4(clienteDb?.cpf)} cnpj=${maskLast4(clienteDb?.cnpj)}`);
+    console.log(`[DOC_CHECK] docLen=${documento.length} docMasked=${maskLast4(documento)}`);
+
+    // Validar: se possui_cnpj=true -> 14, senão -> 11
+    const expectedLen = possuiCnpj ? 14 : 11;
+    if (!documento || documento.length !== expectedLen) {
+      return new Response(
+        JSON.stringify({ error: 'Cliente sem CPF/CNPJ válido no banco. Abra o cadastro e salve novamente.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Nome (preferir nome_igreja do banco)
+    const nomeCompleto = (clienteDb?.nome_igreja || '').trim() || (
+      cliente.sobrenome ? `${cliente.nome} ${cliente.sobrenome}`.trim() : (cliente.nome || '').trim()
+    );
+
     if (!nomeCompleto) {
       console.error('[CONTATO] ERRO: Nome do cliente não fornecido');
       throw new Error('Nome do cliente é obrigatório');
     }
-    
+
     // 2) Sanitizar endereço - NÚMERO nunca pode ficar vazio
     const enderecoNumero = (endereco_entrega?.numero || '').toString().trim() || 'S/N';
     const enderecoCep = (endereco_entrega?.cep || '').replace(/\D/g, '');
-    
+
     console.log(`[CONTATO] Endereço: rua="${endereco_entrega?.rua}" numero="${enderecoNumero}" cep="${enderecoCep}"`);
-    
+
     // 3) Montar payload do contato com todos os campos obrigatórios
     const contatoPayloadCompleto: any = {
       nome: nomeCompleto,
       tipo: tipoPessoa,
-      numeroDocumento: documento, // CPF ou CNPJ - OBRIGATÓRIO
-      email: cliente.email || '',
-      telefone: (cliente.telefone || '').replace(/\D/g, ''),
-      situacao: 'A', // A = Ativo
-      // Endereço completo para NF (estrutura geral do Bling v3)
+      numeroDocumento: documento, // CPF/CNPJ vindo do banco
+      email: clienteDb?.email_superintendente || cliente.email || '',
+      telefone: String(clienteDb?.telefone || cliente.telefone || '').replace(/\D/g, ''),
+      situacao: 'A',
       endereco: {
         geral: {
           endereco: endereco_entrega?.rua || '',
-          numero: enderecoNumero, // NUNCA vazio - usar S/N se não tiver
+          numero: enderecoNumero,
           complemento: endereco_entrega?.complemento || '',
           bairro: endereco_entrega?.bairro || '',
           cep: enderecoCep,
@@ -295,13 +308,14 @@ serve(async (req) => {
         },
       },
     };
-    
+
     // IE para pessoa jurídica (se fornecido)
     if (tipoPessoa === 'J' && cliente.ie) {
       contatoPayloadCompleto.ie = cliente.ie.replace(/\D/g, '');
     }
-    
+
     console.log('[CONTATO] Payload completo:', JSON.stringify(contatoPayloadCompleto, null, 2));
+
     
     // 4) Tentar localizar contato existente no Bling pelo CPF/CNPJ
     let contatoId: number | null = null;
@@ -1239,17 +1253,21 @@ serve(async (req) => {
     // - Para Pedidos de Venda, usar transporte.etiqueta
     // ============================================================
     
-    // Contato simples (apenas ID)
+    // Contato (injetar doc do banco também - não depender do front)
     const contatoPayload: any = {
       id: contatoId,
+      nome: clienteDb?.nome_igreja,
+      numeroDocumento: documento,
+      telefone: clienteDb?.telefone,
+      email: clienteDb?.email_superintendente,
     };
-    
+
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
       // ✅ LOJA BASEADA NA REGIÃO + UNIDADE DE NEGÓCIO
       loja: lojaPayload,
-      // ✅ CONTATO (apenas ID, endereço vai em transporte.etiqueta)
+      // ✅ CONTATO (id + numeroDocumento)
       contato: contatoPayload,
       // ✅ DEPÓSITO SEMPRE incluído baseado no roteamento por UF
       itens: itensBling.map((item: any) => ({
@@ -1269,12 +1287,11 @@ serve(async (req) => {
       // Add vendedor (salesperson) if provided
       ...(vendedor_nome && { vendedor: { nome: vendedor_nome } }),
     };
-    
-    // LOG OBRIGATÓRIO 3: Verificação do payload antes do POST
-    // Obter referência ao documento (sanitizado na seção de contato)
-    const documentoRef = (cliente.cpf_cnpj || '').replace(/\D/g, '');
+
+    // LOGS obrigatórios antes do POST
     const enderecoNumeroRef = (endereco_entrega?.numero || '').toString().trim() || 'S/N';
-    
+
+    console.log(`[PAYLOAD_CHECK] contato.numeroDocumentoLen=${String(pedidoData?.contato?.numeroDocumento || '').replace(/\D/g,'').length}`);
     console.log(`[PAYLOAD_CHECK] pedido.contato.id=${pedidoData.contato.id} transporte.etiqueta.numero=${enderecoNumeroRef}`);
     console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} payload.loja.unidadeNegocio.id=${pedidoData.loja.unidadeNegocio?.id || 'N/A'} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
 
@@ -1326,9 +1343,9 @@ serve(async (req) => {
         ],
         contato: {
           nome: nomeCompleto,
-          telefone: (cliente.telefone || '').replace(/\D/g, ''),
+          telefone: String(clienteDb?.telefone || cliente.telefone || '').replace(/\D/g, ''),
           // reforçar CPF/CNPJ também no contato de transporte
-          ...(documentoRef ? { numeroDocumento: documentoRef } : {}),
+          numeroDocumento: documento,
         },
       };
       
