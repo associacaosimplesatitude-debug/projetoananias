@@ -124,30 +124,53 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // DEBUG TEMPORÁRIO: Listar Unidades de Negócio do Bling
+    // DEBUG TEMPORÁRIO: Buscar Unidades de Negócio via Pedidos
     // REMOVER APÓS OBTER OS IDs CORRETOS
     // ============================================================
-    console.log('[DEBUG] Buscando Unidades de Negócio do Bling...');
+    console.log('[DEBUG] Buscando pedidos recentes para extrair unidades de negócio...');
     try {
-      // Endpoint específico para unidades de negócio
-      const unidadesResponse = await fetch('https://www.bling.com.br/Api/v3/empresas/unidades-negocios?limite=100', {
+      // Buscar últimos 20 pedidos para ver as unidades de negócio usadas
+      const pedidosResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas?limite=20', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
         },
       });
-      const unidadesData = await unidadesResponse.json();
-      console.log('[DEBUG] === LISTA DE UNIDADES DE NEGÓCIO BLING ===');
-      if (unidadesData.data && Array.isArray(unidadesData.data)) {
-        unidadesData.data.forEach((un: any) => {
-          console.log(`[DEBUG] UnidadeNegocio: id=${un.id} | descricao="${un.descricao}" | empresa_id=${un.empresa?.id || 'N/A'}`);
-        });
-      } else {
-        console.log('[DEBUG] Resposta unidades (completa):', JSON.stringify(unidadesData, null, 2));
+      const pedidosData = await pedidosResponse.json();
+      console.log('[DEBUG] === UNIDADES DE NEGÓCIO ENCONTRADAS EM PEDIDOS ===');
+      
+      const unidadesVistas = new Map();
+      if (pedidosData.data && Array.isArray(pedidosData.data)) {
+        for (const pedido of pedidosData.data) {
+          // Buscar detalhes do pedido para ver a unidade de negócio
+          const detalheResponse = await fetch(`https://www.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          });
+          const detalheData = await detalheResponse.json();
+          
+          if (detalheData.data?.loja?.unidadeNegocio) {
+            const un = detalheData.data.loja.unidadeNegocio;
+            if (!unidadesVistas.has(un.id)) {
+              unidadesVistas.set(un.id, un.descricao || 'sem descrição');
+              console.log(`[DEBUG] UnidadeNegocio: id=${un.id} | descricao="${un.descricao || 'N/A'}"`);
+            }
+          }
+          
+          // Limitar a 5 pedidos para não demorar muito
+          if (unidadesVistas.size >= 3) break;
+        }
       }
-      console.log('[DEBUG] === FIM LISTA UNIDADES ===');
-    } catch (unidadeError) {
-      console.error('[DEBUG] Erro ao buscar unidades:', unidadeError);
+      
+      if (unidadesVistas.size === 0) {
+        console.log('[DEBUG] Nenhuma unidade de negócio encontrada nos pedidos');
+        console.log('[DEBUG] Resposta pedidos:', JSON.stringify(pedidosData, null, 2).slice(0, 1000));
+      }
+      console.log('[DEBUG] === FIM BUSCA UNIDADES ===');
+    } catch (debugError) {
+      console.error('[DEBUG] Erro ao buscar pedidos:', debugError);
     }
     // ============================================================
 
