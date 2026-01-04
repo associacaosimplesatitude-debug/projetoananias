@@ -33,6 +33,9 @@ verify_jwt = true
 [functions.bling-callback]
 verify_jwt = false
 
+[functions.bling-callback-pe]
+verify_jwt = false
+
 [functions.bling-refresh-token]
 verify_jwt = true
 
