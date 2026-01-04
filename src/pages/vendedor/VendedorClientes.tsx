@@ -338,6 +338,7 @@ export default function VendedorClientes() {
                     cupom_aniversario_usado: cliente.cupom_aniversario_usado,
                     cupom_aniversario_ano: cliente.cupom_aniversario_ano,
                     onboarding_concluido: cliente.onboarding_concluido,
+                    desconto_faturamento: cliente.desconto_faturamento,
                   }}
                   creditos={getCreditosForCliente(cliente.id)}
                   onEdit={() => handleEditarCliente(cliente)}

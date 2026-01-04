@@ -37,6 +37,7 @@ interface Cliente {
   cupom_aniversario_ano: number | null;
   onboarding_concluido: boolean | null;
   vendedor_nome?: string;
+  desconto_faturamento?: number | null;
 }
 
 interface Creditos {
@@ -141,6 +142,12 @@ export function ClienteCard({
                 <Badge variant="secondary">
                   <XCircle className="mr-1 h-3 w-3" />
                   Pendente
+                </Badge>
+              )}
+              {cliente.desconto_faturamento && cliente.desconto_faturamento > 0 && (
+                <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs">
+                  <Percent className="mr-1 h-3 w-3" />
+                  {cliente.desconto_faturamento}% desconto
                 </Badge>
               )}
               {cliente.tipo_cliente && (
