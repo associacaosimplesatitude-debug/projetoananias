@@ -1101,14 +1101,37 @@ serve(async (req) => {
     // LOG OBRIGATÓRIO antes do POST
     console.log(`[BLING] Enviando para loja ${lojaSelecionada} (${lojaIdSelecionada}) - unidadeNegocio: ${unidadeNegocioIdSelecionada}`);
     
+    // ============================================================
+    // ESTRUTURA CORRETA BLING API v3:
+    // - Endereço de entrega vai em contato.enderecoEntrega (NÃO em transporte.endereco)
+    // - transporte contém apenas frete/transportador
+    // ============================================================
+    
+    // Montar objeto contato com enderecoEntrega se disponível
+    const contatoPayload: any = {
+      id: contatoId,
+    };
+    
+    // Se existir endereço de entrega, preencher contato.enderecoEntrega
+    if (endereco_entrega) {
+      contatoPayload.enderecoEntrega = {
+        endereco: endereco_entrega.rua || '',
+        numero: endereco_entrega.numero || 'S/N',
+        complemento: endereco_entrega.complemento || '',
+        bairro: endereco_entrega.bairro || '',
+        cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
+        municipio: endereco_entrega.cidade || '',
+        uf: endereco_entrega.estado || '',
+      };
+    }
+    
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
       // ✅ LOJA BASEADA NA REGIÃO + UNIDADE DE NEGÓCIO
       loja: lojaPayload,
-      contato: {
-        id: contatoId,
-      },
+      // ✅ CONTATO COM ENDEREÇO DE ENTREGA (API v3)
+      contato: contatoPayload,
       // ✅ DEPÓSITO SEMPRE incluído baseado no roteamento por UF
       itens: itensBling.map((item: any) => ({
         ...item,
@@ -1130,6 +1153,11 @@ serve(async (req) => {
     
     // LOG OBRIGATÓRIO 3: Verificação do payload antes do POST
     console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} payload.loja.unidadeNegocio.id=${pedidoData.loja.unidadeNegocio?.id || 'N/A'} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
+    
+    // Log do endereço de entrega
+    if (pedidoData.contato.enderecoEntrega) {
+      console.log(`[ENDERECO_ENTREGA] Usando contato.enderecoEntrega: ${JSON.stringify(pedidoData.contato.enderecoEntrega)}`);
+    }
 
     // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
     // Enviar também `pedido.desconto` faz o Bling aplicar desconto em duplicidade,
@@ -1137,11 +1165,8 @@ serve(async (req) => {
     // Portanto, não enviar desconto total no nível do pedido.
 
 
-    // Adicionar transporte/endereço de entrega se disponível
-    // Estrutura correta para Bling API v3:
-    // - transportador.nome = nome da transportadora
-    // - transportador.servico_logistico = PAC / SEDEX / FRETE GRATIS / FRETE MANUAL
-    // - volumes = array com detalhes do frete
+    // Adicionar transporte se tiver endereço de entrega (apenas frete/transportador, SEM endereco)
+    // ✅ API v3 Bling: endereço de entrega vai em contato.enderecoEntrega, NÃO em transporte.endereco
     if (endereco_entrega) {
       // Para manter o total da venda consistente com as parcelas, enviamos frete por conta do remetente ('R').
       const fretePorConta: 'R' | 'D' = 'R';
@@ -1156,6 +1181,7 @@ serve(async (req) => {
         ? 'FRETE MANUAL' 
         : freteInfo.servico;
 
+      // ✅ transporte contém APENAS frete/transportador (sem endereco!)
       pedidoData.transporte = {
         fretePorConta,
         transportador: {
@@ -1175,15 +1201,7 @@ serve(async (req) => {
           // reforçar CPF/CNPJ também no contato de transporte
           ...(documento ? { numeroDocumento: documento } : {}),
         },
-        endereco: {
-          endereco: endereco_entrega.rua || '',
-          numero: endereco_entrega.numero || 'S/N',
-          complemento: endereco_entrega.complemento || '',
-          bairro: endereco_entrega.bairro || '',
-          cep: endereco_entrega.cep?.replace(/\D/g, '') || '',
-          municipio: endereco_entrega.cidade || '',
-          uf: endereco_entrega.estado || '',
-        },
+        // ❌ NÃO INCLUIR endereco aqui - vai em contato.enderecoEntrega
       };
     }
 
