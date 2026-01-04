@@ -14,6 +14,7 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
+    const redirectUri = `${url.origin}${url.pathname}`;
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
@@ -41,8 +42,8 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Buscar credenciais dos secrets
-    const clientId = Deno.env.get('BLING_CLIENT_ID_PE');
-    const clientSecret = Deno.env.get('BLING_CLIENT_SECRET_PE');
+    const clientId = Deno.env.get('BLING_CLIENT_ID_PE')?.trim();
+    const clientSecret = Deno.env.get('BLING_CLIENT_SECRET_PE')?.trim();
 
     if (!clientId || !clientSecret) {
       console.error('[PE] Client ID ou Client Secret não configurado nos secrets');
@@ -89,6 +90,7 @@ serve(async (req) => {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code: code,
+        redirect_uri: redirectUri,
       }),
     });
 
