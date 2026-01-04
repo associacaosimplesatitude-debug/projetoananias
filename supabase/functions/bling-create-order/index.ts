@@ -123,51 +123,6 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config);
     }
 
-    // ============================================================
-    // DEBUG TEMPORÁRIO: Buscar detalhes de um pedido para ver unidadeNegocio
-    // REMOVER APÓS OBTER OS IDs CORRETOS
-    // ============================================================
-    console.log('[DEBUG] Buscando detalhe de pedido para ver estrutura unidadeNegocio...');
-    try {
-      // Buscar lista de pedidos
-      const pedidosResponse = await fetch('https://www.bling.com.br/Api/v3/pedidos/vendas?limite=3', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-        },
-      });
-      const pedidosData = await pedidosResponse.json();
-      
-      if (pedidosData.data && pedidosData.data[0]) {
-        const pedidoId = pedidosData.data[0].id;
-        console.log(`[DEBUG] Buscando detalhes do pedido ${pedidoId}...`);
-        
-        const detalheResponse = await fetch(`https://www.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
-          },
-        });
-        const detalheData = await detalheResponse.json();
-        
-        // Logar JSON COMPLETO do pedido (dividido em partes para não cortar)
-        const jsonCompleto = JSON.stringify(detalheData, null, 2);
-        console.log(`[DEBUG] === JSON COMPLETO DO PEDIDO (parte 1) ===`);
-        console.log(jsonCompleto.slice(0, 3000));
-        if (jsonCompleto.length > 3000) {
-          console.log(`[DEBUG] === JSON COMPLETO DO PEDIDO (parte 2) ===`);
-          console.log(jsonCompleto.slice(3000, 6000));
-        }
-        if (jsonCompleto.length > 6000) {
-          console.log(`[DEBUG] === JSON COMPLETO DO PEDIDO (parte 3) ===`);
-          console.log(jsonCompleto.slice(6000, 9000));
-        }
-      }
-      console.log('[DEBUG] === FIM DEBUG PEDIDO ===');
-    } catch (debugError) {
-      console.error('[DEBUG] Erro:', debugError);
-    }
-    // ============================================================
 
     const documento = cliente.cpf_cnpj?.replace(/\D/g, '') || '';
     const tipoDocumento = documento.length > 11 ? 'J' : 'F';
