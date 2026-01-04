@@ -233,6 +233,50 @@ serve(async (req) => {
       return `***${last4}`;
     };
 
+    const isAllSameDigits = (s: string) => /^([0-9])\1+$/.test(s);
+
+    // Validação real (checksum) — o Bling rejeita CPF/CNPJ inválidos mesmo com tamanho correto.
+    const isValidCPF = (cpf: string) => {
+      const v = String(cpf || '').replace(/\D/g, '');
+      if (v.length !== 11) return false;
+      if (isAllSameDigits(v)) return false;
+
+      let sum = 0;
+      for (let i = 0; i < 9; i++) sum += Number(v[i]) * (10 - i);
+      let d1 = (sum * 10) % 11;
+      if (d1 === 10) d1 = 0;
+      if (d1 !== Number(v[9])) return false;
+
+      sum = 0;
+      for (let i = 0; i < 10; i++) sum += Number(v[i]) * (11 - i);
+      let d2 = (sum * 10) % 11;
+      if (d2 === 10) d2 = 0;
+      if (d2 !== Number(v[10])) return false;
+
+      return true;
+    };
+
+    const isValidCNPJ = (cnpj: string) => {
+      const v = String(cnpj || '').replace(/\D/g, '');
+      if (v.length !== 14) return false;
+      if (isAllSameDigits(v)) return false;
+
+      const calc = (baseLen: number) => {
+        const weights = baseLen === 12
+          ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+          : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+
+        let sum = 0;
+        for (let i = 0; i < baseLen; i++) sum += Number(v[i]) * weights[i];
+        const mod = sum % 11;
+        return mod < 2 ? 0 : 11 - mod;
+      };
+
+      const d1 = calc(12);
+      const d2 = calc(13);
+      return d1 === Number(v[12]) && d2 === Number(v[13]);
+    };
+
     let clienteDb: any = null;
 
     if (contatoSistemaId) {
@@ -262,9 +306,12 @@ serve(async (req) => {
     console.log(`[DOC_DB] contatoId=${contatoSistemaId} possui_cnpj=${possuiCnpj} cpf=${maskLast4(clienteDb?.cpf)} cnpj=${maskLast4(clienteDb?.cnpj)}`);
     console.log(`[DOC_CHECK] docLen=${documento.length} docMasked=${maskLast4(documento)}`);
 
-    // Validar: se possui_cnpj=true -> 14, senão -> 11
+    // Validar: tamanho + checksum
     const expectedLen = possuiCnpj ? 14 : 11;
-    if (!documento || documento.length !== expectedLen) {
+    const okLen = Boolean(documento) && documento.length === expectedLen;
+    const okChecksum = possuiCnpj ? isValidCNPJ(documento) : isValidCPF(documento);
+
+    if (!okLen || !okChecksum) {
       return new Response(
         JSON.stringify({ error: 'Cliente sem CPF/CNPJ válido no banco. Abra o cadastro e salve novamente.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
