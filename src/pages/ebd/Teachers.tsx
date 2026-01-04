@@ -85,8 +85,14 @@ export default function EBDTeachers() {
     },
   });
 
-  const { uid, isSuperOld, isSuperNew, effective, isLoading: isLoadingRoles } =
-    useEbdSuperintendenteEffective(churchData?.id);
+  const {
+    uid,
+    isSuperOld,
+    isSuperNew,
+    effective,
+    old_check_source,
+    isLoading: isLoadingRoles,
+  } = useEbdSuperintendenteEffective(churchData?.id);
 
   const canManageRoles = effective;
 
@@ -160,11 +166,10 @@ export default function EBDTeachers() {
   });
 
   useEffect(() => {
+    console.log("[ROLES] old_check_source=", old_check_source);
     console.log("[ROLES] auth.uid=", uid);
-    console.log("[ROLES] superintendente(antigo)=", isSuperOld);
-    console.log("[ROLES] superintendente(novo)=", isSuperNew);
-    console.log("[ROLES] effective=", effective);
-  }, [uid, isSuperOld, isSuperNew, effective]);
+    console.log("[ROLES] old=", isSuperOld, "new=", isSuperNew, "effective=", effective);
+  }, [old_check_source, uid, isSuperOld, isSuperNew, effective]);
 
   if (isLoadingChurch) {
     return (
