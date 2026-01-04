@@ -150,11 +150,17 @@ serve(async (req) => {
         });
         const detalheData = await detalheResponse.json();
         
-        // Logar a estrutura completa da loja
-        if (detalheData.data?.loja) {
-          console.log(`[DEBUG] Estrutura loja do pedido: ${JSON.stringify(detalheData.data.loja, null, 2)}`);
-        } else {
-          console.log(`[DEBUG] Pedido sem loja. Estrutura completa (primeiros 2000 chars): ${JSON.stringify(detalheData, null, 2).slice(0, 2000)}`);
+        // Logar JSON COMPLETO do pedido (dividido em partes para não cortar)
+        const jsonCompleto = JSON.stringify(detalheData, null, 2);
+        console.log(`[DEBUG] === JSON COMPLETO DO PEDIDO (parte 1) ===`);
+        console.log(jsonCompleto.slice(0, 3000));
+        if (jsonCompleto.length > 3000) {
+          console.log(`[DEBUG] === JSON COMPLETO DO PEDIDO (parte 2) ===`);
+          console.log(jsonCompleto.slice(3000, 6000));
+        }
+        if (jsonCompleto.length > 6000) {
+          console.log(`[DEBUG] === JSON COMPLETO DO PEDIDO (parte 3) ===`);
+          console.log(jsonCompleto.slice(6000, 9000));
         }
       }
       console.log('[DEBUG] === FIM DEBUG PEDIDO ===');
