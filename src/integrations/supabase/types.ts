@@ -3996,22 +3996,14 @@ export type Database = {
         }
         Returns: boolean
       }
-      has_ebd_role:
-        | {
-            Args: {
-              _church_id: string
-              _role: Database["public"]["Enums"]["ebd_role"]
-              _user_id: string
-            }
-            Returns: boolean
-          }
-        | {
-            Args: {
-              _role: Database["public"]["Enums"]["ebd_role"]
-              _user_id: string
-            }
-            Returns: boolean
-          }
+      has_ebd_role: {
+        Args: {
+          _church_id: string
+          _role: Database["public"]["Enums"]["ebd_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -4020,6 +4012,10 @@ export type Database = {
         Returns: boolean
       }
       is_ebd_superintendente: { Args: { _user_id: string }; Returns: boolean }
+      is_ebd_superintendente_for_church: {
+        Args: { _church_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
       transfer_cliente_vendedor: {
         Args: { _cliente_id: string; _source: string; _vendedor_id: string }
