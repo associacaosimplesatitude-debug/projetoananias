@@ -36,6 +36,8 @@ const BlingIntegration = () => {
     redirect_uri: '',
     loja_id: 205797806,
   });
+  const [empresasDebug, setEmpresasDebug] = useState<any>(null);
+  const [loadingEmpresas, setLoadingEmpresas] = useState(false);
 
   // URL do callback gerado pelo Lovable
   const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bling-callback`;
@@ -158,10 +160,14 @@ const BlingIntegration = () => {
       return;
     }
 
-    // Escopos necessários para a integração (apenas pedidos de venda, para evitar erro FORBIDDEN)
+    // Escopos necessários para a integração
+    // - pedidos.vendas: criar/consultar pedidos
+    // - pedidos.vendas.alterar: atualizar pedidos
+    // - empresas: listar unidades/filiais (necessário para pegar IDs das Unidades de Negócio)
     const scopes = [
       'pedidos.vendas',
       'pedidos.vendas.alterar',
+      'empresas',
     ].join('+');
 
     const authUrl = `https://www.bling.com.br/Api/v3/oauth/authorize?response_type=code&client_id=${formData.client_id}&redirect_uri=${encodeURIComponent(formData.redirect_uri)}&scope=${scopes}&state=bling_auth`;
@@ -193,6 +199,27 @@ const BlingIntegration = () => {
     } catch (error) {
       console.error('Erro ao sincronizar:', error);
       toast.error('Erro ao sincronizar produtos');
+    }
+  };
+
+  const handleListEmpresas = async () => {
+    try {
+      setLoadingEmpresas(true);
+      toast.info('Buscando filiais/unidades (API)...');
+      const { data, error } = await supabase.functions.invoke('bling-list-empresas');
+      if (error) throw error;
+
+      setEmpresasDebug(data);
+      if (data?.ok) {
+        toast.success('Lista carregada! Copie os IDs retornados.');
+      } else {
+        toast.error('Não foi possível listar (ver detalhes abaixo).');
+      }
+    } catch (e) {
+      console.error('Erro ao listar empresas:', e);
+      toast.error('Erro ao listar filiais/unidades');
+    } finally {
+      setLoadingEmpresas(false);
     }
   };
 
@@ -249,7 +276,7 @@ const BlingIntegration = () => {
               : 'Não conectado'}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-4">
+        <CardContent className="flex gap-4 flex-wrap">
           <Button onClick={handleConnectBling} disabled={!formData.client_id}>
             <Link2 className="h-4 w-4 mr-2" />
             {isConnected ? 'Reconectar' : 'Conectar Bling'}
@@ -264,12 +291,29 @@ const BlingIntegration = () => {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Sincronizar Produtos
               </Button>
+              <Button variant="outline" onClick={handleListEmpresas} disabled={loadingEmpresas}>
+                {loadingEmpresas ? 'Buscando...' : 'Listar filiais (API)'}
+              </Button>
             </>
           )}
         </CardContent>
       </Card>
 
-      {/* Painel de Resumo da Sincronização */}
+      {isConnected && empresasDebug && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Filiais / Unidades de Negócio (API)</CardTitle>
+            <CardDescription>
+              Copie os IDs numéricos e me envie: 1) Matriz, 2) Polo Jaboatão.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border bg-muted/30 p-3 overflow-auto max-h-[420px]">
+              <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(empresasDebug, null, 2)}</pre>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {isConnected && (
         <Card>
           <CardHeader>
