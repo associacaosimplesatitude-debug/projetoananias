@@ -294,25 +294,64 @@ serve(async (req) => {
     // ============================================================
     // Regra de negócio:
     // - Norte/Nordeste (AC,AP,AM,PA,RO,RR,TO,MA,PI,CE,RN,PB,PE,AL,SE,BA): 
-    //   Filial/Loja = BLING_LOJA_ID_FATURADOS_PE, Depósito = BLING_DEPOSITO_ID_PE (14888220908)
+    //   Filial/Loja = BLING_LOJA_ID_POLO_PE, Depósito = BLING_DEPOSITO_ID_PERNAMBUCO
     // - Demais regiões (Centro-Oeste, Sudeste, Sul):
-    //   Filial/Loja = BLING_LOJA_ID_FATURADOS_RJ, Depósito = BLING_DEPOSITO_ID_RJ (14886580531)
+    //   Filial/Loja = BLING_LOJA_ID_MATRIZ_RJ, Depósito = BLING_DEPOSITO_ID_GERAL
     // ============================================================
     
     const UFS_NORTE_NORDESTE = ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO', 'MA', 'PI', 'CE', 'RN', 'PB', 'PE', 'AL', 'SE', 'BA'];
     
-    // IDs FIXOS via env (já identificados nos logs anteriores)
-    const BLING_LOJA_ID_RJ = Number(Deno.env.get('BLING_LOJA_ID_FATURADOS_RJ')) || 205797806; // Matriz RJ (fallback)
-    const BLING_LOJA_ID_PE = Number(Deno.env.get('BLING_LOJA_ID_FATURADOS_PE')) || 205797806; // Polo PE (fallback para Matriz)
-    const BLING_DEPOSITO_ID_RJ = 14886580531;  // Depósito "Geral" (RJ)
-    const BLING_DEPOSITO_ID_PE = 14888220908;  // Depósito "PERNAMBUCO [ALFA]" (PE)
+    // ============================================================
+    // VALIDAÇÃO DE SECRETS - SEM FALLBACKS
+    // ============================================================
+    const BLING_LOJA_ID_MATRIZ_RJ_RAW = Deno.env.get('BLING_LOJA_ID_MATRIZ_RJ');
+    const BLING_LOJA_ID_POLO_PE_RAW = Deno.env.get('BLING_LOJA_ID_POLO_PE');
+    const BLING_DEPOSITO_ID_GERAL_RAW = Deno.env.get('BLING_DEPOSITO_ID_GERAL');
+    const BLING_DEPOSITO_ID_PERNAMBUCO_RAW = Deno.env.get('BLING_DEPOSITO_ID_PERNAMBUCO');
+    
+    // Validar que todos os secrets estão configurados
+    const missingSecrets: string[] = [];
+    if (!BLING_LOJA_ID_MATRIZ_RJ_RAW) missingSecrets.push('BLING_LOJA_ID_MATRIZ_RJ');
+    if (!BLING_LOJA_ID_POLO_PE_RAW) missingSecrets.push('BLING_LOJA_ID_POLO_PE');
+    if (!BLING_DEPOSITO_ID_GERAL_RAW) missingSecrets.push('BLING_DEPOSITO_ID_GERAL');
+    if (!BLING_DEPOSITO_ID_PERNAMBUCO_RAW) missingSecrets.push('BLING_DEPOSITO_ID_PERNAMBUCO');
+    
+    if (missingSecrets.length > 0) {
+      console.error('[SECRETS] ERRO: Secrets obrigatórios não configurados:', missingSecrets.join(', '));
+      throw new Error(`Configuração incompleta: faltam os secrets ${missingSecrets.join(', ')}`);
+    }
+    
+    const BLING_LOJA_ID_RJ = Number(BLING_LOJA_ID_MATRIZ_RJ_RAW);
+    const BLING_LOJA_ID_PE = Number(BLING_LOJA_ID_POLO_PE_RAW);
+    const BLING_DEPOSITO_ID_RJ = Number(BLING_DEPOSITO_ID_GERAL_RAW);
+    const BLING_DEPOSITO_ID_PE = Number(BLING_DEPOSITO_ID_PERNAMBUCO_RAW);
+    
+    // Validar que são números válidos
+    if (isNaN(BLING_LOJA_ID_RJ) || BLING_LOJA_ID_RJ <= 0) {
+      console.error('[SECRETS] ERRO: BLING_LOJA_ID_MATRIZ_RJ inválido:', BLING_LOJA_ID_MATRIZ_RJ_RAW);
+      throw new Error('BLING_LOJA_ID_MATRIZ_RJ tem valor inválido');
+    }
+    if (isNaN(BLING_LOJA_ID_PE) || BLING_LOJA_ID_PE <= 0) {
+      console.error('[SECRETS] ERRO: BLING_LOJA_ID_POLO_PE inválido:', BLING_LOJA_ID_POLO_PE_RAW);
+      throw new Error('BLING_LOJA_ID_POLO_PE tem valor inválido');
+    }
+    if (isNaN(BLING_DEPOSITO_ID_RJ) || BLING_DEPOSITO_ID_RJ <= 0) {
+      console.error('[SECRETS] ERRO: BLING_DEPOSITO_ID_GERAL inválido:', BLING_DEPOSITO_ID_GERAL_RAW);
+      throw new Error('BLING_DEPOSITO_ID_GERAL tem valor inválido');
+    }
+    if (isNaN(BLING_DEPOSITO_ID_PE) || BLING_DEPOSITO_ID_PE <= 0) {
+      console.error('[SECRETS] ERRO: BLING_DEPOSITO_ID_PERNAMBUCO inválido:', BLING_DEPOSITO_ID_PERNAMBUCO_RAW);
+      throw new Error('BLING_DEPOSITO_ID_PERNAMBUCO tem valor inválido');
+    }
+    
+    console.log('[SECRETS] Todos os secrets de roteamento OK');
     
     // Detectar UF: primeiro de transporte.endereco.uf (se vier no request), fallback para endereco_entrega.estado
     const ufEntrega = (endereco_entrega?.uf || endereco_entrega?.estado || '').toUpperCase().trim();
     const isNorteNordeste = UFS_NORTE_NORDESTE.includes(ufEntrega);
     
-    console.log('[BLING ROUTING] UF detectada:', ufEntrega);
-    console.log('[BLING ROUTING] Região:', isNorteNordeste ? 'Norte/Nordeste' : 'Centro-Oeste/Sudeste/Sul');
+    // LOG OBRIGATÓRIO 1: UF e região
+    console.log(`[ROUTING] ufEntrega=${ufEntrega} isNorteNordeste=${isNorteNordeste}`);
     
     // Selecionar IDs baseado na região
     let filialSelecionada = '';
@@ -332,15 +371,8 @@ serve(async (req) => {
       depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
     }
     
-    // LOG OBRIGATÓRIO DE ROTEAMENTO
-    console.log('[BLING ROUTING] Filial selecionada:', {
-      unidadeNegocio: filialSelecionada,
-      lojaId: lojaIdSelecionada
-    });
-    console.log('[BLING ROUTING] Depósito selecionado:', {
-      descricao: depositoSelecionado,
-      depositoId: depositoIdSelecionado
-    });
+    // LOG OBRIGATÓRIO 2: IDs selecionados
+    console.log(`[ROUTING] lojaIdSelecionada=${lojaIdSelecionada} depositoIdSelecionado=${depositoIdSelecionado}`);
     
     // Tipo para compatibilidade
     type DepositoInfo = { id: number; descricao: string; padrao: boolean };
@@ -1012,15 +1044,8 @@ serve(async (req) => {
       ...(vendedor_nome && { vendedor: { nome: vendedor_nome } }),
     };
     
-    // LOG OBRIGATÓRIO DO PAYLOAD FINAL (antes de adicionar transporte)
-    console.log('[BLING PAYLOAD FINAL]', JSON.stringify({
-      lojaId: pedidoData.loja.id,
-      filial: filialSelecionada,
-      depositoId: depositoIdSelecionado,
-      deposito: depositoSelecionado,
-      ufEntrega: ufEntrega,
-      regiao: isNorteNordeste ? 'Norte/Nordeste' : 'Centro-Oeste/Sudeste/Sul',
-    }, null, 2));
+    // LOG OBRIGATÓRIO 3: Verificação do payload antes do POST
+    console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
 
     // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
     // Enviar também `pedido.desconto` faz o Bling aplicar desconto em duplicidade,
