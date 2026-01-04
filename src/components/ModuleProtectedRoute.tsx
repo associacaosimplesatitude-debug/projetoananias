@@ -80,25 +80,42 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.email && !loading,
   });
 
-  // Check if user is a superintendent (from ebd_clientes)
+  // Check if user is a superintendent (from ebd_clientes OR ebd_user_roles)
   const { data: isSuperintendente, isLoading: superintendenteLoading } = useQuery({
     queryKey: ['is-superintendente-check', user?.id],
     queryFn: async () => {
       if (!user?.id) return false;
       
-      // Use .limit(1) instead of .maybeSingle() to handle users with multiple clients
-      const { data, error } = await supabase
+      // Check ebd_clientes first (legacy/primary)
+      const { data: clienteData, error: clienteError } = await supabase
         .from('ebd_clientes')
         .select('id')
         .eq('superintendente_user_id', user.id)
         .eq('status_ativacao_ebd', true)
         .limit(1);
 
-      if (error) {
-        console.error('Error checking superintendente status:', error);
+      if (clienteError) {
+        console.error('Error checking superintendente status in ebd_clientes:', clienteError);
+      }
+      
+      if (clienteData && clienteData.length > 0) {
+        return true;
+      }
+      
+      // Also check ebd_user_roles for granted superintendente role
+      const { data: roleData, error: roleError } = await supabase
+        .from('ebd_user_roles')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('role', 'superintendente')
+        .limit(1);
+
+      if (roleError) {
+        console.error('Error checking superintendente role in ebd_user_roles:', roleError);
         return false;
       }
-      return data && data.length > 0;
+      
+      return roleData && roleData.length > 0;
     },
     enabled: !!user?.id && !loading,
   });

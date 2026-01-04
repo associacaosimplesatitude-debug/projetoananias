@@ -3,14 +3,17 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Users, UserPlus, User, Pencil, Trash2 } from "lucide-react";
+import { Search, Users, UserPlus, User, Pencil, Trash2, Shield, MoreVertical } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EditProfessorDialog } from "@/components/ebd/EditProfessorDialog";
 import { CreateProfessorDialog } from "@/components/ebd/CreateProfessorDialog";
+import { GrantSuperintendenteDialog } from "@/components/ebd/GrantSuperintendenteDialog";
+import { useCanManageEbdRoles } from "@/hooks/useEbdUserRoles";
 import { toast } from "sonner";
 
 interface Professor {
@@ -24,6 +27,10 @@ interface Professor {
   member_id: string | null;
 }
 
+interface ProfessorWithRoles extends Professor {
+  hasSuperintendenteRole: boolean;
+}
+
 export default function EBDTeachers() {
   const { clientId } = useParams();
   const queryClient = useQueryClient();
@@ -31,6 +38,7 @@ export default function EBDTeachers() {
   const [creatingProfessor, setCreatingProfessor] = useState(false);
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
   const [deletingProfessor, setDeletingProfessor] = useState<Professor | null>(null);
+  const [managingAccess, setManagingAccess] = useState<Professor | null>(null);
 
   const { data: churchData, isLoading: isLoadingChurch } = useQuery({
     queryKey: ["user-church", clientId],
@@ -69,6 +77,9 @@ export default function EBDTeachers() {
     },
   });
 
+  // Check if current user can manage roles
+  const { canManage: canManageRoles } = useCanManageEbdRoles(churchData?.id);
+
   const { data: professores } = useQuery({
     queryKey: ["ebd-professores", churchData?.id, searchTerm],
     queryFn: async () => {
@@ -85,7 +96,33 @@ export default function EBDTeachers() {
 
       const { data, error } = await query.order("nome_completo");
       if (error) throw error;
-      return data as Professor[];
+      
+      // Fetch superintendente roles for professors with user_id
+      const professorUserIds = data
+        .filter((p: Professor) => p.user_id)
+        .map((p: Professor) => p.user_id);
+
+      let roleMap: Record<string, boolean> = {};
+      
+      if (professorUserIds.length > 0) {
+        const { data: roles } = await supabase
+          .from("ebd_user_roles")
+          .select("user_id")
+          .eq("church_id", churchData.id)
+          .eq("role", "superintendente")
+          .in("user_id", professorUserIds);
+
+        if (roles) {
+          roles.forEach((r) => {
+            roleMap[r.user_id] = true;
+          });
+        }
+      }
+
+      return data.map((p: Professor) => ({
+        ...p,
+        hasSuperintendenteRole: p.user_id ? !!roleMap[p.user_id] : false,
+      })) as ProfessorWithRoles[];
     },
     enabled: !!churchData?.id,
   });
@@ -187,10 +224,16 @@ export default function EBDTeachers() {
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-semibold">{professor.nome_completo}</h3>
                             <Badge variant="secondary">Professor</Badge>
-                            {professor.user_id && (
+                            {professor.hasSuperintendenteRole && (
+                              <Badge className="bg-primary/10 text-primary border-primary/20">
+                                <Shield className="w-3 h-3 mr-1" />
+                                Superintendente
+                              </Badge>
+                            )}
+                            {professor.user_id && !professor.hasSuperintendenteRole && (
                               <Badge variant="outline" className="text-xs">
                                 <UserPlus className="w-3 h-3 mr-1" />
                                 Acesso
@@ -215,14 +258,42 @@ export default function EBDTeachers() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeletingProfessor(professor)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          
+                          {canManageRoles && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setManagingAccess(professor)}>
+                                  <Shield className="h-4 w-4 mr-2" />
+                                  {professor.hasSuperintendenteRole 
+                                    ? "Remover acesso de Superintendente" 
+                                    : "Conceder acesso de Superintendente"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => setDeletingProfessor(professor)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Excluir professor
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                          
+                          {!canManageRoles && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setDeletingProfessor(professor)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -266,6 +337,13 @@ export default function EBDTeachers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <GrantSuperintendenteDialog
+        open={!!managingAccess}
+        onOpenChange={(open) => !open && setManagingAccess(null)}
+        professor={managingAccess}
+        churchId={churchData.id}
+      />
     </div>
   );
 }
