@@ -73,42 +73,60 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config);
     }
 
-    // Alguns tenants do Bling retornam 404 para /empresas.
-    // Então testamos uma lista curta de endpoints candidatos e devolvemos o JSON bruto.
-    const candidates = [
-      "https://www.bling.com.br/Api/v3/empresas?pagina=1&limite=100",
-      "https://www.bling.com.br/Api/v3/canais-venda?pagina=1&limite=100",
-      "https://www.bling.com.br/Api/v3/depositos?pagina=1&limite=100",
-      "https://www.bling.com.br/Api/v3/lojas?pagina=1&limite=100",
-    ];
+    // Buscar pedidos recentes para extrair unidadeNegocio IDs
+    const ordersUrl = "https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=10";
+    const ordersResp = await fetch(ordersUrl, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    });
 
-    const results: any[] = [];
+    const ordersData = await ordersResp.json();
+    const results: any = { orders: ordersData };
 
-    for (const url of candidates) {
-      const resp = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-      });
-
-      const rawText = await resp.text();
-      let json: any = null;
-      try {
-        json = rawText ? JSON.parse(rawText) : null;
-      } catch {
-        json = { raw: rawText };
+    // Se temos pedidos, buscar detalhes do primeiro para ver unidadeNegocio
+    if (ordersResp.ok && ordersData?.data?.length > 0) {
+      const unidadesEncontradas: any[] = [];
+      
+      // Buscar detalhes de até 5 pedidos para encontrar diferentes unidades
+      for (let i = 0; i < Math.min(5, ordersData.data.length); i++) {
+        const orderId = ordersData.data[i].id;
+        const detailUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
+        const detailResp = await fetch(detailUrl, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+          },
+        });
+        
+        if (detailResp.ok) {
+          const detailData = await detailResp.json();
+          const unidade = detailData?.data?.unidadeNegocio;
+          if (unidade && !unidadesEncontradas.find(u => u.id === unidade.id)) {
+            unidadesEncontradas.push({
+              id: unidade.id,
+              descricao: unidade.descricao || "Sem descrição",
+              pedido_exemplo: orderId,
+            });
+          }
+        }
       }
+      
+      results.unidadesDeNegocio = unidadesEncontradas;
+    }
 
-      results.push({
-        url,
-        ok: resp.ok,
-        status: resp.status,
-        data: json,
-      });
-
-      // Se algum endpoint respondeu OK, não precisa bater nos demais
-      if (resp.ok) break;
+    // Também buscar depósitos
+    const depositosUrl = "https://www.bling.com.br/Api/v3/depositos?pagina=1&limite=100";
+    const depositosResp = await fetch(depositosUrl, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+    });
+    
+    if (depositosResp.ok) {
+      results.depositos = await depositosResp.json();
     }
 
     return new Response(JSON.stringify({ results }, null, 2), {
