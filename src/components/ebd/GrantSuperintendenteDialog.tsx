@@ -39,18 +39,18 @@ export function GrantSuperintendenteDialog({
     queryFn: async () => {
       if (!professor?.user_id) return false;
 
-      const { data, error } = await supabase
-        .from("ebd_user_roles")
-        .select("id")
-        .eq("user_id", professor.user_id)
-        .eq("church_id", churchId)
-        .eq("role", "superintendente")
-        .maybeSingle();
+      // Use RPC (security definer) para evitar recursão de RLS no ebd_user_roles
+      const { data, error } = await supabase.rpc("has_ebd_role", {
+        _user_id: professor.user_id,
+        _church_id: churchId,
+        _role: "superintendente",
+      });
 
       if (error) {
         console.error("Error checking role:", error);
         return false;
       }
+
       return !!data;
     },
     enabled: !!professor?.user_id && open,
@@ -61,15 +61,20 @@ export function GrantSuperintendenteDialog({
     mutationFn: async () => {
       if (!professor?.user_id) throw new Error("Professor sem acesso ao sistema");
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
-      const { error } = await supabase.from("ebd_user_roles").insert({
-        user_id: professor.user_id,
-        church_id: churchId,
-        role: "superintendente",
-        granted_by: user.id,
-      });
+      const { error } = await supabase.from("ebd_user_roles").upsert(
+        {
+          user_id: professor.user_id,
+          church_id: churchId,
+          role: "superintendente",
+          granted_by: user.id,
+        },
+        { onConflict: "user_id,church_id,role" }
+      );
 
       if (error) throw error;
     },

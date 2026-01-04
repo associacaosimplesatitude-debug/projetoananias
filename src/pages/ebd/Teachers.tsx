@@ -1,19 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Users, UserPlus, User, Pencil, Trash2, Shield, MoreVertical } from "lucide-react";
+import { Search, Users, UserPlus, User, Pencil, Trash2, Shield } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EditProfessorDialog } from "@/components/ebd/EditProfessorDialog";
 import { CreateProfessorDialog } from "@/components/ebd/CreateProfessorDialog";
 import { GrantSuperintendenteDialog } from "@/components/ebd/GrantSuperintendenteDialog";
-import { useCanManageEbdRoles } from "@/hooks/useEbdUserRoles";
+import { useEbdSuperintendenteEffective } from "@/hooks/useEbdSuperintendenteEffective";
 import { toast } from "sonner";
 
 interface Professor {
@@ -77,8 +85,11 @@ export default function EBDTeachers() {
     },
   });
 
-  // Check if current user can manage roles
-  const { canManage: canManageRoles, isLoading: isLoadingRoles } = useCanManageEbdRoles(churchData?.id);
+  const { uid, isSuperOld, isSuperNew, effective, isLoading: isLoadingRoles } =
+    useEbdSuperintendenteEffective(churchData?.id);
+
+  const canManageRoles = effective;
+
   const { data: professores } = useQuery({
     queryKey: ["ebd-professores", churchData?.id, searchTerm],
     queryFn: async () => {
@@ -95,28 +106,30 @@ export default function EBDTeachers() {
 
       const { data, error } = await query.order("nome_completo");
       if (error) throw error;
-      
-      // Fetch superintendente roles for professors with user_id
+
       const professorUserIds = data
         .filter((p: Professor) => p.user_id)
-        .map((p: Professor) => p.user_id);
+        .map((p: Professor) => p.user_id as string);
 
-      let roleMap: Record<string, boolean> = {};
-      
-      if (professorUserIds.length > 0) {
-        const { data: roles } = await supabase
-          .from("ebd_user_roles")
-          .select("user_id")
-          .eq("church_id", churchData.id)
-          .eq("role", "superintendente")
-          .in("user_id", professorUserIds);
+      // Buscar roles via RPC (security definer) para evitar recursão de RLS
+      const roleMap: Record<string, boolean> = {};
 
-        if (roles) {
-          roles.forEach((r) => {
-            roleMap[r.user_id] = true;
+      await Promise.all(
+        professorUserIds.map(async (profUserId) => {
+          const { data: hasRole, error: roleError } = await supabase.rpc("has_ebd_role", {
+            _user_id: profUserId,
+            _church_id: churchData.id,
+            _role: "superintendente",
           });
-        }
-      }
+
+          if (roleError) {
+            console.error("[ROLES] roleMap error=", roleError);
+            return;
+          }
+
+          roleMap[profUserId] = !!hasRole;
+        })
+      );
 
       return data.map((p: Professor) => ({
         ...p,
@@ -146,6 +159,13 @@ export default function EBDTeachers() {
     },
   });
 
+  useEffect(() => {
+    console.log("[ROLES] auth.uid=", uid);
+    console.log("[ROLES] superintendente(antigo)=", isSuperOld);
+    console.log("[ROLES] superintendente(novo)=", isSuperNew);
+    console.log("[ROLES] effective=", effective);
+  }, [uid, isSuperOld, isSuperNew, effective]);
+
   if (isLoadingChurch) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -164,12 +184,6 @@ export default function EBDTeachers() {
     );
   }
 
-  // DEBUG: Log role management status
-  console.log("[ROLES DEBUG]", { 
-    churchId: churchData?.id, 
-    canManageRoles, 
-    isLoadingRoles 
-  });
 
   return (
     <div className="min-h-screen bg-background p-6">
