@@ -1,5 +1,8 @@
 project_id = "nccyrvfnvjngfyfvgnww"
 
+[functions.shopify-sync-order-status]
+verify_jwt = false
+
 [functions.create-mercadopago-payment]
 verify_jwt = true
 
