@@ -277,11 +277,10 @@ export function ClienteCard({
                 variant="ghost"
                 size="sm"
                 onClick={onViewOrders}
-                title="Ver pedidos do cliente"
-                className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                title="Ver último pedido do cliente"
+                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
               >
-                <Eye className="h-4 w-4 mr-1" />
-                Pedidos
+                <Eye className="h-4 w-4" />
               </Button>
             )}
             {showDesconto && onDesconto && (
