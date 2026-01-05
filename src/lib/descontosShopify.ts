@@ -1,4 +1,5 @@
 import { CartItem } from "@/lib/shopify";
+import { categorizarProduto, getNomeCategoria, type CategoriaShopifyId } from "@/constants/categoriasShopify";
 
 // IDs dos produtos com desconto ADVEC de 50%
 const PRODUTOS_ADVEC_50_IDS = [
@@ -50,6 +51,14 @@ export function isClienteIgrejaCpfCnpj(tipoCliente: string | null | undefined): 
 }
 
 /**
+ * Verifica se o cliente é do tipo REPRESENTANTE
+ */
+export function isClienteRepresentante(tipoCliente: string | null | undefined): boolean {
+  if (!tipoCliente) return false;
+  return tipoCliente.toUpperCase() === "REPRESENTANTE";
+}
+
+/**
  * Calcula desconto progressivo do Setup para clientes CPF/CNPJ
  * R$0-300: 20% off
  * R$301-500: 25% off  
@@ -85,14 +94,79 @@ export function calcularDescontoRevendedor(valorTotal: number): { faixa: string;
   return { faixa: '', desconto: 0 };
 }
 
+export interface DescontoCategoriaItem {
+  titulo: string;
+  categoria: string;
+  categoriaLabel: string;
+  percentual: number;
+  valorOriginal: number;
+  valorComDesconto: number;
+  descontoValor: number;
+}
+
 export interface CalculoDesconto {
   subtotal: number;
   descontoPercentual: number;
   descontoValor: number;
   total: number;
-  tipoDesconto: "advec_50" | "setup" | "revendedor" | "b2b" | "nenhum";
+  tipoDesconto: "advec_50" | "setup" | "revendedor" | "b2b" | "representante" | "nenhum";
   faixa: string;
   itensComDesconto50?: string[]; // Títulos dos produtos com 50% off (ADVEC)
+  itensComDescontoCategoria?: DescontoCategoriaItem[]; // Detalhes por item (Representante)
+}
+
+export interface DescontosCategoriaRepresentante {
+  [categoria: string]: number; // categoria -> percentual
+}
+
+/**
+ * Calcula descontos por categoria para clientes de Representantes
+ */
+export function calcularDescontoRepresentante(
+  items: CartItem[],
+  descontosPorCategoria: DescontosCategoriaRepresentante
+): { 
+  total: number; 
+  descontoValor: number; 
+  descontoPercentualMedio: number;
+  itensDetalhados: DescontoCategoriaItem[];
+} {
+  let valorComDesconto = 0;
+  let subtotal = 0;
+  const itensDetalhados: DescontoCategoriaItem[] = [];
+
+  items.forEach(item => {
+    const titulo = item.product.node.title;
+    const categoria = categorizarProduto(titulo);
+    const percentual = descontosPorCategoria[categoria] || 0;
+    const precoUnitario = parseFloat(item.price.amount);
+    const valorOriginal = precoUnitario * item.quantity;
+    const desconto = valorOriginal * (percentual / 100);
+    const valorFinal = valorOriginal - desconto;
+
+    subtotal += valorOriginal;
+    valorComDesconto += valorFinal;
+
+    itensDetalhados.push({
+      titulo,
+      categoria,
+      categoriaLabel: getNomeCategoria(categoria),
+      percentual,
+      valorOriginal,
+      valorComDesconto: valorFinal,
+      descontoValor: desconto,
+    });
+  });
+
+  const descontoValor = subtotal - valorComDesconto;
+  const descontoPercentualMedio = subtotal > 0 ? (descontoValor / subtotal) * 100 : 0;
+
+  return {
+    total: valorComDesconto,
+    descontoValor,
+    descontoPercentualMedio: Math.round(descontoPercentualMedio * 100) / 100,
+    itensDetalhados,
+  };
 }
 
 /**
@@ -102,11 +176,32 @@ export function calcularDescontosCarrinho(
   items: CartItem[],
   tipoCliente: string | null | undefined,
   onboardingConcluido: boolean,
-  descontoB2B: number = 0
+  descontoB2B: number = 0,
+  descontosPorCategoria?: DescontosCategoriaRepresentante
 ): CalculoDesconto {
   const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
   
-  // Caso 1: Cliente ADVEC - 50% em livros específicos (não cumulativo)
+  // PRIORIDADE 1: Cliente de Representante com descontos por categoria
+  // Estes descontos SUBSTITUEM todos os outros
+  if (isClienteRepresentante(tipoCliente) && descontosPorCategoria && Object.keys(descontosPorCategoria).length > 0) {
+    const hasAnyDiscount = Object.values(descontosPorCategoria).some(v => v > 0);
+    
+    if (hasAnyDiscount) {
+      const resultado = calcularDescontoRepresentante(items, descontosPorCategoria);
+      
+      return {
+        subtotal,
+        descontoPercentual: resultado.descontoPercentualMedio,
+        descontoValor: resultado.descontoValor,
+        total: resultado.total,
+        tipoDesconto: "representante",
+        faixa: "Representante",
+        itensComDescontoCategoria: resultado.itensDetalhados,
+      };
+    }
+  }
+  
+  // Caso 2: Cliente ADVEC - 50% em livros específicos (não cumulativo)
   if (isClienteAdvec(tipoCliente)) {
     const itensAdvec50: string[] = [];
     let valorComDesconto = 0;
@@ -137,7 +232,7 @@ export function calcularDescontosCarrinho(
     };
   }
   
-  // Caso 2: Cliente Igreja CPF/CNPJ com Setup concluído - Desconto progressivo
+  // Caso 3: Cliente Igreja CPF/CNPJ com Setup concluído - Desconto progressivo
   if (isClienteIgrejaCpfCnpj(tipoCliente) && onboardingConcluido) {
     const { percentual, faixa } = calcularDescontoSetup(subtotal, onboardingConcluido);
     const descontoValor = subtotal * (percentual / 100);
@@ -152,7 +247,7 @@ export function calcularDescontosCarrinho(
     };
   }
   
-  // Caso 3: Revendedor - Desconto escalonado
+  // Caso 4: Revendedor - Desconto escalonado
   if (tipoCliente?.toUpperCase() === "REVENDEDOR") {
     const { faixa, desconto } = calcularDescontoRevendedor(subtotal);
     const descontoValor = subtotal * (desconto / 100);
@@ -167,7 +262,7 @@ export function calcularDescontosCarrinho(
     };
   }
   
-  // Caso 4: Desconto B2B (faturamento)
+  // Caso 5: Desconto B2B (faturamento)
   if (descontoB2B > 0) {
     const descontoValor = subtotal * (descontoB2B / 100);
     

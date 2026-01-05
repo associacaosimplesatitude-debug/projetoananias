@@ -36,7 +36,8 @@ import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
 
 import { DescontoBanner } from "@/components/shopify/DescontoBanner";
-import { calcularDescontosCarrinho, calcularDescontoRevendedor, isProdutoAdvec50 } from "@/lib/descontosShopify";
+import { calcularDescontosCarrinho, calcularDescontoRevendedor, isProdutoAdvec50, isClienteRepresentante } from "@/lib/descontosShopify";
+import { useDescontosRepresentante } from "@/hooks/useDescontosRepresentante";
 import {
   Select,
   SelectContent,
@@ -350,6 +351,9 @@ export default function ShopifyPedidos() {
     enabled: !isVendedor && !isLoadingVendedor && !urlClienteId,
   });
   
+  // Buscar descontos por categoria para clientes de representantes
+  const { data: descontosCategoria } = useDescontosRepresentante(selectedCliente?.id || null);
+  
   // Check if still loading client info
   const isLoadingClientInfo = isLoadingVendedor || isLoadingUrlCliente || (!isVendedor && !urlClienteId && isLoadingUserCliente);
 
@@ -528,11 +532,13 @@ export default function ShopifyPedidos() {
       if (selectedCliente.pode_faturar || canUseFreteManual) {
         setShowFaturamentoDialog(true);
       } else {
-        // Para clientes que não podem faturar, calcular descontos (ADVEC, etc.)
+        // Para clientes que não podem faturar, calcular descontos (ADVEC, Representante, etc.)
         const descontoCalculado = calcularDescontosCarrinho(
           items, 
           selectedCliente.tipo_cliente, 
-          selectedCliente.onboarding_concluido || false
+          selectedCliente.onboarding_concluido || false,
+          0,
+          descontosCategoria
         );
         handleGeneratePropostaLink(null, descontoCalculado.descontoPercentual, null, false, descontoCalculado);
       }
@@ -553,7 +559,24 @@ export default function ShopifyPedidos() {
     descontoPercent: number = 0,
     frete: { type: string; cost: number } | null = null,
     isFaturamentoB2B: boolean = false,
-    descontoCalculado?: { subtotal: number; descontoValor: number; total: number; descontoPercentual: number; tipoDesconto?: string; faixa?: string; itensComDesconto50?: string[] },
+    descontoCalculado?: { 
+      subtotal: number; 
+      descontoValor: number; 
+      total: number; 
+      descontoPercentual: number; 
+      tipoDesconto?: string; 
+      faixa?: string; 
+      itensComDesconto50?: string[];
+      itensComDescontoCategoria?: Array<{
+        titulo: string;
+        categoria: string;
+        categoriaLabel: string;
+        percentual: number;
+        valorOriginal: number;
+        valorComDesconto: number;
+        descontoValor: number;
+      }>;
+    },
     freteManual?: FreteManualData
   ) => {
     if (!selectedCliente || !vendedor) {
@@ -567,11 +590,9 @@ export default function ShopifyPedidos() {
       // Gerar token único
       const token = crypto.randomUUID();
       
-      // Se o caller não passou o cálculo (ex.: fluxo de faturamento),
-      // ainda assim precisamos aplicar a regra ADVEC:
-      // - APENAS 2 livros com 50%
-      // - TODOS os demais itens com 40% (padrão ADVEC)
+      // Verificar tipo de cliente para aplicar regras específicas
       const shouldAutoCalcAdvec = (selectedCliente.tipo_cliente || "").toLowerCase().includes("advec");
+      const isRepresentanteCliente = isClienteRepresentante(selectedCliente.tipo_cliente);
 
       const calcularTotaisAdvec = () => {
         const subtotal = items.reduce(
@@ -619,7 +640,7 @@ export default function ShopifyPedidos() {
         valorTotal = valorProdutos - valorDesconto + valorFrete;
       }
 
-      // Preparar itens para salvar (incluindo desconto por item para ADVEC)
+      // Preparar itens para salvar (incluindo desconto por item para ADVEC ou Representante)
       const itensParaSalvar = items.map((item) => {
         // Desconto padrão
         let descontoItem = descontoPercent;
@@ -627,6 +648,16 @@ export default function ShopifyPedidos() {
         // Para ADVEC: apenas 2 produtos 50%, o restante 40%
         if (shouldAutoCalcAdvec) {
           descontoItem = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
+        }
+        
+        // Para clientes de Representantes: usar desconto por categoria
+        if (isRepresentanteCliente && descontoCalculado?.itensComDescontoCategoria) {
+          const itemDesconto = descontoCalculado.itensComDescontoCategoria.find(
+            d => d.titulo === item.product.node.title
+          );
+          if (itemDesconto) {
+            descontoItem = itemDesconto.percentual;
+          }
         }
 
         return {
@@ -637,6 +668,12 @@ export default function ShopifyPedidos() {
           imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
           sku: item.sku || null,
           descontoItem,
+          // Adicionar categoria para clientes de representante
+          ...(isRepresentanteCliente && descontoCalculado?.itensComDescontoCategoria && {
+            categoria: descontoCalculado.itensComDescontoCategoria.find(
+              d => d.titulo === item.product.node.title
+            )?.categoriaLabel
+          }),
         };
       });
 
@@ -739,8 +776,21 @@ export default function ShopifyPedidos() {
   const handleSelectFaturamento = (prazos: string[], desconto: number, frete: { type: string; cost: number }, freteManual?: FreteManualData) => {
     setFaturamentoConfig({ prazo: prazos[0], desconto, frete, freteManual });
     setShowFaturamentoDialog(false);
+    
+    // Para clientes de Representante, calcular descontos por categoria
+    let descontoCalculadoFinal = undefined;
+    if (selectedCliente && isClienteRepresentante(selectedCliente.tipo_cliente) && descontosCategoria) {
+      descontoCalculadoFinal = calcularDescontosCarrinho(
+        items,
+        selectedCliente.tipo_cliente,
+        selectedCliente.onboarding_concluido || false,
+        0,
+        descontosCategoria
+      );
+    }
+    
     // Vendedor gera link de proposta com config de faturamento B2B
-    handleGeneratePropostaLink(prazos, desconto, frete, true, undefined, freteManual);
+    handleGeneratePropostaLink(prazos, desconto, frete, true, descontoCalculadoFinal, freteManual);
   };
 
   const handleSelectPagamentoPadrao = (
@@ -752,9 +802,21 @@ export default function ShopifyPedidos() {
     // Mas ainda aplica o desconto B2B do cliente, se houver
     const descontoCliente = selectedCliente?.desconto_faturamento || 0;
     
+    // Para clientes de Representante, calcular descontos por categoria
+    let descontoCalculadoFinal = undefined;
+    if (selectedCliente && isClienteRepresentante(selectedCliente.tipo_cliente) && descontosCategoria) {
+      descontoCalculadoFinal = calcularDescontosCarrinho(
+        items,
+        selectedCliente.tipo_cliente,
+        selectedCliente.onboarding_concluido || false,
+        0,
+        descontosCategoria
+      );
+    }
+    
     // Se vendedor/gerente definiu frete (manual ou automático), passa para a proposta
     // Senão, cliente escolherá frete na proposta
-    handleGeneratePropostaLink(null, descontoCliente, frete || null, false, undefined, freteManual);
+    handleGeneratePropostaLink(null, descontoCliente, frete || null, false, descontoCalculadoFinal, freteManual);
   };
 
   const handleCreateDraftOrder = async (
@@ -1085,7 +1147,8 @@ export default function ShopifyPedidos() {
                           items,
                           selectedCliente.tipo_cliente,
                           selectedCliente.onboarding_concluido || false,
-                          selectedCliente.desconto_faturamento || 0
+                          selectedCliente.desconto_faturamento || 0,
+                          descontosCategoria
                         );
                         return <DescontoBanner calculo={calculo} />;
                       })()}
@@ -1098,7 +1161,8 @@ export default function ShopifyPedidos() {
                               items,
                               selectedCliente.tipo_cliente,
                               selectedCliente.onboarding_concluido || false,
-                              selectedCliente.desconto_faturamento || 0
+                              selectedCliente.desconto_faturamento || 0,
+                              descontosCategoria
                             );
                             if (calculo.descontoValor > 0) {
                               return (

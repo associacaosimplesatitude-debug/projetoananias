@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { MapPin, User, Building, Lock, Phone, Pencil, Search, CheckCircle2, Loader2 } from "lucide-react";
+import { DescontosCategoriaSection } from "./DescontosCategoriaSection";
 
 interface Cliente {
   id: string;
@@ -724,6 +725,17 @@ export function CadastrarClienteDialog({
                   />
                 </div>
               </div>
+
+              {/* Seção de Descontos por Categoria (apenas para representantes) */}
+              {isRepresentante && (
+                <>
+                  <Separator />
+                  <DescontosCategoriaSection 
+                    clienteId={clienteParaEditar?.id || null}
+                    isRepresentante={isRepresentante}
+                  />
+                </>
+              )}
 
               <Separator />
 
