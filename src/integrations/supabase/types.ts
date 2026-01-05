@@ -3322,6 +3322,53 @@ export type Database = {
           },
         ]
       }
+      ebd_shopify_pedidos_itens: {
+        Row: {
+          created_at: string
+          id: string
+          pedido_id: string
+          price: number
+          product_title: string
+          quantity: number
+          shopify_line_item_id: number
+          sku: string | null
+          total_discount: number
+          variant_title: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pedido_id: string
+          price?: number
+          product_title: string
+          quantity?: number
+          shopify_line_item_id: number
+          sku?: string | null
+          total_discount?: number
+          variant_title?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pedido_id?: string
+          price?: number
+          product_title?: string
+          quantity?: number
+          shopify_line_item_id?: number
+          sku?: string | null
+          total_discount?: number
+          variant_title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_shopify_pedidos_itens_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_shopify_pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_turmas: {
         Row: {
           church_id: string

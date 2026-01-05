@@ -32,9 +32,44 @@ import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { DescontoFaturamentoDialog } from "@/components/vendedor/DescontoFaturamentoDialog";
 import { LancamentoManualRevistaDialog } from "@/components/vendedor/LancamentoManualRevistaDialog";
+import { PedidoOnlineDetailDialog } from "@/components/admin/PedidoOnlineDetailDialog";
 import { ClienteCard } from "@/components/ebd/ClienteCard";
 import { useVendedor } from "@/hooks/useVendedor";
 import { toast } from "sonner";
+
+interface ShopifyPedido {
+  id: string;
+  shopify_order_id: number;
+  order_number: string;
+  vendedor_id: string | null;
+  cliente_id: string | null;
+  status_pagamento: string;
+  valor_total: number;
+  valor_frete: number;
+  valor_para_meta: number;
+  customer_email: string | null;
+  customer_name: string | null;
+  customer_document?: string | null;
+  customer_phone?: string | null;
+  endereco_rua?: string | null;
+  endereco_numero?: string | null;
+  endereco_complemento?: string | null;
+  endereco_bairro?: string | null;
+  endereco_cidade?: string | null;
+  endereco_estado?: string | null;
+  endereco_cep?: string | null;
+  created_at: string;
+  order_date?: string | null;
+  codigo_rastreio: string | null;
+  url_rastreio: string | null;
+  cliente?: {
+    nome_igreja: string;
+    tipo_cliente: string | null;
+  } | null;
+  vendedor?: {
+    nome: string;
+  } | null;
+}
 
 interface Cliente {
   id: string;
@@ -82,6 +117,9 @@ export default function VendedorClientes() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [estadoFilter, setEstadoFilter] = useState<string>("all");
+  const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
+  const [pedidoDialogOpen, setPedidoDialogOpen] = useState(false);
+  const [loadingPedidos, setLoadingPedidos] = useState(false);
 
   const { data: clientes = [], isLoading: clientesLoading } = useQuery({
     queryKey: ["vendedor-clientes", vendedor?.id],
@@ -231,6 +269,38 @@ export default function VendedorClientes() {
     }
   };
 
+  const handleViewOrders = async (cliente: Cliente) => {
+    setLoadingPedidos(true);
+    try {
+      // Fetch the most recent order for this client
+      const { data: pedidos, error } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select(`
+          *,
+          cliente:ebd_clientes(nome_igreja, tipo_cliente),
+          vendedor:vendedores(nome)
+        `)
+        .eq("cliente_id", cliente.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (!pedidos || pedidos.length === 0) {
+        toast.info("Nenhum pedido encontrado para este cliente.");
+        return;
+      }
+
+      setSelectedPedido(pedidos[0] as ShopifyPedido);
+      setPedidoDialogOpen(true);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+      toast.error("Erro ao buscar pedidos do cliente.");
+    } finally {
+      setLoadingPedidos(false);
+    }
+  };
+
   const estadosUnicos = [...new Set(clientes.map(c => c.endereco_estado).filter(Boolean))].sort();
 
   const filteredClientes = clientes.filter((cliente) => {
@@ -347,6 +417,7 @@ export default function VendedorClientes() {
                   onPedido={() => handleFazerPedido(cliente)}
                   onDesconto={() => setClienteParaDesconto(cliente)}
                   onAtivar={isVendedor && !cliente.status_ativacao_ebd ? () => handleAtivarPainel(cliente) : undefined}
+                  onViewOrders={() => handleViewOrders(cliente)}
                   showDesconto={true}
                   showAtivar={isVendedor && !cliente.status_ativacao_ebd}
                   isAdmin={false}
@@ -400,6 +471,16 @@ export default function VendedorClientes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PedidoOnlineDetailDialog
+        pedido={selectedPedido}
+        open={pedidoDialogOpen}
+        onOpenChange={(open) => {
+          setPedidoDialogOpen(open);
+          if (!open) setSelectedPedido(null);
+        }}
+        hideAttribution={true}
+      />
     </div>
   );
 }

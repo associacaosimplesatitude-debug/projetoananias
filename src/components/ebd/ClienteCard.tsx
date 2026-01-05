@@ -19,6 +19,7 @@ import {
   Percent,
   Play,
   FileText,
+  Eye,
 } from "lucide-react";
 
 interface Cliente {
@@ -56,6 +57,7 @@ interface ClienteCardProps {
   onPedido?: () => void;
   onDesconto?: () => void;
   onAtivar?: () => void;
+  onViewOrders?: () => void;
   showDesconto?: boolean;
   showAtivar?: boolean;
   isAdmin?: boolean;
@@ -71,6 +73,7 @@ export function ClienteCard({
   onPedido,
   onDesconto,
   onAtivar,
+  onViewOrders,
   showDesconto = false,
   showAtivar = false,
   isAdmin = false,
@@ -269,6 +272,18 @@ export function ClienteCard({
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t flex-wrap">
+            {onViewOrders && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onViewOrders}
+                title="Ver pedidos do cliente"
+                className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                Pedidos
+              </Button>
+            )}
             {showDesconto && onDesconto && (
               <Button
                 variant="ghost"
