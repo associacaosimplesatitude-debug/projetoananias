@@ -433,71 +433,78 @@ export function CadastrarClienteDialog({
           toast.success('Cliente atualizado com sucesso!');
         }
       } else {
-        // Verifica se já existe um cliente com este documento
-        const { data: clienteExistente } = await supabase
-          .from("ebd_clientes")
-          .select(`
-            id, 
-            vendedor_id, 
-            nome_igreja,
-            vendedor:vendedores!ebd_clientes_vendedor_id_fkey(id, nome)
-          `)
-          .or(`cnpj.eq.${documentoLimpo},cpf.eq.${documentoLimpo}`)
-          .maybeSingle();
-
         let novoCliente: any;
+        
+        // Primeiro tenta inserir o cliente
+        const { data: clienteCriado, error: insertError } = await supabase
+          .from("ebd_clientes")
+          .insert({
+            ...clienteData,
+            vendedor_id: vendedorId,
+            status_ativacao_ebd: false,
+          })
+          .select()
+          .single();
 
-        if (clienteExistente) {
-          // Cliente já existe - verifica se já está vinculado a este vendedor
-          if (clienteExistente.vendedor_id === vendedorId) {
-            toast.error("Este cliente já está na sua carteira");
-            setLoading(false);
-            return;
-          }
-          
-          // Se o cliente já pertence a outro vendedor, bloquear o cadastro
-          if (clienteExistente.vendedor_id) {
-            const nomeVendedor = (clienteExistente.vendedor as any)?.nome || "outro vendedor";
-            toast.error(`Este cliente já é atendido pelo vendedor: ${nomeVendedor}`);
-            setLoading(false);
-            return;
-          }
-          
-          // Cliente existe mas não tem vendedor - pode vincular
-          const { data: clienteAtualizado, error: updateError } = await supabase
-            .from("ebd_clientes")
-            .update({
-              ...clienteData,
-              vendedor_id: vendedorId,
-            })
-            .eq("id", clienteExistente.id)
-            .select()
-            .single();
+        if (insertError) {
+          // Se for erro de duplicidade, o cliente já existe
+          if (insertError.code === "23505") {
+            // Busca o cliente existente para ver quem é o vendedor
+            // Usando RPC ou query direta para verificar
+            const { data: clienteExistente } = await supabase
+              .from("ebd_clientes")
+              .select(`
+                id, 
+                vendedor_id, 
+                nome_igreja,
+                vendedor:vendedores!ebd_clientes_vendedor_id_fkey(id, nome)
+              `)
+              .or(`cnpj.eq.${documentoLimpo},cpf.eq.${documentoLimpo}`)
+              .maybeSingle();
+            
+            if (clienteExistente) {
+              if (clienteExistente.vendedor_id === vendedorId) {
+                toast.error("Este cliente já está na sua carteira");
+                setLoading(false);
+                return;
+              }
+              
+              if (clienteExistente.vendedor_id) {
+                const nomeVendedor = (clienteExistente.vendedor as any)?.nome || "outro vendedor";
+                toast.error(`Este cliente já é atendido pelo vendedor: ${nomeVendedor}`);
+                setLoading(false);
+                return;
+              }
+              
+              // Cliente existe sem vendedor - vincular
+              const { data: clienteAtualizado, error: updateError } = await supabase
+                .from("ebd_clientes")
+                .update({
+                  ...clienteData,
+                  vendedor_id: vendedorId,
+                })
+                .eq("id", clienteExistente.id)
+                .select()
+                .single();
 
-          if (updateError) {
-            console.error("Erro ao vincular cliente:", updateError);
-            throw updateError;
-          }
+              if (updateError) {
+                console.error("Erro ao vincular cliente:", updateError);
+                throw updateError;
+              }
 
-          novoCliente = clienteAtualizado;
-          toast.success(`Cliente "${clienteExistente.nome_igreja}" vinculado à sua carteira!`);
-        } else {
-          // Cliente não existe - cria novo registro
-          const { data: clienteCriado, error: insertError } = await supabase
-            .from("ebd_clientes")
-            .insert({
-              ...clienteData,
-              vendedor_id: vendedorId,
-              status_ativacao_ebd: false,
-            })
-            .select()
-            .single();
-
-          if (insertError) {
+              novoCliente = clienteAtualizado;
+              toast.success(`Cliente "${clienteExistente.nome_igreja}" vinculado à sua carteira!`);
+            } else {
+              // Cliente existe mas não conseguimos buscar (RLS) - informar que já existe
+              toast.error("Este cliente já está cadastrado e pertence a outro vendedor.");
+              setLoading(false);
+              return;
+            }
+          } else {
             console.error("Erro ao cadastrar cliente:", insertError);
             throw insertError;
           }
-
+        } else {
           novoCliente = clienteCriado;
         }
 
@@ -523,8 +530,8 @@ export function CadastrarClienteDialog({
           toast.warning("Cliente cadastrado, mas houve um erro ao criar o acesso. Use a função de ativação.");
         }
 
-        // Só mostra mensagem de senha se foi cadastrado (não apenas vinculado)
-        if (!clienteExistente) {
+        // Só mostra mensagem de senha se foi cadastrado (novo cliente)
+        if (novoCliente && clienteCriado) {
           toast.success("Cliente cadastrado com sucesso! Senha: " + senhaGerada);
         }
       }
