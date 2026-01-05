@@ -76,6 +76,20 @@ export default function EBDLogin() {
         return;
       }
 
+      // 2.1 SUPERINTENDENTE via ebd_user_roles (professor promovido)
+      const { data: superRoleData } = await supabase
+        .from('ebd_user_roles')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('role', 'superintendente')
+        .limit(1);
+
+      if (superRoleData && superRoleData.length > 0) {
+        pushLoginSuccess(user.id, 'Superintendente');
+        navigate('/ebd/dashboard');
+        return;
+      }
+
       // 3. LEAD DE REATIVAÇÃO
       const { data: leadData } = await supabase
         .from('ebd_leads_reativacao')
