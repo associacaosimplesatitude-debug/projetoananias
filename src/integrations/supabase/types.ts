@@ -1686,6 +1686,41 @@ export type Database = {
           },
         ]
       }
+      ebd_descontos_categoria_representante: {
+        Row: {
+          categoria: string
+          cliente_id: string
+          created_at: string
+          id: string
+          percentual_desconto: number
+          updated_at: string
+        }
+        Insert: {
+          categoria: string
+          cliente_id: string
+          created_at?: string
+          id?: string
+          percentual_desconto?: number
+          updated_at?: string
+        }
+        Update: {
+          categoria?: string
+          cliente_id?: string
+          created_at?: string
+          id?: string
+          percentual_desconto?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_descontos_categoria_representante_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_devocionais: {
         Row: {
           church_id: string

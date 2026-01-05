@@ -20,6 +20,7 @@ interface PropostaItem {
   imageUrl?: string;
   sku?: string | null; // SKU do produto no Bling
   descontoItem?: number; // Desconto específico do item (50% para livros ADVEC, 40% para revistas, etc.)
+  categoria?: string; // Categoria do produto (para clientes de representante)
 }
 
 interface ShippingOption {
@@ -570,7 +571,10 @@ export default function PropostaDigital() {
                             variant="secondary"
                             className="bg-green-100 text-green-700 text-xs flex-shrink-0"
                           >
-                            {descontoDoItem}% de desconto
+                            {(item as any).categoria 
+                              ? `${(item as any).categoria} – ${descontoDoItem}%` 
+                              : `${descontoDoItem}% de desconto`
+                            }
                           </Badge>
                         )}
                       </div>

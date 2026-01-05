@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Percent, Gift, Sparkles } from "lucide-react";
+import { Percent, Gift, Sparkles, UserCircle } from "lucide-react";
 import { CalculoDesconto } from "@/lib/descontosShopify";
 
 interface DescontoBannerProps {
@@ -51,6 +51,15 @@ export function DescontoBanner({ calculo }: DescontoBannerProps) {
           titulo: "Desconto B2B",
           descricao: `${calculo.descontoPercentual}% de desconto por faturamento`
         };
+      case "representante":
+        return {
+          icon: <UserCircle className="h-4 w-4" />,
+          bgClass: "bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800",
+          textClass: "text-orange-700 dark:text-orange-400",
+          badgeClass: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+          titulo: "Desconto do Representante",
+          descricao: `Desconto por categoria aplicado (~${calculo.descontoPercentual.toFixed(1)}% médio)`
+        };
       default:
         return null;
     }
@@ -73,6 +82,22 @@ export function DescontoBanner({ calculo }: DescontoBannerProps) {
           -R$ {calculo.descontoValor.toFixed(2)}
         </Badge>
       </div>
+      
+      {/* Detalhes por categoria para Representante */}
+      {calculo.tipoDesconto === "representante" && calculo.itensComDescontoCategoria && calculo.itensComDescontoCategoria.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-orange-200 dark:border-orange-800 space-y-1.5">
+          {calculo.itensComDescontoCategoria.filter(item => item.percentual > 0).map((item, index) => (
+            <div key={index} className="flex justify-between items-center text-xs">
+              <span className="text-muted-foreground truncate max-w-[60%]">
+                {item.titulo}
+              </span>
+              <span className={config.textClass}>
+                {item.categoriaLabel} – {item.percentual}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
