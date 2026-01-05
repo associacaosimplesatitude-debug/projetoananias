@@ -466,6 +466,20 @@ export default function PropostaDigital() {
     return proposta.metodo_frete;
   };
 
+  // Calcular data prevista de entrega baseada no método de frete
+  const getDeliveryEstimate = (): string | null => {
+    if (proposta.metodo_frete === 'retirada' || proposta.frete_tipo === 'manual' || proposta.metodo_frete === 'manual') {
+      return null;
+    }
+    const today = new Date();
+    let days = 10; // Default para frete grátis
+    if (proposta.metodo_frete === 'pac') days = 5;
+    if (proposta.metodo_frete === 'sedex') days = 2;
+    
+    const deliveryDate = addBusinessDays(today, days);
+    return formatDateBR(deliveryDate);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header with Logo */}
@@ -688,14 +702,21 @@ export default function PropostaDigital() {
               
               {/* Shipping Section - Show for B2B, when already confirmed, OR when freight is manual */}
               {(proposta.pode_faturar || !isPending || isFreteManualResolved) && (
-                <div className="flex justify-between text-sm items-center">
-                  <span className="flex items-center gap-2">
-                    <Truck className="h-4 w-4" />
-                    {getFreteLabel()}:
-                  </span>
-                  <span className={proposta.valor_frete === 0 ? "text-green-600 font-medium" : ""}>
-                    {proposta.valor_frete === 0 ? "Grátis" : `R$ ${proposta.valor_frete.toFixed(2)}`}
-                  </span>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-sm items-center">
+                    <span className="flex items-center gap-2">
+                      <Truck className="h-4 w-4" />
+                      {getFreteLabel()}:
+                    </span>
+                    <span className={proposta.valor_frete === 0 ? "text-green-600 font-medium" : ""}>
+                      {proposta.valor_frete === 0 ? "Grátis" : `R$ ${proposta.valor_frete.toFixed(2)}`}
+                    </span>
+                  </div>
+                  {getDeliveryEstimate() && (
+                    <p className="text-xs text-muted-foreground ml-6">
+                      Previsão de entrega: <span className="font-medium">{getDeliveryEstimate()}</span>
+                    </p>
+                  )}
                 </div>
               )}
               
