@@ -230,34 +230,40 @@ serve(async (req) => {
     for (let i = 0; i < 100; i++) {
       const url = new URL(`https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/orders.json`);
       url.searchParams.set("limit", "250");
-      url.searchParams.set("status", status);
-      url.searchParams.set("financial_status", financialStatus);
-      url.searchParams.set("order", "created_at asc");
 
-      // IMPORTANT: ensure line_items (and other needed fields) are returned
-      url.searchParams.set(
-        "fields",
-        [
-          "id",
-          "name",
-          "financial_status",
-          "created_at",
-          "updated_at",
-          "email",
-          "phone",
-          "customer",
-          "tags",
-          "note_attributes",
-          "note",
-          "total_price",
-          "shipping_lines",
-          "billing_address",
-          "shipping_address",
-          "line_items",
-        ].join(",")
-      );
+      // IMPORTANT: When using page_info for pagination, you cannot include other filter params
+      // The filters are encoded in the page_info cursor itself
+      if (pageInfo) {
+        url.searchParams.set("page_info", pageInfo);
+      } else {
+        // Only set filters on the first request (no page_info)
+        url.searchParams.set("status", status);
+        url.searchParams.set("financial_status", financialStatus);
+        url.searchParams.set("order", "created_at asc");
 
-      if (pageInfo) url.searchParams.set("page_info", pageInfo);
+        // IMPORTANT: ensure line_items (and other needed fields) are returned
+        url.searchParams.set(
+          "fields",
+          [
+            "id",
+            "name",
+            "financial_status",
+            "created_at",
+            "updated_at",
+            "email",
+            "phone",
+            "customer",
+            "tags",
+            "note_attributes",
+            "note",
+            "total_price",
+            "shipping_lines",
+            "billing_address",
+            "shipping_address",
+            "line_items",
+          ].join(",")
+        );
+      }
 
       console.log("Fetching orders page", { i, pageInfo });
 
