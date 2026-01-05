@@ -75,11 +75,11 @@ export function DescontoFaturamentoDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Percent className="h-5 w-5 text-primary" />
-            Desconto de Faturamento B2B
+            Desconto do Vendedor
           </DialogTitle>
           <DialogDescription>
             Configure o desconto especial para <strong>{cliente?.nome_igreja}</strong>. 
-            Este desconto será aplicado automaticamente nos pedidos faturados pelo painel do superintendente.
+            Este desconto será aplicado automaticamente em todos os pedidos do cliente.
           </DialogDescription>
         </DialogHeader>
 
@@ -103,7 +103,7 @@ export function DescontoFaturamentoDialog({
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Este desconto será aplicado além do desconto padrão de 30% para faturamento B2B.
+              Este desconto será aplicado em todos os pedidos, independente da forma de pagamento.
             </p>
           </div>
         </div>

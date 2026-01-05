@@ -51,6 +51,15 @@ export function DescontoBanner({ calculo }: DescontoBannerProps) {
           titulo: "Desconto B2B",
           descricao: `${calculo.descontoPercentual}% de desconto por faturamento`
         };
+      case "vendedor":
+        return {
+          icon: <Percent className="h-4 w-4" />,
+          bgClass: "bg-cyan-50 border-cyan-200 dark:bg-cyan-900/20 dark:border-cyan-800",
+          textClass: "text-cyan-700 dark:text-cyan-400",
+          badgeClass: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+          titulo: "Desconto do Vendedor",
+          descricao: `${calculo.descontoPercentual}% de desconto especial`
+        };
       case "representante":
         return {
           icon: <UserCircle className="h-4 w-4" />,
