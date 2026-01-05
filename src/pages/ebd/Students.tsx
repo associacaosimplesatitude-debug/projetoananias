@@ -13,6 +13,7 @@ import { EditarAlunoDialog } from "@/components/ebd/EditarAlunoDialog";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { useEbdChurchId } from "@/hooks/useEbdChurchId";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,41 +37,8 @@ export default function EBDStudents() {
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [selectedAluno, setSelectedAluno] = useState<any>(null);
 
-  // Get church ID - use clientId from route if available (admin view), otherwise get user's church
-  const { data: churchData } = useQuery({
-    queryKey: ["user-church", clientId],
-    queryFn: async () => {
-      // If clientId is in the route (admin viewing a client), use it directly
-      if (clientId) {
-        return { id: clientId };
-      }
+  const { data: churchData, isLoading: isLoadingChurch } = useEbdChurchId(clientId);
 
-      // Otherwise, get the church for the logged-in user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      // First check if user is a superintendente
-      const { data: clienteData } = await supabase
-        .from("ebd_clientes")
-        .select("id")
-        .eq("superintendente_user_id", user.id)
-        .eq("status_ativacao_ebd", true)
-        .maybeSingle();
-
-      if (clienteData) {
-        return { id: clienteData.id };
-      }
-
-      const { data, error } = await supabase
-        .from("churches")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-  });
 
   // Get EBD students only
   const { data: alunos, refetch: refetchAlunos } = useQuery({

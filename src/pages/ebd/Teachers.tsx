@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { EditProfessorDialog } from "@/components/ebd/EditProfessorDialog";
 import { CreateProfessorDialog } from "@/components/ebd/CreateProfessorDialog";
 import { toast } from "sonner";
+import { useEbdChurchId } from "@/hooks/useEbdChurchId";
 
 interface Professor {
   id: string;
@@ -33,42 +34,8 @@ export default function EBDTeachers() {
   const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null);
   const [deletingProfessor, setDeletingProfessor] = useState<Professor | null>(null);
 
-  const { data: churchData, isLoading: isLoadingChurch } = useQuery({
-    queryKey: ["user-church", clientId],
-    queryFn: async () => {
-      if (clientId) {
-        return { id: clientId };
-      }
+  const { data: churchData, isLoading: isLoadingChurch } = useEbdChurchId(clientId);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      // Primeiro tentar buscar em ebd_clientes (superintendentes EBD)
-      const { data: ebdCliente } = await supabase
-        .from("ebd_clientes")
-        .select("id")
-        .eq("superintendente_user_id", user.id)
-        .eq("status_ativacao_ebd", true)
-        .maybeSingle();
-
-      if (ebdCliente) {
-        return { id: ebdCliente.id };
-      }
-
-      // Fallback para churches (clientes tradicionais)
-      const { data: church } = await supabase
-        .from("churches")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (church) {
-        return { id: church.id };
-      }
-
-      throw new Error("Nenhuma igreja encontrada para este usuário");
-    },
-  });
 
   const { data: professores } = useQuery({
     queryKey: ["ebd-professores", churchData?.id, searchTerm],

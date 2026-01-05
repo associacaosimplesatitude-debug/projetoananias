@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useEbdChurchId } from "@/hooks/useEbdChurchId";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, User, CheckCircle2, Plus } from "lucide-react";
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 import { EditarEscalaDialog } from "@/components/ebd/EditarEscalaDialog";
 import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
 import { Progress } from "@/components/ui/progress";
+
 
 interface Planejamento {
   id: string;
@@ -67,39 +69,9 @@ export default function EBDSchedule() {
   const [showMontarEscalaDialog, setShowMontarEscalaDialog] = useState(false);
   const [planejamentoParaMontarEscala, setPlanejamentoParaMontarEscala] = useState<any>(null);
 
-  // Buscar dados da igreja (suporta ebd_clientes e churches)
-  const { data: churchData } = useQuery({
-    queryKey: ['church-data-ebd', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      
-      // Primeiro tentar buscar em ebd_clientes (superintendentes EBD)
-      const { data: ebdCliente } = await supabase
-        .from("ebd_clientes")
-        .select("id")
-        .eq("superintendente_user_id", user.id)
-        .eq("status_ativacao_ebd", true)
-        .maybeSingle();
+  // Buscar dados da igreja (suporta promoted superintendentes, ebd_clientes e churches)
+  const { data: churchData } = useEbdChurchId();
 
-      if (ebdCliente) {
-        return { id: ebdCliente.id };
-      }
-
-      // Fallback para churches (clientes tradicionais)
-      const { data: church } = await supabase
-        .from("churches")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (church) {
-        return { id: church.id };
-      }
-
-      return null;
-    },
-    enabled: !!user?.id,
-  });
 
   // Buscar planejamentos com turma via escalas
   const { data: planejamentos } = useQuery({

@@ -8,6 +8,7 @@ import { Plus, Search, School, Users, Pencil, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useEbdChurchId } from "@/hooks/useEbdChurchId";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,43 +39,13 @@ export default function EBDClassrooms() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Buscar o identificador do cliente EBD (para o superintendente) ou igreja (no contexto admin)
-  const { data: churchData, isLoading: loadingChurch, error: churchError } = useQuery({
-    queryKey: ["church-data", clientId],
-    queryFn: async () => {
-      // Admin (visualizando um cliente específico)
-      if (clientId) {
-        const { data, error } = await supabase
-          .from("churches")
-          .select("id, church_name")
-          .eq("id", clientId)
-          .maybeSingle();
+  // Church context (admin via clientId, otherwise resolves superintendent/owner)
+  const {
+    data: churchData,
+    isLoading: loadingChurch,
+    error: churchError,
+  } = useEbdChurchId(clientId);
 
-        if (error) throw error;
-        if (!data) throw new Error("Igreja não encontrada");
-        return data;
-      }
-
-      // Superintendente (módulo EBD)
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
-      const { data: cliente, error: clienteError } = await supabase
-        .from("ebd_clientes")
-        .select("id, nome_igreja")
-        .eq("superintendente_user_id", user.id)
-        .eq("status_ativacao_ebd", true)
-        .maybeSingle();
-
-      if (clienteError) throw clienteError;
-      if (!cliente) throw new Error("Cliente EBD não encontrado para este usuário");
-
-      // Mantemos a interface mínima usada na tela (apenas .id)
-      return { id: cliente.id, church_name: cliente.nome_igreja } as any;
-    },
-  });
 
   // Buscar turmas com professores
   const { data: turmas, isLoading } = useQuery({
