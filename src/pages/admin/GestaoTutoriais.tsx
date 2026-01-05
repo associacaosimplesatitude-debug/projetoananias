@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Video, ArrowLeft, Upload, X, FileVideo } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Progress } from "@/components/ui/progress";
 
 const PERFIS = [
   { value: "VENDEDORES", label: "Vendedores" },
@@ -57,6 +58,7 @@ export default function GestaoTutoriais() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [existingVideoPath, setExistingVideoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -73,19 +75,46 @@ export default function GestaoTutoriais() {
     },
   });
 
-  const uploadVideo = async (file: File): Promise<string> => {
+  const uploadVideo = useCallback(async (file: File): Promise<string> => {
     const fileExt = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `tutorials/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("tutorial-videos")
-      .upload(filePath, file);
+    // Get the upload URL
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const uploadUrl = `${supabaseUrl}/storage/v1/object/tutorial-videos/${filePath}`;
 
-    if (uploadError) throw uploadError;
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percentComplete);
+        }
+      });
 
-    return filePath;
-  };
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(filePath);
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener("error", () => {
+        reject(new Error("Upload failed"));
+      });
+
+      xhr.open("POST", uploadUrl);
+      xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+      xhr.setRequestHeader("x-upsert", "true");
+      xhr.send(file);
+    });
+  }, []);
 
   const deleteVideo = async (videoPath: string) => {
     await supabase.storage.from("tutorial-videos").remove([videoPath]);
@@ -264,6 +293,7 @@ export default function GestaoTutoriais() {
     }
 
     setUploading(true);
+    setUploadProgress(0);
 
     try {
       let videoPath = existingVideoPath;
@@ -396,6 +426,16 @@ export default function GestaoTutoriais() {
                     >
                       <X className="h-4 w-4" />
                     </Button>
+                  </div>
+                )}
+
+                {uploading && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Enviando vídeo...</span>
+                      <span className="font-medium">{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="h-2" />
                   </div>
                 )}
 
