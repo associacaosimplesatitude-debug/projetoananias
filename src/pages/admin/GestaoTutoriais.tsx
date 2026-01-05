@@ -236,9 +236,9 @@ export default function GestaoTutoriais() {
       return;
     }
 
-    // Validate file size (max 100MB)
-    if (file.size > 100 * 1024 * 1024) {
-      toast.error("O arquivo deve ter no máximo 100MB");
+    // Validate file size (max 20GB)
+    if (file.size > 20 * 1024 * 1024 * 1024) {
+      toast.error("O arquivo deve ter no máximo 20GB");
       return;
     }
 
@@ -365,7 +365,7 @@ export default function GestaoTutoriais() {
                       Clique para selecionar um vídeo MP4
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Máximo 100MB
+                      Suporta vídeos grandes (até 20GB)
                     </p>
                   </div>
                 ) : (
