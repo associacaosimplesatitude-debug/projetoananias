@@ -271,9 +271,18 @@ export default function VendedorClientes() {
 
   const handleViewOrders = async (cliente: Cliente) => {
     setLoadingPedidos(true);
+    
+    // Log for debugging
+    console.log("[ORDER_LOOKUP] viewer=vendedor");
+    console.log("[ORDER_LOOKUP] cliente_id=", cliente.id);
+    console.log("[ORDER_LOOKUP] email=", cliente.email_superintendente);
+    console.log("[ORDER_LOOKUP] nome_igreja=", cliente.nome_igreja);
+    
     try {
-      // First try to find by cliente_id
-      let { data: pedidos, error } = await supabase
+      let pedidos: any[] | null = null;
+
+      // 1. First try by cliente_id
+      const { data: pedidosByClienteId, error: error1 } = await supabase
         .from("ebd_shopify_pedidos")
         .select(`
           *,
@@ -284,34 +293,77 @@ export default function VendedorClientes() {
         .order("created_at", { ascending: false })
         .limit(1);
 
-      if (error) throw error;
+      if (error1) {
+        console.error("[ORDER_LOOKUP] error cliente_id query:", error1);
+      } else {
+        console.log("[ORDER_LOOKUP] foundByClienteId=", pedidosByClienteId?.length || 0);
+        if (pedidosByClienteId && pedidosByClienteId.length > 0) {
+          pedidos = pedidosByClienteId;
+        }
+      }
 
-      // If not found by cliente_id, try by email
-      if ((!pedidos || pedidos.length === 0) && cliente.email_superintendente) {
-        const { data: pedidosByEmail, error: emailError } = await supabase
+      // 2. If not found, try by email (exact match, case insensitive)
+      if (!pedidos && cliente.email_superintendente) {
+        const emailNormalized = cliente.email_superintendente.toLowerCase().trim();
+        console.log("[ORDER_LOOKUP] trying email=", emailNormalized);
+        
+        const { data: pedidosByEmail, error: error2 } = await supabase
           .from("ebd_shopify_pedidos")
           .select(`
             *,
             cliente:ebd_clientes(nome_igreja, tipo_cliente),
             vendedor:vendedores(nome)
           `)
-          .ilike("customer_email", cliente.email_superintendente)
+          .ilike("customer_email", emailNormalized)
           .order("created_at", { ascending: false })
           .limit(1);
 
-        if (emailError) throw emailError;
-        pedidos = pedidosByEmail;
+        if (error2) {
+          console.error("[ORDER_LOOKUP] error email query:", error2);
+        } else {
+          console.log("[ORDER_LOOKUP] foundByEmail=", pedidosByEmail?.length || 0);
+          if (pedidosByEmail && pedidosByEmail.length > 0) {
+            pedidos = pedidosByEmail;
+          }
+        }
       }
 
+      // 3. If still not found, try broader search by customer_name matching nome_igreja
+      if (!pedidos && cliente.nome_igreja) {
+        console.log("[ORDER_LOOKUP] trying nome_igreja=", cliente.nome_igreja);
+        
+        const { data: pedidosByName, error: error3 } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select(`
+            *,
+            cliente:ebd_clientes(nome_igreja, tipo_cliente),
+            vendedor:vendedores(nome)
+          `)
+          .ilike("customer_name", `%${cliente.nome_igreja}%`)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (error3) {
+          console.error("[ORDER_LOOKUP] error nome_igreja query:", error3);
+        } else {
+          console.log("[ORDER_LOOKUP] foundByNomeIgreja=", pedidosByName?.length || 0);
+          if (pedidosByName && pedidosByName.length > 0) {
+            pedidos = pedidosByName;
+          }
+        }
+      }
+
+      console.log("[ORDER_LOOKUP] finalResult=", pedidos?.length || 0);
+
       if (!pedidos || pedidos.length === 0) {
-        toast.info("Nenhum pedido encontrado para este cliente.");
+        toast.info("Nenhum pedido Shopify encontrado para este cliente.");
         return;
       }
 
       setSelectedPedido(pedidos[0] as ShopifyPedido);
       setPedidoDialogOpen(true);
     } catch (error) {
-      console.error("Error fetching orders:", error);
+      console.error("[ORDER_LOOKUP] unexpected error:", error);
       toast.error("Erro ao buscar pedidos do cliente.");
     } finally {
       setLoadingPedidos(false);
