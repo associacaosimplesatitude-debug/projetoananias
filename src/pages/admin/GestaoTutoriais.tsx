@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Video, ArrowLeft } from "lucide-react";
+import { Plus, Pencil, Trash2, Video, ArrowLeft, Upload, X, FileVideo } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const PERFIS = [
@@ -29,6 +29,7 @@ interface Tutorial {
   id: string;
   titulo: string;
   link_video: string;
+  video_path: string | null;
   descricao: string | null;
   categorias: string[];
   created_at: string;
@@ -37,7 +38,6 @@ interface Tutorial {
 
 interface TutorialForm {
   titulo: string;
-  link_video: string;
   descricao: string;
   categorias: string;
   perfis: TutorialPerfil[];
@@ -45,7 +45,6 @@ interface TutorialForm {
 
 const initialForm: TutorialForm = {
   titulo: "",
-  link_video: "",
   descricao: "",
   categorias: "",
   perfis: [],
@@ -55,6 +54,10 @@ export default function GestaoTutoriais() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TutorialForm>(initialForm);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [existingVideoPath, setExistingVideoPath] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const { data: tutoriais, isLoading } = useQuery({
@@ -70,13 +73,32 @@ export default function GestaoTutoriais() {
     },
   });
 
+  const uploadVideo = async (file: File): Promise<string> => {
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `tutorials/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("tutorial-videos")
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    return filePath;
+  };
+
+  const deleteVideo = async (videoPath: string) => {
+    await supabase.storage.from("tutorial-videos").remove([videoPath]);
+  };
+
   const createMutation = useMutation({
-    mutationFn: async (data: TutorialForm) => {
+    mutationFn: async (data: TutorialForm & { videoPath: string }) => {
       const { data: tutorial, error: tutorialError } = await supabase
         .from("tutoriais")
         .insert({
           titulo: data.titulo,
-          link_video: data.link_video,
+          link_video: "", // Mantemos vazio para compatibilidade
+          video_path: data.videoPath,
           descricao: data.descricao || null,
           categorias: data.categorias.split(",").map((c) => c.trim()).filter(Boolean),
         })
@@ -112,12 +134,17 @@ export default function GestaoTutoriais() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: TutorialForm }) => {
+    mutationFn: async ({ id, data, videoPath, oldVideoPath }: { id: string; data: TutorialForm; videoPath: string | null; oldVideoPath: string | null }) => {
+      // Delete old video if we're uploading a new one
+      if (oldVideoPath && videoPath && oldVideoPath !== videoPath) {
+        await deleteVideo(oldVideoPath);
+      }
+
       const { error: tutorialError } = await supabase
         .from("tutoriais")
         .update({
           titulo: data.titulo,
-          link_video: data.link_video,
+          video_path: videoPath,
           descricao: data.descricao || null,
           categorias: data.categorias.split(",").map((c) => c.trim()).filter(Boolean),
         })
@@ -158,7 +185,12 @@ export default function GestaoTutoriais() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, videoPath }: { id: string; videoPath: string | null }) => {
+      // Delete video from storage
+      if (videoPath) {
+        await deleteVideo(videoPath);
+      }
+      
       const { error } = await supabase.from("tutoriais").delete().eq("id", id);
       if (error) throw error;
     },
@@ -176,31 +208,85 @@ export default function GestaoTutoriais() {
     setIsOpen(false);
     setEditingId(null);
     setForm(initialForm);
+    setSelectedFile(null);
+    setExistingVideoPath(null);
+    setUploading(false);
   };
 
   const handleEdit = (tutorial: Tutorial) => {
     setEditingId(tutorial.id);
     setForm({
       titulo: tutorial.titulo,
-      link_video: tutorial.link_video,
       descricao: tutorial.descricao || "",
       categorias: tutorial.categorias?.join(", ") || "",
       perfis: tutorial.tutoriais_perfis.map((p) => p.perfil),
     });
+    setExistingVideoPath(tutorial.video_path);
+    setSelectedFile(null);
     setIsOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.titulo || !form.link_video) {
-      toast.error("Preencha os campos obrigatórios");
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("video/")) {
+      toast.error("Selecione um arquivo de vídeo válido");
       return;
     }
 
-    if (editingId) {
-      updateMutation.mutate({ id: editingId, data: form });
-    } else {
-      createMutation.mutate(form);
+    // Validate file size (max 100MB)
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("O arquivo deve ter no máximo 100MB");
+      return;
+    }
+
+    setSelectedFile(file);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!form.titulo) {
+      toast.error("Preencha o título");
+      return;
+    }
+
+    if (!selectedFile && !existingVideoPath) {
+      toast.error("Selecione um vídeo");
+      return;
+    }
+
+    if (form.perfis.length === 0) {
+      toast.error("Selecione pelo menos um perfil de acesso");
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      let videoPath = existingVideoPath;
+
+      // Upload new video if selected
+      if (selectedFile) {
+        videoPath = await uploadVideo(selectedFile);
+      }
+
+      if (editingId) {
+        updateMutation.mutate({ 
+          id: editingId, 
+          data: form, 
+          videoPath,
+          oldVideoPath: selectedFile ? existingVideoPath : null 
+        });
+      } else {
+        createMutation.mutate({ ...form, videoPath: videoPath! });
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao fazer upload do vídeo");
+      setUploading(false);
     }
   };
 
@@ -211,6 +297,11 @@ export default function GestaoTutoriais() {
         ? prev.perfis.filter((p) => p !== perfil)
         : [...prev.perfis, perfil],
     }));
+  };
+
+  const getVideoUrl = (videoPath: string) => {
+    const { data } = supabase.storage.from("tutorial-videos").getPublicUrl(videoPath);
+    return data.publicUrl;
   };
 
   return (
@@ -232,7 +323,7 @@ export default function GestaoTutoriais() {
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setForm(initialForm)}>
+            <Button onClick={() => { setForm(initialForm); setSelectedFile(null); setExistingVideoPath(null); }}>
               <Plus className="h-4 w-4 mr-2" />
               Novo Tutorial
             </Button>
@@ -255,13 +346,71 @@ export default function GestaoTutoriais() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="link_video">Link do Vídeo *</Label>
-                <Input
-                  id="link_video"
-                  value={form.link_video}
-                  onChange={(e) => setForm({ ...form, link_video: e.target.value })}
-                  placeholder="Ex: https://www.youtube.com/watch?v=..."
+                <Label>Vídeo (MP4) *</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
                 />
+                
+                {!selectedFile && !existingVideoPath ? (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                  >
+                    <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      Clique para selecionar um vídeo MP4
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Máximo 100MB
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border rounded-lg p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileVideo className="h-8 w-8 text-primary" />
+                      <div>
+                        <p className="text-sm font-medium">
+                          {selectedFile ? selectedFile.name : "Vídeo atual"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedFile 
+                            ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`
+                            : "Clique no X para remover e selecionar outro"
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        if (!editingId) setExistingVideoPath(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {existingVideoPath && !selectedFile && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="mt-2"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Substituir vídeo
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -309,9 +458,9 @@ export default function GestaoTutoriais() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
+                  disabled={uploading || createMutation.isPending || updateMutation.isPending}
                 >
-                  {editingId ? "Salvar" : "Criar"}
+                  {uploading ? "Enviando..." : editingId ? "Salvar" : "Criar"}
                 </Button>
               </div>
             </form>
@@ -357,7 +506,7 @@ export default function GestaoTutoriais() {
                       size="icon"
                       onClick={() => {
                         if (confirm("Deseja excluir este tutorial?")) {
-                          deleteMutation.mutate(tutorial.id);
+                          deleteMutation.mutate({ id: tutorial.id, videoPath: tutorial.video_path });
                         }
                       }}
                     >
@@ -368,15 +517,10 @@ export default function GestaoTutoriais() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Video className="h-4 w-4" />
-                  <a
-                    href={tutorial.link_video}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline truncate"
-                  >
-                    {tutorial.link_video}
-                  </a>
+                  <FileVideo className="h-4 w-4" />
+                  <span>
+                    {tutorial.video_path ? "Vídeo MP4 cadastrado" : "Sem vídeo"}
+                  </span>
                 </div>
 
                 {tutorial.categorias?.length > 0 && (
