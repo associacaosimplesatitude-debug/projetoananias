@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Video, PlayCircle } from "lucide-react";
+import { Search, Video } from "lucide-react";
 
 type TutorialPerfil =
   | "VENDEDORES"
@@ -20,66 +20,24 @@ interface Tutorial {
   id: string;
   titulo: string;
   link_video: string;
+  video_path: string | null;
   descricao: string | null;
   categorias: string[];
   tutoriais_perfis: { perfil: TutorialPerfil }[];
 }
 
-// Helper to extract YouTube video ID
-function getYouTubeId(url: string): string | null {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-  const match = url.match(regExp);
-  return match && match[2].length === 11 ? match[2] : null;
-}
-
-// Helper to extract Vimeo video ID
-function getVimeoId(url: string): string | null {
-  const regExp = /vimeo\.com\/(\d+)/;
-  const match = url.match(regExp);
-  return match ? match[1] : null;
-}
-
-function VideoEmbed({ url }: { url: string }) {
-  const youtubeId = getYouTubeId(url);
-  const vimeoId = getVimeoId(url);
-
-  if (youtubeId) {
-    return (
-      <iframe
-        className="w-full aspect-video rounded-lg"
-        src={`https://www.youtube.com/embed/${youtubeId}`}
-        title="YouTube video player"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-      />
-    );
-  }
-
-  if (vimeoId) {
-    return (
-      <iframe
-        className="w-full aspect-video rounded-lg"
-        src={`https://player.vimeo.com/video/${vimeoId}`}
-        title="Vimeo video player"
-        allow="autoplay; fullscreen; picture-in-picture"
-        allowFullScreen
-      />
-    );
-  }
-
-  // Fallback: link to video
+function VideoPlayer({ videoPath }: { videoPath: string }) {
+  const { data } = supabase.storage.from("tutorial-videos").getPublicUrl(videoPath);
+  
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center justify-center w-full aspect-video rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+    <video
+      className="w-full aspect-video rounded-lg bg-black"
+      controls
+      preload="metadata"
     >
-      <div className="text-center">
-        <PlayCircle className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-        <span className="text-sm text-muted-foreground">Abrir vídeo</span>
-      </div>
-    </a>
+      <source src={data.publicUrl} type="video/mp4" />
+      Seu navegador não suporta vídeos HTML5.
+    </video>
   );
 }
 
@@ -254,7 +212,13 @@ export default function Tutoriais() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredTutoriais.map((tutorial) => (
             <Card key={tutorial.id} className="overflow-hidden">
-              <VideoEmbed url={tutorial.link_video} />
+              {tutorial.video_path ? (
+                <VideoPlayer videoPath={tutorial.video_path} />
+              ) : (
+                <div className="w-full aspect-video bg-muted flex items-center justify-center">
+                  <Video className="h-12 w-12 text-muted-foreground" />
+                </div>
+              )}
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg line-clamp-2">
                   {tutorial.titulo}

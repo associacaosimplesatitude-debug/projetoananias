@@ -3713,6 +3713,7 @@ export type Database = {
           link_video: string
           titulo: string
           updated_at: string
+          video_path: string | null
         }
         Insert: {
           categorias?: string[] | null
@@ -3722,6 +3723,7 @@ export type Database = {
           link_video: string
           titulo: string
           updated_at?: string
+          video_path?: string | null
         }
         Update: {
           categorias?: string[] | null
@@ -3731,6 +3733,7 @@ export type Database = {
           link_video?: string
           titulo?: string
           updated_at?: string
+          video_path?: string | null
         }
         Relationships: []
       }
