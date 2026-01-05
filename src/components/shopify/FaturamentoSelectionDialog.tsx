@@ -22,6 +22,26 @@ export interface ShippingOption {
   days?: number;
   endereco?: string;
   horario?: string;
+  estimatedDate?: string;
+}
+
+// Função para adicionar dias úteis a uma data
+function addBusinessDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  let addedDays = 0;
+  while (addedDays < days) {
+    result.setDate(result.getDate() + 1);
+    // 0 = Domingo, 6 = Sábado
+    if (result.getDay() !== 0 && result.getDay() !== 6) {
+      addedDays++;
+    }
+  }
+  return result;
+}
+
+// Função para formatar data em português
+function formatDateBR(date: Date): string {
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export interface FreteManualData {
@@ -124,29 +144,45 @@ export function FaturamentoSelectionDialog({
 
       const options: ShippingOption[] = [];
       
-      // Add PAC option
+      const today = new Date();
+      
+      // Add PAC option - 5 dias úteis
       if (data?.pac) {
+        const pacDays = 5;
+        const pacDate = addBusinessDays(today, pacDays);
         options.push({
           type: 'pac',
-          label: `PAC - ${data.pac.days} dias úteis`,
+          label: `PAC - ${pacDays} dias úteis`,
           cost: data.pac.cost,
-          days: data.pac.days,
+          days: pacDays,
+          estimatedDate: formatDateBR(pacDate),
         });
       }
 
-      // Add SEDEX option
+      // Add SEDEX option - 2 dias úteis
       if (data?.sedex) {
+        const sedexDays = 2;
+        const sedexDate = addBusinessDays(today, sedexDays);
         options.push({
           type: 'sedex',
-          label: `SEDEX - ${data.sedex.days} dias úteis`,
+          label: `SEDEX - ${sedexDays} dias úteis`,
           cost: data.sedex.cost,
-          days: data.sedex.days,
+          days: sedexDays,
+          estimatedDate: formatDateBR(sedexDate),
         });
       }
 
-      // Add free shipping if total >= R$199,90
+      // Add free shipping if total >= R$199,90 - 10 dias úteis
       if (totalProdutos >= 199.90) {
-        options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
+        const freeDays = 10;
+        const freeDate = addBusinessDays(today, freeDays);
+        options.push({ 
+          type: 'free', 
+          label: `Frete Grátis (compras acima de R$199,90) - ${freeDays} dias úteis`, 
+          cost: 0,
+          days: freeDays,
+          estimatedDate: formatDateBR(freeDate),
+        });
       }
 
       // Sempre adicionar opção de retirada na matriz
@@ -170,12 +206,22 @@ export function FaturamentoSelectionDialog({
       console.error('Error fetching shipping:', error);
       toast.error('Erro ao calcular frete');
       // Fallback options
+      const fallbackToday = new Date();
+      const fallbackPacDate = addBusinessDays(fallbackToday, 5);
+      const fallbackSedexDate = addBusinessDays(fallbackToday, 2);
+      const fallbackFreeDate = addBusinessDays(fallbackToday, 10);
       const fallbackOptions: ShippingOption[] = [
-        { type: 'pac', label: 'PAC - 8 dias úteis', cost: 15, days: 8 },
-        { type: 'sedex', label: 'SEDEX - 3 dias úteis', cost: 25, days: 3 },
+        { type: 'pac', label: 'PAC - 5 dias úteis', cost: 15, days: 5, estimatedDate: formatDateBR(fallbackPacDate) },
+        { type: 'sedex', label: 'SEDEX - 2 dias úteis', cost: 25, days: 2, estimatedDate: formatDateBR(fallbackSedexDate) },
       ];
       if (totalProdutos >= 199.90) {
-        fallbackOptions.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
+        fallbackOptions.push({ 
+          type: 'free', 
+          label: 'Frete Grátis (compras acima de R$199,90) - 10 dias úteis', 
+          cost: 0,
+          days: 10,
+          estimatedDate: formatDateBR(fallbackFreeDate),
+        });
       }
       // Sempre adicionar retirada
       fallbackOptions.push({
@@ -466,6 +512,11 @@ export function FaturamentoSelectionDialog({
                               </span>
                             </Label>
                           </div>
+                          {option.estimatedDate && (
+                            <div className="ml-7 mt-1 text-xs text-muted-foreground">
+                              Previsão de entrega: <span className="font-medium">{option.estimatedDate}</span>
+                            </div>
+                          )}
                           {option.type === 'retirada' && option.endereco && (
                             <div className="ml-7 mt-2 text-xs text-muted-foreground">
                               <p className="flex items-center gap-1">
