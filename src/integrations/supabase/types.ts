@@ -4011,6 +4011,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_ebd_superintendent: {
+        Args: { _church_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_ebd_superintendente: { Args: { _user_id: string }; Returns: boolean }
       is_ebd_superintendente_for_church: {
         Args: { _church_id: string; _user_id: string }
