@@ -1330,6 +1330,8 @@ export type Database = {
           data_aniversario_superintendente: string | null
           data_inicio_ebd: string | null
           data_proxima_compra: string | null
+          desconto_atribuido_em: string | null
+          desconto_atribuido_por: string | null
           desconto_faturamento: number | null
           desconto_onboarding: number | null
           dia_aula: string | null
@@ -1371,6 +1373,8 @@ export type Database = {
           data_aniversario_superintendente?: string | null
           data_inicio_ebd?: string | null
           data_proxima_compra?: string | null
+          desconto_atribuido_em?: string | null
+          desconto_atribuido_por?: string | null
           desconto_faturamento?: number | null
           desconto_onboarding?: number | null
           dia_aula?: string | null
@@ -1412,6 +1416,8 @@ export type Database = {
           data_aniversario_superintendente?: string | null
           data_inicio_ebd?: string | null
           data_proxima_compra?: string | null
+          desconto_atribuido_em?: string | null
+          desconto_atribuido_por?: string | null
           desconto_faturamento?: number | null
           desconto_onboarding?: number | null
           dia_aula?: string | null

@@ -47,6 +47,7 @@ import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
 import LeadsLandingPage from "./pages/admin/LeadsLandingPage";
+import AdminEBDClientes from "./pages/admin/AdminEBDClientes";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
@@ -394,7 +395,7 @@ const App = () => (
                       <Route path="pedidos-amazon" element={<PedidosAmazon />} />
                       <Route path="pedidos-shopee" element={<PedidosShopee />} />
                       <Route path="pedidos-mercadolivre" element={<PedidosMercadoLivre />} />
-                      <Route path="clientes" element={<AdminEBD />} />
+                      <Route path="clientes" element={<AdminEBDClientes />} />
                       <Route path="leads" element={<AdminEBD />} />
                       <Route path="leads-landing" element={<LeadsLandingPage />} />
                       <Route path="vendedores" element={<AdminEBD />} />
