@@ -233,6 +233,14 @@ function AdminSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/pedidos-igrejas')}>
+                    <RouterNavLink to="/admin/ebd/pedidos-igrejas">
+                      <ShoppingBag className="h-4 w-4" />
+                      <span>Pedidos Igrejas</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/admin/ebd/pedidos-online')}>
                     <RouterNavLink to="/admin/ebd/pedidos-online">
                       <UserPlus className="h-4 w-4" />
