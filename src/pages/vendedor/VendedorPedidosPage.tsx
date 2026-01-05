@@ -11,6 +11,8 @@ import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText }
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { categorizarProduto } from "@/constants/categoriasShopify";
+import { isClienteRepresentante, type DescontosCategoriaRepresentante } from "@/lib/descontosShopify";
 
 interface PropostaItem {
   variantId: string;
@@ -165,16 +167,48 @@ export default function VendedorPedidosPage() {
       };
 
       const prazo = proposta.prazo_faturamento_selecionado || "30";
-      const descontoPercentual = proposta.desconto_percentual || 0;
       const valorFrete = proposta.valor_frete || 0;
       const metodoFrete = proposta.metodo_frete || "COMBINAR";
 
-      // Montar itens no formato esperado pelo Bling
+      // Buscar descontos por categoria do representante se aplicável
+      const clienteId = proposta.cliente_id || clienteProposta.id;
+      let descontosCategoria: DescontosCategoriaRepresentante = {};
+      let usarDescontoCategoria = false;
+
+      // Verificar se vendedor é representante
+      if (vendedor?.tipo_perfil === "representante" && clienteId) {
+        const { data: descontosData } = await supabase
+          .from("ebd_descontos_categoria_representante")
+          .select("categoria, percentual_desconto")
+          .eq("cliente_id", clienteId);
+
+        if (descontosData && descontosData.length > 0) {
+          descontosData.forEach((d) => {
+            descontosCategoria[d.categoria] = Number(d.percentual_desconto);
+          });
+          usarDescontoCategoria = Object.values(descontosCategoria).some(v => v > 0);
+          console.log("[REP_DESC] Faturamento - descontosPorCategoria:", descontosCategoria);
+        }
+      }
+
+      // Montar itens no formato esperado pelo Bling - aplicar desconto por categoria se representante
+      let valorProdutosComDesconto = 0;
       const itensBling = proposta.itens.map((item) => {
         const precoOriginal = Number(item.price);
-        const precoComDesconto = descontoPercentual > 0
-          ? Math.round((precoOriginal * (1 - descontoPercentual / 100)) * 100) / 100
-          : precoOriginal;
+        let precoComDesconto = precoOriginal;
+
+        if (usarDescontoCategoria) {
+          // Desconto por categoria do representante
+          const categoria = categorizarProduto(item.title);
+          const descontoPercent = descontosCategoria[categoria] || 0;
+          precoComDesconto = Math.round((precoOriginal * (1 - descontoPercent / 100)) * 100) / 100;
+          console.log(`[REP_DESC] Item: ${item.title} | Categoria: ${categoria} | Desconto: ${descontoPercent}% | Original: ${precoOriginal} | Final: ${precoComDesconto}`);
+        } else if ((proposta.desconto_percentual || 0) > 0) {
+          // Desconto global padrão
+          precoComDesconto = Math.round((precoOriginal * (1 - (proposta.desconto_percentual || 0) / 100)) * 100) / 100;
+        }
+
+        valorProdutosComDesconto += precoComDesconto * item.quantity;
 
         return {
           codigo: undefined,
@@ -186,13 +220,7 @@ export default function VendedorPedidosPage() {
         };
       });
 
-      const valorProdutosSemDesconto = proposta.itens.reduce(
-        (sum, i) => sum + Number(i.price) * i.quantity,
-        0
-      );
-      const valorProdutos = descontoPercentual > 0
-        ? Math.round((valorProdutosSemDesconto * (1 - descontoPercentual / 100)) * 100) / 100
-        : Math.round(valorProdutosSemDesconto * 100) / 100;
+      const valorProdutos = Math.round(valorProdutosComDesconto * 100) / 100;
       const valorTotal = Math.round((valorProdutos + valorFrete) * 100) / 100;
 
       const clienteBling = {
@@ -234,7 +262,7 @@ export default function VendedorPedidosPage() {
           valor_produtos: valorProdutos,
           valor_total: valorTotal,
           vendedor_nome: proposta.vendedor_nome || vendedor?.nome,
-          desconto_percentual: descontoPercentual,
+          desconto_percentual: proposta.desconto_percentual || 0,
           // Dados de frete manual
           frete_tipo: proposta.frete_tipo || 'automatico',
           frete_transportadora: proposta.frete_transportadora,
