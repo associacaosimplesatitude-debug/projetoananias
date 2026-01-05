@@ -400,8 +400,8 @@ export default function CheckoutBling() {
                 </Badge>
 
                 {cliente?.desconto_faturamento && cliente.desconto_faturamento > 0 && (
-                  <Badge variant="secondary" className="w-full justify-center py-2">
-                    Desconto especial: {(descontoTotal * 100).toFixed(0)}% (30% + {cliente.desconto_faturamento}%)
+                  <Badge variant="secondary" className="w-full justify-center py-2 bg-cyan-50 text-cyan-700 border-cyan-200">
+                    Desconto do Vendedor: {(descontoTotal * 100).toFixed(0)}% (30% base + {cliente.desconto_faturamento}% adicional)
                   </Badge>
                 )}
 

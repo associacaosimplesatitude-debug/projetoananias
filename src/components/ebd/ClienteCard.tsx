@@ -145,9 +145,9 @@ export function ClienteCard({
                 </Badge>
               )}
               {cliente.desconto_faturamento && cliente.desconto_faturamento > 0 && (
-                <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs">
+                <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white text-xs">
                   <Percent className="mr-1 h-3 w-3" />
-                  {cliente.desconto_faturamento}% desconto
+                  {cliente.desconto_faturamento}% vendedor
                 </Badge>
               )}
               {cliente.tipo_cliente && (
@@ -266,8 +266,8 @@ export function ClienteCard({
                 variant="ghost"
                 size="sm"
                 onClick={onDesconto}
-                title="Configurar desconto de faturamento"
-                className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                title="Configurar desconto do vendedor"
+                className="h-8 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50"
               >
                 <Percent className="h-4 w-4 mr-1" />
                 Desconto

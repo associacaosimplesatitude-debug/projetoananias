@@ -109,7 +109,7 @@ export interface CalculoDesconto {
   descontoPercentual: number;
   descontoValor: number;
   total: number;
-  tipoDesconto: "advec_50" | "setup" | "revendedor" | "b2b" | "representante" | "nenhum";
+  tipoDesconto: "advec_50" | "setup" | "revendedor" | "b2b" | "representante" | "vendedor" | "nenhum";
   faixa: string;
   itensComDesconto50?: string[]; // Títulos dos produtos com 50% off (ADVEC)
   itensComDescontoCategoria?: DescontoCategoriaItem[]; // Detalhes por item (Representante)
@@ -171,15 +171,28 @@ export function calcularDescontoRepresentante(
 
 /**
  * Calcula todos os descontos aplicáveis ao carrinho
+ * 
+ * PRIORIDADE (da maior para a menor):
+ * 1. Desconto por categoria do representante
+ * 2. Desconto do vendedor (descontoVendedor - universal)
+ * 3. Desconto ADVEC (50% em produtos específicos)
+ * 4. Desconto Setup (progressivo 20-30%)
+ * 5. Desconto Revendedor (escalonado)
+ * 6. Nenhum desconto
  */
 export function calcularDescontosCarrinho(
   items: CartItem[],
   tipoCliente: string | null | undefined,
   onboardingConcluido: boolean,
-  descontoB2B: number = 0,
-  descontosPorCategoria?: DescontosCategoriaRepresentante
+  descontoVendedor: number = 0,
+  descontosPorCategoria?: DescontosCategoriaRepresentante,
+  clienteId?: string,
+  podeFaturar?: boolean
 ): CalculoDesconto {
   const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
+  
+  // Log obrigatório
+  console.log(`[SELLER_DISC] clienteId=${clienteId || 'N/A'} podeFaturar=${podeFaturar ?? 'N/A'} descontoVendedor=${descontoVendedor} tipoCliente=${tipoCliente}`);
   
   // PRIORIDADE 1: Cliente de Representante com descontos por categoria
   // Estes descontos SUBSTITUEM todos os outros
@@ -188,6 +201,11 @@ export function calcularDescontosCarrinho(
     
     if (hasAnyDiscount) {
       const resultado = calcularDescontoRepresentante(items, descontosPorCategoria);
+      
+      // Log por item
+      resultado.itensDetalhados.forEach(item => {
+        console.log(`[SELLER_DISC] item SKU=${item.titulo} descontoAplicado=${item.percentual}% origem=representante_categoria`);
+      });
       
       return {
         subtotal,
@@ -201,7 +219,26 @@ export function calcularDescontosCarrinho(
     }
   }
   
-  // Caso 2: Cliente ADVEC - 50% em livros específicos (não cumulativo)
+  // PRIORIDADE 2: Desconto do Vendedor (universal - funciona com ou sem faturamento)
+  if (descontoVendedor > 0) {
+    const descontoValor = subtotal * (descontoVendedor / 100);
+    
+    // Log por item
+    items.forEach(item => {
+      console.log(`[SELLER_DISC] item SKU=${item.product.node.title} descontoAplicado=${descontoVendedor}% origem=vendedor`);
+    });
+    
+    return {
+      subtotal,
+      descontoPercentual: descontoVendedor,
+      descontoValor,
+      total: subtotal - descontoValor,
+      tipoDesconto: "vendedor",
+      faixa: "Vendedor"
+    };
+  }
+  
+  // PRIORIDADE 3: Cliente ADVEC - 50% em livros específicos (não cumulativo)
   if (isClienteAdvec(tipoCliente)) {
     const itensAdvec50: string[] = [];
     let valorComDesconto = 0;
@@ -216,6 +253,8 @@ export function calcularDescontosCarrinho(
       }
 
       valorComDesconto += (precoUnitario * (1 - percentual / 100)) * item.quantity;
+      
+      console.log(`[SELLER_DISC] item SKU=${item.product.node.title} descontoAplicado=${percentual}% origem=advec`);
     });
     
     const descontoValor = subtotal - valorComDesconto;
@@ -232,10 +271,14 @@ export function calcularDescontosCarrinho(
     };
   }
   
-  // Caso 3: Cliente Igreja CPF/CNPJ com Setup concluído - Desconto progressivo
+  // PRIORIDADE 4: Cliente Igreja CPF/CNPJ com Setup concluído - Desconto progressivo
   if (isClienteIgrejaCpfCnpj(tipoCliente) && onboardingConcluido) {
     const { percentual, faixa } = calcularDescontoSetup(subtotal, onboardingConcluido);
     const descontoValor = subtotal * (percentual / 100);
+    
+    items.forEach(item => {
+      console.log(`[SELLER_DISC] item SKU=${item.product.node.title} descontoAplicado=${percentual}% origem=setup`);
+    });
     
     return {
       subtotal,
@@ -247,10 +290,14 @@ export function calcularDescontosCarrinho(
     };
   }
   
-  // Caso 4: Revendedor - Desconto escalonado
+  // PRIORIDADE 5: Revendedor - Desconto escalonado
   if (tipoCliente?.toUpperCase() === "REVENDEDOR") {
     const { faixa, desconto } = calcularDescontoRevendedor(subtotal);
     const descontoValor = subtotal * (desconto / 100);
+    
+    items.forEach(item => {
+      console.log(`[SELLER_DISC] item SKU=${item.product.node.title} descontoAplicado=${desconto}% origem=revendedor`);
+    });
     
     return {
       subtotal,
@@ -262,21 +309,8 @@ export function calcularDescontosCarrinho(
     };
   }
   
-  // Caso 5: Desconto B2B (faturamento)
-  if (descontoB2B > 0) {
-    const descontoValor = subtotal * (descontoB2B / 100);
-    
-    return {
-      subtotal,
-      descontoPercentual: descontoB2B,
-      descontoValor,
-      total: subtotal - descontoValor,
-      tipoDesconto: "b2b",
-      faixa: "B2B"
-    };
-  }
-  
   // Sem desconto
+  console.log(`[SELLER_DISC] Nenhum desconto aplicado`);
   return {
     subtotal,
     descontoPercentual: 0,

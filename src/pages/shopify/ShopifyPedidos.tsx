@@ -532,12 +532,12 @@ export default function ShopifyPedidos() {
       if (selectedCliente.pode_faturar || canUseFreteManual) {
         setShowFaturamentoDialog(true);
       } else {
-        // Para clientes que não podem faturar, calcular descontos (ADVEC, Representante, etc.)
+        // Para clientes que não podem faturar, calcular descontos (ADVEC, Representante, Vendedor, etc.)
         const descontoCalculado = calcularDescontosCarrinho(
           items, 
           selectedCliente.tipo_cliente, 
           selectedCliente.onboarding_concluido || false,
-          0,
+          selectedCliente.desconto_faturamento || 0,
           descontosCategoria
         );
         handleGeneratePropostaLink(null, descontoCalculado.descontoPercentual, null, false, descontoCalculado);
@@ -784,7 +784,7 @@ export default function ShopifyPedidos() {
         items,
         selectedCliente.tipo_cliente,
         selectedCliente.onboarding_concluido || false,
-        0,
+        selectedCliente.desconto_faturamento || 0,
         descontosCategoria
       );
     }
@@ -809,7 +809,7 @@ export default function ShopifyPedidos() {
         items,
         selectedCliente.tipo_cliente,
         selectedCliente.onboarding_concluido || false,
-        0,
+        selectedCliente.desconto_faturamento || 0,
         descontosCategoria
       );
     }
