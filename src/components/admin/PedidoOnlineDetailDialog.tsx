@@ -22,7 +22,8 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { Loader2, User, Mail, Package, Truck, DollarSign, IdCard, MapPin, Phone } from "lucide-react";
+import { Loader2, User, Mail, Package, Truck, DollarSign, IdCard, MapPin, Phone, ShoppingBag } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ShopifyPedido {
   id: string;
@@ -73,16 +74,28 @@ const TIPOS_CLIENTE = [
   { value: "REVENDEDOR", label: "REVENDEDOR" },
 ];
 
+interface PedidoItem {
+  id: string;
+  product_title: string;
+  variant_title: string | null;
+  sku: string | null;
+  quantity: number;
+  price: number;
+  total_discount: number;
+}
+
 interface PedidoOnlineDetailDialogProps {
   pedido: ShopifyPedido | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  hideAttribution?: boolean;
 }
 
 export function PedidoOnlineDetailDialog({
   pedido,
   open,
   onOpenChange,
+  hideAttribution = false,
 }: PedidoOnlineDetailDialogProps) {
   const queryClient = useQueryClient();
   const [selectedVendedor, setSelectedVendedor] = useState<string>("");
@@ -116,6 +129,22 @@ export function PedidoOnlineDetailDialog({
       return data;
     },
     enabled: !!pedido?.cliente_id,
+  });
+
+  // Fetch order items
+  const { data: orderItems = [] } = useQuery({
+    queryKey: ["pedido-items", pedido?.id],
+    queryFn: async () => {
+      if (!pedido?.id) return [];
+      const { data, error } = await supabase
+        .from("ebd_shopify_pedidos_itens")
+        .select("*")
+        .eq("pedido_id", pedido.id)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as PedidoItem[];
+    },
+    enabled: !!pedido?.id,
   });
 
   // Update state when pedido changes
@@ -365,6 +394,43 @@ export function PedidoOnlineDetailDialog({
             </>
           )}
 
+          {/* Produtos do Pedido */}
+          <div className="space-y-2">
+            <h4 className="font-semibold flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4" />
+              Produtos do Pedido
+            </h4>
+            <div className="pl-6">
+              {orderItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum produto encontrado. Sincronize os pedidos para carregar os itens.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {orderItems.map((item) => (
+                    <div key={item.id} className="flex justify-between items-start text-sm border-b pb-2 last:border-0">
+                      <div className="flex-1">
+                        <p className="font-medium">{item.product_title}</p>
+                        {item.variant_title && (
+                          <p className="text-xs text-muted-foreground">{item.variant_title}</p>
+                        )}
+                        {item.sku && (
+                          <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                        )}
+                      </div>
+                      <div className="text-right ml-4">
+                        <p>{item.quantity}x R$ {item.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                        {item.total_discount > 0 && (
+                          <p className="text-xs text-green-600">-R$ {item.total_discount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <Separator />
 
           {/* Financial Info */}
@@ -417,53 +483,57 @@ export function PedidoOnlineDetailDialog({
 
           <Separator />
 
-          {/* Attribution Section */}
-          <div className="space-y-4 bg-muted/50 p-4 rounded-lg">
-            <h4 className="font-semibold">Atribuição e Classificação</h4>
+          {/* Attribution Section - only show if not hidden */}
+          {!hideAttribution && (
+            <div className="space-y-4 bg-muted/50 p-4 rounded-lg">
+              <h4 className="font-semibold">Atribuição e Classificação</h4>
 
-            <div className="space-y-2">
-              <Label htmlFor="vendedor">Atribuir Vendedor</Label>
-              <Select value={selectedVendedor || "__none__"} onValueChange={(val) => setSelectedVendedor(val === "__none__" ? "" : val)}>
-                <SelectTrigger id="vendedor">
-                  <SelectValue placeholder="Selecione um vendedor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sem vendedor</SelectItem>
-                  {vendedores.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="vendedor">Atribuir Vendedor</Label>
+                <Select value={selectedVendedor || "__none__"} onValueChange={(val) => setSelectedVendedor(val === "__none__" ? "" : val)}>
+                  <SelectTrigger id="vendedor">
+                    <SelectValue placeholder="Selecione um vendedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sem vendedor</SelectItem>
+                    {vendedores.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tipoCliente">Classificar Tipo de Cliente</Label>
-              <Select value={selectedTipoCliente} onValueChange={setSelectedTipoCliente}>
-                <SelectTrigger id="tipoCliente">
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPOS_CLIENTE.map((tipo) => (
-                    <SelectItem key={tipo.value} value={tipo.value}>
-                      {tipo.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="tipoCliente">Classificar Tipo de Cliente</Label>
+                <Select value={selectedTipoCliente} onValueChange={setSelectedTipoCliente}>
+                  <SelectTrigger id="tipoCliente">
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_CLIENTE.map((tipo) => (
+                      <SelectItem key={tipo.value} value={tipo.value}>
+                        {tipo.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {hideAttribution ? "Fechar" : "Cancelar"}
           </Button>
-          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Salvar Atribuição
-          </Button>
+          {!hideAttribution && (
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar Atribuição
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

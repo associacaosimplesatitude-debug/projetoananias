@@ -25,6 +25,16 @@ type ShopifyAddress = {
   name?: string | null;
 };
 
+type ShopifyLineItem = {
+  id: number;
+  title: string;
+  variant_title: string | null;
+  sku: string | null;
+  quantity: number;
+  price: string;
+  total_discount: string;
+};
+
 type ShopifyOrder = {
   id: number;
   name: string;
@@ -49,6 +59,7 @@ type ShopifyOrder = {
   billing_address?: ShopifyAddress | null;
   shipping_address?: ShopifyAddress | null;
   custom_attributes?: Array<{ name: string; value: string }>;
+  line_items?: ShopifyLineItem[];
 };
 
 function getNextPageInfo(linkHeader: string | null): string | null {
@@ -310,7 +321,47 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true, synced: rows.length }), {
+    // Sync line items for each order
+    console.log("Syncing line items...");
+    let totalItemsSynced = 0;
+
+    for (const order of allOrders) {
+      if (!order.line_items || order.line_items.length === 0) continue;
+
+      // Get the pedido_id from database
+      const { data: pedidoData } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("id")
+        .eq("shopify_order_id", order.id)
+        .single();
+
+      if (!pedidoData) continue;
+
+      const itemRows = order.line_items.map((item) => ({
+        pedido_id: pedidoData.id,
+        shopify_line_item_id: item.id,
+        product_title: item.title,
+        variant_title: item.variant_title || null,
+        sku: item.sku || null,
+        quantity: item.quantity,
+        price: parseFloat(item.price),
+        total_discount: parseFloat(item.total_discount || "0"),
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("ebd_shopify_pedidos_itens")
+        .upsert(itemRows, { onConflict: "pedido_id,shopify_line_item_id", ignoreDuplicates: false });
+
+      if (itemsError) {
+        console.error(`Error upserting items for order ${order.name}`, itemsError);
+      } else {
+        totalItemsSynced += itemRows.length;
+      }
+    }
+
+    console.log("Items synced", { totalItemsSynced });
+
+    return new Response(JSON.stringify({ success: true, synced: rows.length, items_synced: totalItemsSynced }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
