@@ -16,6 +16,7 @@ import { ptBR } from "date-fns/locale";
 import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle, Pencil, Trash2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { PedidoDetailDialog, Pedido } from "./PedidoDetailDialog";
+import { ShopifyPedidoDetailDialog } from "./ShopifyPedidoDetailDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -103,6 +104,10 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
   const queryClient = useQueryClient();
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  
+  // States for Shopify pedido dialog
+  const [selectedShopifyPedido, setSelectedShopifyPedido] = useState<ShopifyPedido | null>(null);
+  const [shopifyDialogOpen, setShopifyDialogOpen] = useState(false);
   
   // States for edit/delete propostas faturadas
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -410,6 +415,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                     <TableHead>Para Meta</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Rastreio</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -455,6 +461,19 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedShopifyPedido(pedido);
+                            setShopifyDialogOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -738,6 +757,13 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Shopify Pedido Detail Dialog */}
+      <ShopifyPedidoDetailDialog
+        open={shopifyDialogOpen}
+        onOpenChange={setShopifyDialogOpen}
+        pedido={selectedShopifyPedido}
+      />
     </>
   );
 }
