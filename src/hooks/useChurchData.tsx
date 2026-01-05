@@ -67,24 +67,32 @@ export const useChurchData = () => {
         if (superRoleData && superRoleData.length > 0) {
           const roleChurchId = superRoleData[0].church_id;
           console.log('EBD Superintendent role found for church:', roleChurchId);
-          
-          // Get igreja name from ebd_clientes
-          const { data: clienteInfo } = await supabase
-            .from('ebd_clientes')
-            .select('nome_igreja')
+
+          // For promoted superintendents, church_id points to `churches.id`
+          const { data: roleChurch } = await supabase
+            .from('churches')
+            .select('id, church_name, process_status, current_stage')
             .eq('id', roleChurchId)
             .maybeSingle();
-          
-          setChurch({
-            id: roleChurchId,
-            church_name: clienteInfo?.nome_igreja || '',
-            process_status: 'completed',
-            current_stage: 0,
-          });
+
+          setChurch(
+            roleChurch
+              ? {
+                  id: roleChurch.id,
+                  church_name: roleChurch.church_name,
+                  process_status: roleChurch.process_status,
+                  current_stage: roleChurch.current_stage ?? 0,
+                }
+              : {
+                  id: roleChurchId,
+                  church_name: '',
+                  process_status: 'completed',
+                  current_stage: 0,
+                }
+          );
           setLoading(false);
           return;
         }
-
         // 3. Try via professor (find church_id from professor record)
         const { data: professorData } = await supabase
           .from('ebd_professores')

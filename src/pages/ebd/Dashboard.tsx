@@ -131,36 +131,41 @@ export default function EBDDashboard() {
     queryKey: ['super-role-church', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      
+
       const { data: roleData, error: roleError } = await supabase
         .from('ebd_user_roles')
         .select('church_id')
         .eq('user_id', user.id)
         .eq('role', 'superintendente')
         .limit(1);
-      
+
       if (roleError || !roleData || roleData.length === 0) return null;
-      
+
       const roleChurchId = roleData[0].church_id;
-      
-      // Get igreja name from ebd_clientes
-      const { data: clienteInfo } = await supabase
-        .from('ebd_clientes')
-        .select('id, nome_igreja')
+
+      // For promoted superintendents, church_id points to `churches.id`
+      const { data: roleChurch, error: churchError } = await supabase
+        .from('churches')
+        .select('id, church_name')
         .eq('id', roleChurchId)
         .maybeSingle();
-      
-      return clienteInfo;
+
+      if (churchError) return null;
+      return roleChurch;
     },
     enabled: !!user?.id,
   });
 
-  // Usar ebdClienteId como churchId para clientes criados pelo vendedor
-  // Prioridade: churchData > ebdClienteData > superRoleChurch (superintendente promovido)
-  const churchId = churchData?.id || ebdClienteData?.id || superRoleChurch?.id;
-  const ebdClienteId = ebdClienteData?.id || superRoleChurch?.id || null;
-  const churchName = churchData?.church_name || ebdClienteData?.nome_igreja || superRoleChurch?.nome_igreja || 'Escola Bíblica Dominical';
+  // Prioridade: churchData (dono) > superRoleChurch (promovido) > ebdClienteData (legado)
+  const churchId = churchData?.id || superRoleChurch?.id || ebdClienteData?.id;
+  const churchName =
+    churchData?.church_name ||
+    superRoleChurch?.church_name ||
+    ebdClienteData?.nome_igreja ||
+    'Escola Bíblica Dominical';
 
+  // ID do cliente EBD é só o registro em ebd_clientes (para onboarding/créditos)
+  const ebdClienteId = ebdClienteData?.id || null;
   // Créditos do cliente
   const { totalDisponivel: creditosDisponiveis, totalUsado: creditosUsados } = useEbdCreditos(ebdClienteId);
 
