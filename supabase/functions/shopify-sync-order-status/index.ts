@@ -20,6 +20,17 @@ interface ShopifyOrder {
   total_price: string;
 }
 
+interface ShopifyDraftOrder {
+  id: number;
+  name: string;
+  status: string; // "open", "invoice_sent", "completed"
+  invoice_sent_at: string | null;
+  invoice_url: string | null;
+  order_id: number | null;
+  completed_at: string | null;
+  total_price: string;
+}
+
 interface OrderToSync {
   id: string;
   shopify_order_id: number;
@@ -243,18 +254,69 @@ serve(async (req) => {
               }
             }
 
-            // Method 2: If no matching order found, check Draft Order status directly in Shopify
+            // Method 2: Check Draft Orders directly in Shopify
+            // Draft order invoices expire, and we need to check the status
             if (!newPropostaStatus && proposta.payment_link) {
-              // Extract invoice token from payment link
-              // Format: https://www.centralgospel.com.br/61268131974/invoices/063794998e292b67af3261aa4373cebf
-              const invoiceToken = extractDraftOrderToken(proposta.payment_link);
+              // Get recent draft orders and check their status
+              const draftOrdersUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/draft_orders.json?status=open&limit=50`;
               
-              if (invoiceToken) {
-                // Search for draft orders by invoice_url or checkout token
-                // Unfortunately Shopify doesn't allow direct lookup by invoice token
-                // Instead, we'll search for orders created after this proposta date and match by value
+              const draftResp = await fetch(draftOrdersUrl, {
+                method: "GET",
+                headers: {
+                  "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+                  "Content-Type": "application/json",
+                },
+              });
+
+              if (draftResp.ok) {
+                const draftPayload = await draftResp.json() as { draft_orders: ShopifyDraftOrder[] };
+                const draftOrders = draftPayload.draft_orders || [];
                 
-                // Try to find a regular order that matches this proposta's value
+                console.log(`[SHOPIFY_SYNC] Fetched ${draftOrders.length} draft orders from Shopify`);
+                
+                // Find matching draft order by value and invoice_url
+                const propostaValue = proposta.valor_total;
+                const matchingDraft = draftOrders.find(d => {
+                  const draftValue = parseFloat(d.total_price);
+                  const valueMatches = Math.abs(draftValue - propostaValue) < 1;
+                  // Also check if invoice_url contains the same token
+                  const invoiceToken = extractDraftOrderToken(proposta.payment_link);
+                  const draftToken = d.invoice_url ? extractDraftOrderToken(d.invoice_url) : null;
+                  return valueMatches || (invoiceToken && draftToken && invoiceToken === draftToken);
+                });
+
+                if (matchingDraft) {
+                  console.log(`[SHOPIFY_SYNC] Found matching draft order ${matchingDraft.name} for proposta ${proposta.cliente_nome} - status=${matchingDraft.status} order_id=${matchingDraft.order_id}`);
+                  
+                  if (matchingDraft.status === "completed" && matchingDraft.order_id) {
+                    // Draft was completed - check the actual order status
+                    const orderUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/orders/${matchingDraft.order_id}.json?fields=id,name,financial_status,cancelled_at`;
+                    const orderResp = await fetch(orderUrl, {
+                      method: "GET",
+                      headers: {
+                        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+                        "Content-Type": "application/json",
+                      },
+                    });
+                    
+                    if (orderResp.ok) {
+                      const orderPayload = await orderResp.json() as { order: ShopifyOrder };
+                      const order = orderPayload.order;
+                      
+                      console.log(`[SHOPIFY_SYNC] Order ${order.name} from draft - financial_status=${order.financial_status} cancelled_at=${order.cancelled_at}`);
+                      
+                      if (order.financial_status === "paid") {
+                        newPropostaStatus = "PAGO";
+                      } else if (order.cancelled_at || ["voided", "refunded"].includes(order.financial_status?.toLowerCase() || "")) {
+                        newPropostaStatus = "EXPIRADO";
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Also search for completed orders created from draft orders
+              if (!newPropostaStatus) {
                 const searchUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/orders.json?status=any&created_at_min=${proposta.created_at}&fields=id,name,financial_status,cancelled_at,total_price,email`;
                 
                 const resp = await fetch(searchUrl, {
@@ -269,7 +331,9 @@ serve(async (req) => {
                   const payload = await resp.json() as { orders: ShopifyOrder[] };
                   const orders = payload.orders || [];
                   
-                  // Find a matching order by approximate value (within 1 BRL tolerance)
+                  console.log(`[SHOPIFY_SYNC] Fetched ${orders.length} orders from Shopify for proposta ${proposta.cliente_nome}`);
+                  
+                  // Find a matching order by approximate value
                   const propostaValue = proposta.valor_total;
                   const matchingOrder = orders.find(o => {
                     const orderValue = parseFloat(o.total_price);
@@ -277,29 +341,49 @@ serve(async (req) => {
                   });
 
                   if (matchingOrder) {
-                    console.log(`[SHOPIFY_SYNC] Found matching order ${matchingOrder.name} for proposta ${proposta.cliente_nome}`);
+                    console.log(`[SHOPIFY_SYNC] Found matching order ${matchingOrder.name} for proposta ${proposta.cliente_nome} - financial_status=${matchingOrder.financial_status} cancelled_at=${matchingOrder.cancelled_at}`);
                     
+                    // If order has pending status for more than a few hours and has no payment, it's likely expired
+                    // Shopify draft order invoices expire after a configurable period (default 24 hours)
                     if (matchingOrder.cancelled_at) {
+                      console.log(`[SHOPIFY_SYNC] Order ${matchingOrder.name} is CANCELLED -> marking proposta as EXPIRADO`);
                       newPropostaStatus = "EXPIRADO";
                     } else if (matchingOrder.financial_status === "paid") {
                       newPropostaStatus = "PAGO";
-                    } else if (["voided", "refunded"].includes(matchingOrder.financial_status)) {
+                    } else if (["voided", "refunded"].includes(matchingOrder.financial_status?.toLowerCase() || "")) {
+                      console.log(`[SHOPIFY_SYNC] Order ${matchingOrder.name} financial_status=${matchingOrder.financial_status} -> marking proposta as EXPIRADO`);
                       newPropostaStatus = "EXPIRADO";
+                    } else if (matchingOrder.financial_status === "pending") {
+                      // Check if the order is old enough to consider expired
+                      // Shopify draft order invoices typically expire after a few hours (configurable, default often 24h but many stores use shorter)
+                      // If there's a matching order with pending status, it means invoice was generated but not paid
+                      // We'll mark as expired if it's been more than 3 hours with no payment
+                      const propostaDate = new Date(proposta.created_at);
+                      const now = new Date();
+                      const hoursDiff = (now.getTime() - propostaDate.getTime()) / (1000 * 60 * 60);
+                      
+                      if (hoursDiff > 3) {
+                        console.log(`[SHOPIFY_SYNC] Order ${matchingOrder.name} is pending for ${hoursDiff.toFixed(1)}h -> marking as EXPIRADO (invoice likely expired)`);
+                        newPropostaStatus = "EXPIRADO";
+                      } else {
+                        console.log(`[SHOPIFY_SYNC] Order ${matchingOrder.name} is pending for ${hoursDiff.toFixed(1)}h, keeping as AGUARDANDO`);
+                      }
                     }
                   }
                 }
               }
             }
 
-            // Method 3: Check if proposta is old (> 7 days) - likely expired
+            // Method 3: Check if proposta is old (> 3 hours with no matching order) - likely expired
             if (!newPropostaStatus) {
               const propostaDate = new Date(proposta.created_at);
               const now = new Date();
-              const daysDiff = (now.getTime() - propostaDate.getTime()) / (1000 * 60 * 60 * 24);
+              const hoursDiff = (now.getTime() - propostaDate.getTime()) / (1000 * 60 * 60);
               
-              // Shopify Draft Order invoices typically expire after 7 days
-              if (daysDiff > 7) {
-                console.log(`[SHOPIFY_SYNC] proposta=${proposta.cliente_nome} is ${daysDiff.toFixed(1)} days old, marking as EXPIRADO`);
+              // Shopify Draft Order invoices typically expire after a few hours
+              // Mark as expired if > 3 hours old with no payment confirmation
+              if (hoursDiff > 3) {
+                console.log(`[SHOPIFY_SYNC] proposta=${proposta.cliente_nome} is ${hoursDiff.toFixed(1)} hours old with no payment, marking as EXPIRADO`);
                 newPropostaStatus = "EXPIRADO";
               }
             }
