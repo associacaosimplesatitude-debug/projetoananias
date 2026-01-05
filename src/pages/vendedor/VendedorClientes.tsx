@@ -272,8 +272,8 @@ export default function VendedorClientes() {
   const handleViewOrders = async (cliente: Cliente) => {
     setLoadingPedidos(true);
     try {
-      // Fetch the most recent order for this client
-      const { data: pedidos, error } = await supabase
+      // First try to find by cliente_id
+      let { data: pedidos, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select(`
           *,
@@ -285,6 +285,23 @@ export default function VendedorClientes() {
         .limit(1);
 
       if (error) throw error;
+
+      // If not found by cliente_id, try by email
+      if ((!pedidos || pedidos.length === 0) && cliente.email_superintendente) {
+        const { data: pedidosByEmail, error: emailError } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select(`
+            *,
+            cliente:ebd_clientes(nome_igreja, tipo_cliente),
+            vendedor:vendedores(nome)
+          `)
+          .ilike("customer_email", cliente.email_superintendente)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (emailError) throw emailError;
+        pedidos = pedidosByEmail;
+      }
 
       if (!pedidos || pedidos.length === 0) {
         toast.info("Nenhum pedido encontrado para este cliente.");
