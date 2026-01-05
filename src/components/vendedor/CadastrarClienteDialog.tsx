@@ -7,6 +7,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +122,11 @@ export function CadastrarClienteDialog({
     pode_faturar: false,
   });
   const [loadingCep, setLoadingCep] = useState(false);
+  const [clienteExistenteAlert, setClienteExistenteAlert] = useState<{
+    open: boolean;
+    nomeVendedor: string;
+    nomeCliente: string;
+  }>({ open: false, nomeVendedor: "", nomeCliente: "" });
 
   const isEditMode = !!clienteParaEditar;
 
@@ -471,7 +485,11 @@ export function CadastrarClienteDialog({
               
               if (clienteExistente.vendedor_id) {
                 const nomeVendedor = (clienteExistente.vendedor as any)?.nome || "outro vendedor";
-                toast.error(`Este cliente já é atendido pelo vendedor: ${nomeVendedor}`);
+                setClienteExistenteAlert({
+                  open: true,
+                  nomeVendedor,
+                  nomeCliente: clienteExistente.nome_igreja || "Cliente",
+                });
                 setLoading(false);
                 return;
               }
@@ -496,7 +514,11 @@ export function CadastrarClienteDialog({
               toast.success(`Cliente "${clienteExistente.nome_igreja}" vinculado à sua carteira!`);
             } else {
               // Cliente existe mas não conseguimos buscar (RLS) - informar que já existe
-              toast.error("Este cliente já está cadastrado e pertence a outro vendedor.");
+              setClienteExistenteAlert({
+                open: true,
+                nomeVendedor: "outro vendedor",
+                nomeCliente: formData.nome_igreja || "Este cliente",
+              });
               setLoading(false);
               return;
             }
@@ -548,6 +570,7 @@ export function CadastrarClienteDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(open) => { if (!open) resetForm(); onOpenChange(open); }}>
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
@@ -868,5 +891,31 @@ export function CadastrarClienteDialog({
         </form>
       </DialogContent>
     </Dialog>
+
+    {/* Alert Dialog para cliente já pertencente a outro vendedor */}
+    <AlertDialog 
+      open={clienteExistenteAlert.open} 
+      onOpenChange={(open) => setClienteExistenteAlert(prev => ({ ...prev, open }))}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-destructive flex items-center gap-2">
+            ⚠️ Cliente já cadastrado
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-base">
+            O cliente <strong>"{clienteExistenteAlert.nomeCliente}"</strong> já está cadastrado 
+            e pertence ao vendedor <strong>{clienteExistenteAlert.nomeVendedor}</strong>.
+            <br /><br />
+            Não é possível cadastrar este cliente na sua carteira.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={() => setClienteExistenteAlert({ open: false, nomeVendedor: "", nomeCliente: "" })}>
+            Entendi
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
