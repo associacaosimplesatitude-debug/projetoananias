@@ -234,6 +234,29 @@ serve(async (req) => {
       url.searchParams.set("financial_status", financialStatus);
       url.searchParams.set("order", "created_at asc");
 
+      // IMPORTANT: ensure line_items (and other needed fields) are returned
+      url.searchParams.set(
+        "fields",
+        [
+          "id",
+          "name",
+          "financial_status",
+          "created_at",
+          "updated_at",
+          "email",
+          "phone",
+          "customer",
+          "tags",
+          "note_attributes",
+          "note",
+          "total_price",
+          "shipping_lines",
+          "billing_address",
+          "shipping_address",
+          "line_items",
+        ].join(",")
+      );
+
       if (pageInfo) url.searchParams.set("page_info", pageInfo);
 
       console.log("Fetching orders page", { i, pageInfo });
