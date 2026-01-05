@@ -96,10 +96,11 @@ export function DescontosCategoriaSection({
 
     setSaving(true);
     try {
-      // Para cada categoria, faz upsert
+      console.log("[REP_DESC][SAVE] clienteId=", clienteId, "descontos=", descontos);
+
+      // Para cada categoria, faz upsert / delete
       for (const [categoria, percentual] of Object.entries(descontos)) {
         if (percentual > 0) {
-          // Upsert - insere ou atualiza
           const { error } = await supabase
             .from("ebd_descontos_categoria_representante")
             .upsert(
@@ -108,29 +109,38 @@ export function DescontosCategoriaSection({
                 categoria,
                 percentual_desconto: percentual,
               },
-              { 
+              {
                 onConflict: "cliente_id,categoria",
-                ignoreDuplicates: false 
+                ignoreDuplicates: false,
               }
             );
 
-          if (error) throw error;
+          if (error) {
+            console.error("[REP_DESC][UPSERT_ERROR]", { clienteId, categoria, percentual, error });
+            throw error;
+          }
         } else {
-          // Se percentual é 0, remove o registro se existir
-          await supabase
+          const { error } = await supabase
             .from("ebd_descontos_categoria_representante")
             .delete()
             .eq("cliente_id", clienteId)
             .eq("categoria", categoria);
+
+          if (error) {
+            console.error("[REP_DESC][DELETE_ERROR]", { clienteId, categoria, error });
+            throw error;
+          }
         }
       }
 
       setOriginalDescontos({ ...descontos });
       setHasChanges(false);
       toast.success("Descontos por categoria salvos com sucesso!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao salvar descontos:", error);
-      toast.error("Erro ao salvar descontos");
+      toast.error("Erro ao salvar descontos", {
+        description: error?.message ?? "Sem detalhes do erro.",
+      });
     } finally {
       setSaving(false);
     }
