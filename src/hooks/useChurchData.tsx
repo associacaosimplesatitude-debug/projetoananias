@@ -56,6 +56,35 @@ export const useChurchData = () => {
           return;
         }
 
+        // 2.1 Try ebd_user_roles as promoted superintendent
+        const { data: superRoleData } = await supabase
+          .from('ebd_user_roles')
+          .select('church_id')
+          .eq('user_id', user.id)
+          .eq('role', 'superintendente')
+          .limit(1);
+
+        if (superRoleData && superRoleData.length > 0) {
+          const roleChurchId = superRoleData[0].church_id;
+          console.log('EBD Superintendent role found for church:', roleChurchId);
+          
+          // Get igreja name from ebd_clientes
+          const { data: clienteInfo } = await supabase
+            .from('ebd_clientes')
+            .select('nome_igreja')
+            .eq('id', roleChurchId)
+            .maybeSingle();
+          
+          setChurch({
+            id: roleChurchId,
+            church_name: clienteInfo?.nome_igreja || '',
+            process_status: 'completed',
+            current_stage: 0,
+          });
+          setLoading(false);
+          return;
+        }
+
         // 3. Try via professor (find church_id from professor record)
         const { data: professorData } = await supabase
           .from('ebd_professores')
