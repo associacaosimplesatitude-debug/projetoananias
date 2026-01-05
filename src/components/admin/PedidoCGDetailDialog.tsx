@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Loader2, User, Mail, Package, Truck, ExternalLink, ShoppingBag, Church, IdCard } from "lucide-react";
+import { Loader2, User, Mail, Package, Truck, ExternalLink, ShoppingBag, Church, IdCard, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -124,6 +124,7 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
   const [selectedVendedor, setSelectedVendedor] = useState<string>("");
   const [selectedTipoCliente, setSelectedTipoCliente] = useState<string>("");
   const [nomeIgreja, setNomeIgreja] = useState<string>("");
+  const [autoSyncAttempted, setAutoSyncAttempted] = useState(false);
 
   // Fetch vendedores
   const { data: vendedores = [] } = useQuery({
@@ -140,21 +141,96 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
     enabled: open && canManage,
   });
 
-  // Fetch line items for this order
-  const { data: lineItems = [], isLoading: isLoadingItems } = useQuery({
-    queryKey: ["pedido-cg-itens", pedido?.id],
+  // Fetch line items for this order - tenta primeiro da tabela CG, depois da tabela normal
+  const { data: lineItems = [], isLoading: isLoadingItems, refetch: refetchItems } = useQuery({
+    queryKey: ["pedido-cg-itens", pedido?.id, pedido?.shopify_order_id],
     queryFn: async () => {
       if (!pedido?.id) return [];
-      const { data, error } = await supabase
+      
+      // Primeiro tenta a tabela ebd_shopify_pedidos_cg_itens
+      const { data: cgItems, error: cgError } = await supabase
         .from("ebd_shopify_pedidos_cg_itens")
         .select("*")
         .eq("pedido_id", pedido.id)
         .order("product_title");
-      if (error) throw error;
-      return data as PedidoItem[];
+      
+      if (!cgError && cgItems && cgItems.length > 0) {
+        return cgItems as PedidoItem[];
+      }
+      
+      // Se não encontrar, busca também na tabela normal por shopify_order_id
+      // Primeiro busca o pedido_id correspondente em ebd_shopify_pedidos
+      const { data: pedidoNormal } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("id")
+        .eq("shopify_order_id", pedido.shopify_order_id)
+        .maybeSingle();
+      
+      if (pedidoNormal) {
+        const { data: normalItems, error: normalError } = await supabase
+          .from("ebd_shopify_pedidos_itens")
+          .select("*")
+          .eq("pedido_id", pedidoNormal.id)
+          .order("product_title");
+        
+        if (!normalError && normalItems && normalItems.length > 0) {
+          return normalItems as PedidoItem[];
+        }
+      }
+      
+      return [];
     },
     enabled: open && !!pedido?.id,
   });
+
+  // Mutation to sync items for this order
+  const syncItemsMutation = useMutation({
+    mutationFn: async () => {
+      if (!pedido?.shopify_order_id) throw new Error("Pedido não encontrado");
+      
+      // Primeiro busca o pedido_id correspondente em ebd_shopify_pedidos
+      const { data: pedidoNormal } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("id")
+        .eq("shopify_order_id", pedido.shopify_order_id)
+        .maybeSingle();
+      
+      if (!pedidoNormal) {
+        throw new Error("Pedido não encontrado na tabela principal");
+      }
+      
+      const { data, error } = await supabase.functions.invoke("ebd-shopify-sync-order-items", {
+        body: { pedido_id: pedidoNormal.id }
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`${data.items_synced || 0} itens sincronizados`);
+      refetchItems();
+    },
+    onError: (error) => {
+      toast.error("Erro ao sincronizar itens", {
+        description: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+
+  // Auto-sync when opening dialog if no items and not already attempted
+  useEffect(() => {
+    if (open && pedido?.id && lineItems.length === 0 && !isLoadingItems && !autoSyncAttempted && !syncItemsMutation.isPending) {
+      setAutoSyncAttempted(true);
+      syncItemsMutation.mutate();
+    }
+  }, [open, pedido?.id, lineItems.length, isLoadingItems, autoSyncAttempted, syncItemsMutation.isPending]);
+
+  // Reset auto-sync flag when dialog closes or pedido changes
+  useEffect(() => {
+    if (!open) {
+      setAutoSyncAttempted(false);
+    }
+  }, [open, pedido?.id]);
 
   // Fetch existing client by email
   const { data: existingCliente, isLoading: isLoadingCliente } = useQuery({
@@ -400,11 +476,24 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
           {/* Products List */}
           <Separator />
           <div className="space-y-3">
-            <h3 className="font-semibold flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4" />
-              Produtos do Pedido
-            </h3>
-            {isLoadingItems ? (
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4" />
+                Produtos do Pedido
+              </h3>
+              {lineItems.length === 0 && !isLoadingItems && !syncItemsMutation.isPending && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncItemsMutation.mutate()}
+                  disabled={syncItemsMutation.isPending}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Sincronizar Itens
+                </Button>
+              )}
+            </div>
+            {(isLoadingItems || syncItemsMutation.isPending) ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Carregando produtos...
@@ -435,7 +524,7 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
               </div>
             ) : (
               <p className="text-muted-foreground text-sm">
-                Nenhum produto encontrado. Sincronize os pedidos para carregar os itens.
+                Nenhum produto encontrado.
               </p>
             )}
           </div>
