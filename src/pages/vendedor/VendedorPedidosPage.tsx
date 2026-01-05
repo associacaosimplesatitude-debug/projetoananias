@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { VendedorPedidosTab } from "@/components/vendedor/VendedorPedidosTab";
 import { useVendedor } from "@/hooks/useVendedor";
@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText } from "lucide-react";
+import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText, RefreshCw, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -69,6 +69,8 @@ interface Proposta {
 export default function VendedorPedidosPage() {
   const { vendedor, isLoading } = useVendedor();
   const [processingPropostaId, setProcessingPropostaId] = useState<string | null>(null);
+  const [isSyncingStatus, setIsSyncingStatus] = useState(false);
+  const hasSyncedRef = useRef(false);
 
   const { data: propostas, isLoading: isLoadingPropostas, refetch } = useQuery({
     queryKey: ["vendedor-propostas", vendedor?.id],
@@ -102,6 +104,71 @@ export default function VendedorPedidosPage() {
     },
     enabled: !!vendedor?.id,
   });
+
+  // Auto-sync propostas status when page loads
+  useEffect(() => {
+    const syncPropostasStatus = async () => {
+      if (hasSyncedRef.current || !vendedor?.id || !propostas) return;
+      
+      // Check if there are propostas AGUARDANDO_PAGAMENTO
+      const pendingPropostas = propostas.filter(p => p.status === "AGUARDANDO_PAGAMENTO");
+      if (pendingPropostas.length === 0) return;
+      
+      hasSyncedRef.current = true;
+      setIsSyncingStatus(true);
+      
+      console.log(`[PROPOSTAS_SYNC] Auto-syncing ${pendingPropostas.length} propostas for vendedor ${vendedor.id}`);
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('shopify-sync-order-status', {
+          body: { 
+            vendedor_id: vendedor.id,
+            sync_propostas: true,
+          }
+        });
+        
+        if (error) {
+          console.error('[PROPOSTAS_SYNC] Error:', error);
+        } else if (data?.propostas_synced > 0) {
+          console.log(`[PROPOSTAS_SYNC] Updated ${data.propostas_synced} propostas`);
+          toast.success(`${data.propostas_synced} proposta(s) atualizada(s) com status da Shopify`);
+          refetch();
+        }
+      } catch (err) {
+        console.error('[PROPOSTAS_SYNC] Failed:', err);
+      } finally {
+        setIsSyncingStatus(false);
+      }
+    };
+    
+    syncPropostasStatus();
+  }, [propostas, vendedor?.id, refetch]);
+
+  // Manual sync function
+  const handleManualSync = async () => {
+    if (isSyncingStatus || !vendedor?.id) return;
+    setIsSyncingStatus(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('shopify-sync-order-status', {
+        body: { 
+          vendedor_id: vendedor.id,
+          sync_propostas: true,
+        }
+      });
+      
+      if (error) throw error;
+      
+      const totalSynced = (data?.synced || 0) + (data?.propostas_synced || 0);
+      toast.success(`Status atualizado! ${totalSynced} registro(s) sincronizado(s).`);
+      refetch();
+    } catch (err) {
+      console.error('Error syncing:', err);
+      toast.error('Erro ao sincronizar status');
+    } finally {
+      setIsSyncingStatus(false);
+    }
+  };
 
   const copyLink = async (token: string) => {
     // Usar domínio de produção para o link da proposta
@@ -392,6 +459,8 @@ export default function VendedorPedidosPage() {
         return <Badge variant="destructive"><FileText className="w-3 h-3 mr-1" /> Reprovada</Badge>;
       case "AGUARDANDO_PAGAMENTO":
         return <Badge variant="outline" className="border-yellow-500 text-yellow-600"><CreditCard className="w-3 h-3 mr-1" /> Aguardando Pagamento</Badge>;
+      case "EXPIRADO":
+        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" /> Expirado</Badge>;
       case "FATURADO":
         return <Badge variant="outline" className="border-blue-500 text-blue-600"><FileText className="w-3 h-3 mr-1" /> Faturado</Badge>;
       case "PAGO":
@@ -425,9 +494,20 @@ export default function VendedorPedidosPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Pedidos e Propostas</h2>
-        <p className="text-muted-foreground">Acompanhe pedidos e propostas digitais</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Pedidos e Propostas</h2>
+          <p className="text-muted-foreground">Acompanhe pedidos e propostas digitais</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleManualSync}
+          disabled={isSyncingStatus}
+        >
+          <RefreshCw className={`h-4 w-4 mr-1 ${isSyncingStatus ? 'animate-spin' : ''}`} />
+          {isSyncingStatus ? 'Sincronizando...' : 'Atualizar Status'}
+        </Button>
       </div>
 
       <Tabs defaultValue="propostas">

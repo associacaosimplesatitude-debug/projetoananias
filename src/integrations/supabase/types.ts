@@ -3117,6 +3117,7 @@ export type Database = {
           id: string
           order_date: string | null
           order_number: string
+          shopify_cancelled_at: string | null
           shopify_order_id: number
           status_pagamento: string
           updated_at: string
@@ -3144,6 +3145,7 @@ export type Database = {
           id?: string
           order_date?: string | null
           order_number: string
+          shopify_cancelled_at?: string | null
           shopify_order_id: number
           status_pagamento?: string
           updated_at?: string
@@ -3171,6 +3173,7 @@ export type Database = {
           id?: string
           order_date?: string | null
           order_number?: string
+          shopify_cancelled_at?: string | null
           shopify_order_id?: number
           status_pagamento?: string
           updated_at?: string

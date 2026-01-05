@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle, Pencil, Trash2, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle, Pencil, Trash2, Loader2, RefreshCw } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { PedidoDetailDialog, Pedido } from "./PedidoDetailDialog";
 import { ShopifyPedidoDetailDialog } from "./ShopifyPedidoDetailDialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,6 +56,7 @@ interface ShopifyPedido {
   created_at: string;
   codigo_rastreio: string | null;
   url_rastreio: string | null;
+  shopify_cancelled_at?: string | null;
 }
 
 interface PropostaFaturada {
@@ -86,6 +87,35 @@ const getStatusBadge = (status: string, paymentStatus: string | null) => {
     return <Badge className="bg-blue-500 hover:bg-blue-600">Faturado</Badge>;
   }
   return <Badge variant="secondary">Pendente</Badge>;
+};
+
+/**
+ * Maps Shopify status to a display badge
+ */
+const getShopifyStatusBadge = (status: string, cancelledAt?: string | null) => {
+  // If cancelled, always show as expired/cancelled
+  if (cancelledAt) {
+    return <Badge variant="destructive">Expirado</Badge>;
+  }
+  
+  const statusLower = status?.toLowerCase() || '';
+  
+  switch (statusLower) {
+    case 'paid':
+      return <Badge className="bg-green-500 hover:bg-green-600">Pago</Badge>;
+    case 'refunded':
+    case 'voided':
+    case 'expirado':
+    case 'cancelado':
+      return <Badge variant="destructive">Cancelado</Badge>;
+    case 'pending':
+    case 'authorized':
+    case 'partially_paid':
+    case 'unpaid':
+      return <Badge variant="outline" className="border-yellow-500 text-yellow-600">Aguardando Pagamento</Badge>;
+    default:
+      return <Badge variant="secondary">{status}</Badge>;
+  }
 };
 
 const getPaymentMethodLabel = (metodo: string | null) => {
@@ -219,13 +249,13 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
   });
 
   // Fetch Shopify orders for this vendedor (by vendedor_id OR cliente_id of their clients)
-  const { data: shopifyPedidos = [], isLoading: isLoadingShopify } = useQuery({
+  const { data: shopifyPedidos = [], isLoading: isLoadingShopify, refetch: refetchShopify } = useQuery({
     queryKey: ["vendedor-shopify-pedidos", vendedorId, clienteIds],
     queryFn: async () => {
       // First, fetch orders directly by vendedor_id
       const { data: byVendedor, error: vendedorError } = await supabase
         .from("ebd_shopify_pedidos")
-        .select("*")
+        .select("*, shopify_cancelled_at")
         .eq("vendedor_id", vendedorId)
         .order("created_at", { ascending: false });
       
@@ -239,7 +269,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
       if (clienteIds.length > 0) {
         const { data: clienteData, error: clienteError } = await supabase
           .from("ebd_shopify_pedidos")
-          .select("*")
+          .select("*, shopify_cancelled_at")
           .in("cliente_id", clienteIds)
           .order("created_at", { ascending: false });
         
@@ -284,6 +314,72 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
   });
 
   const isLoading = isLoadingPedidos || isLoadingShopify || isLoadingFaturados || isLoadingPropostas;
+  const [isSyncingStatus, setIsSyncingStatus] = useState(false);
+  const hasSyncedRef = useRef(false);
+
+  // Sync Shopify order statuses when orders are loaded
+  useEffect(() => {
+    const syncOrderStatuses = async () => {
+      // Only sync once per component mount and if we have pending orders
+      if (hasSyncedRef.current || !vendedorId || shopifyPedidos.length === 0) return;
+      
+      // Find orders with pending status that might need sync
+      const pendingOrders = shopifyPedidos.filter(p => 
+        ['pending', 'authorized', 'partially_paid'].includes(p.status_pagamento?.toLowerCase() || '')
+      );
+      
+      if (pendingOrders.length === 0) return;
+      
+      hasSyncedRef.current = true;
+      setIsSyncingStatus(true);
+      
+      console.log(`[SHOPIFY_SYNC] Auto-syncing ${pendingOrders.length} pending orders for vendedor ${vendedorId}`);
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('shopify-sync-order-status', {
+          body: { 
+            order_ids: pendingOrders.map(p => p.id),
+          }
+        });
+        
+        if (error) {
+          console.error('[SHOPIFY_SYNC] Error syncing:', error);
+        } else if (data?.synced > 0) {
+          console.log(`[SHOPIFY_SYNC] Updated ${data.synced} orders`);
+          // Refetch to get updated statuses
+          refetchShopify();
+        }
+      } catch (err) {
+        console.error('[SHOPIFY_SYNC] Failed to sync:', err);
+      } finally {
+        setIsSyncingStatus(false);
+      }
+    };
+    
+    syncOrderStatuses();
+  }, [shopifyPedidos, vendedorId, refetchShopify]);
+
+  // Manual sync function
+  const handleManualSync = async () => {
+    if (isSyncingStatus) return;
+    setIsSyncingStatus(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('shopify-sync-order-status', {
+        body: { vendedor_id: vendedorId }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(`Status atualizado! ${data?.synced || 0} pedidos sincronizados.`);
+      refetchShopify();
+    } catch (err) {
+      console.error('Error syncing:', err);
+      toast.error('Erro ao sincronizar status dos pedidos');
+    } finally {
+      setIsSyncingStatus(false);
+    }
+  };
 
   // Calculate valor_para_meta for faturados (same logic as Shopify: valor_total - valor_frete)
   const calcularValorParaMeta = (pedido: Pedido) => {
@@ -393,13 +489,26 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Pedidos dos Meus Clientes
-          </CardTitle>
-          <CardDescription>
-            Pedidos realizados por você ou pelos superintendentes das igrejas vinculadas
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Pedidos dos Meus Clientes
+              </CardTitle>
+              <CardDescription>
+                Pedidos realizados por você ou pelos superintendentes das igrejas vinculadas
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleManualSync}
+              disabled={isSyncingStatus}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${isSyncingStatus ? 'animate-spin' : ''}`} />
+              {isSyncingStatus ? 'Sincronizando...' : 'Atualizar Status'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Shopify Orders Section */}
@@ -439,9 +548,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                         R$ {pedido.valor_para_meta.toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-green-500 hover:bg-green-600">
-                          {pedido.status_pagamento}
-                        </Badge>
+                        {getShopifyStatusBadge(pedido.status_pagamento, pedido.shopify_cancelled_at)}
                       </TableCell>
                       <TableCell>
                         {pedido.codigo_rastreio ? (
