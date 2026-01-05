@@ -436,7 +436,12 @@ export function CadastrarClienteDialog({
         // Verifica se já existe um cliente com este documento
         const { data: clienteExistente } = await supabase
           .from("ebd_clientes")
-          .select("id, vendedor_id, nome_igreja")
+          .select(`
+            id, 
+            vendedor_id, 
+            nome_igreja,
+            vendedor:vendedores!ebd_clientes_vendedor_id_fkey(id, nome)
+          `)
           .or(`cnpj.eq.${documentoLimpo},cpf.eq.${documentoLimpo}`)
           .maybeSingle();
 
@@ -446,10 +451,19 @@ export function CadastrarClienteDialog({
           // Cliente já existe - verifica se já está vinculado a este vendedor
           if (clienteExistente.vendedor_id === vendedorId) {
             toast.error("Este cliente já está na sua carteira");
+            setLoading(false);
             return;
           }
           
-          // Atualiza o vendedor_id para vincular ao vendedor atual e atualiza dados
+          // Se o cliente já pertence a outro vendedor, bloquear o cadastro
+          if (clienteExistente.vendedor_id) {
+            const nomeVendedor = (clienteExistente.vendedor as any)?.nome || "outro vendedor";
+            toast.error(`Este cliente já é atendido pelo vendedor: ${nomeVendedor}`);
+            setLoading(false);
+            return;
+          }
+          
+          // Cliente existe mas não tem vendedor - pode vincular
           const { data: clienteAtualizado, error: updateError } = await supabase
             .from("ebd_clientes")
             .update({
