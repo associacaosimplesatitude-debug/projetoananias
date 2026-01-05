@@ -262,7 +262,7 @@ function AdminSidebar() {
                   <SidebarMenuButton asChild isActive={isActive('/admin/ebd/clientes')}>
                     <RouterNavLink to="/admin/ebd/clientes">
                       <Users className="h-4 w-4" />
-                      <span>Clientes EBD</span>
+                      <span>Clientes Gerais</span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
