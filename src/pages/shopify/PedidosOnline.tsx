@@ -149,11 +149,11 @@ export default function PedidosOnline() {
         body: { financial_status: "paid", status: "any" },
       });
       if (error) throw error;
-      return data as { success?: boolean; synced?: number; error?: string; details?: string };
+      return data as { success?: boolean; synced?: number; items_synced?: number; error?: string; details?: string };
     },
     onSuccess: (data) => {
       toast.success("Pedidos sincronizados", {
-        description: `Sincronizados: ${data?.synced ?? 0}`,
+        description: `Sincronizados: ${data?.synced ?? 0} pedidos, ${data?.items_synced ?? 0} itens`,
       });
       queryClient.invalidateQueries({ queryKey: ["ebd-shopify-pedidos-online"] });
     },
@@ -167,6 +167,34 @@ export default function PedidosOnline() {
 
       toast.error("Falha ao sincronizar pedidos", {
         description,
+      });
+    },
+  });
+
+  const backfillItemsMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("ebd-shopify-backfill-items", {
+        body: { batch_size: 50 },
+      });
+      if (error) throw error;
+      return data as { success?: boolean; processed?: number; total_items_synced?: number; remaining_orders?: number; errors?: any[] };
+    },
+    onSuccess: (data) => {
+      if (data?.remaining_orders === 0) {
+        toast.success("Backfill concluído", {
+          description: `Todos os pedidos têm itens sincronizados!`,
+        });
+      } else {
+        toast.success("Lote processado", {
+          description: `${data?.processed ?? 0} pedidos, ${data?.total_items_synced ?? 0} itens. Restam: ${data?.remaining_orders ?? 0}`,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["ebd-shopify-pedidos-online"] });
+    },
+    onError: (err: any) => {
+      console.error("Falha no backfill de itens", err);
+      toast.error("Falha no backfill", {
+        description: err?.message || "Erro desconhecido",
       });
     },
   });
@@ -346,19 +374,35 @@ export default function PedidosOnline() {
         </div>
 
         {isAdmin && (
-          <Button
-            variant="outline"
-            onClick={() => syncOrdersMutation.mutate()}
-            disabled={syncOrdersMutation.isPending}
-            className="gap-2"
-          >
-            {syncOrdersMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            Sincronizar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => backfillItemsMutation.mutate()}
+              disabled={backfillItemsMutation.isPending || syncOrdersMutation.isPending}
+              className="gap-2"
+              title="Sincronizar itens de pedidos antigos"
+            >
+              {backfillItemsMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Package className="h-4 w-4" />
+              )}
+              Backfill Itens
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => syncOrdersMutation.mutate()}
+              disabled={syncOrdersMutation.isPending || backfillItemsMutation.isPending}
+              className="gap-2"
+            >
+              {syncOrdersMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Sincronizar
+            </Button>
+          </div>
         )}
       </header>
 

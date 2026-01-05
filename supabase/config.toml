@@ -122,3 +122,9 @@ verify_jwt = false
 
 [functions.shopify-register-webhook]
 verify_jwt = true
+
+[functions.ebd-shopify-sync-order-items]
+verify_jwt = true
+
+[functions.ebd-shopify-backfill-items]
+verify_jwt = true

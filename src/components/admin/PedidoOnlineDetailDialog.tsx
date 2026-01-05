@@ -22,7 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { Loader2, User, Mail, Package, Truck, DollarSign, IdCard, MapPin, Phone, ShoppingBag } from "lucide-react";
+import { Loader2, User, Mail, Package, Truck, DollarSign, IdCard, MapPin, Phone, ShoppingBag, RefreshCw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ShopifyPedido {
@@ -100,6 +100,7 @@ export function PedidoOnlineDetailDialog({
   const queryClient = useQueryClient();
   const [selectedVendedor, setSelectedVendedor] = useState<string>("");
   const [selectedTipoCliente, setSelectedTipoCliente] = useState<string>("");
+  const [autoSyncAttempted, setAutoSyncAttempted] = useState(false);
 
   // Fetch vendedores
   const { data: vendedores = [] } = useQuery({
@@ -132,7 +133,7 @@ export function PedidoOnlineDetailDialog({
   });
 
   // Fetch order items
-  const { data: orderItems = [] } = useQuery({
+  const { data: orderItems = [], refetch: refetchItems, isLoading: isLoadingItems } = useQuery({
     queryKey: ["pedido-items", pedido?.id],
     queryFn: async () => {
       if (!pedido?.id) return [];
@@ -146,6 +147,44 @@ export function PedidoOnlineDetailDialog({
     },
     enabled: !!pedido?.id,
   });
+
+  // Mutation to sync items for this order
+  const syncItemsMutation = useMutation({
+    mutationFn: async () => {
+      if (!pedido?.id) throw new Error("Pedido não encontrado");
+      
+      const { data, error } = await supabase.functions.invoke("ebd-shopify-sync-order-items", {
+        body: { pedido_id: pedido.id }
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`${data.items_synced || 0} itens sincronizados`);
+      refetchItems();
+    },
+    onError: (error) => {
+      toast.error("Erro ao sincronizar itens", {
+        description: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+
+  // Auto-sync when opening dialog if no items and not already attempted
+  useEffect(() => {
+    if (open && pedido?.id && orderItems.length === 0 && !isLoadingItems && !autoSyncAttempted && !syncItemsMutation.isPending) {
+      setAutoSyncAttempted(true);
+      syncItemsMutation.mutate();
+    }
+  }, [open, pedido?.id, orderItems.length, isLoadingItems, autoSyncAttempted, syncItemsMutation.isPending]);
+
+  // Reset auto-sync flag when dialog closes or pedido changes
+  useEffect(() => {
+    if (!open) {
+      setAutoSyncAttempted(false);
+    }
+  }, [open, pedido?.id]);
 
   // Update state when pedido changes
   useEffect(() => {
@@ -396,14 +435,32 @@ export function PedidoOnlineDetailDialog({
 
           {/* Produtos do Pedido */}
           <div className="space-y-2">
-            <h4 className="font-semibold flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4" />
-              Produtos do Pedido
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4" />
+                Produtos do Pedido
+              </h4>
+              {orderItems.length === 0 && !isLoadingItems && !syncItemsMutation.isPending && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncItemsMutation.mutate()}
+                  disabled={syncItemsMutation.isPending}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Sincronizar Itens
+                </Button>
+              )}
+            </div>
             <div className="pl-6">
-              {orderItems.length === 0 ? (
+              {(isLoadingItems || syncItemsMutation.isPending) ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando itens...
+                </div>
+              ) : orderItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Nenhum produto encontrado. Sincronize os pedidos para carregar os itens.
+                  Nenhum produto encontrado.
                 </p>
               ) : (
                 <div className="space-y-2">
