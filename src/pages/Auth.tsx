@@ -84,6 +84,21 @@ export default function Auth() {
         return;
       }
 
+      // 2.1 SUPERINTENDENTE via ebd_user_roles (professor promovido)
+      const { data: superRoleData } = await supabase
+        .from('ebd_user_roles')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('role', 'superintendente')
+        .limit(1);
+
+      if (superRoleData && superRoleData.length > 0) {
+        pushLoginSuccess(user.id, 'Superintendente');
+        console.log('Redirecting to /ebd/dashboard (superintendente role)');
+        navigate('/ebd/dashboard');
+        return;
+      }
+
       // 3. LEAD DE REATIVAÇÃO - verificar pelo email (CRÍTICO!)
       // Usar RPC ou query direta sem filtro de conta_criada primeiro
       const { data: leadData, error: leadError } = await supabase

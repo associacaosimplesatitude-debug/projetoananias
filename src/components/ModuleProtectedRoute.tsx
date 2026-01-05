@@ -103,6 +103,28 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.id && !loading,
   });
 
+  // Check if user is a superintendent via ebd_user_roles (promoted professor)
+  const { data: isSuperRoleUser, isLoading: superRoleLoading } = useQuery({
+    queryKey: ['is-super-role-check', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      
+      const { data, error } = await supabase
+        .from('ebd_user_roles')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('role', 'superintendente')
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking super role status:', error);
+        return false;
+      }
+      return data && data.length > 0;
+    },
+    enabled: !!user?.id && !loading,
+  });
+
   // Check if user is a lead de reativação - CASE INSENSITIVE
   const { data: isLeadReativacao, isLoading: leadLoading } = useQuery({
     queryKey: ['is-lead-reativacao-check', user?.email?.toLowerCase()],
@@ -126,7 +148,7 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.email && !loading,
   });
 
-  const isLoading = loading || modulesLoading || studentLoading || professorLoading || vendedorLoading || superintendenteLoading || leadLoading;
+  const isLoading = loading || modulesLoading || studentLoading || professorLoading || vendedorLoading || superintendenteLoading || leadLoading || superRoleLoading;
 
   if (isLoading) {
     return (
@@ -150,8 +172,8 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     return <>{children}</>;
   }
 
-  // Superintendents have access to EBD routes
-  if (isSuperintendente && requiredModule === 'REOBOTE EBD') {
+  // Superintendents have access to EBD routes (from ebd_clientes OR ebd_user_roles)
+  if ((isSuperintendente || isSuperRoleUser) && requiredModule === 'REOBOTE EBD') {
     return <>{children}</>;
   }
 
