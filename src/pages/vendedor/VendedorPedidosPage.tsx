@@ -488,6 +488,12 @@ export default function VendedorPedidosPage() {
   const propostasAguardandoLiberacao = propostas?.filter(p => 
     p.status === "AGUARDANDO_APROVACAO_FINANCEIRA"
   ) || [];
+
+  const propostasExpiradas = propostas?.filter(p => 
+    p.status === "EXPIRADO" || 
+    p.status === "CANCELADO" ||
+    p.status === "REPROVADA_FINANCEIRO"
+  ) || [];
   
   const propostasPendentes = propostasAtivas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
   const propostasAceitas = propostasAtivas?.filter(p => p.status === "PROPOSTA_ACEITA") || [];
@@ -522,6 +528,12 @@ export default function VendedorPedidosPage() {
             Aguardando Liberação
             {propostasAguardandoLiberacao.length > 0 && (
               <Badge variant="outline" className="ml-1 border-orange-500 text-orange-600">{propostasAguardandoLiberacao.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="expiradas" className="flex items-center gap-2">
+            Expiradas
+            {propostasExpiradas.length > 0 && (
+              <Badge variant="destructive" className="ml-1">{propostasExpiradas.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="pedidos">Pedidos Confirmados</TabsTrigger>
@@ -642,6 +654,51 @@ export default function VendedorPedidosPage() {
                         )}
                         <p className="text-xs text-orange-600 mt-1">
                           Aguardando aprovação do time financeiro
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={`/proposta/${proposta.token}`} target="_blank">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="expiradas" className="space-y-4 mt-4">
+          {isLoadingPropostas ? (
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : propostasExpiradas?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma proposta expirada ou cancelada
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {propostasExpiradas?.map((proposta) => (
+                <Card key={proposta.id} className="border-destructive/30 bg-destructive/5">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold">{proposta.cliente_nome}</span>
+                          {getStatusBadge(proposta.status)}
+                          {proposta.pode_faturar && (
+                            <Badge variant="outline" className="text-xs">
+                              B2B {proposta.prazo_faturamento_selecionado && `• ${proposta.prazo_faturamento_selecionado} dias`}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          R$ {proposta.valor_total.toFixed(2)} • Criada em {format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </p>
+                        <p className="text-xs text-destructive mt-1">
+                          Link de pagamento expirou - cliente precisa de nova proposta
                         </p>
                       </div>
                       <div className="flex gap-2">
