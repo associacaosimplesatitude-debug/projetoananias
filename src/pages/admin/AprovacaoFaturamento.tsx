@@ -20,6 +20,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { categorizarProduto } from "@/constants/categoriasShopify";
+import { isClienteRepresentante, type DescontosCategoriaRepresentante } from "@/lib/descontosShopify";
 
 interface PropostaItem {
   variantId: string;
@@ -148,13 +150,32 @@ export default function AprovacaoFaturamento() {
       };
 
       const prazo = proposta.prazo_faturamento_selecionado || "30";
-      const descontoPercentual = proposta.desconto_percentual || 0;
       const valorFrete = proposta.valor_frete || 0;
       const metodoFrete = proposta.metodo_frete || "COMBINAR";
 
+      // Buscar descontos por categoria do representante se aplicável
+      const clienteId = proposta.cliente_id || clienteProposta.id;
+      let descontosCategoria: DescontosCategoriaRepresentante = {};
+      let usarDescontoCategoria = false;
+
+      // Verificar se cliente é de representante
+      if (isClienteRepresentante(clienteProposta.tipo_cliente) && clienteId) {
+        const { data: descontosData } = await supabase
+          .from("ebd_descontos_categoria_representante")
+          .select("categoria, percentual_desconto")
+          .eq("cliente_id", clienteId);
+
+        if (descontosData && descontosData.length > 0) {
+          descontosData.forEach((d) => {
+            descontosCategoria[d.categoria] = Number(d.percentual_desconto);
+          });
+          usarDescontoCategoria = Object.values(descontosCategoria).some(v => v > 0);
+          console.log("[REP_DESC] AprovacaoFaturamento - descontosPorCategoria:", descontosCategoria);
+        }
+      }
+
       // Validar que todos os itens têm SKU antes de processar
       const itensComSku = proposta.itens.map((item: any) => {
-        // Buscar SKU em múltiplos campos possíveis (compatibilidade)
         const sku = item.sku || item.codigo || item.variantSku || null;
         return { ...item, sku };
       });
@@ -165,20 +186,31 @@ export default function AprovacaoFaturamento() {
         throw new Error(`Produto(s) sem SKU no carrinho/proposta: ${produtosSemSku}. Não é possível faturar sem SKU.`);
       }
 
+      // Montar itens aplicando desconto por categoria se representante
+      let valorProdutosComDesconto = 0;
       const itensBling = itensComSku.map((item) => {
         const precoOriginal = Number(item.price);
-        const precoComDesconto = descontoPercentual > 0
-          ? Math.round((precoOriginal * (1 - descontoPercentual / 100)) * 100) / 100
-          : precoOriginal;
+        let precoComDesconto = precoOriginal;
 
-        // SKU validado acima - garantido não ser null/undefined
+        if (usarDescontoCategoria) {
+          // Desconto por categoria do representante
+          const categoria = categorizarProduto(item.title);
+          const descontoPercent = descontosCategoria[categoria] || 0;
+          precoComDesconto = Math.round((precoOriginal * (1 - descontoPercent / 100)) * 100) / 100;
+          console.log(`[REP_DESC] Item: ${item.title} | Categoria: ${categoria} | Desconto: ${descontoPercent}% | Original: ${precoOriginal} | Final: ${precoComDesconto}`);
+        } else if ((proposta.desconto_percentual || 0) > 0) {
+          // Desconto global padrão
+          precoComDesconto = Math.round((precoOriginal * (1 - (proposta.desconto_percentual || 0) / 100)) * 100) / 100;
+        }
+
+        valorProdutosComDesconto += precoComDesconto * item.quantity;
         const codigo = String(item.sku).trim();
 
-        console.log(`[FATURAMENTO] Item: ${item.title} | SKU: ${codigo} | Qtd: ${item.quantity}`);
+        console.log(`[FATURAMENTO] Item: ${item.title} | SKU: ${codigo} | Qtd: ${item.quantity} | Valor: ${precoComDesconto}`);
 
         return {
-          codigo, // <- obrigatório para o Bling
-          sku: codigo, // manter por compatibilidade
+          codigo,
+          sku: codigo,
           descricao: item.title,
           unidade: "UN",
           quantidade: item.quantity,
@@ -187,13 +219,7 @@ export default function AprovacaoFaturamento() {
         };
       });
 
-      const valorProdutosSemDesconto = proposta.itens.reduce(
-        (sum, i) => sum + Number(i.price) * i.quantity,
-        0
-      );
-      const valorProdutos = descontoPercentual > 0
-        ? Math.round((valorProdutosSemDesconto * (1 - descontoPercentual / 100)) * 100) / 100
-        : Math.round(valorProdutosSemDesconto * 100) / 100;
+      const valorProdutos = Math.round(valorProdutosComDesconto * 100) / 100;
       const valorTotal = Math.round((valorProdutos + valorFrete) * 100) / 100;
 
       // CPF/CNPJ: não validar no front. A função bling-create-order buscará e validará
@@ -243,7 +269,7 @@ export default function AprovacaoFaturamento() {
           valor_produtos: valorProdutos,
           valor_total: valorTotal,
           vendedor_nome: proposta.vendedor_nome || proposta.vendedor?.nome,
-          desconto_percentual: descontoPercentual,
+          desconto_percentual: proposta.desconto_percentual || 0,
           // Dados de frete manual
           frete_tipo: proposta.frete_tipo || 'automatico',
           frete_transportadora: proposta.frete_transportadora,
