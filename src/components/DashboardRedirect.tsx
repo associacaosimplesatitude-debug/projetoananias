@@ -54,6 +54,28 @@ export default function DashboardRedirect() {
     enabled: !!user?.id && !authLoading,
   });
 
+  // Check if user has superintendente role in ebd_user_roles (promoted professors)
+  const { data: ebdSuperRole, isLoading: ebdSuperRoleLoading } = useQuery({
+    queryKey: ["is-ebd-super-role-redirect", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from("ebd_user_roles")
+        .select("id, church_id")
+        .eq("user_id", user.id)
+        .eq("role", "superintendente")
+        .limit(1);
+
+      if (error) {
+        console.error("Error checking ebd_user_roles status:", error);
+        return null;
+      }
+      return data && data.length > 0 ? data[0] : null;
+    },
+    enabled: !!user?.id && !authLoading,
+  });
+
   // Check if user is a lead de reativação (superintendent by email) - CASE INSENSITIVE
   const { data: leadReativacao, isLoading: leadLoading } = useQuery({
     queryKey: ["is-lead-reativacao-redirect", user?.email?.toLowerCase()],
@@ -139,7 +161,7 @@ export default function DashboardRedirect() {
     enabled: !!user?.id && !authLoading,
   });
 
-  const isLoading = modulesLoading || alunoLoading || authLoading || professorLoading || vendedorLoading || ebdClienteLoading || leadLoading;
+  const isLoading = modulesLoading || alunoLoading || authLoading || professorLoading || vendedorLoading || ebdClienteLoading || leadLoading || ebdSuperRoleLoading;
 
   if (isLoading) {
     return (
@@ -154,6 +176,7 @@ export default function DashboardRedirect() {
     role,
     vendedor: !!vendedor,
     ebdCliente: ebdCliente,
+    ebdSuperRole: ebdSuperRole,
     leadReativacao: !!leadReativacao,
     leadReativacaoData: leadReativacao,
     professor: !!professor,
@@ -192,8 +215,8 @@ export default function DashboardRedirect() {
     return <Navigate to="/ebd/shopify-pedidos" replace />;
   }
 
-  // PRIORITY 2: If user is a superintendent (from ebd_clientes), redirect to EBD dashboard
-  if (ebdCliente) {
+  // PRIORITY 2: If user is a superintendent (from ebd_clientes OR ebd_user_roles), redirect to EBD dashboard
+  if (ebdCliente || ebdSuperRole) {
     console.log('DashboardRedirect - Redirecting superintendente to /ebd/dashboard');
     return <Navigate to="/ebd/dashboard" replace />;
   }
