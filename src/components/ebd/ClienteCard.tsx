@@ -153,7 +153,7 @@ export function ClienteCard({
                 </Badge>
               )}
               {cliente.pode_faturar && (
-                <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs">
+                <Badge className="bg-primary text-primary-foreground text-xs">
                   <FileText className="mr-1 h-3 w-3" />
                   Faturamento
                 </Badge>
