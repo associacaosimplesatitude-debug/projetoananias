@@ -30,6 +30,26 @@ interface ShippingOption {
   days?: number;
   endereco?: string;
   horario?: string;
+  estimatedDate?: string;
+}
+
+// Função para adicionar dias úteis a uma data
+function addBusinessDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  let addedDays = 0;
+  while (addedDays < days) {
+    result.setDate(result.getDate() + 1);
+    // 0 = Domingo, 6 = Sábado
+    if (result.getDay() !== 0 && result.getDay() !== 6) {
+      addedDays++;
+    }
+  }
+  return result;
+}
+
+// Função para formatar data em português
+function formatDateBR(date: Date): string {
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 interface Proposta {
@@ -144,23 +164,31 @@ export default function PropostaDigital() {
 
       const options: ShippingOption[] = [];
       
-      // Add PAC option
+      const today = new Date();
+      
+      // Add PAC option - 5 dias úteis
       if (data?.pac) {
+        const pacDays = 5;
+        const pacDate = addBusinessDays(today, pacDays);
         options.push({
           type: 'pac',
-          label: `PAC - ${data.pac.days} dias úteis`,
+          label: `PAC - ${pacDays} dias úteis`,
           cost: data.pac.cost,
-          days: data.pac.days,
+          days: pacDays,
+          estimatedDate: formatDateBR(pacDate),
         });
       }
 
-      // Add SEDEX option
+      // Add SEDEX option - 2 dias úteis
       if (data?.sedex) {
+        const sedexDays = 2;
+        const sedexDate = addBusinessDays(today, sedexDays);
         options.push({
           type: 'sedex',
-          label: `SEDEX - ${data.sedex.days} dias úteis`,
+          label: `SEDEX - ${sedexDays} dias úteis`,
           cost: data.sedex.cost,
-          days: data.sedex.days,
+          days: sedexDays,
+          estimatedDate: formatDateBR(sedexDate),
         });
       }
 
@@ -173,12 +201,20 @@ export default function PropostaDigital() {
         horario: 'Segunda a Sexta: 9h às 18h'
       });
 
-      // Add free shipping if total >= R$199,90
+      // Add free shipping if total >= R$199,90 - 10 dias úteis
       const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * (proposta.desconto_percentual || 0) / 100);
       if (valorComDesconto >= 199.90) {
+        const freeDays = 10;
+        const freeDate = addBusinessDays(today, freeDays);
         // Insert free shipping before retirada
         const retiradaOption = options.pop();
-        options.push({ type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
+        options.push({ 
+          type: 'free', 
+          label: `Frete Grátis (compras acima de R$199,90) - ${freeDays} dias úteis`, 
+          cost: 0,
+          days: freeDays,
+          estimatedDate: formatDateBR(freeDate),
+        });
         if (retiradaOption) options.push(retiradaOption);
       }
 
@@ -194,9 +230,13 @@ export default function PropostaDigital() {
       console.error('Error fetching shipping:', error);
       // Fallback options
       const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * (proposta.desconto_percentual || 0) / 100);
+      const fallbackToday = new Date();
+      const fallbackPacDate = addBusinessDays(fallbackToday, 5);
+      const fallbackSedexDate = addBusinessDays(fallbackToday, 2);
+      const fallbackFreeDate = addBusinessDays(fallbackToday, 10);
       const fallbackOptions: ShippingOption[] = [
-        { type: 'pac', label: 'PAC - 8 dias úteis', cost: 15, days: 8 },
-        { type: 'sedex', label: 'SEDEX - 3 dias úteis', cost: 25, days: 3 },
+        { type: 'pac', label: 'PAC - 5 dias úteis', cost: 15, days: 5, estimatedDate: formatDateBR(fallbackPacDate) },
+        { type: 'sedex', label: 'SEDEX - 2 dias úteis', cost: 25, days: 2, estimatedDate: formatDateBR(fallbackSedexDate) },
         { 
           type: 'retirada', 
           label: 'Retirada na Matriz', 
@@ -206,7 +246,13 @@ export default function PropostaDigital() {
         },
       ];
       if (valorComDesconto >= 199.90) {
-        fallbackOptions.splice(2, 0, { type: 'free', label: 'Frete Grátis (compras acima de R$199,90)', cost: 0 });
+        fallbackOptions.splice(2, 0, { 
+          type: 'free', 
+          label: 'Frete Grátis (compras acima de R$199,90) - 10 dias úteis', 
+          cost: 0,
+          days: 10,
+          estimatedDate: formatDateBR(fallbackFreeDate),
+        });
       }
       setShippingOptions(fallbackOptions);
       if (valorComDesconto >= 199.90) {
@@ -775,16 +821,21 @@ export default function PropostaDigital() {
                           <RadioGroupItem value={option.type} id={`frete-${option.type}`} className="mt-1" />
                           <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer">
                             <div className="flex justify-between items-start">
-                              <div>
+                              <div className="flex-1">
                                 <span className="font-medium flex items-center gap-2">
                                   {option.type === 'retirada' && <MapPin className="h-4 w-4 text-green-600" />}
                                   {option.label}
-                                  {option.cost === 0 && (
+                                  {option.cost === 0 && option.type !== 'retirada' && (
                                     <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
                                       Frete Grátis
                                     </Badge>
                                   )}
                                 </span>
+                                {option.estimatedDate && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Previsão de entrega: <span className="font-medium">{option.estimatedDate}</span>
+                                  </p>
+                                )}
                                 {option.endereco && (
                                   <p className="text-xs text-muted-foreground mt-1">{option.endereco}</p>
                                 )}
