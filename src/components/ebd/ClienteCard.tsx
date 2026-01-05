@@ -18,6 +18,7 @@ import {
   ShoppingCart,
   Percent,
   Play,
+  FileText,
 } from "lucide-react";
 
 interface Cliente {
@@ -38,6 +39,7 @@ interface Cliente {
   onboarding_concluido: boolean | null;
   vendedor_nome?: string;
   desconto_faturamento?: number | null;
+  pode_faturar?: boolean;
 }
 
 interface Creditos {
@@ -148,6 +150,12 @@ export function ClienteCard({
                 <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white text-xs">
                   <Percent className="mr-1 h-3 w-3" />
                   {cliente.desconto_faturamento}% vendedor
+                </Badge>
+              )}
+              {cliente.pode_faturar && (
+                <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs">
+                  <FileText className="mr-1 h-3 w-3" />
+                  Faturamento
                 </Badge>
               )}
               {cliente.tipo_cliente && (
