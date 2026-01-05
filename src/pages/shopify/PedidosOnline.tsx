@@ -130,7 +130,7 @@ const isPaidStatus = (statusRaw: string | null | undefined) => {
 
 export default function PedidosOnline() {
   const queryClient = useQueryClient();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, canAccessAdminEBD } = useUserRole();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
@@ -373,7 +373,7 @@ export default function PedidosOnline() {
           <p className="text-muted-foreground">Pedidos pagos finalizados via Shopify</p>
         </div>
 
-        {isAdmin && (
+        {canAccessAdminEBD && (
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -400,7 +400,7 @@ export default function PedidosOnline() {
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              Sincronizar
+              Sincronizar Pedidos
             </Button>
           </div>
         )}
