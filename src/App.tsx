@@ -116,6 +116,7 @@ import VendedorLeadsLandingPage from "./pages/vendedor/VendedorLeadsLandingPage"
 import VendedorPedidosPage from "./pages/vendedor/VendedorPedidosPage";
 import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 import { VendedorProtectedRoute } from "./components/vendedor/VendedorProtectedRoute";
+import VendedorCalculadoraPeso from "./pages/vendedor/VendedorCalculadoraPeso";
 
 
 // Shopify Pages
@@ -447,6 +448,7 @@ const App = () => (
                         </VendedorProtectedRoute>
                       } />
                       <Route path="pedidos" element={<VendedorPedidosPage />} />
+                      <Route path="calculadora-peso" element={<VendedorCalculadoraPeso />} />
                       <Route path="shopify" element={<ShopifyPedidos />} />
                       <Route path="tutoriais" element={<Tutoriais />} />
                     </Route>

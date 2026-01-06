@@ -3062,6 +3062,7 @@ export type Database = {
           imagem_url: string | null
           last_sync_at: string | null
           num_licoes: number
+          peso_bruto: number | null
           possui_plano_leitura: boolean
           possui_quiz_mestre: boolean
           preco_cheio: number | null
@@ -3080,6 +3081,7 @@ export type Database = {
           imagem_url?: string | null
           last_sync_at?: string | null
           num_licoes?: number
+          peso_bruto?: number | null
           possui_plano_leitura?: boolean
           possui_quiz_mestre?: boolean
           preco_cheio?: number | null
@@ -3098,6 +3100,7 @@ export type Database = {
           imagem_url?: string | null
           last_sync_at?: string | null
           num_licoes?: number
+          peso_bruto?: number | null
           possui_plano_leitura?: boolean
           possui_quiz_mestre?: boolean
           preco_cheio?: number | null
