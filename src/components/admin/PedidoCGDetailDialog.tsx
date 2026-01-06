@@ -300,6 +300,11 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
           tipo_cliente: clienteData.tipo_cliente,
         };
         
+        // Marcar como pós-venda ecommerce quando atribuir vendedor
+        if (clienteData.vendedor_id) {
+          updateData.is_pos_venda_ecommerce = true;
+        }
+        
         // Só atualiza campos se estiverem vazios no cliente existente ou se tivermos dados novos
         if (clienteData.endereco_cidade && !existingCliente.endereco_cidade) {
           updateData.endereco_cidade = clienteData.endereco_cidade;
@@ -339,7 +344,13 @@ export function PedidoCGDetailDialog({ pedido, open, onOpenChange }: PedidoCGDet
         if (error) throw error;
       } else {
         // Create new cliente with all data
-        const { error } = await supabase.from("ebd_clientes").insert(clienteData);
+        const insertData = {
+          ...clienteData,
+          status_ativacao_ebd: false,
+          // Marcar como pós-venda ecommerce quando atribuir vendedor
+          is_pos_venda_ecommerce: clienteData.vendedor_id ? true : false,
+        };
+        const { error } = await supabase.from("ebd_clientes").insert(insertData);
         if (error) throw error;
       }
     },
