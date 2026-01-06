@@ -279,9 +279,15 @@ serve(async (req) => {
     const isFaturamentoPagamento = forma_pagamento?.toLowerCase() === 'faturamento';
 
     const situacaoEmAbertoId = await resolveSituacaoEmAbertoId(accessToken);
-    const situacaoAprovadaB2BId = isFaturamentoPagamento
-      ? await resolveSituacaoIdByName(accessToken, 'Aprovada B2B')
-      : null;
+    
+    // Tentar várias variações do nome da situação B2B
+    let situacaoAprovadaB2BId: number | null = null;
+    if (isFaturamentoPagamento) {
+      // Tentar diferentes variações do nome
+      situacaoAprovadaB2BId = await resolveSituacaoIdByName(accessToken, 'APROVADA B2B')
+        || await resolveSituacaoIdByName(accessToken, 'Aprovada B2B')
+        || await resolveSituacaoIdByName(accessToken, 'aprovada b2b');
+    }
 
     const situacaoInicialId = (situacaoAprovadaB2BId ?? situacaoEmAbertoId);
 
