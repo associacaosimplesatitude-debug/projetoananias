@@ -11,17 +11,22 @@ serve(async (req) => {
   }
 
   try {
-    const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN");
+    const { topic = "orders/create" } = await req.json().catch(() => ({}));
+    
+    const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_CENTRAL_GOSPEL_ACCESS_TOKEN");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SHOPIFY_STORE_DOMAIN = "kgg1pq-6r.myshopify.com";
     
     if (!SHOPIFY_ACCESS_TOKEN) {
-      throw new Error("SHOPIFY_ADMIN_ACCESS_TOKEN not configured");
+      throw new Error("SHOPIFY_CENTRAL_GOSPEL_ACCESS_TOKEN not configured");
     }
 
-    const webhookUrl = `${SUPABASE_URL}/functions/v1/ebd-shopify-order-webhook`;
+    // Determinar a URL do webhook baseado no topic
+    const webhookUrl = topic === "orders/create" 
+      ? `${SUPABASE_URL}/functions/v1/shopify-orders-webhook`
+      : `${SUPABASE_URL}/functions/v1/ebd-shopify-order-webhook`;
     
-    console.log("Registering webhook for orders/paid to:", webhookUrl);
+    console.log(`Registering webhook for ${topic} to:`, webhookUrl);
 
     // First, check existing webhooks
     const listResponse = await fetch(
@@ -43,25 +48,26 @@ serve(async (req) => {
     const existingWebhooks = await listResponse.json();
     console.log("Existing webhooks:", JSON.stringify(existingWebhooks.webhooks?.map((w: any) => ({ id: w.id, topic: w.topic, address: w.address }))));
 
-    // Check if webhook already exists for orders/paid
-    const existingOrderPaidWebhook = existingWebhooks.webhooks?.find(
-      (w: any) => w.topic === "orders/paid" && w.address.includes("ebd-shopify-order-webhook")
+    // Check if webhook already exists for this topic
+    const existingWebhook = existingWebhooks.webhooks?.find(
+      (w: any) => w.topic === topic && w.address.includes("shopify")
     );
 
-    if (existingOrderPaidWebhook) {
-      console.log("Webhook already exists:", existingOrderPaidWebhook.id);
+    if (existingWebhook) {
+      console.log("Webhook already exists:", existingWebhook.id);
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: "Webhook already configured",
-          webhook_id: existingOrderPaidWebhook.id,
-          address: existingOrderPaidWebhook.address
+          webhook_id: existingWebhook.id,
+          topic: existingWebhook.topic,
+          address: existingWebhook.address
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create new webhook for orders/paid
+    // Create new webhook
     const createResponse = await fetch(
       `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/webhooks.json`,
       {
@@ -72,7 +78,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           webhook: {
-            topic: "orders/paid",
+            topic: topic,
             address: webhookUrl,
             format: "json",
           },
@@ -94,7 +100,7 @@ serve(async (req) => {
         success: true, 
         message: "Webhook registered successfully",
         webhook_id: newWebhook.webhook?.id,
-        topic: "orders/paid",
+        topic: topic,
         address: webhookUrl
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
