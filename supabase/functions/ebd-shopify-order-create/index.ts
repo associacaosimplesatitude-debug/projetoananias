@@ -370,9 +370,11 @@ serve(async (req) => {
     }
 
     // Adicionar CPF/CNPJ aos note_attributes para captura fácil na sincronização
-    if (cliente.cnpj) {
-      noteAttributes.push({ name: "cpf_cnpj", value: cliente.cnpj });
-      console.log("Adicionando CPF/CNPJ aos note_attributes:", cliente.cnpj);
+    // Busca primeiro em cnpj, depois em cpf (se a interface permitir)
+    const documento = cliente.cnpj || (cliente as any).cpf;
+    if (documento) {
+      noteAttributes.push({ name: "cpf_cnpj", value: documento });
+      console.log("Adicionando CPF/CNPJ aos note_attributes:", documento);
     }
 
     // Build tags - Shopify has a 40 character limit per tag
