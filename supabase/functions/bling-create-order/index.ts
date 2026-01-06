@@ -1322,9 +1322,10 @@ serve(async (req) => {
         deposito: { id: depositoIdSelecionado },
       })),
       situacao: {
-        // Usar status apropriado: 15 = Em Aberto, 9 = Atendido
-        // Para faturamento B2B, usar Em Aberto para aguardar emissão dos boletos
-        id: isFaturamento ? 15 : 15,
+        // Status Bling: 15 = Em Aberto, 9 = Atendido/Aprovado, 6 = Em Andamento
+        // Para faturamento B2B, usar Em Aberto (15) para aguardar emissão dos boletos
+        // Para pagamentos normais, usar Aprovado (9) para ir direto para expedição
+        id: isFaturamento ? 15 : 9,
       },
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
