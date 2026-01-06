@@ -1323,8 +1323,8 @@ serve(async (req) => {
       })),
       situacao: {
         // Status Bling: 15 = Em Aberto, 9 = Atendido/Aprovado
-        // Pedidos faturados (B2B) vão direto como APROVADO (9) para expedição
-        id: 9,
+        // Pedidos chegam como EM ABERTO (15) para aprovação manual
+        id: 15,
       },
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
