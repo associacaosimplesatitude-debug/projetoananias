@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ShoppingCart, Play } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Clock } from "lucide-react";
 import { useVendedor } from "@/hooks/useVendedor";
+import { PlaybookClienteCard } from "@/components/vendedor/PlaybookClienteCard";
 
 interface Cliente {
   id: string;
@@ -12,14 +11,19 @@ interface Cliente {
   nome_responsavel: string | null;
   nome_superintendente: string | null;
   email_superintendente: string | null;
+  telefone: string | null;
+  cnpj: string | null;
   status_ativacao_ebd: boolean;
+  ultimo_login: string | null;
+  data_proxima_compra: string | null;
+  data_inicio_ebd: string | null;
+  senha_temporaria: string | null;
 }
 
 export default function VendedorPendentes() {
-  const navigate = useNavigate();
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
 
-  const { data: clientesPendentes = [], isLoading } = useQuery({
+  const { data: clientesPendentes = [], isLoading, refetch } = useQuery({
     queryKey: ["vendedor-clientes-pendentes", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
@@ -35,14 +39,6 @@ export default function VendedorPendentes() {
     enabled: !!vendedor?.id,
   });
 
-  const handleFazerPedido = (cliente: Cliente) => {
-    navigate(`/vendedor/shopify?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
-  };
-
-  const handleAtivarPainel = (cliente: Cliente) => {
-    navigate(`/vendedor/ativacao?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
-  };
-
   if (vendedorLoading || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -54,57 +50,34 @@ export default function VendedorPendentes() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Pendentes de Ativação</h2>
-        <p className="text-muted-foreground">Clientes que ainda não tiveram o Painel EBD ativado</p>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <Clock className="h-6 w-6 text-amber-500" />
+          Pendentes de Ativação
+        </h2>
+        <p className="text-muted-foreground">
+          Clientes que ainda não tiveram o Painel EBD ativado
+        </p>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          {clientesPendentes.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              Nenhum cliente pendente de ativação
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {clientesPendentes.map((cliente) => (
-                <div
-                  key={cliente.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium">{cliente.nome_igreja}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {cliente.nome_responsavel || cliente.nome_superintendente || "Sem responsável"}
-                    </p>
-                    {cliente.email_superintendente && (
-                      <p className="text-sm text-muted-foreground">
-                        {cliente.email_superintendente}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleFazerPedido(cliente)}
-                    >
-                      <ShoppingCart className="mr-1 h-4 w-4" />
-                      FAZER PEDIDO
-                    </Button>
-                    <Button 
-                      size="sm"
-                      onClick={() => handleAtivarPainel(cliente)}
-                    >
-                      <Play className="mr-1 h-4 w-4" />
-                      ATIVAR PAINEL EBD
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {clientesPendentes.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Clock className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Nenhum cliente pendente de ativação</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {clientesPendentes.map((cliente) => (
+            <PlaybookClienteCard
+              key={cliente.id}
+              cliente={cliente}
+              type="ativacao_pendente"
+              onRefresh={refetch}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

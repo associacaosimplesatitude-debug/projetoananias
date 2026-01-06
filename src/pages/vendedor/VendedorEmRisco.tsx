@@ -1,26 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { differenceInDays } from "date-fns";
-import { useNavigate } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
+import { PlaybookClienteCard } from "@/components/vendedor/PlaybookClienteCard";
 
 interface Cliente {
   id: string;
   nome_igreja: string;
+  nome_superintendente: string | null;
   email_superintendente: string | null;
+  telefone: string | null;
+  cnpj: string | null;
   ultimo_login: string | null;
   status_ativacao_ebd: boolean;
+  data_proxima_compra: string | null;
+  data_inicio_ebd: string | null;
+  senha_temporaria: string | null;
 }
 
 export default function VendedorEmRisco() {
-  const navigate = useNavigate();
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
 
-  const { data: clientesRisco = [], isLoading } = useQuery({
+  const { data: clientesRisco = [], isLoading, refetch } = useQuery({
     queryKey: ["vendedor-clientes-risco", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
@@ -42,10 +45,6 @@ export default function VendedorEmRisco() {
     enabled: !!vendedor?.id,
   });
 
-  const handleFazerPedido = (cliente: Cliente) => {
-    navigate(`/vendedor/shopify?clienteId=${cliente.id}&clienteNome=${encodeURIComponent(cliente.nome_igreja)}`);
-  };
-
   if (vendedorLoading || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -57,57 +56,34 @@ export default function VendedorEmRisco() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Clientes em Risco</h2>
-        <p className="text-muted-foreground">Clientes sem login há mais de 30 dias - requerem atenção</p>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <AlertTriangle className="h-6 w-6 text-destructive" />
+          Clientes em Risco
+        </h2>
+        <p className="text-muted-foreground">
+          Clientes sem login há mais de 30 dias - requerem atenção
+        </p>
       </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          {clientesRisco.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              Nenhum cliente em risco
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {clientesRisco.map((cliente) => {
-                const diasSemLogin = cliente.ultimo_login
-                  ? differenceInDays(new Date(), new Date(cliente.ultimo_login))
-                  : null;
-
-                return (
-                  <div
-                    key={cliente.id}
-                    className="flex items-center justify-between p-4 border rounded-lg border-destructive/50 bg-destructive/5"
-                  >
-                    <div className="space-y-1">
-                      <p className="font-medium">{cliente.nome_igreja}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {cliente.email_superintendente}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="destructive">
-                        <AlertTriangle className="mr-1 h-3 w-3" />
-                        {diasSemLogin
-                          ? `${diasSemLogin} dias sem login`
-                          : "Nunca logou"}
-                      </Badge>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleFazerPedido(cliente)}
-                      >
-                        <ShoppingCart className="mr-1 h-4 w-4" />
-                        FAZER PEDIDO
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {clientesRisco.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Nenhum cliente em risco</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {clientesRisco.map((cliente) => (
+            <PlaybookClienteCard
+              key={cliente.id}
+              cliente={cliente}
+              type="em_risco"
+              onRefresh={refetch}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
