@@ -10,139 +10,138 @@ const corsHeaders = {
 const SHOPIFY_STORE_DOMAIN = "kgg1pq-6r.myshopify.com";
 const SHOPIFY_API_VERSION = "2024-01";
 
-// ========== BLING INTEGRATION ==========
-async function refreshBlingToken(supabase: any, config: any): Promise<string> {
-  if (!config.refresh_token) {
-    throw new Error('Refresh token não disponível');
-  }
-
-  console.log('[BLING] Renovando token...');
-  
-  const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-  
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Basic ${credentials}`,
-    },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: config.refresh_token,
-    }),
-  });
-
-  const tokenData = await tokenResponse.json();
-
-  if (!tokenResponse.ok || tokenData.error) {
-    console.error('[BLING] Erro ao renovar token:', tokenData);
-    throw new Error(tokenData.error_description || 'Erro ao renovar token do Bling');
-  }
-
-  const expiresAt = new Date();
-  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 21600));
-
-  const { error: updateError } = await supabase
-    .from('bling_config')
-    .update({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      token_expires_at: expiresAt.toISOString(),
-    })
-    .eq('id', config.id);
-
-  if (updateError) {
-    console.error('[BLING] Erro ao salvar tokens:', updateError);
-    throw new Error('Erro ao salvar tokens renovados');
-  }
-
-  console.log('[BLING] Token renovado com sucesso!');
-  return tokenData.access_token;
-}
-
-async function getBlingAccessToken(supabase: any): Promise<string | null> {
-  const { data: config, error } = await supabase
-    .from('bling_config')
-    .select('*')
-    .single();
-
-  if (error || !config) {
-    console.error('[BLING] Erro ao buscar config:', error);
-    return null;
-  }
-
-  // Check if token is expired
-  const expiresAt = config.token_expires_at ? new Date(config.token_expires_at) : null;
-  const now = new Date();
-  
-  if (expiresAt && now >= expiresAt) {
-    // Token expired, refresh it
-    try {
-      return await refreshBlingToken(supabase, config);
-    } catch (e) {
-      console.error('[BLING] Falha ao renovar token:', e);
-      return null;
+// ========== GRAPHQL QUERY para buscar CPF/CNPJ ==========
+const ORDER_CUSTOM_ATTRIBUTES_QUERY = `
+  query GetOrderCustomAttributes($id: ID!) {
+    order(id: $id) {
+      id
+      name
+      customAttributes {
+        key
+        value
+      }
+      customer {
+        id
+        email
+        phone
+        firstName
+        lastName
+      }
+      billingAddress {
+        firstName
+        lastName
+        company
+        address1
+        address2
+        city
+        province
+        country
+        zip
+        phone
+      }
+      shippingAddress {
+        firstName
+        lastName
+        company
+        address1
+        address2
+        city
+        province
+        country
+        zip
+        phone
+      }
     }
   }
+`;
 
-  return config.access_token;
-}
-
-interface BlingOrderSearchResult {
+// ========== Função para buscar CPF/CNPJ via GraphQL ==========
+interface GraphQLOrderResult {
   customerDocument: string | null;
-  customerName: string | null;
 }
 
-async function fetchCpfCnpjFromBling(
-  accessToken: string,
-  shopifyOrderNumber: string
-): Promise<BlingOrderSearchResult> {
-  // Shopify order numbers come like "#1944", we need to clean them
-  const cleanOrderNumber = shopifyOrderNumber.replace(/^#/, '');
+async function fetchCpfCnpjViaGraphQL(
+  shopifyAccessToken: string,
+  shopifyOrderId: number
+): Promise<GraphQLOrderResult> {
+  const graphqlUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2025-01/graphql.json`;
   
-  // Search for order in Bling by store order number
-  // The parameter numeroPedidoLoja filters by the original order number from the e-commerce
-  const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?numeroPedidoLoja=${cleanOrderNumber}&limite=5`;
+  // Shopify GraphQL requires gid format
+  const gid = `gid://shopify/Order/${shopifyOrderId}`;
   
-  console.log(`[BLING] Buscando pedido ${cleanOrderNumber}: ${searchUrl}`);
+  console.log(`[GRAPHQL] Buscando CPF/CNPJ para order ${shopifyOrderId}...`);
   
   try {
-    const response = await fetch(searchUrl, {
-      method: 'GET',
+    const response = await fetch(graphqlUrl, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
+        'X-Shopify-Access-Token': shopifyAccessToken,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        query: ORDER_CUSTOM_ATTRIBUTES_QUERY,
+        variables: { id: gid },
+      }),
     });
 
     if (!response.ok) {
-      console.warn(`[BLING] Erro ao buscar pedido ${cleanOrderNumber}: ${response.status}`);
-      return { customerDocument: null, customerName: null };
+      console.warn(`[GRAPHQL] Erro HTTP ${response.status} para order ${shopifyOrderId}`);
+      return { customerDocument: null };
     }
 
     const json = await response.json();
-    const orders = json?.data || [];
     
-    if (orders.length === 0) {
-      console.log(`[BLING] Nenhum pedido encontrado para ${cleanOrderNumber}`);
-      return { customerDocument: null, customerName: null };
+    if (json.errors) {
+      console.warn(`[GRAPHQL] Errors para order ${shopifyOrderId}:`, json.errors);
+      return { customerDocument: null };
     }
 
-    // Get the first matching order
-    const blingOrder = orders[0];
-    console.log(`[BLING] Pedido encontrado: ID ${blingOrder.id}, Contato: ${JSON.stringify(blingOrder.contato)}`);
-    
-    const customerDocument = blingOrder.contato?.numeroDocumento || null;
-    const customerName = blingOrder.contato?.nome || null;
-
-    if (customerDocument) {
-      console.log(`[BLING] CPF/CNPJ encontrado para ${cleanOrderNumber}: ${customerDocument}`);
+    const order = json.data?.order;
+    if (!order) {
+      console.log(`[GRAPHQL] Order ${shopifyOrderId} não encontrado`);
+      return { customerDocument: null };
     }
 
-    return { customerDocument, customerName };
+    // 1. Buscar em customAttributes
+    const customAttrs = order.customAttributes || [];
+    for (const attr of customAttrs) {
+      const keyLower = (attr.key || '').toLowerCase();
+      if (keyLower.includes('cpf') || keyLower.includes('cnpj') || 
+          keyLower.includes('documento') || keyLower.includes('document') ||
+          keyLower.includes('tax') || keyLower.includes('nif')) {
+        if (attr.value) {
+          console.log(`[GRAPHQL] ✓ CPF/CNPJ encontrado em customAttributes para ${shopifyOrderId}: ${attr.value}`);
+          return { customerDocument: attr.value };
+        }
+      }
+    }
+
+    // 2. Buscar em billingAddress.address2 (alguns checkouts brasileiros usam)
+    const billingAddr2 = order.billingAddress?.address2;
+    if (billingAddr2) {
+      const numbersOnly = billingAddr2.replace(/\D/g, '');
+      if (numbersOnly.length === 11 || numbersOnly.length === 14) {
+        console.log(`[GRAPHQL] ✓ CPF/CNPJ encontrado em billingAddress.address2 para ${shopifyOrderId}: ${billingAddr2}`);
+        return { customerDocument: billingAddr2 };
+      }
+    }
+
+    // 3. Buscar em shippingAddress.address2
+    const shippingAddr2 = order.shippingAddress?.address2;
+    if (shippingAddr2) {
+      const numbersOnly = shippingAddr2.replace(/\D/g, '');
+      if (numbersOnly.length === 11 || numbersOnly.length === 14) {
+        console.log(`[GRAPHQL] ✓ CPF/CNPJ encontrado em shippingAddress.address2 para ${shopifyOrderId}: ${shippingAddr2}`);
+        return { customerDocument: shippingAddr2 };
+      }
+    }
+
+    console.log(`[GRAPHQL] CPF/CNPJ não encontrado para order ${shopifyOrderId}`);
+    return { customerDocument: null };
+    
   } catch (e) {
-    console.error(`[BLING] Erro ao buscar pedido ${cleanOrderNumber}:`, e);
-    return { customerDocument: null, customerName: null };
+    console.error(`[GRAPHQL] Erro ao buscar order ${shopifyOrderId}:`, e);
+    return { customerDocument: null };
   }
 }
 interface ShopifyLineItem {
@@ -450,63 +449,57 @@ serve(async (req) => {
       }
     }
 
-    // ========== PASSO 2: BUSCAR CPF/CNPJ NO BLING PARA PEDIDOS SEM DOCUMENTO ==========
-    console.log("[BLING] Iniciando busca de CPF/CNPJ para pedidos sem documento...");
+    // ========== PASSO 2: BUSCAR CPF/CNPJ VIA GRAPHQL PARA PEDIDOS SEM DOCUMENTO ==========
+    console.log("[GRAPHQL] Iniciando busca de CPF/CNPJ para pedidos sem documento...");
     
     // Get orders that don't have customer_document
     const { data: ordersWithoutDocument, error: fetchError } = await supabase
       .from("ebd_shopify_pedidos_cg")
-      .select("id, order_number, customer_document")
+      .select("id, order_number, shopify_order_id, customer_document")
       .is("customer_document", null)
       .order("created_at", { ascending: false })
-      .limit(100); // Limitar para não sobrecarregar
+      .limit(50); // Limitar para não sobrecarregar
 
     if (fetchError) {
-      console.error("[BLING] Erro ao buscar pedidos sem documento:", fetchError);
+      console.error("[GRAPHQL] Erro ao buscar pedidos sem documento:", fetchError);
     } else if (ordersWithoutDocument && ordersWithoutDocument.length > 0) {
-      console.log(`[BLING] ${ordersWithoutDocument.length} pedidos sem CPF/CNPJ. Buscando no Bling...`);
+      console.log(`[GRAPHQL] ${ordersWithoutDocument.length} pedidos sem CPF/CNPJ. Buscando via GraphQL...`);
       
-      // Get Bling access token
-      const blingToken = await getBlingAccessToken(supabase);
+      let graphqlUpdates = 0;
       
-      if (blingToken) {
-        let blingUpdates = 0;
-        
-        for (const order of ordersWithoutDocument) {
-          try {
-            const result = await fetchCpfCnpjFromBling(blingToken, order.order_number);
+      for (const order of ordersWithoutDocument) {
+        try {
+          // Usar GraphQL para buscar CPF/CNPJ diretamente do Shopify
+          const result = await fetchCpfCnpjViaGraphQL(shopifyAccessToken, order.shopify_order_id);
+          
+          if (result.customerDocument) {
+            // Update the order with CPF/CNPJ from GraphQL
+            const { error: updateError } = await supabase
+              .from("ebd_shopify_pedidos_cg")
+              .update({ 
+                customer_document: result.customerDocument,
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", order.id);
             
-            if (result.customerDocument) {
-              // Update the order with CPF/CNPJ from Bling
-              const { error: updateError } = await supabase
-                .from("ebd_shopify_pedidos_cg")
-                .update({ 
-                  customer_document: result.customerDocument,
-                  updated_at: new Date().toISOString()
-                })
-                .eq("id", order.id);
-              
-              if (updateError) {
-                console.error(`[BLING] Erro ao atualizar pedido ${order.order_number}:`, updateError);
-              } else {
-                console.log(`[BLING] ✓ CPF/CNPJ atualizado para pedido ${order.order_number}: ${result.customerDocument}`);
-                blingUpdates++;
-              }
+            if (updateError) {
+              console.error(`[GRAPHQL] Erro ao atualizar pedido ${order.order_number}:`, updateError);
+            } else {
+              console.log(`[GRAPHQL] ✓ CPF/CNPJ atualizado para pedido ${order.order_number}: ${result.customerDocument}`);
+              graphqlUpdates++;
             }
-            
-            // Small delay to avoid rate limiting
-            await new Promise(r => setTimeout(r, 200));
-          } catch (e) {
-            console.error(`[BLING] Erro ao processar pedido ${order.order_number}:`, e);
           }
+          
+          // Small delay to avoid rate limiting
+          await new Promise(r => setTimeout(r, 100));
+        } catch (e) {
+          console.error(`[GRAPHQL] Erro ao processar pedido ${order.order_number}:`, e);
         }
-        
-        console.log(`[BLING] Total de pedidos atualizados com CPF/CNPJ do Bling: ${blingUpdates}`);
-      } else {
-        console.warn("[BLING] Token não disponível. Pulando busca de CPF/CNPJ no Bling.");
       }
+      
+      console.log(`[GRAPHQL] Total de pedidos atualizados com CPF/CNPJ via GraphQL: ${graphqlUpdates}`);
     } else {
-      console.log("[BLING] Todos os pedidos já possuem CPF/CNPJ ou nenhum pedido encontrado.");
+      console.log("[GRAPHQL] Todos os pedidos já possuem CPF/CNPJ ou nenhum pedido encontrado.");
     }
 
     // Optionally sync line items (can be heavy and trigger gateway 5xx).
