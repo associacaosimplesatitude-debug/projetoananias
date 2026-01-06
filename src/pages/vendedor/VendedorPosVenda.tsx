@@ -16,8 +16,9 @@ interface PosVendaItem {
   id: string;
   pedido_id: string;
   cliente_id: string | null;
+  email_cliente: string;
   vendedor_id: string;
-  ativado: boolean;
+  status: string; // pendente | ativado | concluido
   created_at: string;
   // Dados do pedido (buscados separadamente)
   pedido: {
@@ -76,15 +77,18 @@ export default function VendedorPosVenda() {
     queryFn: async () => {
       if (!vendedor?.id) return [];
 
-      // 1. Buscar vínculos da tabela pivô
+      // 1. Buscar vínculos da tabela pivô onde status = 'pendente'
       const { data: vinculos, error: vinculosError } = await (supabase as any)
         .from("ebd_pos_venda_ecommerce")
         .select("*")
         .eq("vendedor_id", vendedor.id)
-        .eq("ativado", false)
+        .eq("status", "pendente")
         .order("created_at", { ascending: false });
 
-      if (vinculosError) throw vinculosError;
+      if (vinculosError) {
+        console.error("Erro ao buscar vínculos pós-venda:", vinculosError);
+        throw vinculosError;
+      }
       if (!vinculos || vinculos.length === 0) return [];
 
       // 2. Buscar os pedidos correspondentes
@@ -110,16 +114,17 @@ export default function VendedorPosVenda() {
       }
 
       // 4. Montar o resultado combinando os dados
-      const result: PosVendaItem[] = vinculos.map(vinculo => {
+      const result: PosVendaItem[] = vinculos.map((vinculo: any) => {
         const pedido = pedidos?.find(p => p.id === vinculo.pedido_id) || null;
-        const cliente = clientes.find(c => c.id === vinculo.cliente_id) || null;
+        let cliente = clientes.find(c => c.id === vinculo.cliente_id) || null;
         
         return {
           id: vinculo.id,
           pedido_id: vinculo.pedido_id,
           cliente_id: vinculo.cliente_id,
+          email_cliente: vinculo.email_cliente,
           vendedor_id: vinculo.vendedor_id,
-          ativado: vinculo.ativado,
+          status: vinculo.status,
           created_at: vinculo.created_at,
           pedido,
           cliente,
