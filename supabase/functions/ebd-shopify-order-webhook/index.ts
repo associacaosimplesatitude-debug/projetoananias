@@ -6,6 +6,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shopify-hmac-sha256, x-shopify-topic, x-shopify-shop-domain",
 };
 
+interface ShopifyAddress {
+  first_name?: string;
+  last_name?: string;
+  company?: string;
+  address1?: string;
+  address2?: string;
+  city?: string;
+  province?: string;
+  province_code?: string;
+  zip?: string;
+  country?: string;
+  country_code?: string;
+  phone?: string;
+}
+
 interface ShopifyOrder {
   id: number;
   order_number: number;
@@ -40,7 +55,10 @@ interface ShopifyOrder {
     email: string;
     first_name: string;
     last_name: string;
+    phone?: string;
   } | null;
+  shipping_address?: ShopifyAddress;
+  billing_address?: ShopifyAddress;
   created_at: string;
   updated_at: string;
 }
@@ -125,9 +143,10 @@ serve(async (req) => {
     const statusPagamento = order.financial_status;
     console.log("Order financial_status:", order.financial_status, "-> saved as:", statusPagamento);
 
-    // Extract vendedor_id and cliente_id from note_attributes
+    // Extract vendedor_id, cliente_id, and cpf_cnpj from note_attributes
     let vendedorId: string | null = null;
     let clienteId: string | null = null;
+    let cpfCnpj: string | null = null;
 
     if (order.note_attributes && Array.isArray(order.note_attributes)) {
       for (const attr of order.note_attributes) {
@@ -136,6 +155,9 @@ serve(async (req) => {
         }
         if (attr.name === "cliente_id") {
           clienteId = attr.value;
+        }
+        if (attr.name === "cpf_cnpj") {
+          cpfCnpj = attr.value;
         }
       }
     }
@@ -148,7 +170,7 @@ serve(async (req) => {
       }
     }
 
-    console.log("Extracted IDs:", { vendedorId, clienteId });
+    console.log("Extracted IDs:", { vendedorId, clienteId, cpfCnpj });
 
     // Fetch fulfillment data (tracking info)
     const { trackingNumber, trackingUrl } = await fetchFulfillmentData(order.id);
@@ -172,6 +194,32 @@ serve(async (req) => {
     const valorTotal = parseFloat(order.total_price);
     const valorParaMeta = valorTotal - valorFrete;
 
+    // Extract shipping address data
+    const shippingAddr = order.shipping_address || order.billing_address;
+    const parseAddress = (addr: ShopifyAddress | undefined) => {
+      if (!addr) return {};
+      // address2 might contain "numero - bairro" pattern from our order creation
+      const address2 = addr.address2 || '';
+      const parts = address2.split(' - ');
+      const numero = parts[0]?.trim() || '';
+      const bairro = parts.slice(1).join(' - ')?.trim() || '';
+      
+      return {
+        endereco_rua: addr.address1 || null,
+        endereco_numero: numero || null,
+        endereco_complemento: addr.company || null,
+        endereco_bairro: bairro || null,
+        endereco_cidade: addr.city || null,
+        endereco_estado: addr.province_code || addr.province || null,
+        endereco_cep: addr.zip || null,
+      };
+    };
+    
+    const addressData = parseAddress(shippingAddr);
+
+    // Extract phone from order
+    const customerPhone = order.customer?.phone || shippingAddr?.phone || null;
+
     // Upsert the order in our database
     const orderData = {
       shopify_order_id: order.id,
@@ -186,6 +234,9 @@ serve(async (req) => {
       customer_name: order.customer 
         ? `${order.customer.first_name} ${order.customer.last_name}`.trim() 
         : null,
+      customer_document: cpfCnpj,
+      customer_phone: customerPhone,
+      ...addressData,
       codigo_rastreio: finalTrackingNumber,
       url_rastreio: finalTrackingUrl,
       updated_at: new Date().toISOString(),
