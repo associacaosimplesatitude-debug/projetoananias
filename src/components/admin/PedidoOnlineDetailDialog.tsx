@@ -331,25 +331,32 @@ export function PedidoOnlineDetailDialog({
       // Se tem vendedor selecionado, criar o vínculo na tabela pivô
       if (selectedVendedor) {
         // Verificar se já existe vínculo para este pedido
-        const { data: existingVinculo } = await supabase
+        const { data: existingVinculo, error: checkError } = await (supabase as any)
           .from("ebd_pos_venda_ecommerce")
           .select("id")
           .eq("pedido_id", pedido.id)
           .maybeSingle();
 
+        if (checkError) {
+          console.error("Erro ao verificar vínculo existente:", checkError);
+        }
+
         if (existingVinculo) {
           // Atualizar vínculo existente
-          const { error: updateVinculoError } = await supabase
+          const { error: updateVinculoError } = await (supabase as any)
             .from("ebd_pos_venda_ecommerce")
             .update({
               vendedor_id: selectedVendedor,
               cliente_id: finalClienteId || null,
             })
             .eq("id", existingVinculo.id);
-          if (updateVinculoError) throw updateVinculoError;
+          if (updateVinculoError) {
+            console.error("Erro ao atualizar vínculo:", updateVinculoError);
+            throw updateVinculoError;
+          }
         } else {
           // Criar novo vínculo
-          const { error: insertVinculoError } = await supabase
+          const { error: insertVinculoError } = await (supabase as any)
             .from("ebd_pos_venda_ecommerce")
             .insert({
               pedido_id: pedido.id,
@@ -357,7 +364,10 @@ export function PedidoOnlineDetailDialog({
               cliente_id: finalClienteId || null,
               ativado: false,
             });
-          if (insertVinculoError) throw insertVinculoError;
+          if (insertVinculoError) {
+            console.error("Erro ao inserir vínculo:", insertVinculoError);
+            throw insertVinculoError;
+          }
         }
       }
     },
