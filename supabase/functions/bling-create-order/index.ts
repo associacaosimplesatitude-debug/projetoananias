@@ -1321,9 +1321,10 @@ serve(async (req) => {
         ...item,
         deposito: { id: depositoIdSelecionado },
       })),
-      situacao: {
+      situacaoOrigem: {
         // Status Bling: 9 = Em aberto (conforme documentação API Bling)
         id: 9,
+        nome: "Em aberto",
       },
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
