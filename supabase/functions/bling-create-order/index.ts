@@ -81,10 +81,13 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
   return now.getTime() >= expiresAt.getTime() - bufferMs;
 }
 
-// Resolver o ID da situação "Em aberto" na conta (IDs podem variar por conta)
-let cachedSituacaoEmAbertoId: number | null = null;
-async function resolveSituacaoEmAbertoId(accessToken: string): Promise<number> {
-  if (cachedSituacaoEmAbertoId) return cachedSituacaoEmAbertoId;
+// Resolver o ID de uma situação no Bling pelo nome (IDs podem variar por conta)
+const cachedSituacaoIdsByName = new Map<string, number>();
+
+async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string): Promise<number | null> {
+  const key = String(situacaoNome || '').trim().toLowerCase();
+  if (!key) return null;
+  if (cachedSituacaoIdsByName.has(key)) return cachedSituacaoIdsByName.get(key)!;
 
   try {
     const url = 'https://www.bling.com.br/Api/v3/situacoes/modulos?idModulo=pedidos_vendas';
@@ -98,31 +101,40 @@ async function resolveSituacaoEmAbertoId(accessToken: string): Promise<number> {
     const json = await resp.json();
 
     if (!resp.ok) {
-      console.warn('[BLING] Falha ao listar situações. Usando fallback 9.', json);
-      cachedSituacaoEmAbertoId = 9;
-      return cachedSituacaoEmAbertoId;
+      console.warn('[BLING] Falha ao listar situações.', json);
+      return null;
     }
 
     const situacoes: any[] = Array.isArray(json?.data) ? json.data : [];
-    const match = situacoes.find((s) => String(s?.nome || '').toLowerCase().includes('em aberto'))
-      || situacoes.find((s) => String(s?.nome || '').toLowerCase().includes('aberto'));
+    const match = situacoes.find((s) => String(s?.nome || '').trim().toLowerCase() === key)
+      || situacoes.find((s) => String(s?.nome || '').toLowerCase().includes(key));
 
     const resolved = Number(match?.id);
-    cachedSituacaoEmAbertoId = Number.isFinite(resolved) && resolved > 0 ? resolved : 9;
+    const id = Number.isFinite(resolved) && resolved > 0 ? resolved : null;
 
-    console.log('[BLING] Situação "Em aberto" resolvida:', {
-      resolvedId: cachedSituacaoEmAbertoId,
+    if (id) {
+      cachedSituacaoIdsByName.set(key, id);
+    }
+
+    console.log('[BLING] Situação resolvida:', {
+      requestedName: situacaoNome,
+      resolvedId: id,
       matchName: match?.nome,
       totalSituacoes: situacoes.length,
     });
 
-    return cachedSituacaoEmAbertoId;
+    return id;
   } catch (e) {
-    console.warn('[BLING] Erro ao resolver situação. Usando fallback 9.', e);
-    cachedSituacaoEmAbertoId = 9;
-    return cachedSituacaoEmAbertoId;
+    console.warn('[BLING] Erro ao resolver situação por nome.', { situacaoNome }, e);
+    return null;
   }
 }
+
+async function resolveSituacaoEmAbertoId(accessToken: string): Promise<number> {
+  const id = await resolveSituacaoIdByName(accessToken, 'Em aberto');
+  return id ?? 9;
+}
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -254,9 +266,24 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config, configTableName, clientId, clientSecret);
     }
 
-    // IDs de situações podem variar por conta. Resolver "Em aberto" dinamicamente.
-    const situacaoEmAbertoId = await resolveSituacaoEmAbertoId(accessToken);
+    // IDs de situações podem variar por conta.
+    // - padrão: "Em aberto"
+    // - B2B faturamento: se existir, usar "Aprovada B2B" (que você criou no Bling)
+    const isFaturamentoPagamento = forma_pagamento?.toLowerCase() === 'faturamento';
 
+    const situacaoEmAbertoId = await resolveSituacaoEmAbertoId(accessToken);
+    const situacaoAprovadaB2BId = isFaturamentoPagamento
+      ? await resolveSituacaoIdByName(accessToken, 'Aprovada B2B')
+      : null;
+
+    const situacaoInicialId = (situacaoAprovadaB2BId ?? situacaoEmAbertoId);
+
+    console.log('[BLING] Situação inicial selecionada:', {
+      isFaturamentoPagamento,
+      situacaoEmAbertoId,
+      situacaoAprovadaB2BId,
+      situacaoInicialId,
+    });
 
     // ============================================================
     // GESTÃO DE CONTATO NO BLING - GARANTIR CPF/CNPJ E ENDEREÇO COMPLETO
@@ -1368,8 +1395,8 @@ serve(async (req) => {
         deposito: { id: depositoIdSelecionado },
       })),
       situacao: {
-        // Situação inicial do pedido (resolve "Em aberto" dinamicamente)
-        id: situacaoEmAbertoId,
+        // Situação inicial do pedido
+        id: situacaoInicialId,
       },
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
