@@ -28,12 +28,13 @@ export default function VendedorPendentes() {
     queryFn: async () => {
       if (!vendedor?.id) return [];
       
-      // 1. Buscar clientes pendentes de ativação
+      // 1. Buscar clientes pendentes de ativação (EXCLUI pós-venda e-commerce)
       const { data: clientes, error } = await supabase
         .from("ebd_clientes")
         .select("*")
         .eq("vendedor_id", vendedor.id)
         .eq("status_ativacao_ebd", false)
+        .eq("is_pos_venda_ecommerce", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
       

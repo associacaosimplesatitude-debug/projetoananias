@@ -71,13 +71,26 @@ export default function VendedorPosVenda() {
   const [messageModalTitle, setMessageModalTitle] = useState("");
   const [messageModalContent, setMessageModalContent] = useState("");
 
-  // Buscar da tabela pivô: pedidos atribuídos ao vendedor que ainda não foram ativados
+  // Buscar do contexto de pós-venda (fonte primária: flag is_pos_venda_ecommerce no cliente; secundária: tabela pivô)
   const { data: posVendaItems = [], isLoading } = useQuery({
     queryKey: ["vendedor-pos-venda", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
 
-      // 1. Buscar vínculos da tabela pivô onde status = 'pendente'
+      // A) Fonte primária: clientes marcados como pós-venda e-commerce
+      const { data: clientesPosVenda, error: clientesPosVendaError } = await supabase
+        .from("ebd_clientes")
+        .select(
+          "id, nome_igreja, nome_superintendente, email_superintendente, telefone, cnpj, cpf, status_ativacao_ebd, senha_temporaria, created_at"
+        )
+        .eq("vendedor_id", vendedor.id)
+        .eq("status_ativacao_ebd", false)
+        .eq("is_pos_venda_ecommerce", true)
+        .order("created_at", { ascending: false });
+
+      if (clientesPosVendaError) throw clientesPosVendaError;
+
+      // B) Fonte secundária: vínculos da tabela pivô (quando existir pedido associado)
       const { data: vinculos, error: vinculosError } = await (supabase as any)
         .from("ebd_pos_venda_ecommerce")
         .select("*")
@@ -87,37 +100,67 @@ export default function VendedorPosVenda() {
 
       if (vinculosError) {
         console.error("Erro ao buscar vínculos pós-venda:", vinculosError);
-        throw vinculosError;
+        // não quebrar o fluxo: ainda conseguimos listar os clientes por flag
       }
-      if (!vinculos || vinculos.length === 0) return [];
 
-      // 2. Buscar os pedidos correspondentes
-      const pedidoIds = vinculos.map(v => v.pedido_id);
-      const { data: pedidos, error: pedidosError } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("*")
-        .in("id", pedidoIds);
+      const vinculosSafe: any[] = vinculos || [];
+      const clienteIdsComVinculo = new Set(
+        vinculosSafe.map((v) => v.cliente_id).filter(Boolean)
+      );
+
+      // 1) Montar itens de clientes (garantindo que SEMPRE apareçam no menu certo)
+      const itensClientes: PosVendaItem[] = (clientesPosVenda || [])
+        .filter((c: any) => !clienteIdsComVinculo.has(c.id))
+        .map((c: any) => ({
+          id: `cliente:${c.id}`,
+          pedido_id: "",
+          cliente_id: c.id,
+          email_cliente: (c.email_superintendente || "").toLowerCase(),
+          vendedor_id: vendedor.id,
+          status: "pendente",
+          created_at: c.created_at,
+          pedido: null,
+          cliente: {
+            id: c.id,
+            nome_igreja: c.nome_igreja,
+            nome_superintendente: c.nome_superintendente,
+            email_superintendente: c.email_superintendente,
+            telefone: c.telefone,
+            cnpj: c.cnpj,
+            cpf: c.cpf,
+            status_ativacao_ebd: c.status_ativacao_ebd,
+            senha_temporaria: c.senha_temporaria,
+          },
+        }));
+
+      // 2) Se houver vínculos, buscar pedidos/clientes e montar itens completos
+      if (!vinculosSafe.length) return itensClientes;
+
+      const pedidoIds = vinculosSafe.map((v) => v.pedido_id).filter(Boolean);
+      const { data: pedidos, error: pedidosError } = pedidoIds.length
+        ? await supabase.from("ebd_shopify_pedidos").select("*").in("id", pedidoIds)
+        : { data: [], error: null };
 
       if (pedidosError) throw pedidosError;
 
-      // 3. Buscar os clientes correspondentes
-      const clienteIds = vinculos.map(v => v.cliente_id).filter(Boolean) as string[];
+      const clienteIds = vinculosSafe.map((v) => v.cliente_id).filter(Boolean) as string[];
       let clientes: any[] = [];
       if (clienteIds.length > 0) {
         const { data: clientesData, error: clientesError } = await supabase
           .from("ebd_clientes")
-          .select("id, nome_igreja, nome_superintendente, email_superintendente, telefone, cnpj, cpf, status_ativacao_ebd, senha_temporaria")
+          .select(
+            "id, nome_igreja, nome_superintendente, email_superintendente, telefone, cnpj, cpf, status_ativacao_ebd, senha_temporaria"
+          )
           .in("id", clienteIds);
 
         if (clientesError) throw clientesError;
         clientes = clientesData || [];
       }
 
-      // 4. Montar o resultado combinando os dados
-      const result: PosVendaItem[] = vinculos.map((vinculo: any) => {
-        const pedido = pedidos?.find(p => p.id === vinculo.pedido_id) || null;
-        let cliente = clientes.find(c => c.id === vinculo.cliente_id) || null;
-        
+      const itensVinculos: PosVendaItem[] = vinculosSafe.map((vinculo: any) => {
+        const pedido = (pedidos || []).find((p: any) => p.id === vinculo.pedido_id) || null;
+        const cliente = clientes.find((c: any) => c.id === vinculo.cliente_id) || null;
+
         return {
           id: vinculo.id,
           pedido_id: vinculo.pedido_id,
@@ -131,7 +174,7 @@ export default function VendedorPosVenda() {
         };
       });
 
-      return result;
+      return [...itensVinculos, ...itensClientes];
     },
     enabled: !!vendedor?.id,
   });
@@ -268,9 +311,15 @@ Qualquer dúvida, estou à disposição 😊`;
                       )}
                     </CardDescription>
                   </div>
-                  <Badge variant="secondary" className="text-xs">
-                    #{item.pedido?.order_number}
-                  </Badge>
+                  {item.pedido?.order_number ? (
+                    <Badge variant="secondary" className="text-xs">
+                      #{item.pedido.order_number}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">
+                      Sem pedido
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
