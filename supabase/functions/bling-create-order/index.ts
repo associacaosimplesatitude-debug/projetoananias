@@ -1309,6 +1309,40 @@ serve(async (req) => {
       email: clienteDb?.email_superintendente,
     };
 
+    // Resolver situação (status) no Bling por NOME, para não depender de IDs fixos
+    // (em algumas contas, os IDs mudam e o pedido acaba indo como "Em aberto").
+    const resolveSituacaoVendaIdByName = async (name: string): Promise<number | null> => {
+      try {
+        const url = `https://www.bling.com.br/Api/v3/situacoes/modulos/9`;
+        const resp = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+
+        const json = await resp.json();
+        const list: any[] = Array.isArray(json?.data) ? json.data : [];
+
+        const wanted = String(name || '').trim().toLowerCase();
+        const found = list.find((s: any) => String(s?.nome ?? '').trim().toLowerCase() === wanted)
+          || list.find((s: any) => String(s?.nome ?? '').trim().toLowerCase().includes(wanted));
+
+        console.log('[BLING] Situações (módulo vendas):', JSON.stringify({ count: list.length, wanted: name, found: found?.nome ?? null, foundId: found?.id ?? null }, null, 2));
+
+        if (resp.ok && found?.id != null) return Number(found.id);
+      } catch (e) {
+        console.warn('[BLING] Falha ao resolver situação por nome:', String(e));
+      }
+
+      return null;
+    };
+
+    // Regra pedida: pedidos FATURADOS devem entrar como "APROVADO" (não Atendido e não Em aberto)
+    const situacaoIdBling = isFaturamento
+      ? (await resolveSituacaoVendaIdByName('Aprovado')) ?? 6
+      : 15;
+
     const pedidoData: any = {
       numero: numeroPedido,
       data: new Date().toISOString().split('T')[0],
@@ -1322,12 +1356,10 @@ serve(async (req) => {
         deposito: { id: depositoIdSelecionado },
       })),
       situacao: {
-        // Status Bling: 6 = Aprovado, 9 = Atendido, 15 = Em Aberto
-        // Pedidos faturados (B2B) vão como APROVADO (6) para expedição
-        id: 6,
+        id: situacaoIdBling,
       },
-      observacoes: observacoes 
-        + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
+      observacoes: observacoes
+        + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '')
         + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : '')
         + ` | UNIDADE: ${unidadeNegocioSelecionada} | DEPÓSITO: ${depositoSelecionado}`,
       parcelas,
@@ -1559,6 +1591,35 @@ serve(async (req) => {
     }
 
     console.log('Pedido criado com sucesso:', responseData);
+
+    // Garantir situação "Aprovado" para pedidos FATURADOS (algumas contas ignoram a situacao no POST)
+    if (isFaturamento && responseData?.data?.id && situacaoIdBling) {
+      try {
+        const patchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${responseData.data.id}/situacoes/${situacaoIdBling}`;
+        const patchResp = await fetch(patchUrl, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        const patchJson = await patchResp.json().catch(() => ({}));
+
+        if (!patchResp.ok) {
+          const msg = String(patchJson?.error?.message || patchJson?.error?.description || '');
+          // Se já está na mesma situação, apenas logar e seguir.
+          if (msg.toLowerCase().includes('mesma situação') || msg.toLowerCase().includes('mesma situacao')) {
+            console.log('[BLING] Situação já estava em APROVADO (ignorado).');
+          } else {
+            console.warn('[BLING] Falha ao forçar situação APROVADO:', JSON.stringify({ status: patchResp.status, body: patchJson }, null, 2));
+          }
+        } else {
+          console.log('[BLING] Situação forçada para APROVADO via PATCH:', JSON.stringify({ pedidoId: responseData.data.id, situacaoIdBling }, null, 2));
+        }
+      } catch (e) {
+        console.warn('[BLING] Erro ao forçar situação APROVADO:', String(e));
+      }
+    }
 
     return new Response(
       JSON.stringify({ 
