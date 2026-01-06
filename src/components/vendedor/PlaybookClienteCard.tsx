@@ -207,15 +207,26 @@ Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chama
     onRefresh?.();
   };
 
-  // Função para buscar pedido usando mesma lógica do VendedorClientes
+  // Função para buscar pedido - busca por cliente_id OU email (case insensitive)
   const handleViewOrders = async () => {
     setLoadingPedido(true);
     
     try {
-      let pedidos: any[] | null = null;
+      // Buscar por cliente_id OU email em uma única query
+      const emailNormalized = cliente.email_superintendente?.toLowerCase().trim();
+      
+      let query = supabase
+        .from("ebd_shopify_pedidos")
+        .select(`
+          *,
+          cliente:ebd_clientes(nome_igreja, tipo_cliente),
+          vendedor:vendedores(nome)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(1);
 
-      // 1. Primeiro tenta por cliente_id
-      const { data: pedidosByClienteId, error: error1 } = await supabase
+      // Busca por cliente_id primeiro
+      const { data: pedidosByClienteId } = await supabase
         .from("ebd_shopify_pedidos")
         .select(`
           *,
@@ -226,15 +237,15 @@ Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chama
         .order("created_at", { ascending: false })
         .limit(1);
 
-      if (!error1 && pedidosByClienteId && pedidosByClienteId.length > 0) {
-        pedidos = pedidosByClienteId;
+      if (pedidosByClienteId && pedidosByClienteId.length > 0) {
+        setSelectedPedido(pedidosByClienteId[0]);
+        setPedidoDialogOpen(true);
+        return;
       }
 
-      // 2. Se não encontrar, tenta por email
-      if (!pedidos && cliente.email_superintendente) {
-        const emailNormalized = cliente.email_superintendente.toLowerCase().trim();
-        
-        const { data: pedidosByEmail, error: error2 } = await supabase
+      // Se não encontrar por cliente_id, busca por email
+      if (emailNormalized) {
+        const { data: pedidosByEmail } = await supabase
           .from("ebd_shopify_pedidos")
           .select(`
             *,
@@ -245,35 +256,20 @@ Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chama
           .order("created_at", { ascending: false })
           .limit(1);
 
-        if (!error2 && pedidosByEmail && pedidosByEmail.length > 0) {
-          pedidos = pedidosByEmail;
+        if (pedidosByEmail && pedidosByEmail.length > 0) {
+          // Vincular o pedido ao cliente para futuras buscas
+          await supabase
+            .from("ebd_shopify_pedidos")
+            .update({ cliente_id: cliente.id })
+            .eq("id", pedidosByEmail[0].id);
+          
+          setSelectedPedido(pedidosByEmail[0]);
+          setPedidoDialogOpen(true);
+          return;
         }
       }
 
-      // 3. Se ainda não encontrar, tenta por nome
-      if (!pedidos && cliente.nome_igreja) {
-        const { data: pedidosByName, error: error3 } = await supabase
-          .from("ebd_shopify_pedidos")
-          .select(`
-            *,
-            cliente:ebd_clientes(nome_igreja, tipo_cliente),
-            vendedor:vendedores(nome)
-          `)
-          .ilike("customer_name", `%${cliente.nome_igreja}%`)
-          .order("created_at", { ascending: false })
-          .limit(1);
-
-        if (!error3 && pedidosByName && pedidosByName.length > 0) {
-          pedidos = pedidosByName;
-        }
-      }
-
-      if (pedidos && pedidos.length > 0) {
-        setSelectedPedido(pedidos[0]);
-        setPedidoDialogOpen(true);
-      } else {
-        toast.error("Nenhum pedido encontrado para este cliente");
-      }
+      toast.error("Nenhum pedido encontrado para este cliente");
     } catch (error) {
       console.error("Erro ao buscar pedidos:", error);
       toast.error("Erro ao buscar pedidos do cliente");
