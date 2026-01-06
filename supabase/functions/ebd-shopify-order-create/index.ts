@@ -37,13 +37,16 @@ interface CartItem {
 // Função para formatar CEP no padrão brasileiro
 function formatCEP(cep: string | null): string {
   if (!cep) return "";
-  // Remove tudo que não é número
   const cleanCep = cep.replace(/\D/g, "");
-  // Se tem 8 dígitos, formata como XXXXX-XXX
   if (cleanCep.length === 8) {
     return `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`;
   }
   return cleanCep;
+}
+
+function normalizeUF(uf: string | null): string {
+  if (!uf) return "";
+  return uf.trim().toUpperCase().slice(0, 2);
 }
 
 serve(async (req) => {
@@ -247,8 +250,10 @@ serve(async (req) => {
                   address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
                   city: cliente.endereco_cidade || "",
                   province: cliente.endereco_estado || "",
-                  zip: cliente.endereco_cep || "",
-                  country: "BR",
+                  province_code: normalizeUF(cliente.endereco_estado),
+                  zip: formatCEP(cliente.endereco_cep),
+                  country: "Brazil",
+                  country_code: "BR",
                   company: cliente.nome_igreja,
                 }] : undefined,
               },
@@ -284,15 +289,17 @@ serve(async (req) => {
               phone: cliente.telefone,
               tags: "ebd_cliente",
               note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
-              addresses: cliente.endereco_rua ? [{
-                address1: cliente.endereco_rua || '',
-                address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
-                city: cliente.endereco_cidade || "",
-                province: cliente.endereco_estado || "",
-                zip: cliente.endereco_cep || "",
-                country: "BR",
-                company: cliente.nome_igreja,
-              }] : undefined,
+               addresses: cliente.endereco_rua ? [{
+                 address1: cliente.endereco_rua || '',
+                 address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+                 city: cliente.endereco_cidade || "",
+                 province: cliente.endereco_estado || "",
+                 province_code: normalizeUF(cliente.endereco_estado),
+                 zip: formatCEP(cliente.endereco_cep),
+                 country: "Brazil",
+                 country_code: "BR",
+                 company: cliente.nome_igreja,
+               }] : undefined,
             },
           }),
         }
@@ -432,9 +439,9 @@ serve(async (req) => {
       const shippingFirstName = shippingNameParts[0] || '';
       const shippingLastName = shippingNameParts.slice(1).join(' ') || '';
       
-      // Formatar CEP corretamente para o Shopify (XXXXX-XXX)
       const formattedCep = formatCEP(cliente.endereco_cep);
-      console.log("CEP original:", cliente.endereco_cep, "-> formatado:", formattedCep);
+      const uf = normalizeUF(cliente.endereco_estado);
+      console.log("CEP original:", cliente.endereco_cep, "-> formatado:", formattedCep, "| UF:", uf);
       
       draftOrderPayload.draft_order = {
         ...draftOrderPayload.draft_order as Record<string, unknown>,
@@ -445,12 +452,13 @@ serve(async (req) => {
           address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
+          province_code: uf,
           zip: formattedCep,
-          country: "BR",
+          country: "Brazil",
+          country_code: "BR",
           phone: cliente.telefone,
           company: cliente.nome_igreja,
         },
-        // Also add billing address with CPF/CNPJ info
         billing_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
@@ -458,8 +466,10 @@ serve(async (req) => {
           address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
           city: cliente.endereco_cidade || "",
           province: cliente.endereco_estado || "",
+          province_code: uf,
           zip: formattedCep,
-          country: "BR",
+          country: "Brazil",
+          country_code: "BR",
           phone: cliente.telefone,
           company: cliente.nome_igreja,
         },
