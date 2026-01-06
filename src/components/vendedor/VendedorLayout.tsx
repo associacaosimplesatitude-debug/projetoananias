@@ -43,7 +43,8 @@ const allMenuItems: MenuItem[] = [
   { to: "/vendedor/pendentes", icon: Clock, label: "Pendentes", vendedorOnly: true },
   { to: "/vendedor/proximas-compras", icon: ShoppingCart, label: "Próximas Compras" },
   { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco", vendedorOnly: true },
-  { to: "/vendedor/leads", icon: UserCheck, label: "Reativação", vendedorOnly: true },
+  // Menu Reativação ocultado conforme solicitação
+  // { to: "/vendedor/leads", icon: UserCheck, label: "Reativação", vendedorOnly: true },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
   { to: "/vendedor/tutoriais", icon: Video, label: "Tutoriais" },
 ];

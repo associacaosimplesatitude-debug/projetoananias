@@ -27,7 +27,8 @@ import { ptBR } from "date-fns/locale";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
-import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
+// LeadScoringKPIs ocultado conforme solicitação
+// import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import { AulasRestantesCard } from "@/components/vendedor/AulasRestantesCard";
 import { ClientesParaAtivarCard } from "@/components/vendedor/ClientesParaAtivarCard";
 import { AniversariantesCard } from "@/components/ebd/AniversariantesCard";
@@ -529,8 +530,8 @@ export default function VendedorDashboard() {
         />
       )}
 
-      {/* Lead Scoring KPIs - Only for vendedor */}
-      {isVendedor && <LeadScoringKPIs vendedorId={vendedor.id} />}
+      {/* Lead Scoring KPIs - Ocultado conforme solicitação */}
+      {/* {isVendedor && <LeadScoringKPIs vendedorId={vendedor.id} />} */}
 
       {/* Cadastrar Cliente Dialog */}
       <CadastrarClienteDialog
