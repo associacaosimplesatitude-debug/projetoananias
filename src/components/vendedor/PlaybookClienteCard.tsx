@@ -16,7 +16,8 @@ import {
   Calendar,
   Church,
   Mail,
-  Phone
+  Phone,
+  RefreshCw
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,6 +25,7 @@ import { PlaybookMessageModal } from "./PlaybookMessageModal";
 import { PlaybookViewOrderModal } from "./PlaybookViewOrderModal";
 import { AtivarClienteDialog } from "./AtivarClienteDialog";
 import { useNavigate } from "react-router-dom";
+import { useVendedor } from "@/hooks/useVendedor";
 
 export type PlaybookType = 
   | "pos_venda" 
@@ -53,11 +55,15 @@ interface PlaybookClienteCardProps {
 
 export function PlaybookClienteCard({ cliente, type, onRefresh }: PlaybookClienteCardProps) {
   const navigate = useNavigate();
+  const { vendedor } = useVendedor();
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [messageModalTitle, setMessageModalTitle] = useState("");
   const [messageModalContent, setMessageModalContent] = useState("");
   const [viewOrderModalOpen, setViewOrderModalOpen] = useState(false);
   const [ativarDialogOpen, setAtivarDialogOpen] = useState(false);
+
+  const nomeVendedor = vendedor?.nome || "Central Gospel";
+  const nomeCliente = cliente.nome_superintendente || "Superintendente";
 
   // Fetch último pedido para pegar lista de produtos
   const { data: ultimoPedido } = useQuery({
@@ -93,76 +99,71 @@ export function PlaybookClienteCard({ cliente, type, onRefresh }: PlaybookClient
     enabled: !!ultimoPedido?.id && type === "pos_venda",
   });
 
-  // Gerar mensagem de boas-vindas (pós-venda)
+  // Gerar mensagem de boas-vindas (pós-venda) - TEXTO PADRÃO DO PROMPT
   const generateBoasVindasMessage = () => {
     const produtosLista = pedidoItems
       .map(item => `• ${item.product_title} (${item.quantity}x)`)
       .join("\n");
 
-    return `Olá! 👋
+    return `Olá ${nomeCliente}, tudo bem?
+Aqui é ${nomeVendedor} da Editora Central Gospel 😊
 
-Muito obrigado por comprar na nossa loja! Seja bem-vindo à família Central Gospel.
+Vi que você realizou sua compra em nossa loja e quero te agradecer pela confiança!
 
-${produtosLista ? `*Produtos do seu pedido:*\n${produtosLista}\n` : ""}
-Gostaria de te apresentar nosso *Painel de Gestão EBD*, onde você poderá:
+${produtosLista ? `*Você adquiriu:*\n${produtosLista}\n` : ""}
+Além disso, você tem direito a acessar gratuitamente nosso *Painel de Gestão da EBD*, onde é possível:
+• Acompanhar alunos
+• Controlar aulas
+• Planejar próximas compras
 
-📊 Acompanhar frequência dos alunos
-📚 Gerenciar turmas e professores
-🎯 Visualizar relatórios e indicadores
-📅 Planejar sua Escola Bíblica Dominical
-
-Posso te ajudar a ativar seu acesso gratuito ao painel?
-
-Abraços!`;
+Se desejar, posso te ajudar a ativar agora mesmo 👍`;
   };
 
-  // Gerar mensagem com dados de acesso
+  // Gerar mensagem com dados de acesso - TEXTO PADRÃO DO PROMPT
   const generateDadosAcessoMessage = () => {
     const linkPainel = "https://gestaoebd.lovable.app/ebd/login";
     
-    return `Olá! 🎉
+    return `Perfeito, ${nomeCliente}!
 
-Seu acesso ao *Painel de Gestão EBD* está pronto!
+Segue abaixo seus dados de acesso ao *Painel de Gestão EBD*:
 
-🔗 *Link do Painel:*
-${linkPainel}
+🔗 *Acesso:* ${linkPainel}
+📧 *E-mail:* ${cliente.email_superintendente || "[E-mail não cadastrado]"}
+🔑 *Senha provisória:* ${cliente.senha_temporaria || "[Será enviada após ativação]"}
 
-📧 *Seu e-mail:*
-${cliente.email_superintendente || "[E-mail não cadastrado]"}
+Ao acessar, você poderá:
+• Gerenciar alunos
+• Acompanhar aulas
+• Receber avisos automáticos de reposição
 
-🔐 *Senha provisória:*
-${cliente.senha_temporaria || "[Será enviada após ativação]"}
-
-*No painel você pode:*
-• Cadastrar turmas e professores
-• Acompanhar frequência dos alunos
-• Visualizar relatórios e estatísticas
-• Gerenciar sua Escola Bíblica
-
-Caso tenha dificuldades, é só me chamar!
-
-Abraços!`;
+Qualquer dúvida, estou à disposição 😊`;
   };
 
-  // Gerar mensagem de reposição (próxima compra)
+  // Gerar mensagem de reposição (próxima compra) - TEXTO PADRÃO DO PROMPT
   const generateReposicaoMessage = () => {
-    const diasRestantes = cliente.data_proxima_compra 
-      ? differenceInDays(new Date(cliente.data_proxima_compra), new Date())
-      : null;
+    return `Olá ${nomeCliente} 😊
 
-    return `Olá! 📚
+Percebi que as aulas da EBD estão se aproximando do fim.
 
-${diasRestantes !== null && diasRestantes <= 7 
-  ? "Percebi que as aulas da sua EBD estão chegando ao fim!"
-  : "Passando para lembrar sobre a renovação das revistas da sua EBD."}
+Para evitar qualquer interrupção, já podemos organizar a próxima reposição de revistas.
 
-É muito importante manter a continuidade do ensino bíblico. As revistas do próximo trimestre já estão disponíveis!
+Posso te ajudar com isso agora?`;
+  };
 
-Quer que eu prepare um pedido personalizado para a *${cliente.nome_igreja}*?
+  // Gerar mensagem de ativação pendente
+  const generateAtivacaoMessage = () => {
+    return `Olá ${nomeCliente}, tudo bem?
+Aqui é ${nomeVendedor} da Editora Central Gospel 😊
 
-Posso te mostrar as novidades e condições especiais. 😊
+Gostaria de lembrar que você tem acesso gratuito ao nosso *Painel de Gestão da EBD*!
 
-Abraços!`;
+Com ele você pode:
+• Acompanhar frequência dos alunos
+• Gerenciar turmas e professores  
+• Planejar suas aulas
+• Receber lembretes de reposição
+
+Posso te ajudar a ativar seu acesso agora?`;
   };
 
   // Gerar mensagem de engajamento (em risco)
@@ -171,23 +172,20 @@ Abraços!`;
       ? differenceInDays(new Date(), new Date(cliente.ultimo_login))
       : null;
 
-    return `Olá! 👋
-
-Faz um tempo que não vejo você acessando o Painel de Gestão EBD da *${cliente.nome_igreja}*.
+    return `Olá ${nomeCliente}! 👋
 
 ${diasSemLogin === null 
-  ? "Percebi que você ainda não acessou o painel. Posso te ajudar com isso?"
-  : "Está tudo bem por aí? Posso ajudar em algo?"}
+  ? "Percebi que você ainda não acessou o Painel de Gestão EBD. Está tudo bem por aí?"
+  : `Faz um tempo que não te vejo acessando o Painel de Gestão EBD da *${cliente.nome_igreja}*. Está tudo bem?`}
+
+Posso te ajudar em algo?
 
 O painel está cheio de recursos para facilitar a gestão da sua Escola Bíblica:
-
 📊 Relatórios automáticos
 👥 Controle de frequência simplificado
 📚 Acompanhamento de turmas
 
-Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chamar!
-
-Abraços!`;
+Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chamar!`;
   };
 
   const openMessageModal = (title: string, message: string) => {
@@ -227,26 +225,26 @@ Abraços!`;
                   generateBoasVindasMessage()
                 )}
               >
-                <ClipboardList className="mr-1 h-4 w-4" />
-                Mensagem de Boas-vindas
+                <MessageSquare className="mr-1 h-4 w-4" />
+                Boas-vindas
               </Button>
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => setViewOrderModalOpen(true)}
-              >
-                <Eye className="mr-1 h-4 w-4" />
-                Ver Pedido
-              </Button>
-              <Button 
-                size="sm"
                 onClick={() => openMessageModal(
-                  "Dados de Acesso ao Painel",
+                  "Enviar Acesso ao Painel",
                   generateDadosAcessoMessage()
                 )}
               >
                 <Rocket className="mr-1 h-4 w-4" />
-                Enviar Dados de Acesso
+                Enviar Acesso
+              </Button>
+              <Button 
+                size="sm"
+                onClick={handleFazerPedido}
+              >
+                <ShoppingCart className="mr-1 h-4 w-4" />
+                Criar Pedido
               </Button>
             </div>
           </>
@@ -256,23 +254,37 @@ Abraços!`;
         return (
           <>
             <p className="text-sm text-muted-foreground mb-4">
-              Cliente cadastrado, painel ainda não ativado
+              Cliente já comprou, mas ainda não acessou o painel
             </p>
             <div className="flex flex-wrap gap-2">
               <Button 
                 variant="outline" 
                 size="sm"
+                onClick={() => openMessageModal(
+                  "Mensagem de Ativação",
+                  generateAtivacaoMessage()
+                )}
+              >
+                <MessageSquare className="mr-1 h-4 w-4" />
+                Mensagem de Ativação
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => openMessageModal(
+                  "Reenviar Dados de Acesso",
+                  generateDadosAcessoMessage()
+                )}
+              >
+                <RefreshCw className="mr-1 h-4 w-4" />
+                Reenviar Acesso
+              </Button>
+              <Button 
+                size="sm"
                 onClick={handleFazerPedido}
               >
                 <ShoppingCart className="mr-1 h-4 w-4" />
                 Fazer Pedido
-              </Button>
-              <Button 
-                size="sm"
-                onClick={() => setAtivarDialogOpen(true)}
-              >
-                <UserCheck className="mr-1 h-4 w-4" />
-                Ativar Painel EBD
               </Button>
             </div>
           </>
