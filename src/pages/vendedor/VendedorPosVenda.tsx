@@ -77,7 +77,7 @@ export default function VendedorPosVenda() {
       if (!vendedor?.id) return [];
 
       // 1. Buscar vínculos da tabela pivô
-      const { data: vinculos, error: vinculosError } = await supabase
+      const { data: vinculos, error: vinculosError } = await (supabase as any)
         .from("ebd_pos_venda_ecommerce")
         .select("*")
         .eq("vendedor_id", vendedor.id)
