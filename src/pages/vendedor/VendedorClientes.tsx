@@ -494,7 +494,6 @@ export default function VendedorClientes() {
                   onPedido={() => handleFazerPedido(cliente)}
                   onDesconto={() => setClienteParaDesconto(cliente)}
                   onAtivar={isVendedor && !cliente.status_ativacao_ebd ? () => handleAtivarPainel(cliente) : undefined}
-                  onViewOrders={() => handleViewOrders(cliente)}
                   showDesconto={true}
                   showAtivar={isVendedor && !cliente.status_ativacao_ebd}
                   isAdmin={false}
