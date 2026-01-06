@@ -131,3 +131,12 @@ verify_jwt = true
 
 [functions.ebd-shopify-backfill-items]
 verify_jwt = true
+
+[functions.shopify-orders-webhook]
+verify_jwt = false
+
+[functions.shopify-debug-order-structure]
+verify_jwt = false
+
+[functions.ebd-backfill-pos-venda]
+verify_jwt = true
