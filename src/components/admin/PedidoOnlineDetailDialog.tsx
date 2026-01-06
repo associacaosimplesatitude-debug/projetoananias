@@ -186,13 +186,24 @@ export function PedidoOnlineDetailDialog({
     }
   }, [open, pedido?.id]);
 
-  // Update state when pedido changes
+  // Initialize form state when a NEW pedido is opened.
+  // IMPORTANT: do not overwrite user selections when clienteData arrives async.
+  const [initializedPedidoId, setInitializedPedidoId] = useState<string | null>(null);
   useEffect(() => {
-    if (pedido) {
+    if (!open || !pedido) return;
+
+    if (initializedPedidoId !== pedido.id) {
+      setInitializedPedidoId(pedido.id);
       setSelectedVendedor(pedido.vendedor_id || "");
       setSelectedTipoCliente(clienteData?.tipo_cliente || pedido.cliente?.tipo_cliente || "");
+    } else {
+      // Only auto-fill tipo_cliente if user hasn't picked one yet
+      if (!selectedTipoCliente) {
+        setSelectedTipoCliente(clienteData?.tipo_cliente || pedido.cliente?.tipo_cliente || "");
+      }
     }
-  }, [pedido, clienteData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pedido?.id, initializedPedidoId, clienteData?.tipo_cliente]);
 
   // Mutation to save attribution
   const saveMutation = useMutation({
