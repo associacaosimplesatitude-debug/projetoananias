@@ -327,6 +327,7 @@ serve(async (req) => {
           categoria: categoria,
           bling_produto_id: product.id,
           last_sync_at: syncTimestamp,
+          peso_bruto: product.pesoBruto || product.peso || 0,
         };
 
         if (existing) {
