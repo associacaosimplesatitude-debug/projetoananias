@@ -208,6 +208,8 @@ export function PedidoOnlineDetailDialog({
         if (pedidoError) throw pedidoError;
       }
 
+      let finalClienteId = pedido.cliente_id;
+
       // If cliente exists, update tipo_cliente and vendedor_id
       if (pedido.cliente_id) {
         const updateData: Record<string, any> = {};
@@ -237,6 +239,8 @@ export function PedidoOnlineDetailDialog({
           .maybeSingle();
 
         if (existingCliente) {
+          finalClienteId = existingCliente.id;
+          
           // Update existing cliente
           const updateData: Record<string, any> = {};
           if (selectedTipoCliente) updateData.tipo_cliente = selectedTipoCliente;
@@ -311,6 +315,8 @@ export function PedidoOnlineDetailDialog({
             .single();
 
           if (createError) throw createError;
+          
+          finalClienteId = newCliente.id;
 
           // Link pedido to new cliente
           const { error: linkError } = await supabase
@@ -320,12 +326,47 @@ export function PedidoOnlineDetailDialog({
           if (linkError) throw linkError;
         }
       }
+
+      // INSERIR NA TABELA PIVÔ ebd_pos_venda_ecommerce
+      // Se tem vendedor selecionado, criar o vínculo na tabela pivô
+      if (selectedVendedor) {
+        // Verificar se já existe vínculo para este pedido
+        const { data: existingVinculo } = await supabase
+          .from("ebd_pos_venda_ecommerce")
+          .select("id")
+          .eq("pedido_id", pedido.id)
+          .maybeSingle();
+
+        if (existingVinculo) {
+          // Atualizar vínculo existente
+          const { error: updateVinculoError } = await supabase
+            .from("ebd_pos_venda_ecommerce")
+            .update({
+              vendedor_id: selectedVendedor,
+              cliente_id: finalClienteId || null,
+            })
+            .eq("id", existingVinculo.id);
+          if (updateVinculoError) throw updateVinculoError;
+        } else {
+          // Criar novo vínculo
+          const { error: insertVinculoError } = await supabase
+            .from("ebd_pos_venda_ecommerce")
+            .insert({
+              pedido_id: pedido.id,
+              vendedor_id: selectedVendedor,
+              cliente_id: finalClienteId || null,
+              ativado: false,
+            });
+          if (insertVinculoError) throw insertVinculoError;
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Atribuição salva com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["ebd-shopify-pedidos-online"] });
       queryClient.invalidateQueries({ queryKey: ["clientes-para-atribuir"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-clientes-para-ativar"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedor-pos-venda"] });
       onOpenChange(false);
     },
     onError: (error) => {

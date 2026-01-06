@@ -2659,6 +2659,54 @@ export type Database = {
           },
         ]
       }
+      ebd_pos_venda_ecommerce: {
+        Row: {
+          ativado: boolean
+          ativado_em: string | null
+          cliente_id: string | null
+          created_at: string
+          id: string
+          pedido_id: string
+          updated_at: string
+          vendedor_id: string
+        }
+        Insert: {
+          ativado?: boolean
+          ativado_em?: string | null
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          pedido_id: string
+          updated_at?: string
+          vendedor_id: string
+        }
+        Update: {
+          ativado?: boolean
+          ativado_em?: string | null
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          pedido_id?: string
+          updated_at?: string
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_pos_venda_ecommerce_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_pos_venda_ecommerce_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_produto_revista_mapping: {
         Row: {
           bling_produto_id: number | null
