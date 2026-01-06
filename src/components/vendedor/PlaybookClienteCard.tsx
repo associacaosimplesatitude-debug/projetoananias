@@ -239,6 +239,15 @@ Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chama
                 <Rocket className="mr-1 h-4 w-4" />
                 Enviar Acesso
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewOrderModalOpen(true)}
+                title="Ver último pedido do cliente"
+              >
+                <Eye className="mr-1 h-4 w-4" />
+                Ver Pedido
+              </Button>
               <Button 
                 size="sm"
                 onClick={handleFazerPedido}
