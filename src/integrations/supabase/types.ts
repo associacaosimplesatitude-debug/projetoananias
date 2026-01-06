@@ -1344,6 +1344,7 @@ export type Database = {
           endereco_numero: string | null
           endereco_rua: string | null
           id: string
+          is_pos_venda_ecommerce: boolean
           modal_aniversario_visualizado_em: string | null
           nome_igreja: string
           nome_responsavel: string | null
@@ -1387,6 +1388,7 @@ export type Database = {
           endereco_numero?: string | null
           endereco_rua?: string | null
           id?: string
+          is_pos_venda_ecommerce?: boolean
           modal_aniversario_visualizado_em?: string | null
           nome_igreja: string
           nome_responsavel?: string | null
@@ -1430,6 +1432,7 @@ export type Database = {
           endereco_numero?: string | null
           endereco_rua?: string | null
           id?: string
+          is_pos_venda_ecommerce?: boolean
           modal_aniversario_visualizado_em?: string | null
           nome_igreja?: string
           nome_responsavel?: string | null

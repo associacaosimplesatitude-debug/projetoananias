@@ -217,6 +217,8 @@ export function PedidoOnlineDetailDialog({
         }
         if (selectedVendedor) {
           updateData.vendedor_id = selectedVendedor;
+          // Marcar como pós-venda ecommerce quando atribuir vendedor
+          updateData.is_pos_venda_ecommerce = true;
         }
 
         if (Object.keys(updateData).length > 0) {
@@ -238,7 +240,11 @@ export function PedidoOnlineDetailDialog({
           // Update existing cliente
           const updateData: Record<string, any> = {};
           if (selectedTipoCliente) updateData.tipo_cliente = selectedTipoCliente;
-          if (selectedVendedor) updateData.vendedor_id = selectedVendedor;
+          if (selectedVendedor) {
+            updateData.vendedor_id = selectedVendedor;
+            // Marcar como pós-venda ecommerce quando atribuir vendedor
+            updateData.is_pos_venda_ecommerce = true;
+          }
           
           // Preencher campos de endereço e documento se vazios
           if (pedido.endereco_cidade) updateData.endereco_cidade = pedido.endereco_cidade;
@@ -287,6 +293,8 @@ export function PedidoOnlineDetailDialog({
               tipo_cliente: selectedTipoCliente || "PESSOA FÍSICA",
               vendedor_id: selectedVendedor || null,
               status_ativacao_ebd: false,
+              // Marcar como pós-venda ecommerce quando atribuir vendedor
+              is_pos_venda_ecommerce: selectedVendedor ? true : false,
               // Campos de endereço
               endereco_rua: pedido.endereco_rua || null,
               endereco_numero: pedido.endereco_numero || null,

@@ -127,46 +127,19 @@ export default function VendedorClientes() {
       if (!vendedor?.id) return [];
 
       // Buscar clientes do vendedor
+      // Filtro: (is_pos_venda_ecommerce = false) OR (status_ativacao_ebd = true)
+      // Isso significa:
+      // - Clientes manuais (is_pos_venda_ecommerce = false) aparecem sempre
+      // - Clientes do e-commerce só aparecem após ativar o painel
       const { data: ebdClientesData, error: ebdClientesError } = await supabase
         .from("ebd_clientes")
         .select("*")
         .eq("vendedor_id", vendedor.id)
+        .or("is_pos_venda_ecommerce.eq.false,status_ativacao_ebd.eq.true")
         .order("created_at", { ascending: false });
       if (ebdClientesError) throw ebdClientesError;
 
-      // Identificar quais clientes vieram do e-commerce (têm pedido Shopify pelo e-mail)
-      const emails = Array.from(
-        new Set(
-          (ebdClientesData || [])
-            .map((c: any) => (c.email_superintendente || "").toLowerCase().trim())
-            .filter(Boolean)
-        )
-      );
-
-      const { data: pedidosByEmail, error: pedidosError } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("customer_email")
-        .in("customer_email", emails.length ? emails : ["__none__"]);
-
-      if (pedidosError) throw pedidosError;
-
-      const emailsComPedido = new Set(
-        (pedidosByEmail || [])
-          .map((p: any) => (p.customer_email || "").toLowerCase().trim())
-          .filter(Boolean)
-      );
-
-      // Menu "Clientes" (carteira ativa):
-      // - Se veio do e-commerce (tem pedido): só entra após ativar o painel
-      // - Se NÃO veio do e-commerce (sem pedido): entra normalmente
-      const clientesFiltrados = (ebdClientesData || []).filter((cliente: any) => {
-        const emailNorm = (cliente.email_superintendente || "").toLowerCase().trim();
-        const veioDoEcommerce = emailNorm ? emailsComPedido.has(emailNorm) : false;
-        const painelAtivo = cliente.status_ativacao_ebd === true;
-
-        if (veioDoEcommerce) return painelAtivo;
-        return true;
-      });
+      const clientesFiltrados = ebdClientesData || [];
 
       const { data: assinaturasData, error: assinaturasError } = await supabase
         .from("assinaturas")
