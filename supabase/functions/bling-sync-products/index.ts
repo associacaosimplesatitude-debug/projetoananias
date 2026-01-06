@@ -176,6 +176,43 @@ async function getProductStock(accessToken: string, productId: number, retryCoun
   }
 }
 
+// Função para buscar detalhes do produto (inclui peso bruto)
+async function getProductDetails(accessToken: string, productId: number, retryCount = 0): Promise<{ pesoBruto: number; pesoLiquido: number } | null> {
+  try {
+    const response = await fetch(
+      `https://www.bling.com.br/Api/v3/produtos/${productId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      }
+    );
+
+    // Se for rate limit, tenta novamente após delay
+    if (response.status === 429 && retryCount < 3) {
+      console.log(`Rate limit no detalhe, tentativa ${retryCount + 1}/3...`);
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+      return getProductDetails(accessToken, productId, retryCount + 1);
+    }
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const product = data.data;
+    
+    return {
+      pesoBruto: product?.pesoBruto || 0,
+      pesoLiquido: product?.pesoLiquido || 0,
+    };
+  } catch (error) {
+    console.error(`Erro ao buscar detalhes do produto ${productId}:`, error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -272,14 +309,17 @@ serve(async (req) => {
                         true;
 
       if (isRevista) {
-        // Delay para respeitar rate limit (a cada 3 produtos)
-        if (processedCount > 0 && processedCount % 3 === 0) {
-          await delay(400);
+        // Delay para respeitar rate limit (a cada 2 produtos por causa da chamada extra de detalhes)
+        if (processedCount > 0 && processedCount % 2 === 0) {
+          await delay(500);
         }
         processedCount++;
         
-        // Buscar estoque do produto
-        const estoque = await getProductStock(accessToken, product.id);
+        // Buscar estoque e detalhes do produto em paralelo (quando possível)
+        const [estoque, detalhes] = await Promise.all([
+          getProductStock(accessToken, product.id),
+          getProductDetails(accessToken, product.id)
+        ]);
 
         // Verificar se já existe pelo bling_produto_id
         const { data: existingById } = await supabase
@@ -317,6 +357,9 @@ serve(async (req) => {
         const faixaEtaria = extractFaixaEtaria(titulo);
         const categoria = extractCategoria(titulo, product.tipo || product.categoria?.descricao);
 
+        // Usar peso do detalhe do produto (API retorna em kg)
+        const pesoBruto = detalhes?.pesoBruto || product.pesoBruto || 0;
+
         const revistaData = {
           titulo: titulo,
           preco_cheio: product.preco || 0,
@@ -327,7 +370,7 @@ serve(async (req) => {
           categoria: categoria,
           bling_produto_id: product.id,
           last_sync_at: syncTimestamp,
-          peso_bruto: product.pesoBruto || product.peso || 0,
+          peso_bruto: pesoBruto,
         };
 
         if (existing) {
