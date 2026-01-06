@@ -128,6 +128,8 @@ export function AtivarClienteDialog({
           data_inicio_ebd: format(formData.data_inicio_ebd, "yyyy-MM-dd"),
           data_proxima_compra: format(dataProximaCompra, "yyyy-MM-dd"),
           status_ativacao_ebd: true,
+          // Remover da lista de pós-venda ao ativar painel
+          is_pos_venda_ecommerce: false,
           superintendente_user_id: userData.userId,
           senha_temporaria: tempPassword,
         })
