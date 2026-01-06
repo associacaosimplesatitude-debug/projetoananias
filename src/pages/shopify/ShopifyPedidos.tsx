@@ -72,7 +72,8 @@ interface Vendedor {
 interface Cliente {
   id: string;
   nome_igreja: string;
-  cnpj: string;
+  cnpj: string | null;
+  cpf: string | null;
   email_superintendente: string | null;
   telefone: string | null;
   nome_responsavel: string | null;
