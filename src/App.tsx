@@ -110,11 +110,13 @@ import VendedorClientes from "./pages/vendedor/VendedorClientes";
 import VendedorPendentes from "./pages/vendedor/VendedorPendentes";
 import VendedorProximasCompras from "./pages/vendedor/VendedorProximasCompras";
 import VendedorEmRisco from "./pages/vendedor/VendedorEmRisco";
+import VendedorPosVenda from "./pages/vendedor/VendedorPosVenda";
 import VendedorLeadsPage from "./pages/vendedor/VendedorLeadsPage";
 import VendedorLeadsLandingPage from "./pages/vendedor/VendedorLeadsLandingPage";
 import VendedorPedidosPage from "./pages/vendedor/VendedorPedidosPage";
 import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 import { VendedorProtectedRoute } from "./components/vendedor/VendedorProtectedRoute";
+
 
 // Shopify Pages
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
@@ -418,6 +420,11 @@ const App = () => (
                     <Route path="/vendedor" element={<VendedorLayout />}>
                       <Route index element={<VendedorDashboard />} />
                       <Route path="clientes" element={<VendedorClientes />} />
+                      <Route path="pos-venda" element={
+                        <VendedorProtectedRoute vendedorOnly>
+                          <VendedorPosVenda />
+                        </VendedorProtectedRoute>
+                      } />
                       <Route path="leads-landing" element={
                         <VendedorProtectedRoute vendedorOnly>
                           <VendedorLeadsLandingPage />

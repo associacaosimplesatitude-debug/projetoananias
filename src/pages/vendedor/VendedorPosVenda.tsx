@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { useVendedor } from "@/hooks/useVendedor";
 import { PlaybookClienteCard } from "@/components/vendedor/PlaybookClienteCard";
 
@@ -12,27 +12,44 @@ interface Cliente {
   email_superintendente: string | null;
   telefone: string | null;
   cnpj: string | null;
-  data_proxima_compra: string | null;
   status_ativacao_ebd: boolean;
   ultimo_login: string | null;
+  data_proxima_compra: string | null;
   data_inicio_ebd: string | null;
   senha_temporaria: string | null;
 }
 
-export default function VendedorProximasCompras() {
+export default function VendedorPosVenda() {
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
 
-  const { data: clientesProximaCompra = [], isLoading, refetch } = useQuery({
-    queryKey: ["vendedor-proximas-compras", vendedor?.id],
+  // Buscar clientes que tem pedidos Shopify mas não ativaram o painel
+  const { data: clientesPosVenda = [], isLoading, refetch } = useQuery({
+    queryKey: ["vendedor-pos-venda", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
+      
+      // Primeiro, buscar os IDs de clientes que tem pedidos
+      const { data: pedidosClientes, error: pedidosError } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("cliente_id")
+        .eq("vendedor_id", vendedor.id)
+        .not("cliente_id", "is", null);
+      
+      if (pedidosError) throw pedidosError;
+      
+      const clienteIds = [...new Set(pedidosClientes.map(p => p.cliente_id).filter(Boolean))];
+      
+      if (clienteIds.length === 0) return [];
+      
+      // Buscar esses clientes que NÃO ativaram o painel
       const { data, error } = await supabase
         .from("ebd_clientes")
         .select("*")
         .eq("vendedor_id", vendedor.id)
-        .eq("status_ativacao_ebd", true)
-        .not("data_proxima_compra", "is", null)
-        .order("data_proxima_compra", { ascending: true });
+        .eq("status_ativacao_ebd", false)
+        .in("id", clienteIds)
+        .order("created_at", { ascending: false });
+      
       if (error) throw error;
       return data as Cliente[];
     },
@@ -51,28 +68,33 @@ export default function VendedorProximasCompras() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold flex items-center gap-2">
-          <ShoppingCart className="h-6 w-6 text-green-500" />
-          Próximas Compras Previstas
+          <ShoppingBag className="h-6 w-6 text-blue-500" />
+          Pós-Venda E-commerce
         </h2>
         <p className="text-muted-foreground">
-          Clientes com revistas ativas - aulas próximas do fim
+          Clientes que compraram na loja mas ainda não ativaram o painel
         </p>
       </div>
 
-      {clientesProximaCompra.length === 0 ? (
+      {clientesPosVenda.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Nenhuma previsão de compra</p>
+            <ShoppingBag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">
+              Nenhum cliente pendente de pós-venda
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Clientes que compram na loja e ainda não ativaram o painel aparecerão aqui
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {clientesProximaCompra.map((cliente) => (
+          {clientesPosVenda.map((cliente) => (
             <PlaybookClienteCard
               key={cliente.id}
               cliente={cliente}
-              type="proxima_compra"
+              type="pos_venda"
               onRefresh={refetch}
             />
           ))}

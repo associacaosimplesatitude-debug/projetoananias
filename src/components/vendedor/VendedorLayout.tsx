@@ -4,11 +4,11 @@ import {
   Clock, 
   ShoppingCart, 
   AlertTriangle, 
-  UserCheck,
   Package,
   LayoutDashboard,
   Video,
   Megaphone,
+  ShoppingBag,
   LucideIcon
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -35,16 +35,16 @@ interface MenuItem {
   vendedorOnly?: boolean; // Items only visible to vendedor, not representante
 }
 
-// All menu items with visibility flags
+// Menu organizado por contexto de Playbook
 const allMenuItems: MenuItem[] = [
   { to: "/vendedor", icon: LayoutDashboard, label: "Painel", end: true },
   { to: "/vendedor/clientes", icon: Users, label: "Clientes" },
-  { to: "/vendedor/leads-landing", icon: Megaphone, label: "Lead de Landing Page", vendedorOnly: true },
-  { to: "/vendedor/pendentes", icon: Clock, label: "Pendentes", vendedorOnly: true },
+  // Playbooks - cada um representa um contexto específico
+  { to: "/vendedor/pos-venda", icon: ShoppingBag, label: "Pós-Venda E-commerce", vendedorOnly: true },
+  { to: "/vendedor/leads-landing", icon: Megaphone, label: "Leads Landing Page", vendedorOnly: true },
+  { to: "/vendedor/pendentes", icon: Clock, label: "Ativação Pendente", vendedorOnly: true },
   { to: "/vendedor/proximas-compras", icon: ShoppingCart, label: "Próximas Compras" },
-  { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Em Risco", vendedorOnly: true },
-  // Menu Reativação ocultado conforme solicitação
-  // { to: "/vendedor/leads", icon: UserCheck, label: "Reativação", vendedorOnly: true },
+  { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Clientes em Risco", vendedorOnly: true },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
   { to: "/vendedor/tutoriais", icon: Video, label: "Tutoriais" },
 ];
