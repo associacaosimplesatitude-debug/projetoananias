@@ -10,11 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Percent, Loader2, AlertTriangle } from "lucide-react";
+import { Percent, Loader2 } from "lucide-react";
 
 interface DescontoFaturamentoDialogProps {
   open: boolean;
@@ -39,9 +38,6 @@ export function DescontoFaturamentoDialog({
   const [desconto, setDesconto] = useState<string>("0");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Verifica se cliente foi atribuído a vendedor mas não completou onboarding
-  const clienteAtribuidoSemOnboarding = cliente?.vendedor_id && !cliente?.onboarding_concluido;
-
   useEffect(() => {
     if (cliente) {
       setDesconto(cliente.desconto_faturamento?.toString() || "0");
@@ -54,14 +50,6 @@ export function DescontoFaturamentoDialog({
     const descontoNum = parseFloat(desconto) || 0;
     if (descontoNum < 0 || descontoNum > 100) {
       toast.error("Desconto deve ser entre 0% e 100%");
-      return;
-    }
-
-    // Validação: cliente atribuído a vendedor precisa ter onboarding completo
-    if (clienteAtribuidoSemOnboarding && descontoNum > 0) {
-      toast.error("Cliente precisa completar o Setup primeiro!", {
-        description: "Clientes atribuídos a vendedor só podem receber desconto após preencherem o Setup (onboarding).",
-      });
       return;
     }
 
@@ -103,17 +91,6 @@ export function DescontoFaturamentoDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Alerta para clientes sem onboarding */}
-        {clienteAtribuidoSemOnboarding && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Este cliente foi atribuído a um vendedor mas <strong>ainda não completou o Setup</strong>. 
-              Só será possível aplicar desconto após o cliente preencher o onboarding.
-            </AlertDescription>
-          </Alert>
-        )}
-
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="desconto">Desconto (%)</Label>
@@ -128,7 +105,6 @@ export function DescontoFaturamentoDialog({
                 onChange={(e) => setDesconto(e.target.value)}
                 className="pr-8"
                 placeholder="0"
-                disabled={clienteAtribuidoSemOnboarding}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                 %
@@ -146,7 +122,7 @@ export function DescontoFaturamentoDialog({
           </Button>
           <Button 
             onClick={handleSave} 
-            disabled={isSubmitting || (clienteAtribuidoSemOnboarding && parseFloat(desconto) > 0)}
+            disabled={isSubmitting}
           >
             {isSubmitting ? (
               <>
