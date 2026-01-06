@@ -199,13 +199,28 @@ export function PedidoOnlineDetailDialog({
     mutationFn: async () => {
       if (!pedido) return;
 
+      console.log("[ATRIBUIÇÃO] Iniciando atribuição:", {
+        pedido_id: pedido.id,
+        order_number: pedido.order_number,
+        vendedor_atual: pedido.vendedor_id,
+        vendedor_selecionado: selectedVendedor,
+      });
+
       // Update pedido with vendedor
       if (selectedVendedor !== (pedido.vendedor_id || "")) {
+        console.log("[ATRIBUIÇÃO] Atualizando vendedor_id no pedido...");
         const { error: pedidoError } = await supabase
           .from("ebd_shopify_pedidos")
           .update({ vendedor_id: selectedVendedor || null })
           .eq("id", pedido.id);
-        if (pedidoError) throw pedidoError;
+        
+        if (pedidoError) {
+          console.error("[ATRIBUIÇÃO] ERRO ao atualizar pedido:", pedidoError);
+          throw pedidoError;
+        }
+        console.log("[ATRIBUIÇÃO] Pedido atualizado com sucesso!");
+      } else {
+        console.log("[ATRIBUIÇÃO] Vendedor não mudou, pulando atualização do pedido");
       }
 
       let finalClienteId = pedido.cliente_id;
@@ -391,11 +406,13 @@ export function PedidoOnlineDetailDialog({
       }
     },
     onSuccess: () => {
+      console.log("[ATRIBUIÇÃO] Mutation concluída com sucesso, invalidando queries...");
       toast.success("Atribuição salva com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["ebd-shopify-pedidos-online"] });
       queryClient.invalidateQueries({ queryKey: ["clientes-para-atribuir"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-clientes-para-ativar"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-pos-venda"] });
+      console.log("[ATRIBUIÇÃO] Queries invalidadas, fechando dialog");
       onOpenChange(false);
     },
     onError: (error) => {
