@@ -22,36 +22,51 @@ interface Cliente {
 export default function VendedorPosVenda() {
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
 
-  // Buscar clientes que tem pedidos Shopify mas não ativaram o painel
+  // Buscar clientes atribuídos do e-commerce que ainda não ativaram o painel
   const { data: clientesPosVenda = [], isLoading, refetch } = useQuery({
     queryKey: ["vendedor-pos-venda", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
-      
-      // Primeiro, buscar os IDs de clientes que tem pedidos
-      const { data: pedidosClientes, error: pedidosError } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("cliente_id")
-        .eq("vendedor_id", vendedor.id)
-        .not("cliente_id", "is", null);
-      
-      if (pedidosError) throw pedidosError;
-      
-      const clienteIds = [...new Set(pedidosClientes.map(p => p.cliente_id).filter(Boolean))];
-      
-      if (clienteIds.length === 0) return [];
-      
-      // Buscar esses clientes que NÃO ativaram o painel
-      const { data, error } = await supabase
+
+      // 1) Clientes do vendedor com painel ainda NÃO ativado
+      const { data: clientes, error: clientesError } = await supabase
         .from("ebd_clientes")
         .select("*")
         .eq("vendedor_id", vendedor.id)
         .eq("status_ativacao_ebd", false)
-        .in("id", clienteIds)
         .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data as Cliente[];
+
+      if (clientesError) throw clientesError;
+      if (!clientes || clientes.length === 0) return [];
+
+      // 2) Identificar quais desses clientes vieram do e-commerce (tem pedido Shopify pelo e-mail)
+      const emails = Array.from(
+        new Set(
+          clientes
+            .map((c: any) => (c.email_superintendente || "").toLowerCase().trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (emails.length === 0) return [];
+
+      const { data: pedidos, error: pedidosError } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("customer_email")
+        .in("customer_email", emails);
+
+      if (pedidosError) throw pedidosError;
+
+      const emailsComPedido = new Set(
+        (pedidos || [])
+          .map((p: any) => (p.customer_email || "").toLowerCase().trim())
+          .filter(Boolean)
+      );
+
+      // Pós-venda e-commerce = (tem pedido) + (painel não ativado)
+      return (clientes as any[]).filter((c: any) =>
+        emailsComPedido.has((c.email_superintendente || "").toLowerCase().trim())
+      ) as Cliente[];
     },
     enabled: !!vendedor?.id,
   });
