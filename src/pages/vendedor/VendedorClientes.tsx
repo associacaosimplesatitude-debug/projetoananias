@@ -134,32 +134,37 @@ export default function VendedorClientes() {
         .order("created_at", { ascending: false });
       if (ebdClientesError) throw ebdClientesError;
 
-      // Buscar IDs de clientes que vieram do e-commerce (têm pedidos Shopify)
-      const { data: pedidosClientes, error: pedidosError } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("cliente_id")
-        .eq("vendedor_id", vendedor.id)
-        .not("cliente_id", "is", null);
-      
-      if (pedidosError) throw pedidosError;
-      
-      const clientesComPedidoIds = new Set(
-        (pedidosClientes || []).map(p => p.cliente_id).filter(Boolean)
+      // Identificar quais clientes vieram do e-commerce (têm pedido Shopify pelo e-mail)
+      const emails = Array.from(
+        new Set(
+          (ebdClientesData || [])
+            .map((c: any) => (c.email_superintendente || "").toLowerCase().trim())
+            .filter(Boolean)
+        )
       );
 
-      // Filtrar clientes para o menu "Clientes":
-      // - Clientes que já ativaram o painel (status_ativacao_ebd = true)
-      // - OU clientes que NÃO vieram do e-commerce (cadastro manual) - mesmo sem ativar painel
+      const { data: pedidosByEmail, error: pedidosError } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("customer_email")
+        .in("customer_email", emails.length ? emails : ["__none__"]);
+
+      if (pedidosError) throw pedidosError;
+
+      const emailsComPedido = new Set(
+        (pedidosByEmail || [])
+          .map((p: any) => (p.customer_email || "").toLowerCase().trim())
+          .filter(Boolean)
+      );
+
+      // Menu "Clientes" (carteira ativa):
+      // - Se veio do e-commerce (tem pedido): só entra após ativar o painel
+      // - Se NÃO veio do e-commerce (sem pedido): entra normalmente
       const clientesFiltrados = (ebdClientesData || []).filter((cliente: any) => {
-        const veioDoEcommerce = clientesComPedidoIds.has(cliente.id);
+        const emailNorm = (cliente.email_superintendente || "").toLowerCase().trim();
+        const veioDoEcommerce = emailNorm ? emailsComPedido.has(emailNorm) : false;
         const painelAtivo = cliente.status_ativacao_ebd === true;
-        
-        // Se veio do e-commerce, só aparece em Clientes se ativou o painel
-        if (veioDoEcommerce) {
-          return painelAtivo;
-        }
-        
-        // Se não veio do e-commerce (cadastro manual), aparece em Clientes
+
+        if (veioDoEcommerce) return painelAtivo;
         return true;
       });
 
