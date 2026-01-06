@@ -90,7 +90,8 @@ async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string
   if (cachedSituacaoIdsByName.has(key)) return cachedSituacaoIdsByName.get(key)!;
 
   try {
-    const url = 'https://www.bling.com.br/Api/v3/situacoes/modulos?idModulo=pedidos_vendas';
+    // ✅ ENDPOINT CORRETO API V3: /situacoes/modulo/{modulo} (singular, sem query param)
+    const url = 'https://www.bling.com.br/Api/v3/situacoes/modulo/pedidos_venda';
     const resp = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -108,11 +109,12 @@ async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string
     const situacoes: any[] = Array.isArray(json?.data) ? json.data : [];
     
     // Log para debug: mostrar todas as situações disponíveis
-    console.log('[BLING] Situações disponíveis no módulo:', {
+    console.log('[BLING] Situações disponíveis no módulo pedidos_venda:', {
       buscando: situacaoNome,
       situacoesDisponiveis: situacoes.map((s) => ({ id: s.id, nome: s.nome })),
     });
     
+    // Busca exata primeiro, depois parcial (case-insensitive)
     const match = situacoes.find((s) => String(s?.nome || '').trim().toLowerCase() === key)
       || situacoes.find((s) => String(s?.nome || '').toLowerCase().includes(key));
 
@@ -140,6 +142,55 @@ async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string
 async function resolveSituacaoEmAbertoId(accessToken: string): Promise<number> {
   const id = await resolveSituacaoIdByName(accessToken, 'Em aberto');
   return id ?? 9;
+}
+
+// Resolver ID da natureza de operação padrão (evita que Bling force status ATENDIDO)
+async function resolveNaturezaOperacaoId(accessToken: string): Promise<number | null> {
+  try {
+    const url = 'https://www.bling.com.br/Api/v3/naturezas-operacoes';
+    const resp = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    const json = await resp.json();
+
+    if (!resp.ok) {
+      console.warn('[BLING] Falha ao listar naturezas de operação.', json);
+      return null;
+    }
+
+    const naturezas: any[] = Array.isArray(json?.data) ? json.data : [];
+    
+    console.log('[BLING] Naturezas de operação disponíveis:', {
+      total: naturezas.length,
+      primeiras5: naturezas.slice(0, 5).map((n) => ({ id: n.id, descricao: n.descricao })),
+    });
+    
+    // Buscar natureza padrão para vendas (geralmente "Venda" ou similar)
+    const vendaNatureza = naturezas.find((n) => 
+      String(n?.descricao || '').toLowerCase().includes('venda') &&
+      !String(n?.descricao || '').toLowerCase().includes('devolução')
+    );
+    
+    if (vendaNatureza?.id) {
+      console.log('[BLING] Natureza de operação selecionada:', { id: vendaNatureza.id, descricao: vendaNatureza.descricao });
+      return Number(vendaNatureza.id);
+    }
+    
+    // Fallback: usar a primeira natureza disponível
+    if (naturezas.length > 0 && naturezas[0]?.id) {
+      console.log('[BLING] Usando primeira natureza disponível:', { id: naturezas[0].id, descricao: naturezas[0].descricao });
+      return Number(naturezas[0].id);
+    }
+    
+    return null;
+  } catch (e) {
+    console.warn('[BLING] Erro ao resolver natureza de operação.', e);
+    return null;
+  }
 }
 
 
@@ -290,12 +341,16 @@ serve(async (req) => {
     }
 
     const situacaoInicialId = (situacaoAprovadaB2BId ?? situacaoEmAbertoId);
+    
+    // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
+    const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken);
 
-    console.log('[BLING] Situação inicial selecionada:', {
+    console.log('[BLING] Configuração inicial do pedido:', {
       isFaturamentoPagamento,
       situacaoEmAbertoId,
       situacaoAprovadaB2BId,
       situacaoInicialId,
+      naturezaOperacaoId,
     });
 
     // ============================================================
@@ -1397,7 +1452,7 @@ serve(async (req) => {
 
     const pedidoData: any = {
       numero: numeroPedido,
-      data: new Date().toISOString().split('T')[0],
+      data: new Date().toISOString().split('T')[0], // ✅ Formato ISO 8601: AAAA-MM-DD
       // ✅ LOJA BASEADA NA REGIÃO + UNIDADE DE NEGÓCIO
       loja: lojaPayload,
       // ✅ CONTATO (id + numeroDocumento)
@@ -1407,10 +1462,16 @@ serve(async (req) => {
         ...item,
         deposito: { id: depositoIdSelecionado },
       })),
+      // ✅ SITUAÇÃO INICIAL - API V3 exige ID numérico
       situacao: {
-        // Situação inicial do pedido
         id: situacaoInicialId,
       },
+      // ✅ NATUREZA DE OPERAÇÃO - Evita regras automáticas que forçam ATENDIDO
+      ...(naturezaOperacaoId && {
+        naturezaOperacao: {
+          id: naturezaOperacaoId,
+        },
+      }),
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
         + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : '')
@@ -1419,6 +1480,16 @@ serve(async (req) => {
       // Add vendedor (salesperson) if provided
       ...(vendedor_nome && { vendedor: { nome: vendedor_nome } }),
     };
+    
+    // LOG do payload completo para debug
+    console.log('[BLING] Payload do pedido (estrutura chave):', {
+      numero: pedidoData.numero,
+      data: pedidoData.data,
+      situacao: pedidoData.situacao,
+      naturezaOperacao: pedidoData.naturezaOperacao,
+      contatoId: pedidoData.contato?.id,
+      totalItens: pedidoData.itens?.length,
+    });
 
     // LOGS obrigatórios antes do POST
     const enderecoNumeroRef = (endereco_entrega?.numero || '').toString().trim() || 'S/N';
