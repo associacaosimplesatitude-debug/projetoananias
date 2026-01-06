@@ -17,15 +17,17 @@ import {
   Church,
   Mail,
   Phone,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PlaybookMessageModal } from "./PlaybookMessageModal";
-import { PlaybookViewOrderModal } from "./PlaybookViewOrderModal";
+import { PedidoOnlineDetailDialog } from "@/components/admin/PedidoOnlineDetailDialog";
 import { AtivarClienteDialog } from "./AtivarClienteDialog";
 import { useNavigate } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
+import { toast } from "sonner";
 
 export type PlaybookType = 
   | "pos_venda" 
@@ -59,7 +61,9 @@ export function PlaybookClienteCard({ cliente, type, onRefresh }: PlaybookClient
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [messageModalTitle, setMessageModalTitle] = useState("");
   const [messageModalContent, setMessageModalContent] = useState("");
-  const [viewOrderModalOpen, setViewOrderModalOpen] = useState(false);
+  const [pedidoDialogOpen, setPedidoDialogOpen] = useState(false);
+  const [selectedPedido, setSelectedPedido] = useState<any>(null);
+  const [loadingPedido, setLoadingPedido] = useState(false);
   const [ativarDialogOpen, setAtivarDialogOpen] = useState(false);
 
   const nomeVendedor = vendedor?.nome || "Central Gospel";
@@ -203,6 +207,81 @@ Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chama
     onRefresh?.();
   };
 
+  // Função para buscar pedido usando mesma lógica do VendedorClientes
+  const handleViewOrders = async () => {
+    setLoadingPedido(true);
+    
+    try {
+      let pedidos: any[] | null = null;
+
+      // 1. Primeiro tenta por cliente_id
+      const { data: pedidosByClienteId, error: error1 } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select(`
+          *,
+          cliente:ebd_clientes(nome_igreja, tipo_cliente),
+          vendedor:vendedores(nome)
+        `)
+        .eq("cliente_id", cliente.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!error1 && pedidosByClienteId && pedidosByClienteId.length > 0) {
+        pedidos = pedidosByClienteId;
+      }
+
+      // 2. Se não encontrar, tenta por email
+      if (!pedidos && cliente.email_superintendente) {
+        const emailNormalized = cliente.email_superintendente.toLowerCase().trim();
+        
+        const { data: pedidosByEmail, error: error2 } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select(`
+            *,
+            cliente:ebd_clientes(nome_igreja, tipo_cliente),
+            vendedor:vendedores(nome)
+          `)
+          .ilike("customer_email", emailNormalized)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (!error2 && pedidosByEmail && pedidosByEmail.length > 0) {
+          pedidos = pedidosByEmail;
+        }
+      }
+
+      // 3. Se ainda não encontrar, tenta por nome
+      if (!pedidos && cliente.nome_igreja) {
+        const { data: pedidosByName, error: error3 } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select(`
+            *,
+            cliente:ebd_clientes(nome_igreja, tipo_cliente),
+            vendedor:vendedores(nome)
+          `)
+          .ilike("customer_name", `%${cliente.nome_igreja}%`)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (!error3 && pedidosByName && pedidosByName.length > 0) {
+          pedidos = pedidosByName;
+        }
+      }
+
+      if (pedidos && pedidos.length > 0) {
+        setSelectedPedido(pedidos[0]);
+        setPedidoDialogOpen(true);
+      } else {
+        toast.error("Nenhum pedido encontrado para este cliente");
+      }
+    } catch (error) {
+      console.error("Erro ao buscar pedidos:", error);
+      toast.error("Erro ao buscar pedidos do cliente");
+    } finally {
+      setLoadingPedido(false);
+    }
+  };
+
   // Renderizar conteúdo baseado no tipo de playbook
   const renderCardContent = () => {
     switch (type) {
@@ -242,10 +321,15 @@ Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chama
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setViewOrderModalOpen(true)}
+                onClick={handleViewOrders}
+                disabled={loadingPedido}
                 title="Ver último pedido do cliente"
               >
-                <Eye className="mr-1 h-4 w-4" />
+                {loadingPedido ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Eye className="mr-1 h-4 w-4" />
+                )}
                 Ver Pedido
               </Button>
               <Button 
@@ -376,9 +460,14 @@ Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chama
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => setViewOrderModalOpen(true)}
+                onClick={handleViewOrders}
+                disabled={loadingPedido}
               >
-                <Eye className="mr-1 h-4 w-4" />
+                {loadingPedido ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Eye className="mr-1 h-4 w-4" />
+                )}
                 Ver Atividade
               </Button>
             </div>
@@ -448,11 +537,14 @@ Se precisar de ajuda para acessar ou usar alguma funcionalidade, é só me chama
         message={messageModalContent}
       />
 
-      <PlaybookViewOrderModal
-        open={viewOrderModalOpen}
-        onOpenChange={setViewOrderModalOpen}
-        clienteId={cliente.id}
-        clienteNome={cliente.nome_igreja}
+      <PedidoOnlineDetailDialog
+        pedido={selectedPedido}
+        open={pedidoDialogOpen}
+        onOpenChange={(open) => {
+          setPedidoDialogOpen(open);
+          if (!open) setSelectedPedido(null);
+        }}
+        hideAttribution={true}
       />
 
       {/* Dialog de Ativação */}
