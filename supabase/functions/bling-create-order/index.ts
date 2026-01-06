@@ -106,6 +106,13 @@ async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string
     }
 
     const situacoes: any[] = Array.isArray(json?.data) ? json.data : [];
+    
+    // Log para debug: mostrar todas as situações disponíveis
+    console.log('[BLING] Situações disponíveis no módulo:', {
+      buscando: situacaoNome,
+      situacoesDisponiveis: situacoes.map((s) => ({ id: s.id, nome: s.nome })),
+    });
+    
     const match = situacoes.find((s) => String(s?.nome || '').trim().toLowerCase() === key)
       || situacoes.find((s) => String(s?.nome || '').toLowerCase().includes(key));
 
