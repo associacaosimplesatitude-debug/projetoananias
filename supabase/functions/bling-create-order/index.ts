@@ -1322,9 +1322,8 @@ serve(async (req) => {
         deposito: { id: depositoIdSelecionado },
       })),
       situacao: {
-        // Status Bling: 15 = Em Aberto, 9 = Atendido/Aprovado
-        // Pedidos chegam como EM ABERTO (15) para aprovação manual
-        id: 15,
+        // Status Bling: 9 = Em aberto (conforme documentação API Bling)
+        id: 9,
       },
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
