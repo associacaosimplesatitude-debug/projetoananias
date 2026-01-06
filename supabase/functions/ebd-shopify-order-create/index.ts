@@ -369,6 +369,12 @@ serve(async (req) => {
       noteAttributes.push({ name: "tipo_cliente", value: cliente.tipo_cliente });
     }
 
+    // Adicionar CPF/CNPJ aos note_attributes para captura fácil na sincronização
+    if (cliente.cnpj) {
+      noteAttributes.push({ name: "cpf_cnpj", value: cliente.cnpj });
+      console.log("Adicionando CPF/CNPJ aos note_attributes:", cliente.cnpj);
+    }
+
     // Build tags - Shopify has a 40 character limit per tag
     // Adicionar tag baseada no tipo_cliente para classificação
     const tipoClienteTag = cliente.tipo_cliente?.toUpperCase().replace(/[^A-Z]/g, '_') || '';
