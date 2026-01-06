@@ -126,12 +126,42 @@ export default function VendedorClientes() {
     queryFn: async () => {
       if (!vendedor?.id) return [];
 
+      // Buscar clientes do vendedor
       const { data: ebdClientesData, error: ebdClientesError } = await supabase
         .from("ebd_clientes")
         .select("*")
         .eq("vendedor_id", vendedor.id)
         .order("created_at", { ascending: false });
       if (ebdClientesError) throw ebdClientesError;
+
+      // Buscar IDs de clientes que vieram do e-commerce (têm pedidos Shopify)
+      const { data: pedidosClientes, error: pedidosError } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("cliente_id")
+        .eq("vendedor_id", vendedor.id)
+        .not("cliente_id", "is", null);
+      
+      if (pedidosError) throw pedidosError;
+      
+      const clientesComPedidoIds = new Set(
+        (pedidosClientes || []).map(p => p.cliente_id).filter(Boolean)
+      );
+
+      // Filtrar clientes para o menu "Clientes":
+      // - Clientes que já ativaram o painel (status_ativacao_ebd = true)
+      // - OU clientes que NÃO vieram do e-commerce (cadastro manual) - mesmo sem ativar painel
+      const clientesFiltrados = (ebdClientesData || []).filter((cliente: any) => {
+        const veioDoEcommerce = clientesComPedidoIds.has(cliente.id);
+        const painelAtivo = cliente.status_ativacao_ebd === true;
+        
+        // Se veio do e-commerce, só aparece em Clientes se ativou o painel
+        if (veioDoEcommerce) {
+          return painelAtivo;
+        }
+        
+        // Se não veio do e-commerce (cadastro manual), aparece em Clientes
+        return true;
+      });
 
       const { data: assinaturasData, error: assinaturasError } = await supabase
         .from("assinaturas")
@@ -179,9 +209,9 @@ export default function VendedorClientes() {
           } as Cliente;
         });
 
-      const ebdClientesIds = new Set((ebdClientesData || []).map((c: any) => c.id));
+      const ebdClientesIds = new Set(clientesFiltrados.map((c: any) => c.id));
       const merged = [
-        ...(ebdClientesData || []),
+        ...clientesFiltrados,
         ...fromAssinaturas.filter((c) => !ebdClientesIds.has(c.id)),
       ];
 
