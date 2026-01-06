@@ -137,6 +137,18 @@ export function AtivarClienteDialog({
 
       if (updateError) throw updateError;
 
+      // 2.5. Atualizar status na tabela pivô ebd_pos_venda_ecommerce (se existir)
+      try {
+        await (supabase as any)
+          .from("ebd_pos_venda_ecommerce")
+          .update({ status: "ativado" })
+          .eq("cliente_id", cliente.id)
+          .eq("status", "pendente");
+      } catch (pivotError) {
+        console.error("Erro ao atualizar status na tabela pivô (não crítico):", pivotError);
+        // Não é crítico, continuar mesmo se falhar
+      }
+
       // 3. Send welcome email
       try {
         await supabase.functions.invoke("send-welcome-email", {

@@ -2661,32 +2661,32 @@ export type Database = {
       }
       ebd_pos_venda_ecommerce: {
         Row: {
-          ativado: boolean
-          ativado_em: string | null
           cliente_id: string | null
           created_at: string
+          email_cliente: string
           id: string
           pedido_id: string
+          status: string
           updated_at: string
           vendedor_id: string
         }
         Insert: {
-          ativado?: boolean
-          ativado_em?: string | null
           cliente_id?: string | null
           created_at?: string
+          email_cliente: string
           id?: string
           pedido_id: string
+          status?: string
           updated_at?: string
           vendedor_id: string
         }
         Update: {
-          ativado?: boolean
-          ativado_em?: string | null
           cliente_id?: string | null
           created_at?: string
+          email_cliente?: string
           id?: string
           pedido_id?: string
+          status?: string
           updated_at?: string
           vendedor_id?: string
         }

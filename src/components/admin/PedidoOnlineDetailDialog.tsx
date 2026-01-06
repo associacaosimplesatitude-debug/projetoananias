@@ -327,9 +327,16 @@ export function PedidoOnlineDetailDialog({
         }
       }
 
-      // INSERIR NA TABELA PIVÔ ebd_pos_venda_ecommerce
-      // Se tem vendedor selecionado, criar o vínculo na tabela pivô
+      // INSERIR/ATUALIZAR NA TABELA PIVÔ ebd_pos_venda_ecommerce (OBRIGATÓRIO quando tem vendedor)
       if (selectedVendedor) {
+        const emailCliente = pedido.customer_email?.toLowerCase() || "";
+        
+        if (!emailCliente) {
+          console.error("Email do cliente não encontrado no pedido");
+          toast.error("Email do cliente é obrigatório para atribuição");
+          throw new Error("Email do cliente é obrigatório");
+        }
+
         // Verificar se já existe vínculo para este pedido
         const { data: existingVinculo, error: checkError } = await (supabase as any)
           .from("ebd_pos_venda_ecommerce")
@@ -339,6 +346,7 @@ export function PedidoOnlineDetailDialog({
 
         if (checkError) {
           console.error("Erro ao verificar vínculo existente:", checkError);
+          throw checkError;
         }
 
         if (existingVinculo) {
@@ -348,27 +356,38 @@ export function PedidoOnlineDetailDialog({
             .update({
               vendedor_id: selectedVendedor,
               cliente_id: finalClienteId || null,
+              email_cliente: emailCliente,
             })
             .eq("id", existingVinculo.id);
           if (updateVinculoError) {
-            console.error("Erro ao atualizar vínculo:", updateVinculoError);
+            console.error("Erro ao atualizar vínculo pós-venda:", updateVinculoError);
+            toast.error("Erro ao atualizar vínculo pós-venda");
             throw updateVinculoError;
           }
         } else {
-          // Criar novo vínculo
+          // Criar novo vínculo na tabela pivô
           const { error: insertVinculoError } = await (supabase as any)
             .from("ebd_pos_venda_ecommerce")
             .insert({
               pedido_id: pedido.id,
               vendedor_id: selectedVendedor,
               cliente_id: finalClienteId || null,
-              ativado: false,
+              email_cliente: emailCliente,
+              status: "pendente",
             });
           if (insertVinculoError) {
-            console.error("Erro ao inserir vínculo:", insertVinculoError);
+            console.error("Erro ao inserir vínculo pós-venda:", insertVinculoError);
+            toast.error("Erro ao criar vínculo pós-venda. Verifique o console.");
             throw insertVinculoError;
           }
         }
+
+        console.log("Vínculo pós-venda criado/atualizado com sucesso:", {
+          pedido_id: pedido.id,
+          vendedor_id: selectedVendedor,
+          cliente_id: finalClienteId,
+          email_cliente: emailCliente,
+        });
       }
     },
     onSuccess: () => {

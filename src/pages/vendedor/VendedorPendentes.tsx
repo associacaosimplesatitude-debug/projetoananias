@@ -27,14 +27,40 @@ export default function VendedorPendentes() {
     queryKey: ["vendedor-clientes-pendentes", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
-      const { data, error } = await supabase
+      
+      // 1. Buscar clientes pendentes de ativação
+      const { data: clientes, error } = await supabase
         .from("ebd_clientes")
         .select("*")
         .eq("vendedor_id", vendedor.id)
         .eq("status_ativacao_ebd", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as Cliente[];
+      
+      if (!clientes || clientes.length === 0) return [];
+
+      // 2. Buscar IDs de clientes que estão na fila de pós-venda (para excluir)
+      const { data: posVendaVinculos, error: posVendaError } = await (supabase as any)
+        .from("ebd_pos_venda_ecommerce")
+        .select("cliente_id")
+        .eq("vendedor_id", vendedor.id)
+        .eq("status", "pendente");
+
+      if (posVendaError) {
+        console.error("Erro ao buscar vínculos pós-venda:", posVendaError);
+        // Continuar mesmo com erro, mostrando todos
+      }
+
+      // 3. Filtrar: remover clientes que estão no pós-venda
+      const clienteIdsNoPosVenda = new Set(
+        (posVendaVinculos || []).map((v: any) => v.cliente_id).filter(Boolean)
+      );
+
+      const clientesFiltrados = clientes.filter(
+        (c) => !clienteIdsNoPosVenda.has(c.id)
+      );
+
+      return clientesFiltrados as Cliente[];
     },
     enabled: !!vendedor?.id,
   });
