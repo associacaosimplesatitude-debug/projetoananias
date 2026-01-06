@@ -81,6 +81,49 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
   return now.getTime() >= expiresAt.getTime() - bufferMs;
 }
 
+// Resolver o ID da situação "Em aberto" na conta (IDs podem variar por conta)
+let cachedSituacaoEmAbertoId: number | null = null;
+async function resolveSituacaoEmAbertoId(accessToken: string): Promise<number> {
+  if (cachedSituacaoEmAbertoId) return cachedSituacaoEmAbertoId;
+
+  try {
+    const url = 'https://www.bling.com.br/Api/v3/situacoes/modulos?idModulo=pedidos_vendas';
+    const resp = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    const json = await resp.json();
+
+    if (!resp.ok) {
+      console.warn('[BLING] Falha ao listar situações. Usando fallback 9.', json);
+      cachedSituacaoEmAbertoId = 9;
+      return cachedSituacaoEmAbertoId;
+    }
+
+    const situacoes: any[] = Array.isArray(json?.data) ? json.data : [];
+    const match = situacoes.find((s) => String(s?.nome || '').toLowerCase().includes('em aberto'))
+      || situacoes.find((s) => String(s?.nome || '').toLowerCase().includes('aberto'));
+
+    const resolved = Number(match?.id);
+    cachedSituacaoEmAbertoId = Number.isFinite(resolved) && resolved > 0 ? resolved : 9;
+
+    console.log('[BLING] Situação "Em aberto" resolvida:', {
+      resolvedId: cachedSituacaoEmAbertoId,
+      matchName: match?.nome,
+      totalSituacoes: situacoes.length,
+    });
+
+    return cachedSituacaoEmAbertoId;
+  } catch (e) {
+    console.warn('[BLING] Erro ao resolver situação. Usando fallback 9.', e);
+    cachedSituacaoEmAbertoId = 9;
+    return cachedSituacaoEmAbertoId;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -210,6 +253,9 @@ serve(async (req) => {
       console.log(`Token expirado ou próximo de expirar para ${configTableName}, renovando...`);
       accessToken = await refreshBlingToken(supabase, config, configTableName, clientId, clientSecret);
     }
+
+    // IDs de situações podem variar por conta. Resolver "Em aberto" dinamicamente.
+    const situacaoEmAbertoId = await resolveSituacaoEmAbertoId(accessToken);
 
 
     // ============================================================
@@ -1322,8 +1368,8 @@ serve(async (req) => {
         deposito: { id: depositoIdSelecionado },
       })),
       situacao: {
-        // Status Bling: 9 = Em aberto (conforme documentação API Bling)
-        id: 9,
+        // Situação inicial do pedido (resolve "Em aberto" dinamicamente)
+        id: situacaoEmAbertoId,
       },
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
@@ -1558,6 +1604,27 @@ serve(async (req) => {
     }
 
     console.log('Pedido criado com sucesso:', responseData);
+
+    // DEBUG: conferir a situação que o Bling gravou de fato (algumas contas sobrescrevem por automação)
+    try {
+      const createdId = responseData?.data?.id;
+      if (createdId) {
+        await sleep(350);
+        const detailResp = await fetch(`https://www.bling.com.br/Api/v3/pedidos/vendas/${createdId}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        const detailJson = await detailResp.json();
+        console.log('[BLING] Pedido criado - situação atual:', {
+          idPedido: createdId,
+          situacao: detailJson?.data?.situacao,
+        });
+      }
+    } catch (e) {
+      console.warn('[BLING] Não foi possível consultar a situação do pedido após criar.', e);
+    }
 
     return new Response(
       JSON.stringify({ 
