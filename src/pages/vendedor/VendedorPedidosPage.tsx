@@ -329,6 +329,8 @@ export default function VendedorPedidosPage() {
           valor_produtos: valorProdutos,
           valor_total: valorTotal,
           vendedor_nome: proposta.vendedor_nome || vendedor?.nome,
+          // ✅ Email do vendedor para buscar o ID no Bling
+          vendedor_email: vendedor?.email,
           desconto_percentual: proposta.desconto_percentual || 0,
           // Dados de frete manual
           frete_tipo: proposta.frete_tipo || 'automatico',
