@@ -43,6 +43,7 @@ interface PropostaCliente {
   endereco_cep: string | null;
   endereco_rua: string | null;
   endereco_numero: string | null;
+  endereco_complemento: string | null;
   endereco_bairro: string | null;
   endereco_cidade: string | null;
   endereco_estado: string | null;
@@ -112,6 +113,7 @@ export default function AprovacaoFaturamento() {
             endereco_cep,
             endereco_rua,
             endereco_numero,
+            endereco_complemento,
             endereco_bairro,
             endereco_cidade,
             endereco_estado,
@@ -180,6 +182,7 @@ export default function AprovacaoFaturamento() {
         endereco_cep: proposta.cliente_endereco?.cep || null,
         endereco_rua: proposta.cliente_endereco?.rua || null,
         endereco_numero: proposta.cliente_endereco?.numero || null,
+        endereco_complemento: proposta.cliente_endereco?.complemento || null,
         endereco_bairro: proposta.cliente_endereco?.bairro || null,
         endereco_cidade: proposta.cliente_endereco?.cidade || null,
         endereco_estado: proposta.cliente_endereco?.estado || null,
@@ -274,7 +277,7 @@ export default function AprovacaoFaturamento() {
         ? {
             rua: clienteProposta.endereco_rua,
             numero: clienteProposta.endereco_numero || "S/N",
-            complemento: "",
+            complemento: clienteProposta.endereco_complemento || "",
             bairro: clienteProposta.endereco_bairro || "",
             cep: clienteProposta.endereco_cep || "",
             cidade: clienteProposta.endereco_cidade || "",
