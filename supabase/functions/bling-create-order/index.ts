@@ -253,68 +253,37 @@ async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Pr
   }
 }
 
-// ✅ NOVA FUNÇÃO: Buscar vendedor no Bling pelo email do usuário logado
-async function resolveVendedorIdByEmail(accessToken: string, email: string): Promise<number | null> {
+// ✅ MAPEAMENTO FIXO: Email do vendedor → ID do vendedor no Bling
+// Isso evita chamadas à API de vendedores do Bling e garante vínculo correto
+const VENDEDOR_EMAIL_TO_BLING_ID: Record<string, number> = {
+  'neila.lima@editoracentralgospel.com': 15596550898,
+  // Adicione mais vendedores conforme necessário:
+  // 'outro.vendedor@email.com': 123456789,
+};
+
+// ✅ FUNÇÃO SIMPLIFICADA: Resolver ID do vendedor via mapeamento fixo (sem chamada API)
+function resolveVendedorIdByEmail(email: string): number | null {
   if (!email) {
     console.warn('[BLING] ⚠️ Email do vendedor não fornecido');
     return null;
   }
 
-  try {
-    const url = 'https://api.bling.com.br/Api/v3/vendedores';
-    const resp = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-      },
+  const emailNormalizado = email.toLowerCase().trim();
+  const vendedorId = VENDEDOR_EMAIL_TO_BLING_ID[emailNormalizado] || null;
+
+  if (vendedorId) {
+    console.log('[BLING] ✅ Vendedor encontrado via MAPEAMENTO FIXO:', { 
+      email: emailNormalizado, 
+      blingId: vendedorId 
     });
-
-    const json = await resp.json();
-
-    if (!resp.ok) {
-      console.warn('[BLING] Falha ao listar vendedores.', json);
-      return null;
-    }
-
-    const vendedores: any[] = Array.isArray(json?.data) ? json.data : [];
-    
-    // Log para debug: mostrar todos os vendedores disponíveis
-    console.log('[BLING] ✅ Vendedores disponíveis no Bling:', {
-      total: vendedores.length,
-      vendedores: vendedores.map((v) => ({ 
-        id: v.id, 
-        nome: v.nome || v.contato?.nome, 
-        email: v.email || v.contato?.email 
-      })),
-    });
-    
-    const emailNormalizado = email.toLowerCase().trim();
-    
-    // Buscar vendedor pelo email (case insensitive)
-    const vendedorEncontrado = vendedores.find((v) => {
-      const vendedorEmail = String(v?.email || v?.contato?.email || '').toLowerCase().trim();
-      return vendedorEmail === emailNormalizado;
-    });
-
-    if (vendedorEncontrado?.id) {
-      const vendedorId = Number(vendedorEncontrado.id);
-      console.log('[BLING] ✅ Vendedor ENCONTRADO pelo email:', { 
-        id: vendedorId, 
-        nome: vendedorEncontrado.nome || vendedorEncontrado.contato?.nome,
-        emailBuscado: email,
-        emailEncontrado: vendedorEncontrado.email || vendedorEncontrado.contato?.email
-      });
-      return vendedorId;
-    }
-    
-    console.warn('[BLING] ⚠️ Vendedor NÃO encontrado para o email:', email);
-    console.warn('[BLING] ⚠️ Verifique se o cadastro no Bling (Cadastros > Vendedores) possui exatamente este email.');
-    return null;
-  } catch (e) {
-    console.warn('[BLING] Erro ao buscar vendedores.', e);
-    return null;
+  } else {
+    console.warn('[BLING] ⚠️ Email não encontrado no mapeamento fixo:', emailNormalizado);
+    console.warn('[BLING] ⚠️ Adicione o email ao dicionário VENDEDOR_EMAIL_TO_BLING_ID na edge function.');
   }
+
+  return vendedorId;
 }
+
 
 
 serve(async (req) => {
@@ -598,7 +567,7 @@ serve(async (req) => {
     }
 
     if (vendedorEmailFinal) {
-      vendedorIdBling = await resolveVendedorIdByEmail(accessToken, vendedorEmailFinal);
+      vendedorIdBling = resolveVendedorIdByEmail(vendedorEmailFinal);
       console.log('[BLING] ✅ Vendedor ID encontrado:', vendedorIdBling, 'para email:', vendedorEmailFinal);
     } else {
       console.log('[BLING] ⚠️ vendedor_email não fornecido no payload (nem resolvido por fallback) - pedido será criado sem vendedor vinculado');
