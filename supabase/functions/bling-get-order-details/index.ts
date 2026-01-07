@@ -74,16 +74,16 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { bling_order_id, pedido_id } = await req.json();
+    const { customer_email, pedido_id } = await req.json();
 
-    if (!bling_order_id) {
+    if (!customer_email) {
       return new Response(
-        JSON.stringify({ error: "bling_order_id é obrigatório" }),
+        JSON.stringify({ error: "customer_email é obrigatório" }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Buscando documento no Bling para pedido:', bling_order_id);
+    console.log('Buscando documento no Bling para email:', customer_email);
 
     // Buscar configuração do Bling (usando integração padrão RJ)
     const { data: config, error: configError } = await supabase
@@ -109,11 +109,11 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config, 'bling_config', clientId, clientSecret);
     }
 
-    // Buscar detalhes do pedido no Bling
-    const blingUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}`;
-    console.log('Chamando Bling API:', blingUrl);
+    // Buscar contato pelo email no Bling
+    const searchUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(customer_email.toLowerCase())}&limite=1`;
+    console.log('Chamando Bling API:', searchUrl);
 
-    const response = await fetch(blingUrl, {
+    let response = await fetch(searchUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -121,44 +121,58 @@ serve(async (req) => {
       },
     });
 
+    // Se der 401, tentar renovar token e fazer nova chamada
+    if (response.status === 401) {
+      console.log('Token inválido, renovando...');
+      accessToken = await refreshBlingToken(supabase, config, 'bling_config', clientId, clientSecret);
+      
+      response = await fetch(searchUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+    }
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Erro Bling API:', response.status, errorText);
-      
-      // Se der 401, tentar renovar token e fazer nova chamada
-      if (response.status === 401) {
-        console.log('Token inválido, renovando...');
-        accessToken = await refreshBlingToken(supabase, config, 'bling_config', clientId, clientSecret);
-        
-        const retryResponse = await fetch(blingUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
-          },
-        });
-
-        if (!retryResponse.ok) {
-          const retryError = await retryResponse.text();
-          console.error('Erro Bling API (retry):', retryResponse.status, retryError);
-          return new Response(
-            JSON.stringify({ error: 'Erro ao buscar pedido no Bling', details: retryError }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        const retryData = await retryResponse.json();
-        return processResponse(retryData, pedido_id, supabase);
-      }
-
       return new Response(
-        JSON.stringify({ error: 'Erro ao buscar pedido no Bling', details: errorText }),
+        JSON.stringify({ error: 'Erro ao buscar contato no Bling', details: errorText }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    return processResponse(data, pedido_id, supabase);
+    const contato = data?.data?.[0];
+    const numeroDocumento = contato?.numeroDocumento || null;
+    
+    console.log('Documento recuperado:', numeroDocumento);
+
+    // Se temos pedido_id, atualizar o registro no banco para cache
+    if (pedido_id && numeroDocumento) {
+      console.log('Atualizando cache do documento para pedido:', pedido_id);
+      const { error: updateError } = await supabase
+        .from('ebd_shopify_pedidos')
+        .update({ customer_document: numeroDocumento })
+        .eq('id', pedido_id);
+
+      if (updateError) {
+        console.warn('Aviso: Não foi possível cachear documento:', updateError.message);
+      } else {
+        console.log('Documento cacheado com sucesso!');
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        documento: numeroDocumento,
+        contato: contato || null,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error: unknown) {
     console.error('Erro:', error);
@@ -169,43 +183,3 @@ serve(async (req) => {
     );
   }
 });
-
-async function processResponse(data: any, pedido_id: string | null, supabase: any) {
-  const pedido = data?.data;
-  
-  if (!pedido) {
-    console.log('Pedido não encontrado no Bling');
-    return new Response(
-      JSON.stringify({ error: 'Pedido não encontrado no Bling', documento: null }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  // Extrair documento do contato
-  const numeroDocumento = pedido.contato?.numeroDocumento || null;
-  console.log('Documento recuperado:', numeroDocumento);
-
-  // Se temos pedido_id, atualizar o registro no banco para cache
-  if (pedido_id && numeroDocumento) {
-    console.log('Atualizando cache do documento para pedido:', pedido_id);
-    const { error: updateError } = await supabase
-      .from('ebd_shopify_pedidos')
-      .update({ customer_document: numeroDocumento })
-      .eq('id', pedido_id);
-
-    if (updateError) {
-      console.warn('Aviso: Não foi possível cachear documento:', updateError.message);
-    } else {
-      console.log('Documento cacheado com sucesso!');
-    }
-  }
-
-  return new Response(
-    JSON.stringify({
-      success: true,
-      documento: numeroDocumento,
-      contato: pedido.contato || null,
-    }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
-}

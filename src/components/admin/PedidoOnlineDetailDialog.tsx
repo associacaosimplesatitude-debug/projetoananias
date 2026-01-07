@@ -473,20 +473,20 @@ export function PedidoOnlineDetailDialog({
       return;
     }
 
-    // Se não tem shopify_order_id, não tem como buscar no Bling
-    if (!pedido.shopify_order_id) return;
+    // Se não tem email, não tem como buscar no Bling
+    if (!pedido.customer_email) return;
 
     // Resetar estado quando mudar de pedido
     setDocumentoFromBling(null);
 
     const fetchDocumentoFromBling = async () => {
-      console.log('Buscando documento no Bling para pedido:', pedido.shopify_order_id);
+      console.log('Buscando documento no Bling para email:', pedido.customer_email);
       setIsFetchingDocumento(true);
       
       try {
         const { data, error } = await supabase.functions.invoke("bling-get-order-details", {
           body: { 
-            bling_order_id: pedido.shopify_order_id,
+            customer_email: pedido.customer_email,
             pedido_id: pedido.id
           }
         });
@@ -508,7 +508,7 @@ export function PedidoOnlineDetailDialog({
     };
 
     fetchDocumentoFromBling();
-  }, [open, pedido?.id, pedido?.shopify_order_id, documentoFromPedido, documentoFromCliente]);
+  }, [open, pedido?.id, pedido?.customer_email, documentoFromPedido, documentoFromCliente]);
 
   if (!pedido) return null;
 

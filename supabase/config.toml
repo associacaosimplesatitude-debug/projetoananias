@@ -143,3 +143,6 @@ verify_jwt = false
 
 [functions.ebd-backfill-pos-venda]
 verify_jwt = true
+
+[functions.bling-backfill-documents]
+verify_jwt = true
