@@ -1154,7 +1154,8 @@ export default function AdminEBD() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Omit<typeof formData, 'senha'> }) => {
+    mutationFn: async ({ id, data, novaSenha, emailAntigo }: { id: string; data: Omit<typeof formData, 'senha'>; novaSenha?: string; emailAntigo: string }) => {
+      // Update vendedor data
       const { error } = await supabase.from('vendedores').update({
         nome: data.nome,
         email: data.email,
@@ -1165,6 +1166,15 @@ export default function AdminEBD() {
         tipo_perfil: data.tipo_perfil,
       }).eq('id', id);
       if (error) throw error;
+
+      // If new password provided, update auth user password
+      if (novaSenha && novaSenha.trim().length >= 6) {
+        const { data: updateResult, error: pwdError } = await supabase.functions.invoke('update-user-password-by-email', {
+          body: { email: emailAntigo, newPassword: novaSenha }
+        });
+        if (pwdError) throw new Error('Erro ao atualizar senha: ' + pwdError.message);
+        if (updateResult?.error) throw new Error('Erro ao atualizar senha: ' + updateResult.error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendedores'] });
@@ -1412,12 +1422,22 @@ export default function AdminEBD() {
     if (!formData.email.trim()) { toast.error("Preencha o email"); return; }
     if (!editingVendedor && !formData.senha.trim()) { toast.error("Preencha a senha de acesso"); return; }
     if (!editingVendedor && formData.senha.length < 6) { toast.error("A senha deve ter pelo menos 6 caracteres"); return; }
+    // Validate password length on edit only if provided
+    if (editingVendedor && formData.senha.trim() && formData.senha.length < 6) { 
+      toast.error("A senha deve ter pelo menos 6 caracteres"); 
+      return; 
+    }
     
     setIsSubmitting(true);
     try {
       if (editingVendedor) {
         const { senha, ...dataWithoutPassword } = formData;
-        await updateMutation.mutateAsync({ id: editingVendedor.id, data: dataWithoutPassword });
+        await updateMutation.mutateAsync({ 
+          id: editingVendedor.id, 
+          data: dataWithoutPassword, 
+          novaSenha: senha.trim() || undefined,
+          emailAntigo: editingVendedor.email 
+        });
       } else {
         await createMutation.mutateAsync(formData);
       }
@@ -2319,17 +2339,25 @@ export default function AdminEBD() {
                     <Label>Email <span className="text-destructive">*</span></Label>
                     <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
                   </div>
-                  {!editingVendedor && (
-                    <div className="space-y-2">
-                      <Label>Senha de Acesso <span className="text-destructive">*</span></Label>
-                      <div className="relative">
-                        <Input type={showPassword ? "text" : "password"} value={formData.senha} onChange={(e) => setFormData({ ...formData, senha: e.target.value })} placeholder="Mínimo 6 caracteres" required />
-                        <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
+                  <div className="space-y-2">
+                    <Label>
+                      {editingVendedor ? 'Nova Senha' : 'Senha de Acesso'} 
+                      {!editingVendedor && <span className="text-destructive">*</span>}
+                      {editingVendedor && <span className="text-muted-foreground text-xs ml-1">(deixe vazio para manter)</span>}
+                    </Label>
+                    <div className="relative">
+                      <Input 
+                        type={showPassword ? "text" : "password"} 
+                        value={formData.senha} 
+                        onChange={(e) => setFormData({ ...formData, senha: e.target.value })} 
+                        placeholder={editingVendedor ? "Deixe vazio para manter a senha atual" : "Mínimo 6 caracteres"} 
+                        required={!editingVendedor} 
+                      />
+                      <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
                     </div>
-                  )}
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Comissão (%)</Label>
