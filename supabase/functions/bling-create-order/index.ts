@@ -256,9 +256,12 @@ async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Pr
 // ✅ MAPEAMENTO FIXO: Email do vendedor → ID do vendedor no Bling
 // Isso evita chamadas à API de vendedores do Bling e garante vínculo correto
 const VENDEDOR_EMAIL_TO_BLING_ID: Record<string, number> = {
-  'neila.lima@editoracentralgospel.com': 15596550898,
-  // Adicione mais vendedores conforme necessário:
-  // 'outro.vendedor@email.com': 123456789,
+  'neila.lima@editoracentraglospel.com': 15596550898, // Email conforme cadastrado no Bling (typo proposital)
+  'daniel.sousa@editoracentralgospel.com': 15596329684,
+  'elaine.ribeiro@editoracentralgospel.com': 15596096564,
+  'glorinha21carreiro@gmail.com': 15596422682,
+  'ivani.santos@editoracentralgospel.com': 15596392965,
+  'nilson.curitibasp@gmail.com': 15596336493,
 };
 
 // ✅ FUNÇÃO SIMPLIFICADA: Resolver ID do vendedor via mapeamento fixo (sem chamada API)
