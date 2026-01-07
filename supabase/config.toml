@@ -57,6 +57,9 @@ verify_jwt = true
 [functions.bling-search-client]
 verify_jwt = true
 
+[functions.bling-get-order-details]
+verify_jwt = true
+
 [functions.ebd-create-lead-accounts]
 verify_jwt = false
 
