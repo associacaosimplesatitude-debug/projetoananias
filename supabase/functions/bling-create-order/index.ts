@@ -253,6 +253,69 @@ async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Pr
   }
 }
 
+// ✅ NOVA FUNÇÃO: Buscar vendedor no Bling pelo email do usuário logado
+async function resolveVendedorIdByEmail(accessToken: string, email: string): Promise<number | null> {
+  if (!email) {
+    console.warn('[BLING] ⚠️ Email do vendedor não fornecido');
+    return null;
+  }
+
+  try {
+    const url = 'https://api.bling.com.br/Api/v3/vendedores';
+    const resp = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    const json = await resp.json();
+
+    if (!resp.ok) {
+      console.warn('[BLING] Falha ao listar vendedores.', json);
+      return null;
+    }
+
+    const vendedores: any[] = Array.isArray(json?.data) ? json.data : [];
+    
+    // Log para debug: mostrar todos os vendedores disponíveis
+    console.log('[BLING] ✅ Vendedores disponíveis no Bling:', {
+      total: vendedores.length,
+      vendedores: vendedores.map((v) => ({ 
+        id: v.id, 
+        nome: v.nome || v.contato?.nome, 
+        email: v.email || v.contato?.email 
+      })),
+    });
+    
+    const emailNormalizado = email.toLowerCase().trim();
+    
+    // Buscar vendedor pelo email (case insensitive)
+    const vendedorEncontrado = vendedores.find((v) => {
+      const vendedorEmail = String(v?.email || v?.contato?.email || '').toLowerCase().trim();
+      return vendedorEmail === emailNormalizado;
+    });
+
+    if (vendedorEncontrado?.id) {
+      const vendedorId = Number(vendedorEncontrado.id);
+      console.log('[BLING] ✅ Vendedor ENCONTRADO pelo email:', { 
+        id: vendedorId, 
+        nome: vendedorEncontrado.nome || vendedorEncontrado.contato?.nome,
+        emailBuscado: email,
+        emailEncontrado: vendedorEncontrado.email || vendedorEncontrado.contato?.email
+      });
+      return vendedorId;
+    }
+    
+    console.warn('[BLING] ⚠️ Vendedor NÃO encontrado para o email:', email);
+    console.warn('[BLING] ⚠️ Verifique se o cadastro no Bling (Cadastros > Vendedores) possui exatamente este email.');
+    return null;
+  } catch (e) {
+    console.warn('[BLING] Erro ao buscar vendedores.', e);
+    return null;
+  }
+}
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -293,7 +356,8 @@ serve(async (req) => {
       faturamento_prazo, // 30, 60 ou 90 (apenas para FATURAMENTO)
       valor_produtos,   // Total dos produtos com desconto
       valor_total,      // Total final (produtos + frete)
-      vendedor_nome,    // Vendor name for Bling
+      vendedor_nome,    // Vendor name for Bling (legacy - agora usamos vendedor_email)
+      vendedor_email,   // ✅ Email do vendedor logado - usado para buscar ID no Bling
       desconto_percentual, // Discount percentage applied
       // Dados de frete manual
       frete_tipo,           // 'automatico' ou 'manual'
@@ -501,6 +565,16 @@ serve(async (req) => {
     // ✅ FORMA DE PAGAMENTO - Buscar ID de "Conta a receber/pagar" para gerar Contas a Receber
     const formaPagamentoContaReceberPagarId = await resolveFormaPagamentoContaReceberPagarId(accessToken);
     console.log('[BLING] ✅ ID da forma de pagamento "Conta a receber/pagar":', formaPagamentoContaReceberPagarId);
+
+    // ✅ VENDEDOR - Buscar ID do vendedor no Bling pelo email do usuário logado
+    let vendedorIdBling: number | null = null;
+    if (vendedor_email) {
+      vendedorIdBling = await resolveVendedorIdByEmail(accessToken, vendedor_email);
+      console.log('[BLING] ✅ Vendedor ID encontrado:', vendedorIdBling, 'para email:', vendedor_email);
+    } else {
+      console.log('[BLING] ⚠️ vendedor_email não fornecido no payload - pedido será criado sem vendedor vinculado');
+    }
+
     // ✅ LOG DE DEBUG OBRIGATÓRIO - Mostra situações disponíveis e qual foi selecionada
     console.log('[BLING DEBUG] ==============================================');
     console.log('[BLING DEBUG] DESCOBERTA DINÂMICA DE SITUAÇÃO - API V3');
@@ -511,6 +585,7 @@ serve(async (req) => {
     console.log('[BLING DEBUG] Situação "Em Aberto" ID (fallback):', situacaoEmAbertoId);
     console.log('[BLING DEBUG] >>> SITUAÇÃO FINAL SELECIONADA: ID =', situacaoInicialId, '<<<');
     console.log('[BLING DEBUG] Natureza de Operação ID:', naturezaOperacaoId);
+    console.log('[BLING DEBUG] Vendedor Email:', vendedor_email, '| Vendedor Bling ID:', vendedorIdBling);
     console.log('[BLING DEBUG] ==============================================');
     
     console.log('[BLING] Payload situacao e naturezaOperacao:', {
@@ -1659,8 +1734,11 @@ serve(async (req) => {
         + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : '')
         + ` | UNIDADE: ${unidadeNegocioSelecionada} | DEPÓSITO: ${depositoSelecionado}`,
       parcelas,
-      // Add vendedor (salesperson) if provided
-      ...(vendedor_nome && { vendedor: { nome: vendedor_nome } }),
+      // ✅ VENDEDOR - Usar ID numérico do Bling se encontrado, senão usar nome (legacy)
+      ...(vendedorIdBling 
+        ? { vendedor: { id: vendedorIdBling } }  // ✅ Estrutura correta API V3: id numérico
+        : (vendedor_nome ? { vendedor: { nome: vendedor_nome } } : {})
+      ),
     };
     
     // LOG do payload completo para debug

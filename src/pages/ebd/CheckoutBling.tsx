@@ -174,6 +174,8 @@ export default function CheckoutBling() {
             valor_total: subtotal,
             forma_pagamento: 'FATURAMENTO',
             faturamento_prazo: (prazos.parcelas * 30).toString(), // 30, 60, or 90
+            // ✅ Enviar email do usuário logado para vincular vendedor no Bling
+            vendedor_email: user?.email,
           },
         }
       );
