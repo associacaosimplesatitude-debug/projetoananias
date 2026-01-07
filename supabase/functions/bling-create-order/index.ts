@@ -1569,10 +1569,10 @@ serve(async (req) => {
         ...item,
         deposito: { id: depositoIdSelecionado },
       })),
-      // ✅ SITUAÇÃO INICIAL - API V3 exige ID numérico
-      situacao: {
-        id: situacaoInicialId,
-      },
+      // ❌ NÃO ENVIAR SITUAÇÃO - Deixar o Bling usar o padrão da conta
+      // O Bling retorna erro "Não há transições definidas" quando tentamos definir situação na criação
+      // A situação será definida automaticamente pelo Bling e pode ser alterada depois via PUT
+      
       // ✅ NATUREZA DE OPERAÇÃO - Evita regras automáticas que forçam ATENDIDO
       ...(naturezaOperacaoId && {
         naturezaOperacao: {
