@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-type AppRole = 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd' | 'representante';
+type AppRole = 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd' | 'representante' | 'financeiro';
 
 export function useUserRole() {
   const { user } = useAuth();
@@ -45,13 +45,15 @@ export function useUserRole() {
 
   const isAdmin = role === 'admin';
   const isGerenteEbd = role === 'gerente_ebd';
-  const canAccessAdminEBD = isAdmin || isGerenteEbd;
+  const isFinanceiro = role === 'financeiro';
+  const canAccessAdminEBD = isAdmin || isGerenteEbd || isFinanceiro;
 
   return {
     role,
     loading,
     isAdmin,
     isGerenteEbd,
+    isFinanceiro,
     canAccessAdminEBD,
     refresh: loadRole,
   };
