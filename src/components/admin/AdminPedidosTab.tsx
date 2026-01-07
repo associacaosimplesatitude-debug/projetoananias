@@ -68,6 +68,7 @@ interface ShopifyPedido {
   created_at: string;
   codigo_rastreio: string | null;
   url_rastreio: string | null;
+  vendedor?: { nome: string } | null;
 }
 
 interface AdminPedidosTabProps {
@@ -135,16 +136,17 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     [clientes]
   );
 
-  // Fetch all Shopify orders
+  // Fetch all Shopify orders with vendedor info
   const { data: shopifyPedidos = [], isLoading } = useQuery({
     queryKey: ["admin-all-shopify-pedidos"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
-        .select("*")
+        .select("*, vendedor:vendedores(nome)")
         .order("created_at", { ascending: false });
       
       if (error) throw error;
+      console.log("Shopify pedidos com vendedor:", data);
       return (data || []) as ShopifyPedido[];
     },
   });
@@ -435,7 +437,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
               </TableHeader>
               <TableBody>
                 {shopifyPedidos.map((pedido) => {
-                  const vendedor = vendedores.find(v => v.id === pedido.vendedor_id);
+                  const vendedorNome = pedido.vendedor?.nome || (pedido.vendedor_id ? vendedores.find(v => v.id === pedido.vendedor_id)?.nome : null);
                   return (
                     <TableRow key={pedido.id}>
                       <TableCell className="font-medium">
@@ -459,7 +461,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                         {getShopifyStatusBadge(pedido.status_pagamento)}
                       </TableCell>
                       <TableCell>
-                        {vendedor?.nome || '-'}
+                        {vendedorNome || 'E-commerce'}
                       </TableCell>
                       <TableCell>
                         {pedido.codigo_rastreio ? (
@@ -564,7 +566,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                         <Badge className="bg-green-500 hover:bg-green-600">Faturado</Badge>
                       </TableCell>
                       <TableCell>
-                        {proposta.vendedor?.nome || '-'}
+                        {proposta.vendedor?.nome || 'E-commerce'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
