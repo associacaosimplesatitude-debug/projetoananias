@@ -1845,7 +1845,8 @@ serve(async (req) => {
       console.log(`[ENDERECO_ENTREGA] Usando transporte.etiqueta: ${JSON.stringify(pedidoData.transporte.etiqueta)}`);
     }
 
-    console.log("PAYLOAD BLING FINAL:", JSON.stringify(pedidoData, null, 2));
+    // ✅ LOG DE AUDITORIA: Payload Final Bling (inclui endereço completo com complemento)
+    console.log('Payload Final Bling:', JSON.stringify(pedidoData, null, 2));
 
     // Bling aplica rate-limit bem agressivo (ex: 3 req/seg). Como este fluxo pode fazer
     // múltiplas chamadas (contato, busca produto, etc.), fazemos um pequeno delay antes
