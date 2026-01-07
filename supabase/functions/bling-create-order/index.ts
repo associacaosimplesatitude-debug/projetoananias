@@ -272,16 +272,29 @@ function resolveVendedorIdByEmail(email: string): number | null {
   }
 
   const emailNormalizado = email.toLowerCase().trim();
-  const vendedorId = VENDEDOR_EMAIL_TO_BLING_ID[emailNormalizado] || null;
+
+  // Alguns emails podem ter pequenas variações/typos entre sistemas.
+  // Para não quebrar a criação do pedido, tentamos alguns candidatos.
+  const candidates = Array.from(
+    new Set([
+      emailNormalizado,
+      // fallback para o caso do domínio estar cadastrado com typo no Bling
+      emailNormalizado.replace('editoracentralgospel.com', 'editoracentraglospel.com'),
+    ])
+  );
+
+  const found = candidates.find((c) => Boolean(VENDEDOR_EMAIL_TO_BLING_ID[c]));
+  const vendedorId = found ? VENDEDOR_EMAIL_TO_BLING_ID[found] : null;
 
   if (vendedorId) {
-    console.log('[BLING] ✅ Vendedor encontrado via MAPEAMENTO FIXO:', { 
-      email: emailNormalizado, 
-      blingId: vendedorId 
+    console.log('[BLING] ✅ Vendedor encontrado via MAPEAMENTO FIXO:', {
+      email: emailNormalizado,
+      matchedEmail: found,
+      blingId: vendedorId,
     });
   } else {
     console.warn('[BLING] ⚠️ Email não encontrado no mapeamento fixo:', emailNormalizado);
-    console.warn('[BLING] ⚠️ Adicione o email ao dicionário VENDEDOR_EMAIL_TO_BLING_ID na edge function.');
+    console.warn('[BLING] ⚠️ Pedido será enviado sem campo vendedor para evitar erro.');
   }
 
   return vendedorId;
@@ -538,12 +551,41 @@ serve(async (req) => {
     const formaPagamentoContaReceberPagarId = await resolveFormaPagamentoContaReceberPagarId(accessToken);
     console.log('[BLING] ✅ ID da forma de pagamento "Conta a receber/pagar":', formaPagamentoContaReceberPagarId);
 
-    // ✅ VENDEDOR - Buscar ID do vendedor no Bling pelo email
+    // ✅ VENDEDOR - Buscar ID do vendedor no Bling pelo email do usuário logado
     // Prioridade:
-    // 1) vendedor_email recebido no payload
-    // 2) fallback: buscar vendedor_id na tabela vendedor_propostas (quando pedido_id = proposta.id)
+    // 1) Email do usuário logado (JWT)
+    // 2) vendedor_email recebido no payload (compat)
+    // 3) fallback: buscar vendedor_id na tabela vendedor_propostas (quando pedido_id = proposta.id)
     let vendedorIdBling: number | null = null;
-    let vendedorEmailFinal: string | null = vendedor_email || null;
+
+    // 1) Capturar email do usuário logado
+    let vendedorEmailLogado: string | null = null;
+    try {
+      const authHeader = req.headers.get('Authorization') || '';
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+
+      if (!authHeader) {
+        console.warn('[BLING] ⚠️ Authorization header ausente; não foi possível identificar o usuário logado.');
+      } else if (!anonKey) {
+        console.warn('[BLING] ⚠️ SUPABASE_ANON_KEY ausente; não foi possível identificar o usuário logado.');
+      } else {
+        const supabaseAuth = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: authHeader } },
+          auth: { persistSession: false },
+        });
+
+        const { data: userRes, error: userErr } = await supabaseAuth.auth.getUser();
+        if (userErr) {
+          console.warn('[BLING] ⚠️ Falha ao obter usuário logado:', userErr);
+        } else {
+          vendedorEmailLogado = userRes?.user?.email || null;
+        }
+      }
+    } catch (e) {
+      console.warn('[BLING] ⚠️ Erro inesperado ao obter email do usuário logado:', e);
+    }
+
+    let vendedorEmailFinal: string | null = vendedorEmailLogado || vendedor_email || null;
 
     if (!vendedorEmailFinal && pedido_id) {
       try {
@@ -571,9 +613,9 @@ serve(async (req) => {
 
     if (vendedorEmailFinal) {
       vendedorIdBling = resolveVendedorIdByEmail(vendedorEmailFinal);
-      console.log('[BLING] ✅ Vendedor ID encontrado:', vendedorIdBling, 'para email:', vendedorEmailFinal);
+      console.log('[BLING] ✅ Vendedor ID resolvido:', vendedorIdBling, 'para email:', vendedorEmailFinal);
     } else {
-      console.log('[BLING] ⚠️ vendedor_email não fornecido no payload (nem resolvido por fallback) - pedido será criado sem vendedor vinculado');
+      console.warn('[BLING] ⚠️ Não foi possível determinar o email do vendedor; pedido será criado sem vendedor vinculado');
     }
 
     // ✅ LOG DE DEBUG OBRIGATÓRIO - Mostra situações disponíveis e qual foi selecionada
@@ -1735,11 +1777,8 @@ serve(async (req) => {
         + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : '')
         + ` | UNIDADE: ${unidadeNegocioSelecionada} | DEPÓSITO: ${depositoSelecionado}`,
       parcelas,
-      // ✅ VENDEDOR - Usar ID numérico do Bling se encontrado, senão usar nome (legacy)
-      ...(vendedorIdBling 
-        ? { vendedor: { id: vendedorIdBling } }  // ✅ Estrutura correta API V3: id numérico
-        : (vendedor_nome ? { vendedor: { nome: vendedor_nome } } : {})
-      ),
+      // ✅ VENDEDOR - Enviar SOMENTE se conseguimos resolver o ID (evita erro e evita “nome” que não vincula)
+      ...(vendedorIdBling ? { vendedor: { id: vendedorIdBling } } : {}),
     };
     
     // LOG do payload completo para debug
