@@ -566,13 +566,42 @@ serve(async (req) => {
     const formaPagamentoContaReceberPagarId = await resolveFormaPagamentoContaReceberPagarId(accessToken);
     console.log('[BLING] ✅ ID da forma de pagamento "Conta a receber/pagar":', formaPagamentoContaReceberPagarId);
 
-    // ✅ VENDEDOR - Buscar ID do vendedor no Bling pelo email do usuário logado
+    // ✅ VENDEDOR - Buscar ID do vendedor no Bling pelo email
+    // Prioridade:
+    // 1) vendedor_email recebido no payload
+    // 2) fallback: buscar vendedor_id na tabela vendedor_propostas (quando pedido_id = proposta.id)
     let vendedorIdBling: number | null = null;
-    if (vendedor_email) {
-      vendedorIdBling = await resolveVendedorIdByEmail(accessToken, vendedor_email);
-      console.log('[BLING] ✅ Vendedor ID encontrado:', vendedorIdBling, 'para email:', vendedor_email);
+    let vendedorEmailFinal: string | null = vendedor_email || null;
+
+    if (!vendedorEmailFinal && pedido_id) {
+      try {
+        const { data: propostaVendedor, error: propostaVendedorError } = await supabase
+          .from('vendedor_propostas')
+          .select('id, vendedor_id, vendedor_nome, vendedor:vendedores(email)')
+          .eq('id', pedido_id)
+          .maybeSingle();
+
+        if (propostaVendedorError) {
+          console.warn('[BLING] Falha ao buscar vendedor na proposta para fallback de email:', propostaVendedorError);
+        } else {
+          vendedorEmailFinal = (propostaVendedor as any)?.vendedor?.email || null;
+          console.log('[BLING] Fallback vendedor_email via vendedor_propostas:', {
+            pedido_id,
+            vendedor_id: (propostaVendedor as any)?.vendedor_id,
+            vendedor_nome: (propostaVendedor as any)?.vendedor_nome,
+            vendedor_email: vendedorEmailFinal,
+          });
+        }
+      } catch (e) {
+        console.warn('[BLING] Erro inesperado ao fazer fallback de vendedor_email:', e);
+      }
+    }
+
+    if (vendedorEmailFinal) {
+      vendedorIdBling = await resolveVendedorIdByEmail(accessToken, vendedorEmailFinal);
+      console.log('[BLING] ✅ Vendedor ID encontrado:', vendedorIdBling, 'para email:', vendedorEmailFinal);
     } else {
-      console.log('[BLING] ⚠️ vendedor_email não fornecido no payload - pedido será criado sem vendedor vinculado');
+      console.log('[BLING] ⚠️ vendedor_email não fornecido no payload (nem resolvido por fallback) - pedido será criado sem vendedor vinculado');
     }
 
     // ✅ LOG DE DEBUG OBRIGATÓRIO - Mostra situações disponíveis e qual foi selecionada
@@ -585,7 +614,7 @@ serve(async (req) => {
     console.log('[BLING DEBUG] Situação "Em Aberto" ID (fallback):', situacaoEmAbertoId);
     console.log('[BLING DEBUG] >>> SITUAÇÃO FINAL SELECIONADA: ID =', situacaoInicialId, '<<<');
     console.log('[BLING DEBUG] Natureza de Operação ID:', naturezaOperacaoId);
-    console.log('[BLING DEBUG] Vendedor Email:', vendedor_email, '| Vendedor Bling ID:', vendedorIdBling);
+    console.log('[BLING DEBUG] Vendedor Email (payload):', vendedor_email, '| Vendedor Email (final):', vendedorEmailFinal, '| Vendedor Bling ID:', vendedorIdBling);
     console.log('[BLING DEBUG] ==============================================');
     
     console.log('[BLING] Payload situacao e naturezaOperacao:', {
