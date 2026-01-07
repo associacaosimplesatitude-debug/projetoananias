@@ -345,6 +345,17 @@ serve(async (req) => {
     // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
     const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken);
 
+    // ✅ LOG DE DEBUG OBRIGATÓRIO - Mostra situações disponíveis e qual foi selecionada
+    console.log('[BLING DEBUG] ==============================================');
+    console.log('[BLING DEBUG] Configuração de Situação para o Pedido:');
+    console.log('[BLING DEBUG] - Tipo de Pagamento:', forma_pagamento);
+    console.log('[BLING DEBUG] - É Faturamento B2B:', isFaturamentoPagamento);
+    console.log('[BLING DEBUG] - Situação "Em Aberto" ID:', situacaoEmAbertoId);
+    console.log('[BLING DEBUG] - Situação "Aprovada B2B" ID:', situacaoAprovadaB2BId);
+    console.log('[BLING DEBUG] - >>> SITUAÇÃO FINAL SELECIONADA ID:', situacaoInicialId, '<<<');
+    console.log('[BLING DEBUG] - Natureza de Operação ID:', naturezaOperacaoId);
+    console.log('[BLING DEBUG] ==============================================');
+    
     console.log('[BLING] Configuração inicial do pedido:', {
       isFaturamentoPagamento,
       situacaoEmAbertoId,
