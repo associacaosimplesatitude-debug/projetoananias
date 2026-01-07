@@ -53,6 +53,7 @@ interface PropostaCliente {
 interface Vendedor {
   id: string;
   nome: string;
+  email?: string | null;
 }
 
 interface Proposta {
@@ -117,7 +118,7 @@ export default function AprovacaoFaturamento() {
             pode_faturar,
             desconto_faturamento
           ),
-          vendedor:vendedores(id, nome)
+          vendedor:vendedores(id, nome, email)
         `)
         .eq("status", "AGUARDANDO_APROVACAO_FINANCEIRA")
         .order("created_at", { ascending: false });
@@ -269,6 +270,8 @@ export default function AprovacaoFaturamento() {
           valor_produtos: valorProdutos,
           valor_total: valorTotal,
           vendedor_nome: proposta.vendedor_nome || proposta.vendedor?.nome,
+          // ✅ Email do vendedor para buscar o ID no Bling
+          vendedor_email: proposta.vendedor?.email || undefined,
           desconto_percentual: proposta.desconto_percentual || 0,
           // Dados de frete manual
           frete_tipo: proposta.frete_tipo || 'automatico',
