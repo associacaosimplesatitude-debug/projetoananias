@@ -329,39 +329,53 @@ serve(async (req) => {
     // - B2B faturamento: se existir, usar "Aprovada B2B" (que você criou no Bling)
     const isFaturamentoPagamento = forma_pagamento?.toLowerCase() === 'faturamento';
 
-    const situacaoEmAbertoId = await resolveSituacaoEmAbertoId(accessToken);
+    // ✅ DESCOBERTA DINÂMICA DE SITUAÇÕES - API V3
+    // Buscar situação "Aprovado" primeiro (nome padrão), depois variações B2B
+    let situacaoAprovadoId: number | null = null;
     
-    // Tentar várias variações do nome da situação B2B
-    let situacaoAprovadaB2BId: number | null = null;
-    if (isFaturamentoPagamento) {
-      // Tentar diferentes variações do nome
-      situacaoAprovadaB2BId = await resolveSituacaoIdByName(accessToken, 'APROVADA B2B')
-        || await resolveSituacaoIdByName(accessToken, 'Aprovada B2B')
+    // Tentar encontrar "Aprovado" (nome padrão no Bling)
+    situacaoAprovadoId = await resolveSituacaoIdByName(accessToken, 'Aprovado')
+      || await resolveSituacaoIdByName(accessToken, 'APROVADO')
+      || await resolveSituacaoIdByName(accessToken, 'aprovado');
+    
+    // Se não encontrou "Aprovado", tentar variações B2B
+    if (!situacaoAprovadoId) {
+      situacaoAprovadoId = await resolveSituacaoIdByName(accessToken, 'Aprovada B2B')
+        || await resolveSituacaoIdByName(accessToken, 'APROVADA B2B')
         || await resolveSituacaoIdByName(accessToken, 'aprovada b2b');
     }
-
-    const situacaoInicialId = (situacaoAprovadaB2BId ?? situacaoEmAbertoId);
+    
+    // Fallback para "Em Aberto" se nenhum "Aprovado" foi encontrado
+    const situacaoEmAbertoId = await resolveSituacaoEmAbertoId(accessToken);
+    
+    // ✅ REGRA: Para faturamento B2B, usar "Aprovado". Caso contrário, "Em Aberto"
+    const situacaoInicialId = isFaturamentoPagamento 
+      ? (situacaoAprovadoId ?? situacaoEmAbertoId) 
+      : situacaoEmAbertoId;
     
     // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
     const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken);
 
     // ✅ LOG DE DEBUG OBRIGATÓRIO - Mostra situações disponíveis e qual foi selecionada
     console.log('[BLING DEBUG] ==============================================');
-    console.log('[BLING DEBUG] Configuração de Situação para o Pedido:');
-    console.log('[BLING DEBUG] - Tipo de Pagamento:', forma_pagamento);
-    console.log('[BLING DEBUG] - É Faturamento B2B:', isFaturamentoPagamento);
-    console.log('[BLING DEBUG] - Situação "Em Aberto" ID:', situacaoEmAbertoId);
-    console.log('[BLING DEBUG] - Situação "Aprovada B2B" ID:', situacaoAprovadaB2BId);
-    console.log('[BLING DEBUG] - >>> SITUAÇÃO FINAL SELECIONADA ID:', situacaoInicialId, '<<<');
-    console.log('[BLING DEBUG] - Natureza de Operação ID:', naturezaOperacaoId);
+    console.log('[BLING DEBUG] DESCOBERTA DINÂMICA DE SITUAÇÃO - API V3');
+    console.log('[BLING DEBUG] ==============================================');
+    console.log('[BLING DEBUG] Forma de Pagamento:', forma_pagamento);
+    console.log('[BLING DEBUG] É Faturamento B2B:', isFaturamentoPagamento);
+    console.log('[BLING DEBUG] Situação "Aprovado" encontrada com ID:', situacaoAprovadoId);
+    console.log('[BLING DEBUG] Situação "Em Aberto" ID (fallback):', situacaoEmAbertoId);
+    console.log('[BLING DEBUG] >>> SITUAÇÃO FINAL SELECIONADA: ID =', situacaoInicialId, '<<<');
+    console.log('[BLING DEBUG] Natureza de Operação ID:', naturezaOperacaoId);
     console.log('[BLING DEBUG] ==============================================');
     
-    console.log('[BLING] Configuração inicial do pedido:', {
+    console.log('[BLING] Payload situacao e naturezaOperacao:', {
       isFaturamentoPagamento,
+      situacaoAprovadoId,
       situacaoEmAbertoId,
-      situacaoAprovadaB2BId,
       situacaoInicialId,
       naturezaOperacaoId,
+      payloadSituacao: { id: situacaoInicialId },
+      payloadNaturezaOperacao: naturezaOperacaoId ? { id: naturezaOperacaoId } : null,
     });
 
     // ============================================================
