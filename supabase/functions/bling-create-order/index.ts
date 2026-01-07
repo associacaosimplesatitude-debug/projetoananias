@@ -329,11 +329,59 @@ serve(async (req) => {
     // - B2B faturamento: se existir, usar "Aprovada B2B" (que você criou no Bling)
     const isFaturamentoPagamento = forma_pagamento?.toLowerCase() === 'faturamento';
 
-    // ✅ SITUAÇÃO FIXA - ID 1 (conforme solicitado pelo usuário)
-    // Para faturamento B2B, usar ID 1 diretamente
-    const situacaoAprovadoId = 1;
-    const situacaoEmAbertoId = 1;
-    const situacaoInicialId = 1;
+    // ✅ DESCOBERTA DINÂMICA DE SITUAÇÕES - API V3
+    // Primeiro, listar TODAS as situações disponíveis para debug
+    let todasSituacoes: any[] = [];
+    try {
+      const urlSituacoes = 'https://www.bling.com.br/Api/v3/situacoes/modulo/pedidos_venda';
+      const respSituacoes = await fetch(urlSituacoes, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+      const jsonSituacoes = await respSituacoes.json();
+      todasSituacoes = Array.isArray(jsonSituacoes?.data) ? jsonSituacoes.data : [];
+      console.log('[BLING] ========== TODAS AS SITUAÇÕES DISPONÍVEIS ==========');
+      console.log('[BLING] Total de situações:', todasSituacoes.length);
+      todasSituacoes.forEach((s: any) => {
+        console.log(`[BLING] Situação: ID=${s.id}, Nome="${s.nome}"`);
+      });
+      console.log('[BLING] =====================================================');
+    } catch (e) {
+      console.warn('[BLING] Erro ao listar situações:', e);
+    }
+
+    // Buscar situação "Em aberto" (padrão) - geralmente é a primeira ou tem nome específico
+    let situacaoEmAbertoId = await resolveSituacaoIdByName(accessToken, 'Em aberto');
+    
+    // Se não encontrou "Em aberto", usar a primeira situação disponível
+    if (!situacaoEmAbertoId && todasSituacoes.length > 0) {
+      situacaoEmAbertoId = todasSituacoes[0].id;
+      console.log('[BLING] Usando primeira situação como fallback:', situacaoEmAbertoId);
+    }
+    
+    // Fallback final se nenhuma situação foi encontrada
+    if (!situacaoEmAbertoId) {
+      situacaoEmAbertoId = 9; // fallback antigo
+      console.log('[BLING] Usando fallback hardcoded: 9');
+    }
+
+    // Para B2B faturamento, tentar encontrar situação "Aprovado" ou "Aprovada B2B"
+    let situacaoAprovadoId = await resolveSituacaoIdByName(accessToken, 'Aprovado')
+      || await resolveSituacaoIdByName(accessToken, 'APROVADO')
+      || await resolveSituacaoIdByName(accessToken, 'Aprovada B2B');
+    
+    // Se não encontrou "Aprovado", usar "Em aberto"
+    if (!situacaoAprovadoId) {
+      situacaoAprovadoId = situacaoEmAbertoId;
+      console.log('[BLING] Não encontrou Aprovado, usando Em Aberto:', situacaoAprovadoId);
+    }
+    
+    // ✅ REGRA: Para faturamento B2B, usar "Aprovado". Caso contrário, "Em Aberto"
+    const situacaoInicialId = isFaturamentoPagamento 
+      ? situacaoAprovadoId 
+      : situacaoEmAbertoId;
     
     // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
     const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken);
