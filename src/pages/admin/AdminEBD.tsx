@@ -1154,31 +1154,70 @@ export default function AdminEBD() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data, novaSenha, emailAntigo }: { id: string; data: Omit<typeof formData, 'senha'>; novaSenha?: string; emailAntigo: string }) => {
-      // Update vendedor data
-      const { error } = await supabase.from('vendedores').update({
-        nome: data.nome,
-        email: data.email,
-        foto_url: data.foto_url || null,
-        comissao_percentual: data.comissao_percentual,
-        status: data.status,
-        meta_mensal_valor: data.meta_mensal_valor,
-        tipo_perfil: data.tipo_perfil,
-      }).eq('id', id);
+    mutationFn: async ({
+      id,
+      data,
+      novaSenha,
+      emailAntigo,
+    }: {
+      id: string;
+      data: Omit<typeof formData, 'senha'>;
+      novaSenha?: string;
+      emailAntigo: string;
+    }) => {
+      // 1) Sempre atualiza os dados do vendedor no banco
+      const { error } = await supabase
+        .from('vendedores')
+        .update({
+          nome: data.nome,
+          email: data.email,
+          foto_url: data.foto_url || null,
+          comissao_percentual: data.comissao_percentual,
+          status: data.status,
+          meta_mensal_valor: data.meta_mensal_valor,
+          tipo_perfil: data.tipo_perfil,
+        })
+        .eq('id', id);
       if (error) throw error;
 
-      // If new password provided, update auth user password
+      // 2) Se o gerente informou senha nova, tenta atualizar no sistema de login
       if (novaSenha && novaSenha.trim().length >= 6) {
-        const { data: updateResult, error: pwdError } = await supabase.functions.invoke('update-user-password-by-email', {
-          body: { email: emailAntigo, newPassword: novaSenha }
-        });
-        if (pwdError) throw new Error('Erro ao atualizar senha: ' + pwdError.message);
-        if (updateResult?.error) throw new Error('Erro ao atualizar senha: ' + updateResult.error);
+        const { data: updateResult, error: pwdError } = await supabase.functions.invoke(
+          'update-user-password-by-email',
+          {
+            body: {
+              oldEmail: emailAntigo,
+              newEmail: data.email,
+              newPassword: novaSenha,
+            },
+          }
+        );
+
+        if (pwdError || updateResult?.error) {
+          // Importante: NÃO derrubar a atualização do vendedor; apenas avisar
+          return {
+            passwordUpdated: false,
+            passwordError: pwdError?.message || updateResult?.error || 'Erro ao atualizar senha',
+          };
+        }
+
+        return { passwordUpdated: true };
       }
+
+      return { passwordUpdated: null };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['vendedores'] });
-      toast.success('Atualizado com sucesso!');
+
+      if (result?.passwordUpdated === false) {
+        toast.success('Dados do vendedor atualizados.');
+        toast.error(`Senha não foi atualizada: ${result.passwordError}`);
+      } else if (result?.passwordUpdated === true) {
+        toast.success('Dados e senha atualizados com sucesso!');
+      } else {
+        toast.success('Atualizado com sucesso!');
+      }
+
       resetForm();
       setDialogOpen(false);
     },
