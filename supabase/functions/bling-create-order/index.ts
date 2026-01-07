@@ -253,10 +253,12 @@ async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Pr
   }
 }
 
-// ✅ MAPEAMENTO FIXO: Email do vendedor → ID do vendedor no Bling
-// Isso evita chamadas à API de vendedores do Bling e garante vínculo correto
+// ✅ MAPEAMENTO ESTRITO: Email → ID numérico do vendedor no Bling
+// Ambas variações de email da Neila estão mapeadas para o mesmo ID.
+// Se o email não estiver aqui, o campo vendedor será omitido.
 const VENDEDOR_EMAIL_TO_BLING_ID: Record<string, number> = {
-  'neila.lima@editoracentraglospel.com': 15596550898, // Email conforme cadastrado no Bling (typo proposital)
+  'neila.lima@editoracentralgospel.com': 15596550898,
+  'neila.lima@editoracentraglospel.com': 15596550898, // variação com typo
   'daniel.sousa@editoracentralgospel.com': 15596329684,
   'elaine.ribeiro@editoracentralgospel.com': 15596096564,
   'glorinha21carreiro@gmail.com': 15596422682,
@@ -264,37 +266,20 @@ const VENDEDOR_EMAIL_TO_BLING_ID: Record<string, number> = {
   'nilson.curitibasp@gmail.com': 15596336493,
 };
 
-// ✅ FUNÇÃO SIMPLIFICADA: Resolver ID do vendedor via mapeamento fixo (sem chamada API)
+// ✅ FUNÇÃO SIMPLIFICADA: Retorna ID numérico ou null (sem fallback de nome)
 function resolveVendedorIdByEmail(email: string): number | null {
   if (!email) {
-    console.warn('[BLING] ⚠️ Email do vendedor não fornecido');
+    console.warn('[BLING] ⚠️ Email do vendedor não fornecido - omitindo campo vendedor');
     return null;
   }
 
   const emailNormalizado = email.toLowerCase().trim();
+  const vendedorId = VENDEDOR_EMAIL_TO_BLING_ID[emailNormalizado] ?? null;
 
-  // Alguns emails podem ter pequenas variações/typos entre sistemas.
-  // Para não quebrar a criação do pedido, tentamos alguns candidatos.
-  const candidates = Array.from(
-    new Set([
-      emailNormalizado,
-      // fallback para o caso do domínio estar cadastrado com typo no Bling
-      emailNormalizado.replace('editoracentralgospel.com', 'editoracentraglospel.com'),
-    ])
-  );
-
-  const found = candidates.find((c) => Boolean(VENDEDOR_EMAIL_TO_BLING_ID[c]));
-  const vendedorId = found ? VENDEDOR_EMAIL_TO_BLING_ID[found] : null;
-
-  if (vendedorId) {
-    console.log('[BLING] ✅ Vendedor encontrado via MAPEAMENTO FIXO:', {
-      email: emailNormalizado,
-      matchedEmail: found,
-      blingId: vendedorId,
-    });
+  if (vendedorId !== null) {
+    console.log('[BLING] Enviando Pedido com Vendedor ID:', vendedorId);
   } else {
-    console.warn('[BLING] ⚠️ Email não encontrado no mapeamento fixo:', emailNormalizado);
-    console.warn('[BLING] ⚠️ Pedido será enviado sem campo vendedor para evitar erro.');
+    console.warn('[BLING] ⚠️ Email não encontrado no mapeamento:', emailNormalizado, '- omitindo campo vendedor');
   }
 
   return vendedorId;
