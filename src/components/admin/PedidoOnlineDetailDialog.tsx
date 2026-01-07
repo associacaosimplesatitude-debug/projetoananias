@@ -25,6 +25,27 @@ import { toast } from "sonner";
 import { Loader2, User, Mail, Package, Truck, DollarSign, IdCard, MapPin, Phone, ShoppingBag, RefreshCw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+// Função para formatar CPF/CNPJ
+function formatDocumento(doc: string | null | undefined): string {
+  if (!doc) return "";
+  
+  // Remove caracteres não numéricos
+  const cleaned = doc.replace(/\D/g, "");
+  
+  // CPF: 000.000.000-00
+  if (cleaned.length === 11) {
+    return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  }
+  
+  // CNPJ: 00.000.000/0000-00
+  if (cleaned.length === 14) {
+    return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  }
+  
+  // Se não é CPF nem CNPJ, retorna original
+  return doc;
+}
+
 interface ShopifyPedido {
   id: string;
   shopify_order_id: number;
@@ -433,13 +454,65 @@ export function PedidoOnlineDetailDialog({
     },
   });
 
+  // State para documento buscado do Bling
+  const [documentoFromBling, setDocumentoFromBling] = useState<string | null>(null);
+  const [isFetchingDocumento, setIsFetchingDocumento] = useState(false);
+
+  // Prioridade: documento do pedido (Shopify) > documento do cliente (cadastro) > documento do Bling
+  const documentoFromPedido = pedido?.customer_document;
+  const documentoFromCliente = clienteData?.cnpj || clienteData?.cpf || null;
+  const clienteDocumento = documentoFromPedido || documentoFromCliente || documentoFromBling || null;
+
+  // Buscar documento do Bling se não tiver no pedido/cliente
+  useEffect(() => {
+    if (!open || !pedido) return;
+    
+    // Se já temos documento, não buscar
+    if (documentoFromPedido || documentoFromCliente) {
+      setDocumentoFromBling(null);
+      return;
+    }
+
+    // Se não tem shopify_order_id, não tem como buscar no Bling
+    if (!pedido.shopify_order_id) return;
+
+    // Resetar estado quando mudar de pedido
+    setDocumentoFromBling(null);
+
+    const fetchDocumentoFromBling = async () => {
+      console.log('Buscando documento no Bling para pedido:', pedido.shopify_order_id);
+      setIsFetchingDocumento(true);
+      
+      try {
+        const { data, error } = await supabase.functions.invoke("bling-get-order-details", {
+          body: { 
+            bling_order_id: pedido.shopify_order_id,
+            pedido_id: pedido.id
+          }
+        });
+
+        if (error) {
+          console.error('Erro ao buscar documento do Bling:', error);
+          return;
+        }
+
+        if (data?.documento) {
+          console.log('Documento recuperado:', data.documento);
+          setDocumentoFromBling(data.documento);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar documento do Bling:', err);
+      } finally {
+        setIsFetchingDocumento(false);
+      }
+    };
+
+    fetchDocumentoFromBling();
+  }, [open, pedido?.id, pedido?.shopify_order_id, documentoFromPedido, documentoFromCliente]);
+
   if (!pedido) return null;
 
   const orderDate = pedido.order_date || pedido.created_at;
-  // Prioridade: documento do pedido (Shopify) > documento do cliente (cadastro)
-  const documentoFromPedido = pedido.customer_document;
-  const documentoFromCliente = clienteData?.cnpj || clienteData?.cpf || null;
-  const clienteDocumento = documentoFromPedido || documentoFromCliente || null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -481,7 +554,14 @@ export function PedidoOnlineDetailDialog({
 
               <p className="text-muted-foreground flex items-center gap-1">
                 <IdCard className="h-3 w-3" />
-                CPF/CNPJ: {clienteDocumento || "-"}
+                CPF/CNPJ: {isFetchingDocumento ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span className="text-xs">Carregando...</span>
+                  </span>
+                ) : (
+                  formatDocumento(clienteDocumento) || "-"
+                )}
               </p>
 
               {pedido.customer_email && (
