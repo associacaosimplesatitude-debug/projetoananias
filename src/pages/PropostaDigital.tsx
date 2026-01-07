@@ -63,6 +63,7 @@ interface Proposta {
   cliente_endereco: {
     rua?: string;
     numero?: string;
+    complemento?: string;
     bairro?: string;
     cidade?: string;
     estado?: string;
@@ -566,8 +567,9 @@ export default function PropostaDigital() {
                 <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <p>
                   {proposta.cliente_endereco.rua && `${proposta.cliente_endereco.rua}, `}
-                  {proposta.cliente_endereco.numero && `${proposta.cliente_endereco.numero} - `}
-                  {proposta.cliente_endereco.bairro && `${proposta.cliente_endereco.bairro}, `}
+                  {proposta.cliente_endereco.numero && `${proposta.cliente_endereco.numero}`}
+                  {proposta.cliente_endereco.complemento && ` - ${proposta.cliente_endereco.complemento}`}
+                  {proposta.cliente_endereco.bairro && ` - ${proposta.cliente_endereco.bairro}, `}
                   {proposta.cliente_endereco.cidade && `${proposta.cliente_endereco.cidade}`}
                   {proposta.cliente_endereco.estado && `/${proposta.cliente_endereco.estado}`}
                   {proposta.cliente_endereco.cep && ` - CEP: ${proposta.cliente_endereco.cep}`}
@@ -769,6 +771,7 @@ export default function PropostaDigital() {
               <div className="p-3 bg-white rounded-lg border border-blue-200">
                 <p className="font-medium text-foreground">
                   {proposta.cliente_endereco.rua}, {proposta.cliente_endereco.numero}
+                  {proposta.cliente_endereco.complemento && ` - ${proposta.cliente_endereco.complemento}`}
                   {proposta.cliente_endereco.bairro && ` - ${proposta.cliente_endereco.bairro}`}
                 </p>
                 <p className="text-sm text-muted-foreground">
