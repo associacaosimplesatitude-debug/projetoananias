@@ -1159,6 +1159,8 @@ export default function Checkout() {
             faturamento_prazo: faturamentoPrazo,
             valor_produtos: calculateSubtotal(),
             valor_total: total,
+            // ✅ Enviar email do usuário logado para vincular vendedor no Bling
+            vendedor_email: user?.email,
           },
         }
       );
