@@ -330,22 +330,74 @@ serve(async (req) => {
     const isFaturamentoPagamento = forma_pagamento?.toLowerCase() === 'faturamento';
 
     // ✅ DESCOBERTA DINÂMICA DE SITUAÇÕES - API V3
-    // Primeiro, listar TODAS as situações disponíveis para debug
+    // Primeiro, listar os MÓDULOS disponíveis para encontrar o ID correto de pedidos_venda
     let todasSituacoes: any[] = [];
+    let moduloIdVendas: number | null = null;
+    
     try {
-      const urlSituacoes = 'https://www.bling.com.br/Api/v3/situacoes/modulo/pedidos_venda';
-      const respSituacoes = await fetch(urlSituacoes, {
+      // 1) Primeiro, listar todos os módulos que possuem situações
+      const urlModulos = 'https://www.bling.com.br/Api/v3/situacoes/modulos';
+      console.log('[BLING] Buscando módulos em:', urlModulos);
+      const respModulos = await fetch(urlModulos, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
         },
       });
-      const jsonSituacoes = await respSituacoes.json();
-      todasSituacoes = Array.isArray(jsonSituacoes?.data) ? jsonSituacoes.data : [];
+      const jsonModulos = await respModulos.json();
+      console.log('[BLING] Resposta módulos:', JSON.stringify(jsonModulos));
+      
+      const modulos = Array.isArray(jsonModulos?.data) ? jsonModulos.data : [];
+      console.log('[BLING] ========== MÓDULOS COM SITUAÇÕES ==========');
+      modulos.forEach((m: any) => {
+        console.log(`[BLING] Módulo: ID=${m.id}, Nome="${m.nome}", Descrição="${m.descricao}"`);
+        // Identificar módulo de pedidos de venda
+        const nomeNorm = String(m.nome || m.descricao || '').toLowerCase();
+        if (nomeNorm.includes('venda') || nomeNorm.includes('pedido') || nomeNorm === 'pedidos_venda') {
+          moduloIdVendas = m.id;
+        }
+      });
+      console.log('[BLING] Módulo de Vendas encontrado: ID =', moduloIdVendas);
+      console.log('[BLING] =============================================');
+
+      // 2) Se encontramos o módulo, buscar suas situações
+      if (moduloIdVendas) {
+        const urlSituacoes = `https://www.bling.com.br/Api/v3/situacoes/modulos/${moduloIdVendas}`;
+        console.log('[BLING] Buscando situações do módulo em:', urlSituacoes);
+        const respSituacoes = await fetch(urlSituacoes, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        const jsonSituacoes = await respSituacoes.json();
+        console.log('[BLING] Resposta situações módulo:', JSON.stringify(jsonSituacoes));
+        
+        // A resposta pode ter data.situacoes ou apenas data como array
+        todasSituacoes = Array.isArray(jsonSituacoes?.data?.situacoes) 
+          ? jsonSituacoes.data.situacoes 
+          : (Array.isArray(jsonSituacoes?.data) ? jsonSituacoes.data : []);
+      }
+      
+      // 3) Se não funcionou, tentar endpoint alternativo direto
+      if (todasSituacoes.length === 0) {
+        const urlAlt = 'https://www.bling.com.br/Api/v3/situacoes';
+        console.log('[BLING] Tentando endpoint alternativo:', urlAlt);
+        const respAlt = await fetch(urlAlt, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        const jsonAlt = await respAlt.json();
+        console.log('[BLING] Resposta endpoint alternativo:', JSON.stringify(jsonAlt));
+        todasSituacoes = Array.isArray(jsonAlt?.data) ? jsonAlt.data : [];
+      }
+      
       console.log('[BLING] ========== TODAS AS SITUAÇÕES DISPONÍVEIS ==========');
       console.log('[BLING] Total de situações:', todasSituacoes.length);
       todasSituacoes.forEach((s: any) => {
-        console.log(`[BLING] Situação: ID=${s.id}, Nome="${s.nome}"`);
+        console.log(`[BLING] Situação: ID=${s.id}, Nome="${s.nome}", Cor="${s.cor}"`);
       });
       console.log('[BLING] =====================================================');
     } catch (e) {
