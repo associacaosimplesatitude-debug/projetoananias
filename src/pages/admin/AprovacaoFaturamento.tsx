@@ -132,35 +132,40 @@ export default function AprovacaoFaturamento() {
     setProcessingPropostaId(proposta.id);
 
     try {
-      // ✅ Buscar email do vendedor diretamente do banco para garantir que está atualizado
-      let vendedorEmail: string | undefined = proposta.vendedor?.email || undefined;
+      // ✅ SEMPRE buscar email do vendedor diretamente do banco (não confiar no relacionamento)
+      let vendedorEmail: string | undefined = undefined;
       
-      // Log para debug
-      console.log("[FATURAMENTO] Proposta vendedor info:", {
-        proposta_id: proposta.id,
-        vendedor_id: proposta.vendedor_id,
-        vendedor_obj: proposta.vendedor,
-        vendedorEmail_inicial: vendedorEmail,
-      });
+      console.log("[FATURAMENTO] Iniciando busca do vendedor para proposta:", proposta.id);
+      console.log("[FATURAMENTO] vendedor_id da proposta:", proposta.vendedor_id);
       
-      // Se ainda não tem email mas tem vendedor_id, buscar do banco
-      if (!vendedorEmail && proposta.vendedor_id) {
+      // Buscar SEMPRE do banco para garantir que está correto
+      if (proposta.vendedor_id) {
         const { data: vendedorData, error: vendedorError } = await supabase
           .from("vendedores")
-          .select("email")
+          .select("id, nome, email")
           .eq("id", proposta.vendedor_id)
           .maybeSingle();
         
         if (vendedorError) {
-          console.warn("[FATURAMENTO] Erro ao buscar email do vendedor:", vendedorError);
+          console.error("[FATURAMENTO] ❌ Erro ao buscar vendedor:", vendedorError);
+        } else if (vendedorData) {
+          vendedorEmail = vendedorData.email || undefined;
+          console.log("[FATURAMENTO] ✅ Vendedor encontrado:", {
+            id: vendedorData.id,
+            nome: vendedorData.nome,
+            email: vendedorEmail,
+          });
         } else {
-          vendedorEmail = vendedorData?.email || undefined;
-          console.log("[FATURAMENTO] Email do vendedor buscado do DB:", vendedorEmail);
+          console.warn("[FATURAMENTO] ⚠️ Vendedor não encontrado para ID:", proposta.vendedor_id);
         }
+      } else {
+        console.warn("[FATURAMENTO] ⚠️ Proposta sem vendedor_id:", proposta.id);
       }
       
       if (!vendedorEmail) {
-        console.warn("[FATURAMENTO] ⚠️ Não foi possível determinar o email do vendedor para a proposta:", proposta.id);
+        console.warn("[FATURAMENTO] ⚠️ Email do vendedor não determinado para proposta:", proposta.id);
+      } else {
+        console.log("[FATURAMENTO] 📧 Email do vendedor que será enviado ao Bling:", vendedorEmail);
       }
 
       const clienteProposta = proposta.cliente || {
