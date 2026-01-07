@@ -96,10 +96,16 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     console.error("[UPDATE-PASSWORD] Erro:", errorMessage);
 
+    const status = errorMessage === "Unauthorized"
+      ? 401
+      : errorMessage.includes("Sem permissão")
+        ? 403
+        : 200; // erros de negócio (ex: usuário não encontrado) retornam 200 para não quebrar o front
+
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ success: false, error: errorMessage }),
       {
-        status: 400,
+        status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
