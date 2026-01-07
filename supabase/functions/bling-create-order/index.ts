@@ -329,29 +329,11 @@ serve(async (req) => {
     // - B2B faturamento: se existir, usar "Aprovada B2B" (que você criou no Bling)
     const isFaturamentoPagamento = forma_pagamento?.toLowerCase() === 'faturamento';
 
-    // ✅ DESCOBERTA DINÂMICA DE SITUAÇÕES - API V3
-    // Buscar situação "Aprovado" primeiro (nome padrão), depois variações B2B
-    let situacaoAprovadoId: number | null = null;
-    
-    // Tentar encontrar "Aprovado" (nome padrão no Bling)
-    situacaoAprovadoId = await resolveSituacaoIdByName(accessToken, 'Aprovado')
-      || await resolveSituacaoIdByName(accessToken, 'APROVADO')
-      || await resolveSituacaoIdByName(accessToken, 'aprovado');
-    
-    // Se não encontrou "Aprovado", tentar variações B2B
-    if (!situacaoAprovadoId) {
-      situacaoAprovadoId = await resolveSituacaoIdByName(accessToken, 'Aprovada B2B')
-        || await resolveSituacaoIdByName(accessToken, 'APROVADA B2B')
-        || await resolveSituacaoIdByName(accessToken, 'aprovada b2b');
-    }
-    
-    // Fallback para "Em Aberto" se nenhum "Aprovado" foi encontrado
-    const situacaoEmAbertoId = await resolveSituacaoEmAbertoId(accessToken);
-    
-    // ✅ REGRA: Para faturamento B2B, usar "Aprovado". Caso contrário, "Em Aberto"
-    const situacaoInicialId = isFaturamentoPagamento 
-      ? (situacaoAprovadoId ?? situacaoEmAbertoId) 
-      : situacaoEmAbertoId;
+    // ✅ SITUAÇÃO FIXA - ID 1 (conforme solicitado pelo usuário)
+    // Para faturamento B2B, usar ID 1 diretamente
+    const situacaoAprovadoId = 1;
+    const situacaoEmAbertoId = 1;
+    const situacaoInicialId = 1;
     
     // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
     const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken);
