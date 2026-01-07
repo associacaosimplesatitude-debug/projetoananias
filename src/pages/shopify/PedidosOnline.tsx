@@ -43,6 +43,7 @@ import {
   RefreshCw,
   Loader2,
   Eye,
+  IdCard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -193,6 +194,35 @@ export default function PedidosOnline() {
     },
     onError: (err: any) => {
       console.error("Falha no backfill de itens", err);
+      toast.error("Falha no backfill", {
+        description: err?.message || "Erro desconhecido",
+      });
+    },
+  });
+
+  // Mutation para backfill de documentos (CPF/CNPJ) do Bling
+  const backfillDocumentsMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("bling-backfill-documents", {
+        body: { batch_size: 20 },
+      });
+      if (error) throw error;
+      return data as { success?: boolean; processed?: number; updated?: number; remaining?: number };
+    },
+    onSuccess: (data) => {
+      if (data?.remaining === 0) {
+        toast.success("Backfill de documentos concluído", {
+          description: `Todos os pedidos têm CPF/CNPJ!`,
+        });
+      } else {
+        toast.success("Lote processado", {
+          description: `${data?.updated ?? 0} de ${data?.processed ?? 0} atualizados. Restam: ${data?.remaining ?? 0}`,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["ebd-shopify-pedidos-online"] });
+    },
+    onError: (err: any) => {
+      console.error("Falha no backfill de documentos", err);
       toast.error("Falha no backfill", {
         description: err?.message || "Erro desconhecido",
       });
@@ -377,8 +407,22 @@ export default function PedidosOnline() {
           <div className="flex gap-2">
             <Button
               variant="outline"
+              onClick={() => backfillDocumentsMutation.mutate()}
+              disabled={backfillDocumentsMutation.isPending || syncOrdersMutation.isPending || backfillItemsMutation.isPending}
+              className="gap-2"
+              title="Buscar CPF/CNPJ no Bling para pedidos sem documento"
+            >
+              {backfillDocumentsMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <IdCard className="h-4 w-4" />
+              )}
+              Backfill CPF/CNPJ
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => backfillItemsMutation.mutate()}
-              disabled={backfillItemsMutation.isPending || syncOrdersMutation.isPending}
+              disabled={backfillItemsMutation.isPending || syncOrdersMutation.isPending || backfillDocumentsMutation.isPending}
               className="gap-2"
               title="Sincronizar itens de pedidos antigos"
             >
@@ -392,7 +436,7 @@ export default function PedidosOnline() {
             <Button
               variant="outline"
               onClick={() => syncOrdersMutation.mutate()}
-              disabled={syncOrdersMutation.isPending || backfillItemsMutation.isPending}
+              disabled={syncOrdersMutation.isPending || backfillItemsMutation.isPending || backfillDocumentsMutation.isPending}
               className="gap-2"
             >
               {syncOrdersMutation.isPending ? (
