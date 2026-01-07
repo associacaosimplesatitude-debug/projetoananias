@@ -220,11 +220,49 @@ serve(async (req) => {
     // Extract phone from order
     const customerPhone = order.customer?.phone || shippingAddr?.phone || null;
 
+    // ===================================================================
+    // GARANTIA DE ATRIBUIÇÃO DE VENDEDOR
+    // Se o pedido já existe no banco com vendedor_id, mantemos o existente
+    // Caso contrário, usamos o vendedor_id extraído dos note_attributes
+    // ===================================================================
+    let finalVendedorId = vendedorId;
+    
+    // Verificar se o pedido já existe no banco e tem vendedor_id
+    const { data: existingOrder, error: fetchError } = await supabase
+      .from("ebd_shopify_pedidos")
+      .select("vendedor_id, cliente_id")
+      .eq("shopify_order_id", order.id)
+      .maybeSingle();
+    
+    if (fetchError) {
+      console.error("Error fetching existing order:", fetchError);
+    } else if (existingOrder) {
+      console.log("Pedido existente encontrado:", {
+        shopify_order_id: order.id,
+        vendedor_id_existente: existingOrder.vendedor_id,
+        cliente_id_existente: existingOrder.cliente_id
+      });
+      
+      // Se já tem vendedor_id no banco, mantém o existente
+      if (existingOrder.vendedor_id) {
+        finalVendedorId = existingOrder.vendedor_id;
+        console.log("Mantendo vendedor_id existente:", finalVendedorId);
+      }
+      
+      // Se já tem cliente_id no banco e não veio nos note_attributes, mantém o existente
+      if (!clienteId && existingOrder.cliente_id) {
+        clienteId = existingOrder.cliente_id;
+        console.log("Mantendo cliente_id existente:", clienteId);
+      }
+    }
+
+    console.log("Webhook processado: Pedido", order.name, "atribuído ao Vendedor:", finalVendedorId);
+
     // Upsert the order in our database
     const orderData = {
       shopify_order_id: order.id,
       order_number: order.name,
-      vendedor_id: vendedorId,
+      vendedor_id: finalVendedorId,
       cliente_id: clienteId,
       status_pagamento: statusPagamento,
       valor_total: valorTotal,
@@ -260,6 +298,7 @@ serve(async (req) => {
       );
     }
 
+    console.log("Webhook processado: Pedido #", order.name, "atribuído ao Vendedor:", finalVendedorId);
     console.log("Order saved successfully:", data);
 
     // If payment is confirmed (paid), update related vendedor_propostas status to PAGO
