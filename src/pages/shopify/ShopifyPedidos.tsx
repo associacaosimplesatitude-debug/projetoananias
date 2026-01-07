@@ -1130,6 +1130,7 @@ export default function ShopifyPedidos() {
                           clienteEndereco={{
                             rua: selectedCliente.endereco_rua,
                             numero: selectedCliente.endereco_numero,
+                            complemento: selectedCliente.endereco_complemento,
                             bairro: selectedCliente.endereco_bairro,
                             cidade: selectedCliente.endereco_cidade,
                             estado: selectedCliente.endereco_estado,
