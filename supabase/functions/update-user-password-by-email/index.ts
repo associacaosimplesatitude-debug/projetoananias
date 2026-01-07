@@ -51,14 +51,33 @@ serve(async (req) => {
       throw new Error('A senha deve ter pelo menos 6 caracteres');
     }
 
-    // Find user by email
-    const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-    if (listError) throw listError;
+    // Find user by email - paginate through all users
+    const emailLower = email.toLowerCase();
+    let targetUser = null;
+    let page = 1;
+    const perPage = 1000; // Max allowed per page
 
-    const targetUser = usersData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-    if (!targetUser) {
-      throw new Error(`Usuário com email ${email} não encontrado`);
+    while (!targetUser) {
+      const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+      if (listError) throw listError;
+
+      targetUser = usersData.users.find(u => u.email?.toLowerCase() === emailLower);
+      
+      // If we found the user or there are no more users to check, break
+      if (targetUser || usersData.users.length < perPage) {
+        break;
+      }
+      page++;
     }
+
+    if (!targetUser) {
+      throw new Error(`Usuário com email ${email} não encontrado no sistema de autenticação`);
+    }
+
+    console.log(`[UPDATE-PASSWORD] Usuário encontrado: ${targetUser.id} para email: ${email}`);
 
     // Update the user password
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
