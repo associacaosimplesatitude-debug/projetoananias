@@ -134,13 +134,33 @@ export default function AprovacaoFaturamento() {
     try {
       // ✅ Buscar email do vendedor diretamente do banco para garantir que está atualizado
       let vendedorEmail: string | undefined = proposta.vendedor?.email || undefined;
+      
+      // Log para debug
+      console.log("[FATURAMENTO] Proposta vendedor info:", {
+        proposta_id: proposta.id,
+        vendedor_id: proposta.vendedor_id,
+        vendedor_obj: proposta.vendedor,
+        vendedorEmail_inicial: vendedorEmail,
+      });
+      
+      // Se ainda não tem email mas tem vendedor_id, buscar do banco
       if (!vendedorEmail && proposta.vendedor_id) {
-        const { data: vendedorData } = await supabase
+        const { data: vendedorData, error: vendedorError } = await supabase
           .from("vendedores")
           .select("email")
           .eq("id", proposta.vendedor_id)
           .maybeSingle();
-        vendedorEmail = vendedorData?.email || undefined;
+        
+        if (vendedorError) {
+          console.warn("[FATURAMENTO] Erro ao buscar email do vendedor:", vendedorError);
+        } else {
+          vendedorEmail = vendedorData?.email || undefined;
+          console.log("[FATURAMENTO] Email do vendedor buscado do DB:", vendedorEmail);
+        }
+      }
+      
+      if (!vendedorEmail) {
+        console.warn("[FATURAMENTO] ⚠️ Não foi possível determinar o email do vendedor para a proposta:", proposta.id);
       }
 
       const clienteProposta = proposta.cliente || {
