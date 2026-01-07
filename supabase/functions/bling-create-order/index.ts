@@ -147,7 +147,8 @@ async function resolveSituacaoEmAbertoId(accessToken: string): Promise<number> {
 // Resolver ID da natureza de operação padrão (evita que Bling force status ATENDIDO)
 async function resolveNaturezaOperacaoId(accessToken: string): Promise<number | null> {
   try {
-    const url = 'https://www.bling.com.br/Api/v3/naturezas-operacoes';
+    // ✅ Usar api.bling.com.br (não www)
+    const url = 'https://api.bling.com.br/Api/v3/naturezas-operacoes';
     const resp = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -189,6 +190,65 @@ async function resolveNaturezaOperacaoId(accessToken: string): Promise<number | 
     return null;
   } catch (e) {
     console.warn('[BLING] Erro ao resolver natureza de operação.', e);
+    return null;
+  }
+}
+
+// ✅ NOVA FUNÇÃO: Buscar forma de pagamento "Conta a receber/pagar" para gerar Contas a Receber
+let cachedFormaPagamentoContaReceberPagarId: number | null = null;
+
+async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Promise<number | null> {
+  if (cachedFormaPagamentoContaReceberPagarId !== null) {
+    return cachedFormaPagamentoContaReceberPagarId;
+  }
+
+  try {
+    // ✅ Usar api.bling.com.br (não www)
+    const url = 'https://api.bling.com.br/Api/v3/formas-pagamentos';
+    const resp = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    const json = await resp.json();
+
+    if (!resp.ok) {
+      console.warn('[BLING] Falha ao listar formas de pagamento.', json);
+      return null;
+    }
+
+    const formasPagamento: any[] = Array.isArray(json?.data) ? json.data : [];
+    
+    // Log para debug: mostrar todas as formas de pagamento disponíveis
+    console.log('[BLING] ✅ Formas de pagamento disponíveis:', {
+      total: formasPagamento.length,
+      formas: formasPagamento.map((f) => ({ id: f.id, descricao: f.descricao })),
+    });
+    
+    // Buscar "Conta a receber/pagar" (pode ter variações de texto)
+    const contaReceberPagar = formasPagamento.find((f) => {
+      const desc = String(f?.descricao || '').toLowerCase().trim();
+      return desc.includes('conta a receber') || 
+             desc.includes('conta receber') || 
+             desc.includes('a receber/pagar') ||
+             desc === 'conta a receber/pagar';
+    });
+
+    if (contaReceberPagar?.id) {
+      cachedFormaPagamentoContaReceberPagarId = Number(contaReceberPagar.id);
+      console.log('[BLING] ✅ Forma de pagamento "Conta a receber/pagar" ENCONTRADA:', { 
+        id: cachedFormaPagamentoContaReceberPagarId, 
+        descricao: contaReceberPagar.descricao 
+      });
+      return cachedFormaPagamentoContaReceberPagarId;
+    }
+    
+    console.warn('[BLING] ⚠️ Forma de pagamento "Conta a receber/pagar" NÃO encontrada nas formas disponíveis');
+    return null;
+  } catch (e) {
+    console.warn('[BLING] Erro ao buscar formas de pagamento.', e);
     return null;
   }
 }
@@ -438,6 +498,9 @@ serve(async (req) => {
     // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
     const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken);
 
+    // ✅ FORMA DE PAGAMENTO - Buscar ID de "Conta a receber/pagar" para gerar Contas a Receber
+    const formaPagamentoContaReceberPagarId = await resolveFormaPagamentoContaReceberPagarId(accessToken);
+    console.log('[BLING] ✅ ID da forma de pagamento "Conta a receber/pagar":', formaPagamentoContaReceberPagarId);
     // ✅ LOG DE DEBUG OBRIGATÓRIO - Mostra situações disponíveis e qual foi selecionada
     console.log('[BLING DEBUG] ==============================================');
     console.log('[BLING DEBUG] DESCOBERTA DINÂMICA DE SITUAÇÃO - API V3');
@@ -1500,29 +1563,41 @@ serve(async (req) => {
 
         const valorParcela = parcelasValoresCentavos[i - 1] / 100;
 
-        parcelas.push({
+        // ✅ ESTRUTURA CORRETA: formaPagamento com ID numérico para gerar Contas a Receber
+        const parcelaObj: any = {
           dataVencimento: dataVencimento.toISOString().split('T')[0],
-          // Enviar com 2 casas; usamos centavos para garantir soma exata.
           valor: Number(valorParcela.toFixed(2)),
           observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
-          formaPagamento: {
-            descricao: 'Boleto parcelado',
-          },
-        });
+        };
+
+        // ✅ USAR ID da forma de pagamento "Conta a receber/pagar" (se encontrado)
+        if (formaPagamentoContaReceberPagarId) {
+          parcelaObj.formaPagamento = { id: formaPagamentoContaReceberPagarId };
+        } else {
+          // Fallback para descrição se ID não encontrado
+          parcelaObj.formaPagamento = { descricao: 'Conta a receber/pagar' };
+        }
+
+        parcelas.push(parcelaObj);
       }
     } else {
       // Pagamento à vista
       // IMPORTANTE: O Bling valida parcelas apenas contra o total dos itens, sem frete.
-      parcelas = [
-        {
-          dataVencimento: new Date().toISOString().split('T')[0],
-          valor: Number((Math.round(Number(totalLiquidoBling) * 100) / 100).toFixed(2)),
-          observacoes: `Pagamento via ${formaPagamentoDescricao}`,
-          formaPagamento: {
-            descricao: 'Boleto parcelado',
-          },
-        },
-      ];
+      const parcelaVistaObj: any = {
+        dataVencimento: new Date().toISOString().split('T')[0],
+        valor: Number((Math.round(Number(totalLiquidoBling) * 100) / 100).toFixed(2)),
+        observacoes: `Pagamento via ${formaPagamentoDescricao}`,
+      };
+
+      // ✅ USAR ID da forma de pagamento "Conta a receber/pagar" (se encontrado)
+      if (formaPagamentoContaReceberPagarId) {
+        parcelaVistaObj.formaPagamento = { id: formaPagamentoContaReceberPagarId };
+      } else {
+        // Fallback para descrição se ID não encontrado
+        parcelaVistaObj.formaPagamento = { descricao: 'Conta a receber/pagar' };
+      }
+
+      parcelas = [parcelaVistaObj];
     }
 
     // Criar pedido no Bling com dados de transporte corretos
