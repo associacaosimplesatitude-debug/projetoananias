@@ -1193,11 +1193,13 @@ export default function AdminEBD() {
           }
         );
 
-        if (pwdError || updateResult?.error) {
+        const businessError = updateResult?.success === false ? updateResult?.error : null;
+
+        if (pwdError || businessError) {
           // Importante: NÃO derrubar a atualização do vendedor; apenas avisar
           return {
             passwordUpdated: false,
-            passwordError: pwdError?.message || updateResult?.error || 'Erro ao atualizar senha',
+            passwordError: pwdError?.message || businessError || 'Erro ao atualizar senha',
           };
         }
 
