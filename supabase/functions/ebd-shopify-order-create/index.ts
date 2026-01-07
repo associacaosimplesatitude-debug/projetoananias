@@ -118,7 +118,7 @@ serve(async (req) => {
     const metodoFreteRecebido = metodo_frete || null;
     
     console.log("Creating draft order for cliente:", cliente.nome_igreja);
-    console.log("Vendedor ID:", finalVendedorId);
+    console.log("Criando Draft Order com Vendedor ID:", finalVendedorId);
     console.log("Vendedor Nome:", vendedor_nome);
     console.log("Items:", items);
     console.log("Faturamento:", isFaturamento, "Prazo:", faturamento_prazo);
@@ -697,6 +697,7 @@ serve(async (req) => {
     
     console.log("Draft Order Invoice URL (com dados do cliente):", invoiceUrl);
     console.log("Draft Order ID:", draftOrder.id, "Name:", draftOrder.name);
+    console.log("Criando Draft Order com Vendedor ID:", finalVendedorId);
     
     // Add channel=online_store to ensure checkout works without password
     let finalInvoiceUrl = invoiceUrl;
@@ -706,6 +707,60 @@ serve(async (req) => {
     }
     
     console.log("Final Invoice URL:", finalInvoiceUrl);
+
+    // ===================================================================
+    // PERSISTÊNCIA INICIAL: Salvar pedido no banco com vendedor_id
+    // Isso garante que o vendedor seja atribuído IMEDIATAMENTE ao criar o draft order,
+    // antes mesmo do pagamento ser confirmado via webhook
+    // ===================================================================
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+      // Calculate totals
+      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
+      const valorDescontado = descontoPercentual > 0 
+        ? valorProdutos * (1 - descontoPercentual / 100)
+        : valorProdutos;
+      const valorTotal = valorDescontado + valorFreteRecebido;
+      const valorParaMeta = valorTotal - valorFreteRecebido;
+
+      const orderData = {
+        shopify_order_id: draftOrder.id as number,
+        order_number: draftOrder.name as string,
+        vendedor_id: finalVendedorId || null,
+        cliente_id: cliente.id || null,
+        status_pagamento: "Pendente", // Status inicial - será atualizado pelo webhook quando pago
+        valor_total: valorTotal,
+        valor_frete: valorFreteRecebido,
+        valor_para_meta: valorParaMeta,
+        customer_email: cliente.email_superintendente || null,
+        customer_name: cliente.nome_igreja || null,
+        customer_document: cliente.cnpj || cliente.cpf || null,
+        codigo_rastreio: null,
+        url_rastreio: null,
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Salvando pedido inicial (draft) com vendedor_id:", finalVendedorId);
+      console.log("Dados do pedido:", orderData);
+
+      const { error: saveError } = await supabase
+        .from("ebd_shopify_pedidos")
+        .upsert(orderData, {
+          onConflict: "shopify_order_id",
+          ignoreDuplicates: false,
+        });
+
+      if (saveError) {
+        console.error("Erro ao salvar pedido inicial:", saveError);
+      } else {
+        console.log("Pedido inicial salvo com sucesso, vendedor_id:", finalVendedorId);
+      }
+    } catch (dbError) {
+      console.error("Erro inesperado ao salvar pedido inicial:", dbError);
+    }
 
     return new Response(
       JSON.stringify({
