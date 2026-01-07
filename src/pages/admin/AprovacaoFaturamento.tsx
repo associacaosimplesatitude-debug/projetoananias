@@ -132,6 +132,17 @@ export default function AprovacaoFaturamento() {
     setProcessingPropostaId(proposta.id);
 
     try {
+      // ✅ Buscar email do vendedor diretamente do banco para garantir que está atualizado
+      let vendedorEmail: string | undefined = proposta.vendedor?.email || undefined;
+      if (!vendedorEmail && proposta.vendedor_id) {
+        const { data: vendedorData } = await supabase
+          .from("vendedores")
+          .select("email")
+          .eq("id", proposta.vendedor_id)
+          .maybeSingle();
+        vendedorEmail = vendedorData?.email || undefined;
+      }
+
       const clienteProposta = proposta.cliente || {
         id: proposta.cliente_id || "",
         nome_igreja: proposta.cliente_nome,
@@ -271,7 +282,7 @@ export default function AprovacaoFaturamento() {
           valor_total: valorTotal,
           vendedor_nome: proposta.vendedor_nome || proposta.vendedor?.nome,
           // ✅ Email do vendedor para buscar o ID no Bling
-          vendedor_email: proposta.vendedor?.email || undefined,
+          vendedor_email: vendedorEmail,
           desconto_percentual: proposta.desconto_percentual || 0,
           // Dados de frete manual
           frete_tipo: proposta.frete_tipo || 'automatico',
