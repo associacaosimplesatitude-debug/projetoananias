@@ -222,8 +222,10 @@ serve(async (req) => {
 
     // ===================================================================
     // GARANTIA DE ATRIBUIÇÃO DE VENDEDOR
-    // Se o pedido já existe no banco com vendedor_id, mantemos o existente
-    // Caso contrário, usamos o vendedor_id extraído dos note_attributes
+    // Prioridade:
+    // 1. Se o pedido já existe no banco com vendedor_id, mantemos o existente
+    // 2. Se veio vendedor_id nos note_attributes, usamos esse
+    // 3. Se não tem vendedor, buscamos do cliente cadastrado (HERANÇA AUTOMÁTICA)
     // ===================================================================
     let finalVendedorId = vendedorId;
     
@@ -254,6 +256,101 @@ serve(async (req) => {
         clienteId = existingOrder.cliente_id;
         console.log("Mantendo cliente_id existente:", clienteId);
       }
+    }
+
+    // ===================================================================
+    // HERANÇA AUTOMÁTICA DE VENDEDOR DO CLIENTE CADASTRADO
+    // Se o pedido ainda não tem vendedor_id, buscar do cliente cadastrado
+    // ===================================================================
+    if (!finalVendedorId) {
+      console.log("=== HERANÇA DE VENDEDOR ===");
+      console.log("Pedido sem vendedor, buscando vendedor do cliente cadastrado...");
+      
+      const customerEmail = order.email || order.customer?.email;
+      console.log("Email do cliente:", customerEmail);
+      console.log("CPF/CNPJ do pedido:", cpfCnpj);
+      
+      // Método 1: Buscar cliente por email
+      if (customerEmail) {
+        const { data: clienteByEmail, error: emailError } = await supabase
+          .from("ebd_clientes")
+          .select("id, vendedor_id, nome_igreja")
+          .eq("email_superintendente", customerEmail)
+          .not("vendedor_id", "is", null)
+          .maybeSingle();
+        
+        if (emailError) {
+          console.error("Error fetching cliente by email:", emailError);
+        } else if (clienteByEmail?.vendedor_id) {
+          finalVendedorId = clienteByEmail.vendedor_id;
+          if (!clienteId) clienteId = clienteByEmail.id;
+          console.log("✅ Vendedor herdado do cliente por EMAIL:", {
+            cliente: clienteByEmail.nome_igreja,
+            vendedor_id: finalVendedorId
+          });
+        }
+      }
+      
+      // Método 2: Buscar cliente por CPF/CNPJ (se não encontrou por email)
+      if (!finalVendedorId && cpfCnpj) {
+        const cleanDoc = cpfCnpj.replace(/\D/g, '');
+        console.log("Buscando por CPF/CNPJ:", cleanDoc);
+        
+        const { data: clienteByDoc, error: docError } = await supabase
+          .from("ebd_clientes")
+          .select("id, vendedor_id, nome_igreja")
+          .or(`cnpj.eq.${cleanDoc},cpf.eq.${cleanDoc},cnpj.eq.${cpfCnpj},cpf.eq.${cpfCnpj}`)
+          .not("vendedor_id", "is", null)
+          .maybeSingle();
+        
+        if (docError) {
+          console.error("Error fetching cliente by CPF/CNPJ:", docError);
+        } else if (clienteByDoc?.vendedor_id) {
+          finalVendedorId = clienteByDoc.vendedor_id;
+          if (!clienteId) clienteId = clienteByDoc.id;
+          console.log("✅ Vendedor herdado do cliente por CPF/CNPJ:", {
+            cliente: clienteByDoc.nome_igreja,
+            vendedor_id: finalVendedorId
+          });
+        }
+      }
+      
+      // Método 3: Buscar cliente por nome (fuzzy match)
+      if (!finalVendedorId && order.customer) {
+        const customerName = `${order.customer.first_name} ${order.customer.last_name}`.trim().toLowerCase();
+        console.log("Buscando por nome do cliente:", customerName);
+        
+        const { data: clientes, error: nameError } = await supabase
+          .from("ebd_clientes")
+          .select("id, vendedor_id, nome_igreja, nome_superintendente")
+          .not("vendedor_id", "is", null);
+        
+        if (nameError) {
+          console.error("Error fetching clientes for name matching:", nameError);
+        } else if (clientes && clientes.length > 0) {
+          const matchingCliente = clientes.find(c => 
+            c.nome_igreja?.toLowerCase().includes(customerName) ||
+            customerName.includes(c.nome_igreja?.toLowerCase() || '') ||
+            c.nome_superintendente?.toLowerCase().includes(customerName) ||
+            customerName.includes(c.nome_superintendente?.toLowerCase() || '')
+          );
+          
+          if (matchingCliente?.vendedor_id) {
+            finalVendedorId = matchingCliente.vendedor_id;
+            if (!clienteId) clienteId = matchingCliente.id;
+            console.log("✅ Vendedor herdado do cliente por NOME:", {
+              cliente: matchingCliente.nome_igreja,
+              vendedor_id: finalVendedorId
+            });
+          }
+        }
+      }
+      
+      if (!finalVendedorId) {
+        console.log("❌ Nenhum vendedor encontrado para herança automática");
+      }
+      
+      console.log("=== FIM HERANÇA DE VENDEDOR ===");
     }
 
     console.log("Webhook processado: Pedido", order.name, "atribuído ao Vendedor:", finalVendedorId);
