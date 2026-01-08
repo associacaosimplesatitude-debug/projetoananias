@@ -535,11 +535,11 @@ serve(async (req) => {
     // Buscar "Em andamento" no cache (já carregado)
     let situacaoEmAndamentoId = cachedSituacaoIdsByName.get('em andamento') || null;
     
-    // Se não encontrou no cache, usar fallback hardcoded (ID conhecido na conta Bling)
+    // Se não encontrou no cache, usar fallback hardcoded (ID padrão Bling V3)
     if (!situacaoEmAndamentoId) {
-      // Fallback: ID 37 é "Em andamento" na conta Central Gospel
-      situacaoEmAndamentoId = 37;
-      console.log('[BLING] ⚠️ Usando fallback hardcoded para "Em andamento": ID 37');
+      // Fallback: ID 10 é "Em andamento" no padrão da Bling API V3
+      situacaoEmAndamentoId = 10;
+      console.log('[BLING] ⚠️ Usando fallback hardcoded para "Em andamento": ID 10 (padrão Bling V3)');
     } else {
       console.log(`[BLING] ✅ Situação "Em andamento" encontrada no cache com ID: ${situacaoEmAndamentoId}`);
     }
@@ -2046,27 +2046,25 @@ serve(async (req) => {
       await sleep(400); // Respeitar rate limit
       
       try {
+        // Usar endpoint específico PATCH para atualizar APENAS a situação
+        // Ref: https://developer.bling.com.br/referencia#/Pedidos%20-%20Vendas/patch_pedidos_vendas__idPedidoVenda__situacoes__idSituacao_
         const updateStatusResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}`,
+          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoEmAndamentoId}`,
           {
-            method: 'PUT',
+            method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: JSON.stringify({
-              situacao: { id: situacaoEmAndamentoId },
-            }),
+            // PATCH neste endpoint não requer body - o ID da situação vai na URL
           }
         );
         
-        const updateResult = await updateStatusResponse.json();
-        
         if (updateStatusResponse.ok) {
-          console.log(`[BLING] ✅ Status atualizado para "Em andamento":`, updateResult);
+          console.log(`[BLING] ✅ Status atualizado para "Em andamento" (ID: ${situacaoEmAndamentoId}) via PATCH`);
         } else {
-          console.warn(`[BLING] ⚠️ Falha ao atualizar status (pedido criado com sucesso):`, updateResult);
+          const updateResult = await updateStatusResponse.json();
+          console.warn(`[BLING] ⚠️ Falha ao atualizar status via PATCH (pedido criado com sucesso):`, updateResult);
           // Não falhar o fluxo - pedido foi criado, só o status não atualizou
         }
       } catch (statusError) {
