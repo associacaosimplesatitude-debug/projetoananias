@@ -97,6 +97,7 @@ export default function VendedorCalculadoraPeso() {
   const [propostaClienteNome, setPropostaClienteNome] = useState("");
   const [creatingProposta, setCreatingProposta] = useState<string | null>(null);
   const [messageCopied, setMessageCopied] = useState(false);
+  const [deletingOrcamento, setDeletingOrcamento] = useState<string | null>(null);
   
   // Estados para editar proposta
   const [editarPropostaDialogOpen, setEditarPropostaDialogOpen] = useState(false);
@@ -385,13 +386,58 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
     setFreteDialogOpen(true);
   }, []);
 
+  // Excluir orçamento
+  const handleExcluirOrcamento = useCallback(async (orcamentoId: string) => {
+    if (deletingOrcamento) return;
+    
+    setDeletingOrcamento(orcamentoId);
+    
+    try {
+      const { error } = await supabase
+        .from("vendedor_orcamentos_frete")
+        .delete()
+        .eq("id", orcamentoId);
+      
+      if (error) throw error;
+      
+      toast.success("Orçamento excluído!");
+      refetchOrcamentos();
+    } catch (error) {
+      console.error("Erro ao excluir:", error);
+      toast.error("Erro ao excluir orçamento");
+    } finally {
+      setDeletingOrcamento(null);
+    }
+  }, [deletingOrcamento, refetchOrcamentos]);
+
   // Criar proposta a partir do orçamento
   const handleCriarProposta = useCallback(async (orcamento: OrcamentoFrete) => {
     if (!vendedor) return;
     
+    // TRAVA 1: Se já está criando alguma proposta, ignorar
+    if (creatingProposta) return;
+    
+    // TRAVA 2: Se este orçamento já foi convertido em proposta, ignorar
+    if (orcamento.proposta_id) {
+      toast.warning("Este orçamento já foi convertido em proposta!");
+      return;
+    }
+    
     setCreatingProposta(orcamento.id);
     
     try {
+      // TRAVA 3: Verificar novamente no banco se já existe proposta
+      const { data: orcamentoAtual } = await supabase
+        .from("vendedor_orcamentos_frete")
+        .select("proposta_id, status")
+        .eq("id", orcamento.id)
+        .single();
+      
+      if (orcamentoAtual?.proposta_id || orcamentoAtual?.status === 'convertido_proposta') {
+        toast.warning("Este orçamento já foi convertido em proposta!");
+        refetchOrcamentos();
+        return;
+      }
       // Buscar dados do cliente
       const { data: clienteData } = await supabase
         .from("ebd_clientes")
@@ -463,7 +509,7 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
     } finally {
       setCreatingProposta(null);
     }
-  }, [vendedor, refetchOrcamentos]);
+  }, [vendedor, creatingProposta, refetchOrcamentos]);
 
   const copiarMensagemCompleta = useCallback(async () => {
     const mensagem = `Prezado(a) ${propostaClienteNome || '[Nome do Cliente]'},
@@ -552,7 +598,7 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Truck className="h-6 w-6" />
-          Orçamento de Frete
+          Orçamento Transportadora
         </h1>
         <p className="text-muted-foreground">
           Monte o pedido, calcule o valor com desconto e gere orçamento para transportadoras
@@ -951,6 +997,17 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                             Editar Proposta
                           </Button>
                         )}
+                        
+                        {/* Botão excluir */}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleExcluirOrcamento(orc.id)}
+                          disabled={deletingOrcamento === orc.id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   ))}
