@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Scale, Plus, Minus, Trash2, Search, Package, Truck, 
   MapPin, Copy, MessageCircle, Save, Clock, CheckCircle2, 
-  Building2, User, Percent, Rocket, ExternalLink, FileCheck
+  Building2, User, Percent, Rocket, FileCheck
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,19 +20,15 @@ import { calcularDescontosLocal, type ItemCalculadora, type DescontosCategoriaRe
 import { ENDERECO_MATRIZ, formatarEnderecoMatriz } from "@/constants/enderecoMatriz";
 import { AdicionarFreteOrcamentoDialog } from "@/components/vendedor/AdicionarFreteOrcamentoDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-
-interface Produto {
-  id: string;
-  titulo: string;
-  peso_bruto: number;
-  preco_cheio: number;
-  categoria: string | null;
-  imagem_url: string | null;
-}
+import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 
 interface ItemCarrinho {
-  produto: Produto;
-  quantidade: number;
+  product: ShopifyProduct;
+  variantId: string;
+  sku: string | null;
+  quantity: number;
+  price: { amount: string; currencyCode: string };
+  weightKg: number;
 }
 
 interface Cliente {
@@ -67,6 +63,22 @@ interface OrcamentoFrete {
   observacoes: string | null;
   proposta_id: string | null;
   created_at: string;
+}
+
+// Helper para converter peso para kg
+function convertToKg(weight: number | null, unit: string | null): number {
+  if (!weight) return 0;
+  switch (unit) {
+    case 'GRAMS':
+      return weight / 1000;
+    case 'OUNCES':
+      return weight * 0.0283495;
+    case 'POUNDS':
+      return weight * 0.453592;
+    case 'KILOGRAMS':
+    default:
+      return weight;
+  }
 }
 
 export default function VendedorCalculadoraPeso() {
@@ -146,18 +158,10 @@ export default function VendedorCalculadoraPeso() {
     enabled: !!vendedor?.id,
   });
 
-  // Buscar produtos
+  // Buscar produtos Shopify
   const { data: produtos, isLoading: loadingProdutos } = useQuery({
-    queryKey: ["produtos-peso"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ebd_revistas")
-        .select("id, titulo, peso_bruto, preco_cheio, categoria, imagem_url")
-        .gt("peso_bruto", 0)
-        .order("titulo");
-      if (error) throw error;
-      return data as Produto[];
-    },
+    queryKey: ["produtos-shopify-calculadora"],
+    queryFn: () => fetchShopifyProducts(500),
   });
 
   // Cliente selecionado
@@ -171,21 +175,22 @@ export default function VendedorCalculadoraPeso() {
     if (!produtos) return [];
     if (!searchTerm.trim()) return produtos;
     const termo = searchTerm.toLowerCase();
-    return produtos.filter(p => 
-      p.titulo.toLowerCase().includes(termo) ||
-      p.categoria?.toLowerCase().includes(termo)
-    );
+    return produtos.filter(p => {
+      const variant = p.node.variants?.edges?.[0]?.node;
+      const sku = variant?.sku?.toLowerCase() || '';
+      return p.node.title.toLowerCase().includes(termo) || sku.includes(termo);
+    });
   }, [produtos, searchTerm]);
 
   // Converter carrinho para ItemCalculadora
   const itensCalculadora: ItemCalculadora[] = useMemo(() => 
     carrinho.map(item => ({
-      id: item.produto.id,
-      titulo: item.produto.titulo,
-      peso_bruto: item.produto.peso_bruto,
-      preco_cheio: item.produto.preco_cheio,
-      categoria: item.produto.categoria,
-      quantidade: item.quantidade
+      id: item.variantId,
+      titulo: item.product.node.title,
+      peso_bruto: item.weightKg,
+      preco_cheio: parseFloat(item.price.amount),
+      categoria: null, // Shopify não tem categoria igual ao ebd_revistas
+      quantidade: item.quantity
     })),
     [carrinho]
   );
@@ -193,10 +198,10 @@ export default function VendedorCalculadoraPeso() {
   // Calcular totais com descontos
   const calculo = useMemo(() => {
     const pesoTotal = carrinho.reduce((acc, item) => 
-      acc + (item.produto.peso_bruto * item.quantidade), 0
+      acc + (item.weightKg * item.quantity), 0
     );
     const quantidadeTotal = carrinho.reduce((acc, item) => 
-      acc + item.quantidade, 0
+      acc + item.quantity, 0
     );
 
     const desconto = calcularDescontosLocal(
@@ -249,34 +254,46 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
   }, [cliente, carrinho, calculo, enderecoEntrega]);
 
   // Handlers
-  const adicionarProduto = useCallback((produto: Produto) => {
+  const adicionarProduto = useCallback((product: ShopifyProduct) => {
+    const variant = product.node.variants?.edges?.[0]?.node;
+    if (!variant) return;
+    
+    const weightKg = convertToKg(variant.weight, variant.weightUnit);
+    
     setCarrinho(prev => {
-      const existe = prev.find(item => item.produto.id === produto.id);
+      const existe = prev.find(item => item.variantId === variant.id);
       if (existe) {
         return prev.map(item => 
-          item.produto.id === produto.id 
-            ? { ...item, quantidade: item.quantidade + 1 }
+          item.variantId === variant.id 
+            ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      return [...prev, { produto, quantidade: 1 }];
+      return [...prev, { 
+        product, 
+        variantId: variant.id,
+        sku: variant.sku,
+        quantity: 1,
+        price: variant.price,
+        weightKg
+      }];
     });
   }, []);
 
-  const alterarQuantidade = useCallback((produtoId: string, delta: number) => {
+  const alterarQuantidade = useCallback((variantId: string, delta: number) => {
     setCarrinho(prev => 
       prev.map(item => {
-        if (item.produto.id === produtoId) {
-          const novaQtd = item.quantidade + delta;
-          return novaQtd > 0 ? { ...item, quantidade: novaQtd } : item;
+        if (item.variantId === variantId) {
+          const novaQtd = item.quantity + delta;
+          return novaQtd > 0 ? { ...item, quantity: novaQtd } : item;
         }
         return item;
-      }).filter(item => item.quantidade > 0)
+      }).filter(item => item.quantity > 0)
     );
   }, []);
 
-  const removerProduto = useCallback((produtoId: string) => {
-    setCarrinho(prev => prev.filter(item => item.produto.id !== produtoId));
+  const removerProduto = useCallback((variantId: string) => {
+    setCarrinho(prev => prev.filter(item => item.variantId !== variantId));
   }, []);
 
   const limparCarrinho = useCallback(() => {
@@ -299,12 +316,15 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
       return;
     }
 
+    // Salvar itens no formato compatível com PropostaDigital
     const itens = carrinho.map(item => ({
-      produto_id: item.produto.id,
-      titulo: item.produto.titulo,
-      quantidade: item.quantidade,
-      peso_bruto: item.produto.peso_bruto,
-      preco_cheio: item.produto.preco_cheio
+      variantId: item.variantId,
+      title: item.product.node.title,
+      quantity: item.quantity,
+      price: item.price.amount,
+      sku: item.sku,
+      imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
+      peso_kg: item.weightKg
     }));
 
     const enderecoColeta = {
@@ -532,7 +552,7 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Buscar produto..."
+                    placeholder="Buscar por título ou SKU..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9"
@@ -547,32 +567,53 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
                     </div>
                   ) : produtosFiltrados.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      {searchTerm ? "Nenhum produto encontrado" : "Nenhum produto com peso cadastrado"}
+                      {searchTerm ? "Nenhum produto encontrado" : "Nenhum produto disponível"}
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {produtosFiltrados.map((produto) => (
-                        <div
-                          key={produto.id}
-                          className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 cursor-pointer transition-colors"
-                          onClick={() => adicionarProduto(produto)}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{produto.titulo}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                {(produto.peso_bruto * 1000).toFixed(0)}g
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                R$ {produto.preco_cheio.toFixed(2)}
-                              </span>
+                      {produtosFiltrados.map((product) => {
+                        const variant = product.node.variants?.edges?.[0]?.node;
+                        const weightKg = convertToKg(variant?.weight, variant?.weightUnit);
+                        const imageUrl = product.node.images?.edges?.[0]?.node?.url;
+                        
+                        return (
+                          <div
+                            key={product.node.id}
+                            className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer transition-colors"
+                            onClick={() => adicionarProduto(product)}
+                          >
+                            {imageUrl && (
+                              <img 
+                                src={imageUrl} 
+                                alt={product.node.title}
+                                className="w-12 h-12 object-cover rounded"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{product.node.title}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                {variant?.sku && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    SKU: {variant.sku}
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-xs">
+                                  {weightKg < 1 
+                                    ? `${(weightKg * 1000).toFixed(0)}g`
+                                    : `${weightKg.toFixed(2)}kg`
+                                  }
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  R$ {parseFloat(variant?.price?.amount || "0").toFixed(2)}
+                                </span>
+                              </div>
                             </div>
+                            <Button size="sm" variant="ghost">
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <Button size="sm" variant="ghost">
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </ScrollArea>
@@ -644,28 +685,41 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {carrinho.map((item) => (
-                          <div key={item.produto.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                            <div className="flex-1 min-w-0 mr-2">
-                              <p className="font-medium truncate">{item.produto.titulo}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {(item.produto.peso_bruto * 1000).toFixed(0)}g × {item.quantidade}
-                              </p>
+                        {carrinho.map((item) => {
+                          const imageUrl = item.product.node.images?.edges?.[0]?.node?.url;
+                          return (
+                            <div key={item.variantId} className="flex items-center gap-2 p-2 rounded-lg border text-sm">
+                              {imageUrl && (
+                                <img 
+                                  src={imageUrl} 
+                                  alt={item.product.node.title}
+                                  className="w-10 h-10 object-cover rounded"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0 mr-2">
+                                <p className="font-medium truncate">{item.product.node.title}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {item.weightKg < 1 
+                                    ? `${(item.weightKg * 1000).toFixed(0)}g`
+                                    : `${item.weightKg.toFixed(2)}kg`
+                                  } × {item.quantity}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.variantId, -1)}>
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <span className="w-6 text-center text-xs">{item.quantity}</span>
+                                <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.variantId, 1)}>
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removerProduto(item.variantId)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.produto.id, -1)}>
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-6 text-center text-xs">{item.quantidade}</span>
-                              <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.produto.id, 1)}>
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removerProduto(item.produto.id)}>
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </ScrollArea>

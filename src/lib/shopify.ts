@@ -38,6 +38,8 @@ export interface ShopifyProduct {
             currencyCode: string;
           };
           availableForSale: boolean;
+          weight: number | null;
+          weightUnit: string | null;
           selectedOptions: Array<{
             name: string;
             value: string;
@@ -106,6 +108,8 @@ const STOREFRONT_QUERY = `
                   currencyCode
                 }
                 availableForSale
+                weight
+                weightUnit
                 selectedOptions {
                   name
                   value
