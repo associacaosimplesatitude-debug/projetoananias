@@ -73,7 +73,40 @@ serve(async (req) => {
     }
 
     if (!targetUser) {
-      throw new Error(`Usuário com email ${emailCandidates[0]} não encontrado no sistema de autenticação`);
+      // Se não encontrou usuário e temos senha para criar, criamos o usuário
+      if (!shouldUpdatePassword) {
+        throw new Error(`Usuário com email ${emailCandidates[0]} não encontrado no sistema de autenticação`);
+      }
+
+      const emailToUse = (newEmail || oldEmail).toLowerCase().trim();
+
+      console.log("[UPDATE-PASSWORD] Usuário não encontrado, criando novo usuário para:", emailToUse);
+
+      // Criar usuário no auth
+      const { data: newAuthUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email: emailToUse,
+        password: newPassword,
+        email_confirm: true,
+      });
+
+      if (createError) throw createError;
+
+      // Criar/atualizar profile
+      await supabaseAdmin.from("profiles").upsert({
+        id: newAuthUser.user.id,
+        email: emailToUse,
+      });
+
+      console.log("[UPDATE-PASSWORD] Usuário criado com sucesso:", newAuthUser.user.id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Usuário criado e credenciais definidas com sucesso",
+          created: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     console.log("[UPDATE-PASSWORD] Usuário encontrado", { id: targetUser.id, email: targetUser.email });
