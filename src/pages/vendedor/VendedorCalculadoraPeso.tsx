@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Scale, Plus, Minus, Trash2, Search, Package, Truck, 
   MapPin, Copy, MessageCircle, Save, Clock, CheckCircle2, 
-  Building2, User, Percent
+  Building2, User, Percent, Rocket, ExternalLink, FileCheck
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,6 +18,8 @@ import { toast } from "sonner";
 import { useVendedor } from "@/hooks/useVendedor";
 import { calcularDescontosLocal, type ItemCalculadora, type DescontosCategoriaRepresentante } from "@/lib/descontosCalculadora";
 import { ENDERECO_MATRIZ, formatarEnderecoMatriz } from "@/constants/enderecoMatriz";
+import { AdicionarFreteOrcamentoDialog } from "@/components/vendedor/AdicionarFreteOrcamentoDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 interface Produto {
   id: string;
@@ -45,6 +47,7 @@ interface Cliente {
   endereco_cidade: string | null;
   endereco_estado: string | null;
   endereco_cep: string | null;
+  cnpj: string | null;
 }
 
 interface OrcamentoFrete {
@@ -52,10 +55,17 @@ interface OrcamentoFrete {
   cliente_id: string;
   cliente?: { nome_igreja: string };
   peso_total_kg: number;
+  valor_produtos: number;
+  desconto_percentual: number;
   valor_com_desconto: number;
+  itens: any;
+  endereco_entrega: any;
   status: string;
   transportadora_nome: string | null;
   valor_frete: number | null;
+  prazo_entrega: string | null;
+  observacoes: string | null;
+  proposta_id: string | null;
   created_at: string;
 }
 
@@ -65,6 +75,14 @@ export default function VendedorCalculadoraPeso() {
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [clienteSelecionado, setClienteSelecionado] = useState<string>("");
   const [activeTab, setActiveTab] = useState("novo");
+  
+  // Estados para modais
+  const [freteDialogOpen, setFreteDialogOpen] = useState(false);
+  const [orcamentoParaFrete, setOrcamentoParaFrete] = useState<OrcamentoFrete | null>(null);
+  const [propostaLinkDialogOpen, setPropostaLinkDialogOpen] = useState(false);
+  const [propostaLink, setPropostaLink] = useState("");
+  const [propostaClienteNome, setPropostaClienteNome] = useState("");
+  const [creatingProposta, setCreatingProposta] = useState<string | null>(null);
 
   // Buscar clientes do vendedor
   const { data: clientes } = useQuery({
@@ -73,7 +91,7 @@ export default function VendedorCalculadoraPeso() {
       if (!vendedor?.id) return [];
       const { data, error } = await supabase
         .from("ebd_clientes")
-        .select("id, nome_igreja, tipo_cliente, onboarding_concluido, desconto_faturamento, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep")
+        .select("id, nome_igreja, tipo_cliente, onboarding_concluido, desconto_faturamento, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, cnpj")
         .eq("vendedor_id", vendedor.id)
         .order("nome_igreja");
       if (error) throw error;
@@ -106,7 +124,7 @@ export default function VendedorCalculadoraPeso() {
       if (!vendedor?.id) return [];
       const { data, error } = await supabase
         .from("vendedor_orcamentos_frete")
-        .select("id, cliente_id, peso_total_kg, valor_com_desconto, status, transportadora_nome, valor_frete, created_at")
+        .select("id, cliente_id, peso_total_kg, valor_produtos, desconto_percentual, valor_com_desconto, itens, endereco_entrega, status, transportadora_nome, valor_frete, prazo_entrega, observacoes, proposta_id, created_at")
         .eq("vendedor_id", vendedor.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -334,6 +352,103 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
     refetchOrcamentos();
     setActiveTab("salvos");
   }, [vendedor, clienteSelecionado, carrinho, calculo, cliente, limparCarrinho, refetchOrcamentos]);
+
+  // Abrir modal de adicionar frete
+  const handleAbrirFreteDialog = useCallback((orcamento: OrcamentoFrete) => {
+    setOrcamentoParaFrete(orcamento);
+    setFreteDialogOpen(true);
+  }, []);
+
+  // Criar proposta a partir do orçamento
+  const handleCriarProposta = useCallback(async (orcamento: OrcamentoFrete) => {
+    if (!vendedor) return;
+    
+    setCreatingProposta(orcamento.id);
+    
+    try {
+      // Buscar dados do cliente
+      const { data: clienteData } = await supabase
+        .from("ebd_clientes")
+        .select("nome_igreja, cnpj, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep")
+        .eq("id", orcamento.cliente_id)
+        .single();
+      
+      if (!clienteData) throw new Error("Cliente não encontrado");
+      
+      const token = crypto.randomUUID();
+      const valorTotal = orcamento.valor_com_desconto + (orcamento.valor_frete || 0);
+      
+      const clienteEndereco = {
+        rua: clienteData.endereco_rua || "",
+        numero: clienteData.endereco_numero || "",
+        bairro: clienteData.endereco_bairro || "",
+        cidade: clienteData.endereco_cidade || "",
+        estado: clienteData.endereco_estado || "",
+        cep: clienteData.endereco_cep || ""
+      };
+      
+      // Criar proposta
+      const { data: proposta, error: propostaError } = await supabase
+        .from("vendedor_propostas")
+        .insert({
+          vendedor_id: vendedor.id,
+          vendedor_nome: vendedor.nome || null,
+          cliente_id: orcamento.cliente_id,
+          cliente_nome: clienteData.nome_igreja,
+          cliente_cnpj: clienteData.cnpj,
+          cliente_endereco: clienteEndereco,
+          itens: orcamento.itens,
+          valor_produtos: orcamento.valor_com_desconto,
+          valor_frete: orcamento.valor_frete || 0,
+          valor_total: valorTotal,
+          desconto_percentual: orcamento.desconto_percentual,
+          status: "PROPOSTA_PENDENTE",
+          token,
+          frete_tipo: "manual",
+          frete_transportadora: orcamento.transportadora_nome,
+          frete_prazo_estimado: orcamento.prazo_entrega,
+          frete_observacao: orcamento.observacoes,
+        })
+        .select("id")
+        .single();
+      
+      if (propostaError) throw propostaError;
+      
+      // Atualizar orçamento com status e proposta_id
+      const { error: updateError } = await supabase
+        .from("vendedor_orcamentos_frete")
+        .update({
+          status: "convertido_proposta",
+          proposta_id: proposta.id
+        })
+        .eq("id", orcamento.id);
+      
+      if (updateError) throw updateError;
+      
+      const link = `https://gestaoebd.com.br/proposta/${token}`;
+      setPropostaLink(link);
+      setPropostaClienteNome(clienteData.nome_igreja);
+      setPropostaLinkDialogOpen(true);
+      refetchOrcamentos();
+      
+    } catch (error) {
+      console.error("Erro ao criar proposta:", error);
+      toast.error("Erro ao criar proposta");
+    } finally {
+      setCreatingProposta(null);
+    }
+  }, [vendedor, refetchOrcamentos]);
+
+  const copiarLinkProposta = useCallback(() => {
+    navigator.clipboard.writeText(propostaLink);
+    toast.success("Link copiado!");
+  }, [propostaLink]);
+
+  const enviarWhatsAppProposta = useCallback(() => {
+    const mensagem = `Olá! Segue a proposta comercial para *${propostaClienteNome}*:\n\n📋 ${propostaLink}\n\nQualquer dúvida, estou à disposição!`;
+    const texto = encodeURIComponent(mensagem);
+    window.open(`https://wa.me/?text=${texto}`, "_blank");
+  }, [propostaLink, propostaClienteNome]);
 
   return (
     <div className="space-y-6">
@@ -638,28 +753,78 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
               ) : (
                 <div className="space-y-3">
                   {orcamentosSalvos.map((orc) => (
-                    <div key={orc.id} className="flex items-center justify-between p-4 rounded-lg border">
-                      <div className="flex-1">
-                        <p className="font-medium">{orc.cliente?.nome_igreja}</p>
-                        <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                    <div key={orc.id} className="flex items-center justify-between p-4 rounded-lg border gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{orc.cliente?.nome_igreja}</p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-sm text-muted-foreground">
                           <span>{orc.peso_total_kg.toFixed(2)}kg</span>
                           <span>•</span>
                           <span>R$ {orc.valor_com_desconto.toFixed(2)}</span>
+                          {orc.status === 'orcamento_recebido' && orc.valor_frete && (
+                            <>
+                              <span>•</span>
+                              <span className="text-green-600">Frete: R$ {orc.valor_frete.toFixed(2)}</span>
+                              {orc.transportadora_nome && (
+                                <span className="text-xs">({orc.transportadora_nome})</span>
+                              )}
+                            </>
+                          )}
                           <span>•</span>
                           <span>{new Date(orc.created_at).toLocaleDateString('pt-BR')}</span>
                         </div>
                       </div>
-                      <Badge 
-                        variant={orc.status === 'aguardando_orcamento' ? 'outline' : 'default'}
-                        className={orc.status === 'orcamento_recebido' ? 'bg-green-500' : ''}
-                      >
+                      
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {orc.status === 'aguardando_orcamento' && (
-                          <><Clock className="h-3 w-3 mr-1" /> Aguardando</>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAbrirFreteDialog(orc)}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Frete
+                          </Button>
                         )}
+                        
                         {orc.status === 'orcamento_recebido' && (
-                          <><CheckCircle2 className="h-3 w-3 mr-1" /> R$ {orc.valor_frete?.toFixed(2)}</>
+                          <Button
+                            size="sm"
+                            onClick={() => handleCriarProposta(orc)}
+                            disabled={creatingProposta === orc.id}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            {creatingProposta === orc.id ? (
+                              "Criando..."
+                            ) : (
+                              <>
+                                <Rocket className="h-4 w-4 mr-1" />
+                                Criar Proposta
+                              </>
+                            )}
+                          </Button>
                         )}
-                      </Badge>
+                        
+                        {orc.status === 'convertido_proposta' && (
+                          <Badge className="bg-blue-500 text-white">
+                            <FileCheck className="h-3 w-3 mr-1" />
+                            Proposta Criada
+                          </Badge>
+                        )}
+                        
+                        {orc.status === 'aguardando_orcamento' && (
+                          <Badge variant="outline">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Aguardando
+                          </Badge>
+                        )}
+                        
+                        {orc.status === 'orcamento_recebido' && (
+                          <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Frete OK
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -668,6 +833,58 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal de Adicionar Frete */}
+      <AdicionarFreteOrcamentoDialog
+        open={freteDialogOpen}
+        onOpenChange={setFreteDialogOpen}
+        orcamento={orcamentoParaFrete}
+        onSuccess={refetchOrcamentos}
+      />
+
+      {/* Modal de Link da Proposta */}
+      <Dialog open={propostaLinkDialogOpen} onOpenChange={setPropostaLinkDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-5 w-5" />
+              Proposta Criada!
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              A proposta para <strong>{propostaClienteNome}</strong> foi criada com sucesso.
+              Copie o link ou envie diretamente pelo WhatsApp:
+            </p>
+            
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+              <Input
+                value={propostaLink}
+                readOnly
+                className="bg-transparent border-0 text-sm"
+              />
+              <Button size="sm" variant="ghost" onClick={copiarLinkProposta}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setPropostaLinkDialogOpen(false)}>
+              Fechar
+            </Button>
+            <Button onClick={copiarLinkProposta} variant="outline">
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar Link
+            </Button>
+            <Button onClick={enviarWhatsAppProposta} className="bg-green-600 hover:bg-green-700">
+              <MessageCircle className="h-4 w-4 mr-2" />
+              Enviar WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
