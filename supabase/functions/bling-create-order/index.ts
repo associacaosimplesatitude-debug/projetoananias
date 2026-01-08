@@ -108,11 +108,16 @@ async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string
 
     const situacoes: any[] = Array.isArray(json?.data) ? json.data : [];
     
-    // Log para debug: mostrar todas as situações disponíveis
-    console.log('[BLING] Situações disponíveis no módulo pedidos_venda:', {
-      buscando: situacaoNome,
-      situacoesDisponiveis: situacoes.map((s) => ({ id: s.id, nome: s.nome })),
-    });
+    // Log para debug: mostrar todas as situações disponíveis (apenas na primeira chamada)
+    if (cachedSituacaoIdsByName.size === 0) {
+      console.log('[BLING] ===== SITUAÇÕES DISPONÍVEIS NO MÓDULO PEDIDOS_VENDA =====');
+      situacoes.forEach((s, i) => {
+        console.log(`[BLING] Situação ${i+1}: ID=${s.id} | Nome="${s.nome}"`);
+      });
+      console.log('[BLING] ========================================================');
+    }
+    
+    console.log('[BLING] Buscando situação:', situacaoNome, '| Total disponíveis:', situacoes.length);
     
     // Busca exata primeiro, depois parcial (case-insensitive)
     const match = situacoes.find((s) => String(s?.nome || '').trim().toLowerCase() === key)
@@ -514,11 +519,37 @@ serve(async (req) => {
       console.log('[BLING] Usando fallback hardcoded: 9');
     }
 
-    // Para B2B faturamento, buscar situação "Em andamento"
-    let situacaoEmAndamentoId = await resolveSituacaoIdByName(accessToken, 'Em andamento')
-      || await resolveSituacaoIdByName(accessToken, 'EM ANDAMENTO');
+    // Para B2B faturamento, buscar situação "Em andamento" ou equivalentes
+    // Diferentes contas Bling podem usar nomes diferentes para o mesmo status
+    const variacoesEmAndamento = [
+      'Em andamento',
+      'EM ANDAMENTO', 
+      'Aprovado',
+      'APROVADO',
+      'Aguardando',
+      'AGUARDANDO',
+      'Confirmado',
+      'CONFIRMADO',
+      'Verificado',
+      'VERIFICADO',
+      'Liberado',
+      'LIBERADO'
+    ];
     
-    console.log('[BLING] Situação "Em andamento" encontrada com ID:', situacaoEmAndamentoId);
+    let situacaoEmAndamentoId: number | null = null;
+    for (const nomeVariacao of variacoesEmAndamento) {
+      situacaoEmAndamentoId = await resolveSituacaoIdByName(accessToken, nomeVariacao);
+      if (situacaoEmAndamentoId) {
+        console.log(`[BLING] ✅ Situação "${nomeVariacao}" encontrada com ID: ${situacaoEmAndamentoId}`);
+        break;
+      }
+    }
+    
+    if (!situacaoEmAndamentoId) {
+      console.warn('[BLING] ⚠️ Nenhuma situação de aprovação encontrada. Verifique as situações disponíveis no Bling.');
+    }
+    
+    console.log('[BLING DEBUG] Situação "Em andamento" encontrada com ID:', situacaoEmAndamentoId);
     
     // ✅ REGRA: Faturamento B2B → "Em andamento" | Outros (PIX/Cartão/Boleto) → "Em aberto"
     const situacaoInicialId = isFaturamentoPagamento 
