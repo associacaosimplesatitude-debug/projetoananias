@@ -21,6 +21,7 @@ interface Cliente {
   endereco_cep: string | null;
   endereco_rua: string | null;
   endereco_numero: string | null;
+  endereco_complemento: string | null;
   endereco_bairro: string | null;
   endereco_cidade: string | null;
   endereco_estado: string | null;
@@ -45,9 +46,41 @@ function formatCEP(cep: string | null): string {
   return cleanCep;
 }
 
+// Mapeamento completo de estados brasileiros para código ISO
+const ESTADOS_BRASIL: Record<string, string> = {
+  'acre': 'AC', 'alagoas': 'AL', 'amapa': 'AP', 'amapá': 'AP', 'amazonas': 'AM',
+  'bahia': 'BA', 'ceara': 'CE', 'ceará': 'CE', 'distrito federal': 'DF', 
+  'espirito santo': 'ES', 'espírito santo': 'ES', 'goias': 'GO', 'goiás': 'GO',
+  'maranhao': 'MA', 'maranhão': 'MA', 'mato grosso': 'MT', 'mato grosso do sul': 'MS',
+  'minas gerais': 'MG', 'para': 'PA', 'pará': 'PA', 'paraiba': 'PB', 'paraíba': 'PB',
+  'parana': 'PR', 'paraná': 'PR', 'pernambuco': 'PE', 'piaui': 'PI', 'piauí': 'PI',
+  'rio de janeiro': 'RJ', 'rio grande do norte': 'RN', 'rio grande do sul': 'RS',
+  'rondonia': 'RO', 'rondônia': 'RO', 'roraima': 'RR', 'santa catarina': 'SC',
+  'sao paulo': 'SP', 'são paulo': 'SP', 'sergipe': 'SE', 'tocantins': 'TO',
+  // Abreviações comuns
+  'ac': 'AC', 'al': 'AL', 'ap': 'AP', 'am': 'AM', 'ba': 'BA', 'ce': 'CE',
+  'df': 'DF', 'es': 'ES', 'go': 'GO', 'ma': 'MA', 'mt': 'MT', 'ms': 'MS',
+  'mg': 'MG', 'pa': 'PA', 'pb': 'PB', 'pr': 'PR', 'pe': 'PE', 'pi': 'PI',
+  'rj': 'RJ', 'rn': 'RN', 'rs': 'RS', 'ro': 'RO', 'rr': 'RR', 'sc': 'SC',
+  'sp': 'SP', 'se': 'SE', 'to': 'TO'
+};
+
 function normalizeUF(uf: string | null): string {
   if (!uf) return "";
-  return uf.trim().toUpperCase().slice(0, 2);
+  const clean = uf.trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Remove acentos
+  
+  // Buscar no mapa de estados
+  const codigo = ESTADOS_BRASIL[clean];
+  if (codigo) return codigo;
+  
+  // Fallback: se não encontrou e tem 2 chars, usa como está
+  if (clean.length === 2) {
+    return clean.toUpperCase();
+  }
+  
+  // Último fallback: primeiros 2 caracteres em maiúsculo
+  return clean.slice(0, 2).toUpperCase();
 }
 
 serve(async (req) => {
@@ -247,8 +280,8 @@ serve(async (req) => {
                 tags: "ebd_cliente",
                 note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
                 addresses: cliente.endereco_rua ? [{
-                  address1: cliente.endereco_rua || '',
-                  address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+                  address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`.trim(),
+                  address2: cliente.endereco_complemento || cliente.endereco_bairro || '',
                   city: cliente.endereco_cidade || "",
                   province: cliente.endereco_estado || "",
                   province_code: normalizeUF(cliente.endereco_estado),
@@ -291,8 +324,8 @@ serve(async (req) => {
               tags: "ebd_cliente",
               note: cliente.cnpj ? `CPF/CNPJ: ${cliente.cnpj}` : undefined,
                addresses: cliente.endereco_rua ? [{
-                 address1: cliente.endereco_rua || '',
-                 address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+                 address1: `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`.trim(),
+                 address2: cliente.endereco_complemento || cliente.endereco_bairro || '',
                  city: cliente.endereco_cidade || "",
                  province: cliente.endereco_estado || "",
                  province_code: normalizeUF(cliente.endereco_estado),
@@ -444,25 +477,39 @@ serve(async (req) => {
 
     // Add shipping address if available
     if (cliente.endereco_rua) {
-      // Split name for shipping address too
-      const shippingFullName = cliente.nome_responsavel || cliente.nome_igreja || '';
+      // Priorizar nome_responsavel para first/last name
+      // Se não houver, usar "Igreja" como first_name
+      const shippingFullName = cliente.nome_responsavel || '';
       const shippingNameParts = shippingFullName.trim().split(' ');
-      const shippingFirstName = shippingNameParts[0] || '';
-      const shippingLastName = shippingNameParts.slice(1).join(' ') || '';
+      const shippingFirstName = shippingNameParts[0] || 'Igreja';
+      const shippingLastName = shippingNameParts.slice(1).join(' ') || (cliente.nome_igreja || '');
       
       const formattedCep = formatCEP(cliente.endereco_cep);
       const uf = normalizeUF(cliente.endereco_estado);
-      console.log("CEP original:", cliente.endereco_cep, "-> formatado:", formattedCep, "| UF:", uf);
+      
+      // Formato correto: address1 = "Rua, Número", address2 = "Complemento"
+      const address1 = `${cliente.endereco_rua || ''}, ${cliente.endereco_numero || 'S/N'}`.trim();
+      const address2 = cliente.endereco_complemento || '';
+      
+      console.log("=== VALIDAÇÃO DE ENDEREÇO SHOPIFY ===");
+      console.log("address1:", address1);
+      console.log("address2:", address2);
+      console.log("city:", cliente.endereco_cidade);
+      console.log("province (original):", cliente.endereco_estado, "-> province_code:", uf);
+      console.log("zip (original):", cliente.endereco_cep, "-> formatted:", formattedCep);
+      console.log("first_name:", shippingFirstName);
+      console.log("last_name:", shippingLastName);
+      console.log("company:", cliente.nome_igreja);
       
       draftOrderPayload.draft_order = {
         ...draftOrderPayload.draft_order as Record<string, unknown>,
         shipping_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          address1: cliente.endereco_rua || '',
-          address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+          address1: address1,
+          address2: address2,
           city: cliente.endereco_cidade || "",
-          province: cliente.endereco_estado || "",
+          province: uf, // Usar código ISO ao invés do nome por extenso
           province_code: uf,
           zip: formattedCep,
           country: "Brazil",
@@ -473,10 +520,10 @@ serve(async (req) => {
         billing_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          address1: cliente.endereco_rua || '',
-          address2: `${cliente.endereco_numero || 'S/N'} - ${cliente.endereco_bairro || ''}`,
+          address1: address1,
+          address2: address2,
           city: cliente.endereco_cidade || "",
-          province: cliente.endereco_estado || "",
+          province: uf, // Usar código ISO ao invés do nome por extenso
           province_code: uf,
           zip: formattedCep,
           country: "Brazil",
