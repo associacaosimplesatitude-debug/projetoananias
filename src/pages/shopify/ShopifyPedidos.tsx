@@ -840,11 +840,31 @@ export default function ShopifyPedidos() {
     setIsCreatingDraft(true);
 
     try {
+      // Resolver endereço: prioriza selectedEndereco se existir
+      const enderecoFinal = selectedEndereco
+        ? {
+            endereco_rua: selectedEndereco.rua,
+            endereco_numero: selectedEndereco.numero,
+            endereco_complemento: selectedEndereco.complemento || null,
+            endereco_bairro: selectedEndereco.bairro,
+            endereco_cidade: selectedEndereco.cidade,
+            endereco_estado: selectedEndereco.estado,
+            endereco_cep: selectedEndereco.cep,
+          }
+        : {};
+
+      // Resolver nome do destinatário: usar nome do endereço selecionado se disponível
+      const nomeDestinatario = selectedEndereco?.nome
+        ? `${selectedEndereco.nome} ${selectedEndereco.sobrenome || ''}`.trim()
+        : null;
+
       const { data, error } = await supabase.functions.invoke('ebd-shopify-order-create', {
         body: {
           cliente: {
             ...selectedCliente,
-            tipo_cliente: selectedCliente.tipo_cliente, // Enviar tipo_cliente para classificação
+            ...enderecoFinal, // Sobrescreve com endereço selecionado se existir
+            ...(nomeDestinatario && { nome_responsavel: nomeDestinatario }), // Sobrescreve nome se selecionado
+            tipo_cliente: selectedCliente.tipo_cliente,
           },
           vendedor_id: vendedor?.id,
           vendedor_nome: vendedor?.nome,
