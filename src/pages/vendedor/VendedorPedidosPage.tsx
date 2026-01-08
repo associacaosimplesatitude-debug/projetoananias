@@ -7,12 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText, RefreshCw, XCircle } from "lucide-react";
+import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText, RefreshCw, XCircle, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { categorizarProduto } from "@/constants/categoriasShopify";
 import { isClienteRepresentante, type DescontosCategoriaRepresentante } from "@/lib/descontosShopify";
+import { EditarPropostaDialog } from "@/components/vendedor/EditarPropostaDialog";
 
 interface PropostaItem {
   variantId: string;
@@ -72,6 +73,10 @@ export default function VendedorPedidosPage() {
   const [processingPropostaId, setProcessingPropostaId] = useState<string | null>(null);
   const [isSyncingStatus, setIsSyncingStatus] = useState(false);
   const hasSyncedRef = useRef(false);
+  
+  // Estados para editar proposta
+  const [editarPropostaDialogOpen, setEditarPropostaDialogOpen] = useState(false);
+  const [propostaParaEditar, setPropostaParaEditar] = useState<Proposta | null>(null);
 
   const { data: propostas, isLoading: isLoadingPropostas, refetch } = useQuery({
     queryKey: ["vendedor-propostas", vendedor?.id],
@@ -177,6 +182,11 @@ export default function VendedorPedidosPage() {
     const link = `https://gestaoebd.com.br/proposta/${token}`;
     await navigator.clipboard.writeText(link);
     toast.success("Link copiado!");
+  };
+
+  const handleEditarProposta = (proposta: Proposta) => {
+    setPropostaParaEditar(proposta);
+    setEditarPropostaDialogOpen(true);
   };
 
   const handleGeneratePaymentLink = async (proposta: Proposta) => {
@@ -607,6 +617,11 @@ export default function VendedorPedidosPage() {
                             Enviar p/ Financeiro
                           </Button>
                         )}
+                        {proposta.status === "PROPOSTA_PENDENTE" && (
+                          <Button variant="outline" size="sm" onClick={() => handleEditarProposta(proposta)}>
+                            <Pencil className="h-4 w-4 mr-1" /> Editar
+                          </Button>
+                        )}
                         {(proposta.status === "PROPOSTA_PENDENTE" || proposta.status === "PROPOSTA_ACEITA") && (
                           <Button variant="outline" size="sm" onClick={() => copyLink(proposta.token)}>
                             <Copy className="h-4 w-4 mr-1" /> Copiar Link
@@ -662,6 +677,9 @@ export default function VendedorPedidosPage() {
                         </p>
                       </div>
                       <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEditarProposta(proposta)}>
+                          <Pencil className="h-4 w-4 mr-1" /> Editar
+                        </Button>
                         <Button variant="ghost" size="sm" asChild>
                           <a href={`/proposta/${proposta.token}`} target="_blank">
                             <ExternalLink className="h-4 w-4" />
@@ -725,6 +743,17 @@ export default function VendedorPedidosPage() {
           <VendedorPedidosTab vendedorId={vendedor?.id || ""} />
         </TabsContent>
       </Tabs>
+
+      {/* Modal de Editar Proposta */}
+      <EditarPropostaDialog
+        open={editarPropostaDialogOpen}
+        onOpenChange={setEditarPropostaDialogOpen}
+        proposta={propostaParaEditar}
+        onSuccess={() => {
+          refetch();
+          setEditarPropostaDialogOpen(false);
+        }}
+      />
     </div>
   );
 }
