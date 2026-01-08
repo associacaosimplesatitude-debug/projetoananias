@@ -79,8 +79,10 @@ const TIPOS_CLIENTE = [
   { value: "REVENDEDOR", label: "REVENDEDOR" },
 ];
 
-// Tipos que usam CPF ao invés de CNPJ
+// Tipos que usam CPF ao invés de CNPJ (forçado)
 const TIPOS_COM_CPF = ["IGREJA CPF", "PESSOA FÍSICA"];
+// Tipos que podem escolher entre CPF ou CNPJ
+const TIPOS_COM_DOCUMENTO_FLEXIVEL = ["REVENDEDOR", ""];
 // Tipos que podem ter documento opcional ou não definido
 const TIPOS_SEM_DOCUMENTO_OBRIGATORIO = [""];
 
@@ -598,46 +600,37 @@ export function CadastrarClienteDialog({
         <form onSubmit={handleSubmit}>
           <ScrollArea className="h-[60vh] pr-4">
             <div className="space-y-6">
-              {/* 1. Tipo de Cliente - PRIMEIRO para determinar lógica do documento */}
-              {/* Ocultar para representantes - tipo é fixo como REPRESENTANTE */}
-              {!isRepresentante && (
-                <div className="space-y-2">
-                  <Label>Tipo de Cliente *</Label>
-                  <Select
-                    value={formData.tipo_cliente}
-                    onValueChange={(value) => {
-                      const usaCpf = TIPOS_COM_CPF.includes(value);
-                      const novoPossuiCnpj = !usaCpf;
-                      
-                      setFormData({ 
-                        ...formData, 
-                        tipo_cliente: value,
-                        possui_cnpj: novoPossuiCnpj,
-                        documento: formData.possui_cnpj !== novoPossuiCnpj ? "" : formData.documento
-                      });
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_CLIENTE.map((tipo) => (
-                        <SelectItem key={tipo.value} value={tipo.value || "none"}>
-                          {tipo.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* 2. Documento (CNPJ/CPF) */}
+              {/* 1. Documento (CNPJ/CPF) - PRIMEIRO */}
               <div className="space-y-4">
-
                 <div className="space-y-2">
-                  <Label htmlFor="documento">
-                    {formData.possui_cnpj ? "CNPJ *" : "CPF *"}
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="documento">
+                      {formData.possui_cnpj ? "CNPJ *" : "CPF *"}
+                    </Label>
+                    {/* Switch para escolher entre CPF/CNPJ - apenas para tipos flexíveis */}
+                    {(TIPOS_COM_DOCUMENTO_FLEXIVEL.includes(formData.tipo_cliente) || formData.tipo_cliente === "none") && (
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="usar-cpf" className="text-sm text-muted-foreground cursor-pointer">
+                          Usar CPF
+                        </Label>
+                        <Switch
+                          id="usar-cpf"
+                          checked={!formData.possui_cnpj}
+                          onCheckedChange={(usarCpf) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              possui_cnpj: !usarCpf,
+                              documento: "" // Limpa o documento ao trocar o tipo
+                            }));
+                            // Resetar busca do Bling
+                            setBlingClienteEncontrado(false);
+                            setBlingClienteId(null);
+                            setDocumentoJaBuscado("");
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
                   <div className="relative">
                     <Input
                       id="documento"
@@ -680,6 +673,49 @@ export function CadastrarClienteDialog({
                   </Alert>
                 )}
               </div>
+
+              {/* 2. Tipo de Cliente - SEGUNDO */}
+              {/* Ocultar para representantes - tipo é fixo como REPRESENTANTE */}
+              {!isRepresentante && (
+                <div className="space-y-2">
+                  <Label>Tipo de Cliente *</Label>
+                  <Select
+                    value={formData.tipo_cliente}
+                    onValueChange={(value) => {
+                      const usaCpfForcado = TIPOS_COM_CPF.includes(value);
+                      const podeEscolher = TIPOS_COM_DOCUMENTO_FLEXIVEL.includes(value) || value === "none";
+                      
+                      // Se for tipo que força CPF, definir possui_cnpj = false
+                      // Se for tipo flexível, manter a escolha atual
+                      // Se for outro tipo (força CNPJ), definir possui_cnpj = true
+                      let novoPossuiCnpj = formData.possui_cnpj;
+                      if (usaCpfForcado) {
+                        novoPossuiCnpj = false;
+                      } else if (!podeEscolher) {
+                        novoPossuiCnpj = true;
+                      }
+                      
+                      setFormData({ 
+                        ...formData, 
+                        tipo_cliente: value,
+                        possui_cnpj: novoPossuiCnpj,
+                        documento: formData.possui_cnpj !== novoPossuiCnpj ? "" : formData.documento
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPOS_CLIENTE.map((tipo) => (
+                        <SelectItem key={tipo.value} value={tipo.value || "none"}>
+                          {tipo.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <Separator />
 
