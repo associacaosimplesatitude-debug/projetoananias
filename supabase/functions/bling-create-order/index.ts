@@ -1844,7 +1844,14 @@ serve(async (req) => {
     }
 
     // ✅ LOG DE AUDITORIA: Payload Final Bling (inclui endereço completo com complemento)
-    console.log('Payload Final Bling:', JSON.stringify(pedidoData, null, 2));
+    console.log('Payload Final Bling:', JSON.stringify({
+      ...pedidoData,
+      _meta: {
+        isFaturamento: isFaturamentoPagamento,
+        statusAposCreate: isFaturamentoPagamento ? 'Em andamento' : 'Em aberto (padrão Bling)',
+        situacaoIdAplicar: isFaturamentoPagamento ? situacaoEmAndamentoId : null,
+      }
+    }, null, 2));
 
     // Bling aplica rate-limit bem agressivo (ex: 3 req/seg). Como este fluxo pode fazer
     // múltiplas chamadas (contato, busca produto, etc.), fazemos um pequeno delay antes
@@ -2004,20 +2011,56 @@ serve(async (req) => {
 
     console.log('Pedido criado com sucesso:', responseData);
 
+    // ✅ ATUALIZAR STATUS PARA "EM ANDAMENTO" SE FOR FATURAMENTO B2B
+    // O POST não aceita situacao em algumas contas, então usamos PUT após criar
+    const createdOrderId = responseData?.data?.id;
+    if (createdOrderId && isFaturamentoPagamento && situacaoEmAndamentoId) {
+      console.log(`[BLING] Atualizando pedido ${createdOrderId} para "Em andamento" (ID: ${situacaoEmAndamentoId})`);
+      
+      await sleep(400); // Respeitar rate limit
+      
+      try {
+        const updateStatusResponse = await fetch(
+          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+              situacao: { id: situacaoEmAndamentoId },
+            }),
+          }
+        );
+        
+        const updateResult = await updateStatusResponse.json();
+        
+        if (updateStatusResponse.ok) {
+          console.log(`[BLING] ✅ Status atualizado para "Em andamento":`, updateResult);
+        } else {
+          console.warn(`[BLING] ⚠️ Falha ao atualizar status (pedido criado com sucesso):`, updateResult);
+          // Não falhar o fluxo - pedido foi criado, só o status não atualizou
+        }
+      } catch (statusError) {
+        console.warn('[BLING] ⚠️ Erro ao tentar atualizar status do pedido:', statusError);
+      }
+    }
+
     // DEBUG: conferir a situação que o Bling gravou de fato (algumas contas sobrescrevem por automação)
     try {
-      const createdId = responseData?.data?.id;
-      if (createdId) {
+      if (createdOrderId) {
         await sleep(350);
-        const detailResp = await fetch(`https://www.bling.com.br/Api/v3/pedidos/vendas/${createdId}`, {
+        const detailResp = await fetch(`https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Accept': 'application/json',
           },
         });
         const detailJson = await detailResp.json();
-        console.log('[BLING] Pedido criado - situação atual:', {
-          idPedido: createdId,
+        console.log('[BLING] Pedido criado - situação final:', {
+          idPedido: createdOrderId,
           situacao: detailJson?.data?.situacao,
         });
       }
