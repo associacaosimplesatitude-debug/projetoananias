@@ -204,17 +204,17 @@ export function EditarPropostaDialog({
     }
   };
 
-  // Copiar mensagem completa
+  // Copiar mensagem completa - versão simplificada para edição
   const copiarMensagemCompleta = async () => {
     const mensagem = `Prezado(a) ${proposta?.cliente_nome || '[Nome do Cliente]'},
 
-Segue a Proposta Digital de Pedido que preparamos especialmente para você.
+Segue a nova proposta com as alterações solicitadas!
 
-Por favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:
+Clique no link abaixo para conferir os detalhes atualizados:
 
 ${newPropostaLink}
 
-Após conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.
+Após verificar, clique em "CONFIRMAR COMPRA" para finalizar.
 
 Qualquer dúvida, estou à disposição!
 
@@ -256,17 +256,17 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
           
           <div className="space-y-4 py-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-              <p className="text-sm font-medium text-blue-800">Mensagem padrão para enviar ao cliente:</p>
+              <p className="text-sm font-medium text-blue-800">Mensagem para enviar ao cliente:</p>
               <div className="bg-white rounded border p-3 text-sm text-muted-foreground whitespace-pre-line">
 {`Prezado(a) ${proposta.cliente_nome || '[Nome do Cliente]'},
 
-Segue a Proposta Digital de Pedido que preparamos especialmente para você.
+Segue a nova proposta com as alterações solicitadas!
 
-Por favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:
+Clique no link abaixo para conferir os detalhes atualizados:
 
 ${newPropostaLink}
 
-Após conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.
+Após verificar, clique em "CONFIRMAR COMPRA" para finalizar.
 
 Qualquer dúvida, estou à disposição!
 

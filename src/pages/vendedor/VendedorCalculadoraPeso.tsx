@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Scale, Plus, Minus, Trash2, Search, Package, Truck, 
   MapPin, Copy, Save, Clock, CheckCircle2, CheckCircle,
-  Building2, User, Percent, Rocket, Pencil
+  Building2, User, Percent, Rocket, Pencil, RefreshCw
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -509,6 +509,44 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
     setEditarPropostaDialogOpen(true);
   }, []);
 
+  // Aproveitar produtos de um orçamento calculado para novo orçamento
+  const handleAproveitarProdutos = useCallback((orcamento: OrcamentoFrete) => {
+    // Preencher cliente
+    setClienteSelecionado(orcamento.cliente_id);
+    
+    // Converter itens do orçamento para o formato do carrinho
+    const itensOrcamento = orcamento.itens || [];
+    const novosItensCarrinho: ItemCarrinho[] = [];
+    
+    itensOrcamento.forEach((item: any) => {
+      // Buscar o produto na lista de produtos carregados
+      const produtoEncontrado = produtos?.find(p => 
+        p.node.variants?.edges?.some(v => v.node.id === item.variantId)
+      );
+      
+      if (produtoEncontrado) {
+        const variant = produtoEncontrado.node.variants?.edges?.find(v => v.node.id === item.variantId)?.node;
+        if (variant) {
+          novosItensCarrinho.push({
+            product: produtoEncontrado,
+            variantId: item.variantId,
+            sku: item.sku || null,
+            quantity: item.quantity,
+            price: variant.price,
+            weightKg: item.peso_kg || 0
+          });
+        }
+      }
+    });
+    
+    setCarrinho(novosItensCarrinho);
+    
+    // Mudar para aba "novo" para novo cálculo
+    setActiveTab("novo");
+    
+    toast.info("Produtos carregados! Ajuste e calcule um novo orçamento.");
+  }, [produtos]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -876,21 +914,31 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                         )}
                         
                         {orc.status === 'orcamento_recebido' && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleCriarProposta(orc)}
-                            disabled={creatingProposta === orc.id}
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            {creatingProposta === orc.id ? (
-                              "Criando..."
-                            ) : (
-                              <>
-                                <Rocket className="h-4 w-4 mr-1" />
-                                Criar Proposta
-                              </>
-                            )}
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleAproveitarProdutos(orc)}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Aproveitar Produtos
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleCriarProposta(orc)}
+                              disabled={creatingProposta === orc.id}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              {creatingProposta === orc.id ? (
+                                "Criando..."
+                              ) : (
+                                <>
+                                  <Rocket className="h-4 w-4 mr-1" />
+                                  Criar Proposta
+                                </>
+                              )}
+                            </Button>
+                          </div>
                         )}
                         
                         {orc.status === 'convertido_proposta' && (
