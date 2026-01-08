@@ -82,15 +82,15 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
 }
 
 // Resolver o ID de uma situação no Bling pelo nome (IDs podem variar por conta)
+// Cache global para evitar múltiplas chamadas à API (rate limiting)
+let cachedSituacoesLoaded = false;
 const cachedSituacaoIdsByName = new Map<string, number>();
 
-async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string): Promise<number | null> {
-  const key = String(situacaoNome || '').trim().toLowerCase();
-  if (!key) return null;
-  if (cachedSituacaoIdsByName.has(key)) return cachedSituacaoIdsByName.get(key)!;
-
+async function loadAllSituacoes(accessToken: string): Promise<void> {
+  if (cachedSituacoesLoaded) return;
+  
   try {
-    // ✅ ENDPOINT CORRETO API V3: /situacoes/modulo/{modulo} (singular, sem query param)
+    // ✅ ENDPOINT CORRETO API V3: /situacoes/modulo/{modulo}
     const url = 'https://www.bling.com.br/Api/v3/situacoes/modulo/pedidos_venda';
     const resp = await fetch(url, {
       headers: {
@@ -103,45 +103,54 @@ async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string
 
     if (!resp.ok) {
       console.warn('[BLING] Falha ao listar situações.', json);
-      return null;
+      return;
     }
 
     const situacoes: any[] = Array.isArray(json?.data) ? json.data : [];
     
-    // Log para debug: mostrar todas as situações disponíveis (apenas na primeira chamada)
-    if (cachedSituacaoIdsByName.size === 0) {
-      console.log('[BLING] ===== SITUAÇÕES DISPONÍVEIS NO MÓDULO PEDIDOS_VENDA =====');
-      situacoes.forEach((s, i) => {
-        console.log(`[BLING] Situação ${i+1}: ID=${s.id} | Nome="${s.nome}"`);
-      });
-      console.log('[BLING] ========================================================');
-    }
+    console.log('[BLING] ===== SITUAÇÕES DISPONÍVEIS NO MÓDULO PEDIDOS_VENDA =====');
+    console.log('[BLING] Total de situações:', situacoes.length);
     
-    console.log('[BLING] Buscando situação:', situacaoNome, '| Total disponíveis:', situacoes.length);
-    
-    // Busca exata primeiro, depois parcial (case-insensitive)
-    const match = situacoes.find((s) => String(s?.nome || '').trim().toLowerCase() === key)
-      || situacoes.find((s) => String(s?.nome || '').toLowerCase().includes(key));
-
-    const resolved = Number(match?.id);
-    const id = Number.isFinite(resolved) && resolved > 0 ? resolved : null;
-
-    if (id) {
-      cachedSituacaoIdsByName.set(key, id);
-    }
-
-    console.log('[BLING] Situação resolvida:', {
-      requestedName: situacaoNome,
-      resolvedId: id,
-      matchName: match?.nome,
-      totalSituacoes: situacoes.length,
+    // Cachear TODAS as situações de uma vez
+    situacoes.forEach((s) => {
+      const nome = String(s?.nome || '').trim().toLowerCase();
+      const id = Number(s?.id);
+      if (nome && Number.isFinite(id) && id > 0) {
+        cachedSituacaoIdsByName.set(nome, id);
+        console.log(`[BLING] Situação: ID=${id}, Nome="${s.nome}"`);
+      }
     });
-
-    return id;
+    
+    console.log('[BLING] ========================================================');
+    cachedSituacoesLoaded = true;
+    
   } catch (e) {
-    console.warn('[BLING] Erro ao resolver situação por nome.', { situacaoNome }, e);
-    return null;
+    console.warn('[BLING] Erro ao carregar situações.', e);
   }
+}
+
+async function resolveSituacaoIdByName(accessToken: string, situacaoNome: string): Promise<number | null> {
+  const key = String(situacaoNome || '').trim().toLowerCase();
+  if (!key) return null;
+  
+  // Carregar todas as situações na primeira chamada
+  if (!cachedSituacoesLoaded) {
+    await loadAllSituacoes(accessToken);
+  }
+  
+  // Busca exata
+  if (cachedSituacaoIdsByName.has(key)) {
+    return cachedSituacaoIdsByName.get(key)!;
+  }
+  
+  // Busca parcial (case-insensitive)
+  for (const [cachedName, id] of cachedSituacaoIdsByName.entries()) {
+    if (cachedName.includes(key) || key.includes(cachedName)) {
+      return id;
+    }
+  }
+  
+  return null;
 }
 
 async function resolveSituacaoEmAbertoId(accessToken: string): Promise<number> {
