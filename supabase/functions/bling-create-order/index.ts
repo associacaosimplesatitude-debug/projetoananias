@@ -1776,14 +1776,9 @@ serve(async (req) => {
         ...item,
         deposito: { id: depositoIdSelecionado },
       })),
-      // ✅ ENVIAR SITUAÇÃO "Em andamento" (ID 37) PARA FATURAMENTO B2B
-      // Conforme log de 06/01/2026: "Alteração automática via criação de pedido de venda por API"
-      // A API aceita situacao no payload inicial do POST para definir status na criação
-      ...(isFaturamentoPagamento && situacaoEmAndamentoId && {
-        situacao: {
-          id: situacaoEmAndamentoId,
-        },
-      }),
+      // ❌ NÃO ENVIAR SITUAÇÃO NO POST - Bling rejeita com "Não há transições definidas"
+      // A automação de 06/01/2026 foi interna do Bling, não via payload
+      // Usaremos PATCH após criação para alterar o status
       
       // ✅ NATUREZA DE OPERAÇÃO - Evita regras automáticas que forçam ATENDIDO
       ...(naturezaOperacaoId && {
@@ -2043,12 +2038,42 @@ serve(async (req) => {
 
     console.log('Pedido criado com sucesso:', responseData);
 
-    // ✅ SITUAÇÃO JÁ DEFINIDA NO POST - Não precisa de PATCH separado
-    // Conforme log de 06/01/2026: "Alteração automática via criação de pedido de venda por API"
-    // A situação "Em andamento" (ID 37) é enviada diretamente no payload do POST
+    // ✅ ATUALIZAR STATUS PARA "EM ANDAMENTO" SE FOR FATURAMENTO B2B
+    // O POST não aceita situacao nesta conta, então usamos PATCH após criar
+    const createdOrderId = responseData?.data?.id;
+    if (createdOrderId && isFaturamentoPagamento && situacaoEmAndamentoId) {
+      console.log(`[BLING] Atualizando pedido ${createdOrderId} para "Em andamento" (ID: ${situacaoEmAndamentoId}) via PATCH`);
+      
+      await sleep(400); // Respeitar rate limit
+      
+      try {
+        // Usar endpoint específico PATCH para atualizar APENAS a situação
+        // Ref: https://developer.bling.com.br/referencia#/Pedidos%20-%20Vendas/patch_pedidos_vendas__idPedidoVenda__situacoes__idSituacao_
+        const updateStatusResponse = await fetch(
+          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoEmAndamentoId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+            // PATCH neste endpoint não requer body - o ID da situação vai na URL
+          }
+        );
+        
+        if (updateStatusResponse.ok) {
+          console.log(`[BLING] ✅ Status atualizado para "Em andamento" (ID: ${situacaoEmAndamentoId}) via PATCH`);
+        } else {
+          const updateResult = await updateStatusResponse.json();
+          console.warn(`[BLING] ⚠️ Falha ao atualizar status via PATCH (pedido criado com sucesso):`, updateResult);
+          // Não falhar o fluxo - pedido foi criado, só o status não atualizou
+        }
+      } catch (statusError) {
+        console.warn('[BLING] ⚠️ Erro ao tentar atualizar status do pedido:', statusError);
+      }
+    }
 
     // DEBUG: conferir a situação que o Bling gravou de fato (algumas contas sobrescrevem por automação)
-    const createdOrderId = responseData?.data?.id;
     try {
       if (createdOrderId) {
         await sleep(350);
