@@ -514,21 +514,19 @@ serve(async (req) => {
       console.log('[BLING] Usando fallback hardcoded: 9');
     }
 
-    // Para B2B faturamento, tentar encontrar situação "Aprovado" ou "Aprovada B2B"
-    let situacaoAprovadoId = await resolveSituacaoIdByName(accessToken, 'Aprovado')
-      || await resolveSituacaoIdByName(accessToken, 'APROVADO')
-      || await resolveSituacaoIdByName(accessToken, 'Aprovada B2B');
+    // Para B2B faturamento, buscar situação "Em andamento"
+    let situacaoEmAndamentoId = await resolveSituacaoIdByName(accessToken, 'Em andamento')
+      || await resolveSituacaoIdByName(accessToken, 'EM ANDAMENTO');
     
-    // Se não encontrou "Aprovado", usar "Em aberto"
-    if (!situacaoAprovadoId) {
-      situacaoAprovadoId = situacaoEmAbertoId;
-      console.log('[BLING] Não encontrou Aprovado, usando Em Aberto:', situacaoAprovadoId);
-    }
+    console.log('[BLING] Situação "Em andamento" encontrada com ID:', situacaoEmAndamentoId);
     
-    // ✅ REGRA: Para faturamento B2B, usar "Aprovado". Caso contrário, "Em Aberto"
+    // ✅ REGRA: Faturamento B2B → "Em andamento" | Outros (PIX/Cartão/Boleto) → "Em aberto"
     const situacaoInicialId = isFaturamentoPagamento 
-      ? situacaoAprovadoId 
-      : situacaoEmAbertoId;
+      ? (situacaoEmAndamentoId || situacaoEmAbertoId)  // Prioriza "Em andamento" para faturamento
+      : situacaoEmAbertoId;  // PIX/Cartão/Boleto continua "Em aberto"
+    
+    console.log('[BLING] Situação inicial selecionada:', situacaoInicialId, 
+      isFaturamentoPagamento ? '(Faturamento → Em andamento)' : '(Pagamento direto → Em aberto)');
     
     // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
     const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken);
@@ -613,7 +611,7 @@ serve(async (req) => {
     console.log('[BLING DEBUG] ==============================================');
     console.log('[BLING DEBUG] Forma de Pagamento:', forma_pagamento);
     console.log('[BLING DEBUG] É Faturamento B2B:', isFaturamentoPagamento);
-    console.log('[BLING DEBUG] Situação "Aprovado" encontrada com ID:', situacaoAprovadoId);
+    console.log('[BLING DEBUG] Situação "Em andamento" encontrada com ID:', situacaoEmAndamentoId);
     console.log('[BLING DEBUG] Situação "Em Aberto" ID (fallback):', situacaoEmAbertoId);
     console.log('[BLING DEBUG] >>> SITUAÇÃO FINAL SELECIONADA: ID =', situacaoInicialId, '<<<');
     console.log('[BLING DEBUG] Natureza de Operação ID:', naturezaOperacaoId);
@@ -622,7 +620,7 @@ serve(async (req) => {
     
     console.log('[BLING] Payload situacao e naturezaOperacao:', {
       isFaturamentoPagamento,
-      situacaoAprovadoId,
+      situacaoEmAndamentoId,
       situacaoEmAbertoId,
       situacaoInicialId,
       naturezaOperacaoId,
