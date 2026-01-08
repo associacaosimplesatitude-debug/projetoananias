@@ -528,34 +528,20 @@ serve(async (req) => {
       console.log('[BLING] Usando fallback hardcoded: 9');
     }
 
-    // Para B2B faturamento, buscar situação "Em andamento" ou equivalentes
-    // Diferentes contas Bling podem usar nomes diferentes para o mesmo status
-    const variacoesEmAndamento = [
-      'Em andamento',
-      'EM ANDAMENTO', 
-      'Aprovado',
-      'APROVADO',
-      'Aguardando',
-      'AGUARDANDO',
-      'Confirmado',
-      'CONFIRMADO',
-      'Verificado',
-      'VERIFICADO',
-      'Liberado',
-      'LIBERADO'
-    ];
+    // Para B2B faturamento, buscar situação "Em andamento"
+    // Carregar todas as situações UMA VEZ antes de buscar
+    await loadAllSituacoes(accessToken);
     
-    let situacaoEmAndamentoId: number | null = null;
-    for (const nomeVariacao of variacoesEmAndamento) {
-      situacaoEmAndamentoId = await resolveSituacaoIdByName(accessToken, nomeVariacao);
-      if (situacaoEmAndamentoId) {
-        console.log(`[BLING] ✅ Situação "${nomeVariacao}" encontrada com ID: ${situacaoEmAndamentoId}`);
-        break;
-      }
-    }
+    // Buscar "Em andamento" no cache (já carregado)
+    let situacaoEmAndamentoId = cachedSituacaoIdsByName.get('em andamento') || null;
     
+    // Se não encontrou no cache, usar fallback hardcoded (ID conhecido na conta Bling)
     if (!situacaoEmAndamentoId) {
-      console.warn('[BLING] ⚠️ Nenhuma situação de aprovação encontrada. Verifique as situações disponíveis no Bling.');
+      // Fallback: ID 37 é "Em andamento" na conta Central Gospel
+      situacaoEmAndamentoId = 37;
+      console.log('[BLING] ⚠️ Usando fallback hardcoded para "Em andamento": ID 37');
+    } else {
+      console.log(`[BLING] ✅ Situação "Em andamento" encontrada no cache com ID: ${situacaoEmAndamentoId}`);
     }
     
     console.log('[BLING DEBUG] Situação "Em andamento" encontrada com ID:', situacaoEmAndamentoId);
