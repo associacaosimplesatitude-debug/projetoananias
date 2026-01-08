@@ -48,6 +48,8 @@ const STOREFRONT_QUERY = `
                   currencyCode
                 }
                 availableForSale
+                weight
+                weightUnit
                 selectedOptions {
                   name
                   value
