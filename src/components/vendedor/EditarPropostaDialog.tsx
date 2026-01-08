@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -7,10 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Plus, Minus, Trash2, Search, Loader2, Package, Truck, CheckCircle, Copy } from "lucide-react";
+import { Plus, Minus, Trash2, Search, Loader2, Package, Truck, CheckCircle, Copy, MapPin, Store } from "lucide-react";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 import { useVendedor } from "@/hooks/useVendedor";
+import { ENDERECO_MATRIZ } from "@/constants/enderecoMatriz";
 
 interface PropostaItem {
   variantId: string;
@@ -42,12 +46,33 @@ interface Proposta {
   frete_prazo_estimado?: string | null;
 }
 
+interface ShippingOption {
+  type: string;
+  label: string;
+  cost: number;
+  days?: number;
+  estimatedDate?: string;
+}
+
 interface EditarPropostaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   proposta: Proposta | null;
   onSuccess: () => void;
 }
+
+// Função para adicionar dias úteis
+const addBusinessDays = (date: Date, days: number): string => {
+  let result = new Date(date);
+  let addedDays = 0;
+  while (addedDays < days) {
+    result.setDate(result.getDate() + 1);
+    if (result.getDay() !== 0 && result.getDay() !== 6) {
+      addedDays++;
+    }
+  }
+  return result.toLocaleDateString('pt-BR');
+};
 
 export function EditarPropostaDialog({ 
   open, 
@@ -63,10 +88,16 @@ export function EditarPropostaDialog({
   const [newPropostaLink, setNewPropostaLink] = useState("");
   const [messageCopied, setMessageCopied] = useState(false);
   
-  // Dados de frete
+  // Dados de frete - modo automático ou manual
+  const [usarFreteManual, setUsarFreteManual] = useState(false);
   const [transportadora, setTransportadora] = useState("");
   const [valorFrete, setValorFrete] = useState("");
   const [prazoEntrega, setPrazoEntrega] = useState("");
+  
+  // Opções de frete calculadas
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [selectedFreteType, setSelectedFreteType] = useState<string>("");
+  const [isLoadingShipping, setIsLoadingShipping] = useState(false);
 
   // Buscar produtos Shopify
   const { data: produtos } = useQuery({
@@ -76,7 +107,7 @@ export function EditarPropostaDialog({
   });
 
   // Inicializar dados quando proposta muda
-  useMemo(() => {
+  useEffect(() => {
     if (proposta && open) {
       setItens(proposta.itens || []);
       setTransportadora(proposta.frete_transportadora || "");
@@ -84,19 +115,100 @@ export function EditarPropostaDialog({
       setPrazoEntrega(proposta.frete_prazo_estimado || "");
       setShowSuccessMessage(false);
       setNewPropostaLink("");
+      setUsarFreteManual(proposta.frete_tipo === "manual");
+      setSelectedFreteType(proposta.frete_tipo || "");
+      setShippingOptions([]);
     }
   }, [proposta, open]);
 
-  // Filtrar produtos para busca
-  const produtosFiltrados = useMemo(() => {
-    if (!produtos || !searchTerm.trim()) return [];
-    const termo = searchTerm.toLowerCase();
-    return produtos.filter(p => {
-      const variant = p.node.variants?.edges?.[0]?.node;
-      const sku = variant?.sku?.toLowerCase() || '';
-      return p.node.title.toLowerCase().includes(termo) || sku.includes(termo);
-    }).slice(0, 10);
-  }, [produtos, searchTerm]);
+  // Calcular opções de frete quando itens mudam
+  const calcularFreteOpcoes = useCallback(async () => {
+    const cep = proposta?.cliente_endereco?.cep;
+    if (!cep || itens.length === 0 || usarFreteManual) {
+      return;
+    }
+
+    setIsLoadingShipping(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('calculate-shipping', {
+        body: {
+          cep: cep.replace(/\D/g, ''),
+          items: itens.map(item => ({ quantity: item.quantity })),
+        }
+      });
+
+      if (error) throw error;
+
+      const options: ShippingOption[] = [];
+      const today = new Date();
+
+      // PAC
+      if (data?.pac?.cost) {
+        options.push({
+          type: 'pac',
+          label: 'PAC (Correios)',
+          cost: data.pac.cost,
+          days: 5,
+          estimatedDate: addBusinessDays(today, 5),
+        });
+      }
+
+      // SEDEX
+      if (data?.sedex?.cost) {
+        options.push({
+          type: 'sedex',
+          label: 'SEDEX (Correios)',
+          cost: data.sedex.cost,
+          days: 2,
+          estimatedDate: addBusinessDays(today, 2),
+        });
+      }
+
+      // Retirada na Matriz - sempre grátis
+      options.push({
+        type: 'retirada',
+        label: 'Retirada na Matriz',
+        cost: 0,
+      });
+
+      // Frete Grátis se valor >= R$199,90
+      if (calculo.valorProdutos >= 199.90) {
+        options.push({
+          type: 'free',
+          label: 'Frete Grátis (compras acima de R$199,90)',
+          cost: 0,
+          days: 10,
+          estimatedDate: addBusinessDays(today, 10),
+        });
+      }
+
+      setShippingOptions(options);
+      
+      // Auto-selecionar a melhor opção
+      if (!selectedFreteType || !options.find(o => o.type === selectedFreteType)) {
+        if (calculo.valorProdutos >= 199.90) {
+          setSelectedFreteType('free');
+          setValorFrete("0");
+        } else if (options.length > 0) {
+          // Selecionar PAC por padrão
+          const pacOption = options.find(o => o.type === 'pac');
+          if (pacOption) {
+            setSelectedFreteType('pac');
+            setValorFrete(pacOption.cost.toString());
+          } else {
+            setSelectedFreteType(options[0].type);
+            setValorFrete(options[0].cost.toString());
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao calcular frete:', error);
+      toast.error('Erro ao calcular opções de frete. Use o modo manual.');
+      setUsarFreteManual(true);
+    } finally {
+      setIsLoadingShipping(false);
+    }
+  }, [proposta?.cliente_endereco?.cep, itens, usarFreteManual]);
 
   // Calcular totais
   const calculo = useMemo(() => {
@@ -111,6 +223,36 @@ export function EditarPropostaDialog({
     
     return { subtotal, descontoPercentual, descontoValor, valorProdutos, frete, total };
   }, [itens, proposta?.desconto_percentual, valorFrete]);
+
+  // Recalcular frete quando itens mudam
+  useEffect(() => {
+    if (open && proposta && !usarFreteManual && itens.length > 0) {
+      calcularFreteOpcoes();
+    }
+  }, [itens, open, proposta, usarFreteManual, calcularFreteOpcoes]);
+
+  // Atualizar valor do frete quando seleciona uma opção
+  useEffect(() => {
+    if (!usarFreteManual && selectedFreteType) {
+      const option = shippingOptions.find(o => o.type === selectedFreteType);
+      if (option) {
+        setValorFrete(option.cost.toString());
+        setTransportadora(option.label);
+        setPrazoEntrega(option.estimatedDate ? `Previsão: ${option.estimatedDate}` : '');
+      }
+    }
+  }, [selectedFreteType, shippingOptions, usarFreteManual]);
+
+  // Filtrar produtos para busca
+  const produtosFiltrados = useMemo(() => {
+    if (!produtos || !searchTerm.trim()) return [];
+    const termo = searchTerm.toLowerCase();
+    return produtos.filter(p => {
+      const variant = p.node.variants?.edges?.[0]?.node;
+      const sku = variant?.sku?.toLowerCase() || '';
+      return p.node.title.toLowerCase().includes(termo) || sku.includes(termo);
+    }).slice(0, 10);
+  }, [produtos, searchTerm]);
 
   // Adicionar produto
   const adicionarProduto = useCallback((product: ShopifyProduct) => {
@@ -175,15 +317,17 @@ export function EditarPropostaDialog({
       // Atualizar proposta - converter itens para JSON compatível
       const itensJson = JSON.parse(JSON.stringify(itens));
       
+      const freteType = usarFreteManual ? "manual" : selectedFreteType;
+      
       const { error } = await supabase
         .from("vendedor_propostas")
         .update({
           itens: itensJson,
           valor_produtos: calculo.valorProdutos,
           valor_frete: frete,
-          valor_total: calculo.total,
+          valor_total: calculo.valorProdutos + frete,
           token: novoToken,
-          frete_tipo: "manual",
+          frete_tipo: freteType,
           frete_transportadora: transportadora || null,
           frete_prazo_estimado: prazoEntrega || null,
           updated_at: new Date().toISOString(),
@@ -304,6 +448,8 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`}
     );
   }
 
+  const clienteCep = proposta.cliente_endereco?.cep;
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -311,6 +457,7 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`}
           <DialogTitle>Editar Proposta</DialogTitle>
           <DialogDescription>
             Cliente: <strong>{proposta.cliente_nome}</strong>
+            {clienteCep && <span className="ml-2 text-xs">• CEP: {clienteCep}</span>}
           </DialogDescription>
         </DialogHeader>
         
@@ -321,7 +468,7 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`}
               <Package className="h-4 w-4" />
               Produtos da Proposta
             </h4>
-            <ScrollArea className="h-[180px] border rounded-lg p-2">
+            <ScrollArea className="h-[150px] border rounded-lg p-2">
               {itens.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhum produto na proposta
@@ -379,7 +526,7 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`}
               />
             </div>
             {produtosFiltrados.length > 0 && (
-              <div className="mt-2 border rounded-lg max-h-[150px] overflow-y-auto">
+              <div className="mt-2 border rounded-lg max-h-[120px] overflow-y-auto">
                 {produtosFiltrados.map((product) => {
                   const variant = product.node.variants?.edges?.[0]?.node;
                   return (
@@ -407,37 +554,106 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`}
 
           {/* Frete */}
           <div>
-            <h4 className="font-medium flex items-center gap-2 mb-3">
-              <Truck className="h-4 w-4" />
-              Frete
-            </h4>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground">Transportadora</label>
-                <Input
-                  value={transportadora}
-                  onChange={(e) => setTransportadora(e.target.value)}
-                  placeholder="Ex: Jamef"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Valor (R$)</label>
-                <Input
-                  type="number"
-                  value={valorFrete}
-                  onChange={(e) => setValorFrete(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Prazo</label>
-                <Input
-                  value={prazoEntrega}
-                  onChange={(e) => setPrazoEntrega(e.target.value)}
-                  placeholder="Ex: 5 dias úteis"
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                Forma de Envio
+              </h4>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="frete-manual" className="text-xs text-muted-foreground">Frete Manual</Label>
+                <Switch
+                  id="frete-manual"
+                  checked={usarFreteManual}
+                  onCheckedChange={setUsarFreteManual}
                 />
               </div>
             </div>
+
+            {usarFreteManual ? (
+              // Modo manual - campos de texto
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Transportadora</label>
+                  <Input
+                    value={transportadora}
+                    onChange={(e) => setTransportadora(e.target.value)}
+                    placeholder="Ex: Jamef"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Valor (R$)</label>
+                  <Input
+                    type="number"
+                    value={valorFrete}
+                    onChange={(e) => setValorFrete(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Prazo</label>
+                  <Input
+                    value={prazoEntrega}
+                    onChange={(e) => setPrazoEntrega(e.target.value)}
+                    placeholder="Ex: 5 dias úteis"
+                  />
+                </div>
+              </div>
+            ) : (
+              // Modo automático - opções de frete
+              <div className="space-y-3">
+                {!clienteCep ? (
+                  <div className="text-center py-4 text-amber-600 bg-amber-50 rounded-lg text-sm">
+                    <MapPin className="h-4 w-4 inline mr-1" />
+                    Cliente sem CEP cadastrado. Use o modo manual.
+                  </div>
+                ) : isLoadingShipping ? (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 inline mr-2 animate-spin" />
+                    Calculando opções de frete...
+                  </div>
+                ) : shippingOptions.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground text-sm">
+                    Nenhuma opção de frete disponível. Use o modo manual.
+                  </div>
+                ) : (
+                  <RadioGroup value={selectedFreteType} onValueChange={setSelectedFreteType}>
+                    {shippingOptions.map((option) => (
+                      <div
+                        key={option.type}
+                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                          selectedFreteType === option.type 
+                            ? 'border-primary bg-primary/5' 
+                            : 'hover:bg-accent'
+                        }`}
+                        onClick={() => setSelectedFreteType(option.type)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <RadioGroupItem value={option.type} id={option.type} />
+                          <div>
+                            <Label htmlFor={option.type} className="font-medium cursor-pointer">
+                              {option.type === 'retirada' && <Store className="h-3 w-3 inline mr-1" />}
+                              {option.label}
+                            </Label>
+                            {option.type === 'retirada' ? (
+                              <p className="text-xs text-muted-foreground">
+                                {ENDERECO_MATRIZ.rua}, {ENDERECO_MATRIZ.numero} - {ENDERECO_MATRIZ.bairro}
+                              </p>
+                            ) : option.estimatedDate && (
+                              <p className="text-xs text-muted-foreground">
+                                Previsão: {option.estimatedDate} ({option.days} dias úteis)
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <span className={`font-semibold ${option.cost === 0 ? 'text-green-600' : ''}`}>
+                          {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
+                        </span>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                )}
+              </div>
+            )}
           </div>
 
           <Separator />
@@ -456,7 +672,9 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`}
             )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Frete:</span>
-              <span>R$ {calculo.frete.toFixed(2)}</span>
+              <span className={calculo.frete === 0 ? 'text-green-600' : ''}>
+                {calculo.frete === 0 ? 'Grátis' : `R$ ${calculo.frete.toFixed(2)}`}
+              </span>
             </div>
             <Separator />
             <div className="flex justify-between font-bold text-lg">
