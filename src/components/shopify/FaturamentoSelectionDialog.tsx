@@ -282,10 +282,14 @@ export function FaturamentoSelectionDialog({
       
       onSelectFaturamento([selectedPrazo], descontoPercent, shipping, freteManualData);
     } else {
-      // Frete automático
-      if (!selectedFrete) return;
-      const shipping = shippingOptions.find(opt => opt.type === selectedFrete)!;
-      onSelectFaturamento([selectedPrazo], descontoPercent, shipping);
+      // Frete automático - cliente escolherá na proposta
+      // Passa null como frete, indicando que cliente escolherá
+      const nullShipping: ShippingOption = {
+        type: 'free', // placeholder, será ignorado
+        label: 'Cliente escolherá',
+        cost: 0,
+      };
+      onSelectFaturamento([selectedPrazo], descontoPercent, nullShipping);
     }
     
     // Reset state for next time
@@ -443,107 +447,54 @@ export function FaturamentoSelectionDialog({
               </div>
             </div>
 
-            {/* Shipping Selection */}
+            {/* Shipping Selection - Cliente escolhe na proposta OU Frete Manual */}
             <div className="space-y-3">
               <Label className="text-sm font-medium flex items-center gap-2">
                 <Truck className="h-4 w-4" />
                 Frete
               </Label>
               
-              {/* Seletor de tipo de frete - apenas para vendedor e gerente */}
-              {canUseFreteManual && (
-                <div className="flex gap-2 p-1 bg-muted rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setTipoFrete('automatico')}
-                    className={cn(
-                      "flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all",
-                      tipoFrete === 'automatico'
-                        ? "bg-background shadow-sm text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Frete Automático
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTipoFrete('manual')}
-                    className={cn(
-                      "flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all",
-                      tipoFrete === 'manual'
-                        ? "bg-background shadow-sm text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Frete Manual (Cotação Externa)
-                  </button>
-                </div>
-              )}
-              
               {tipoFrete === 'automatico' ? (
-                <>
-                  {isLoadingShipping ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground p-3">
-                      <Package className="h-4 w-4 animate-pulse" />
-                      Calculando frete...
+                /* Info: Cliente escolherá na proposta */
+                <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Package className="h-5 w-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                        O cliente escolherá a forma de entrega na proposta
+                      </p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Opções disponíveis: PAC, SEDEX, Retirada na Matriz ou Frete Grátis (acima de R$199,90)
+                      </p>
                     </div>
-                  ) : (
-                    <RadioGroup value={selectedFrete} onValueChange={setSelectedFrete} className="space-y-2">
-                      {shippingOptions.map((option) => (
-                        <div
-                          key={option.type}
-                          className={cn(
-                            "flex flex-col rounded-lg border p-3 cursor-pointer transition-all",
-                            selectedFrete === option.type 
-                              ? "border-primary bg-primary/5" 
-                              : "border-muted hover:border-primary/50"
-                          )}
-                          onClick={() => setSelectedFrete(option.type)}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <RadioGroupItem value={option.type} id={option.type} />
-                            <Label htmlFor={option.type} className="flex-1 cursor-pointer flex justify-between items-center">
-                              <span>{option.label}</span>
-                              <span className={cn(
-                                "font-semibold",
-                                option.cost === 0 ? "text-green-600" : ""
-                              )}>
-                                {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
-                              </span>
-                            </Label>
-                          </div>
-                          {option.estimatedDate && (
-                            <div className="ml-7 mt-1 text-xs text-muted-foreground">
-                              Previsão de entrega: <span className="font-medium">{option.estimatedDate}</span>
-                            </div>
-                          )}
-                          {option.type === 'retirada' && option.endereco && (
-                            <div className="ml-7 mt-2 text-xs text-muted-foreground">
-                              <p className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {option.endereco}
-                              </p>
-                              {option.horario && (
-                                <p className="flex items-center gap-1 mt-0.5">
-                                  <Clock className="h-3 w-3" />
-                                  {option.horario}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </RadioGroup>
+                  </div>
+                  
+                  {/* Toggle para Frete Manual */}
+                  {canUseFreteManual && (
+                    <button
+                      type="button"
+                      onClick={() => setTipoFrete('manual')}
+                      className="mt-3 w-full text-left text-xs text-blue-700 dark:text-blue-300 hover:underline flex items-center gap-1"
+                    >
+                      <Truck className="h-3 w-3" />
+                      Usar frete manual (cotação externa)
+                    </button>
                   )}
-                  {!clienteCep && (
-                    <p className="text-xs text-amber-600">
-                      CEP do cliente não cadastrado. Apenas frete grátis disponível.
-                    </p>
-                  )}
-                </>
+                </div>
               ) : (
                 /* Campos de Frete Manual */
                 <div className="space-y-3 p-4 border rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-amber-800 dark:text-amber-200">Frete Manual</span>
+                    <button
+                      type="button"
+                      onClick={() => setTipoFrete('automatico')}
+                      className="text-xs text-amber-700 hover:underline"
+                    >
+                      ← Voltar para automático
+                    </button>
+                  </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="transportadora" className="text-sm font-medium">
                       Transportadora <span className="text-destructive">*</span>
@@ -583,20 +534,8 @@ export function FaturamentoSelectionDialog({
                     />
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label htmlFor="observacaoFrete" className="text-sm font-medium">
-                      Observação Interna <span className="text-muted-foreground text-xs">(opcional)</span>
-                    </Label>
-                    <Input
-                      id="observacaoFrete"
-                      placeholder="Observação sobre a cotação (não visível ao cliente)"
-                      value={freteManualObservacao}
-                      onChange={(e) => setFreteManualObservacao(e.target.value)}
-                    />
-                  </div>
-                  
                   <p className="text-xs text-amber-700 dark:text-amber-400">
-                    O frete manual será somado ao total da proposta. O cliente não verá opções de frete.
+                    O frete manual será somado ao total. O cliente não verá opções de frete.
                   </p>
                 </div>
               )}
@@ -614,15 +553,21 @@ export function FaturamentoSelectionDialog({
                   <span>-R$ {(totalProdutos * descontoPercent / 100).toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span>Frete {tipoFrete === 'manual' && freteManualTransportadora && `(${freteManualTransportadora})`}</span>
-                <span className={valorFrete === 0 ? "text-green-600" : ""}>
-                  {valorFrete === 0 ? 'Grátis' : `R$ ${valorFrete.toFixed(2)}`}
-                </span>
-              </div>
+              {tipoFrete === 'manual' && freteManualValorNum > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Frete ({freteManualTransportadora || 'Manual'})</span>
+                  <span>R$ {freteManualValorNum.toFixed(2)}</span>
+                </div>
+              )}
+              {tipoFrete === 'automatico' && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Frete</span>
+                  <span className="italic">Cliente escolherá</span>
+                </div>
+              )}
               <div className="border-t pt-2 flex justify-between font-semibold">
-                <span>Total</span>
-                <span className="text-lg">R$ {valorTotal.toFixed(2)}</span>
+                <span>Total (sem frete)</span>
+                <span className="text-lg">R$ {valorComDesconto.toFixed(2)}</span>
               </div>
             </div>
 
@@ -640,7 +585,6 @@ export function FaturamentoSelectionDialog({
                 onClick={handleConfirmFaturamento}
                 disabled={
                   !selectedPrazo || 
-                  (tipoFrete === 'automatico' && !selectedFrete) ||
                   (tipoFrete === 'manual' && (!freteManualTransportadora.trim() || !freteManualValor))
                 }
               >

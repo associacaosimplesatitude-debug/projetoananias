@@ -134,10 +134,10 @@ export default function PropostaDigital() {
     enabled: !!token,
   });
 
-  // Fetch shipping options for standard payment (only if NOT manual freight)
+  // Fetch shipping options for ALL pending proposals (both B2B and standard) if NOT manual freight
   useEffect(() => {
     const isFreteManualResolved = proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual';
-    if (proposta && !proposta.pode_faturar && proposta.status === "PROPOSTA_PENDENTE" && proposta.cliente_endereco?.cep && !isFreteManualResolved) {
+    if (proposta && proposta.status === "PROPOSTA_PENDENTE" && proposta.cliente_endereco?.cep && !isFreteManualResolved) {
       fetchShippingOptions();
     }
   }, [proposta]);
@@ -273,9 +273,25 @@ export default function PropostaDigital() {
         confirmado_em: new Date().toISOString()
       };
       
-      // If B2B, save selected prazo
+      // If B2B, save selected prazo AND freight selection
       if (proposta?.pode_faturar) {
         updateData.prazo_faturamento_selecionado = selectedPrazo;
+        
+        // B2B: Also save freight selection (unless manual freight is already set)
+        if (proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual') {
+          // Frete manual já está definido - manter valores existentes
+          updateData.metodo_frete = 'manual';
+        } else {
+          // Frete automático - cliente escolheu
+          const selectedShipping = shippingOptions.find(opt => opt.type === selectedFrete);
+          if (selectedShipping) {
+            updateData.metodo_frete = selectedFrete;
+            updateData.valor_frete = selectedShipping.cost;
+            // Recalculate total with selected shipping
+            const valorComDesconto = proposta!.valor_produtos - (proposta!.valor_produtos * (proposta!.desconto_percentual || 0) / 100);
+            updateData.valor_total = valorComDesconto + selectedShipping.cost;
+          }
+        }
       } else {
         // For standard payment
         if (proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual') {
@@ -784,107 +800,79 @@ export default function PropostaDigital() {
           </Card>
         )}
 
-        {/* Shipping Selection for Standard Payment - OR Fixed Manual Freight */}
-        {!proposta.pode_faturar && isPending && (
+        {/* Shipping Selection for ALL Pending Proposals - Client chooses */}
+        {isPending && !isFreteManualResolved && (
           <Card className="border-2 border-green-200 bg-green-50/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-green-800">
                 <Truck className="h-5 w-5" />
-                {isFreteManualResolved ? 'Forma de Entrega' : 'Escolha a Forma de Entrega'}
+                Escolha a Forma de Entrega
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Frete Manual - Exibir informações fixas */}
-              {isFreteManualResolved ? (
-                <div className="p-4 bg-white rounded-lg border border-green-300">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="font-semibold text-green-800 flex items-center gap-2">
-                        <Package className="h-4 w-4" />
-                        {proposta.frete_transportadora || 'Transportadora'}
-                      </span>
-                      {proposta.frete_prazo_estimado && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Prazo estimado: {proposta.frete_prazo_estimado}
-                        </p>
-                      )}
-                    </div>
-                    <span className="font-bold text-lg text-green-700">
-                      {proposta.valor_frete === 0 ? 'Grátis' : `R$ ${proposta.valor_frete.toFixed(2)}`}
-                    </span>
-                  </div>
-                  <p className="text-xs text-green-600 mt-3">
-                    Frete definido pelo vendedor.
-                  </p>
+              <p className="text-sm text-green-700 mb-4">
+                Selecione a opção de frete de sua preferência:
+              </p>
+              
+              {isLoadingShipping ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+                  <span className="ml-2 text-sm text-green-700">Calculando opções de frete...</span>
                 </div>
               ) : (
-                /* Frete Automático - Cliente escolhe */
-                <>
-                  <p className="text-sm text-green-700 mb-4">
-                    Selecione a opção de frete de sua preferência:
-                  </p>
-                  
-                  {isLoadingShipping ? (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="h-6 w-6 animate-spin text-green-600" />
-                      <span className="ml-2 text-sm text-green-700">Calculando opções de frete...</span>
-                    </div>
-                  ) : (
-                    <RadioGroup
-                      value={selectedFrete}
-                      onValueChange={setSelectedFrete}
-                      className="space-y-3"
+                <RadioGroup
+                  value={selectedFrete}
+                  onValueChange={setSelectedFrete}
+                  className="space-y-3"
+                >
+                  {shippingOptions.map((option) => (
+                    <div 
+                      key={option.type}
+                      className={`flex items-start space-x-3 p-3 bg-white rounded-lg border transition-colors ${
+                        option.type === 'retirada' 
+                          ? 'border-green-300 hover:border-green-500' 
+                          : 'border-green-200 hover:border-green-400'
+                      }`}
                     >
-                      {shippingOptions.map((option) => (
-                        <div 
-                          key={option.type}
-                          className={`flex items-start space-x-3 p-3 bg-white rounded-lg border transition-colors ${
-                            option.type === 'retirada' 
-                              ? 'border-green-300 hover:border-green-500' 
-                              : 'border-green-200 hover:border-green-400'
-                          }`}
-                        >
-                          <RadioGroupItem value={option.type} id={`frete-${option.type}`} className="mt-1" />
-                          <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <span className="font-medium flex items-center gap-2">
-                                  {option.type === 'retirada' && <MapPin className="h-4 w-4 text-green-600" />}
-                                  {option.label}
-                                  {option.cost === 0 && option.type !== 'retirada' && (
-                                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                                      Frete Grátis
-                                    </Badge>
-                                  )}
-                                </span>
-                                {option.estimatedDate && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Previsão de entrega: <span className="font-medium">{option.estimatedDate}</span>
-                                  </p>
-                                )}
-                                {option.endereco && (
-                                  <p className="text-xs text-muted-foreground mt-1">{option.endereco}</p>
-                                )}
-                                {option.horario && (
-                                  <p className="text-xs text-muted-foreground">{option.horario}</p>
-                                )}
-                              </div>
-                              <span className={option.cost === 0 ? "text-green-600 font-semibold" : "font-semibold"}>
-                                {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
-                              </span>
-                            </div>
-                          </Label>
+                      <RadioGroupItem value={option.type} id={`frete-${option.type}`} className="mt-1" />
+                      <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <span className="font-medium flex items-center gap-2">
+                              {option.type === 'retirada' && <MapPin className="h-4 w-4 text-green-600" />}
+                              {option.label}
+                              {option.cost === 0 && option.type !== 'retirada' && (
+                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                  Frete Grátis
+                                </Badge>
+                              )}
+                            </span>
+                            {option.estimatedDate && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Previsão de entrega: <span className="font-medium">{option.estimatedDate}</span>
+                              </p>
+                            )}
+                            {option.endereco && (
+                              <p className="text-xs text-muted-foreground mt-1">{option.endereco}</p>
+                            )}
+                            {option.horario && (
+                              <p className="text-xs text-muted-foreground">{option.horario}</p>
+                            )}
+                          </div>
+                          <span className={option.cost === 0 ? "text-green-600 font-semibold" : "font-semibold"}>
+                            {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
+                          </span>
                         </div>
-                      ))}
-                    </RadioGroup>
-                  )}
-                  
-                  {shippingOptions.length === 0 && !isLoadingShipping && (
-                    <p className="text-sm text-amber-600">
-                      Não foi possível calcular o frete. Entre em contato com o vendedor.
-                    </p>
-                  )}
-                </>
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              )}
+              
+              {shippingOptions.length === 0 && !isLoadingShipping && (
+                <p className="text-sm text-amber-600">
+                  Não foi possível calcular o frete. Entre em contato com o vendedor.
+                </p>
               )}
             </CardContent>
           </Card>
@@ -952,13 +940,48 @@ export default function PropostaDigital() {
           </Card>
         )}
 
+        {/* Manual Freight Info for B2B (shown separately when manual freight is set) */}
+        {isPending && isFreteManualResolved && (
+          <Card className="border-2 border-green-200 bg-green-50/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-green-800">
+                <Truck className="h-5 w-5" />
+                Forma de Entrega
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="p-4 bg-white rounded-lg border border-green-300">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="font-semibold text-green-800 flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      {proposta.frete_transportadora || 'Transportadora'}
+                    </span>
+                    {proposta.frete_prazo_estimado && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Prazo estimado: {proposta.frete_prazo_estimado}
+                      </p>
+                    )}
+                  </div>
+                  <span className="font-bold text-lg text-green-700">
+                    {proposta.valor_frete === 0 ? 'Grátis' : `R$ ${proposta.valor_frete.toFixed(2)}`}
+                  </span>
+                </div>
+                <p className="text-xs text-green-600 mt-3">
+                  Frete definido pelo vendedor.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Confirm Button */}
         {isPending && (
           <Card className="border-2 border-primary/20">
             <CardContent className="pt-6">
               <Button
                 onClick={handleConfirm}
-                disabled={isConfirming || (!proposta.pode_faturar && proposta.frete_tipo !== 'manual' && !selectedFrete)}
+                disabled={isConfirming || (proposta.frete_tipo !== 'manual' && proposta.metodo_frete !== 'manual' && !selectedFrete)}
                 className="w-full h-14 text-lg bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
                 size="lg"
               >
