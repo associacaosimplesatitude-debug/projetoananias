@@ -221,12 +221,8 @@ export default function PropostaDigital() {
 
       setShippingOptions(options);
       
-      // Auto-select free if available, otherwise first option
-      if (valorComDesconto >= 199.90) {
-        setSelectedFrete('free');
-      } else if (options.length > 0) {
-        setSelectedFrete(options[0].type);
-      }
+      // DO NOT auto-select - client must choose explicitly
+      // setSelectedFrete stays empty until client clicks
     } catch (error) {
       console.error('Error fetching shipping:', error);
       // Fallback options
@@ -256,11 +252,7 @@ export default function PropostaDigital() {
         });
       }
       setShippingOptions(fallbackOptions);
-      if (valorComDesconto >= 199.90) {
-        setSelectedFrete('free');
-      } else {
-        setSelectedFrete('pac');
-      }
+      // DO NOT auto-select - client must choose explicitly
     } finally {
       setIsLoadingShipping(false);
     }
@@ -476,16 +468,20 @@ export default function PropostaDigital() {
   // Format shipping method name
   const getFreteLabel = () => {
     if (proposta.metodo_frete === 'manual' || proposta.frete_tipo === 'manual') return 'Frete (Manual)';
-    if (!proposta.metodo_frete || proposta.metodo_frete === 'free') return 'Frete Grátis';
+    // Only show "Frete Grátis" when explicitly set to 'free', NOT when null
+    if (proposta.metodo_frete === 'free') return 'Frete Grátis';
     if (proposta.metodo_frete === 'pac') return 'PAC (Correios)';
     if (proposta.metodo_frete === 'sedex') return 'SEDEX (Correios)';
     if (proposta.metodo_frete === 'retirada') return 'Retirada na Matriz';
+    // If metodo_frete is null/undefined, return generic label
+    if (!proposta.metodo_frete) return 'Frete';
     return proposta.metodo_frete;
   };
 
   // Calcular data prevista de entrega baseada no método de frete
   const getDeliveryEstimate = (): string | null => {
-    if (proposta.metodo_frete === 'retirada' || proposta.frete_tipo === 'manual' || proposta.metodo_frete === 'manual') {
+    // Don't show estimate if no method selected yet, or retirada, or manual
+    if (!proposta.metodo_frete || proposta.metodo_frete === 'retirada' || proposta.frete_tipo === 'manual' || proposta.metodo_frete === 'manual') {
       return null;
     }
     const today = new Date();
@@ -717,11 +713,11 @@ export default function PropostaDigital() {
                     <span>Subtotal com desconto:</span>
                     <span>R$ {valorComDesconto.toFixed(2)}</span>
                   </div>
-                </>
+              </>
               )}
               
-              {/* Shipping Section - Show for B2B, when already confirmed, OR when freight is manual */}
-              {(proposta.pode_faturar || !isPending || isFreteManualResolved) && (
+              {/* Shipping Section - Show ONLY when already confirmed OR manual freight is resolved OR metodo_frete is set */}
+              {(!isPending || isFreteManualResolved || proposta.metodo_frete) && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-sm items-center">
                     <span className="flex items-center gap-2">
@@ -740,8 +736,8 @@ export default function PropostaDigital() {
                 </div>
               )}
               
-              {/* For standard payment pending (automatic freight), show that shipping will be selected below */}
-              {!proposta.pode_faturar && isPending && !isFreteManualResolved && (
+              {/* For pending proposals without freight selected yet (both B2B and standard) */}
+              {isPending && !isFreteManualResolved && !proposta.metodo_frete && (
                 <div className="flex justify-between text-sm items-center text-muted-foreground">
                   <span className="flex items-center gap-2">
                     <Truck className="h-4 w-4" />
@@ -754,7 +750,8 @@ export default function PropostaDigital() {
               <div className="flex justify-between text-lg font-bold pt-2 border-t">
                 <span>Total:</span>
                 <span>
-                  R$ {(proposta.pode_faturar || !isPending || isFreteManualResolved)
+                  {/* Show final total if: not pending, OR manual freight, OR metodo_frete already set */}
+                  R$ {(!isPending || isFreteManualResolved || proposta.metodo_frete)
                     ? proposta.valor_total.toFixed(2)
                     : (valorComDesconto + (shippingOptions.find(opt => opt.type === selectedFrete)?.cost || 0)).toFixed(2)
                   }
