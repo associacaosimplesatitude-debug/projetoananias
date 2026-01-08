@@ -47,7 +47,7 @@ const allMenuItems: MenuItem[] = [
   { to: "/vendedor/proximas-compras", icon: ShoppingCart, label: "Próximas Compras" },
   { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Clientes em Risco", vendedorOnly: true },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
-  { to: "/vendedor/calculadora-peso", icon: Scale, label: "Calculadora de Peso" },
+  { to: "/vendedor/calculadora-peso", icon: Scale, label: "Orçamento Transportadora" },
   { to: "/vendedor/tutoriais", icon: Video, label: "Tutoriais" },
 ];
 
