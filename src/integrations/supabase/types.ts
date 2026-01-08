@@ -3971,6 +3971,9 @@ export type Database = {
         Row: {
           bling_order_id: number | null
           bling_order_number: string | null
+          bling_status: string | null
+          bling_status_id: number | null
+          bling_synced_at: string | null
           cliente_cnpj: string | null
           cliente_endereco: Json | null
           cliente_id: string | null
@@ -4002,6 +4005,9 @@ export type Database = {
         Insert: {
           bling_order_id?: number | null
           bling_order_number?: string | null
+          bling_status?: string | null
+          bling_status_id?: number | null
+          bling_synced_at?: string | null
           cliente_cnpj?: string | null
           cliente_endereco?: Json | null
           cliente_id?: string | null
@@ -4033,6 +4039,9 @@ export type Database = {
         Update: {
           bling_order_id?: number | null
           bling_order_number?: string | null
+          bling_status?: string | null
+          bling_status_id?: number | null
+          bling_synced_at?: string | null
           cliente_cnpj?: string | null
           cliente_endereco?: Json | null
           cliente_id?: string | null

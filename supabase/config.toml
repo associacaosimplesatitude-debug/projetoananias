@@ -60,6 +60,9 @@ verify_jwt = true
 [functions.bling-get-order-details]
 verify_jwt = true
 
+[functions.bling-sync-order-status]
+verify_jwt = false
+
 [functions.ebd-create-lead-accounts]
 verify_jwt = false
 
