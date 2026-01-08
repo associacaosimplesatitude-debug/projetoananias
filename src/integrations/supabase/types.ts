@@ -3967,6 +3967,91 @@ export type Database = {
           },
         ]
       }
+      vendedor_orcamentos_frete: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          desconto_percentual: number | null
+          endereco_coleta: Json
+          endereco_entrega: Json
+          id: string
+          itens: Json
+          observacoes: string | null
+          peso_total_kg: number
+          prazo_entrega: string | null
+          proposta_id: string | null
+          status: string
+          transportadora_nome: string | null
+          updated_at: string
+          valor_com_desconto: number
+          valor_frete: number | null
+          valor_produtos: number
+          vendedor_id: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          desconto_percentual?: number | null
+          endereco_coleta: Json
+          endereco_entrega: Json
+          id?: string
+          itens?: Json
+          observacoes?: string | null
+          peso_total_kg?: number
+          prazo_entrega?: string | null
+          proposta_id?: string | null
+          status?: string
+          transportadora_nome?: string | null
+          updated_at?: string
+          valor_com_desconto?: number
+          valor_frete?: number | null
+          valor_produtos?: number
+          vendedor_id: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          desconto_percentual?: number | null
+          endereco_coleta?: Json
+          endereco_entrega?: Json
+          id?: string
+          itens?: Json
+          observacoes?: string | null
+          peso_total_kg?: number
+          prazo_entrega?: string | null
+          proposta_id?: string | null
+          status?: string
+          transportadora_nome?: string | null
+          updated_at?: string
+          valor_com_desconto?: number
+          valor_frete?: number | null
+          valor_produtos?: number
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendedor_orcamentos_frete_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendedor_orcamentos_frete_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "vendedor_propostas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendedor_orcamentos_frete_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendedor_propostas: {
         Row: {
           bling_order_id: number | null
