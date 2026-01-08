@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Scale, Plus, Minus, Trash2, Search, Package, Truck, 
-  MapPin, Copy, MessageCircle, Save, Clock, CheckCircle2, 
-  Building2, User, Percent, Rocket, FileCheck
+  MapPin, Copy, Save, Clock, CheckCircle2, CheckCircle,
+  Building2, User, Percent, Rocket, Pencil
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,7 +19,8 @@ import { useVendedor } from "@/hooks/useVendedor";
 import { calcularDescontosLocal, type ItemCalculadora, type DescontosCategoriaRepresentante } from "@/lib/descontosCalculadora";
 import { ENDERECO_MATRIZ, formatarEnderecoMatriz } from "@/constants/enderecoMatriz";
 import { AdicionarFreteOrcamentoDialog } from "@/components/vendedor/AdicionarFreteOrcamentoDialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { EditarPropostaDialog } from "@/components/vendedor/EditarPropostaDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 
 interface ItemCarrinho {
@@ -95,6 +96,11 @@ export default function VendedorCalculadoraPeso() {
   const [propostaLink, setPropostaLink] = useState("");
   const [propostaClienteNome, setPropostaClienteNome] = useState("");
   const [creatingProposta, setCreatingProposta] = useState<string | null>(null);
+  const [messageCopied, setMessageCopied] = useState(false);
+  
+  // Estados para editar proposta
+  const [editarPropostaDialogOpen, setEditarPropostaDialogOpen] = useState(false);
+  const [propostaParaEditar, setPropostaParaEditar] = useState<any>(null);
 
   // Buscar clientes do vendedor
   const { data: clientes } = useQuery({
@@ -459,16 +465,49 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
     }
   }, [vendedor, refetchOrcamentos]);
 
-  const copiarLinkProposta = useCallback(() => {
-    navigator.clipboard.writeText(propostaLink);
-    toast.success("Link copiado!");
-  }, [propostaLink]);
+  const copiarMensagemCompleta = useCallback(async () => {
+    const mensagem = `Prezado(a) ${propostaClienteNome || '[Nome do Cliente]'},
 
-  const enviarWhatsAppProposta = useCallback(() => {
-    const mensagem = `Olá! Segue a proposta comercial para *${propostaClienteNome}*:\n\n📋 ${propostaLink}\n\nQualquer dúvida, estou à disposição!`;
-    const texto = encodeURIComponent(mensagem);
-    window.open(`https://wa.me/?text=${texto}`, "_blank");
-  }, [propostaLink, propostaClienteNome]);
+Segue a Proposta Digital de Pedido que preparamos especialmente para você.
+
+Por favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:
+
+${propostaLink}
+
+Após conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.
+
+Qualquer dúvida, estou à disposição!
+
+Atenciosamente,
+${vendedor?.nome || '[Nome do Vendedor]'}`;
+
+    await navigator.clipboard.writeText(mensagem);
+    setMessageCopied(true);
+    toast.success("Mensagem copiada!");
+    setTimeout(() => setMessageCopied(false), 3000);
+  }, [propostaLink, propostaClienteNome, vendedor?.nome]);
+
+  // Abrir dialog de editar proposta
+  const handleEditarProposta = useCallback(async (orcamento: OrcamentoFrete) => {
+    if (!orcamento.proposta_id) {
+      toast.error("Proposta não encontrada");
+      return;
+    }
+    
+    const { data, error } = await supabase
+      .from("vendedor_propostas")
+      .select("*")
+      .eq("id", orcamento.proposta_id)
+      .single();
+    
+    if (error || !data) {
+      toast.error("Erro ao carregar proposta");
+      return;
+    }
+    
+    setPropostaParaEditar(data);
+    setEditarPropostaDialogOpen(true);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -779,10 +818,6 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
                     <Copy className="h-4 w-4 mr-2" />
                     Copiar
                   </Button>
-                  <Button variant="outline" onClick={abrirWhatsApp} className="flex-1 sm:flex-none text-green-600 hover:text-green-700">
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    WhatsApp
-                  </Button>
                   <Button onClick={salvarOrcamento} className="flex-1 sm:flex-none">
                     <Save className="h-4 w-4 mr-2" />
                     Salvar Orçamento
@@ -859,24 +894,14 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
                         )}
                         
                         {orc.status === 'convertido_proposta' && (
-                          <Badge className="bg-blue-500 text-white">
-                            <FileCheck className="h-3 w-3 mr-1" />
-                            Proposta Criada
-                          </Badge>
-                        )}
-                        
-                        {orc.status === 'aguardando_orcamento' && (
-                          <Badge variant="outline">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Aguardando
-                          </Badge>
-                        )}
-                        
-                        {orc.status === 'orcamento_recebido' && (
-                          <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Frete OK
-                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditarProposta(orc)}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Editar Proposta
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -896,49 +921,74 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
         onSuccess={refetchOrcamentos}
       />
 
-      {/* Modal de Link da Proposta */}
+      {/* Modal de Link da Proposta - Mensagem Padrão */}
       <Dialog open={propostaLinkDialogOpen} onOpenChange={setPropostaLinkDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="h-5 w-5" />
-              Proposta Criada!
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Proposta Gerada com Sucesso!
             </DialogTitle>
+            <DialogDescription>
+              Copie a mensagem abaixo e envie ao cliente para que ele confirme a compra.
+            </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              A proposta para <strong>{propostaClienteNome}</strong> foi criada com sucesso.
-              Copie o link ou envie diretamente pelo WhatsApp:
-            </p>
-            
-            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-              <Input
-                value={propostaLink}
-                readOnly
-                className="bg-transparent border-0 text-sm"
-              />
-              <Button size="sm" variant="ghost" onClick={copiarLinkProposta}>
-                <Copy className="h-4 w-4" />
+          <div className="space-y-4 py-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium text-blue-800">Mensagem padrão para enviar ao cliente:</p>
+              <div className="bg-white rounded border p-3 text-sm text-muted-foreground whitespace-pre-line">
+{`Prezado(a) ${propostaClienteNome || '[Nome do Cliente]'},
+
+Segue a Proposta Digital de Pedido que preparamos especialmente para você.
+
+Por favor, clique no link abaixo para conferir todos os detalhes do pedido, incluindo produtos, quantidades, formas de entrega e condições de pagamento:
+
+${propostaLink}
+
+Após conferir todas as informações, clique no botão "CONFIRMAR COMPRA". Você será redirecionado automaticamente para a página de pagamento seguro, onde poderá finalizar sua compra.
+
+Qualquer dúvida, estou à disposição!
+
+Atenciosamente,
+${vendedor?.nome || '[Nome do Vendedor]'}`}
+              </div>
+              <Button
+                variant={messageCopied ? "default" : "secondary"}
+                size="sm"
+                className={messageCopied ? "bg-green-600 hover:bg-green-700 w-full" : "w-full"}
+                onClick={copiarMensagemCompleta}
+              >
+                {messageCopied ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Mensagem Copiada!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copiar Mensagem Completa
+                  </>
+                )}
               </Button>
             </div>
           </div>
           
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <div className="flex justify-center">
             <Button variant="outline" onClick={() => setPropostaLinkDialogOpen(false)}>
               Fechar
             </Button>
-            <Button onClick={copiarLinkProposta} variant="outline">
-              <Copy className="h-4 w-4 mr-2" />
-              Copiar Link
-            </Button>
-            <Button onClick={enviarWhatsAppProposta} className="bg-green-600 hover:bg-green-700">
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Enviar WhatsApp
-            </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Editar Proposta */}
+      <EditarPropostaDialog
+        open={editarPropostaDialogOpen}
+        onOpenChange={setEditarPropostaDialogOpen}
+        proposta={propostaParaEditar}
+        onSuccess={refetchOrcamentos}
+      />
     </div>
   );
 }
