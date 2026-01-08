@@ -74,7 +74,6 @@ const TIPOS_CLIENTE = [
   { value: "IGREJA CNPJ", label: "IGREJA CNPJ" },
   { value: "IGREJA CPF", label: "IGREJA CPF" },
   { value: "LOJISTA", label: "LOJISTA" },
-  { value: "REPRESENTANTE", label: "REPRESENTANTE" },
   { value: "PESSOA FÍSICA", label: "PESSOA FÍSICA" },
   { value: "REVENDEDOR", label: "REVENDEDOR" },
 ];
