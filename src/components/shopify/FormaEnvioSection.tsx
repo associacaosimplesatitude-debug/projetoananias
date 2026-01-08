@@ -5,17 +5,24 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Truck, MapPin, Clock, ChevronDown, ChevronUp, Check } from "lucide-react";
 
-export type FormaEnvio = "entrega" | "retirada";
+export type FormaEnvio = "entrega" | "retirada" | "retirada_pe";
 
 interface FormaEnvioSectionProps {
   value: FormaEnvio;
   onChange: (value: FormaEnvio) => void;
 }
 
-// Configuração da Matriz
+// Configuração da Matriz - Rio de Janeiro
 const MATRIZ_CONFIG = {
   endereco: "Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ",
   cep: "22713-001",
+  horario: "Segunda a Sexta: 9h às 18h"
+};
+
+// Configuração do Polo Pernambuco
+const PERNAMBUCO_CONFIG = {
+  endereco: "Rua Adalberto Coimbra, 211, Galpão B - Jardim Jordão, Jaboatão dos Guararapes - PE",
+  cep: "54315-110",
   horario: "Segunda a Sexta: 9h às 18h"
 };
 
@@ -29,7 +36,10 @@ export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
 
   const getSelectedDisplay = () => {
     if (value === "retirada") {
-      return { label: "Retirada na Matriz", badge: "Frete Grátis" };
+      return { label: "Retirada na Matriz - Rio de Janeiro", badge: "Frete Grátis" };
+    }
+    if (value === "retirada_pe") {
+      return { label: "Retirada no Polo - Pernambuco", badge: "Frete Grátis" };
     }
     return { label: "Entrega no Endereço", badge: null };
   };
@@ -78,7 +88,7 @@ export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
               </label>
             </div>
 
-            {/* Retirada na Matriz */}
+            {/* Retirada na Matriz - Rio de Janeiro */}
             <div className={`flex items-start space-x-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
               value === "retirada" ? "bg-primary/5 border-primary/30" : "hover:bg-muted/50"
             }`}>
@@ -86,7 +96,7 @@ export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
               <label htmlFor="envio-retirada" className="flex-1 cursor-pointer">
                 <div className="flex items-center gap-1.5">
                   <MapPin className="h-3 w-3 text-green-600" />
-                  <span className="font-medium">Retirada na Matriz</span>
+                  <span className="font-medium">Retirada na Matriz - Rio de Janeiro</span>
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                     Frete Grátis
                   </Badge>
@@ -102,6 +112,31 @@ export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
                 </div>
               </label>
             </div>
+
+            {/* Retirada no Polo - Pernambuco */}
+            <div className={`flex items-start space-x-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
+              value === "retirada_pe" ? "bg-primary/5 border-primary/30" : "hover:bg-muted/50"
+            }`}>
+              <RadioGroupItem value="retirada_pe" id="envio-retirada-pe" className="mt-0.5 h-3.5 w-3.5" />
+              <label htmlFor="envio-retirada-pe" className="flex-1 cursor-pointer">
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3 text-green-600" />
+                  <span className="font-medium">Retirada no Polo - Pernambuco</span>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                    Frete Grátis
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground mt-0.5 leading-tight">
+                  {PERNAMBUCO_CONFIG.endereco}
+                </p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    {PERNAMBUCO_CONFIG.horario}
+                  </span>
+                </div>
+              </label>
+            </div>
           </RadioGroup>
         </CollapsibleContent>
       </Collapsible>
@@ -109,4 +144,4 @@ export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
   );
 }
 
-export { MATRIZ_CONFIG };
+export { MATRIZ_CONFIG, PERNAMBUCO_CONFIG };

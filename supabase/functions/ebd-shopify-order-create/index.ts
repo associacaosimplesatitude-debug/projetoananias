@@ -446,7 +446,7 @@ serve(async (req) => {
     }
 
     // Build shipping line if frete is provided
-    // Configuração da Matriz para retirada
+    // Configuração da Matriz para retirada - Rio de Janeiro
     const MATRIZ_CONFIG = {
       endereco: "Estrada do Guerenguê, 1851",
       cidade: "Rio de Janeiro",
@@ -455,15 +455,29 @@ serve(async (req) => {
       bairro: "Taquara"
     };
 
-    // Detectar se é retirada na matriz
+    // Configuração do Polo Pernambuco para retirada
+    const PERNAMBUCO_CONFIG = {
+      endereco: "Rua Adalberto Coimbra, 211",
+      complemento: "Galpão B",
+      cidade: "Jaboatão dos Guararapes",
+      estado: "PE",
+      cep: "54315-110",
+      bairro: "Jardim Jordão"
+    };
+
+    // Detectar se é retirada na matriz (RJ) ou no polo (PE)
     const isRetirada = metodoFreteRecebido === 'retirada';
+    const isRetiradaPE = metodoFreteRecebido === 'retirada_pe';
+    const isAnyRetirada = isRetirada || isRetiradaPE;
     
     // Para frete manual, usar o nome da transportadora no título
     const isFreteManual = frete_tipo === 'manual' && frete_transportadora;
     let shippingTitle = 'Frete';
     
     if (isRetirada) {
-      shippingTitle = 'Retirada na Matriz';
+      shippingTitle = 'Retirada na Matriz - Rio de Janeiro';
+    } else if (isRetiradaPE) {
+      shippingTitle = 'Retirada no Polo - Pernambuco';
     } else if (isFreteManual) {
       shippingTitle = `Frete Manual - ${frete_transportadora}`;
     } else if (metodoFreteRecebido === 'sedex') {
@@ -473,15 +487,16 @@ serve(async (req) => {
     }
     
     // Criar shipping_line para frete pago OU para retirada (com preço 0)
-    const shippingLine = (valorFreteRecebido > 0 || isRetirada) ? {
+    const shippingLine = (valorFreteRecebido > 0 || isAnyRetirada) ? {
       title: shippingTitle,
-      price: isRetirada ? "0.00" : valorFreteRecebido.toFixed(2),
+      price: isAnyRetirada ? "0.00" : valorFreteRecebido.toFixed(2),
       custom: true,
     } : null;
 
     console.log("=== CONFIGURAÇÃO DE FRETE ===");
     console.log("Método recebido:", metodoFreteRecebido);
-    console.log("É retirada?:", isRetirada);
+    console.log("É retirada RJ?:", isRetirada);
+    console.log("É retirada PE?:", isRetiradaPE);
     console.log("Shipping line:", shippingLine);
 
     const draftOrderPayload: Record<string, unknown> = {
@@ -504,9 +519,11 @@ serve(async (req) => {
     const shippingLastName = shippingNameParts.slice(1).join(' ') || (cliente.nome_igreja || '');
 
     // Para RETIRADA: NÃO enviar shipping_address para que Shopify abra na aba "Retirada"
-    // Apenas billing_address com endereço da Matriz
-    if (isRetirada) {
-      console.log("Retirada na Matriz: NÃO enviando shipping_address");
+    // Apenas billing_address com endereço do local de retirada selecionado
+    if (isAnyRetirada) {
+      const pickupConfig = isRetiradaPE ? PERNAMBUCO_CONFIG : MATRIZ_CONFIG;
+      const pickupLabel = isRetiradaPE ? "Retirada no Polo - Pernambuco" : "Retirada na Matriz - Rio de Janeiro";
+      console.log(`${pickupLabel}: NÃO enviando shipping_address`);
       
       draftOrderPayload.draft_order = {
         ...draftOrderPayload.draft_order as Record<string, unknown>,
@@ -514,12 +531,12 @@ serve(async (req) => {
         billing_address: {
           first_name: shippingFirstName,
           last_name: shippingLastName,
-          address1: MATRIZ_CONFIG.endereco,
-          address2: '',
-          city: MATRIZ_CONFIG.cidade,
-          province: MATRIZ_CONFIG.estado,
-          province_code: MATRIZ_CONFIG.estado,
-          zip: MATRIZ_CONFIG.cep,
+          address1: pickupConfig.endereco,
+          address2: 'complemento' in pickupConfig ? pickupConfig.complemento : '',
+          city: pickupConfig.cidade,
+          province: pickupConfig.estado,
+          province_code: pickupConfig.estado,
+          zip: pickupConfig.cep,
           country: "Brazil",
           country_code: "BR",
           phone: cliente.telefone,

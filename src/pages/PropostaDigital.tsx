@@ -193,12 +193,21 @@ export default function PropostaDigital() {
         });
       }
 
-      // Add Retirada na Matriz - always free
+      // Add Retirada na Matriz - Rio de Janeiro - always free
       options.push({
         type: 'retirada',
-        label: 'Retirada na Matriz',
+        label: 'Retirada na Matriz - Rio de Janeiro',
         cost: 0,
         endereco: 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
+
+      // Add Retirada no Polo - Pernambuco - always free
+      options.push({
+        type: 'retirada_pe',
+        label: 'Retirada no Polo - Pernambuco',
+        cost: 0,
+        endereco: 'Rua Adalberto Coimbra, 211, Galpão B - Jardim Jordão, Jaboatão dos Guararapes - PE',
         horario: 'Segunda a Sexta: 9h às 18h'
       });
 
@@ -236,9 +245,16 @@ export default function PropostaDigital() {
         { type: 'sedex', label: 'SEDEX - 2 dias úteis', cost: 25, days: 2, estimatedDate: formatDateBR(fallbackSedexDate) },
         { 
           type: 'retirada', 
-          label: 'Retirada na Matriz', 
+          label: 'Retirada na Matriz - Rio de Janeiro', 
           cost: 0,
           endereco: 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ',
+          horario: 'Segunda a Sexta: 9h às 18h'
+        },
+        { 
+          type: 'retirada_pe', 
+          label: 'Retirada no Polo - Pernambuco', 
+          cost: 0,
+          endereco: 'Rua Adalberto Coimbra, 211, Galpão B - Jardim Jordão, Jaboatão dos Guararapes - PE',
           horario: 'Segunda a Sexta: 9h às 18h'
         },
       ];
