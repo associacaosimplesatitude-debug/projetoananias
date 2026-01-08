@@ -720,12 +720,12 @@ export default function ShopifyPedidos() {
           desconto_percentual: descontoPercentualFinal,
           status: "PROPOSTA_PENDENTE",
           token: token,
-          metodo_frete: freteManual ? 'manual' : (frete?.type || null),
+          metodo_frete: freteManual ? 'manual' : null, // null = cliente escolherá
           pode_faturar: isFaturamentoB2B,
           vendedor_nome: vendedor.nome || null,
           prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null,
           // Campos de frete manual
-          frete_tipo: freteManual ? 'manual' : 'automatico',
+          frete_tipo: freteManual ? 'manual' : null, // null = cliente escolherá na proposta
           frete_transportadora: freteManual?.transportadora || null,
           frete_observacao: freteManual?.observacao || null,
           frete_prazo_estimado: freteManual?.prazoEstimado || null,
