@@ -446,10 +446,25 @@ serve(async (req) => {
     }
 
     // Build shipping line if frete is provided
+    // Configuração da Matriz para retirada
+    const MATRIZ_CONFIG = {
+      endereco: "Estrada do Guerenguê, 1851",
+      cidade: "Rio de Janeiro",
+      estado: "RJ",
+      cep: "22713-001",
+      bairro: "Taquara"
+    };
+
+    // Detectar se é retirada na matriz
+    const isRetirada = metodoFreteRecebido === 'retirada';
+    
     // Para frete manual, usar o nome da transportadora no título
     const isFreteManual = frete_tipo === 'manual' && frete_transportadora;
     let shippingTitle = 'Frete';
-    if (isFreteManual) {
+    
+    if (isRetirada) {
+      shippingTitle = 'Retirada na Matriz';
+    } else if (isFreteManual) {
       shippingTitle = `Frete Manual - ${frete_transportadora}`;
     } else if (metodoFreteRecebido === 'sedex') {
       shippingTitle = 'SEDEX (Correios)';
@@ -457,11 +472,17 @@ serve(async (req) => {
       shippingTitle = 'PAC (Correios)';
     }
     
-    const shippingLine = valorFreteRecebido > 0 ? {
+    // Criar shipping_line para frete pago OU para retirada (com preço 0)
+    const shippingLine = (valorFreteRecebido > 0 || isRetirada) ? {
       title: shippingTitle,
-      price: valorFreteRecebido.toFixed(2),
+      price: isRetirada ? "0.00" : valorFreteRecebido.toFixed(2),
       custom: true,
     } : null;
+
+    console.log("=== CONFIGURAÇÃO DE FRETE ===");
+    console.log("Método recebido:", metodoFreteRecebido);
+    console.log("É retirada?:", isRetirada);
+    console.log("Shipping line:", shippingLine);
 
     const draftOrderPayload: Record<string, unknown> = {
       draft_order: {
@@ -470,20 +491,43 @@ serve(async (req) => {
         tags: orderTags,
         note_attributes: noteAttributes,
         ...(customerId && { customer: { id: customerId } }),
-        use_customer_default_address: !!customerId,
+        use_customer_default_address: false, // Desabilitar para controlar manualmente
         ...(shippingLine && { shipping_line: shippingLine }),
       },
     };
 
-    // Add shipping address if available
-    if (cliente.endereco_rua) {
-      // Priorizar nome_responsavel para first/last name
-      // Se não houver, usar "Igreja" como first_name
-      const shippingFullName = cliente.nome_responsavel || '';
-      const shippingNameParts = shippingFullName.trim().split(' ');
-      const shippingFirstName = shippingNameParts[0] || 'Igreja';
-      const shippingLastName = shippingNameParts.slice(1).join(' ') || (cliente.nome_igreja || '');
+    // Priorizar nome_responsavel para first/last name
+    // Se não houver, usar "Igreja" como first_name
+    const shippingFullName = cliente.nome_responsavel || '';
+    const shippingNameParts = shippingFullName.trim().split(' ');
+    const shippingFirstName = shippingNameParts[0] || 'Igreja';
+    const shippingLastName = shippingNameParts.slice(1).join(' ') || (cliente.nome_igreja || '');
+
+    // Para RETIRADA: NÃO enviar shipping_address para que Shopify abra na aba "Retirada"
+    // Apenas billing_address com endereço da Matriz
+    if (isRetirada) {
+      console.log("Retirada na Matriz: NÃO enviando shipping_address");
       
+      draftOrderPayload.draft_order = {
+        ...draftOrderPayload.draft_order as Record<string, unknown>,
+        // Apenas billing_address - SEM shipping_address para que Shopify abra em Retirada
+        billing_address: {
+          first_name: shippingFirstName,
+          last_name: shippingLastName,
+          address1: MATRIZ_CONFIG.endereco,
+          address2: '',
+          city: MATRIZ_CONFIG.cidade,
+          province: MATRIZ_CONFIG.estado,
+          province_code: MATRIZ_CONFIG.estado,
+          zip: MATRIZ_CONFIG.cep,
+          country: "Brazil",
+          country_code: "BR",
+          phone: cliente.telefone,
+          company: cliente.nome_igreja,
+        },
+      };
+    } else if (cliente.endereco_rua) {
+      // ENTREGA: Enviar shipping_address normalmente
       const formattedCep = formatCEP(cliente.endereco_cep);
       const uf = normalizeUF(cliente.endereco_estado);
       
