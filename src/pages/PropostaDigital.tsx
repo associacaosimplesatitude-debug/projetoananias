@@ -842,7 +842,7 @@ export default function PropostaDigital() {
                     <div 
                       key={option.type}
                       className={`flex items-start space-x-3 p-3 bg-white rounded-lg border transition-colors ${
-                        option.type === 'retirada' 
+                        option.type.startsWith('retirada')
                           ? 'border-green-300 hover:border-green-500' 
                           : 'border-green-200 hover:border-green-400'
                       }`}
@@ -852,9 +852,9 @@ export default function PropostaDigital() {
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <span className="font-medium flex items-center gap-2">
-                              {option.type === 'retirada' && <MapPin className="h-4 w-4 text-green-600" />}
+                              {option.type.startsWith('retirada') && <MapPin className="h-4 w-4 text-green-600" />}
                               {option.label}
-                              {option.cost === 0 && option.type !== 'retirada' && (
+                              {option.cost === 0 && !option.type.startsWith('retirada') && (
                                 <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
                                   Frete Grátis
                                 </Badge>
