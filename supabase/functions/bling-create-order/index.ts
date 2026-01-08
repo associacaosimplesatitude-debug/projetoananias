@@ -537,10 +537,9 @@ serve(async (req) => {
     
     // Se não encontrou no cache, usar fallback hardcoded (ID da conta Central Gospel)
     if (!situacaoEmAndamentoId) {
-      // Usar ID 9 (padrão Bling para "Em andamento") em vez de ID 37 (customizado)
-      // ID 37 não tem transições configuradas a partir de "Em aberto" (ID 6)
-      situacaoEmAndamentoId = 9;
-      console.log('[BLING] ⚠️ Usando fallback hardcoded para "Em andamento": ID 9 (padrão Bling)');
+      // ID 15 é "Em andamento" na conta Central Gospel
+      situacaoEmAndamentoId = 15;
+      console.log('[BLING] ⚠️ Usando fallback hardcoded para "Em andamento": ID 15');
     } else {
       console.log(`[BLING] ✅ Situação "Em andamento" encontrada no cache com ID: ${situacaoEmAndamentoId}`);
     }
