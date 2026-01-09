@@ -279,6 +279,7 @@ const VENDEDOR_EMAIL_TO_BLING_ID: Record<string, number> = {
   'ivani.santos@editoracentralgospel.com': 15596392965,
   'nilson.curitibasp@gmail.com': 15596336493,
   'antonio.goulart@editoracentralgospel.com': 15596422684,
+  'vendedorteste@gmail.com': 15596840637,
 };
 
 // ✅ FUNÇÃO SIMPLIFICADA: Retorna ID numérico ou null (sem fallback de nome)
