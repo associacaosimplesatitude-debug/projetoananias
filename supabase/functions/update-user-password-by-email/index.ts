@@ -18,25 +18,27 @@ serve(async (req) => {
       { auth: { persistSession: false } },
     );
 
-    const { oldEmail, newEmail, newPassword } = await req.json();
+    const { oldEmail, newEmail, newPassword, internalCall } = await req.json();
 
-    // Auth + permissão (admin/gerente_ebd)
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Unauthorized");
+    // Auth + permissão (admin/gerente_ebd) - skip if internal call
+    if (!internalCall) {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) throw new Error("Unauthorized");
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user: callerUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !callerUser) throw new Error("Unauthorized");
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user: callerUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+      if (authError || !callerUser) throw new Error("Unauthorized");
 
-    const { data: roles, error: rolesError } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerUser.id);
+      const { data: roles, error: rolesError } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callerUser.id);
 
-    if (rolesError) throw rolesError;
+      if (rolesError) throw rolesError;
 
-    const isAllowed = roles?.some((r) => r.role === "admin" || r.role === "gerente_ebd");
-    if (!isAllowed) throw new Error("Sem permissão para alterar senhas");
+      const isAllowed = roles?.some((r) => r.role === "admin" || r.role === "gerente_ebd");
+      if (!isAllowed) throw new Error("Sem permissão para alterar senhas");
+    }
 
     const emailCandidates = [oldEmail, newEmail]
       .filter(Boolean)
