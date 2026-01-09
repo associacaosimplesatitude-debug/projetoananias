@@ -1453,8 +1453,10 @@ serve(async (req) => {
     });
 
     // Total real baseado nos itens que vamos enviar ao Bling (após desconto)
+    // Método A: arredonda por UNIDADE e depois multiplica
+    // Método B: multiplica primeiro (total do item) e só então arredonda (comportamento comum do Bling na validação)
     let totalBrutoBling = 0;
-
+    let totalBrutoBlingMetodoB = 0;
     for (const item of itens as any[]) {
       let blingProdutoId: number | null = null;
       let blingProdutoCodigo: string | null = null;
@@ -1546,8 +1548,16 @@ serve(async (req) => {
       const totalItemBruto = Math.round((precoLista * quantidade) * 100) / 100;
       const descontoTotalItem = Math.max(0, Math.round((totalItemBruto - totalItemLiquido) * 100) / 100);
 
+      // Método B (total do item): Bling frequentemente valida parcelas contra esse total
+      const totalItemLiquidoMetodoB = descontoPercentualItem > 0
+        ? Math.round((precoLista * quantidade * (1 - (descontoPercentualItem / 100))) * 100) / 100
+        : Math.round((precoLista * quantidade) * 100) / 100;
+
       // Total que o Bling deve computar via itens (após desconto)
+      // A: por unidade
       totalBrutoBling += totalItemLiquido;
+      // B: por total do item
+      totalBrutoBlingMetodoB += totalItemLiquidoMetodoB;
 
       // Acumular desconto total (para exibição)
       descontoTotalVenda += descontoTotalItem;
@@ -1576,7 +1586,8 @@ serve(async (req) => {
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        valor: precoLista, // Preço de lista (cheio)
+        // Normalizar para 2 casas antes do envio para evitar floats (ex: 79.9)
+        valor: Number(precoLista.toFixed(2)), // Preço de lista (cheio)
         // VÍNCULO OBRIGATÓRIO com o produto cadastrado
         produto: {
           id: blingProdutoId,
@@ -1592,13 +1603,20 @@ serve(async (req) => {
     }
 
     // Calcular o total exato que Bling vai computar: itens + frete
-    const valorFreteNum = Number(valor_frete || 0);
-    const totalLiquidoBling = Math.round(totalBrutoBling * 100) / 100;
-    const valorTotalBling = Math.round((totalLiquidoBling + valorFreteNum) * 100) / 100;
+    // Usar Método B como fonte para parcelas (validação do Bling costuma seguir o total do item)
+    const valorFreteNum = Number(Number(valor_frete || 0).toFixed(2));
+
+    const totalLiquidoBling_A = Math.round(totalBrutoBling * 100) / 100;
+    const totalLiquidoBling_B = Math.round(totalBrutoBlingMetodoB * 100) / 100;
+
+    const valorTotalBling = Math.round((totalLiquidoBling_B + valorFreteNum) * 100) / 100;
 
     console.log(`=== CÁLCULO BLING ===`);
-    console.log(`Total Itens Bling (já com desconto): R$ ${totalLiquidoBling.toFixed(2)}`);
-    console.log(`Total com Frete Bling: R$ ${valorTotalBling.toFixed(2)}`);
+    console.log(`Total Itens (A-unidade): R$ ${totalLiquidoBling_A.toFixed(2)}`);
+    console.log(`Total Itens (B-item):    R$ ${totalLiquidoBling_B.toFixed(2)}`);
+    console.log(`Frete:                  R$ ${valorFreteNum.toFixed(2)}`);
+    console.log(`Dif(A-B) centavos:      ${Math.round((totalLiquidoBling_A - totalLiquidoBling_B) * 100)}`);
+    console.log(`Total com Frete (B):    R$ ${valorTotalBling.toFixed(2)}`);
 
     console.log(`Desconto Total da Venda (info): R$ ${descontoTotalVenda.toFixed(2)}`);
 
@@ -1634,7 +1652,8 @@ serve(async (req) => {
     const formaPagamentoDescricao = formaPagamentoMap[forma_pagamento?.toLowerCase()] || forma_pagamento || 'Outros';
 
     // Usar valores calculados diretamente dos itens Bling (não do request) para garantir consistência
-    const valorProdutosNum = totalLiquidoBling;
+    // (Método B é o total que usamos para parcelas/validação)
+    const valorProdutosNum = totalLiquidoBling_B;
     const valorTotalCorreto = valorTotalBling;
 
     console.log('=== RESUMO DO PEDIDO ===');
@@ -1666,9 +1685,9 @@ serve(async (req) => {
       const prazo = parseInt(faturamento_prazo);
       const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
 
-      // ✅ Parcelas precisam bater com o TOTAL DA VENDA no Bling.
-      // Na prática, o Bling valida parcelas contra (itens líquidos + frete).
-      const totalBaseParcelas = Math.round((totalLiquidoBling + valorFreteNum) * 100) / 100;
+       // ✅ Parcelas precisam bater com o TOTAL DA VENDA no Bling.
+       // Usamos o mesmo total que o payload induz no Bling (método B + frete).
+       const totalBaseParcelas = valorTotalBling;
 
       // Calcular parcelas em centavos para evitar problemas de arredondamento
       const totalBaseCentavos = Math.round(totalBaseParcelas * 100);
@@ -1686,7 +1705,7 @@ serve(async (req) => {
       const somaFinalCentavos = parcelasValoresCentavos.reduce((acc, v) => acc + v, 0);
 
       console.log(
-        `Faturamento B2B: ${numParcelas} parcela(s) | base=${totalBaseParcelas.toFixed(2)} (itens=${totalLiquidoBling.toFixed(2)} + frete=${valorFreteNum.toFixed(2)}) | base_cent=${totalBaseCentavos} | base_unit_cent=${parcelaBaseCentavos} | diff_cent=${restoCentavos} | soma_final_cent=${somaFinalCentavos} | parcelas=${parcelasValoresCentavos
+        `Faturamento B2B: ${numParcelas} parcela(s) | base=${totalBaseParcelas.toFixed(2)} (itens=${totalLiquidoBling_B.toFixed(2)} + frete=${valorFreteNum.toFixed(2)}) | base_cent=${totalBaseCentavos} | base_unit_cent=${parcelaBaseCentavos} | diff_cent=${restoCentavos} | soma_final_cent=${somaFinalCentavos} | parcelas=${parcelasValoresCentavos
           .map((c) => (c / 100).toFixed(2))
           .join(', ')}`
       );
@@ -1716,10 +1735,10 @@ serve(async (req) => {
       }
     } else {
       // Pagamento à vista
-      // IMPORTANTE: O Bling valida parcelas apenas contra o total dos itens, sem frete.
+      // Para manter consistência com o total calculado a partir do payload, usamos Método B (itens) aqui também.
       const parcelaVistaObj: any = {
         dataVencimento: new Date().toISOString().split('T')[0],
-        valor: Number((Math.round(Number(totalLiquidoBling) * 100) / 100).toFixed(2)),
+        valor: Number((Math.round(Number(totalLiquidoBling_B) * 100) / 100).toFixed(2)),
         observacoes: `Pagamento via ${formaPagamentoDescricao}`,
       };
 
@@ -1740,7 +1759,7 @@ serve(async (req) => {
     const somaParcelas = parcelas.reduce((acc, p) => acc + Number(p.valor), 0);
     const diferencaCentavos = Math.round((valorTotalBling - somaParcelas) * 100);
     console.log(`[AUDITORIA] Total Pedido: R$ ${valorTotalBling.toFixed(2)} | Soma Parcelas: R$ ${somaParcelas.toFixed(2)} | Diferença: ${diferencaCentavos} centavos`);
-    
+
     if (Math.abs(diferencaCentavos) > 0) {
       console.warn(`[AUDITORIA] ALERTA: Diferença detectada de ${diferencaCentavos} centavos! Ajustando última parcela...`);
       // Corrigir a última parcela para garantir que a soma bata exatamente
@@ -1749,6 +1768,11 @@ serve(async (req) => {
         ultimaParcela.valor = Number((Number(ultimaParcela.valor) + (diferencaCentavos / 100)).toFixed(2));
         console.log(`[AUDITORIA] Última parcela ajustada para: R$ ${ultimaParcela.valor.toFixed(2)}`);
       }
+
+      // Recalcular e logar novamente após ajuste
+      const somaParcelasAjustada = parcelas.reduce((acc, p) => acc + Number(p.valor), 0);
+      const diferencaFinal = Math.round((valorTotalBling - somaParcelasAjustada) * 100);
+      console.log(`[AUDITORIA] Pós-ajuste | Soma Parcelas: R$ ${somaParcelasAjustada.toFixed(2)} | Diferença: ${diferencaFinal} centavos`);
     }
 
     // Criar pedido no Bling com dados de transporte corretos
