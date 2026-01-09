@@ -28,8 +28,8 @@ const PERNAMBUCO_CONFIG = {
 
 // Configuração do Polo Penha - Rio de Janeiro
 const PENHA_CONFIG = {
-  endereco: "Rua da Penha, s/n - Penha, Rio de Janeiro - RJ",
-  cep: "21020-000",
+  endereco: "R. Honório Bicalho, 102 - Penha, Rio de Janeiro - RJ",
+  cep: "21020-002",
   horario: "Segunda a Sexta: 9h às 18h"
 };
 
