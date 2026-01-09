@@ -211,6 +211,15 @@ export default function PropostaDigital() {
         horario: 'Segunda a Sexta: 9h às 18h'
       });
 
+      // Add Retirada no Polo - Penha / RJ - always free
+      options.push({
+        type: 'retirada_penha',
+        label: 'Retirada no Polo - Penha / RJ',
+        cost: 0,
+        endereco: 'R. Honório Bicalho, 102 - Penha, Rio de Janeiro - RJ',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
+
       // Add free shipping if total >= R$199,90 - 10 dias úteis
       const valorComDesconto = proposta.valor_produtos - (proposta.valor_produtos * (proposta.desconto_percentual || 0) / 100);
       if (valorComDesconto >= 199.90) {
@@ -255,6 +264,13 @@ export default function PropostaDigital() {
           label: 'Retirada no Polo - Pernambuco', 
           cost: 0,
           endereco: 'Rua Adalberto Coimbra, 211, Galpão B - Jardim Jordão, Jaboatão dos Guararapes - PE',
+          horario: 'Segunda a Sexta: 9h às 18h'
+        },
+        { 
+          type: 'retirada_penha', 
+          label: 'Retirada no Polo - Penha / RJ', 
+          cost: 0,
+          endereco: 'R. Honório Bicalho, 102 - Penha, Rio de Janeiro - RJ',
           horario: 'Segunda a Sexta: 9h às 18h'
         },
       ];
@@ -488,7 +504,9 @@ export default function PropostaDigital() {
     if (proposta.metodo_frete === 'free') return 'Frete Grátis';
     if (proposta.metodo_frete === 'pac') return 'PAC (Correios)';
     if (proposta.metodo_frete === 'sedex') return 'SEDEX (Correios)';
-    if (proposta.metodo_frete === 'retirada') return 'Retirada na Matriz';
+    if (proposta.metodo_frete === 'retirada') return 'Retirada na Matriz - Rio de Janeiro';
+    if (proposta.metodo_frete === 'retirada_pe') return 'Retirada no Polo - Pernambuco';
+    if (proposta.metodo_frete === 'retirada_penha') return 'Retirada no Polo - Penha / RJ';
     // If metodo_frete is null/undefined, return generic label
     if (!proposta.metodo_frete) return 'Frete';
     return proposta.metodo_frete;
@@ -496,8 +514,8 @@ export default function PropostaDigital() {
 
   // Calcular data prevista de entrega baseada no método de frete
   const getDeliveryEstimate = (): string | null => {
-    // Don't show estimate if no method selected yet, or retirada, or manual
-    if (!proposta.metodo_frete || proposta.metodo_frete === 'retirada' || proposta.frete_tipo === 'manual' || proposta.metodo_frete === 'manual') {
+    // Don't show estimate if no method selected yet, or retirada (any), or manual
+    if (!proposta.metodo_frete || proposta.metodo_frete === 'retirada' || proposta.metodo_frete === 'retirada_pe' || proposta.metodo_frete === 'retirada_penha' || proposta.frete_tipo === 'manual' || proposta.metodo_frete === 'manual') {
       return null;
     }
     const today = new Date();
@@ -836,49 +854,82 @@ export default function PropostaDigital() {
                 <RadioGroup
                   value={selectedFrete}
                   onValueChange={setSelectedFrete}
-                  className="space-y-3"
+                  className="space-y-4"
                 >
-                  {shippingOptions.map((option) => (
-                    <div 
-                      key={option.type}
-                      className={`flex items-start space-x-3 p-3 bg-white rounded-lg border transition-colors ${
-                        option.type.startsWith('retirada')
-                          ? 'border-green-300 hover:border-green-500' 
-                          : 'border-green-200 hover:border-green-400'
-                      }`}
-                    >
-                      <RadioGroupItem value={option.type} id={`frete-${option.type}`} className="mt-1" />
-                      <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <span className="font-medium flex items-center gap-2">
-                              {option.type.startsWith('retirada') && <MapPin className="h-4 w-4 text-green-600" />}
-                              {option.label}
-                              {option.cost === 0 && !option.type.startsWith('retirada') && (
-                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                                  Frete Grátis
-                                </Badge>
-                              )}
-                            </span>
-                            {option.estimatedDate && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Previsão de entrega: <span className="font-medium">{option.estimatedDate}</span>
-                              </p>
-                            )}
-                            {option.endereco && (
-                              <p className="text-xs text-muted-foreground mt-1">{option.endereco}</p>
-                            )}
-                            {option.horario && (
-                              <p className="text-xs text-muted-foreground">{option.horario}</p>
-                            )}
-                          </div>
-                          <span className={option.cost === 0 ? "text-green-600 font-semibold" : "font-semibold"}>
-                            {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
-                          </span>
+                  {/* Opções de Entrega */}
+                  {shippingOptions.filter(opt => !opt.type.startsWith('retirada')).length > 0 && (
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Truck className="h-4 w-4" />
+                        Entrega:
+                      </p>
+                      {shippingOptions.filter(opt => !opt.type.startsWith('retirada')).map((option) => (
+                        <div 
+                          key={option.type}
+                          className="flex items-start space-x-3 p-3 bg-white rounded-lg border border-green-200 hover:border-green-400 transition-colors"
+                        >
+                          <RadioGroupItem value={option.type} id={`frete-${option.type}`} className="mt-1" />
+                          <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <span className="font-medium flex items-center gap-2">
+                                  {option.label}
+                                  {option.cost === 0 && (
+                                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                      Frete Grátis
+                                    </Badge>
+                                  )}
+                                </span>
+                                {option.estimatedDate && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Previsão de entrega: <span className="font-medium">{option.estimatedDate}</span>
+                                  </p>
+                                )}
+                              </div>
+                              <span className={option.cost === 0 ? "text-green-600 font-semibold" : "font-semibold"}>
+                                {option.cost === 0 ? 'Grátis' : `R$ ${option.cost.toFixed(2)}`}
+                              </span>
+                            </div>
+                          </Label>
                         </div>
-                      </Label>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  {/* Pontos de Retirada */}
+                  {shippingOptions.filter(opt => opt.type.startsWith('retirada')).length > 0 && (
+                    <div className="space-y-3 mt-4 pt-4 border-t border-green-200">
+                      <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Pontos de Retirada (Frete Grátis):
+                      </p>
+                      {shippingOptions.filter(opt => opt.type.startsWith('retirada')).map((option) => (
+                        <div 
+                          key={option.type}
+                          className="flex items-start space-x-3 p-3 bg-white rounded-lg border border-green-300 hover:border-green-500 transition-colors"
+                        >
+                          <RadioGroupItem value={option.type} id={`frete-${option.type}`} className="mt-1" />
+                          <Label htmlFor={`frete-${option.type}`} className="flex-1 cursor-pointer">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <span className="font-medium flex items-center gap-2">
+                                  <MapPin className="h-4 w-4 text-green-600" />
+                                  {option.label}
+                                </span>
+                                {option.endereco && (
+                                  <p className="text-xs text-muted-foreground mt-1">{option.endereco}</p>
+                                )}
+                                {option.horario && (
+                                  <p className="text-xs text-muted-foreground">{option.horario}</p>
+                                )}
+                              </div>
+                              <span className="text-green-600 font-semibold">Grátis</span>
+                            </div>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </RadioGroup>
               )}
               
