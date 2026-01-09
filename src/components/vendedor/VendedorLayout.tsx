@@ -59,8 +59,8 @@ export function VendedorLayout() {
   const location = useLocation();
   const { vendedor, tipoPerfil, isRepresentante, isLoading } = useVendedor();
   
-  // Verificar se é vendedor de polo (exemplo: Glorinha - gloria@editoracentralgospel.com)
-  const isPolo = vendedor?.email === 'gloria@editoracentralgospel.com';
+  // Verificar se é vendedor de polo (Glorinha - Polo Penha)
+  const isPolo = vendedor?.email === 'glorinha21carreiro@gmail.com';
   
   const isActive = (path: string) => {
     if (path === "/vendedor") {
