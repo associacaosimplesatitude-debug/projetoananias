@@ -10,6 +10,7 @@ import {
   Megaphone,
   ShoppingBag,
   Scale,
+  Store,
   LucideIcon
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -34,12 +35,15 @@ interface MenuItem {
   label: string;
   end?: boolean;
   vendedorOnly?: boolean; // Items only visible to vendedor, not representante
+  poloOnly?: boolean; // Items only visible to polo sellers (like Glorinha)
 }
 
 // Menu organizado por contexto de Playbook
 const allMenuItems: MenuItem[] = [
   { to: "/vendedor", icon: LayoutDashboard, label: "Painel", end: true },
   { to: "/vendedor/clientes", icon: Users, label: "Clientes" },
+  // PDV para vendas de balcão (Polo Penha)
+  { to: "/vendedor/pdv", icon: Store, label: "PDV Balcão", poloOnly: true },
   // Playbooks - cada um representa um contexto específico
   { to: "/vendedor/pos-venda", icon: ShoppingBag, label: "Pós-Venda E-commerce", vendedorOnly: true },
   { to: "/vendedor/leads-landing", icon: Megaphone, label: "Leads Landing Page", vendedorOnly: true },
@@ -53,7 +57,10 @@ const allMenuItems: MenuItem[] = [
 
 export function VendedorLayout() {
   const location = useLocation();
-  const { tipoPerfil, isRepresentante, isLoading } = useVendedor();
+  const { vendedor, tipoPerfil, isRepresentante, isLoading } = useVendedor();
+  
+  // Verificar se é vendedor de polo (exemplo: Glorinha - gloria@editoracentralgospel.com)
+  const isPolo = vendedor?.email === 'gloria@editoracentralgospel.com';
   
   const isActive = (path: string) => {
     if (path === "/vendedor") {
@@ -66,6 +73,10 @@ export function VendedorLayout() {
   const menuItems = allMenuItems.filter(item => {
     // If it's a vendedor-only item and user is representante, hide it
     if (item.vendedorOnly && isRepresentante) {
+      return false;
+    }
+    // If it's a polo-only item and user is not from polo, hide it
+    if (item.poloOnly && !isPolo) {
       return false;
     }
     return true;

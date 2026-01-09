@@ -4006,6 +4006,74 @@ export type Database = {
           },
         ]
       }
+      vendas_balcao: {
+        Row: {
+          bling_order_id: number | null
+          bling_synced_at: string | null
+          cliente_cpf: string | null
+          cliente_nome: string
+          cliente_telefone: string | null
+          created_at: string
+          forma_pagamento: string
+          id: string
+          itens: Json
+          observacoes: string | null
+          polo: string
+          status: string
+          updated_at: string
+          valor_desconto: number
+          valor_subtotal: number
+          valor_total: number
+          vendedor_id: string
+        }
+        Insert: {
+          bling_order_id?: number | null
+          bling_synced_at?: string | null
+          cliente_cpf?: string | null
+          cliente_nome: string
+          cliente_telefone?: string | null
+          created_at?: string
+          forma_pagamento: string
+          id?: string
+          itens?: Json
+          observacoes?: string | null
+          polo?: string
+          status?: string
+          updated_at?: string
+          valor_desconto?: number
+          valor_subtotal?: number
+          valor_total?: number
+          vendedor_id: string
+        }
+        Update: {
+          bling_order_id?: number | null
+          bling_synced_at?: string | null
+          cliente_cpf?: string | null
+          cliente_nome?: string
+          cliente_telefone?: string | null
+          created_at?: string
+          forma_pagamento?: string
+          id?: string
+          itens?: Json
+          observacoes?: string | null
+          polo?: string
+          status?: string
+          updated_at?: string
+          valor_desconto?: number
+          valor_subtotal?: number
+          valor_total?: number
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendas_balcao_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendedor_orcamentos_frete: {
         Row: {
           cliente_id: string

@@ -117,6 +117,7 @@ import VendedorPedidosPage from "./pages/vendedor/VendedorPedidosPage";
 import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 import { VendedorProtectedRoute } from "./components/vendedor/VendedorProtectedRoute";
 import VendedorCalculadoraPeso from "./pages/vendedor/VendedorCalculadoraPeso";
+import VendedorPDV from "./pages/vendedor/VendedorPDV";
 
 
 // Shopify Pages
@@ -421,6 +422,7 @@ const App = () => (
                     <Route path="/vendedor" element={<VendedorLayout />}>
                       <Route index element={<VendedorDashboard />} />
                       <Route path="clientes" element={<VendedorClientes />} />
+                      <Route path="pdv" element={<VendedorPDV />} />
                       <Route path="pos-venda" element={
                         <VendedorProtectedRoute vendedorOnly>
                           <VendedorPosVenda />

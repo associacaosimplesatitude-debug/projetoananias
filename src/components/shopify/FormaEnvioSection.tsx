@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Truck, MapPin, Clock, ChevronDown, ChevronUp, Check } from "lucide-react";
 
-export type FormaEnvio = "entrega" | "retirada" | "retirada_pe";
+export type FormaEnvio = "entrega" | "retirada" | "retirada_pe" | "retirada_penha";
 
 interface FormaEnvioSectionProps {
   value: FormaEnvio;
@@ -26,6 +26,13 @@ const PERNAMBUCO_CONFIG = {
   horario: "Segunda a Sexta: 9h às 18h"
 };
 
+// Configuração do Polo Penha - Rio de Janeiro
+const PENHA_CONFIG = {
+  endereco: "Rua da Penha, s/n - Penha, Rio de Janeiro - RJ",
+  cep: "21020-000",
+  horario: "Segunda a Sexta: 9h às 18h"
+};
+
 export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -40,6 +47,9 @@ export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
     }
     if (value === "retirada_pe") {
       return { label: "Retirada no Polo - Pernambuco", badge: "Frete Grátis" };
+    }
+    if (value === "retirada_penha") {
+      return { label: "Retirada no Polo - Penha / RJ", badge: "Frete Grátis" };
     }
     return { label: "Entrega no Endereço", badge: null };
   };
@@ -137,6 +147,31 @@ export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
                 </div>
               </label>
             </div>
+
+            {/* Retirada no Polo - Penha / RJ */}
+            <div className={`flex items-start space-x-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
+              value === "retirada_penha" ? "bg-primary/5 border-primary/30" : "hover:bg-muted/50"
+            }`}>
+              <RadioGroupItem value="retirada_penha" id="envio-retirada-penha" className="mt-0.5 h-3.5 w-3.5" />
+              <label htmlFor="envio-retirada-penha" className="flex-1 cursor-pointer">
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3 text-green-600" />
+                  <span className="font-medium">Retirada no Polo - Penha / RJ</span>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                    Frete Grátis
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground mt-0.5 leading-tight">
+                  {PENHA_CONFIG.endereco}
+                </p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    {PENHA_CONFIG.horario}
+                  </span>
+                </div>
+              </label>
+            </div>
           </RadioGroup>
         </CollapsibleContent>
       </Collapsible>
@@ -144,4 +179,4 @@ export function FormaEnvioSection({ value, onChange }: FormaEnvioSectionProps) {
   );
 }
 
-export { MATRIZ_CONFIG, PERNAMBUCO_CONFIG };
+export { MATRIZ_CONFIG, PERNAMBUCO_CONFIG, PENHA_CONFIG };
