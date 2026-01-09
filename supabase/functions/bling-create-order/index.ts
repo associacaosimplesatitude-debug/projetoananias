@@ -1003,12 +1003,14 @@ serve(async (req) => {
     const UFS_NORTE_NORDESTE = ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO', 'MA', 'PI', 'CE', 'RN', 'PB', 'PE', 'AL', 'SE', 'BA'];
     
     // ============================================================
-    // CONFIGURAÇÃO DE IDs FIXOS (por região)
+    // CONFIGURAÇÃO DE IDs FIXOS (por região/ponto de retirada)
     // ============================================================
     // Norte/Nordeste -> Loja Pernambuco: 205882190
     // Demais regiões -> Loja FATURADOS: 205797806
+    // Polo Penha -> Loja POLO PENHA: 205891152
     const BLING_LOJA_PERNAMBUCO_ID = 205882190;
     const BLING_LOJA_FATURADOS_ID = 205797806;
+    const BLING_LOJA_PENHA_ID = 205891152;
     
     // Unidades de Negócio FIXAS (sem depender de secrets)
     // Norte/Nordeste -> unidadeNegocio.id = 1 (Polo Pernambuco)
@@ -1019,6 +1021,7 @@ serve(async (req) => {
     // Depósitos - OBRIGATÓRIOS (via secrets)
     const BLING_DEPOSITO_ID_GERAL_RAW = Deno.env.get('BLING_DEPOSITO_ID_GERAL');
     const BLING_DEPOSITO_ID_PERNAMBUCO_RAW = Deno.env.get('BLING_DEPOSITO_ID_PERNAMBUCO');
+    const BLING_DEPOSITO_ID_PENHA_RAW = Deno.env.get('BLING_DEPOSITO_ID_PENHA');
     
     // Validar apenas depósitos (obrigatórios)
     const missingSecrets: string[] = [];
@@ -1032,6 +1035,10 @@ serve(async (req) => {
     
     const BLING_DEPOSITO_ID_RJ = Number(BLING_DEPOSITO_ID_GERAL_RAW);
     const BLING_DEPOSITO_ID_PE = Number(BLING_DEPOSITO_ID_PERNAMBUCO_RAW);
+    // Penha: usa secret se disponível, fallback para RJ
+    const BLING_DEPOSITO_ID_PENHA = BLING_DEPOSITO_ID_PENHA_RAW 
+      ? Number(BLING_DEPOSITO_ID_PENHA_RAW) 
+      : BLING_DEPOSITO_ID_RJ;
     
     // Validar depósitos
     if (isNaN(BLING_DEPOSITO_ID_RJ) || BLING_DEPOSITO_ID_RJ <= 0) {
@@ -1049,9 +1056,12 @@ serve(async (req) => {
     const ufEntrega = (endereco_entrega?.uf || endereco_entrega?.estado || '').toUpperCase().trim();
     const isNorteNordeste = UFS_NORTE_NORDESTE.includes(ufEntrega);
     
-    // Selecionar IDs baseado na região
-    // LOJA muda baseado na UF: Pernambuco (205882190) para N/NE, FATURADOS (205797806) para outras
-    // UNIDADE DE NEGÓCIO muda baseado na UF: 1 para Norte/Nordeste, 2 para outras
+    // metodo_frete já vem do body (linha 340): PAC, SEDEX, FREE, manual, retirada, retirada_pe, retirada_penha
+    console.log(`[ROUTING] metodo_frete=${metodo_frete || 'N/A'} ufEntrega=${ufEntrega} isNorteNordeste=${isNorteNordeste}`);
+    
+    // Selecionar IDs baseado na região OU ponto de retirada
+    // PRIORIDADE 1: Pontos de retirada específicos (metodo_frete)
+    // PRIORIDADE 2: UF de entrega (Norte/Nordeste vs outras)
     let lojaSelecionada = '';
     let lojaIdSelecionada: number;
     let unidadeNegocioSelecionada = '';
@@ -1059,14 +1069,44 @@ serve(async (req) => {
     let depositoSelecionado = '';
     let depositoIdSelecionado: number;
     
-    if (isNorteNordeste) {
+    if (metodo_frete === 'retirada_penha') {
+      // PRIORIDADE 1: Retirada no Polo da Penha
+      lojaSelecionada = 'POLO PENHA';
+      lojaIdSelecionada = BLING_LOJA_PENHA_ID; // = 205891152
+      unidadeNegocioSelecionada = 'Polo Penha (RJ)';
+      unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS; // = 2 (RJ)
+      depositoSelecionado = 'LOJA PENHA';
+      depositoIdSelecionado = BLING_DEPOSITO_ID_PENHA; // = 14888322619
+      
+    } else if (metodo_frete === 'retirada_pe') {
+      // PRIORIDADE 1: Retirada no Polo Pernambuco
       lojaSelecionada = 'Pernambuco';
       lojaIdSelecionada = BLING_LOJA_PERNAMBUCO_ID; // = 205882190
       unidadeNegocioSelecionada = 'Polo Jaboatão (PE)';
       unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_NORTE_NORDESTE; // = 1
-      depositoSelecionado = 'PERNAMBUCO [ALFA]';
+      depositoSelecionado = 'PERNANBUCO [ALFA]';
       depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
+      
+    } else if (metodo_frete === 'retirada') {
+      // PRIORIDADE 1: Retirada na Matriz RJ
+      lojaSelecionada = 'FATURADOS';
+      lojaIdSelecionada = BLING_LOJA_FATURADOS_ID; // = 205797806
+      unidadeNegocioSelecionada = 'Matriz (RJ)';
+      unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS; // = 2
+      depositoSelecionado = 'Geral';
+      depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
+      
+    } else if (isNorteNordeste) {
+      // PRIORIDADE 2: Entrega para Norte/Nordeste
+      lojaSelecionada = 'Pernambuco';
+      lojaIdSelecionada = BLING_LOJA_PERNAMBUCO_ID; // = 205882190
+      unidadeNegocioSelecionada = 'Polo Jaboatão (PE)';
+      unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_NORTE_NORDESTE; // = 1
+      depositoSelecionado = 'PERNANBUCO [ALFA]';
+      depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
+      
     } else {
+      // PRIORIDADE 3: Demais entregas → Matriz RJ
       lojaSelecionada = 'FATURADOS';
       lojaIdSelecionada = BLING_LOJA_FATURADOS_ID; // = 205797806
       unidadeNegocioSelecionada = 'Matriz (RJ)';
@@ -1075,11 +1115,9 @@ serve(async (req) => {
       depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
     }
     
-    // LOG OBRIGATÓRIO 1: UF e seleções
-    console.log(`[ROUTING] ufEntrega=${ufEntrega} isNorteNordeste=${isNorteNordeste}`);
+    // LOG OBRIGATÓRIO: Seleções finais
     console.log(`[ROUTING] loja=${lojaSelecionada} (${lojaIdSelecionada}) unidadeNegocio=${unidadeNegocioSelecionada} (${unidadeNegocioIdSelecionada})`);
-    // LOG OBRIGATÓRIO 2: IDs selecionados
-    console.log(`[ROUTING] deposito.id=${depositoIdSelecionado}`);
+    console.log(`[ROUTING] deposito=${depositoSelecionado} id=${depositoIdSelecionado}`);
     
     // Tipo para compatibilidade
     type DepositoInfo = { id: number; descricao: string; padrao: boolean };
