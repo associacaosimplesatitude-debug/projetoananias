@@ -48,14 +48,21 @@ export function PropostaFaturadaDetailDialog({
 }: PropostaFaturadaDetailDialogProps) {
   if (!proposta) return null;
 
+  // Helper to safely convert to number
+  const toNumber = (value: any): number => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') return parseFloat(value) || 0;
+    return 0;
+  };
+
   const subtotalProdutos = proposta.itens.reduce(
-    (acc, item) => acc + item.preco * item.quantidade,
+    (acc, item) => acc + toNumber(item.preco) * toNumber(item.quantidade),
     0
   );
 
   const calcularValorParaMeta = () => {
     const valorProdutos = subtotalProdutos;
-    const valorFrete = proposta.valor_frete || 0;
+    const valorFrete = toNumber(proposta.valor_frete);
     return valorProdutos - valorFrete;
   };
 
@@ -97,12 +104,12 @@ export function PropostaFaturadaDetailDialog({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">{item.quantidade}</TableCell>
+                    <TableCell className="text-center">{toNumber(item.quantidade)}</TableCell>
                     <TableCell className="text-right">
-                      R$ {item.preco.toFixed(2)}
+                      R$ {toNumber(item.preco).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right">
-                      R$ {(item.preco * item.quantidade).toFixed(2)}
+                      R$ {(toNumber(item.preco) * toNumber(item.quantidade)).toFixed(2)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -119,17 +126,17 @@ export function PropostaFaturadaDetailDialog({
               <span>R$ {subtotalProdutos.toFixed(2)}</span>
             </div>
 
-            {proposta.valor_frete > 0 && (
+            {toNumber(proposta.valor_frete) > 0 && (
               <div className="flex justify-between">
                 <span>Frete:</span>
-                <span>R$ {proposta.valor_frete.toFixed(2)}</span>
+                <span>R$ {toNumber(proposta.valor_frete).toFixed(2)}</span>
               </div>
             )}
 
-            {proposta.desconto_aplicado > 0 && (
+            {toNumber(proposta.desconto_aplicado) > 0 && (
               <div className="flex justify-between text-green-600">
                 <span>Desconto Aplicado:</span>
-                <span>- R$ {proposta.desconto_aplicado.toFixed(2)}</span>
+                <span>- R$ {toNumber(proposta.desconto_aplicado).toFixed(2)}</span>
               </div>
             )}
 
@@ -144,7 +151,7 @@ export function PropostaFaturadaDetailDialog({
 
             <div className="flex justify-between font-semibold text-base">
               <span>Valor Total:</span>
-              <span>R$ {proposta.valor_total.toFixed(2)}</span>
+              <span>R$ {toNumber(proposta.valor_total).toFixed(2)}</span>
             </div>
 
             <div className="flex justify-between text-primary font-medium">
