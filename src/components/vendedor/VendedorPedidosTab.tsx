@@ -17,6 +17,7 @@ import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle, Pencil
 import { useState, useEffect, useRef } from "react";
 import { PedidoDetailDialog, Pedido } from "./PedidoDetailDialog";
 import { ShopifyPedidoDetailDialog } from "./ShopifyPedidoDetailDialog";
+import { PropostaFaturadaDetailDialog } from "./PropostaFaturadaDetailDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -68,8 +69,27 @@ interface PropostaFaturada {
   desconto_percentual: number | null;
   created_at: string;
   confirmado_em: string | null;
+  prazo_faturamento?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   itens: any;
+}
+
+// Interface for the detail dialog
+interface PropostaDetailForDialog {
+  id: string;
+  cliente_nome: string;
+  valor_total: number;
+  valor_frete: number;
+  desconto_aplicado: number;
+  created_at: string;
+  itens: Array<{
+    id: string;
+    nome: string;
+    quantidade: number;
+    preco: number;
+    sku?: string;
+  }>;
+  prazo_faturamento?: number;
 }
 
 interface VendedorPedidosTabProps {
@@ -146,6 +166,10 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
   const [editValorTotal, setEditValorTotal] = useState("");
   const [editValorFrete, setEditValorFrete] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // States for proposta detail dialog
+  const [selectedPropostaDetail, setSelectedPropostaDetail] = useState<PropostaDetailForDialog | null>(null);
+  const [propostaDetailDialogOpen, setPropostaDetailDialogOpen] = useState(false);
 
   // Check if user can edit/delete (financeiro or gerente_ebd)
   const canManagePropostas = role === 'financeiro' || role === 'gerente_ebd' || role === 'admin';
@@ -605,12 +629,20 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                     <TableHead>Valor Total</TableHead>
                     <TableHead>Para Meta</TableHead>
                     <TableHead>Status</TableHead>
-                    {canManagePropostas && <TableHead className="text-right">Ações</TableHead>}
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {propostasFaturadas.map((proposta) => {
                     const itens = Array.isArray(proposta.itens) ? proposta.itens : [];
+                    // Transform itens to the format expected by the dialog
+                    const itensFormatted = itens.map((item: any, idx: number) => ({
+                      id: item.id || `item-${idx}`,
+                      nome: item.title || item.nome || 'Produto',
+                      quantidade: item.quantity || item.quantidade || 1,
+                      preco: item.price || item.preco || 0,
+                      sku: item.sku
+                    }));
                     return (
                       <TableRow key={proposta.id}>
                         <TableCell>
@@ -639,27 +671,54 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                             Faturado
                           </Badge>
                         </TableCell>
-                        {canManagePropostas && (
-                          <TableCell className="text-right">
-                            <div className="flex gap-1 justify-end">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenEditDialog(proposta)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenDeleteDialog(proposta)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                // Calculate desconto_aplicado from desconto_percentual and valor_produtos
+                                const valorProdutos = proposta.valor_produtos || 0;
+                                const descontoPercentual = proposta.desconto_percentual || 0;
+                                const descontoAplicado = (valorProdutos * descontoPercentual) / 100;
+                                
+                                setSelectedPropostaDetail({
+                                  id: proposta.id,
+                                  cliente_nome: proposta.cliente_nome,
+                                  valor_total: proposta.valor_total,
+                                  created_at: proposta.created_at,
+                                  itens: itensFormatted,
+                                  valor_frete: proposta.valor_frete || 0,
+                                  desconto_aplicado: descontoAplicado,
+                                  prazo_faturamento: proposta.prazo_faturamento
+                                });
+                                setPropostaDetailDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Ver
+                            </Button>
+                            {canManagePropostas && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenEditDialog(proposta)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenDeleteDialog(proposta)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -870,6 +929,13 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
         open={shopifyDialogOpen}
         onOpenChange={setShopifyDialogOpen}
         pedido={selectedShopifyPedido}
+      />
+
+      {/* Proposta Faturada Detail Dialog */}
+      <PropostaFaturadaDetailDialog
+        open={propostaDetailDialogOpen}
+        onOpenChange={setPropostaDetailDialogOpen}
+        proposta={selectedPropostaDetail}
       />
     </>
   );
