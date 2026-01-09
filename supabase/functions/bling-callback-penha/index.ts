@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
           <div class="container">
             <span class="badge">Polo Penha / RJ</span>
             <h1>❌ Erro Inesperado</h1>
-            <p>${error.message}</p>
+            <p>${error instanceof Error ? error.message : "Erro desconhecido"}</p>
           </div>
         </body>
       </html>
