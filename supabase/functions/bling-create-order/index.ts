@@ -1525,11 +1525,13 @@ serve(async (req) => {
         );
       }
 
-      // Calcular desconto percentual do item
-      // desconto_percentual_item = ((precoLista - precoComDesconto) / precoLista) * 100
+      // Calcular desconto percentual do item - ARREDONDAR PARA INTEIRO
+      // O Bling processa melhor descontos inteiros para evitar dízimas periódicas
+      // desconto_percentual_item = Math.round(((precoLista - precoComDesconto) / precoLista) * 100)
       let descontoPercentualItem = 0;
       if (precoLista > precoComDesconto && precoLista > 0) {
-        descontoPercentualItem = Math.round(((precoLista - precoComDesconto) / precoLista) * 10000) / 100;
+        // CORREÇÃO: Arredondar para inteiro (ex: 44.99% vira 45%)
+        descontoPercentualItem = Math.round(((precoLista - precoComDesconto) / precoLista) * 100);
       }
 
       // IMPORTANTÍSSIMO: o Bling pode arredondar o desconto por UNIDADE antes de multiplicar.
@@ -1555,7 +1557,7 @@ serve(async (req) => {
       console.log(`  - bling_produto_id: ${blingProdutoId}`);
       console.log(`  - bling_produto_codigo: ${blingProdutoCodigo || 'N/A'}`);
       console.log(`  - Preço Lista (enviado): R$ ${precoLista.toFixed(2)}`);
-      console.log(`  - Desconto %: ${descontoPercentualItem.toFixed(2)}%`);
+      console.log(`  - Desconto %: ${descontoPercentualItem}%`);
       console.log(`  - Preço Unit. Líquido (simulado): R$ ${precoUnitarioLiquido.toFixed(2)}`);
       console.log(`  - Total Líquido Item (simulado): R$ ${totalItemLiquido.toFixed(2)}`);
       console.log(`  - Desconto Total do Item (simulado): R$ ${descontoTotalItem.toFixed(2)}`);
@@ -1582,7 +1584,8 @@ serve(async (req) => {
       };
 
       if (descontoPercentualItem > 0) {
-        itemBling.desconto = Number(descontoPercentualItem.toFixed(2));
+        // CORREÇÃO: Enviar desconto como inteiro (já arredondado acima)
+        itemBling.desconto = descontoPercentualItem;
       }
 
       itensBling.push(itemBling);
@@ -1729,6 +1732,23 @@ serve(async (req) => {
       }
 
       parcelas = [parcelaVistaObj];
+    }
+
+    // ============================================================
+    // AUDITORIA OBRIGATÓRIA: Verificar se parcelas batem com total
+    // ============================================================
+    const somaParcelas = parcelas.reduce((acc, p) => acc + Number(p.valor), 0);
+    const diferencaCentavos = Math.round((valorTotalBling - somaParcelas) * 100);
+    console.log(`[AUDITORIA] Total Pedido: R$ ${valorTotalBling.toFixed(2)} | Soma Parcelas: R$ ${somaParcelas.toFixed(2)} | Diferença: ${diferencaCentavos} centavos`);
+    
+    if (Math.abs(diferencaCentavos) > 0) {
+      console.warn(`[AUDITORIA] ALERTA: Diferença detectada de ${diferencaCentavos} centavos! Ajustando última parcela...`);
+      // Corrigir a última parcela para garantir que a soma bata exatamente
+      if (parcelas.length > 0) {
+        const ultimaParcela = parcelas[parcelas.length - 1];
+        ultimaParcela.valor = Number((Number(ultimaParcela.valor) + (diferencaCentavos / 100)).toFixed(2));
+        console.log(`[AUDITORIA] Última parcela ajustada para: R$ ${ultimaParcela.valor.toFixed(2)}`);
+      }
     }
 
     // Criar pedido no Bling com dados de transporte corretos
