@@ -1100,9 +1100,16 @@ serve(async (req) => {
       
       console.log(`[ROUTING] PAGAMENTO LOJA: forma=${forma_pagamento_loja}, bandeira=${bandeira_cartao}, parcelas=${parcelas_cartao}, deposito=${deposito_origem}`);
       
-    } else if (metodo_frete === 'retirada_penha') {
-      
-    } else if (metodo_frete === 'retirada_pe') {
+  } else if (metodo_frete === 'retirada_penha') {
+    // PRIORIDADE 1: Retirada no Polo Penha (Loja Penha)
+    lojaSelecionada = 'POLO PENHA';
+    lojaIdSelecionada = BLING_LOJA_PENHA_ID;
+    unidadeNegocioSelecionada = 'Polo Penha (RJ)';
+    unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS;
+    depositoSelecionado = 'LOJA PENHA';
+    depositoIdSelecionado = BLING_DEPOSITO_ID_PENHA;
+
+  } else if (metodo_frete === 'retirada_pe') {
       // PRIORIDADE 1: Retirada no Polo Pernambuco
       lojaSelecionada = 'Pernambuco';
       lojaIdSelecionada = BLING_LOJA_PERNAMBUCO_ID; // = 205882190
