@@ -10,9 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Video, ArrowLeft, Upload, X, FileVideo } from "lucide-react";
+import { Plus, Pencil, Trash2, Video, ArrowLeft, Upload, X, FileVideo, Eye, CheckCircle2, Clock, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const PERFIS = [
   { value: "VENDEDORES", label: "Vendedores" },
@@ -33,6 +36,7 @@ interface Tutorial {
   video_path: string | null;
   descricao: string | null;
   categorias: string[];
+  ordem: number;
   created_at: string;
   tutoriais_perfis: { perfil: TutorialPerfil }[];
 }
@@ -42,6 +46,19 @@ interface TutorialForm {
   descricao: string;
   categorias: string;
   perfis: TutorialPerfil[];
+  ordem: number;
+}
+
+interface Vendedor {
+  id: string;
+  nome: string;
+  email: string;
+}
+
+interface Visualizacao {
+  tutorial_id: string;
+  vendedor_id: string;
+  assistido_em: string;
 }
 
 const initialForm: TutorialForm = {
@@ -49,6 +66,7 @@ const initialForm: TutorialForm = {
   descricao: "",
   categorias: "",
   perfis: [],
+  ordem: 0,
 };
 
 export default function GestaoTutoriais() {
@@ -59,6 +77,7 @@ export default function GestaoTutoriais() {
   const [existingVideoPath, setExistingVideoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [viewingTutorialId, setViewingTutorialId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -68,19 +87,68 @@ export default function GestaoTutoriais() {
       const { data, error } = await supabase
         .from("tutoriais")
         .select("*, tutoriais_perfis(perfil)")
-        .order("created_at", { ascending: false });
+        .order("ordem", { ascending: true });
 
       if (error) throw error;
       return data as Tutorial[];
     },
   });
 
+  // Fetch all vendedores
+  const { data: vendedores } = useQuery({
+    queryKey: ["vendedores-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendedores")
+        .select("id, nome, email")
+        .order("nome");
+
+      if (error) throw error;
+      return data as Vendedor[];
+    },
+  });
+
+  // Fetch all visualizacoes
+  const { data: allVisualizacoes } = useQuery({
+    queryKey: ["all-tutorial-visualizacoes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tutorial_visualizacoes")
+        .select("tutorial_id, vendedor_id, assistido_em");
+
+      if (error) throw error;
+      return data as Visualizacao[];
+    },
+  });
+
+  // Helper to get watch stats for a tutorial
+  const getWatchStats = (tutorialId: string) => {
+    const totalVendedores = vendedores?.length ?? 0;
+    const watched = allVisualizacoes?.filter((v) => v.tutorial_id === tutorialId).length ?? 0;
+    const percentage = totalVendedores > 0 ? Math.round((watched / totalVendedores) * 100) : 0;
+    return { watched, total: totalVendedores, percentage };
+  };
+
+  // Get detailed view for a tutorial
+  const getVisualizacoesDetalhadas = (tutorialId: string) => {
+    const vizMap = new Map(
+      allVisualizacoes
+        ?.filter((v) => v.tutorial_id === tutorialId)
+        .map((v) => [v.vendedor_id, v.assistido_em])
+    );
+
+    return vendedores?.map((vendedor) => ({
+      ...vendedor,
+      assistido: vizMap.has(vendedor.id),
+      assistido_em: vizMap.get(vendedor.id),
+    })) ?? [];
+  };
+
   const uploadVideo = useCallback(async (file: File): Promise<string> => {
     const fileExt = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `tutorials/${fileName}`;
 
-    // Get the upload URL
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData?.session?.access_token;
     
@@ -122,14 +190,18 @@ export default function GestaoTutoriais() {
 
   const createMutation = useMutation({
     mutationFn: async (data: TutorialForm & { videoPath: string }) => {
+      // Get max ordem
+      const maxOrdem = tutoriais?.reduce((max, t) => Math.max(max, t.ordem || 0), 0) ?? 0;
+      
       const { data: tutorial, error: tutorialError } = await supabase
         .from("tutoriais")
         .insert({
           titulo: data.titulo,
-          link_video: "", // Mantemos vazio para compatibilidade
+          link_video: "",
           video_path: data.videoPath,
           descricao: data.descricao || null,
           categorias: data.categorias.split(",").map((c) => c.trim()).filter(Boolean),
+          ordem: data.ordem || maxOrdem + 1,
         })
         .select()
         .single();
@@ -164,7 +236,6 @@ export default function GestaoTutoriais() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data, videoPath, oldVideoPath }: { id: string; data: TutorialForm; videoPath: string | null; oldVideoPath: string | null }) => {
-      // Delete old video if we're uploading a new one
       if (oldVideoPath && videoPath && oldVideoPath !== videoPath) {
         await deleteVideo(oldVideoPath);
       }
@@ -176,12 +247,12 @@ export default function GestaoTutoriais() {
           video_path: videoPath,
           descricao: data.descricao || null,
           categorias: data.categorias.split(",").map((c) => c.trim()).filter(Boolean),
+          ordem: data.ordem,
         })
         .eq("id", id);
 
       if (tutorialError) throw tutorialError;
 
-      // Delete existing perfis and insert new ones
       const { error: deleteError } = await supabase
         .from("tutoriais_perfis")
         .delete()
@@ -215,7 +286,6 @@ export default function GestaoTutoriais() {
 
   const deleteMutation = useMutation({
     mutationFn: async ({ id, videoPath }: { id: string; videoPath: string | null }) => {
-      // Delete video from storage
       if (videoPath) {
         await deleteVideo(videoPath);
       }
@@ -249,6 +319,7 @@ export default function GestaoTutoriais() {
       descricao: tutorial.descricao || "",
       categorias: tutorial.categorias?.join(", ") || "",
       perfis: tutorial.tutoriais_perfis.map((p) => p.perfil),
+      ordem: tutorial.ordem || 0,
     });
     setExistingVideoPath(tutorial.video_path);
     setSelectedFile(null);
@@ -259,13 +330,11 @@ export default function GestaoTutoriais() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith("video/")) {
       toast.error("Selecione um arquivo de vídeo válido");
       return;
     }
 
-    // Validate file size (max 20GB)
     if (file.size > 20 * 1024 * 1024 * 1024) {
       toast.error("O arquivo deve ter no máximo 20GB");
       return;
@@ -298,7 +367,6 @@ export default function GestaoTutoriais() {
     try {
       let videoPath = existingVideoPath;
 
-      // Upload new video if selected
       if (selectedFile) {
         videoPath = await uploadVideo(selectedFile);
       }
@@ -329,10 +397,10 @@ export default function GestaoTutoriais() {
     }));
   };
 
-  const getVideoUrl = (videoPath: string) => {
-    const { data } = supabase.storage.from("tutorial-videos").getPublicUrl(videoPath);
-    return data.publicUrl;
-  };
+  // Get the viewing tutorial details
+  const viewingTutorial = tutoriais?.find((t) => t.id === viewingTutorialId);
+  const viewingDetails = viewingTutorialId ? getVisualizacoesDetalhadas(viewingTutorialId) : [];
+  const viewingStats = viewingTutorialId ? getWatchStats(viewingTutorialId) : null;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -365,14 +433,27 @@ export default function GestaoTutoriais() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="titulo">Título *</Label>
-                <Input
-                  id="titulo"
-                  value={form.titulo}
-                  onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-                  placeholder="Ex: Como cadastrar um pedido"
-                />
+              <div className="grid grid-cols-4 gap-4">
+                <div className="col-span-3 space-y-2">
+                  <Label htmlFor="titulo">Título *</Label>
+                  <Input
+                    id="titulo"
+                    value={form.titulo}
+                    onChange={(e) => setForm({ ...form, titulo: e.target.value })}
+                    placeholder="Ex: Como cadastrar um pedido"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ordem">Ordem</Label>
+                  <Input
+                    id="ordem"
+                    type="number"
+                    min={1}
+                    value={form.ordem || ""}
+                    onChange={(e) => setForm({ ...form, ordem: parseInt(e.target.value) || 0 })}
+                    placeholder="1"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -508,6 +589,78 @@ export default function GestaoTutoriais() {
         </Dialog>
       </div>
 
+      {/* View details dialog */}
+      <Dialog open={!!viewingTutorialId} onOpenChange={(open) => !open && setViewingTutorialId(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Quem assistiu
+            </DialogTitle>
+          </DialogHeader>
+          
+          {viewingTutorial && viewingStats && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium text-sm mb-2">{viewingTutorial.titulo}</p>
+                <div className="flex items-center gap-2">
+                  <Progress value={viewingStats.percentage} className="h-2 flex-1" />
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    {viewingStats.watched}/{viewingStats.total}
+                  </span>
+                </div>
+              </div>
+
+              <ScrollArea className="h-[300px] pr-4">
+                <div className="space-y-2">
+                  {viewingDetails
+                    .sort((a, b) => {
+                      // Watched first, then by date (most recent first), then by name
+                      if (a.assistido && !b.assistido) return -1;
+                      if (!a.assistido && b.assistido) return 1;
+                      if (a.assistido && b.assistido) {
+                        return new Date(b.assistido_em!).getTime() - new Date(a.assistido_em!).getTime();
+                      }
+                      return a.nome.localeCompare(b.nome);
+                    })
+                    .map((vendedor) => (
+                      <div
+                        key={vendedor.id}
+                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                          vendedor.assistido ? "bg-green-50 border-green-200" : "bg-muted/50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {vendedor.assistido ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="font-medium text-sm">{vendedor.nome}</span>
+                        </div>
+                        {vendedor.assistido ? (
+                          <span className="text-xs text-green-600">
+                            {format(new Date(vendedor.assistido_em!), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Não assistiu</span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </ScrollArea>
+
+              <div className="pt-2 border-t text-center">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{viewingStats.watched}</span> de{" "}
+                  <span className="font-medium text-foreground">{viewingStats.total}</span> vendedores assistiram ({viewingStats.percentage}%)
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -521,68 +674,102 @@ export default function GestaoTutoriais() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {tutoriais?.map((tutorial) => (
-            <Card key={tutorial.id}>
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg">{tutorial.titulo}</CardTitle>
-                    {tutorial.descricao && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {tutorial.descricao}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(tutorial)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm("Deseja excluir este tutorial?")) {
-                          deleteMutation.mutate({ id: tutorial.id, videoPath: tutorial.video_path });
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileVideo className="h-4 w-4" />
-                  <span>
-                    {tutorial.video_path ? "Vídeo MP4 cadastrado" : "Sem vídeo"}
-                  </span>
-                </div>
+          {tutoriais?.map((tutorial) => {
+            const stats = getWatchStats(tutorial.id);
+            const hasVendedorProfile = tutorial.tutoriais_perfis.some(p => p.perfil === "VENDEDORES");
 
-                {tutorial.categorias?.length > 0 && (
+            return (
+              <Card key={tutorial.id}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          #{tutorial.ordem || "-"}
+                        </Badge>
+                        <CardTitle className="text-lg">{tutorial.titulo}</CardTitle>
+                      </div>
+                      {tutorial.descricao && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {tutorial.descricao}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(tutorial)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (confirm("Deseja excluir este tutorial?")) {
+                            deleteMutation.mutate({ id: tutorial.id, videoPath: tutorial.video_path });
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileVideo className="h-4 w-4" />
+                    <span>
+                      {tutorial.video_path ? "Vídeo MP4 cadastrado" : "Sem vídeo"}
+                    </span>
+                  </div>
+
+                  {tutorial.categorias?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {tutorial.categorias.map((cat) => (
+                        <Badge key={cat} variant="secondary">
+                          {cat}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-1">
-                    {tutorial.categorias.map((cat) => (
-                      <Badge key={cat} variant="secondary">
-                        {cat}
+                    {tutorial.tutoriais_perfis.map((p) => (
+                      <Badge key={p.perfil} variant="outline">
+                        {PERFIS.find((pf) => pf.value === p.perfil)?.label || p.perfil}
                       </Badge>
                     ))}
                   </div>
-                )}
 
-                <div className="flex flex-wrap gap-1">
-                  {tutorial.tutoriais_perfis.map((p) => (
-                    <Badge key={p.perfil} variant="outline">
-                      {PERFIS.find((pf) => pf.value === p.perfil)?.label || p.perfil}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  {/* Watch statistics for vendedores */}
+                  {hasVendedorProfile && (
+                    <div className="pt-3 border-t space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            <span className="font-medium">{stats.watched}</span> de{" "}
+                            <span className="font-medium">{stats.total}</span> vendedores assistiram
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setViewingTutorialId(tutorial.id)}
+                        >
+                          <Users className="h-4 w-4 mr-1" />
+                          Ver lista
+                        </Button>
+                      </div>
+                      <Progress value={stats.percentage} className="h-2" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
