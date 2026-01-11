@@ -1485,7 +1485,7 @@ export default function ShopifyPedidos() {
                   cep: selectedCliente.endereco_cep,
                 },
                 itens: items.map(item => ({
-                  sku: item.product.node.variants.edges[0]?.node.id.split('/').pop() || '',
+                  sku: item.sku || item.product.node.variants.edges[0]?.node.sku || '',
                   nome: item.product.node.title,
                   quantidade: item.quantity,
                   valor: parseFloat(item.price.amount),
