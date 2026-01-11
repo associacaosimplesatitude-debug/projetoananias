@@ -1307,8 +1307,10 @@ serve(async (req) => {
     let UNIDADE_NEGOCIO_PENHA = resolveUnidadeNegocioPenhaId(unidadesNegocioMap);
 
     if (UNIDADE_NEGOCIO_PENHA === null) {
-      console.warn('[BLING] ⚠️ Unidade Penha não encontrada! Usando fallback para Matriz (ID: 2)');
-      UNIDADE_NEGOCIO_PENHA = UNIDADE_NEGOCIO_OUTRAS; // fallback = 2
+      // Fallback seguro: hoje no Bling a unidade "Loja Penha" existe e costuma ser ID=3.
+      // Mantemos o lookup dinâmico como prioridade, mas evitamos cair na Matriz quando o endpoint não retorna a lista.
+      console.warn('[BLING] ⚠️ Unidade Penha não encontrada via API! Usando fallback ID=3 (Loja Penha)');
+      UNIDADE_NEGOCIO_PENHA = 3;
     } else {
       console.log(`[BLING] ✅ Unidade Penha resolvida dinamicamente: ID=${UNIDADE_NEGOCIO_PENHA}`);
     }
