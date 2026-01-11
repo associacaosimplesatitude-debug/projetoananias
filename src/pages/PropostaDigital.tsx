@@ -98,6 +98,17 @@ export default function PropostaDigital() {
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [isLoadingShipping, setIsLoadingShipping] = useState(false);
 
+  // Helper para formatar o prazo de forma legível
+  const formatPrazoLabel = (prazo: string): string => {
+    switch (prazo) {
+      case '30': return '30 dias';
+      case '60_direto': return '60 dias (1 boleto)';
+      case '60': return '30/60 dias (2 boletos)';
+      case '90': return '30/60/90 dias (3 boletos)';
+      default: return prazo;
+    }
+  };
+
   const { data: proposta, isLoading, error } = useQuery({
     queryKey: ["proposta", token],
     queryFn: async () => {
@@ -1076,7 +1087,7 @@ export default function PropostaDigital() {
               <p className="text-center text-xs text-muted-foreground mt-3">
                 Ao confirmar, você aceita os termos desta proposta comercial.
                 {proposta.pode_faturar && (
-                  <> O pagamento será faturado em {selectedPrazo} dias.</>
+                  <> O pagamento será faturado em {formatPrazoLabel(selectedPrazo)}.</>
                 )}
                 {!proposta.pode_faturar && (
                   <> O pagamento será processado via checkout padrão.</>
