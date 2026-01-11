@@ -69,6 +69,15 @@ export function DescontoBanner({ calculo }: DescontoBannerProps) {
           titulo: "Desconto do Representante",
           descricao: `Desconto por categoria aplicado (~${calculo.descontoPercentual.toFixed(1)}% médio)`
         };
+      case "categoria":
+        return {
+          icon: <Percent className="h-4 w-4" />,
+          bgClass: "bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800",
+          textClass: "text-emerald-700 dark:text-emerald-400",
+          badgeClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+          titulo: "Desconto por Categoria",
+          descricao: `Desconto especial por categoria (~${calculo.descontoPercentual.toFixed(1)}% médio)`
+        };
       default:
         return null;
     }
@@ -93,7 +102,7 @@ export function DescontoBanner({ calculo }: DescontoBannerProps) {
       </div>
       
       {/* Detalhes por categoria para Representante */}
-      {calculo.tipoDesconto === "representante" && calculo.itensComDescontoCategoria && calculo.itensComDescontoCategoria.length > 0 && (
+      {(calculo.tipoDesconto === "representante" || calculo.tipoDesconto === "categoria") && calculo.itensComDescontoCategoria && calculo.itensComDescontoCategoria.length > 0 && (
         <div className="mt-3 pt-3 border-t border-orange-200 dark:border-orange-800 space-y-1.5">
           {calculo.itensComDescontoCategoria.filter(item => item.percentual > 0).map((item, index) => (
             <div key={index} className="flex justify-between items-center text-xs">

@@ -109,7 +109,7 @@ export interface CalculoDesconto {
   descontoPercentual: number;
   descontoValor: number;
   total: number;
-  tipoDesconto: "advec_50" | "setup" | "revendedor" | "b2b" | "representante" | "vendedor" | "nenhum";
+  tipoDesconto: "advec_50" | "setup" | "revendedor" | "b2b" | "representante" | "categoria" | "vendedor" | "nenhum";
   faixa: string;
   itensComDesconto50?: string[]; // Títulos dos produtos com 50% off (ADVEC)
   itensComDescontoCategoria?: DescontoCategoriaItem[]; // Detalhes por item (Representante)
@@ -194,17 +194,22 @@ export function calcularDescontosCarrinho(
   // Log obrigatório
   console.log(`[SELLER_DISC] clienteId=${clienteId || 'N/A'} podeFaturar=${podeFaturar ?? 'N/A'} descontoVendedor=${descontoVendedor} tipoCliente=${tipoCliente}`);
   
-  // PRIORIDADE 1: Cliente de Representante com descontos por categoria
+  // PRIORIDADE 1: Descontos por categoria (Representante OU qualquer cliente com descontos cadastrados)
   // Estes descontos SUBSTITUEM todos os outros
-  if (isClienteRepresentante(tipoCliente) && descontosPorCategoria && Object.keys(descontosPorCategoria).length > 0) {
+  if (descontosPorCategoria && Object.keys(descontosPorCategoria).length > 0) {
     const hasAnyDiscount = Object.values(descontosPorCategoria).some(v => v > 0);
     
     if (hasAnyDiscount) {
       const resultado = calcularDescontoRepresentante(items, descontosPorCategoria);
       
+      // Determinar tipo de desconto baseado no tipo de cliente
+      const isRepresentante = isClienteRepresentante(tipoCliente);
+      const tipoDescontoCalc = isRepresentante ? "representante" : "categoria";
+      const faixaCalc = isRepresentante ? "Representante" : "Categoria";
+      
       // Log por item
       resultado.itensDetalhados.forEach(item => {
-        console.log(`[SELLER_DISC] item SKU=${item.titulo} descontoAplicado=${item.percentual}% origem=representante_categoria`);
+        console.log(`[SELLER_DISC] item SKU=${item.titulo} descontoAplicado=${item.percentual}% origem=${tipoDescontoCalc}_categoria`);
       });
       
       return {
@@ -212,8 +217,8 @@ export function calcularDescontosCarrinho(
         descontoPercentual: resultado.descontoPercentualMedio,
         descontoValor: resultado.descontoValor,
         total: resultado.total,
-        tipoDesconto: "representante",
-        faixa: "Representante",
+        tipoDesconto: tipoDescontoCalc,
+        faixa: faixaCalc,
         itensComDescontoCategoria: resultado.itensDetalhados,
       };
     }
