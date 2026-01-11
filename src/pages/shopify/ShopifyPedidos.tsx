@@ -781,15 +781,18 @@ export default function ShopifyPedidos() {
     setFaturamentoConfig({ prazo: prazos[0], desconto, frete, freteManual });
     setShowFaturamentoDialog(false);
     
-    // Para clientes de Representante, calcular descontos por categoria
+    // Para QUALQUER cliente com descontos por categoria cadastrados
     let descontoCalculadoFinal = undefined;
-    if (selectedCliente && isClienteRepresentante(selectedCliente.tipo_cliente) && descontosCategoria) {
+    const hasDescontosCadastrados = descontosCategoria && Object.keys(descontosCategoria).length > 0;
+    if (selectedCliente && hasDescontosCadastrados) {
       descontoCalculadoFinal = calcularDescontosCarrinho(
         items,
         selectedCliente.tipo_cliente,
         selectedCliente.onboarding_concluido || false,
         selectedCliente.desconto_faturamento || 0,
-        descontosCategoria
+        descontosCategoria,
+        selectedCliente.id,
+        selectedCliente.pode_faturar
       );
     }
     
@@ -806,15 +809,18 @@ export default function ShopifyPedidos() {
     // Mas ainda aplica o desconto B2B do cliente, se houver
     const descontoCliente = selectedCliente?.desconto_faturamento || 0;
     
-    // Para clientes de Representante, calcular descontos por categoria
+    // Para QUALQUER cliente com descontos por categoria cadastrados
     let descontoCalculadoFinal = undefined;
-    if (selectedCliente && isClienteRepresentante(selectedCliente.tipo_cliente) && descontosCategoria) {
+    const hasDescontosCadastrados = descontosCategoria && Object.keys(descontosCategoria).length > 0;
+    if (selectedCliente && hasDescontosCadastrados) {
       descontoCalculadoFinal = calcularDescontosCarrinho(
         items,
         selectedCliente.tipo_cliente,
         selectedCliente.onboarding_concluido || false,
         selectedCliente.desconto_faturamento || 0,
-        descontosCategoria
+        descontosCategoria,
+        selectedCliente.id,
+        selectedCliente.pode_faturar
       );
     }
     
