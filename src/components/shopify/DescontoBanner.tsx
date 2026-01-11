@@ -101,9 +101,9 @@ export function DescontoBanner({ calculo }: DescontoBannerProps) {
         </Badge>
       </div>
       
-      {/* Detalhes por categoria para Representante */}
+      {/* Detalhes por categoria para Representante - com altura máxima */}
       {(calculo.tipoDesconto === "representante" || calculo.tipoDesconto === "categoria") && calculo.itensComDescontoCategoria && calculo.itensComDescontoCategoria.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-orange-200 dark:border-orange-800 space-y-1.5">
+        <div className="mt-2 pt-2 border-t border-orange-200 dark:border-orange-800 max-h-20 overflow-y-auto space-y-1">
           {calculo.itensComDescontoCategoria.filter(item => item.percentual > 0).map((item, index) => (
             <div key={index} className="flex justify-between items-center text-xs">
               <span className="text-muted-foreground truncate max-w-[60%]">
