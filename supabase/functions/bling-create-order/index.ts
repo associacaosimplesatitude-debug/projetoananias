@@ -355,7 +355,7 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
 
   try {
     // ✅ ENDPOINT DIRETO: Listar unidades de negócio via API v3
-    const url = 'https://api.bling.com.br/Api/v3/empresas';
+    const url = 'https://www.bling.com.br/Api/v3/empresas';
     console.log(`[BLING] 🔍 Buscando unidades de negócio via endpoint /empresas...`);
     
     const resp = await fetch(url, {
@@ -394,7 +394,7 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
     if (cachedUnidadesNegocioByName.size === 0) {
       console.log('[BLING] 🔄 Nenhuma empresa encontrada, tentando via lojas...');
       
-      const lojasUrl = 'https://api.bling.com.br/Api/v3/lojas';
+      const lojasUrl = 'https://www.bling.com.br/Api/v3/lojas';
       const lojasResp = await fetch(lojasUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
