@@ -651,8 +651,9 @@ export default function ShopifyPedidos() {
           descontoItem = isProdutoAdvec50(item.product.node.title, item.product.node.id) ? 50 : 40;
         }
         
-        // Para clientes de Representantes: usar desconto por categoria
-        if (isRepresentanteCliente && descontoCalculado?.itensComDescontoCategoria) {
+        // Para qualquer cliente com descontos por categoria (Representante OU cliente com descontos cadastrados)
+        const hasDescontoCategoria = descontoCalculado?.itensComDescontoCategoria && descontoCalculado.itensComDescontoCategoria.length > 0;
+        if (hasDescontoCategoria) {
           const itemDesconto = descontoCalculado.itensComDescontoCategoria.find(
             d => d.titulo === item.product.node.title
           );
@@ -669,8 +670,8 @@ export default function ShopifyPedidos() {
           imageUrl: item.product.node.images?.edges?.[0]?.node?.url || null,
           sku: item.sku || null,
           descontoItem,
-          // Adicionar categoria para clientes de representante
-          ...(isRepresentanteCliente && descontoCalculado?.itensComDescontoCategoria && {
+          // Adicionar categoria para qualquer cliente com descontos por categoria
+          ...(hasDescontoCategoria && {
             categoria: descontoCalculado.itensComDescontoCategoria.find(
               d => d.titulo === item.product.node.title
             )?.categoriaLabel
