@@ -1720,9 +1720,20 @@ serve(async (req) => {
     const isFaturamento = forma_pagamento?.toLowerCase() === 'faturamento';
 
     if (isFaturamento && faturamento_prazo) {
-      // Faturamento B2B: criar parcelas de 30, 60 ou 90 dias
-      const prazo = parseInt(faturamento_prazo);
-      const numParcelas = prazo === 30 ? 1 : prazo === 60 ? 2 : 3;
+      // Faturamento B2B: criar parcelas baseado no prazo selecionado
+      // Verificar se é prazo "direto" (1 boleto no prazo especificado)
+      const isPrazoDireto = String(faturamento_prazo).includes('_direto');
+      const prazoNumerico = parseInt(String(faturamento_prazo).replace('_direto', ''));
+      
+      // Número de parcelas
+      let numParcelas: number;
+      if (isPrazoDireto) {
+        numParcelas = 1; // Sempre 1 boleto para prazo direto (ex: 60_direto = 1 boleto em 60 dias)
+      } else {
+        numParcelas = prazoNumerico === 30 ? 1 : prazoNumerico === 60 ? 2 : 3;
+      }
+      
+      const prazo = prazoNumerico; // Usar prazo numérico para observações
 
        // ✅ Parcelas precisam bater com o TOTAL DA VENDA no Bling.
        // Usamos o mesmo total que o payload induz no Bling (método B + frete).
@@ -1751,7 +1762,14 @@ serve(async (req) => {
 
       for (let i = 1; i <= numParcelas; i++) {
         const dataVencimento = new Date();
-        dataVencimento.setDate(dataVencimento.getDate() + 30 * i);
+        
+        if (isPrazoDireto) {
+          // Para prazo direto: vencimento no prazo especificado (ex: 60 dias)
+          dataVencimento.setDate(dataVencimento.getDate() + prazoNumerico);
+        } else {
+          // Para prazo parcelado: vencimento em 30 * i dias (30, 60, 90...)
+          dataVencimento.setDate(dataVencimento.getDate() + 30 * i);
+        }
 
         const valorParcela = parcelasValoresCentavos[i - 1] / 100;
 
@@ -1759,7 +1777,9 @@ serve(async (req) => {
         const parcelaObj: any = {
           dataVencimento: dataVencimento.toISOString().split('T')[0],
           valor: Number(valorParcela.toFixed(2)),
-          observacoes: `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
+          observacoes: isPrazoDireto 
+            ? `Pagamento único - Faturamento ${prazoNumerico} dias (à vista)` 
+            : `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`,
         };
 
         // ✅ USAR ID da forma de pagamento "Conta a receber/pagar" (se encontrado)
