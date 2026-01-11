@@ -442,7 +442,9 @@ serve(async (req) => {
     // IDs de situações podem variar por conta.
     // - padrão: "Em aberto"
     // - B2B faturamento: se existir, usar "Aprovada B2B" (que você criou no Bling)
+    // - Pagar na loja (Glorinha): usar "Atendido" (já foi pago)
     const isFaturamentoPagamento = forma_pagamento?.toLowerCase() === 'faturamento';
+    const isPagamentoLoja = forma_pagamento === 'pagamento_loja';
 
     // ✅ DESCOBERTA DINÂMICA DE SITUAÇÕES - API V3
     // Primeiro, listar os MÓDULOS disponíveis para encontrar o ID correto de pedidos_venda
@@ -551,13 +553,27 @@ serve(async (req) => {
     }
     
     console.log('[BLING DEBUG] Situação "Em andamento" encontrada com ID:', situacaoEmAndamentoId);
+
+    // Buscar "Atendido" no cache para pagamento na loja (Glorinha)
+    let situacaoAtendidoId = cachedSituacaoIdsByName.get('atendido') || null;
     
-    // ✅ REGRA: Faturamento B2B → "Em andamento" | Outros (PIX/Cartão/Boleto) → "Em aberto"
-    const situacaoInicialId = isFaturamentoPagamento 
-      ? (situacaoEmAndamentoId || situacaoEmAbertoId)  // Prioriza "Em andamento" para faturamento
-      : situacaoEmAbertoId;  // PIX/Cartão/Boleto continua "Em aberto"
+    // Se não encontrou no cache, usar fallback hardcoded (ID 9 é comum para "Atendido")
+    if (!situacaoAtendidoId) {
+      situacaoAtendidoId = 9;
+      console.log('[BLING] ⚠️ Usando fallback hardcoded para "Atendido": ID 9');
+    } else {
+      console.log(`[BLING] ✅ Situação "Atendido" encontrada no cache com ID: ${situacaoAtendidoId}`);
+    }
+    
+    // ✅ REGRA: Pagamento na Loja → "Atendido" | Faturamento B2B → "Em andamento" | Outros → "Em aberto"
+    const situacaoInicialId = isPagamentoLoja 
+      ? situacaoAtendidoId  // Pagar na Loja (Glorinha) → "Atendido" (já foi pago)
+      : isFaturamentoPagamento 
+        ? (situacaoEmAndamentoId || situacaoEmAbertoId)  // Faturamento → "Em andamento"
+        : situacaoEmAbertoId;  // PIX/Cartão/Boleto → "Em aberto"
     
     console.log('[BLING] Situação inicial selecionada:', situacaoInicialId, 
+      isPagamentoLoja ? '(Pagamento na Loja → Atendido)' :
       isFaturamentoPagamento ? '(Faturamento → Em andamento)' : '(Pagamento direto → Em aberto)');
     
     // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
@@ -2203,6 +2219,35 @@ serve(async (req) => {
         }
       } catch (statusError) {
         console.warn('[BLING] ⚠️ Erro ao tentar atualizar status do pedido:', statusError);
+      }
+    }
+
+    // ✅ ATUALIZAR STATUS PARA "ATENDIDO" SE FOR PAGAMENTO NA LOJA (GLORINHA)
+    if (createdOrderId && isPagamentoLoja && situacaoAtendidoId) {
+      console.log(`[BLING] Atualizando pedido ${createdOrderId} para "Atendido" (ID: ${situacaoAtendidoId}) via PATCH - Pagamento na Loja`);
+      
+      await sleep(400); // Respeitar rate limit
+      
+      try {
+        const updateStatusResponse = await fetch(
+          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoAtendidoId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          }
+        );
+        
+        if (updateStatusResponse.ok) {
+          console.log(`[BLING] ✅ Status atualizado para "Atendido" (ID: ${situacaoAtendidoId}) via PATCH - Pagamento na Loja`);
+        } else {
+          const updateResult = await updateStatusResponse.json();
+          console.warn(`[BLING] ⚠️ Falha ao atualizar status para Atendido via PATCH:`, updateResult);
+        }
+      } catch (statusError) {
+        console.warn('[BLING] ⚠️ Erro ao tentar atualizar status para Atendido:', statusError);
       }
     }
 
