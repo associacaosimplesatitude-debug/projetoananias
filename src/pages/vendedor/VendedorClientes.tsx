@@ -517,7 +517,7 @@ export default function VendedorClientes() {
                   onLancamentoManual={isVendedor ? () => setClienteParaLancamento(cliente) : undefined}
                   onPedido={() => handleFazerPedido(cliente)}
                   onDesconto={() => setClienteParaDesconto(cliente)}
-                  onDescontoCategoria={cliente.pode_faturar ? () => setClienteParaDescontoCategoria(cliente) : undefined}
+                  onDescontoCategoria={() => setClienteParaDescontoCategoria(cliente)}
                   onAtivar={isVendedor && !cliente.status_ativacao_ebd ? () => handleAtivarPainel(cliente) : undefined}
                   showDesconto={true}
                   showAtivar={isVendedor && !cliente.status_ativacao_ebd}

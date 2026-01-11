@@ -292,8 +292,8 @@ export function ClienteCard({
                 <Eye className="h-4 w-4" />
               </Button>
             )}
-            {/* Botão Desconto por Categoria (quando cliente pode faturar) */}
-            {showDesconto && cliente.pode_faturar && onDescontoCategoria && (
+            {/* Botão Desconto por Categoria */}
+            {showDesconto && onDescontoCategoria && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -303,19 +303,6 @@ export function ClienteCard({
               >
                 <Percent className="h-4 w-4 mr-1" />
                 Desc. Categoria
-              </Button>
-            )}
-            {/* Botão Desconto do Vendedor (quando cliente NÃO pode faturar ou não tem handler de categoria) */}
-            {showDesconto && onDesconto && (!cliente.pode_faturar || !onDescontoCategoria) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDesconto}
-                title="Configurar desconto do vendedor"
-                className="h-8 text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50"
-              >
-                <Percent className="h-4 w-4 mr-1" />
-                Desconto
               </Button>
             )}
             {onPedido && (
