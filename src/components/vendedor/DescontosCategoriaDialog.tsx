@@ -1,12 +1,18 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CATEGORIAS_SHOPIFY, getNomeCategoria, type CategoriaShopifyId } from "@/constants/categoriasShopify";
+import { CATEGORIAS_SHOPIFY } from "@/constants/categoriasShopify";
 import { Percent, Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,55 +21,52 @@ interface DescontoCategoria {
   percentual_desconto: number;
 }
 
-interface DescontosCategoriaProps {
-  clienteId: string | null;
-  isRepresentante?: boolean;
-  canEdit?: boolean; // Novo prop para controlar se pode editar (vendedores e representantes)
-  onDescontosChange?: (descontos: Record<string, number>) => void;
+interface Cliente {
+  id: string;
+  nome_igreja: string;
+  pode_faturar?: boolean;
 }
 
-export function DescontosCategoriaSection({ 
-  clienteId, 
-  isRepresentante = false,
-  canEdit = false,
-  onDescontosChange 
-}: DescontosCategoriaProps) {
+interface DescontosCategoriaDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  cliente: Cliente | null;
+  onSuccess?: () => void;
+}
+
+export function DescontosCategoriaDialog({
+  open,
+  onOpenChange,
+  cliente,
+  onSuccess,
+}: DescontosCategoriaDialogProps) {
   const [descontos, setDescontos] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
   const [originalDescontos, setOriginalDescontos] = useState<Record<string, number>>({});
 
-  // Carregar descontos existentes quando o clienteId muda
+  // Carregar descontos existentes quando o dialog abre
   useEffect(() => {
-    if (clienteId) {
+    if (open && cliente?.id) {
       loadDescontos();
-    } else {
-      // Se não tem clienteId, inicializa vazio
-      const inicial: Record<string, number> = {};
-      CATEGORIAS_SHOPIFY.forEach(cat => {
-        inicial[cat.id] = 0;
-      });
-      setDescontos(inicial);
-      setOriginalDescontos(inicial);
     }
-  }, [clienteId]);
+  }, [open, cliente?.id]);
 
   const loadDescontos = async () => {
-    if (!clienteId) return;
-    
+    if (!cliente?.id) return;
+
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("ebd_descontos_categoria_representante")
         .select("categoria, percentual_desconto")
-        .eq("cliente_id", clienteId);
+        .eq("cliente_id", cliente.id);
 
       if (error) throw error;
 
       // Inicializa com todas as categorias em 0
       const descontosMap: Record<string, number> = {};
-      CATEGORIAS_SHOPIFY.forEach(cat => {
+      CATEGORIAS_SHOPIFY.forEach((cat) => {
         descontosMap[cat.id] = 0;
       });
 
@@ -74,9 +77,9 @@ export function DescontosCategoriaSection({
 
       setDescontos(descontosMap);
       setOriginalDescontos(descontosMap);
-      setHasChanges(false);
     } catch (error) {
       console.error("Erro ao carregar descontos:", error);
+      toast.error("Erro ao carregar descontos por categoria");
     } finally {
       setLoading(false);
     }
@@ -84,21 +87,22 @@ export function DescontosCategoriaSection({
 
   const handleDescontoChange = (categoria: string, valor: string) => {
     const numericValue = valor === "" ? 0 : Math.min(100, Math.max(0, parseFloat(valor) || 0));
-    const newDescontos = { ...descontos, [categoria]: numericValue };
-    setDescontos(newDescontos);
-    setHasChanges(JSON.stringify(newDescontos) !== JSON.stringify(originalDescontos));
-    onDescontosChange?.(newDescontos);
+    setDescontos({ ...descontos, [categoria]: numericValue });
   };
 
+  const hasChanges = JSON.stringify(descontos) !== JSON.stringify(originalDescontos);
+
+  const hasActiveDescontos = Object.values(descontos).some((v) => v > 0);
+
   const saveDescontos = async () => {
-    if (!clienteId) {
-      toast.error("Salve o cliente primeiro para configurar os descontos");
+    if (!cliente?.id) {
+      toast.error("Cliente não selecionado");
       return;
     }
 
     setSaving(true);
     try {
-      console.log("[REP_DESC][SAVE] clienteId=", clienteId, "descontos=", descontos);
+      console.log("[CAT_DESC][SAVE] clienteId=", cliente.id, "descontos=", descontos);
 
       // Para cada categoria, faz upsert / delete
       for (const [categoria, percentual] of Object.entries(descontos)) {
@@ -107,7 +111,7 @@ export function DescontosCategoriaSection({
             .from("ebd_descontos_categoria_representante")
             .upsert(
               {
-                cliente_id: clienteId,
+                cliente_id: cliente.id,
                 categoria,
                 percentual_desconto: percentual,
               },
@@ -118,26 +122,27 @@ export function DescontosCategoriaSection({
             );
 
           if (error) {
-            console.error("[REP_DESC][UPSERT_ERROR]", { clienteId, categoria, percentual, error });
+            console.error("[CAT_DESC][UPSERT_ERROR]", { cliente: cliente.id, categoria, percentual, error });
             throw error;
           }
         } else {
           const { error } = await supabase
             .from("ebd_descontos_categoria_representante")
             .delete()
-            .eq("cliente_id", clienteId)
+            .eq("cliente_id", cliente.id)
             .eq("categoria", categoria);
 
           if (error) {
-            console.error("[REP_DESC][DELETE_ERROR]", { clienteId, categoria, error });
+            console.error("[CAT_DESC][DELETE_ERROR]", { cliente: cliente.id, categoria, error });
             throw error;
           }
         }
       }
 
       setOriginalDescontos({ ...descontos });
-      setHasChanges(false);
       toast.success("Descontos por categoria salvos com sucesso!");
+      onSuccess?.();
+      onOpenChange(false);
     } catch (error: any) {
       console.error("Erro ao salvar descontos:", error);
       toast.error("Erro ao salvar descontos", {
@@ -148,30 +153,30 @@ export function DescontosCategoriaSection({
     }
   };
 
-  // Exibe para representantes OU quando canEdit é true (vendedores com cliente que pode faturar)
-  if (!isRepresentante && !canEdit) {
-    return null;
-  }
-
   return (
-    <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Percent className="h-5 w-5 text-amber-600" />
-          Descontos por Categoria
-        </CardTitle>
-        <CardDescription>
-          Defina os percentuais de desconto por categoria para este cliente. 
-          Estes descontos substituem todas as outras regras de desconto.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Percent className="h-5 w-5 text-amber-600" />
+            Descontos por Categoria
+          </DialogTitle>
+          <DialogDescription>
+            {cliente?.nome_igreja && (
+              <span className="font-medium text-foreground">{cliente.nome_igreja}</span>
+            )}
+            <br />
+            Defina os percentuais de desconto por categoria para este cliente. 
+            Estes descontos substituem todas as outras regras de desconto.
+          </DialogDescription>
+        </DialogHeader>
+
         {loading ? (
-          <div className="flex items-center justify-center py-4">
+          <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <>
+          <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {CATEGORIAS_SHOPIFY.map((categoria) => (
                 <div key={categoria.id} className="space-y-1.5">
@@ -203,35 +208,36 @@ export function DescontosCategoriaSection({
               ))}
             </div>
 
-            {clienteId && hasChanges && (
-              <>
-                <Separator className="my-4" />
-                <div className="flex justify-end">
-                  <Button 
-                    onClick={saveDescontos} 
-                    disabled={saving}
-                    size="sm"
-                    className="gap-2"
-                  >
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    Salvar Descontos
-                  </Button>
-                </div>
-              </>
-            )}
+            <Separator />
 
-            {!clienteId && (
-              <p className="text-xs text-muted-foreground mt-3">
-                💡 Os descontos poderão ser salvos após cadastrar o cliente.
-              </p>
-            )}
-          </>
+            <div className="flex justify-between items-center">
+              {hasActiveDescontos && (
+                <p className="text-sm text-amber-600">
+                  Este cliente terá desconto especial por categoria
+                </p>
+              )}
+              {!hasActiveDescontos && (
+                <p className="text-sm text-muted-foreground">
+                  Sem desconto por categoria configurado
+                </p>
+              )}
+              <Button
+                onClick={saveDescontos}
+                disabled={saving || !hasChanges}
+                size="sm"
+                className="gap-2"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Salvar
+              </Button>
+            </div>
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

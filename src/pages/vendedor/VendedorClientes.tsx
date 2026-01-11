@@ -31,6 +31,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 import { DescontoFaturamentoDialog } from "@/components/vendedor/DescontoFaturamentoDialog";
+import { DescontosCategoriaDialog } from "@/components/vendedor/DescontosCategoriaDialog";
 import { LancamentoManualRevistaDialog } from "@/components/vendedor/LancamentoManualRevistaDialog";
 import { PedidoOnlineDetailDialog } from "@/components/admin/PedidoOnlineDetailDialog";
 import { ClienteCard } from "@/components/ebd/ClienteCard";
@@ -112,6 +113,7 @@ export default function VendedorClientes() {
   const [clienteParaEditar, setClienteParaEditar] = useState<Cliente | null>(null);
   const [clienteParaExcluir, setClienteParaExcluir] = useState<Cliente | null>(null);
   const [clienteParaDesconto, setClienteParaDesconto] = useState<Cliente | null>(null);
+  const [clienteParaDescontoCategoria, setClienteParaDescontoCategoria] = useState<Cliente | null>(null);
   const [clienteParaLancamento, setClienteParaLancamento] = useState<Cliente | null>(null);
   const [excluindo, setExcluindo] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -213,6 +215,27 @@ export default function VendedorClientes() {
     },
     enabled: clienteIds.length > 0,
   });
+
+  // Fetch category discounts for all clients
+  const { data: categoryDiscounts = [] } = useQuery({
+    queryKey: ["clientes-category-discounts", clienteIds],
+    queryFn: async () => {
+      if (clienteIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("ebd_descontos_categoria_representante")
+        .select("cliente_id, categoria, percentual_desconto")
+        .in("cliente_id", clienteIds)
+        .gt("percentual_desconto", 0);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: clienteIds.length > 0,
+  });
+
+  // Check if client has category discounts
+  const clienteHasCategoryDiscounts = (clienteId: string) => {
+    return categoryDiscounts.some(d => d.cliente_id === clienteId);
+  };
 
   // Calculate credits per client
   const getCreditosForCliente = (clienteId: string) => {
@@ -487,12 +510,14 @@ export default function VendedorClientes() {
                     onboarding_concluido: cliente.onboarding_concluido,
                     desconto_faturamento: cliente.desconto_faturamento,
                     pode_faturar: cliente.pode_faturar,
+                    has_category_discounts: clienteHasCategoryDiscounts(cliente.id),
                   }}
                   creditos={getCreditosForCliente(cliente.id)}
                   onEdit={() => handleEditarCliente(cliente)}
                   onLancamentoManual={isVendedor ? () => setClienteParaLancamento(cliente) : undefined}
                   onPedido={() => handleFazerPedido(cliente)}
                   onDesconto={() => setClienteParaDesconto(cliente)}
+                  onDescontoCategoria={cliente.pode_faturar ? () => setClienteParaDescontoCategoria(cliente) : undefined}
                   onAtivar={isVendedor && !cliente.status_ativacao_ebd ? () => handleAtivarPainel(cliente) : undefined}
                   showDesconto={true}
                   showAtivar={isVendedor && !cliente.status_ativacao_ebd}
@@ -522,6 +547,13 @@ export default function VendedorClientes() {
         onOpenChange={(open) => !open && setClienteParaDesconto(null)}
         cliente={clienteParaDesconto}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["vendedor-clientes", vendedor?.id] })}
+      />
+
+      <DescontosCategoriaDialog
+        open={!!clienteParaDescontoCategoria}
+        onOpenChange={(open) => !open && setClienteParaDescontoCategoria(null)}
+        cliente={clienteParaDescontoCategoria}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["clientes-category-discounts"] })}
       />
 
       <LancamentoManualRevistaDialog
