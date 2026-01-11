@@ -1447,76 +1447,101 @@ export default function ShopifyPedidos() {
       </div>
 
       {/* Faturamento Selection Dialog */}
-      <FaturamentoSelectionDialog
-        open={showFaturamentoDialog}
-        onOpenChange={setShowFaturamentoDialog}
-        clienteNome={selectedCliente?.nome_igreja || ''}
-        clienteCep={selectedCliente?.endereco_cep || null}
-        totalProdutos={totalPrice}
-        items={items.map(item => ({ quantity: item.quantity }))}
-        descontoB2B={selectedCliente?.desconto_faturamento || null}
-        onSelectFaturamento={handleSelectFaturamento}
-        onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
-        canUseFreteManual={canUseFreteManual}
-        showPagarNaLoja={vendedor?.email?.toLowerCase().includes('glorinha') || false}
-        onSelectPagamentoLoja={async (pagamentoData: PagamentoLojaData) => {
-          if (!selectedCliente) return;
-          setShowFaturamentoDialog(false);
-          setIsCreatingDraft(true);
-          try {
-            // Criar pedido direto no Bling via edge function
-            const { data, error } = await supabase.functions.invoke('bling-create-order', {
-              body: {
-                contato: { id: selectedCliente.id },
-                cliente: {
-                  id: selectedCliente.id,
-                  nome: selectedCliente.nome_igreja,
-                  cpf_cnpj: selectedCliente.cnpj || selectedCliente.cpf,
-                  email: selectedCliente.email_superintendente,
-                  telefone: selectedCliente.telefone,
-                },
-                endereco_entrega: {
-                  rua: selectedCliente.endereco_rua,
-                  numero: selectedCliente.endereco_numero,
-                  complemento: selectedCliente.endereco_complemento,
-                  bairro: selectedCliente.endereco_bairro,
-                  cidade: selectedCliente.endereco_cidade,
-                  estado: selectedCliente.endereco_estado,
-                  cep: selectedCliente.endereco_cep,
-                },
-                itens: items.map(item => ({
-                  sku: item.sku || item.product.node.variants.edges[0]?.node.sku || '',
-                  nome: item.product.node.title,
-                  quantidade: item.quantity,
-                  valor: parseFloat(item.price.amount),
-                  preco_cheio: parseFloat(item.price.amount),
-                })),
-                valor_produtos: totalPrice,
-                valor_total: totalPrice,
-                valor_frete: 0,
-                metodo_frete: 'retirada_penha',
-                forma_pagamento: 'pagamento_loja',
-                forma_pagamento_loja: pagamentoData.formaPagamento,
-                bandeira_cartao: pagamentoData.bandeiraCartao,
-                parcelas_cartao: pagamentoData.parcelasCartao,
-                deposito_origem: pagamentoData.depositoOrigem,
-                vendedor_email: vendedor?.email,
+      {(() => {
+        // Calcular desconto para uso no modal e envio ao Bling
+        const calculoDescontoModal = selectedCliente 
+          ? calcularDescontosCarrinho(
+              items,
+              selectedCliente.tipo_cliente,
+              selectedCliente.onboarding_concluido || false,
+              selectedCliente.desconto_faturamento || 0,
+              descontosCategoria
+            )
+          : null;
+
+        const totalComDesconto = calculoDescontoModal?.total ?? totalPrice;
+        const descontoPercentual = calculoDescontoModal?.descontoPercentual ?? 0;
+
+        return (
+          <FaturamentoSelectionDialog
+            open={showFaturamentoDialog}
+            onOpenChange={setShowFaturamentoDialog}
+            clienteNome={selectedCliente?.nome_igreja || ''}
+            clienteCep={selectedCliente?.endereco_cep || null}
+            totalProdutos={totalComDesconto}
+            items={items.map(item => ({ quantity: item.quantity }))}
+            descontoB2B={selectedCliente?.desconto_faturamento || null}
+            onSelectFaturamento={handleSelectFaturamento}
+            onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
+            canUseFreteManual={canUseFreteManual}
+            showPagarNaLoja={vendedor?.email?.toLowerCase().includes('glorinha') || false}
+            onSelectPagamentoLoja={async (pagamentoData: PagamentoLojaData) => {
+              if (!selectedCliente) return;
+              setShowFaturamentoDialog(false);
+              setIsCreatingDraft(true);
+              try {
+                // Criar pedido direto no Bling via edge function com valores COM DESCONTO
+                const { data, error } = await supabase.functions.invoke('bling-create-order', {
+                  body: {
+                    contato: { id: selectedCliente.id },
+                    cliente: {
+                      id: selectedCliente.id,
+                      nome: selectedCliente.nome_igreja,
+                      cpf_cnpj: selectedCliente.cnpj || selectedCliente.cpf,
+                      email: selectedCliente.email_superintendente,
+                      telefone: selectedCliente.telefone,
+                    },
+                    endereco_entrega: {
+                      rua: selectedCliente.endereco_rua,
+                      numero: selectedCliente.endereco_numero,
+                      complemento: selectedCliente.endereco_complemento,
+                      bairro: selectedCliente.endereco_bairro,
+                      cidade: selectedCliente.endereco_cidade,
+                      estado: selectedCliente.endereco_estado,
+                      cep: selectedCliente.endereco_cep,
+                    },
+                    itens: items.map(item => {
+                      const precoOriginal = parseFloat(item.price.amount);
+                      const precoComDesconto = descontoPercentual > 0 
+                        ? precoOriginal * (1 - descontoPercentual / 100)
+                        : precoOriginal;
+                      return {
+                        sku: item.sku || item.product.node.variants.edges[0]?.node.sku || '',
+                        nome: item.product.node.title,
+                        quantidade: item.quantity,
+                        valor: precoComDesconto,
+                        preco_cheio: precoOriginal,
+                      };
+                    }),
+                    valor_produtos: totalComDesconto,
+                    valor_total: totalComDesconto,
+                    valor_frete: 0,
+                    desconto_percentual: descontoPercentual,
+                    metodo_frete: 'retirada_penha',
+                    forma_pagamento: 'pagamento_loja',
+                    forma_pagamento_loja: pagamentoData.formaPagamento,
+                    bandeira_cartao: pagamentoData.bandeiraCartao,
+                    parcelas_cartao: pagamentoData.parcelasCartao,
+                    deposito_origem: pagamentoData.depositoOrigem,
+                    vendedor_email: vendedor?.email,
+                  }
+                });
+                if (error) throw error;
+                toast.success('Pedido registrado no Bling!', {
+                  description: `Pedido criado com sucesso para ${selectedCliente.nome_igreja}`,
+                });
+                clearCart();
+                setIsCartOpen(false);
+              } catch (err: any) {
+                console.error('Erro ao criar pedido:', err);
+                toast.error('Erro ao criar pedido', { description: err.message });
+              } finally {
+                setIsCreatingDraft(false);
               }
-            });
-            if (error) throw error;
-            toast.success('Pedido registrado no Bling!', {
-              description: `Pedido criado com sucesso para ${selectedCliente.nome_igreja}`,
-            });
-            clearCart();
-            setIsCartOpen(false);
-          } catch (err: any) {
-            console.error('Erro ao criar pedido:', err);
-            toast.error('Erro ao criar pedido', { description: err.message });
-          } finally {
-            setIsCreatingDraft(false);
-          }
-        }}
-      />
+            }}
+          />
+        );
+      })()}
 
       {/* Proposta Link Dialog */}
       <Dialog open={showPropostaLinkDialog} onOpenChange={setShowPropostaLinkDialog}>
