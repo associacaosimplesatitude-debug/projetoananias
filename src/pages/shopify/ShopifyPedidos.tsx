@@ -1057,25 +1057,6 @@ export default function ShopifyPedidos() {
                   </div>
                 )}
 
-                {/* Show selected client info when URL param is present or for non-vendedores */}
-                {(urlClienteId || (!isVendedor && selectedCliente)) && selectedCliente && (
-                  <div className="mb-4 p-4 bg-muted/50 rounded-lg">
-                    <label className="text-sm font-medium mb-2 block flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      Pedido para:
-                    </label>
-                    <p className="font-medium">{selectedCliente.nome_igreja}</p>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      <p>CNPJ: {selectedCliente.cnpj}</p>
-                      {selectedCliente.pode_faturar && isVendedor && (
-                        <Badge variant="secondary" className="mt-2 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                          B2B - Pode Faturar 30/60/90 dias
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 {items.length === 0 ? (
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
@@ -1086,10 +1067,29 @@ export default function ShopifyPedidos() {
                 ) : (
                   <>
                     <div className="flex-1 overflow-y-auto pr-2 min-h-0">
-                      <div className="space-y-4">
+                      {/* Show selected client info - COMPACTO dentro do scroll */}
+                      {(urlClienteId || (!isVendedor && selectedCliente)) && selectedCliente && (
+                        <div className="mb-3 p-2 bg-muted/50 rounded-lg flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Users className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate">{selectedCliente.nome_igreja}</p>
+                              <p className="text-xs text-muted-foreground">CNPJ: {selectedCliente.cnpj}</p>
+                            </div>
+                          </div>
+                          {selectedCliente.pode_faturar && isVendedor && (
+                            <Badge variant="secondary" className="ml-2 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 flex-shrink-0">
+                              B2B
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Lista de produtos */}
+                      <div className="space-y-3">
                         {items.map((item) => (
-                          <div key={item.variantId} className="flex gap-4 p-2 border rounded-lg">
-                            <div className="w-16 h-16 bg-secondary/20 rounded-md overflow-hidden flex-shrink-0">
+                          <div key={item.variantId} className="flex gap-3 p-2 border rounded-lg">
+                            <div className="w-12 h-12 bg-secondary/20 rounded-md overflow-hidden flex-shrink-0">
                               {item.product.node.images?.edges?.[0]?.node && (
                                 <img
                                   src={item.product.node.images.edges[0].node.url}
@@ -1100,11 +1100,11 @@ export default function ShopifyPedidos() {
                             </div>
                             
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-sm line-clamp-2">{item.product.node.title}</h4>
-                              <p className="font-semibold text-sm mt-1">
+                              <h4 className="font-medium text-sm line-clamp-1">{item.product.node.title}</h4>
+                              <p className="font-semibold text-sm">
                                 R$ {parseFloat(item.price.amount).toFixed(2)}
                               </p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
+                              <p className="text-xs text-muted-foreground">
                                 SKU: {item.sku ? item.sku : "não informado"}
                               </p>
                             </div>
@@ -1147,32 +1147,29 @@ export default function ShopifyPedidos() {
                           </div>
                         ))}
                       </div>
-                    </div>
-                      
-                    {/* Endereço de Entrega */}
-                    {selectedCliente && (
-                      <div className="border-t pt-4 px-2">
-                        <EnderecoEntregaSection
-                          clienteId={selectedCliente.id}
-                          clienteEndereco={{
-                            rua: selectedCliente.endereco_rua,
-                            numero: selectedCliente.endereco_numero,
-                            complemento: selectedCliente.endereco_complemento,
-                            bairro: selectedCliente.endereco_bairro,
-                            cidade: selectedCliente.endereco_cidade,
-                            estado: selectedCliente.endereco_estado,
-                            cep: selectedCliente.endereco_cep
-                          }}
-                          clienteNome={selectedCliente.nome_igreja}
-                          selectedEndereco={selectedEndereco}
-                          onEnderecoChange={setSelectedEndereco}
-                        />
-                      </div>
-                    )}
 
-                    
-                    <div className="flex-shrink-0 space-y-4 pt-4 border-t bg-background">
-                      {/* Banner de desconto dinâmico */}
+                      {/* Endereço de Entrega - dentro do scroll */}
+                      {selectedCliente && (
+                        <div className="border-t pt-3 mt-3">
+                          <EnderecoEntregaSection
+                            clienteId={selectedCliente.id}
+                            clienteEndereco={{
+                              rua: selectedCliente.endereco_rua,
+                              numero: selectedCliente.endereco_numero,
+                              complemento: selectedCliente.endereco_complemento,
+                              bairro: selectedCliente.endereco_bairro,
+                              cidade: selectedCliente.endereco_cidade,
+                              estado: selectedCliente.endereco_estado,
+                              cep: selectedCliente.endereco_cep
+                            }}
+                            clienteNome={selectedCliente.nome_igreja}
+                            selectedEndereco={selectedEndereco}
+                            onEnderecoChange={setSelectedEndereco}
+                          />
+                        </div>
+                      )}
+
+                      {/* Banner de desconto - dentro do scroll */}
                       {selectedCliente && items.length > 0 && (() => {
                         const calculo = calcularDescontosCarrinho(
                           items,
@@ -1181,8 +1178,16 @@ export default function ShopifyPedidos() {
                           selectedCliente.desconto_faturamento || 0,
                           descontosCategoria
                         );
-                        return <DescontoBanner calculo={calculo} />;
+                        return calculo.descontoValor > 0 ? (
+                          <div className="mt-3">
+                            <DescontoBanner calculo={calculo} />
+                          </div>
+                        ) : null;
                       })()}
+                    </div>
+                    
+                    {/* FIXO NO RODAPÉ: Apenas Total + Botão */}
+                    <div className="flex-shrink-0 space-y-3 pt-3 border-t bg-background">
                       
                       <div className="flex justify-between items-center">
                         <span className="text-lg font-semibold">Total</span>
