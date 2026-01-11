@@ -193,13 +193,13 @@ export default function AprovacaoFaturamento() {
       const valorFrete = proposta.valor_frete || 0;
       const metodoFrete = proposta.metodo_frete || "COMBINAR";
 
-      // Buscar descontos por categoria do representante se aplicável
+      // Buscar descontos por categoria se aplicável (para qualquer cliente com faturamento)
       const clienteId = proposta.cliente_id || clienteProposta.id;
       let descontosCategoria: DescontosCategoriaRepresentante = {};
       let usarDescontoCategoria = false;
 
-      // Verificar se cliente é de representante
-      if (isClienteRepresentante(clienteProposta.tipo_cliente) && clienteId) {
+      // Buscar descontos por categoria para qualquer cliente que tenha configurado
+      if (clienteId) {
         const { data: descontosData } = await supabase
           .from("ebd_descontos_categoria_representante")
           .select("categoria, percentual_desconto")
@@ -210,7 +210,7 @@ export default function AprovacaoFaturamento() {
             descontosCategoria[d.categoria] = Number(d.percentual_desconto);
           });
           usarDescontoCategoria = Object.values(descontosCategoria).some(v => v > 0);
-          console.log("[REP_DESC] AprovacaoFaturamento - descontosPorCategoria:", descontosCategoria);
+          console.log("[CAT_DESC] AprovacaoFaturamento - descontosPorCategoria:", descontosCategoria);
         }
       }
 

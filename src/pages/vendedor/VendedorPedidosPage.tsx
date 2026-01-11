@@ -250,13 +250,13 @@ export default function VendedorPedidosPage() {
       const valorFrete = proposta.valor_frete || 0;
       const metodoFrete = proposta.metodo_frete || "COMBINAR";
 
-      // Buscar descontos por categoria do representante se aplicável
+      // Buscar descontos por categoria se aplicável (para qualquer cliente com faturamento)
       const clienteId = proposta.cliente_id || clienteProposta.id;
       let descontosCategoria: DescontosCategoriaRepresentante = {};
       let usarDescontoCategoria = false;
 
-      // Verificar se vendedor é representante
-      if (vendedor?.tipo_perfil === "representante" && clienteId) {
+      // Buscar descontos por categoria para qualquer cliente que tenha configurado
+      if (clienteId) {
         const { data: descontosData } = await supabase
           .from("ebd_descontos_categoria_representante")
           .select("categoria, percentual_desconto")
@@ -267,7 +267,7 @@ export default function VendedorPedidosPage() {
             descontosCategoria[d.categoria] = Number(d.percentual_desconto);
           });
           usarDescontoCategoria = Object.values(descontosCategoria).some(v => v > 0);
-          console.log("[REP_DESC] Faturamento - descontosPorCategoria:", descontosCategoria);
+          console.log("[CAT_DESC] Faturamento - descontosPorCategoria:", descontosCategoria);
         }
       }
 
@@ -278,11 +278,11 @@ export default function VendedorPedidosPage() {
         let precoComDesconto = precoOriginal;
 
         if (usarDescontoCategoria) {
-          // Desconto por categoria do representante
+          // Desconto por categoria
           const categoria = categorizarProduto(item.title);
           const descontoPercent = descontosCategoria[categoria] || 0;
           precoComDesconto = Math.round((precoOriginal * (1 - descontoPercent / 100)) * 100) / 100;
-          console.log(`[REP_DESC] Item: ${item.title} | Categoria: ${categoria} | Desconto: ${descontoPercent}% | Original: ${precoOriginal} | Final: ${precoComDesconto}`);
+          console.log(`[CAT_DESC] Item: ${item.title} | Categoria: ${categoria} | Desconto: ${descontoPercent}% | Original: ${precoOriginal} | Final: ${precoComDesconto}`);
         } else if ((proposta.desconto_percentual || 0) > 0) {
           // Desconto global padrão
           precoComDesconto = Math.round((precoOriginal * (1 - (proposta.desconto_percentual || 0) / 100)) * 100) / 100;

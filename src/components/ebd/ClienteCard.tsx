@@ -41,6 +41,7 @@ interface Cliente {
   vendedor_nome?: string;
   desconto_faturamento?: number | null;
   pode_faturar?: boolean;
+  has_category_discounts?: boolean; // Novo campo
 }
 
 interface Creditos {
@@ -56,6 +57,7 @@ interface ClienteCardProps {
   onLancamentoManual?: () => void;
   onPedido?: () => void;
   onDesconto?: () => void;
+  onDescontoCategoria?: () => void; // Novo: para abrir modal de desconto por categoria
   onAtivar?: () => void;
   onViewOrders?: () => void;
   showDesconto?: boolean;
@@ -72,6 +74,7 @@ export function ClienteCard({
   onLancamentoManual,
   onPedido,
   onDesconto,
+  onDescontoCategoria,
   onAtivar,
   onViewOrders,
   showDesconto = false,
@@ -149,12 +152,18 @@ export function ClienteCard({
                   Pendente
                 </Badge>
               )}
-              {cliente.desconto_faturamento && cliente.desconto_faturamento > 0 && (
+              {/* Badge de desconto por categoria OU desconto vendedor */}
+              {cliente.has_category_discounts ? (
+                <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs">
+                  <Percent className="mr-1 h-3 w-3" />
+                  Desc. Categoria
+                </Badge>
+              ) : cliente.desconto_faturamento && cliente.desconto_faturamento > 0 ? (
                 <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white text-xs">
                   <Percent className="mr-1 h-3 w-3" />
                   {cliente.desconto_faturamento}% vendedor
                 </Badge>
-              )}
+              ) : null}
               {cliente.pode_faturar && (
                 <Badge className="bg-primary text-primary-foreground text-xs">
                   <FileText className="mr-1 h-3 w-3" />
@@ -283,7 +292,21 @@ export function ClienteCard({
                 <Eye className="h-4 w-4" />
               </Button>
             )}
-            {showDesconto && onDesconto && (
+            {/* Botão Desconto por Categoria (quando cliente pode faturar) */}
+            {showDesconto && cliente.pode_faturar && onDescontoCategoria && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDescontoCategoria}
+                title="Configurar desconto por categoria"
+                className="h-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+              >
+                <Percent className="h-4 w-4 mr-1" />
+                Desc. Categoria
+              </Button>
+            )}
+            {/* Botão Desconto do Vendedor (quando cliente NÃO pode faturar ou não tem handler de categoria) */}
+            {showDesconto && onDesconto && (!cliente.pode_faturar || !onDescontoCategoria) && (
               <Button
                 variant="ghost"
                 size="sm"
