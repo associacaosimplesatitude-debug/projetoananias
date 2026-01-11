@@ -51,7 +51,7 @@ export default function CheckoutBling() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [cart, setCart] = useState<{ [key: string]: number }>({});
-  const [faturamentoPrazo, setFaturamentoPrazo] = useState<'1' | '2' | '3'>('3');
+  const [faturamentoPrazo, setFaturamentoPrazo] = useState<'1' | '2' | '3' | '4'>('4');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get client ID from sessionStorage
@@ -130,10 +130,11 @@ export default function CheckoutBling() {
       // Get payment terms based on selection
       const getPrazos = () => {
         switch (faturamentoPrazo) {
-          case '1': return { parcelas: 1, texto: '30 dias', obs: '30 DIAS' };
-          case '2': return { parcelas: 2, texto: '30/60 dias', obs: '30/60 DIAS' };
-          case '3': return { parcelas: 3, texto: '30/60/90 dias', obs: '30/60/90 DIAS' };
-          default: return { parcelas: 3, texto: '30/60/90 dias', obs: '30/60/90 DIAS' };
+          case '1': return { parcelas: 1, texto: '30 dias', obs: '30 DIAS', prazoEnvio: '30' };
+          case '2': return { parcelas: 1, texto: '60 dias (à vista)', obs: '60 DIAS DIRETO', prazoEnvio: '60_direto' };
+          case '3': return { parcelas: 2, texto: '30/60 dias', obs: '30/60 DIAS', prazoEnvio: '60' };
+          case '4': return { parcelas: 3, texto: '30/60/90 dias', obs: '30/60/90 DIAS', prazoEnvio: '90' };
+          default: return { parcelas: 3, texto: '30/60/90 dias', obs: '30/60/90 DIAS', prazoEnvio: '90' };
         }
       };
       const prazos = getPrazos();
@@ -173,7 +174,7 @@ export default function CheckoutBling() {
             valor_frete: 0,
             valor_total: subtotal,
             forma_pagamento: 'FATURAMENTO',
-            faturamento_prazo: (prazos.parcelas * 30).toString(), // 30, 60, or 90
+            faturamento_prazo: prazos.prazoEnvio, // 30, 60_direto, 60, or 90
             // ✅ Enviar email do usuário logado para vincular vendedor no Bling
             vendedor_email: user?.email,
           },
@@ -308,9 +309,9 @@ export default function CheckoutBling() {
                 <CardTitle>Condição de Pagamento</CardTitle>
               </CardHeader>
               <CardContent>
-                <RadioGroup
+              <RadioGroup
                   value={faturamentoPrazo}
-                  onValueChange={(v) => setFaturamentoPrazo(v as '1' | '2' | '3')}
+                  onValueChange={(v) => setFaturamentoPrazo(v as '1' | '2' | '3' | '4')}
                   className="space-y-3"
                 >
                   <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
@@ -325,18 +326,27 @@ export default function CheckoutBling() {
                   <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
                     <RadioGroupItem value="2" id="prazo-2" />
                     <Label htmlFor="prazo-2" className="cursor-pointer flex-1">
-                      <span className="font-medium">30/60 dias</span>
+                      <span className="font-medium">60 dias (à vista)</span>
                       <p className="text-sm text-muted-foreground">
-                        2 boletos: 1ª parcela em 30 dias
+                        1 boleto: pagamento único em 60 dias
                       </p>
                     </Label>
                   </div>
                   <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
                     <RadioGroupItem value="3" id="prazo-3" />
                     <Label htmlFor="prazo-3" className="cursor-pointer flex-1">
+                      <span className="font-medium">30/60 dias</span>
+                      <p className="text-sm text-muted-foreground">
+                        2 boletos: parcelas em 30 e 60 dias
+                      </p>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                    <RadioGroupItem value="4" id="prazo-4" />
+                    <Label htmlFor="prazo-4" className="cursor-pointer flex-1">
                       <span className="font-medium">30/60/90 dias</span>
                       <p className="text-sm text-muted-foreground">
-                        3 boletos: 1ª parcela em 30 dias
+                        3 boletos: parcelas em 30, 60 e 90 dias
                       </p>
                     </Label>
                   </div>
@@ -398,7 +408,7 @@ export default function CheckoutBling() {
 
                 <Badge variant="outline" className="w-full justify-center py-2 text-blue-600 border-blue-300 bg-blue-50">
                   <FileText className="h-4 w-4 mr-2" />
-                  Pagamento: {faturamentoPrazo === '1' ? '30 dias' : faturamentoPrazo === '2' ? '30/60 dias' : '30/60/90 dias'}
+                  Pagamento: {faturamentoPrazo === '1' ? '30 dias' : faturamentoPrazo === '2' ? '60 dias (à vista)' : faturamentoPrazo === '3' ? '30/60 dias' : '30/60/90 dias'}
                 </Badge>
 
                 {cliente?.desconto_faturamento && cliente.desconto_faturamento > 0 && (

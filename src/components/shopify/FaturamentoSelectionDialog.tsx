@@ -326,9 +326,10 @@ export function FaturamentoSelectionDialog({
   };
 
   const prazos = [
-    { value: '30', label: '30 dias', description: 'Vencimento em 1 mês' },
-    { value: '60', label: '60 dias', description: 'Vencimento em 2 meses' },
-    { value: '90', label: '90 dias', description: 'Vencimento em 3 meses' },
+    { value: '30', label: '30 dias', description: '1 boleto em 30 dias' },
+    { value: '60_direto', label: '60 dias (à vista)', description: '1 boleto em 60 dias' },
+    { value: '60', label: '30/60 dias', description: '2 boletos parcelados' },
+    { value: '90', label: '30/60/90 dias', description: '3 boletos parcelados' },
   ];
 
   return (
