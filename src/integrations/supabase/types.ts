@@ -3907,6 +3907,7 @@ export type Database = {
           descricao: string | null
           id: string
           link_video: string
+          ordem: number | null
           titulo: string
           updated_at: string
           video_path: string | null
@@ -3917,6 +3918,7 @@ export type Database = {
           descricao?: string | null
           id?: string
           link_video: string
+          ordem?: number | null
           titulo: string
           updated_at?: string
           video_path?: string | null
@@ -3927,6 +3929,7 @@ export type Database = {
           descricao?: string | null
           id?: string
           link_video?: string
+          ordem?: number | null
           titulo?: string
           updated_at?: string
           video_path?: string | null
@@ -3958,6 +3961,45 @@ export type Database = {
             columns: ["tutorial_id"]
             isOneToOne: false
             referencedRelation: "tutoriais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutorial_visualizacoes: {
+        Row: {
+          assistido_em: string
+          created_at: string
+          id: string
+          tutorial_id: string
+          vendedor_id: string
+        }
+        Insert: {
+          assistido_em?: string
+          created_at?: string
+          id?: string
+          tutorial_id: string
+          vendedor_id: string
+        }
+        Update: {
+          assistido_em?: string
+          created_at?: string
+          id?: string
+          tutorial_id?: string
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutorial_visualizacoes_tutorial_id_fkey"
+            columns: ["tutorial_id"]
+            isOneToOne: false
+            referencedRelation: "tutoriais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tutorial_visualizacoes_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
             referencedColumns: ["id"]
           },
         ]

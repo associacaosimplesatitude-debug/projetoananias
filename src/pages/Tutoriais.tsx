@@ -1,11 +1,16 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Video } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Search, Video, Lock, CheckCircle2, PlayCircle } from "lucide-react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 type TutorialPerfil =
   | "VENDEDORES"
@@ -23,7 +28,13 @@ interface Tutorial {
   video_path: string | null;
   descricao: string | null;
   categorias: string[];
+  ordem: number;
   tutoriais_perfis: { perfil: TutorialPerfil }[];
+}
+
+interface Visualizacao {
+  tutorial_id: string;
+  assistido_em: string;
 }
 
 function VideoPlayer({ videoPath }: { videoPath: string }) {
@@ -41,9 +52,21 @@ function VideoPlayer({ videoPath }: { videoPath: string }) {
   );
 }
 
+function LockedVideoPlaceholder() {
+  return (
+    <div className="w-full aspect-video rounded-lg bg-muted flex flex-col items-center justify-center gap-2">
+      <Lock className="h-12 w-12 text-muted-foreground" />
+      <p className="text-sm text-muted-foreground text-center px-4">
+        Assista o tutorial anterior primeiro
+      </p>
+    </div>
+  );
+}
+
 export default function Tutoriais() {
   const { user, role } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
+  const queryClient = useQueryClient();
 
   // Determine user's profile for filtering
   const userPerfis = useMemo(() => {
@@ -62,20 +85,23 @@ export default function Tutoriais() {
     return perfis;
   }, [role]);
 
-  // Check if user is vendedor
-  const { data: isVendedor } = useQuery({
-    queryKey: ["is-vendedor", user?.email],
+  // Check if user is vendedor and get vendedor_id
+  const { data: vendedorData } = useQuery({
+    queryKey: ["vendedor-data", user?.email],
     queryFn: async () => {
-      if (!user?.email) return false;
+      if (!user?.email) return null;
       const { data } = await supabase
         .from("vendedores")
         .select("id")
         .eq("email", user.email)
         .maybeSingle();
-      return !!data;
+      return data;
     },
     enabled: !!user?.email,
   });
+
+  const isVendedor = !!vendedorData;
+  const vendedorId = vendedorData?.id;
 
   // Check if user is professor
   const { data: isProfessor } = useQuery({
@@ -141,7 +167,7 @@ export default function Tutoriais() {
       const { data, error } = await supabase
         .from("tutoriais")
         .select("*, tutoriais_perfis(perfil)")
-        .order("created_at", { ascending: false });
+        .order("ordem", { ascending: true });
 
       if (error) throw error;
 
@@ -155,6 +181,69 @@ export default function Tutoriais() {
     enabled: allUserPerfis.length > 0,
   });
 
+  // Fetch user's watched tutorials (only for vendedores)
+  const { data: visualizacoes } = useQuery({
+    queryKey: ["tutorial-visualizacoes", vendedorId],
+    queryFn: async () => {
+      if (!vendedorId) return [];
+      const { data, error } = await supabase
+        .from("tutorial_visualizacoes")
+        .select("tutorial_id, assistido_em")
+        .eq("vendedor_id", vendedorId);
+
+      if (error) throw error;
+      return data as Visualizacao[];
+    },
+    enabled: !!vendedorId,
+  });
+
+  // Mutation to mark tutorial as watched
+  const marcarAssistidoMutation = useMutation({
+    mutationFn: async (tutorialId: string) => {
+      if (!vendedorId) throw new Error("Vendedor não encontrado");
+
+      const { error } = await supabase
+        .from("tutorial_visualizacoes")
+        .insert({
+          tutorial_id: tutorialId,
+          vendedor_id: vendedorId,
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tutorial-visualizacoes", vendedorId] });
+      toast.success("Tutorial marcado como assistido!");
+    },
+    onError: () => {
+      toast.error("Erro ao marcar tutorial como assistido");
+    },
+  });
+
+  // Helper to check if a tutorial is watched
+  const isWatched = (tutorialId: string) => {
+    return visualizacoes?.some((v) => v.tutorial_id === tutorialId) ?? false;
+  };
+
+  // Helper to get watched date
+  const getWatchedDate = (tutorialId: string) => {
+    const viz = visualizacoes?.find((v) => v.tutorial_id === tutorialId);
+    return viz?.assistido_em;
+  };
+
+  // Calculate if tutorial is unlocked (for vendedores)
+  // First tutorial is always unlocked, others require previous to be watched
+  const isTutorialUnlocked = (tutorial: Tutorial, index: number) => {
+    if (!isVendedor) return true; // Non-vendedores have free access
+    if (index === 0) return true; // First tutorial always unlocked
+    
+    // Check if previous tutorial is watched
+    const previousTutorial = tutoriais?.[index - 1];
+    if (!previousTutorial) return true;
+    
+    return isWatched(previousTutorial.id);
+  };
+
   // Filter by search term
   const filteredTutoriais = useMemo(() => {
     if (!tutoriais) return [];
@@ -167,6 +256,15 @@ export default function Tutoriais() {
         t.descricao?.toLowerCase().includes(term)
     );
   }, [tutoriais, searchTerm]);
+
+  // Calculate progress for vendedores
+  const progress = useMemo(() => {
+    if (!isVendedor || !tutoriais) return null;
+    const watched = tutoriais.filter((t) => isWatched(t.id)).length;
+    const total = tutoriais.length;
+    const percentage = total > 0 ? Math.round((watched / total) * 100) : 0;
+    return { watched, total, percentage };
+  }, [isVendedor, tutoriais, visualizacoes]);
 
   if (isLoading) {
     return (
@@ -186,6 +284,21 @@ export default function Tutoriais() {
           Vídeos de treinamento e orientação
         </p>
       </div>
+
+      {/* Progress bar for vendedores */}
+      {isVendedor && progress && progress.total > 0 && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Seu Progresso</span>
+              <span className="text-sm text-muted-foreground">
+                {progress.watched} de {progress.total} tutoriais ({progress.percentage}%)
+              </span>
+            </div>
+            <Progress value={progress.percentage} className="h-2" />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -210,38 +323,98 @@ export default function Tutoriais() {
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredTutoriais.map((tutorial) => (
-            <Card key={tutorial.id} className="overflow-hidden">
-              {tutorial.video_path ? (
-                <VideoPlayer videoPath={tutorial.video_path} />
-              ) : (
-                <div className="w-full aspect-video bg-muted flex items-center justify-center">
-                  <Video className="h-12 w-12 text-muted-foreground" />
-                </div>
-              )}
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg line-clamp-2">
-                  {tutorial.titulo}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {tutorial.descricao && (
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {tutorial.descricao}
-                  </p>
+          {filteredTutoriais.map((tutorial, index) => {
+            const unlocked = isTutorialUnlocked(tutorial, index);
+            const watched = isWatched(tutorial.id);
+            const watchedDate = getWatchedDate(tutorial.id);
+
+            return (
+              <Card 
+                key={tutorial.id} 
+                className={`overflow-hidden transition-all ${
+                  !unlocked ? "opacity-60" : ""
+                } ${watched ? "ring-2 ring-green-500/20" : ""}`}
+              >
+                {/* Video or locked placeholder */}
+                {unlocked ? (
+                  tutorial.video_path ? (
+                    <VideoPlayer videoPath={tutorial.video_path} />
+                  ) : (
+                    <div className="w-full aspect-video bg-muted flex items-center justify-center">
+                      <Video className="h-12 w-12 text-muted-foreground" />
+                    </div>
+                  )
+                ) : (
+                  <LockedVideoPlaceholder />
                 )}
-                {tutorial.categorias?.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {tutorial.categorias.map((cat) => (
-                      <Badge key={cat} variant="secondary" className="text-xs">
-                        {cat}
-                      </Badge>
-                    ))}
+
+                <CardHeader className="pb-2">
+                  <div className="flex items-start gap-2">
+                    {watched && (
+                      <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    {!watched && unlocked && isVendedor && (
+                      <PlayCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                    )}
+                    {!unlocked && (
+                      <Lock className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    )}
+                    <CardTitle className="text-lg line-clamp-2">
+                      {tutorial.titulo}
+                    </CardTitle>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {tutorial.descricao && (
+                    <p className="text-sm text-muted-foreground line-clamp-3">
+                      {tutorial.descricao}
+                    </p>
+                  )}
+                  {tutorial.categorias?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {tutorial.categorias.map((cat) => (
+                        <Badge key={cat} variant="secondary" className="text-xs">
+                          {cat}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Confirmation button / status for vendedores */}
+                  {isVendedor && (
+                    <div className="pt-2 border-t">
+                      {watched ? (
+                        <div className="flex items-center gap-2 text-sm text-green-600">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>
+                            Assistido em{" "}
+                            {format(new Date(watchedDate!), "dd/MM/yyyy 'às' HH:mm", {
+                              locale: ptBR,
+                            })}
+                          </span>
+                        </div>
+                      ) : unlocked ? (
+                        <Button
+                          onClick={() => marcarAssistidoMutation.mutate(tutorial.id)}
+                          disabled={marcarAssistidoMutation.isPending}
+                          className="w-full"
+                          variant="outline"
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Confirmar que Assisti
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Lock className="h-4 w-4" />
+                          <span>Assista o tutorial anterior</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
