@@ -9,11 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { FileText, CreditCard, Clock, Receipt, CheckCircle2, Truck, Percent, Package, MapPin } from "lucide-react";
+import { FileText, CreditCard, Clock, Receipt, CheckCircle2, Truck, Package, Store, Building2, MapPin, Banknote, Smartphone, CreditCardIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface ShippingOption {
   type: 'pac' | 'sedex' | 'free' | 'retirada' | 'manual';
@@ -51,6 +58,13 @@ export interface FreteManualData {
   prazoEstimado?: string;
 }
 
+export interface PagamentoLojaData {
+  formaPagamento: 'pix' | 'dinheiro' | 'cartao_debito' | 'cartao_credito';
+  bandeiraCartao?: string;
+  parcelasCartao?: number;
+  depositoOrigem: 'local' | 'matriz' | 'pernambuco';
+}
+
 interface FaturamentoSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -61,8 +75,19 @@ interface FaturamentoSelectionDialogProps {
   descontoB2B: number | null;
   onSelectFaturamento: (prazos: string[], desconto: number, frete: ShippingOption, freteManual?: FreteManualData) => void;
   onSelectPagamentoPadrao: (frete?: ShippingOption | null, freteManual?: FreteManualData) => void;
+  onSelectPagamentoLoja?: (pagamentoData: PagamentoLojaData) => void;
   canUseFreteManual?: boolean; // Apenas vendedor e gerente podem usar
+  showPagarNaLoja?: boolean; // Apenas vendedores da Loja Penha veem esta opção
 }
+
+const BANDEIRAS_CARTAO = [
+  { value: 'visa', label: 'Visa' },
+  { value: 'mastercard', label: 'Mastercard' },
+  { value: 'elo', label: 'Elo' },
+  { value: 'amex', label: 'American Express' },
+  { value: 'hipercard', label: 'Hipercard' },
+  { value: 'outra', label: 'Outra' },
+];
 
 export function FaturamentoSelectionDialog({
   open,
@@ -74,10 +99,12 @@ export function FaturamentoSelectionDialog({
   descontoB2B,
   onSelectFaturamento,
   onSelectPagamentoPadrao,
+  onSelectPagamentoLoja,
   canUseFreteManual = false,
+  showPagarNaLoja = false,
 }: FaturamentoSelectionDialogProps) {
   const [selectedPrazo, setSelectedPrazo] = useState<string>('');
-  const [step, setStep] = useState<'choice' | 'config' | 'config_padrao' | 'config_padrao_manual'>('choice');
+  const [step, setStep] = useState<'choice' | 'config' | 'config_padrao' | 'config_padrao_manual' | 'config_loja' | 'config_loja_estoque'>('choice');
   const [desconto, setDesconto] = useState<string>('');
   const [selectedFrete, setSelectedFrete] = useState<string>('');
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
@@ -89,6 +116,12 @@ export function FaturamentoSelectionDialog({
   const [freteManualValor, setFreteManualValor] = useState('');
   const [freteManualObservacao, setFreteManualObservacao] = useState('');
   const [freteManualPrazo, setFreteManualPrazo] = useState('');
+
+  // Estados para pagamento na loja
+  const [formaPagamentoLoja, setFormaPagamentoLoja] = useState<'pix' | 'dinheiro' | 'cartao_debito' | 'cartao_credito'>('pix');
+  const [bandeiraCartao, setBandeiraCartao] = useState('');
+  const [parcelasCartao, setParcelasCartao] = useState<number>(1);
+  const [depositoOrigem, setDepositoOrigem] = useState<'local' | 'matriz' | 'pernambuco'>('local');
 
   // Auto-fill discount when dialog opens
   useEffect(() => {
@@ -247,6 +280,11 @@ export function FaturamentoSelectionDialog({
     setFreteManualValor('');
     setFreteManualObservacao('');
     setFreteManualPrazo('');
+    // Reset estados de pagamento na loja
+    setFormaPagamentoLoja('pix');
+    setBandeiraCartao('');
+    setParcelasCartao(1);
+    setDepositoOrigem('local');
   };
 
   const handleSelectFaturamento = () => {
@@ -321,6 +359,33 @@ export function FaturamentoSelectionDialog({
     }
   };
 
+  const handlePagarNaLoja = () => {
+    setStep('config_loja');
+  };
+
+  const handleConfirmPagamentoLoja = () => {
+    // Validar bandeira para cartão
+    if ((formaPagamentoLoja === 'cartao_debito' || formaPagamentoLoja === 'cartao_credito') && !bandeiraCartao) {
+      toast.error('Selecione a bandeira do cartão');
+      return;
+    }
+
+    if (onSelectPagamentoLoja) {
+      onSelectPagamentoLoja({
+        formaPagamento: formaPagamentoLoja,
+        bandeiraCartao: (formaPagamentoLoja === 'cartao_debito' || formaPagamentoLoja === 'cartao_credito') ? bandeiraCartao : undefined,
+        parcelasCartao: formaPagamentoLoja === 'cartao_credito' ? parcelasCartao : undefined,
+        depositoOrigem,
+      });
+    }
+
+    // Reset state for next time
+    setTimeout(() => {
+      setStep('choice');
+      resetState();
+    }, 300);
+  };
+
   const selectPrazo = (value: string) => {
     setSelectedPrazo(value);
   };
@@ -331,6 +396,10 @@ export function FaturamentoSelectionDialog({
     { value: '60', label: '30/60 dias', description: '2 boletos parcelados' },
     { value: '90', label: '30/60/90 dias', description: '3 boletos parcelados' },
   ];
+
+  const valorParcela = formaPagamentoLoja === 'cartao_credito' && parcelasCartao > 1 
+    ? totalProdutos / parcelasCartao 
+    : totalProdutos;
 
   return (
     <AlertDialog open={open} onOpenChange={handleClose}>
@@ -386,6 +455,260 @@ export function FaturamentoSelectionDialog({
                 </div>
               </div>
             </Button>
+
+            {/* Opção Pagar na Loja - apenas para vendedores Loja Penha */}
+            {showPagarNaLoja && onSelectPagamentoLoja && (
+              <Button
+                variant="outline"
+                className="w-full h-auto p-4 justify-start text-left border-2 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-all"
+                onClick={handlePagarNaLoja}
+              >
+                <div className="flex gap-4 items-start w-full">
+                  <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                    <Store className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-base">Pagar na Loja</p>
+                    <p className="text-sm text-muted-foreground font-normal mt-1">
+                      Venda presencial: PIX, Dinheiro ou Maquininha (Débito/Crédito).
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Store className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="text-xs text-amber-600 font-medium">Loja Penha</span>
+                    </div>
+                  </div>
+                </div>
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Step de configuração de pagamento na loja */}
+        {step === 'config_loja' && (
+          <div className="space-y-5 mt-4">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                <strong>Pagamento na Loja Penha</strong> - Selecione a forma de pagamento
+              </p>
+            </div>
+
+            {/* Forma de Pagamento */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <CreditCardIcon className="h-4 w-4" />
+                Forma de Pagamento
+              </Label>
+              <RadioGroup
+                value={formaPagamentoLoja}
+                onValueChange={(v) => {
+                  setFormaPagamentoLoja(v as typeof formaPagamentoLoja);
+                  if (v !== 'cartao_debito' && v !== 'cartao_credito') {
+                    setBandeiraCartao('');
+                    setParcelasCartao(1);
+                  }
+                }}
+                className="grid grid-cols-2 gap-2"
+              >
+                <Label
+                  className={cn(
+                    "flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all",
+                    formaPagamentoLoja === 'pix' 
+                      ? "border-primary bg-primary/5" 
+                      : "border-muted hover:border-primary/50"
+                  )}
+                >
+                  <RadioGroupItem value="pix" className="sr-only" />
+                  <Smartphone className="h-5 w-5 text-primary" />
+                  <span className="font-medium">PIX</span>
+                </Label>
+                <Label
+                  className={cn(
+                    "flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all",
+                    formaPagamentoLoja === 'dinheiro' 
+                      ? "border-primary bg-primary/5" 
+                      : "border-muted hover:border-primary/50"
+                  )}
+                >
+                  <RadioGroupItem value="dinheiro" className="sr-only" />
+                  <Banknote className="h-5 w-5 text-green-600" />
+                  <span className="font-medium">Dinheiro</span>
+                </Label>
+                <Label
+                  className={cn(
+                    "flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all",
+                    formaPagamentoLoja === 'cartao_debito' 
+                      ? "border-primary bg-primary/5" 
+                      : "border-muted hover:border-primary/50"
+                  )}
+                >
+                  <RadioGroupItem value="cartao_debito" className="sr-only" />
+                  <CreditCard className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium">Débito</span>
+                </Label>
+                <Label
+                  className={cn(
+                    "flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all",
+                    formaPagamentoLoja === 'cartao_credito' 
+                      ? "border-primary bg-primary/5" 
+                      : "border-muted hover:border-primary/50"
+                  )}
+                >
+                  <RadioGroupItem value="cartao_credito" className="sr-only" />
+                  <CreditCardIcon className="h-5 w-5 text-purple-600" />
+                  <span className="font-medium">Crédito</span>
+                </Label>
+              </RadioGroup>
+            </div>
+
+            {/* Bandeira do Cartão (apenas para débito/crédito) */}
+            {(formaPagamentoLoja === 'cartao_debito' || formaPagamentoLoja === 'cartao_credito') && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Bandeira do Cartão <span className="text-destructive">*</span>
+                </Label>
+                <Select value={bandeiraCartao} onValueChange={setBandeiraCartao}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a bandeira" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BANDEIRAS_CARTAO.map((bandeira) => (
+                      <SelectItem key={bandeira.value} value={bandeira.value}>
+                        {bandeira.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Parcelas (apenas para crédito) */}
+            {formaPagamentoLoja === 'cartao_credito' && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Parcelas</Label>
+                <Select 
+                  value={parcelasCartao.toString()} 
+                  onValueChange={(v) => setParcelasCartao(Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                      <SelectItem key={n} value={n.toString()}>
+                        {n}x de R$ {(totalProdutos / n).toFixed(2)} {n === 1 ? '(à vista)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Origem do Estoque */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Origem do Estoque
+              </Label>
+              <RadioGroup
+                value={depositoOrigem}
+                onValueChange={(v) => setDepositoOrigem(v as typeof depositoOrigem)}
+                className="space-y-2"
+              >
+                <Label
+                  className={cn(
+                    "flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all",
+                    depositoOrigem === 'local' 
+                      ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20" 
+                      : "border-muted hover:border-amber-300"
+                  )}
+                >
+                  <RadioGroupItem value="local" className="sr-only" />
+                  <Store className="h-5 w-5 text-amber-600" />
+                  <div className="flex-1">
+                    <span className="font-medium">Loja Penha (Local)</span>
+                    <p className="text-xs text-muted-foreground">Estoque da própria loja</p>
+                  </div>
+                  {depositoOrigem === 'local' && (
+                    <CheckCircle2 className="h-4 w-4 text-amber-600" />
+                  )}
+                </Label>
+                <Label
+                  className={cn(
+                    "flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all",
+                    depositoOrigem === 'matriz' 
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20" 
+                      : "border-muted hover:border-blue-300"
+                  )}
+                >
+                  <RadioGroupItem value="matriz" className="sr-only" />
+                  <Building2 className="h-5 w-5 text-blue-600" />
+                  <div className="flex-1">
+                    <span className="font-medium">Matriz (Rio de Janeiro)</span>
+                    <p className="text-xs text-muted-foreground">Estoque central - Taquara/RJ</p>
+                  </div>
+                  {depositoOrigem === 'matriz' && (
+                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                  )}
+                </Label>
+                <Label
+                  className={cn(
+                    "flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all",
+                    depositoOrigem === 'pernambuco' 
+                      ? "border-green-500 bg-green-50 dark:bg-green-950/20" 
+                      : "border-muted hover:border-green-300"
+                  )}
+                >
+                  <RadioGroupItem value="pernambuco" className="sr-only" />
+                  <MapPin className="h-5 w-5 text-green-600" />
+                  <div className="flex-1">
+                    <span className="font-medium">Polo Pernambuco</span>
+                    <p className="text-xs text-muted-foreground">Estoque regional - Jaboatão/PE</p>
+                  </div>
+                  {depositoOrigem === 'pernambuco' && (
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  )}
+                </Label>
+              </RadioGroup>
+            </div>
+
+            {/* Resumo do Pedido */}
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Total dos Produtos</span>
+                <span>R$ {totalProdutos.toFixed(2)}</span>
+              </div>
+              {formaPagamentoLoja === 'cartao_credito' && parcelasCartao > 1 && (
+                <div className="flex justify-between text-sm text-purple-600">
+                  <span>Parcelamento</span>
+                  <span>{parcelasCartao}x de R$ {valorParcela.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="border-t pt-2 flex justify-between font-semibold">
+                <span>Total</span>
+                <span className="text-lg">R$ {totalProdutos.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setStep('choice')}
+              >
+                Voltar
+              </Button>
+              <Button
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                onClick={handleConfirmPagamentoLoja}
+                disabled={
+                  (formaPagamentoLoja === 'cartao_debito' || formaPagamentoLoja === 'cartao_credito') && !bandeiraCartao
+                }
+              >
+                <Store className="w-4 h-4 mr-2" />
+                Confirmar Venda
+              </Button>
+            </div>
           </div>
         )}
 
@@ -421,8 +744,6 @@ export function FaturamentoSelectionDialog({
                 ))}
               </div>
             </div>
-
-            {/* Desconto removido - agora usa descontos por categoria cadastrados no cliente */}
 
             {/* Shipping Selection - Cliente escolhe na proposta OU Frete Manual */}
             <div className="space-y-3">

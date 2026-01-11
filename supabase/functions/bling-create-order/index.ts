@@ -337,8 +337,8 @@ serve(async (req) => {
       itens,            // Itens com preço de lista (preco_cheio) e preço com desconto (valor)
       pedido_id,
       valor_frete,
-      metodo_frete,     // PAC, SEDEX, FREE, manual
-      forma_pagamento,  // PIX, CARTAO, BOLETO, FATURAMENTO
+      metodo_frete,     // PAC, SEDEX, FREE, manual, retirada_penha
+      forma_pagamento,  // PIX, CARTAO, BOLETO, FATURAMENTO, pagamento_loja
       faturamento_prazo, // 30, 60 ou 90 (apenas para FATURAMENTO)
       valor_produtos,   // Total dos produtos com desconto
       valor_total,      // Total final (produtos + frete)
@@ -349,6 +349,11 @@ serve(async (req) => {
       frete_tipo,           // 'automatico' ou 'manual'
       frete_transportadora, // Nome da transportadora (apenas para frete manual)
       frete_observacao,     // Observação interna sobre o frete manual
+      // Dados de pagamento na loja (Loja Penha)
+      forma_pagamento_loja, // pix, dinheiro, cartao_debito, cartao_credito
+      bandeira_cartao,      // visa, mastercard, elo, etc.
+      parcelas_cartao,      // 1 a 10 (apenas para crédito)
+      deposito_origem,      // local, matriz, pernambuco
     } = body;
 
     if (!cliente || !itens || itens.length === 0) {
@@ -1008,9 +1013,11 @@ serve(async (req) => {
     // Norte/Nordeste -> Loja Pernambuco: 205882190
     // Demais regiões -> Loja FATURADOS: 205797806
     // Polo Penha -> Loja POLO PENHA: 205891152
+    // Loja Penha PDV -> Loja LOJA PENHA: 205441191 (pagamento presencial)
     const BLING_LOJA_PERNAMBUCO_ID = 205882190;
     const BLING_LOJA_FATURADOS_ID = 205797806;
     const BLING_LOJA_PENHA_ID = 205891152;
+    const BLING_LOJA_PENHA_PDV_ID = 205441191; // Canal de vendas para pagamentos presenciais
     
     // Unidades de Negócio FIXAS (sem depender de secrets)
     // Norte/Nordeste -> unidadeNegocio.id = 1 (Polo Pernambuco)
@@ -1069,14 +1076,31 @@ serve(async (req) => {
     let depositoSelecionado = '';
     let depositoIdSelecionado: number;
     
-    if (metodo_frete === 'retirada_penha') {
-      // PRIORIDADE 1: Retirada no Polo da Penha
-      lojaSelecionada = 'POLO PENHA';
-      lojaIdSelecionada = BLING_LOJA_PENHA_ID; // = 205891152
+    // PRIORIDADE 0: Pagamento na Loja (PDV Loja Penha)
+    if (forma_pagamento === 'pagamento_loja') {
+      lojaSelecionada = 'LOJA PENHA';
+      lojaIdSelecionada = BLING_LOJA_PENHA_PDV_ID; // = 205441191
       unidadeNegocioSelecionada = 'Polo Penha (RJ)';
       unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS; // = 2 (RJ)
-      depositoSelecionado = 'LOJA PENHA';
-      depositoIdSelecionado = BLING_DEPOSITO_ID_PENHA; // = 14888322619
+      
+      // Depósito baseado na escolha do vendedor
+      switch (deposito_origem) {
+        case 'local':
+          depositoSelecionado = 'LOJA PENHA';
+          depositoIdSelecionado = BLING_DEPOSITO_ID_PENHA;
+          break;
+        case 'pernambuco':
+          depositoSelecionado = 'PERNANBUCO [ALFA]';
+          depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
+          break;
+        default: // matriz
+          depositoSelecionado = 'Geral';
+          depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
+      }
+      
+      console.log(`[ROUTING] PAGAMENTO LOJA: forma=${forma_pagamento_loja}, bandeira=${bandeira_cartao}, parcelas=${parcelas_cartao}, deposito=${deposito_origem}`);
+      
+    } else if (metodo_frete === 'retirada_penha') {
       
     } else if (metodo_frete === 'retirada_pe') {
       // PRIORIDADE 1: Retirada no Polo Pernambuco
