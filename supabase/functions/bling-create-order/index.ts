@@ -354,8 +354,86 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
   cachedUnidadesNegocioByName = new Map();
 
   try {
-    // Buscar detalhes de pedidos recentes para extrair unidades de negócio
-    // (Bling não tem endpoint direto para listar unidades de negócio)
+    // ✅ ENDPOINT DIRETO: Listar unidades de negócio via API v3
+    const url = 'https://api.bling.com.br/Api/v3/empresas';
+    console.log(`[BLING] 🔍 Buscando unidades de negócio via endpoint /empresas...`);
+    
+    const resp = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.warn(`[BLING] Falha ao buscar empresas/unidades: ${resp.status}`, errorText);
+      
+      // Fallback: tentar extrair de pedidos existentes
+      console.log('[BLING] 🔄 Tentando fallback via pedidos existentes...');
+      return await loadUnidadesFromOrders(accessToken);
+    }
+
+    const json = await resp.json();
+    const empresas: any[] = Array.isArray(json?.data) ? json.data : [];
+    
+    console.log(`[BLING] ✅ Empresas/Unidades encontradas: ${empresas.length}`);
+
+    for (const empresa of empresas) {
+      const id = Number(empresa?.id);
+      const nome = String(empresa?.nome || empresa?.razaoSocial || empresa?.descricao || '').trim();
+      
+      if (nome && Number.isFinite(id) && id > 0) {
+        const descLower = nome.toLowerCase();
+        cachedUnidadesNegocioByName.set(descLower, id);
+        console.log(`[BLING] ✅ Unidade de Negócio: ID=${id}, Nome="${nome}"`);
+      }
+    }
+
+    // Se não encontrou nada, tentar buscar de lojas
+    if (cachedUnidadesNegocioByName.size === 0) {
+      console.log('[BLING] 🔄 Nenhuma empresa encontrada, tentando via lojas...');
+      
+      const lojasUrl = 'https://api.bling.com.br/Api/v3/lojas';
+      const lojasResp = await fetch(lojasUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (lojasResp.ok) {
+        const lojasData = await lojasResp.json();
+        const lojas: any[] = Array.isArray(lojasData?.data) ? lojasData.data : [];
+        
+        console.log(`[BLING] ✅ Lojas encontradas: ${lojas.length}`);
+        
+        for (const loja of lojas) {
+          const unidade = loja?.unidadeNegocio;
+          if (unidade?.id && unidade?.descricao) {
+            const desc = String(unidade.descricao).toLowerCase().trim();
+            if (!cachedUnidadesNegocioByName.has(desc)) {
+              cachedUnidadesNegocioByName.set(desc, Number(unidade.id));
+              console.log(`[BLING] ✅ Unidade de Negócio (via loja ${loja.descricao}): ID=${unidade.id}, Nome="${unidade.descricao}"`);
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`[BLING] 📋 Total de unidades encontradas: ${cachedUnidadesNegocioByName.size}`);
+    console.log('[BLING] 📋 Unidades mapeadas:', Array.from(cachedUnidadesNegocioByName.entries()));
+
+    return cachedUnidadesNegocioByName;
+  } catch (e) {
+    console.warn('[BLING] Erro ao carregar unidades de negócio:', e);
+    return cachedUnidadesNegocioByName;
+  }
+}
+
+// Fallback: extrair unidades de pedidos existentes
+async function loadUnidadesFromOrders(accessToken: string): Promise<Map<string, number>> {
+  try {
     const ordersUrl = 'https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=50';
     const ordersResp = await fetch(ordersUrl, {
       headers: {
@@ -366,7 +444,7 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
 
     if (!ordersResp.ok) {
       console.warn('[BLING] Falha ao buscar pedidos para extrair unidades de negócio');
-      return cachedUnidadesNegocioByName;
+      return cachedUnidadesNegocioByName!;
     }
 
     const ordersData = await ordersResp.json();
@@ -374,8 +452,7 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
     
     console.log(`[BLING] 🔍 Buscando unidades de negócio em ${orders.length} pedidos...`);
 
-    // Buscar detalhes de até 10 pedidos para encontrar diferentes unidades
-    for (let i = 0; i < Math.min(10, orders.length); i++) {
+    for (let i = 0; i < Math.min(20, orders.length); i++) {
       const orderId = orders[i]?.id;
       if (!orderId) continue;
 
@@ -390,28 +467,41 @@ async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, 
         
         if (detailResp.ok) {
           const detailData = await detailResp.json();
-          const unidade = detailData?.data?.unidadeNegocio;
           
-          if (unidade?.id && unidade?.descricao) {
-            const desc = String(unidade.descricao).toLowerCase().trim();
-            if (!cachedUnidadesNegocioByName.has(desc)) {
-              cachedUnidadesNegocioByName.set(desc, Number(unidade.id));
-              console.log(`[BLING] ✅ Unidade de Negócio encontrada: ID=${unidade.id}, Nome="${unidade.descricao}"`);
+          // Tentar várias estruturas possíveis
+          const unidade = detailData?.data?.unidadeNegocio 
+            || detailData?.data?.loja?.unidadeNegocio;
+          
+          if (unidade?.id && (unidade?.descricao || unidade?.nome)) {
+            const desc = String(unidade.descricao || unidade.nome).toLowerCase().trim();
+            if (!cachedUnidadesNegocioByName!.has(desc)) {
+              cachedUnidadesNegocioByName!.set(desc, Number(unidade.id));
+              console.log(`[BLING] ✅ Unidade via pedido ${orderId}: ID=${unidade.id}, Nome="${unidade.descricao || unidade.nome}"`);
             }
+          }
+          
+          // Log para debug - ver estrutura do pedido
+          if (i === 0) {
+            console.log(`[BLING] 🔎 Estrutura do pedido ${orderId}:`, JSON.stringify({
+              unidadeNegocio: detailData?.data?.unidadeNegocio,
+              loja: detailData?.data?.loja ? { 
+                id: detailData.data.loja.id, 
+                descricao: detailData.data.loja.descricao,
+                unidadeNegocio: detailData.data.loja.unidadeNegocio 
+              } : null
+            }));
           }
         }
       } catch (e) {
-        console.warn(`[BLING] Erro ao buscar detalhes do pedido ${orderId}:`, e);
+        // Ignorar erros individuais
       }
     }
 
-    console.log(`[BLING] 📋 Total de unidades encontradas: ${cachedUnidadesNegocioByName.size}`);
-    console.log('[BLING] 📋 Unidades mapeadas:', Array.from(cachedUnidadesNegocioByName.entries()));
-
-    return cachedUnidadesNegocioByName;
+    console.log(`[BLING] 📋 Total de unidades via pedidos: ${cachedUnidadesNegocioByName!.size}`);
+    return cachedUnidadesNegocioByName!;
   } catch (e) {
-    console.warn('[BLING] Erro ao carregar unidades de negócio:', e);
-    return cachedUnidadesNegocioByName;
+    console.warn('[BLING] Erro ao buscar unidades via pedidos:', e);
+    return cachedUnidadesNegocioByName!;
   }
 }
 
