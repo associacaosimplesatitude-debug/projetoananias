@@ -1467,7 +1467,9 @@ export default function ShopifyPedidos() {
             // Criar pedido direto no Bling via edge function
             const { data, error } = await supabase.functions.invoke('bling-create-order', {
               body: {
+                contato: { id: selectedCliente.id },
                 cliente: {
+                  id: selectedCliente.id,
                   nome: selectedCliente.nome_igreja,
                   cpf_cnpj: selectedCliente.cnpj || selectedCliente.cpf,
                   email: selectedCliente.email_superintendente,
