@@ -1117,6 +1117,14 @@ serve(async (req) => {
     const UNIDADE_NEGOCIO_NORTE_NORDESTE = 1;
     const UNIDADE_NEGOCIO_OUTRAS = 2;
     
+    // Unidade de Negócio Penha (via secret, fallback para Matriz RJ)
+    const BLING_UNIDADE_NEGOCIO_PENHA_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_PENHA');
+    const UNIDADE_NEGOCIO_PENHA = BLING_UNIDADE_NEGOCIO_PENHA_RAW 
+      ? Number(BLING_UNIDADE_NEGOCIO_PENHA_RAW) 
+      : UNIDADE_NEGOCIO_OUTRAS; // fallback para Matriz
+    
+    console.log(`[SECRETS] Unidade de Negócio Penha: ${UNIDADE_NEGOCIO_PENHA} (raw: ${BLING_UNIDADE_NEGOCIO_PENHA_RAW || 'não configurado'})`);
+    
     // Depósitos - OBRIGATÓRIOS (via secrets)
     const BLING_DEPOSITO_ID_GERAL_RAW = Deno.env.get('BLING_DEPOSITO_ID_GERAL');
     const BLING_DEPOSITO_ID_PERNAMBUCO_RAW = Deno.env.get('BLING_DEPOSITO_ID_PERNAMBUCO');
@@ -1172,32 +1180,37 @@ serve(async (req) => {
     if (forma_pagamento === 'pagamento_loja') {
       lojaSelecionada = 'LOJA PENHA';
       lojaIdSelecionada = BLING_LOJA_PENHA_PDV_ID; // = 205441191
-      unidadeNegocioSelecionada = 'Polo Penha (RJ)';
-      unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS; // = 2 (RJ)
       
-      // Depósito baseado na escolha do vendedor
+      // Depósito E Unidade de Negócio baseados na escolha do vendedor
       switch (deposito_origem) {
         case 'local':
           depositoSelecionado = 'LOJA PENHA';
           depositoIdSelecionado = BLING_DEPOSITO_ID_PENHA;
+          unidadeNegocioSelecionada = 'Loja Penha';
+          unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_PENHA; // Usa secret ou fallback para Matriz
           break;
         case 'pernambuco':
           depositoSelecionado = 'PERNANBUCO [ALFA]';
           depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
+          unidadeNegocioSelecionada = 'Polo Jaboatão (PE)';
+          unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_NORTE_NORDESTE; // = 1
           break;
         default: // matriz
           depositoSelecionado = 'Geral';
           depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
+          unidadeNegocioSelecionada = 'Matriz (RJ)';
+          unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS; // = 2
       }
       
       console.log(`[ROUTING] PAGAMENTO LOJA: forma=${forma_pagamento_loja}, bandeira=${bandeira_cartao}, parcelas=${parcelas_cartao}, deposito=${deposito_origem}`);
+      console.log(`[ROUTING] PAGAMENTO LOJA: unidadeNegocio=${unidadeNegocioSelecionada} (${unidadeNegocioIdSelecionada})`);
       
   } else if (metodo_frete === 'retirada_penha') {
     // PRIORIDADE 1: Retirada no Polo Penha (Loja Penha)
     lojaSelecionada = 'POLO PENHA';
     lojaIdSelecionada = BLING_LOJA_PENHA_ID;
-    unidadeNegocioSelecionada = 'Polo Penha (RJ)';
-    unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS;
+    unidadeNegocioSelecionada = 'Loja Penha';
+    unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_PENHA; // Usa secret ou fallback para Matriz
     depositoSelecionado = 'LOJA PENHA';
     depositoIdSelecionado = BLING_DEPOSITO_ID_PENHA;
 
