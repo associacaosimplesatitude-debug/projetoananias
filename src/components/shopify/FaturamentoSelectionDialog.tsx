@@ -422,31 +422,7 @@ export function FaturamentoSelectionDialog({
               </div>
             </div>
 
-            {/* Discount Input */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium flex items-center gap-2">
-                <Percent className="h-4 w-4" />
-                Desconto (%)
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  placeholder="Ex: 10"
-                  value={desconto}
-                  onChange={(e) => setDesconto(e.target.value)}
-                  className="w-24"
-                />
-                <span className="text-sm text-muted-foreground">%</span>
-                {descontoPercent > 0 && (
-                  <span className="text-sm text-green-600 font-medium">
-                    -R$ {(totalProdutos * descontoPercent / 100).toFixed(2)}
-                  </span>
-                )}
-              </div>
-            </div>
+            {/* Desconto removido - agora usa descontos por categoria cadastrados no cliente */}
 
             {/* Shipping Selection - Cliente escolhe na proposta OU Frete Manual */}
             <div className="space-y-3">
