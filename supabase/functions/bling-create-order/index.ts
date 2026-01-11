@@ -1368,24 +1368,29 @@ serve(async (req) => {
     
     // PRIORIDADE 0: Pagamento na Loja (PDV Loja Penha)
     if (forma_pagamento === 'pagamento_loja') {
-      lojaSelecionada = 'LOJA PENHA';
-      lojaIdSelecionada = BLING_LOJA_PENHA_PDV_ID; // = 205441191
-      
       // Depósito E Unidade de Negócio baseados na escolha do vendedor
       switch (deposito_origem) {
         case 'local':
+          // ✅ CORREÇÃO: Usar loja POLO PENHA (205891152) que tem Unidade Penha configurada
+          // A loja PDV (205441191) ignora unidadeNegocio enviada e força Matriz
+          lojaSelecionada = 'POLO PENHA';
+          lojaIdSelecionada = BLING_LOJA_PENHA_ID; // = 205891152
           depositoSelecionado = 'LOJA PENHA';
           depositoIdSelecionado = BLING_DEPOSITO_ID_PENHA;
           unidadeNegocioSelecionada = 'Loja Penha';
-          unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_PENHA; // Usa secret ou fallback para Matriz
+          unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_PENHA;
           break;
         case 'pernambuco':
+          lojaSelecionada = 'Pernambuco';
+          lojaIdSelecionada = BLING_LOJA_PERNAMBUCO_ID; // = 205882190
           depositoSelecionado = 'PERNANBUCO [ALFA]';
           depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
           unidadeNegocioSelecionada = 'Polo Jaboatão (PE)';
           unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_NORTE_NORDESTE; // = 1
           break;
         default: // matriz
+          lojaSelecionada = 'FATURADOS';
+          lojaIdSelecionada = BLING_LOJA_FATURADOS_ID; // = 205797806
           depositoSelecionado = 'Geral';
           depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
           unidadeNegocioSelecionada = 'Matriz (RJ)';
@@ -1393,7 +1398,7 @@ serve(async (req) => {
       }
       
       console.log(`[ROUTING] PAGAMENTO LOJA: forma=${forma_pagamento_loja}, bandeira=${bandeira_cartao}, parcelas=${parcelas_cartao}, deposito=${deposito_origem}`);
-      console.log(`[ROUTING] PAGAMENTO LOJA: unidadeNegocio=${unidadeNegocioSelecionada} (${unidadeNegocioIdSelecionada})`);
+      console.log(`[ROUTING] PAGAMENTO LOJA: loja=${lojaSelecionada} (${lojaIdSelecionada}) unidadeNegocio=${unidadeNegocioSelecionada} (${unidadeNegocioIdSelecionada})`);
       
   } else if (metodo_frete === 'retirada_penha') {
     // PRIORIDADE 1: Retirada no Polo Penha (Loja Penha)
