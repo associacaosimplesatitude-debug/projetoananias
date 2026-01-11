@@ -211,13 +211,17 @@ async function resolveNaturezaOperacaoId(accessToken: string): Promise<number | 
 // ✅ NOVA FUNÇÃO: Buscar forma de pagamento "Conta a receber/pagar" para gerar Contas a Receber
 let cachedFormaPagamentoContaReceberPagarId: number | null = null;
 
-async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Promise<number | null> {
-  if (cachedFormaPagamentoContaReceberPagarId !== null) {
-    return cachedFormaPagamentoContaReceberPagarId;
+// ✅ Cache global para TODAS as formas de pagamento do Bling
+let cachedFormasPagamentoByName: Map<string, number> | null = null;
+
+async function loadAllFormasPagamento(accessToken: string): Promise<Map<string, number>> {
+  if (cachedFormasPagamentoByName !== null) {
+    return cachedFormasPagamentoByName;
   }
 
+  cachedFormasPagamentoByName = new Map();
+
   try {
-    // ✅ Usar api.bling.com.br (não www)
     const url = 'https://api.bling.com.br/Api/v3/formas-pagamentos';
     const resp = await fetch(url, {
       headers: {
@@ -230,41 +234,113 @@ async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Pr
 
     if (!resp.ok) {
       console.warn('[BLING] Falha ao listar formas de pagamento.', json);
-      return null;
+      return cachedFormasPagamentoByName;
     }
 
     const formasPagamento: any[] = Array.isArray(json?.data) ? json.data : [];
     
-    // Log para debug: mostrar todas as formas de pagamento disponíveis
-    console.log('[BLING] ✅ Formas de pagamento disponíveis:', {
+    console.log('[BLING] ✅ Carregando todas as formas de pagamento:', {
       total: formasPagamento.length,
-      formas: formasPagamento.map((f) => ({ id: f.id, descricao: f.descricao })),
-    });
-    
-    // Buscar "Conta a receber/pagar" (pode ter variações de texto)
-    const contaReceberPagar = formasPagamento.find((f) => {
-      const desc = String(f?.descricao || '').toLowerCase().trim();
-      return desc.includes('conta a receber') || 
-             desc.includes('conta receber') || 
-             desc.includes('a receber/pagar') ||
-             desc === 'conta a receber/pagar';
     });
 
-    if (contaReceberPagar?.id) {
-      cachedFormaPagamentoContaReceberPagarId = Number(contaReceberPagar.id);
-      console.log('[BLING] ✅ Forma de pagamento "Conta a receber/pagar" ENCONTRADA:', { 
-        id: cachedFormaPagamentoContaReceberPagarId, 
-        descricao: contaReceberPagar.descricao 
-      });
-      return cachedFormaPagamentoContaReceberPagarId;
+    for (const f of formasPagamento) {
+      const desc = String(f?.descricao || '').toLowerCase().trim();
+      const id = Number(f.id);
+      if (desc && Number.isFinite(id) && id > 0) {
+        cachedFormasPagamentoByName.set(desc, id);
+        console.log(`[BLING] Forma de pagamento: ID=${id}, Descrição="${f.descricao}"`);
+        
+        // Também cachear "Conta a receber/pagar" se encontrar
+        if (desc.includes('conta a receber') || desc.includes('a receber/pagar')) {
+          cachedFormaPagamentoContaReceberPagarId = id;
+        }
+      }
     }
-    
-    console.warn('[BLING] ⚠️ Forma de pagamento "Conta a receber/pagar" NÃO encontrada nas formas disponíveis');
-    return null;
+
+    return cachedFormasPagamentoByName;
   } catch (e) {
-    console.warn('[BLING] Erro ao buscar formas de pagamento.', e);
-    return null;
+    console.warn('[BLING] Erro ao carregar formas de pagamento.', e);
+    return cachedFormasPagamentoByName;
   }
+}
+
+// ✅ FUNÇÃO: Mapear forma_pagamento_loja para ID do Bling
+function resolveFormaPagamentoLojaId(
+  forma: string | undefined, 
+  bandeira: string | undefined,
+  formasMap: Map<string, number>
+): number | null {
+  if (!forma || formasMap.size === 0) return null;
+
+  // Termos de busca priorizados por forma de pagamento
+  const searchTerms: string[] = [];
+  
+  switch (forma) {
+    case 'pix':
+      searchTerms.push('pix');
+      break;
+    case 'dinheiro':
+      searchTerms.push('dinheiro');
+      break;
+    case 'cartao_debito':
+      searchTerms.push('débito', 'debito', 'cartão de débito', 'cartao de debito');
+      break;
+    case 'cartao_credito':
+      // Tentar com bandeira específica primeiro
+      if (bandeira) {
+        const bandeiraLower = bandeira.toLowerCase();
+        searchTerms.push(
+          `credito ${bandeiraLower}`,
+          `crédito ${bandeiraLower}`,
+          bandeiraLower
+        );
+      }
+      // Fallback para cartão genérico
+      searchTerms.push('crédito', 'credito', 'cartão de crédito', 'cartao de credito');
+      break;
+  }
+
+  // Buscar primeiro match nas formas disponíveis
+  for (const term of searchTerms) {
+    for (const [desc, id] of formasMap.entries()) {
+      if (desc.includes(term)) {
+        console.log(`[BLING] ✅ Forma "${forma}" mapeada para "${desc}" (ID: ${id})`);
+        return id;
+      }
+    }
+  }
+
+  console.warn(`[BLING] ⚠️ Forma de pagamento "${forma}" não encontrada no Bling`);
+  return null;
+}
+
+async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Promise<number | null> {
+  // Se já temos o cache, usar diretamente
+  if (cachedFormaPagamentoContaReceberPagarId !== null) {
+    return cachedFormaPagamentoContaReceberPagarId;
+  }
+
+  // Carregar todas as formas (vai popular o cache de "Conta a receber/pagar" também)
+  await loadAllFormasPagamento(accessToken);
+  
+  if (cachedFormaPagamentoContaReceberPagarId !== null) {
+    console.log('[BLING] ✅ Forma de pagamento "Conta a receber/pagar" ENCONTRADA:', cachedFormaPagamentoContaReceberPagarId);
+    return cachedFormaPagamentoContaReceberPagarId;
+  }
+
+  // Fallback: buscar manualmente no cache
+  if (cachedFormasPagamentoByName) {
+    for (const [desc, id] of cachedFormasPagamentoByName.entries()) {
+      if (desc.includes('conta a receber') || desc.includes('a receber/pagar')) {
+        cachedFormaPagamentoContaReceberPagarId = id;
+        console.log('[BLING] ✅ Forma de pagamento "Conta a receber/pagar" ENCONTRADA (fallback):', id);
+        return id;
+      }
+    }
+  }
+
+  console.warn('[BLING] ⚠️ Forma de pagamento "Conta a receber/pagar" NÃO encontrada');
+  return null;
 }
 
 // ✅ MAPEAMENTO ESTRITO: Email → ID numérico do vendedor no Bling
@@ -1848,12 +1924,50 @@ serve(async (req) => {
         observacoes: `Pagamento via ${formaPagamentoDescricao}`,
       };
 
-      // ✅ USAR ID da forma de pagamento "Conta a receber/pagar" (se encontrado)
-      if (formaPagamentoContaReceberPagarId) {
-        parcelaVistaObj.formaPagamento = { id: formaPagamentoContaReceberPagarId };
+      // ✅ PARA PAGAMENTO NA LOJA (GLORINHA): usar forma específica (PIX, Dinheiro, Cartão)
+      if (isPagamentoLoja && forma_pagamento_loja) {
+        // Carregar formas de pagamento se ainda não carregou
+        const formasMap = await loadAllFormasPagamento(accessToken);
+        const formaPagLojaId = resolveFormaPagamentoLojaId(forma_pagamento_loja, bandeira_cartao, formasMap);
+        
+        if (formaPagLojaId) {
+          parcelaVistaObj.formaPagamento = { id: formaPagLojaId };
+          console.log(`[BLING] ✅ Usando forma de pagamento da loja: ${forma_pagamento_loja} (ID: ${formaPagLojaId})`);
+        } else {
+          // Fallback para descrição textual se não encontrar ID
+          const descricaoMap: Record<string, string> = {
+            'pix': 'PIX',
+            'dinheiro': 'Dinheiro',
+            'cartao_debito': 'Cartão de débito',
+            'cartao_credito': bandeira_cartao 
+              ? `Cartão de crédito ${bandeira_cartao.charAt(0).toUpperCase() + bandeira_cartao.slice(1)}` 
+              : 'Cartão de crédito',
+          };
+          parcelaVistaObj.formaPagamento = { descricao: descricaoMap[forma_pagamento_loja] || 'PIX' };
+          console.log(`[BLING] ⚠️ Usando descrição textual para forma de pagamento: ${descricaoMap[forma_pagamento_loja]}`);
+        }
+        
+        // Melhorar observação para pagamento na loja
+        const bandeiraLabel = bandeira_cartao 
+          ? ` (${bandeira_cartao.charAt(0).toUpperCase() + bandeira_cartao.slice(1)})` 
+          : '';
+        const parcelasLabel = parcelas_cartao && Number(parcelas_cartao) > 1 
+          ? ` em ${parcelas_cartao}x` 
+          : '';
+        const formaLabel = forma_pagamento_loja === 'pix' ? 'PIX' 
+          : forma_pagamento_loja === 'dinheiro' ? 'Dinheiro'
+          : forma_pagamento_loja === 'cartao_debito' ? 'Cartão Débito'
+          : forma_pagamento_loja === 'cartao_credito' ? 'Cartão Crédito'
+          : forma_pagamento_loja;
+        parcelaVistaObj.observacoes = `Pago na Loja Penha - ${formaLabel}${bandeiraLabel}${parcelasLabel}`;
       } else {
-        // Fallback para descrição se ID não encontrado
-        parcelaVistaObj.formaPagamento = { descricao: 'Conta a receber/pagar' };
+        // ✅ Outros pagamentos: usar "Conta a receber/pagar"
+        if (formaPagamentoContaReceberPagarId) {
+          parcelaVistaObj.formaPagamento = { id: formaPagamentoContaReceberPagarId };
+        } else {
+          // Fallback para descrição se ID não encontrado
+          parcelaVistaObj.formaPagamento = { descricao: 'Conta a receber/pagar' };
+        }
       }
 
       parcelas = [parcelaVistaObj];
