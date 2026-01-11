@@ -30,7 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
 import { useUserRole } from "@/hooks/useUserRole";
-import { FaturamentoSelectionDialog, FreteManualData } from "@/components/shopify/FaturamentoSelectionDialog";
+import { FaturamentoSelectionDialog, FreteManualData, PagamentoLojaData } from "@/components/shopify/FaturamentoSelectionDialog";
 import { DescontoRevendedorBanner } from "@/components/shopify/DescontoRevendedorBanner";
 import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
@@ -1458,6 +1458,62 @@ export default function ShopifyPedidos() {
         onSelectFaturamento={handleSelectFaturamento}
         onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
         canUseFreteManual={canUseFreteManual}
+        showPagarNaLoja={vendedor?.email?.toLowerCase().includes('glorinha') || false}
+        onSelectPagamentoLoja={async (pagamentoData: PagamentoLojaData) => {
+          if (!selectedCliente) return;
+          setShowFaturamentoDialog(false);
+          setIsCreatingDraft(true);
+          try {
+            // Criar pedido direto no Bling via edge function
+            const { data, error } = await supabase.functions.invoke('bling-create-order', {
+              body: {
+                cliente: {
+                  nome: selectedCliente.nome_igreja,
+                  cpf_cnpj: selectedCliente.cnpj || selectedCliente.cpf,
+                  email: selectedCliente.email_superintendente,
+                  telefone: selectedCliente.telefone,
+                },
+                endereco_entrega: {
+                  rua: selectedCliente.endereco_rua,
+                  numero: selectedCliente.endereco_numero,
+                  complemento: selectedCliente.endereco_complemento,
+                  bairro: selectedCliente.endereco_bairro,
+                  cidade: selectedCliente.endereco_cidade,
+                  estado: selectedCliente.endereco_estado,
+                  cep: selectedCliente.endereco_cep,
+                },
+                itens: items.map(item => ({
+                  sku: item.product.node.variants.edges[0]?.node.id.split('/').pop() || '',
+                  nome: item.product.node.title,
+                  quantidade: item.quantity,
+                  valor: parseFloat(item.price.amount),
+                  preco_cheio: parseFloat(item.price.amount),
+                })),
+                valor_produtos: totalPrice,
+                valor_total: totalPrice,
+                valor_frete: 0,
+                metodo_frete: 'retirada_penha',
+                forma_pagamento: 'pagamento_loja',
+                forma_pagamento_loja: pagamentoData.formaPagamento,
+                bandeira_cartao: pagamentoData.bandeiraCartao,
+                parcelas_cartao: pagamentoData.parcelasCartao,
+                deposito_origem: pagamentoData.depositoOrigem,
+                vendedor_email: vendedor?.email,
+              }
+            });
+            if (error) throw error;
+            toast.success('Pedido registrado no Bling!', {
+              description: `Pedido criado com sucesso para ${selectedCliente.nome_igreja}`,
+            });
+            clearCart();
+            setIsCartOpen(false);
+          } catch (err: any) {
+            console.error('Erro ao criar pedido:', err);
+            toast.error('Erro ao criar pedido', { description: err.message });
+          } finally {
+            setIsCreatingDraft(false);
+          }
+        }}
       />
 
       {/* Proposta Link Dialog */}

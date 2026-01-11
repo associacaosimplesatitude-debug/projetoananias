@@ -2463,11 +2463,13 @@ export type Database = {
       ebd_pedidos: {
         Row: {
           approved_at: string | null
+          bandeira_cartao: string | null
           bling_order_id: number | null
           church_id: string
           codigo_rastreio: string | null
           cpf_cnpj_cliente: string | null
           created_at: string | null
+          deposito_origem: string | null
           email_cliente: string | null
           endereco_bairro: string
           endereco_cep: string
@@ -2476,11 +2478,13 @@ export type Database = {
           endereco_estado: string
           endereco_numero: string
           endereco_rua: string
+          forma_pagamento_loja: string | null
           id: string
           mercadopago_payment_id: string | null
           mercadopago_preference_id: string | null
           metodo_frete: string | null
           nome_cliente: string | null
+          parcelas_cartao: number | null
           payment_status: string | null
           sobrenome_cliente: string | null
           status: string
@@ -2493,11 +2497,13 @@ export type Database = {
         }
         Insert: {
           approved_at?: string | null
+          bandeira_cartao?: string | null
           bling_order_id?: number | null
           church_id: string
           codigo_rastreio?: string | null
           cpf_cnpj_cliente?: string | null
           created_at?: string | null
+          deposito_origem?: string | null
           email_cliente?: string | null
           endereco_bairro: string
           endereco_cep: string
@@ -2506,11 +2512,13 @@ export type Database = {
           endereco_estado: string
           endereco_numero: string
           endereco_rua: string
+          forma_pagamento_loja?: string | null
           id?: string
           mercadopago_payment_id?: string | null
           mercadopago_preference_id?: string | null
           metodo_frete?: string | null
           nome_cliente?: string | null
+          parcelas_cartao?: number | null
           payment_status?: string | null
           sobrenome_cliente?: string | null
           status?: string
@@ -2523,11 +2531,13 @@ export type Database = {
         }
         Update: {
           approved_at?: string | null
+          bandeira_cartao?: string | null
           bling_order_id?: number | null
           church_id?: string
           codigo_rastreio?: string | null
           cpf_cnpj_cliente?: string | null
           created_at?: string | null
+          deposito_origem?: string | null
           email_cliente?: string | null
           endereco_bairro?: string
           endereco_cep?: string
@@ -2536,11 +2546,13 @@ export type Database = {
           endereco_estado?: string
           endereco_numero?: string
           endereco_rua?: string
+          forma_pagamento_loja?: string | null
           id?: string
           mercadopago_payment_id?: string | null
           mercadopago_preference_id?: string | null
           metodo_frete?: string | null
           nome_cliente?: string | null
+          parcelas_cartao?: number | null
           payment_status?: string | null
           sobrenome_cliente?: string | null
           status?: string
