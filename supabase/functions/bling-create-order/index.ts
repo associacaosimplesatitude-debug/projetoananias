@@ -343,6 +343,98 @@ async function resolveFormaPagamentoContaReceberPagarId(accessToken: string): Pr
   return null;
 }
 
+// ✅ Cache global para Unidades de Negócio do Bling
+let cachedUnidadesNegocioByName: Map<string, number> | null = null;
+
+async function loadAllUnidadesNegocio(accessToken: string): Promise<Map<string, number>> {
+  if (cachedUnidadesNegocioByName !== null) {
+    return cachedUnidadesNegocioByName;
+  }
+
+  cachedUnidadesNegocioByName = new Map();
+
+  try {
+    // Buscar detalhes de pedidos recentes para extrair unidades de negócio
+    // (Bling não tem endpoint direto para listar unidades de negócio)
+    const ordersUrl = 'https://www.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=50';
+    const ordersResp = await fetch(ordersUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!ordersResp.ok) {
+      console.warn('[BLING] Falha ao buscar pedidos para extrair unidades de negócio');
+      return cachedUnidadesNegocioByName;
+    }
+
+    const ordersData = await ordersResp.json();
+    const orders: any[] = Array.isArray(ordersData?.data) ? ordersData.data : [];
+    
+    console.log(`[BLING] 🔍 Buscando unidades de negócio em ${orders.length} pedidos...`);
+
+    // Buscar detalhes de até 10 pedidos para encontrar diferentes unidades
+    for (let i = 0; i < Math.min(10, orders.length); i++) {
+      const orderId = orders[i]?.id;
+      if (!orderId) continue;
+
+      try {
+        const detailUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
+        const detailResp = await fetch(detailUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        
+        if (detailResp.ok) {
+          const detailData = await detailResp.json();
+          const unidade = detailData?.data?.unidadeNegocio;
+          
+          if (unidade?.id && unidade?.descricao) {
+            const desc = String(unidade.descricao).toLowerCase().trim();
+            if (!cachedUnidadesNegocioByName.has(desc)) {
+              cachedUnidadesNegocioByName.set(desc, Number(unidade.id));
+              console.log(`[BLING] ✅ Unidade de Negócio encontrada: ID=${unidade.id}, Nome="${unidade.descricao}"`);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`[BLING] Erro ao buscar detalhes do pedido ${orderId}:`, e);
+      }
+    }
+
+    console.log(`[BLING] 📋 Total de unidades encontradas: ${cachedUnidadesNegocioByName.size}`);
+    console.log('[BLING] 📋 Unidades mapeadas:', Array.from(cachedUnidadesNegocioByName.entries()));
+
+    return cachedUnidadesNegocioByName;
+  } catch (e) {
+    console.warn('[BLING] Erro ao carregar unidades de negócio:', e);
+    return cachedUnidadesNegocioByName;
+  }
+}
+
+// ✅ FUNÇÃO: Resolver ID da Unidade de Negócio "Penha/Loja Penha"
+function resolveUnidadeNegocioPenhaId(unidadesMap: Map<string, number>): number | null {
+  if (unidadesMap.size === 0) return null;
+
+  // Termos de busca para encontrar a unidade "Penha"
+  const searchTerms = ['loja penha', 'penha', 'polo penha'];
+  
+  for (const term of searchTerms) {
+    for (const [desc, id] of unidadesMap.entries()) {
+      if (desc.includes(term)) {
+        console.log(`[BLING] ✅ Unidade "Penha" encontrada: "${desc}" (ID: ${id})`);
+        return id;
+      }
+    }
+  }
+
+  console.warn('[BLING] ⚠️ Unidade de Negócio "Penha" não encontrada nas unidades disponíveis');
+  return null;
+}
+
 // ✅ MAPEAMENTO ESTRITO: Email → ID numérico do vendedor no Bling
 // Ambas variações de email da Neila estão mapeadas para o mesmo ID.
 // Se o email não estiver aqui, o campo vendedor será omitido.
@@ -1117,13 +1209,19 @@ serve(async (req) => {
     const UNIDADE_NEGOCIO_NORTE_NORDESTE = 1;
     const UNIDADE_NEGOCIO_OUTRAS = 2;
     
-    // Unidade de Negócio Penha (via secret, fallback para Matriz RJ)
-    const BLING_UNIDADE_NEGOCIO_PENHA_RAW = Deno.env.get('BLING_UNIDADE_NEGOCIO_ID_PENHA');
-    const UNIDADE_NEGOCIO_PENHA = BLING_UNIDADE_NEGOCIO_PENHA_RAW 
-      ? Number(BLING_UNIDADE_NEGOCIO_PENHA_RAW) 
-      : UNIDADE_NEGOCIO_OUTRAS; // fallback para Matriz
-    
-    console.log(`[SECRETS] Unidade de Negócio Penha: ${UNIDADE_NEGOCIO_PENHA} (raw: ${BLING_UNIDADE_NEGOCIO_PENHA_RAW || 'não configurado'})`);
+    // Unidade de Negócio Penha - BUSCA DINÂMICA via API
+    console.log('[BLING] 🔍 Buscando Unidades de Negócio via API...');
+    const unidadesNegocioMap = await loadAllUnidadesNegocio(accessToken);
+
+    // Tentar resolver dinamicamente, fallback para Matriz
+    let UNIDADE_NEGOCIO_PENHA = resolveUnidadeNegocioPenhaId(unidadesNegocioMap);
+
+    if (UNIDADE_NEGOCIO_PENHA === null) {
+      console.warn('[BLING] ⚠️ Unidade Penha não encontrada! Usando fallback para Matriz (ID: 2)');
+      UNIDADE_NEGOCIO_PENHA = UNIDADE_NEGOCIO_OUTRAS; // fallback = 2
+    } else {
+      console.log(`[BLING] ✅ Unidade Penha resolvida dinamicamente: ID=${UNIDADE_NEGOCIO_PENHA}`);
+    }
     
     // Depósitos - OBRIGATÓRIOS (via secrets)
     const BLING_DEPOSITO_ID_GERAL_RAW = Deno.env.get('BLING_DEPOSITO_ID_GERAL');
