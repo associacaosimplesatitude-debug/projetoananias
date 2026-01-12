@@ -41,6 +41,22 @@ const PERFIS = [
 
 type TutorialPerfil = typeof PERFIS[number]["value"];
 
+// Video player component for managers to watch tutorials
+function VideoPlayer({ videoPath }: { videoPath: string }) {
+  const { data } = supabase.storage.from("tutorial-videos").getPublicUrl(videoPath);
+  
+  return (
+    <video
+      className="w-full aspect-video rounded-lg bg-black"
+      controls
+      preload="metadata"
+    >
+      <source src={data.publicUrl} type="video/mp4" />
+      Seu navegador não suporta vídeos HTML5.
+    </video>
+  );
+}
+
 interface Tutorial {
   id: string;
   titulo: string;
@@ -818,12 +834,14 @@ export default function GestaoTutoriais() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <FileVideo className="h-4 w-4" />
-                    <span>
-                      {tutorial.video_path ? "Vídeo MP4 cadastrado" : "Sem vídeo"}
-                    </span>
-                  </div>
+                  {tutorial.video_path ? (
+                    <VideoPlayer videoPath={tutorial.video_path} />
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <FileVideo className="h-4 w-4" />
+                      <span>Sem vídeo cadastrado</span>
+                    </div>
+                  )}
 
                   {tutorial.categorias?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
