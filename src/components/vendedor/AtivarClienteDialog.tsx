@@ -64,6 +64,7 @@ export function AtivarClienteDialog({
   const [formData, setFormData] = useState({
     email_superintendente: cliente.email_superintendente || "",
     nome_superintendente: cliente.nome_superintendente || "",
+    senha: "",
     dia_aula: "Domingo",
     data_inicio_ebd: undefined as Date | undefined,
   });
@@ -71,8 +72,13 @@ export function AtivarClienteDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.email_superintendente || !formData.data_inicio_ebd) {
-      toast.error("E-mail do Superintendente e Data de Início são obrigatórios");
+    if (!formData.email_superintendente || !formData.data_inicio_ebd || !formData.senha) {
+      toast.error("E-mail, Senha e Data de Início são obrigatórios");
+      return;
+    }
+
+    if (formData.senha.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres");
       return;
     }
 
@@ -89,8 +95,8 @@ export function AtivarClienteDialog({
       // Calculate next purchase date (13 weeks from start date)
       const dataProximaCompra = addWeeks(formData.data_inicio_ebd, 13);
 
-      // Senha temporária gerada para o superintendente
-      const tempPassword = Math.random().toString(36).slice(-8) + "A1!";
+      // Usar a senha definida pelo vendedor
+      const tempPassword = formData.senha;
 
       // 1. Create the superintendent user via edge function (and link to cliente)
       const { data: userData, error: userError } = await supabase.functions.invoke(
@@ -210,6 +216,24 @@ export function AtivarClienteDialog({
               placeholder="email@igreja.com"
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="senha">Senha de Acesso *</Label>
+            <Input
+              id="senha"
+              type="text"
+              value={formData.senha}
+              onChange={(e) =>
+                setFormData({ ...formData, senha: e.target.value })
+              }
+              placeholder="Mínimo 6 caracteres"
+              required
+              minLength={6}
+            />
+            <p className="text-xs text-muted-foreground">
+              Esta senha será usada para o primeiro acesso ao painel
+            </p>
           </div>
 
           <div className="space-y-2">
