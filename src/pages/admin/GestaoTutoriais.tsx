@@ -11,14 +11,23 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Video, ArrowLeft, Upload, X, FileVideo, Eye, CheckCircle2, Clock, Users, Zap, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Video, ArrowLeft, Upload, X, FileVideo, Eye, CheckCircle2, Clock, Users, AlertTriangle, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { compressVideo, CompressionQuality, CompressionProgress, formatFileSize, estimateCompressedSize } from "@/lib/videoCompressor";
+
+// Constants
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
 
 const PERFIS = [
   { value: "VENDEDORES", label: "Vendedores" },
@@ -81,13 +90,7 @@ export default function GestaoTutoriais() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [viewingTutorialId, setViewingTutorialId] = useState<string | null>(null);
-  
-  // Compression states
-  const [isCompressing, setIsCompressing] = useState(false);
-  const [compressionProgress, setCompressionProgress] = useState<CompressionProgress | null>(null);
-  const [compressionQuality, setCompressionQuality] = useState<CompressionQuality>("alta");
-  const [shouldCompress, setShouldCompress] = useState(false);
-  const [compressedFile, setCompressedFile] = useState<File | null>(null);
+  const [fileTooLarge, setFileTooLarge] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -330,10 +333,7 @@ export default function GestaoTutoriais() {
     setSelectedFile(null);
     setExistingVideoPath(null);
     setUploading(false);
-    setIsCompressing(false);
-    setCompressionProgress(null);
-    setShouldCompress(false);
-    setCompressedFile(null);
+    setFileTooLarge(false);
   };
 
   const handleEdit = (tutorial: Tutorial) => {
@@ -359,17 +359,15 @@ export default function GestaoTutoriais() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024 * 1024) {
-      toast.error("O arquivo deve ter no máximo 5GB");
+    // Check file size limit
+    if (file.size > MAX_FILE_SIZE) {
+      setSelectedFile(file);
+      setFileTooLarge(true);
       return;
     }
 
     setSelectedFile(file);
-    setCompressedFile(null);
-    
-    // Auto-suggest compression for files > 100MB
-    const isLargeFile = file.size > 100 * 1024 * 1024;
-    setShouldCompress(isLargeFile);
+    setFileTooLarge(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -385,46 +383,24 @@ export default function GestaoTutoriais() {
       return;
     }
 
+    if (fileTooLarge) {
+      toast.error("O arquivo excede o limite de 500MB. Por favor, comprima o vídeo antes de enviar.");
+      return;
+    }
+
     if (form.perfis.length === 0) {
       toast.error("Selecione pelo menos um perfil de acesso");
       return;
     }
 
     try {
-      let fileToUpload = selectedFile;
       let videoPath = existingVideoPath;
 
-      // Compress if requested
-      if (selectedFile && shouldCompress && !compressedFile) {
-        setIsCompressing(true);
-        try {
-          const compressed = await compressVideo(
-            selectedFile,
-            compressionQuality,
-            setCompressionProgress
-          );
-          setCompressedFile(compressed);
-          fileToUpload = compressed;
-          toast.success(
-            `Vídeo comprimido: ${formatFileSize(selectedFile.size)} → ${formatFileSize(compressed.size)}`
-          );
-        } catch (error) {
-          console.error("Compression error:", error);
-          toast.error("Erro ao comprimir vídeo. Enviando original...");
-          fileToUpload = selectedFile;
-        } finally {
-          setIsCompressing(false);
-          setCompressionProgress(null);
-        }
-      } else if (compressedFile) {
-        fileToUpload = compressedFile;
-      }
-
       // Upload
-      if (fileToUpload) {
+      if (selectedFile) {
         setUploading(true);
         setUploadProgress(0);
-        videoPath = await uploadVideo(fileToUpload);
+        videoPath = await uploadVideo(selectedFile);
       }
 
       if (editingId) {
@@ -432,7 +408,7 @@ export default function GestaoTutoriais() {
           id: editingId, 
           data: form, 
           videoPath,
-          oldVideoPath: fileToUpload ? existingVideoPath : null 
+          oldVideoPath: selectedFile ? existingVideoPath : null 
         });
       } else {
         createMutation.mutate({ ...form, videoPath: videoPath! });
@@ -532,8 +508,61 @@ export default function GestaoTutoriais() {
                       Clique para selecionar um vídeo MP4
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Suporta vídeos grandes (até 20GB)
+                      Máximo 500MB
                     </p>
+                  </div>
+                ) : fileTooLarge ? (
+                  <div className="border border-destructive/50 bg-destructive/10 rounded-lg p-4 space-y-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-6 w-6 text-destructive mt-0.5 flex-shrink-0" />
+                      <div className="space-y-2">
+                        <p className="font-medium text-destructive">
+                          Vídeo muito grande ({formatFileSize(selectedFile!.size)})
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          O limite para upload é <strong>500MB</strong>. Por favor, comprima o vídeo antes de enviar.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-background rounded-lg p-4 space-y-3">
+                      <p className="text-sm font-medium">📥 Baixe o HandBrake (gratuito):</p>
+                      <a
+                        href="https://handbrake.fr/downloads.php"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
+                      >
+                        handbrake.fr/downloads.php
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                      
+                      <div className="pt-2 border-t">
+                        <p className="text-sm font-medium mb-2">⚙️ Configurações recomendadas:</p>
+                        <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+                          <li>• Preset: <strong>Fast 720p30</strong></li>
+                          <li>• Formato: <strong>MP4</strong></li>
+                        </ul>
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground pt-2">
+                        Um vídeo de {formatFileSize(selectedFile!.size)} ficará com aproximadamente{" "}
+                        {formatFileSize(selectedFile!.size * 0.08)} após comprimir.
+                      </p>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setFileTooLarge(false);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                    >
+                      Selecionar outro arquivo
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -558,120 +587,15 @@ export default function GestaoTutoriais() {
                         size="icon"
                         onClick={() => {
                           setSelectedFile(null);
-                          setCompressedFile(null);
-                          setShouldCompress(false);
+                          setFileTooLarge(false);
                           if (!editingId) setExistingVideoPath(null);
                           if (fileInputRef.current) fileInputRef.current.value = "";
                         }}
-                        disabled={isCompressing || uploading}
+                        disabled={uploading}
                       >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-
-                    {/* Compression options - show for files > 100MB */}
-                    {selectedFile && selectedFile.size > 100 * 1024 * 1024 && !compressedFile && (
-                      <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-3">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <p className="text-sm font-medium text-amber-800">
-                              Arquivo grande detectado
-                            </p>
-                            <p className="text-xs text-amber-700 mt-1">
-                              Vídeos grandes podem causar lentidão para os usuários. Recomendamos comprimir.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="compress"
-                            checked={shouldCompress}
-                            onCheckedChange={(checked) => setShouldCompress(!!checked)}
-                            disabled={isCompressing}
-                          />
-                          <Label htmlFor="compress" className="text-sm cursor-pointer">
-                            Comprimir antes de enviar
-                          </Label>
-                        </div>
-
-                        {shouldCompress && (
-                          <div className="space-y-2 pt-2 border-t border-amber-200">
-                            <Label className="text-sm text-amber-800">Qualidade</Label>
-                            <Select
-                              value={compressionQuality}
-                              onValueChange={(v) => setCompressionQuality(v as CompressionQuality)}
-                              disabled={isCompressing}
-                            >
-                              <SelectTrigger className="bg-white">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="alta">
-                                  <div className="flex flex-col">
-                                    <span>Alta (720p)</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      ~{estimateCompressedSize(selectedFile.size, "alta")}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="media">
-                                  <div className="flex flex-col">
-                                    <span>Média (480p)</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      ~{estimateCompressedSize(selectedFile.size, "media")}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="baixa">
-                                  <div className="flex flex-col">
-                                    <span>Baixa (360p)</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      ~{estimateCompressedSize(selectedFile.size, "baixa")}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Show compressed file info */}
-                    {compressedFile && (
-                      <div className="border border-green-200 bg-green-50 rounded-lg p-4">
-                        <div className="flex items-center gap-2">
-                          <Zap className="h-5 w-5 text-green-600" />
-                          <div>
-                            <p className="text-sm font-medium text-green-800">
-                              Vídeo comprimido com sucesso!
-                            </p>
-                            <p className="text-xs text-green-700">
-                              {formatFileSize(selectedFile!.size)} → {formatFileSize(compressedFile.size)}
-                              {" "}({Math.round((1 - compressedFile.size / selectedFile!.size) * 100)}% menor)
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Compression progress */}
-                {isCompressing && compressionProgress && (
-                  <div className="mt-4 space-y-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent" />
-                      <span className="text-sm font-medium text-blue-800">
-                        {compressionProgress.message}
-                      </span>
-                    </div>
-                    <Progress value={compressionProgress.progress} className="h-2" />
-                    <p className="text-xs text-blue-600">
-                      Isso pode levar alguns minutos para vídeos grandes. Não feche esta janela.
-                    </p>
                   </div>
                 )}
 
@@ -744,21 +668,19 @@ export default function GestaoTutoriais() {
                   type="button" 
                   variant="outline" 
                   onClick={handleClose}
-                  disabled={isCompressing || uploading}
+                  disabled={uploading}
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isCompressing || uploading || createMutation.isPending || updateMutation.isPending}
+                  disabled={uploading || fileTooLarge || createMutation.isPending || updateMutation.isPending}
                 >
-                  {isCompressing 
-                    ? "Comprimindo..." 
-                    : uploading 
-                      ? "Enviando..." 
-                      : editingId 
-                        ? "Salvar" 
-                        : "Criar"
+                  {uploading 
+                    ? "Enviando..." 
+                    : editingId 
+                      ? "Salvar" 
+                      : "Criar"
                   }
                 </Button>
               </div>
