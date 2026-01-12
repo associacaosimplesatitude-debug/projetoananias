@@ -99,14 +99,17 @@ export default function MyOrders() {
 
       if (!clienteData) return [];
       
-      // Vincular pedidos órfãos que têm o mesmo email do cliente
+      // Vincular pedidos órfãos via edge function (com service role)
       // Isso resolve casos onde o cliente comprou antes de ser cadastrado/ativado
-      if (clienteData.email_superintendente) {
-        await supabase
-          .from('ebd_shopify_pedidos')
-          .update({ cliente_id: clienteData.id })
-          .eq('customer_email', clienteData.email_superintendente)
-          .is('cliente_id', null);
+      try {
+        const { data: linkResult, error: linkError } = await supabase.functions.invoke('ebd-link-orphan-shopify-orders');
+        if (linkError) {
+          console.error('Erro ao vincular pedidos órfãos:', linkError);
+        } else if (linkResult?.linked > 0) {
+          console.log(`Vinculados ${linkResult.linked} pedido(s) órfão(s):`, linkResult.orders);
+        }
+      } catch (err) {
+        console.error('Erro ao chamar função de vínculo:', err);
       }
       
       setClienteId(clienteData.id);
