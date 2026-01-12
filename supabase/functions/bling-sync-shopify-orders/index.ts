@@ -177,6 +177,45 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config, 'bling_config', config.client_id, config.client_secret);
     }
 
+    // Cache de situações (ID -> Nome)
+    const situacoesCache = new Map<number, string>();
+    
+    // Situações padrão do Bling para pedidos de venda
+    const situacoesPadrao: Record<number, string> = {
+      28: 'Em aberto',
+      31: 'Atendido',
+      34: 'Cancelado',
+      37: 'Em andamento',
+    };
+    
+    for (const [id, nome] of Object.entries(situacoesPadrao)) {
+      situacoesCache.set(Number(id), nome);
+    }
+    
+    // Função para buscar nome de situação por ID
+    async function getSituacaoNome(situacaoId: number): Promise<string | null> {
+      if (situacoesCache.has(situacaoId)) {
+        return situacoesCache.get(situacaoId)!;
+      }
+      
+      try {
+        // Buscar situação específica por ID
+        const sitUrl = `https://www.bling.com.br/Api/v3/situacoes/${situacaoId}`;
+        const sitResult = await blingApiCall(sitUrl, accessToken, supabase, config);
+        if (sitResult.newToken) accessToken = sitResult.newToken;
+        
+        const sitData = sitResult.data?.data;
+        if (sitData?.nome) {
+          situacoesCache.set(situacaoId, sitData.nome);
+          return sitData.nome;
+        }
+      } catch (e) {
+        console.warn(`Não foi possível buscar situação ${situacaoId}`);
+      }
+      
+      return null;
+    }
+
     let syncedCount = 0;
     const errors: string[] = [];
 
@@ -223,6 +262,19 @@ serve(async (req) => {
         const situacao = blingOrder.situacao || {};
         const transporte = blingOrder.transporte || {};
         const volumes = transporte.volumes || [];
+        
+        // O campo situacao pode ter estruturas diferentes:
+        // { id: 57905, valor: null } ou { id: 31, valor: "Atendido" }
+        // Precisamos buscar o nome na lista de situações se valor estiver vazio
+        const situacaoId = situacao.id || null;
+        let situacaoValor = situacao.valor || situacao.nome || situacao.descricao || null;
+        
+        // Se valor é 0 ou vazio, buscar o nome da situação via API
+        if (!situacaoValor || situacaoValor === 0) {
+          situacaoValor = await getSituacaoNome(situacaoId);
+        }
+        
+        console.log(`Situação do pedido ${orderNumber}: ID=${situacaoId}, Nome=${situacaoValor}`);
         
         // Buscar código de rastreio dos volumes
         let codigoRastreio = null;
@@ -277,8 +329,8 @@ serve(async (req) => {
         // Atualizar pedido no banco
         const updateData: any = {
           bling_order_id: blingOrderId,
-          bling_status: situacao.valor || null,
-          bling_status_id: situacao.id || null,
+          bling_status: situacaoValor,
+          bling_status_id: situacaoId,
         };
 
         if (codigoRastreio) {
