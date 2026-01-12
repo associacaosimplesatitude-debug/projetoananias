@@ -47,7 +47,7 @@ function VideoPlayer({ videoPath }: { videoPath: string }) {
   
   return (
     <video
-      className="w-full aspect-video rounded-lg bg-black"
+      className="max-w-md aspect-video rounded-lg bg-black"
       controls
       preload="metadata"
     >
