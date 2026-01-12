@@ -1,15 +1,17 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, Calendar, DollarSign, Search, Truck, CreditCard, ShoppingBag } from 'lucide-react';
+import { Package, Calendar, DollarSign, Search, Truck, CreditCard, ShoppingBag, FileText, RefreshCw, Printer, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 
 interface ShopifyPedido {
   id: string;
@@ -22,12 +24,22 @@ interface ShopifyPedido {
   codigo_rastreio: string | null;
   url_rastreio: string | null;
   created_at: string;
+  // Campos Bling
+  bling_order_id: number | null;
+  bling_status: string | null;
+  bling_status_id: number | null;
+  nota_fiscal_numero: string | null;
+  nota_fiscal_chave: string | null;
+  nota_fiscal_url: string | null;
+  codigo_rastreio_bling: string | null;
 }
 
 export default function MyOrders() {
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
   const [logisticStatusFilter, setLogisticStatusFilter] = useState<string>('all');
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // Query para pedidos internos (ebd_pedidos via churches)
   const { data: orders, isLoading } = useQuery({
@@ -72,7 +84,7 @@ export default function MyOrders() {
   });
 
   // Query para pedidos Shopify (ebd_shopify_pedidos via ebd_clientes)
-  const { data: shopifyOrders, isLoading: isLoadingShopify } = useQuery({
+  const { data: shopifyOrders, isLoading: isLoadingShopify, refetch: refetchShopify } = useQuery({
     queryKey: ['my-shopify-orders'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -86,6 +98,8 @@ export default function MyOrders() {
         .maybeSingle();
 
       if (!clienteData) return [];
+      
+      setClienteId(clienteData.id);
 
       const { data, error } = await supabase
         .from('ebd_shopify_pedidos')
@@ -100,6 +114,35 @@ export default function MyOrders() {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   });
+
+  // Mutation para sincronizar dados do Bling
+  const syncBlingMutation = useMutation({
+    mutationFn: async (clienteIdParam: string) => {
+      const { data, error } = await supabase.functions.invoke('bling-sync-shopify-orders', {
+        body: { cliente_id: clienteIdParam }
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.synced > 0) {
+        toast.success(`${data.synced} pedido(s) sincronizado(s) com o Bling`);
+      }
+      refetchShopify();
+    },
+    onError: (error) => {
+      console.error('Erro ao sincronizar com Bling:', error);
+      toast.error('Erro ao sincronizar dados do Bling');
+    },
+  });
+
+  // Sincronizar automaticamente quando carregar os pedidos
+  useEffect(() => {
+    if (clienteId && shopifyOrders && shopifyOrders.length > 0) {
+      syncBlingMutation.mutate(clienteId);
+    }
+  }, [clienteId]);
 
   // Apply filters
   const filteredOrders = orders?.filter(order => {
@@ -148,6 +191,24 @@ export default function MyOrders() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  const getBlingStatusBadge = (statusId: number | null, statusText: string | null) => {
+    // 28: Em aberto, 31: Atendido, 34: Cancelado, 37: Em andamento
+    const statusConfig: Record<number, { className: string }> = {
+      28: { className: 'bg-gray-500 text-white' }, // Em aberto
+      31: { className: 'bg-green-600 text-white' }, // Atendido
+      34: { className: 'bg-red-600 text-white' }, // Cancelado
+      37: { className: 'bg-yellow-500 text-white' }, // Em andamento
+    };
+
+    const config = statusConfig[statusId || 0] || { className: 'bg-gray-400 text-white' };
+    
+    return (
+      <Badge className={config.className}>
+        {statusText || 'Processando'}
+      </Badge>
+    );
+  };
+
   const getLogisticStatusBadge = (status: string | null) => {
     const variants: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
       'AGUARDANDO_ENVIO': { label: 'Aguardando Envio', variant: 'secondary' },
@@ -156,6 +217,15 @@ export default function MyOrders() {
     };
     const config = variants[status || 'AGUARDANDO_ENVIO'] || variants.AGUARDANDO_ENVIO;
     return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  const handlePrintNfe = (url: string) => {
+    const printWindow = window.open(url, '_blank');
+    if (printWindow) {
+      printWindow.addEventListener('load', () => {
+        printWindow.print();
+      });
+    }
   };
 
   if (isLoading || isLoadingShopify) {
@@ -183,8 +253,8 @@ export default function MyOrders() {
         </div>
 
         {/* Search */}
-        <div className="mb-6">
-          <div className="relative max-w-md">
+        <div className="mb-6 flex gap-4 items-center">
+          <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por número do pedido..."
@@ -193,6 +263,17 @@ export default function MyOrders() {
               className="pl-9"
             />
           </div>
+          {clienteId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => syncBlingMutation.mutate(clienteId)}
+              disabled={syncBlingMutation.isPending}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${syncBlingMutation.isPending ? 'animate-spin' : ''}`} />
+              Atualizar Status
+            </Button>
+          )}
         </div>
 
         <Tabs defaultValue={hasShopifyOrders ? "shopify" : "internal"} className="w-full">
@@ -259,6 +340,13 @@ export default function MyOrders() {
               </Card>
             </div>
 
+            {syncBlingMutation.isPending && (
+              <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg flex items-center gap-3">
+                <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+                <span className="text-sm text-blue-700 dark:text-blue-300">Atualizando dados do Bling...</span>
+              </div>
+            )}
+
             <div className="space-y-4">
               {!filteredShopifyOrders || filteredShopifyOrders.length === 0 ? (
                 <Card>
@@ -294,7 +382,13 @@ export default function MyOrders() {
                             </span>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap justify-end">
+                          {order.bling_status_id && (
+                            <div className="flex items-center gap-1">
+                              <Package className="w-4 h-4" />
+                              {getBlingStatusBadge(order.bling_status_id, order.bling_status)}
+                            </div>
+                          )}
                           <div className="flex items-center gap-1">
                             <CreditCard className="w-4 h-4" />
                             {getShopifyPaymentStatusBadge(order.status_pagamento)}
@@ -304,30 +398,67 @@ export default function MyOrders() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {/* Código de Rastreio */}
-                        {order.codigo_rastreio && (
+                        {/* Código de Rastreio (priorizar Bling, depois Shopify) */}
+                        {(order.codigo_rastreio_bling || order.codigo_rastreio) && (
                           <>
                             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                               <div className="flex items-center gap-2">
                                 <Truck className="w-4 h-4 text-primary" />
                                 <span className="text-sm font-medium">Código de Rastreio:</span>
                               </div>
-                              {order.url_rastreio ? (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="font-mono text-sm">
+                                  {order.codigo_rastreio_bling || order.codigo_rastreio}
+                                </Badge>
                                 <a 
-                                  href={order.url_rastreio} 
+                                  href={`https://www.linkcorreios.com.br/?id=${order.codigo_rastreio_bling || order.codigo_rastreio}`}
                                   target="_blank" 
                                   rel="noopener noreferrer"
-                                  className="text-primary hover:underline"
                                 >
-                                  <Badge variant="outline" className="font-mono text-sm">
-                                    {order.codigo_rastreio}
-                                  </Badge>
+                                  <Button variant="outline" size="sm">
+                                    <ExternalLink className="w-4 h-4 mr-1" />
+                                    Rastrear
+                                  </Button>
                                 </a>
-                              ) : (
-                                <Badge variant="outline" className="font-mono text-sm">
-                                  {order.codigo_rastreio}
-                                </Badge>
-                              )}
+                              </div>
+                            </div>
+                            <Separator />
+                          </>
+                        )}
+
+                        {/* Nota Fiscal */}
+                        {order.nota_fiscal_numero && (
+                          <>
+                            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-primary" />
+                                <span className="text-sm font-medium">Nota Fiscal:</span>
+                                <span className="text-sm">NF-e {order.nota_fiscal_numero}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {order.nota_fiscal_url && (
+                                  <>
+                                    <a 
+                                      href={order.nota_fiscal_url}
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                    >
+                                      <Button variant="outline" size="sm">
+                                        <ExternalLink className="w-4 h-4 mr-1" />
+                                        Ver NF-e
+                                      </Button>
+                                    </a>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handlePrintNfe(order.nota_fiscal_url!)}
+                                    >
+                                      <Printer className="w-4 h-4 mr-1" />
+                                      Imprimir
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                             <Separator />
                           </>
@@ -438,8 +569,8 @@ export default function MyOrders() {
                       <h3 className="text-lg font-semibold mb-2">Nenhum pedido encontrado</h3>
                       <p className="text-muted-foreground mb-4">
                         {searchTerm || paymentStatusFilter !== 'all' || logisticStatusFilter !== 'all'
-                          ? 'Nenhum pedido corresponde aos filtros selecionados.'
-                          : 'Você ainda não realizou nenhuma compra de revistas.'}
+                          ? 'Nenhum pedido corresponde aos filtros aplicados.'
+                          : 'Você ainda não realizou nenhum pedido.'}
                       </p>
                     </div>
                   </CardContent>
@@ -451,7 +582,7 @@ export default function MyOrders() {
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <CardTitle className="text-lg">
-                            Pedido #{order.id.slice(0, 8).toUpperCase()}
+                            Pedido #{order.id.substring(0, 8)}
                           </CardTitle>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Calendar className="w-4 h-4" />
@@ -478,55 +609,41 @@ export default function MyOrders() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {order.ebd_pedidos_itens.map((item: any, idx: number) => (
-                          <div key={idx} className="flex gap-4">
-                            {item.revista?.imagem_url && (
-                              <img
-                                src={item.revista.imagem_url}
-                                alt={item.revista.titulo}
-                                className="w-20 h-28 object-cover rounded-lg border"
-                              />
-                            )}
-                            <div className="flex-1 space-y-2">
-                              <div>
-                                <h4 className="font-semibold text-base mb-1">
-                                  {item.revista?.titulo}
-                                </h4>
+                        {/* Items */}
+                        <div className="space-y-3">
+                          {order.ebd_pedidos_itens.map((item: any, index: number) => (
+                            <div key={index} className="flex justify-between items-center">
+                              <div className="flex items-center gap-3">
+                                {item.revista?.imagem_url && (
+                                  <img
+                                    src={item.revista.imagem_url}
+                                    alt={item.revista.titulo}
+                                    className="w-12 h-16 object-cover rounded"
+                                  />
+                                )}
+                                <div>
+                                  <p className="font-medium text-sm">{item.revista?.titulo || 'Revista'}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.revista?.faixa_etaria_alvo || '-'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-medium">
+                                  {item.quantidade}x R$ {Number(item.preco_unitario).toFixed(2)}
+                                </p>
                                 <p className="text-sm text-muted-foreground">
-                                  {item.revista?.faixa_etaria_alvo}
+                                  R$ {Number(item.preco_total).toFixed(2)}
                                 </p>
                               </div>
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">
-                                  Quantidade: {item.quantidade}x
-                                </span>
-                                <span className="font-medium">
-                                  R$ {Number(item.preco_total).toFixed(2)}
-                                </span>
-                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+
                         <Separator />
-                        
-                        {/* Código de Rastreio */}
-                        {order.codigo_rastreio && (
-                          <>
-                            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <Truck className="w-4 h-4 text-primary" />
-                                <span className="text-sm font-medium">Código de Rastreio:</span>
-                              </div>
-                              <Badge variant="outline" className="font-mono text-sm">
-                                {order.codigo_rastreio}
-                              </Badge>
-                            </div>
-                            <Separator />
-                          </>
-                        )}
-                        
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Valor Total:</span>
+
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">Total do Pedido</span>
                           <span className="text-lg font-bold text-green-600 dark:text-green-400">
                             R$ {Number(order.valor_total).toFixed(2)}
                           </span>
