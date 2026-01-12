@@ -93,11 +93,21 @@ export default function MyOrders() {
       // Buscar o cliente EBD vinculado ao usuário
       const { data: clienteData } = await supabase
         .from('ebd_clientes')
-        .select('id')
+        .select('id, email_superintendente')
         .eq('superintendente_user_id', user.id)
         .maybeSingle();
 
       if (!clienteData) return [];
+      
+      // Vincular pedidos órfãos que têm o mesmo email do cliente
+      // Isso resolve casos onde o cliente comprou antes de ser cadastrado/ativado
+      if (clienteData.email_superintendente) {
+        await supabase
+          .from('ebd_shopify_pedidos')
+          .update({ cliente_id: clienteData.id })
+          .eq('customer_email', clienteData.email_superintendente)
+          .is('cliente_id', null);
+      }
       
       setClienteId(clienteData.id);
 
