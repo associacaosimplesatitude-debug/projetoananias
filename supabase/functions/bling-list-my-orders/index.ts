@@ -285,45 +285,74 @@ serve(async (req) => {
 
           const nfes = nfeResult.data?.data || [];
           if (nfes.length > 0) {
-            // Preferir NF-e autorizada (evita mostrar nota “não emitida” / rascunho)
-            const nfeData =
-              nfes.find((n: any) => n?.situacao?.id === 6 || n?.situacao === 6 || n?.situacao === '6' || String(n?.situacao?.nome || '').toLowerCase().includes('autoriz')) ||
-              nfes[0];
+            // IMPORTANTE: Só aceitar NF-e com situação "Autorizada" (id = 6)
+            // NÃO usar fallback para nfes[0] para evitar mostrar nota de outro cliente/rascunho
+            const nfeAutorizada = nfes.find((n: any) => {
+              const sitId = n?.situacao?.id || n?.situacao;
+              const sitNome = String(n?.situacao?.nome || '').toLowerCase();
+              return sitId === 6 || sitId === '6' || sitNome.includes('autoriz');
+            });
 
-            let nfeUrlFinal: string | null = null;
+            if (nfeAutorizada) {
+              console.log(`NF-e autorizada encontrada para pedido ${orderId}: ID ${nfeAutorizada.id}, Numero ${nfeAutorizada.numero}`);
+              
+              let nfeUrlFinal: string | null = null;
+              let tipoLink: 'danfe' | 'espelho' = 'danfe';
 
-            // Buscar link do DANFE / visualização
-            if (nfeData.id) {
-              try {
-                const danfeUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeData.id}`;
-                const danfeResult = await blingApiCall(danfeUrl, accessToken, supabase, config);
-                if (danfeResult.newToken) accessToken = danfeResult.newToken;
+              // Buscar link do DANFE / visualização
+              if (nfeAutorizada.id) {
+                try {
+                  const danfeUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeAutorizada.id}`;
+                  const danfeResult = await blingApiCall(danfeUrl, accessToken, supabase, config);
+                  if (danfeResult.newToken) accessToken = danfeResult.newToken;
 
-                const nfeDetail = danfeResult.data?.data;
+                  const nfeDetail = danfeResult.data?.data;
+                  console.log(`Detalhes NF-e ${nfeAutorizada.id}:`, JSON.stringify({
+                    linkDanfe: nfeDetail?.linkDanfe,
+                    link: nfeDetail?.link,
+                    linkPdf: nfeDetail?.linkPdf,
+                    xml: nfeDetail?.xml ? '[presente]' : null
+                  }));
 
-                // O Bling pode retornar o link no linkDanfe (às vezes doc.view.php)
-                if (nfeDetail?.linkDanfe) {
-                  nfeUrlFinal = nfeDetail.linkDanfe;
-                } else if (nfeDetail?.link) {
-                  nfeUrlFinal = nfeDetail.link;
-                } else if (nfeDetail?.linkPdf) {
-                  nfeUrlFinal = nfeDetail.linkPdf;
-                } else if (nfeData.chaveAcesso) {
-                  nfeUrlFinal = `https://www.bling.com.br/relatorios/nfe.php?s&chaveAcesso=${nfeData.chaveAcesso}`;
+                  // Prioridade: linkDanfe (doc.view.php) > link > linkPdf > relatorios/nfe.php (espelho)
+                  if (nfeDetail?.linkDanfe) {
+                    nfeUrlFinal = nfeDetail.linkDanfe;
+                    tipoLink = 'danfe';
+                  } else if (nfeDetail?.link) {
+                    nfeUrlFinal = nfeDetail.link;
+                    tipoLink = nfeDetail.link.includes('doc.view.php') ? 'danfe' : 'espelho';
+                  } else if (nfeDetail?.linkPdf) {
+                    nfeUrlFinal = nfeDetail.linkPdf;
+                    tipoLink = 'danfe';
+                  } else if (nfeAutorizada.chaveAcesso) {
+                    // Fallback para espelho apenas se não houver link oficial
+                    nfeUrlFinal = `https://www.bling.com.br/relatorios/nfe.php?s&chaveAcesso=${nfeAutorizada.chaveAcesso}`;
+                    tipoLink = 'espelho';
+                  }
+                } catch (e) {
+                  console.warn(`Não foi possível buscar link/DANFE para NF-e ${nfeAutorizada.id}`);
                 }
-              } catch (e) {
-                console.warn(`Não foi possível buscar link/DANFE para NF-e ${nfeData.id}`);
               }
-            }
 
-            // Só expor NF-e quando houver link (senão a nota pode não estar emitida)
-            if (nfeUrlFinal) {
-              nfe = {
-                numero: nfeData.numero || null,
-                chave: nfeData.chaveAcesso || null,
-                url: nfeUrlFinal,
-              };
+              // Só expor NF-e quando houver link
+              if (nfeUrlFinal) {
+                const situacaoNomeNfe = nfeAutorizada.situacao?.nome || 
+                  (nfeAutorizada.situacao === 6 ? 'Autorizada' : String(nfeAutorizada.situacao));
+                
+                nfe = {
+                  numero: nfeAutorizada.numero || null,
+                  chave: nfeAutorizada.chaveAcesso || null,
+                  url: nfeUrlFinal,
+                  tipo_link: tipoLink,
+                  situacao: situacaoNomeNfe,
+                };
+                console.log(`NF-e para pedido ${orderId}: numero=${nfe.numero}, tipo=${tipoLink}`);
+              }
+            } else {
+              console.log(`Pedido ${orderId}: Nenhuma NF-e autorizada encontrada (${nfes.length} notas, mas nenhuma com situação autorizada)`);
             }
+          } else {
+            console.log(`Pedido ${orderId}: Nenhuma NF-e vinculada`);
           }
         } catch (e) {
           console.warn(`Não foi possível buscar NF-e para pedido ${orderId}`);

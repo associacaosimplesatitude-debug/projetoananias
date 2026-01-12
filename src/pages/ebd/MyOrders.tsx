@@ -41,6 +41,8 @@ interface BlingOrder {
     numero: string;
     chave: string;
     url: string;
+    tipo_link: 'danfe' | 'espelho';
+    situacao: string;
   } | null;
 }
 
@@ -434,13 +436,16 @@ export default function MyOrders() {
                         )}
 
                         {/* Nota Fiscal */}
-                        {order.nfe?.numero && (
+                        {order.nfe?.numero ? (
                           <>
                             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                               <div className="flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-primary" />
                                 <span className="text-sm font-medium">Nota Fiscal:</span>
                                 <span className="text-sm">NF-e {order.nfe.numero}</span>
+                                {order.nfe.tipo_link === 'espelho' && (
+                                  <Badge variant="outline" className="text-xs">Espelho</Badge>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 {order.nfe.url && (
@@ -452,7 +457,7 @@ export default function MyOrders() {
                                     >
                                       <Button variant="outline" size="sm">
                                         <ExternalLink className="w-4 h-4 mr-1" />
-                                        Ver NF-e
+                                        {order.nfe.tipo_link === 'danfe' ? 'Ver DANFE' : 'Ver Espelho'}
                                       </Button>
                                     </a>
                                     <Button 
@@ -465,6 +470,18 @@ export default function MyOrders() {
                                     </Button>
                                   </>
                                 )}
+                              </div>
+                            </div>
+                            <Separator />
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-yellow-600" />
+                                <span className="text-sm text-yellow-700 dark:text-yellow-400">
+                                  NF-e ainda não emitida
+                                </span>
                               </div>
                             </div>
                             <Separator />
