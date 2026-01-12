@@ -514,11 +514,15 @@ export function CadastrarClienteDialog({
               novoCliente = clienteAtualizado;
               toast.success(`Cliente "${clienteExistente.nome_igreja}" vinculado à sua carteira!`);
             } else {
-              // Cliente existe mas não conseguimos buscar (RLS) - informar que já existe
+              // Cliente existe mas não conseguimos buscar (RLS) - buscar via função SECURITY DEFINER
+              const { data: clienteInfo } = await supabase.rpc('get_cliente_by_documento', {
+                _documento: documentoLimpo
+              }) as { data: { vendedor_nome?: string; nome_igreja?: string } | null };
+              
               setClienteExistenteAlert({
                 open: true,
-                nomeVendedor: "outro vendedor",
-                nomeCliente: formData.nome_igreja || "Este cliente",
+                nomeVendedor: clienteInfo?.vendedor_nome || "vendedor não identificado",
+                nomeCliente: clienteInfo?.nome_igreja || formData.nome_igreja || "Este cliente",
               });
               setLoading(false);
               return;
