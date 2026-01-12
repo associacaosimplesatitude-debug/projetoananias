@@ -322,7 +322,7 @@ function AdminSidebar() {
                     <RouterNavLink to="/admin/ebd/transferencias">
                       <ArrowRightLeft className="h-4 w-4" />
                       <span className="flex items-center gap-2">
-                        Solicitações de Transferência
+                        Transferência
                         {countTransferPendentes > 0 && (
                           <Badge variant="destructive" className="text-xs px-1.5 py-0.5 min-w-[20px] h-5">
                             {countTransferPendentes}
