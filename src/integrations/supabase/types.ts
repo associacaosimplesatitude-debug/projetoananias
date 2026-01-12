@@ -3241,8 +3241,12 @@ export type Database = {
       }
       ebd_shopify_pedidos: {
         Row: {
+          bling_order_id: number | null
+          bling_status: string | null
+          bling_status_id: number | null
           cliente_id: string | null
           codigo_rastreio: string | null
+          codigo_rastreio_bling: string | null
           created_at: string
           customer_document: string | null
           customer_email: string | null
@@ -3256,6 +3260,9 @@ export type Database = {
           endereco_numero: string | null
           endereco_rua: string | null
           id: string
+          nota_fiscal_chave: string | null
+          nota_fiscal_numero: string | null
+          nota_fiscal_url: string | null
           order_date: string | null
           order_number: string
           shopify_cancelled_at: string | null
@@ -3269,8 +3276,12 @@ export type Database = {
           vendedor_id: string | null
         }
         Insert: {
+          bling_order_id?: number | null
+          bling_status?: string | null
+          bling_status_id?: number | null
           cliente_id?: string | null
           codigo_rastreio?: string | null
+          codigo_rastreio_bling?: string | null
           created_at?: string
           customer_document?: string | null
           customer_email?: string | null
@@ -3284,6 +3295,9 @@ export type Database = {
           endereco_numero?: string | null
           endereco_rua?: string | null
           id?: string
+          nota_fiscal_chave?: string | null
+          nota_fiscal_numero?: string | null
+          nota_fiscal_url?: string | null
           order_date?: string | null
           order_number: string
           shopify_cancelled_at?: string | null
@@ -3297,8 +3311,12 @@ export type Database = {
           vendedor_id?: string | null
         }
         Update: {
+          bling_order_id?: number | null
+          bling_status?: string | null
+          bling_status_id?: number | null
           cliente_id?: string | null
           codigo_rastreio?: string | null
+          codigo_rastreio_bling?: string | null
           created_at?: string
           customer_document?: string | null
           customer_email?: string | null
@@ -3312,6 +3330,9 @@ export type Database = {
           endereco_numero?: string | null
           endereco_rua?: string | null
           id?: string
+          nota_fiscal_chave?: string | null
+          nota_fiscal_numero?: string | null
+          nota_fiscal_url?: string | null
           order_date?: string | null
           order_number?: string
           shopify_cancelled_at?: string | null
