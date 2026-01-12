@@ -255,7 +255,7 @@ export default function MyOrders() {
           </Button>
         </div>
 
-        <Tabs defaultValue={hasBlingOrders ? "bling" : "internal"} className="w-full">
+        <Tabs defaultValue="bling" className="w-full">
           <TabsList className="mb-6">
             <TabsTrigger value="bling" className="flex items-center gap-2">
               <ShoppingBag className="w-4 h-4" />
