@@ -152,28 +152,50 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config, 'bling_config', config.client_id, config.client_secret);
     }
 
-    // Buscar pedidos do canal E-commerce (idLoja = 205391854)
-    // Vamos buscar os últimos 100 pedidos e filtrar por email
-    const ordersUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?idLoja=${SHOPIFY_LOJA_ID_BLING}&limite=100`;
-    console.log('Buscando pedidos no Bling:', ordersUrl);
+    // 1) Buscar o contato pelo email no Bling (para pegar o idContato)
+    const contatoUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(emailLower)}&limite=1`;
+    console.log('Buscando contato no Bling:', contatoUrl);
 
-    const ordersResult = await blingApiCall(ordersUrl, accessToken, supabase, config);
-    if (ordersResult.newToken) accessToken = ordersResult.newToken;
+    const contatoResult = await blingApiCall(contatoUrl, accessToken, supabase, config);
+    if (contatoResult.newToken) accessToken = contatoResult.newToken;
 
-    const allOrders = ordersResult.data?.data || [];
-    console.log(`Encontrados ${allOrders.length} pedidos no canal E-commerce`);
+    const contato = contatoResult.data?.data?.[0];
+    const contatoId = contato?.id as number | undefined;
 
-    // Filtrar pedidos pelo email do cliente
+    if (!contatoId) {
+      console.log(`Nenhum contato encontrado no Bling para o email ${emailLower}`);
+      return new Response(
+        JSON.stringify({ success: true, orders: [] }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2) Buscar pedidos de venda do canal E-commerce filtrando por idContato
     const filteredOrderIds: number[] = [];
-    
-    for (const order of allOrders) {
-      const contatoEmail = order.contato?.email?.toLowerCase().trim() || '';
-      if (contatoEmail === emailLower) {
-        filteredOrderIds.push(order.id);
+    const limite = 100;
+    const maxPaginas = 20; // segurança (até 2000 pedidos)
+
+    for (let pagina = 1; pagina <= maxPaginas; pagina++) {
+      const pedidosUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?idLoja=${SHOPIFY_LOJA_ID_BLING}&idContato=${contatoId}&pagina=${pagina}&limite=${limite}`;
+      console.log('Buscando pedidos no Bling:', pedidosUrl);
+
+      const pedidosResult = await blingApiCall(pedidosUrl, accessToken, supabase, config);
+      if (pedidosResult.newToken) accessToken = pedidosResult.newToken;
+
+      const pedidosPagina = pedidosResult.data?.data || [];
+      console.log(`Página ${pagina}: ${pedidosPagina.length} pedido(s)`);
+
+      for (const p of pedidosPagina) {
+        if (p?.id) filteredOrderIds.push(p.id);
+      }
+
+      if (pedidosPagina.length < limite) {
+        // última página
+        break;
       }
     }
 
-    console.log(`Pedidos filtrados por email ${emailLower}: ${filteredOrderIds.length}`);
+    console.log(`Pedidos encontrados para contato ${contatoId} (${emailLower}): ${filteredOrderIds.length}`);
 
     if (filteredOrderIds.length === 0) {
       return new Response(
