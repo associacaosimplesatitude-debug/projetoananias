@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import * as tus from "tus-js-client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -153,34 +154,43 @@ export default function GestaoTutoriais() {
     const accessToken = sessionData?.session?.access_token;
     
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const uploadUrl = `${supabaseUrl}/storage/v1/object/tutorial-videos/${filePath}`;
 
     return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress(percentComplete);
-        }
-      });
-
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
+      const upload = new tus.Upload(file, {
+        endpoint: `${supabaseUrl}/storage/v1/upload/resumable`,
+        retryDelays: [0, 3000, 5000, 10000, 20000],
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          "x-upsert": "true",
+        },
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        metadata: {
+          bucketName: "tutorial-videos",
+          objectName: filePath,
+          contentType: file.type,
+        },
+        chunkSize: 6 * 1024 * 1024, // 6MB por chunk
+        onError: (error) => {
+          console.error("Upload error:", error);
+          reject(error);
+        },
+        onProgress: (bytesUploaded, bytesTotal) => {
+          const percentage = Math.round((bytesUploaded / bytesTotal) * 100);
+          setUploadProgress(percentage);
+        },
+        onSuccess: () => {
           resolve(filePath);
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
+        },
+      });
+
+      // Verificar uploads anteriores para retomar se necessário
+      upload.findPreviousUploads().then((previousUploads) => {
+        if (previousUploads.length) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
         }
+        upload.start();
       });
-
-      xhr.addEventListener("error", () => {
-        reject(new Error("Upload failed"));
-      });
-
-      xhr.open("POST", uploadUrl);
-      xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
-      xhr.setRequestHeader("x-upsert", "true");
-      xhr.send(file);
     });
   }, []);
 
@@ -335,8 +345,8 @@ export default function GestaoTutoriais() {
       return;
     }
 
-    if (file.size > 20 * 1024 * 1024 * 1024) {
-      toast.error("O arquivo deve ter no máximo 20GB");
+    if (file.size > 5 * 1024 * 1024 * 1024) {
+      toast.error("O arquivo deve ter no máximo 5GB");
       return;
     }
 
