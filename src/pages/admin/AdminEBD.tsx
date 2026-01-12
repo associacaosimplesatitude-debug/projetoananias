@@ -2305,10 +2305,10 @@ export default function AdminEBD() {
                   </div>
                   <div className="space-y-2">
                     <Label>Novo Vendedor</Label>
-                    <Select value={targetVendedor} onValueChange={setTargetVendedor}>
+                    <Select value={targetVendedor || "none"} onValueChange={(val) => setTargetVendedor(val === "none" ? "" : val)}>
                       <SelectTrigger><SelectValue placeholder="Selecione o vendedor (ou deixe vazio)" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sem vendedor</SelectItem>
+                        <SelectItem value="none">Sem vendedor</SelectItem>
                         {vendedores?.map((vendedor) => (
                           <SelectItem key={vendedor.id} value={vendedor.id}>{vendedor.nome}</SelectItem>
                         ))}

@@ -217,12 +217,12 @@ export function EditarAlunoDialog({
           {/* Turma */}
           <div className="space-y-2">
             <Label htmlFor="edit-turma">Turma</Label>
-            <Select value={turmaId || ""} onValueChange={(val) => setTurmaId(val || null)}>
+            <Select value={turmaId || "none"} onValueChange={(val) => setTurmaId(val === "none" ? null : val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma turma" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Sem turma</SelectItem>
+                <SelectItem value="none">Sem turma</SelectItem>
                 {turmas?.map((turma) => (
                   <SelectItem key={turma.id} value={turma.id}>
                     {turma.nome}
