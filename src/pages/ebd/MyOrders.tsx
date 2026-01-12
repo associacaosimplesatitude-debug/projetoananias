@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,36 +10,84 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Package, Calendar, DollarSign, Search, Truck, CreditCard, ShoppingBag, FileText, RefreshCw, Printer, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
-interface ShopifyPedido {
-  id: string;
-  order_number: string;
-  status_pagamento: string;
+// Interface para pedidos do Bling
+interface BlingOrder {
+  id: number;
+  numero: string;
+  data: string;
+  situacao: {
+    id: number;
+    nome: string;
+  };
+  contato: {
+    nome: string;
+    email: string;
+  };
+  itens: Array<{
+    codigo: string;
+    descricao: string;
+    quantidade: number;
+    valor: number;
+  }>;
   valor_total: number;
   valor_frete: number;
-  customer_name: string | null;
-  customer_email: string | null;
-  codigo_rastreio: string | null;
-  url_rastreio: string | null;
-  created_at: string;
-  // Campos Bling
-  bling_order_id: number | null;
-  bling_status: string | null;
-  bling_status_id: number | null;
-  nota_fiscal_numero: string | null;
-  nota_fiscal_chave: string | null;
-  nota_fiscal_url: string | null;
-  codigo_rastreio_bling: string | null;
+  transporte: {
+    codigo_rastreio: string | null;
+  } | null;
+  nfe: {
+    numero: string;
+    chave: string;
+    url: string;
+  } | null;
 }
 
 export default function MyOrders() {
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
   const [logisticStatusFilter, setLogisticStatusFilter] = useState<string>('all');
-  const [clienteId, setClienteId] = useState<string | null>(null);
-  const queryClient = useQueryClient();
+
+  // Query para buscar email do superintendente
+  const { data: clienteData } = useQuery({
+    queryKey: ['my-cliente-data'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('id, email_superintendente')
+        .eq('superintendente_user_id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Query para pedidos do Bling (baseado no email do superintendente)
+  const { data: blingOrders, isLoading: isLoadingBling, refetch: refetchBling, isFetching } = useQuery({
+    queryKey: ['my-bling-orders', clienteData?.email_superintendente],
+    queryFn: async () => {
+      if (!clienteData?.email_superintendente) return [];
+
+      const { data, error } = await supabase.functions.invoke('bling-list-my-orders', {
+        body: { customer_email: clienteData.email_superintendente }
+      });
+
+      if (error) {
+        console.error('Erro ao buscar pedidos do Bling:', error);
+        throw error;
+      }
+
+      return (data?.orders || []) as BlingOrder[];
+    },
+    enabled: !!clienteData?.email_superintendente,
+    staleTime: 60000, // 1 minuto
+    refetchOnWindowFocus: false,
+  });
 
   // Query para pedidos internos (ebd_pedidos via churches)
   const { data: orders, isLoading } = useQuery({
@@ -83,81 +131,16 @@ export default function MyOrders() {
     refetchOnWindowFocus: true,
   });
 
-  // Query para pedidos Shopify (ebd_shopify_pedidos via ebd_clientes)
-  const { data: shopifyOrders, isLoading: isLoadingShopify, refetch: refetchShopify } = useQuery({
-    queryKey: ['my-shopify-orders'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
-
-      // Buscar o cliente EBD vinculado ao usuário
-      const { data: clienteData } = await supabase
-        .from('ebd_clientes')
-        .select('id, email_superintendente')
-        .eq('superintendente_user_id', user.id)
-        .maybeSingle();
-
-      if (!clienteData) return [];
-      
-      // Vincular pedidos órfãos via edge function (com service role)
-      // Isso resolve casos onde o cliente comprou antes de ser cadastrado/ativado
-      try {
-        const { data: linkResult, error: linkError } = await supabase.functions.invoke('ebd-link-orphan-shopify-orders');
-        if (linkError) {
-          console.error('Erro ao vincular pedidos órfãos:', linkError);
-        } else if (linkResult?.linked > 0) {
-          console.log(`Vinculados ${linkResult.linked} pedido(s) órfão(s):`, linkResult.orders);
-        }
-      } catch (err) {
-        console.error('Erro ao chamar função de vínculo:', err);
-      }
-      
-      setClienteId(clienteData.id);
-
-      const { data, error } = await supabase
-        .from('ebd_shopify_pedidos')
-        .select('*')
-        .eq('cliente_id', clienteData.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return (data || []) as ShopifyPedido[];
-    },
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+  // Apply filters for Bling orders
+  const filteredBlingOrders = blingOrders?.filter(order => {
+    const matchesSearch = searchTerm === '' || 
+      order.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.contato.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.itens.some(item => item.descricao.toLowerCase().includes(searchTerm.toLowerCase()));
+    return matchesSearch;
   });
 
-  // Mutation para sincronizar dados do Bling
-  const syncBlingMutation = useMutation({
-    mutationFn: async (clienteIdParam: string) => {
-      const { data, error } = await supabase.functions.invoke('bling-sync-shopify-orders', {
-        body: { cliente_id: clienteIdParam }
-      });
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      if (data.synced > 0) {
-        toast.success(`${data.synced} pedido(s) sincronizado(s) com o Bling`);
-      }
-      refetchShopify();
-    },
-    onError: (error) => {
-      console.error('Erro ao sincronizar com Bling:', error);
-      toast.error('Erro ao sincronizar dados do Bling');
-    },
-  });
-
-  // Sincronizar automaticamente quando carregar os pedidos
-  useEffect(() => {
-    if (clienteId && shopifyOrders && shopifyOrders.length > 0) {
-      syncBlingMutation.mutate(clienteId);
-    }
-  }, [clienteId]);
-
-  // Apply filters
+  // Apply filters for internal orders
   const filteredOrders = orders?.filter(order => {
     const matchesSearch = searchTerm === '' || 
       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -171,16 +154,8 @@ export default function MyOrders() {
     return matchesSearch && matchesPaymentStatus && matchesLogisticStatus;
   });
 
-  // Apply filters for shopify orders
-  const filteredShopifyOrders = shopifyOrders?.filter(order => {
-    const matchesSearch = searchTerm === '' || 
-      order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.customer_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-    return matchesSearch;
-  });
-
   const totalSpent = filteredOrders?.reduce((sum, order) => sum + Number(order.valor_total), 0) || 0;
-  const totalSpentShopify = filteredShopifyOrders?.reduce((sum, order) => sum + Number(order.valor_total), 0) || 0;
+  const totalSpentBling = filteredBlingOrders?.reduce((sum, order) => sum + Number(order.valor_total), 0) || 0;
   
   const getPaymentStatusBadge = (status: string | null) => {
     const variants: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -192,40 +167,20 @@ export default function MyOrders() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const getShopifyPaymentStatusBadge = (status: string | null) => {
-    const variants: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-      // Valores em inglês (Shopify API)
-      'paid': { label: 'Pago', variant: 'default' },
-      'pending': { label: 'Pendente', variant: 'secondary' },
-      'refunded': { label: 'Reembolsado', variant: 'destructive' },
-      'partially_refunded': { label: 'Parc. Reembolsado', variant: 'outline' },
-      'voided': { label: 'Cancelado', variant: 'destructive' },
-      'authorized': { label: 'Autorizado', variant: 'secondary' },
-      // Valores em português (legado/manual)
-      'Pago': { label: 'Pago', variant: 'default' },
-      'Pendente': { label: 'Pendente', variant: 'secondary' },
-      'Reembolsado': { label: 'Reembolsado', variant: 'destructive' },
-      'Parcialmente Reembolsado': { label: 'Parc. Reembolsado', variant: 'outline' },
-      'Cancelado': { label: 'Cancelado', variant: 'destructive' },
-    };
-    const config = variants[status || 'pending'] || variants.pending;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const getBlingStatusBadge = (statusId: number | null, statusText: string | null) => {
+  const getBlingStatusBadge = (situacao: { id: number; nome: string }) => {
     // 28: Em aberto, 31: Atendido, 34: Cancelado, 37: Em andamento
     const statusConfig: Record<number, { className: string }> = {
-      28: { className: 'bg-gray-500 text-white' }, // Em aberto
-      31: { className: 'bg-green-600 text-white' }, // Atendido
-      34: { className: 'bg-red-600 text-white' }, // Cancelado
-      37: { className: 'bg-yellow-500 text-white' }, // Em andamento
+      28: { className: 'bg-gray-500 text-white' },
+      31: { className: 'bg-green-600 text-white' },
+      34: { className: 'bg-red-600 text-white' },
+      37: { className: 'bg-yellow-500 text-white' },
     };
 
-    const config = statusConfig[statusId || 0] || { className: 'bg-gray-400 text-white' };
+    const config = statusConfig[situacao.id] || { className: 'bg-gray-400 text-white' };
     
     return (
       <Badge className={config.className}>
-        {statusText || 'Processando'}
+        {situacao.nome}
       </Badge>
     );
   };
@@ -249,7 +204,12 @@ export default function MyOrders() {
     }
   };
 
-  if (isLoading || isLoadingShopify) {
+  const handleRefresh = () => {
+    refetchBling();
+    toast.info('Atualizando pedidos...');
+  };
+
+  if (isLoading || isLoadingBling) {
     return (
       <div className="container mx-auto p-6">
         <div className="animate-pulse space-y-4">
@@ -261,7 +221,7 @@ export default function MyOrders() {
   }
 
   const hasInternalOrders = (orders?.length || 0) > 0;
-  const hasShopifyOrders = (shopifyOrders?.length || 0) > 0;
+  const hasBlingOrders = (blingOrders?.length || 0) > 0;
 
   return (
     <div className="container mx-auto p-6">
@@ -278,30 +238,28 @@ export default function MyOrders() {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por número do pedido..."
+              placeholder="Buscar por número do pedido ou produto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
             />
           </div>
-          {clienteId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => syncBlingMutation.mutate(clienteId)}
-              disabled={syncBlingMutation.isPending}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${syncBlingMutation.isPending ? 'animate-spin' : ''}`} />
-              Atualizar Status
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isFetching}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
         </div>
 
-        <Tabs defaultValue={hasShopifyOrders ? "shopify" : "internal"} className="w-full">
+        <Tabs defaultValue={hasBlingOrders ? "bling" : "internal"} className="w-full">
           <TabsList className="mb-6">
-            <TabsTrigger value="shopify" className="flex items-center gap-2">
+            <TabsTrigger value="bling" className="flex items-center gap-2">
               <ShoppingBag className="w-4 h-4" />
-              Pedidos Loja ({filteredShopifyOrders?.length || 0})
+              Meus Pedidos ({filteredBlingOrders?.length || 0})
             </TabsTrigger>
             {hasInternalOrders && (
               <TabsTrigger value="internal" className="flex items-center gap-2">
@@ -311,8 +269,8 @@ export default function MyOrders() {
             )}
           </TabsList>
 
-          {/* Shopify Orders Tab */}
-          <TabsContent value="shopify">
+          {/* Bling Orders Tab */}
+          <TabsContent value="bling">
             <div className="grid md:grid-cols-3 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-6">
@@ -322,7 +280,7 @@ export default function MyOrders() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Total de Pedidos</p>
-                      <p className="text-2xl font-bold">{filteredShopifyOrders?.length || 0}</p>
+                      <p className="text-2xl font-bold">{filteredBlingOrders?.length || 0}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -336,7 +294,7 @@ export default function MyOrders() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Valor Total</p>
-                      <p className="text-2xl font-bold">R$ {totalSpentShopify.toFixed(2)}</p>
+                      <p className="text-2xl font-bold">R$ {totalSpentBling.toFixed(2)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -351,8 +309,8 @@ export default function MyOrders() {
                     <div>
                       <p className="text-sm text-muted-foreground">Último Pedido</p>
                       <p className="text-sm font-medium">
-                        {filteredShopifyOrders && filteredShopifyOrders.length > 0
-                          ? format(new Date(filteredShopifyOrders[0].created_at), 'dd/MM/yyyy', { locale: ptBR })
+                        {filteredBlingOrders && filteredBlingOrders.length > 0
+                          ? format(new Date(filteredBlingOrders[0].data), 'dd/MM/yyyy', { locale: ptBR })
                           : '-'}
                       </p>
                     </div>
@@ -361,15 +319,15 @@ export default function MyOrders() {
               </Card>
             </div>
 
-            {syncBlingMutation.isPending && (
+            {isFetching && (
               <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg flex items-center gap-3">
                 <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
-                <span className="text-sm text-blue-700 dark:text-blue-300">Atualizando dados do Bling...</span>
+                <span className="text-sm text-blue-700 dark:text-blue-300">Buscando pedidos...</span>
               </div>
             )}
 
             <div className="space-y-4">
-              {!filteredShopifyOrders || filteredShopifyOrders.length === 0 ? (
+              {!filteredBlingOrders || filteredBlingOrders.length === 0 ? (
                 <Card>
                   <CardContent className="py-12">
                     <div className="text-center">
@@ -380,47 +338,65 @@ export default function MyOrders() {
                           ? 'Nenhum pedido corresponde à busca.'
                           : 'Você ainda não realizou nenhuma compra na loja online.'}
                       </p>
+                      {clienteData?.email_superintendente && (
+                        <p className="text-xs text-muted-foreground">
+                          Buscando pedidos para: {clienteData.email_superintendente}
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               ) : (
-                filteredShopifyOrders.map((order) => (
+                filteredBlingOrders.map((order) => (
                   <Card key={order.id}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <CardTitle className="text-lg">
-                            Pedido {order.order_number}
+                            Pedido #{order.numero}
                           </CardTitle>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Calendar className="w-4 h-4" />
                             <span>
                               {format(
-                                new Date(order.created_at),
-                                "dd 'de' MMMM 'de' yyyy 'às' HH:mm",
+                                new Date(order.data),
+                                "dd 'de' MMMM 'de' yyyy",
                                 { locale: ptBR }
                               )}
                             </span>
                           </div>
                         </div>
                         <div className="flex gap-2 flex-wrap justify-end">
-                          {order.bling_status_id && (
-                            <div className="flex items-center gap-1">
-                              <Package className="w-4 h-4" />
-                              {getBlingStatusBadge(order.bling_status_id, order.bling_status)}
-                            </div>
-                          )}
                           <div className="flex items-center gap-1">
-                            <CreditCard className="w-4 h-4" />
-                            {getShopifyPaymentStatusBadge(order.status_pagamento)}
+                            <Package className="w-4 h-4" />
+                            {getBlingStatusBadge(order.situacao)}
                           </div>
                         </div>
                       </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {/* Código de Rastreio (priorizar Bling, depois Shopify) */}
-                        {(order.codigo_rastreio_bling || order.codigo_rastreio) && (
+                        {/* Itens do pedido */}
+                        <div className="space-y-2">
+                          {order.itens.map((item, index) => (
+                            <div key={index} className="flex justify-between items-center text-sm">
+                              <div className="flex-1">
+                                <span className="font-medium">{item.descricao}</span>
+                                {item.codigo && (
+                                  <span className="text-muted-foreground ml-2">({item.codigo})</span>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <span>{item.quantidade}x R$ {Number(item.valor).toFixed(2)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <Separator />
+
+                        {/* Código de Rastreio */}
+                        {order.transporte?.codigo_rastreio && (
                           <>
                             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                               <div className="flex items-center gap-2">
@@ -429,10 +405,10 @@ export default function MyOrders() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="font-mono text-sm">
-                                  {order.codigo_rastreio_bling || order.codigo_rastreio}
+                                  {order.transporte.codigo_rastreio}
                                 </Badge>
                                 <a 
-                                  href={`https://www.linkcorreios.com.br/?id=${order.codigo_rastreio_bling || order.codigo_rastreio}`}
+                                  href={`https://www.linkcorreios.com.br/?id=${order.transporte.codigo_rastreio}`}
                                   target="_blank" 
                                   rel="noopener noreferrer"
                                 >
@@ -448,19 +424,19 @@ export default function MyOrders() {
                         )}
 
                         {/* Nota Fiscal */}
-                        {order.nota_fiscal_numero && (
+                        {order.nfe?.numero && (
                           <>
                             <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                               <div className="flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-primary" />
                                 <span className="text-sm font-medium">Nota Fiscal:</span>
-                                <span className="text-sm">NF-e {order.nota_fiscal_numero}</span>
+                                <span className="text-sm">NF-e {order.nfe.numero}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                {order.nota_fiscal_url && (
+                                {order.nfe.url && (
                                   <>
                                     <a 
-                                      href={order.nota_fiscal_url}
+                                      href={order.nfe.url}
                                       target="_blank" 
                                       rel="noopener noreferrer"
                                     >
@@ -472,7 +448,7 @@ export default function MyOrders() {
                                     <Button 
                                       variant="outline" 
                                       size="sm"
-                                      onClick={() => handlePrintNfe(order.nota_fiscal_url!)}
+                                      onClick={() => handlePrintNfe(order.nfe!.url)}
                                     >
                                       <Printer className="w-4 h-4 mr-1" />
                                       Imprimir
