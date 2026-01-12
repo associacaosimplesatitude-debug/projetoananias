@@ -14,6 +14,7 @@ import {
   LucideIcon
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
+import { NotificationBell } from "@/components/vendedor/NotificationBell";
 import { useVendedor } from "@/hooks/useVendedor";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -131,7 +132,10 @@ export function VendedorLayout() {
         <div className="flex-1 flex flex-col">
           <header className="border-b bg-background px-4 py-3 flex items-center justify-between">
             <SidebarTrigger />
-            <UserProfileDropdown />
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <UserProfileDropdown />
+            </div>
           </header>
 
           <main className="flex-1 p-6 overflow-auto">

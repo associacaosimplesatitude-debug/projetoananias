@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   Settings,
   Globe,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,22 @@ function AdminSidebar() {
     },
     staleTime: 1000 * 60 * 5,
     enabled: !isFinanceiro, // Não carregar para financeiro
+  });
+
+  // Query para contar solicitações de transferência pendentes
+  const { data: countTransferPendentes = 0 } = useQuery({
+    queryKey: ["transfer-requests-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("ebd_transfer_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pendente");
+
+      if (error) throw error;
+      return count || 0;
+    },
+    staleTime: 1000 * 60 * 2,
+    enabled: !isFinanceiro,
   });
 
   const pedidosSubItems = [
@@ -297,6 +314,21 @@ function AdminSidebar() {
                     <RouterNavLink to="/admin/ebd/vendedores">
                       <User className="h-4 w-4" />
                       <span>Vendedores</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/transferencias')}>
+                    <RouterNavLink to="/admin/ebd/transferencias">
+                      <ArrowRightLeft className="h-4 w-4" />
+                      <span className="flex items-center gap-2">
+                        Solicitações de Transferência
+                        {countTransferPendentes > 0 && (
+                          <Badge variant="destructive" className="text-xs px-1.5 py-0.5 min-w-[20px] h-5">
+                            {countTransferPendentes}
+                          </Badge>
+                        )}
+                      </span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

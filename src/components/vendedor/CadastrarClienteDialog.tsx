@@ -31,8 +31,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { MapPin, User, Building, Lock, Phone, Pencil, Search, CheckCircle2, Loader2 } from "lucide-react";
+import { MapPin, User, Building, Lock, Phone, Pencil, Search, CheckCircle2, Loader2, Send } from "lucide-react";
 import { DescontosCategoriaSection } from "./DescontosCategoriaSection";
+import { TransferRequestDialog } from "./TransferRequestDialog";
 
 interface Cliente {
   id: string;
@@ -127,7 +128,10 @@ export function CadastrarClienteDialog({
     open: boolean;
     nomeVendedor: string;
     nomeCliente: string;
-  }>({ open: false, nomeVendedor: "", nomeCliente: "" });
+    clienteId: string | null;
+    vendedorAtualId: string | null;
+  }>({ open: false, nomeVendedor: "", nomeCliente: "", clienteId: null, vendedorAtualId: null });
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
 
   const isEditMode = !!clienteParaEditar;
 
@@ -490,6 +494,8 @@ export function CadastrarClienteDialog({
                   open: true,
                   nomeVendedor,
                   nomeCliente: clienteExistente.nome_igreja || "Cliente",
+                  clienteId: clienteExistente.id,
+                  vendedorAtualId: clienteExistente.vendedor_id,
                 });
                 setLoading(false);
                 return;
@@ -523,6 +529,8 @@ export function CadastrarClienteDialog({
                 open: true,
                 nomeVendedor: clienteInfo?.vendedor_nome || "vendedor não identificado",
                 nomeCliente: clienteInfo?.nome_igreja || formData.nome_igreja || "Este cliente",
+                clienteId: (clienteInfo as any)?.id || null,
+                vendedorAtualId: null,
               });
               setLoading(false);
               return;
@@ -938,23 +946,54 @@ export function CadastrarClienteDialog({
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-destructive flex items-center gap-2">
+          <AlertDialogTitle className="text-amber-600 flex items-center gap-2">
             ⚠️ Cliente já cadastrado
           </AlertDialogTitle>
           <AlertDialogDescription className="text-base">
             O cliente <strong>"{clienteExistenteAlert.nomeCliente}"</strong> já está cadastrado 
             e pertence ao vendedor <strong>{clienteExistenteAlert.nomeVendedor}</strong>.
             <br /><br />
-            Não é possível cadastrar este cliente na sua carteira.
+            Você pode solicitar a transferência deste cliente para sua carteira.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogAction onClick={() => setClienteExistenteAlert({ open: false, nomeVendedor: "", nomeCliente: "" })}>
-            Entendi
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <AlertDialogAction 
+            onClick={() => setClienteExistenteAlert({ open: false, nomeVendedor: "", nomeCliente: "", clienteId: null, vendedorAtualId: null })}
+            className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+          >
+            Cancelar
           </AlertDialogAction>
+          {clienteExistenteAlert.clienteId && (
+            <Button 
+              onClick={() => {
+                setClienteExistenteAlert(prev => ({ ...prev, open: false }));
+                setTransferDialogOpen(true);
+              }}
+              className="gap-2"
+            >
+              <Send className="h-4 w-4" />
+              Solicitar Transferência
+            </Button>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    {/* Dialog de Solicitação de Transferência */}
+    {clienteExistenteAlert.clienteId && (
+      <TransferRequestDialog
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
+        clienteId={clienteExistenteAlert.clienteId}
+        nomeCliente={clienteExistenteAlert.nomeCliente}
+        nomeVendedorAtual={clienteExistenteAlert.nomeVendedor}
+        vendedorAtualId={clienteExistenteAlert.vendedorAtualId}
+        onSuccess={() => {
+          setClienteExistenteAlert({ open: false, nomeVendedor: "", nomeCliente: "", clienteId: null, vendedorAtualId: null });
+          onOpenChange(false);
+        }}
+      />
+    )}
     </>
   );
 }
