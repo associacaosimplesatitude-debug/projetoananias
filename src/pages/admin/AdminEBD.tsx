@@ -126,6 +126,9 @@ interface Church {
 
 interface EBDClient {
   cliente_id: string;
+  cnpj?: string | null;
+  cpf?: string | null;
+  email?: string | null;
   church: {
     id: string;
     church_name: string;
@@ -194,6 +197,7 @@ export default function AdminEBD() {
   const [editingVendedor, setEditingVendedor] = useState<Vendedor | null>(null);
   const [selectedChurch, setSelectedChurch] = useState<string>('');
   const [targetVendedor, setTargetVendedor] = useState<string>('');
+  const [transferSearchTerm, setTransferSearchTerm] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showCropDialog, setShowCropDialog] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -382,6 +386,9 @@ export default function AdminEBD() {
       
       const fromEbdClientes = (ebdClientesData || []).map((c: any) => ({
         cliente_id: c.id,
+        cnpj: c.cnpj,
+        cpf: c.cpf,
+        email: c.email_superintendente,
         church: {
           id: c.id,
           church_name: c.nome_igreja,
@@ -725,6 +732,18 @@ export default function AdminEBD() {
       return true;
     });
   }, [ebdClients, clientSearchTerm, clientVendedorFilter, clientStateFilter, clientPurchaseStatusFilter, vendedores, churchProgress]);
+
+  // Filtered clients for transfer dialog (search by name, CNPJ, email)
+  const filteredTransferClients = useMemo(() => {
+    if (!ebdClients || !transferSearchTerm.trim()) return [];
+    const term = transferSearchTerm.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return ebdClients.filter(client => {
+      const nome = (client.church?.church_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cnpj = (client.cnpj || client.cpf || '').replace(/[^0-9]/g, '');
+      const email = (client.email || client.church?.pastor_email || '').toLowerCase();
+      return nome.includes(term) || cnpj.includes(term) || email.includes(term);
+    }).slice(0, 10);
+  }, [ebdClients, transferSearchTerm]);
 
   // Calculate lead score dynamically
   const getLeadScore = (lead: { ultimo_login_ebd?: string | null; email_aberto?: boolean }): string => {
@@ -2280,29 +2299,87 @@ export default function AdminEBD() {
         {/* VENDEDORES TAB */}
         <TabsContent value="vendedores" className="space-y-6">
           <div className="flex justify-end gap-2">
-            <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+            <Dialog open={transferDialogOpen} onOpenChange={(open) => { 
+              setTransferDialogOpen(open); 
+              if (!open) { 
+                setTransferSearchTerm(''); 
+                setSelectedChurch(''); 
+                setTargetVendedor(''); 
+              } 
+            }}>
               <DialogTrigger asChild>
                 <Button variant="outline">
                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                   Transferir Cliente
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Transferir Cliente</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
+                  {/* Search Field */}
                   <div className="space-y-2">
-                    <Label>Cliente</Label>
-                    <Select value={selectedChurch} onValueChange={setSelectedChurch}>
-                      <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
-                      <SelectContent>
-                        {ebdClients?.map((client) => (
-                          <SelectItem key={client.cliente_id} value={`${client.cliente_id}|${client.source}`}>{client.church?.church_name} ({getVendedorName(client.church?.vendedor_id)})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Pesquisar Cliente</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        placeholder="Digite nome, CNPJ ou email..."
+                        value={transferSearchTerm}
+                        onChange={(e) => setTransferSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
                   </div>
+
+                  {/* Search Results */}
+                  {transferSearchTerm.trim() && (
+                    <div className="space-y-2">
+                      <Label>Resultados ({filteredTransferClients.length})</Label>
+                      <div className="max-h-60 overflow-y-auto border rounded-md">
+                        {filteredTransferClients.length === 0 ? (
+                          <div className="p-4 text-center text-muted-foreground text-sm">
+                            Nenhum cliente encontrado
+                          </div>
+                        ) : (
+                          filteredTransferClients.map((client) => {
+                            const isSelected = selectedChurch === `${client.cliente_id}|${client.source}`;
+                            const vendedorAtual = getVendedorName(client.church?.vendedor_id);
+                            const documento = client.cnpj || client.cpf || '';
+                            const documentoFormatado = documento.length === 14 
+                              ? documento.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+                              : documento.length === 11 
+                                ? documento.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+                                : documento;
+                            return (
+                              <div 
+                                key={client.cliente_id}
+                                className={`p-3 border-b last:border-b-0 cursor-pointer transition-colors ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : 'hover:bg-muted/50'}`}
+                                onClick={() => setSelectedChurch(`${client.cliente_id}|${client.source}`)}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className={`mt-1 h-4 w-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                                    {isSelected && <div className="h-2 w-2 rounded-full bg-white" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate">{client.church?.church_name}</p>
+                                    {documentoFormatado && (
+                                      <p className="text-xs text-muted-foreground">CNPJ/CPF: {documentoFormatado}</p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground">
+                                      Vendedor atual: <span className={vendedorAtual === 'Sem vendedor' ? 'text-orange-500' : 'text-primary'}>{vendedorAtual}</span>
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New Vendedor Select */}
                   <div className="space-y-2">
                     <Label>Novo Vendedor</Label>
                     <Select value={targetVendedor || "none"} onValueChange={(val) => setTargetVendedor(val === "none" ? "" : val)}>
@@ -2315,10 +2392,25 @@ export default function AdminEBD() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button onClick={() => {
-                    const [clienteId, source] = selectedChurch.split('|');
-                    transferMutation.mutate({ clienteId, vendedorId: targetVendedor || null, source: source as 'churches' | 'ebd_clientes' });
-                  }} className="w-full" disabled={!selectedChurch}>Transferir</Button>
+
+                  {/* Selected Client Summary */}
+                  {selectedChurch && (
+                    <div className="p-3 bg-muted/50 rounded-md text-sm">
+                      <p><strong>Cliente selecionado:</strong> {ebdClients?.find(c => `${c.cliente_id}|${c.source}` === selectedChurch)?.church?.church_name}</p>
+                      <p><strong>Novo vendedor:</strong> {targetVendedor ? vendedores?.find(v => v.id === targetVendedor)?.nome : 'Sem vendedor'}</p>
+                    </div>
+                  )}
+
+                  <Button 
+                    onClick={() => {
+                      const [clienteId, source] = selectedChurch.split('|');
+                      transferMutation.mutate({ clienteId, vendedorId: targetVendedor || null, source: source as 'churches' | 'ebd_clientes' });
+                    }} 
+                    className="w-full" 
+                    disabled={!selectedChurch}
+                  >
+                    Transferir
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
