@@ -2419,6 +2419,42 @@ export type Database = {
           },
         ]
       }
+      ebd_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          lida: boolean
+          link: string | null
+          mensagem: string
+          metadata: Json | null
+          tipo: string
+          titulo: string
+          user_email: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          link?: string | null
+          mensagem: string
+          metadata?: Json | null
+          tipo?: string
+          titulo: string
+          user_email: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          link?: string | null
+          mensagem?: string
+          metadata?: Json | null
+          tipo?: string
+          titulo?: string
+          user_email?: string
+        }
+        Relationships: []
+      }
       ebd_onboarding_progress: {
         Row: {
           church_id: string
@@ -3473,6 +3509,70 @@ export type Database = {
             columns: ["pedido_id"]
             isOneToOne: false
             referencedRelation: "ebd_shopify_pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_transfer_requests: {
+        Row: {
+          aprovado_por: string | null
+          cliente_id: string
+          created_at: string
+          id: string
+          motivo_rejeicao: string | null
+          motivo_solicitacao: string | null
+          resolved_at: string | null
+          status: string
+          updated_at: string
+          vendedor_atual_id: string | null
+          vendedor_solicitante_id: string
+        }
+        Insert: {
+          aprovado_por?: string | null
+          cliente_id: string
+          created_at?: string
+          id?: string
+          motivo_rejeicao?: string | null
+          motivo_solicitacao?: string | null
+          resolved_at?: string | null
+          status?: string
+          updated_at?: string
+          vendedor_atual_id?: string | null
+          vendedor_solicitante_id: string
+        }
+        Update: {
+          aprovado_por?: string | null
+          cliente_id?: string
+          created_at?: string
+          id?: string
+          motivo_rejeicao?: string | null
+          motivo_solicitacao?: string | null
+          resolved_at?: string | null
+          status?: string
+          updated_at?: string
+          vendedor_atual_id?: string | null
+          vendedor_solicitante_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_transfer_requests_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_transfer_requests_vendedor_atual_id_fkey"
+            columns: ["vendedor_atual_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_transfer_requests_vendedor_solicitante_id_fkey"
+            columns: ["vendedor_solicitante_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
             referencedColumns: ["id"]
           },
         ]
