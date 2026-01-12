@@ -4,12 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Eye, MessageSquare, Rocket, ShoppingCart, Church, Mail, Phone } from "lucide-react";
+import { ShoppingBag, Eye, MessageSquare, Rocket, ShoppingCart, Church, Mail, Phone, Key } from "lucide-react";
 import { useVendedor } from "@/hooks/useVendedor";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PedidoOnlineDetailDialog } from "@/components/admin/PedidoOnlineDetailDialog";
 import { PlaybookMessageModal } from "@/components/vendedor/PlaybookMessageModal";
+import { AtivarClienteDialog } from "@/components/vendedor/AtivarClienteDialog";
 import { useNavigate } from "react-router-dom";
 
 interface PosVendaItem {
@@ -70,9 +71,11 @@ export default function VendedorPosVenda() {
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [messageModalTitle, setMessageModalTitle] = useState("");
   const [messageModalContent, setMessageModalContent] = useState("");
+  const [ativarDialogOpen, setAtivarDialogOpen] = useState(false);
+  const [clienteParaAtivar, setClienteParaAtivar] = useState<any>(null);
 
   // Buscar do contexto de pós-venda (fonte primária: flag is_pos_venda_ecommerce no cliente; secundária: tabela pivô)
-  const { data: posVendaItems = [], isLoading } = useQuery({
+  const { data: posVendaItems = [], isLoading, refetch } = useQuery({
     queryKey: ["vendedor-pos-venda", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
@@ -250,6 +253,19 @@ Qualquer dúvida, estou à disposição 😊`;
     setMessageModalOpen(true);
   };
 
+  const handleAtivarPainel = (item: PosVendaItem) => {
+    if (item.cliente) {
+      setClienteParaAtivar({
+        id: item.cliente.id,
+        cnpj: item.cliente.cnpj || "",
+        nome_igreja: item.cliente.nome_igreja,
+        nome_superintendente: item.cliente.nome_superintendente,
+        email_superintendente: item.cliente.email_superintendente,
+      });
+      setAtivarDialogOpen(true);
+    }
+  };
+
   if (vendedorLoading || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -370,6 +386,19 @@ Qualquer dúvida, estou à disposição 😊`;
                     Criar Pedido
                   </Button>
                 </div>
+                
+                {/* Botão Ativar Painel - Destacado */}
+                <div className="mt-3 pt-3 border-t">
+                  <Button 
+                    size="sm"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => handleAtivarPainel(item)}
+                    disabled={!item.cliente}
+                  >
+                    <Key className="mr-2 h-4 w-4" />
+                    Ativar Painel EBD
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -394,6 +423,19 @@ Qualquer dúvida, estou à disposição 😊`;
         title={messageModalTitle}
         message={messageModalContent}
       />
+
+      {/* Dialog de Ativação do Painel */}
+      {clienteParaAtivar && (
+        <AtivarClienteDialog
+          open={ativarDialogOpen}
+          onOpenChange={setAtivarDialogOpen}
+          cliente={clienteParaAtivar}
+          onSuccess={() => {
+            refetch();
+            setClienteParaAtivar(null);
+          }}
+        />
+      )}
     </div>
   );
 }
