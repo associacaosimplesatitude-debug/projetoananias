@@ -22,7 +22,7 @@ export interface CalculoDescontoLocal {
   descontoPercentual: number;
   descontoValor: number;
   total: number;
-  tipoDesconto: "advec" | "setup" | "revendedor" | "representante" | "vendedor" | "nenhum";
+  tipoDesconto: "advec" | "setup" | "revendedor" | "representante" | "vendedor" | "categoria" | "nenhum";
   faixa: string;
 }
 
@@ -87,9 +87,9 @@ function calcularDescontoRevendedor(valorTotal: number): { faixa: string; descon
 }
 
 /**
- * Calcula descontos por categoria para clientes de Representantes
+ * Calcula descontos por categoria para qualquer cliente com configuração
  */
-function calcularDescontoRepresentante(
+function calcularDescontoPorCategoria(
   items: ItemCalculadora[],
   descontosPorCategoria: DescontosCategoriaRepresentante
 ): { total: number; descontoValor: number; descontoPercentualMedio: number } {
@@ -129,25 +129,25 @@ export function calcularDescontosLocal(
 ): CalculoDescontoLocal {
   const subtotal = items.reduce((sum, item) => sum + (item.preco_cheio * item.quantidade), 0);
   
-  // PRIORIDADE 1: Cliente de Representante com descontos por categoria
-  if (isClienteRepresentante(tipoCliente) && descontosPorCategoria && Object.keys(descontosPorCategoria).length > 0) {
+  // PRIORIDADE 1: Cliente com descontos por categoria configurados (qualquer tipo de cliente)
+  if (descontosPorCategoria && Object.keys(descontosPorCategoria).length > 0) {
     const hasAnyDiscount = Object.values(descontosPorCategoria).some(v => v > 0);
     
     if (hasAnyDiscount) {
-      const resultado = calcularDescontoRepresentante(items, descontosPorCategoria);
+      const resultado = calcularDescontoPorCategoria(items, descontosPorCategoria);
       
       return {
         subtotal,
         descontoPercentual: resultado.descontoPercentualMedio,
         descontoValor: resultado.descontoValor,
         total: resultado.total,
-        tipoDesconto: "representante",
-        faixa: `Representante (${resultado.descontoPercentualMedio.toFixed(0)}%)`,
+        tipoDesconto: "categoria",
+        faixa: `Por Categoria (${resultado.descontoPercentualMedio.toFixed(0)}%)`,
       };
     }
   }
   
-  // PRIORIDADE 2: Desconto do Vendedor
+  // PRIORIDADE 2: Desconto do Vendedor (somente se NÃO tiver desconto por categoria)
   if (descontoVendedor > 0) {
     const descontoValor = subtotal * (descontoVendedor / 100);
     

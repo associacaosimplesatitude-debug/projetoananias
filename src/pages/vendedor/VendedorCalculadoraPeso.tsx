@@ -656,7 +656,11 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                       <p className="text-sm text-muted-foreground">Tipo: {cliente.tipo_cliente || "Não definido"}</p>
                     </div>
                     {calculo.faixa && (
-                      <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                      <Badge className={
+                        calculo.tipoDesconto === "categoria" 
+                          ? "bg-purple-500/10 text-purple-600 border-purple-500/20"
+                          : "bg-green-500/10 text-green-600 border-green-500/20"
+                      }>
                         <Percent className="h-3 w-3 mr-1" />
                         {calculo.faixa}
                       </Badge>
@@ -988,14 +992,10 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                         )}
                         
                         {orc.status === 'convertido_proposta' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditarProposta(orc)}
-                          >
-                            <Pencil className="h-4 w-4 mr-1" />
-                            Editar Proposta
-                          </Button>
+                          <Badge variant="secondary" className="text-green-600 bg-green-50 border-green-200">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Proposta Gerada
+                          </Badge>
                         )}
                         
                         {/* Botão excluir */}
