@@ -340,10 +340,10 @@ function AdminSidebar() {
                   </>
                 )}
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/tutoriais')}>
-                    <RouterNavLink to="/admin/ebd/tutoriais">
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/gestao-tutoriais')}>
+                    <RouterNavLink to="/admin/ebd/gestao-tutoriais">
                       <Video className="h-4 w-4" />
-                      <span>Tutoriais</span>
+                      <span>Gestão de Tutoriais</span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
