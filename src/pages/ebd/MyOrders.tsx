@@ -194,13 +194,21 @@ export default function MyOrders() {
 
   const getShopifyPaymentStatusBadge = (status: string | null) => {
     const variants: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+      // Valores em inglês (Shopify API)
+      'paid': { label: 'Pago', variant: 'default' },
+      'pending': { label: 'Pendente', variant: 'secondary' },
+      'refunded': { label: 'Reembolsado', variant: 'destructive' },
+      'partially_refunded': { label: 'Parc. Reembolsado', variant: 'outline' },
+      'voided': { label: 'Cancelado', variant: 'destructive' },
+      'authorized': { label: 'Autorizado', variant: 'secondary' },
+      // Valores em português (legado/manual)
       'Pago': { label: 'Pago', variant: 'default' },
       'Pendente': { label: 'Pendente', variant: 'secondary' },
       'Reembolsado': { label: 'Reembolsado', variant: 'destructive' },
       'Parcialmente Reembolsado': { label: 'Parc. Reembolsado', variant: 'outline' },
       'Cancelado': { label: 'Cancelado', variant: 'destructive' },
     };
-    const config = variants[status || 'Pendente'] || variants.Pendente;
+    const config = variants[status || 'pending'] || variants.pending;
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
