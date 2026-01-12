@@ -196,12 +196,22 @@ export default function MyOrders() {
   };
 
   const handlePrintNfe = (url: string) => {
-    const printWindow = window.open(url, '_blank');
-    if (printWindow) {
-      printWindow.addEventListener('load', () => {
-        printWindow.print();
-      });
+    const printWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!printWindow) {
+      toast.error('Não foi possível abrir a nota para impressão. Verifique o bloqueador de pop-ups.');
+      return;
     }
+
+    // Em alguns browsers, o evento "load" pode disparar múltiplas vezes em páginas externas.
+    // Para evitar abrir/imprimir em loop, fazemos apenas um print com pequeno delay.
+    setTimeout(() => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } catch {
+        // Se o browser bloquear o print cross-origin, o usuário ainda consegue imprimir manualmente.
+      }
+    }, 800);
   };
 
   const handleRefresh = () => {

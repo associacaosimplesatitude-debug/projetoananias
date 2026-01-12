@@ -285,32 +285,45 @@ serve(async (req) => {
 
           const nfes = nfeResult.data?.data || [];
           if (nfes.length > 0) {
-            const nfeData = nfes[0];
-            let nfeUrl = null;
+            // Preferir NF-e autorizada (evita mostrar nota “não emitida” / rascunho)
+            const nfeData =
+              nfes.find((n: any) => n?.situacao?.id === 6 || n?.situacao === 6 || n?.situacao === '6' || String(n?.situacao?.nome || '').toLowerCase().includes('autoriz')) ||
+              nfes[0];
 
-            // Buscar link do DANFE
+            let nfeUrlFinal: string | null = null;
+
+            // Buscar link do DANFE / visualização
             if (nfeData.id) {
               try {
                 const danfeUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeData.id}`;
                 const danfeResult = await blingApiCall(danfeUrl, accessToken, supabase, config);
                 if (danfeResult.newToken) accessToken = danfeResult.newToken;
-                
+
                 const nfeDetail = danfeResult.data?.data;
+
+                // O Bling pode retornar o link no linkDanfe (às vezes doc.view.php)
                 if (nfeDetail?.linkDanfe) {
-                  nfeUrl = nfeDetail.linkDanfe;
+                  nfeUrlFinal = nfeDetail.linkDanfe;
+                } else if (nfeDetail?.link) {
+                  nfeUrlFinal = nfeDetail.link;
+                } else if (nfeDetail?.linkPdf) {
+                  nfeUrlFinal = nfeDetail.linkPdf;
                 } else if (nfeData.chaveAcesso) {
-                  nfeUrl = `https://www.bling.com.br/relatorios/nfe.php?s&chaveAcesso=${nfeData.chaveAcesso}`;
+                  nfeUrlFinal = `https://www.bling.com.br/relatorios/nfe.php?s&chaveAcesso=${nfeData.chaveAcesso}`;
                 }
               } catch (e) {
-                console.warn(`Não foi possível buscar DANFE para NF-e ${nfeData.id}`);
+                console.warn(`Não foi possível buscar link/DANFE para NF-e ${nfeData.id}`);
               }
             }
 
-            nfe = {
-              numero: nfeData.numero || null,
-              chave: nfeData.chaveAcesso || null,
-              url: nfeUrl,
-            };
+            // Só expor NF-e quando houver link (senão a nota pode não estar emitida)
+            if (nfeUrlFinal) {
+              nfe = {
+                numero: nfeData.numero || null,
+                chave: nfeData.chaveAcesso || null,
+                url: nfeUrlFinal,
+              };
+            }
           }
         } catch (e) {
           console.warn(`Não foi possível buscar NF-e para pedido ${orderId}`);
