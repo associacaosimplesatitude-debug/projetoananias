@@ -385,82 +385,79 @@ serve(async (req) => {
     }
 
     // =======================================================================
-    // PASSO 3: AGUARDAR e VERIFICAR STATUS
+    // PASSO 3: POLLING DE AUTORIZAÇÃO (4 tentativas, intervalo 1.5s)
     // =======================================================================
-    console.log(`[BLING-NFE] PASSO 3: Aguardando processamento...`);
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    const MAX_POLLING_ATTEMPTS = 4;
+    const POLLING_INTERVAL_MS = 1500;
 
-    console.log(`[BLING-NFE] Verificando status da NF-e ${nfeId}...`);
-    const checkNfeUrl = `https://api.bling.com.br/Api/v3/nfe/${nfeId}`;
-    const checkNfeResp = await fetch(checkNfeUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-      },
-    });
+    for (let attempt = 1; attempt <= MAX_POLLING_ATTEMPTS; attempt++) {
+      console.log(`[BLING-NFE] PASSO 3: Verificando autorização (tentativa ${attempt}/${MAX_POLLING_ATTEMPTS})...`);
+      await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
 
-    if (!checkNfeResp.ok) {
-      console.log(`[BLING-NFE] Erro ao verificar NF-e: ${checkNfeResp.status}`);
-      return new Response(
-        JSON.stringify({
-          success: true,
-          nfe_id: nfeId,
-          nfe_pendente: true,
-          message: 'NF-e criada e enviada. Aguarde autorização e tente novamente.',
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      const checkNfeUrl = `https://api.bling.com.br/Api/v3/nfe/${nfeId}`;
+      const checkNfeResp = await fetch(checkNfeUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
 
-    const checkNfeData = await checkNfeResp.json();
-    const nfeDetail = checkNfeData?.data;
-    const situacao = Number(nfeDetail?.situacao);
-    
-    console.log(`[BLING-NFE] Situação NF-e: ${situacao} (6=Autorizada)`);
+      if (!checkNfeResp.ok) {
+        console.log(`[BLING-NFE] Erro ao verificar NF-e na tentativa ${attempt}: ${checkNfeResp.status}`);
+        continue;
+      }
 
-    if (situacao === 6) {
-      // AUTORIZADA!
-      const danfeUrl = extractDanfeUrl(nfeDetail);
-      console.log(`[BLING-NFE] ✓ NF-e AUTORIZADA! DANFE: ${danfeUrl}`);
+      const checkNfeData = await checkNfeResp.json();
+      const nfeDetail = checkNfeData?.data;
+      const situacao = Number(nfeDetail?.situacao);
       
-      return new Response(
-        JSON.stringify({
-          success: true,
-          nfe_id: nfeId,
-          nfe_numero: nfeDetail?.numero,
-          nfe_url: danfeUrl,
-          nfe_pendente: false,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.log(`[BLING-NFE] Tentativa ${attempt}: Situação NF-e: ${situacao} (6=Autorizada, 4/5=Rejeitada)`);
+
+      if (situacao === 6) {
+        // AUTORIZADA!
+        const danfeUrl = extractDanfeUrl(nfeDetail);
+        console.log(`[BLING-NFE] ✓ NF-e AUTORIZADA na tentativa ${attempt}! DANFE: ${danfeUrl}`);
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            nfe_id: nfeId,
+            nfe_numero: nfeDetail?.numero,
+            nfe_url: danfeUrl,
+            nfe_pendente: false,
+            stage: 'authorized',
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verificar se há erro de rejeição - retornar imediatamente
+      if (situacao === 4 || situacao === 5) {
+        const rejectReason = nfeDetail?.motivoRejeicao || nfeDetail?.erroEnvio || 'Motivo não informado';
+        console.log(`[BLING-NFE] NF-e rejeitada/com erro na tentativa ${attempt}: ${rejectReason}`);
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            stage: 'authorization',
+            nfe_id: nfeId,
+            fiscal_error: `NF-e rejeitada pela SEFAZ: ${rejectReason}`,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    // NF-e ainda não autorizada
-    console.log(`[BLING-NFE] NF-e ainda pendente (situação: ${situacao})`);
-    
-    // Verificar se há erro de rejeição
-    if (situacao === 4 || situacao === 5) { // Rejeitada ou com erro
-      const rejectReason = nfeDetail?.motivoRejeicao || nfeDetail?.erroEnvio || 'Motivo não informado';
-      console.log(`[BLING-NFE] NF-e rejeitada/com erro: ${rejectReason}`);
-      
-      return new Response(
-        JSON.stringify({
-          success: false,
-          stage: 'authorization',
-          nfe_id: nfeId,
-          fiscal_error: `NF-e rejeitada pela SEFAZ: ${rejectReason}`,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // Após 4 tentativas, retornar pendente
+    console.log(`[BLING-NFE] NF-e ainda pendente após ${MAX_POLLING_ATTEMPTS} tentativas`);
     return new Response(
       JSON.stringify({
         success: true,
         nfe_id: nfeId,
-        nfe_numero: nfeDetail?.numero,
         nfe_pendente: true,
-        message: 'NF-e enviada para SEFAZ. Aguarde autorização e clique novamente em alguns segundos.',
+        polling_attempts: MAX_POLLING_ATTEMPTS,
+        stage: 'polling',
+        message: 'NF-e ainda em processamento. Clique novamente em alguns segundos.',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
