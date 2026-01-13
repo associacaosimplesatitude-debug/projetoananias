@@ -221,11 +221,18 @@ serve(async (req) => {
     const hoje = new Date().toISOString().split('T')[0]; // AAAA-MM-DD
 
     // Mapear itens do pedido para itens da NF-e
+    // Inclui NCM e CFOP obrigatórios para transmissão SEFAZ
     const itensNfe = (pedido.itens || []).map((item: any, idx: number) => {
       const codigo = item.codigo || item.produto?.codigo || `ITEM-${idx + 1}`;
       const descricao = item.descricao || item.produto?.descricao || item.produto?.nome || 'Produto';
       
-      console.log(`[BLING-NFE] Item ${idx + 1}: ${codigo} - ${descricao} (qtd: ${item.quantidade}, valor: ${item.valor})`);
+      // NCM: usar do produto ou padrão para livros/revistas
+      const ncm = item.produto?.ncm || item.ncm || '49019900'; // 49019900 = Livros, brochuras, impressos
+      
+      // CFOP: usar do produto ou padrão para venda dentro do estado
+      const cfop = item.produto?.cfop || item.cfop || '5102'; // 5102 = Venda mercadoria adquirida
+      
+      console.log(`[BLING-NFE] Item ${idx + 1}: ${codigo} - ${descricao} (qtd: ${item.quantidade}, valor: ${item.valor}, NCM: ${ncm}, CFOP: ${cfop})`);
       
       return {
         codigo: codigo,
@@ -235,6 +242,8 @@ serve(async (req) => {
         valor: Number(item.valor) || 0,
         tipo: 'P', // Produto
         origem: 0, // Nacional
+        ncm: ncm,  // Código NCM obrigatório para SEFAZ
+        cfop: cfop, // CFOP obrigatório para SEFAZ
       };
     });
 
@@ -268,18 +277,35 @@ serve(async (req) => {
     const numeroDoc = contato.numeroDocumento?.replace(/\D/g, '') || '';
     const tipoPessoa = numeroDoc.length > 11 ? 'J' : 'F';
 
-    // Montar payload completo da NF-e
+    // Montar payload completo da NF-e com dados fiscais obrigatórios
+    // Incluir endereço completo do contato para transmissão SEFAZ
+    const enderecoContato = contato.endereco || {};
+    
     const nfePayload: any = {
       tipo: 1, // 1 = Saída (venda)
       dataOperacao: hoje,
       dataEmissao: hoje,
       contato: {
         id: contato.id,
+        nome: contato.nome,
+        numeroDocumento: contato.numeroDocumento,
+        tipoPessoa: tipoPessoa, // 'F' = Física, 'J' = Jurídica
+        // Endereço completo (obrigatório para SEFAZ)
+        endereco: enderecoContato.endereco || enderecoContato.logradouro ? {
+          endereco: enderecoContato.endereco || enderecoContato.logradouro,
+          numero: enderecoContato.numero || 'S/N',
+          bairro: enderecoContato.bairro,
+          cep: enderecoContato.cep?.replace(/\D/g, ''),
+          municipio: enderecoContato.municipio || enderecoContato.cidade,
+          uf: enderecoContato.uf || enderecoContato.estado,
+        } : undefined,
       },
       itens: itensNfe,
       // Vincular ao pedido de venda original
       idPedidoVenda: orderId,
     };
+    
+    console.log(`[BLING-NFE] Contato completo:`, JSON.stringify(nfePayload.contato, null, 2));
 
     // Adicionar natureza de operação se disponível
     if (pedido.naturezaOperacao?.id) {
