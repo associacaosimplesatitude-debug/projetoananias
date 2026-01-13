@@ -1130,19 +1130,37 @@ serve(async (req) => {
         const detailData = await detailResponse.json();
         const contatoDetalhado = detailData?.data || {};
         
-        // Verificar se falta CPF/CNPJ ou número no endereço
+        // Verificar se falta CPF/CNPJ ou campos essenciais do endereço
         const docAtual = (contatoDetalhado.numeroDocumento || '').replace(/\D/g, '');
         const enderecoAtual = contatoDetalhado.endereco?.geral || contatoDetalhado.endereco || {};
+
         const numeroAtual = (enderecoAtual.numero || '').toString().trim();
-        
-        console.log(`[CONTATO] Dados atuais: cpfCnpj="${docAtual}" numero="${numeroAtual}"`);
-        
+        const cepAtual = String(enderecoAtual.cep || '').replace(/\D/g, '');
+        const ufAtual = String(enderecoAtual.uf || '').toUpperCase().trim();
+        const municipioAtual = String(enderecoAtual.municipio || '').trim();
+        const ruaAtual = String(enderecoAtual.endereco || '').trim();
+        const bairroAtual = String(enderecoAtual.bairro || '').trim();
+
+        const enderecoIncompleto =
+          !ruaAtual ||
+          !numeroAtual ||
+          !bairroAtual ||
+          !municipioAtual ||
+          !ufAtual ||
+          cepAtual.length < 8;
+
+        console.log(
+          `[CONTATO] Dados atuais: cpfCnpj="${docAtual}" rua="${ruaAtual}" numero="${numeroAtual}" bairro="${bairroAtual}" municipio="${municipioAtual}" uf="${ufAtual}" cepLen=${cepAtual.length}`,
+        );
+
         // Precisa atualizar se:
         // - CPF/CNPJ está vazio ou diferente
-        // - Número do endereço está vazio
-        if (!docAtual || docAtual !== documento || !numeroAtual || numeroAtual === '') {
+        // - Qualquer campo essencial do endereço está faltando
+        if (!docAtual || docAtual !== documento || enderecoIncompleto) {
           contatoPrecisaAtualizar = true;
-          console.log(`[CONTATO] Contato precisa atualização: docFaltando=${!docAtual || docAtual !== documento} numeroFaltando=${!numeroAtual}`);
+          console.log(
+            `[CONTATO] Contato precisa atualização: docFaltando=${!docAtual || docAtual !== documento} enderecoIncompleto=${enderecoIncompleto}`,
+          );
         }
       }
     } else {
