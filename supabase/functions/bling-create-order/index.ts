@@ -839,12 +839,38 @@ serve(async (req) => {
       isPagamentoLoja ? '(Pagamento na Loja → Atendido)' :
       isFaturamentoPagamento ? '(Faturamento → Em andamento)' : '(Pagamento direto → Em aberto)');
     
-    // ✅ NATUREZA DE OPERAÇÃO - SEMPRE retorna ID válido (com fallback Penha)
-    // Determinar tipo de pessoa (PF vs PJ) para fallback correto
+    // ✅ NATUREZA DE OPERAÇÃO - SEMPRE retorna ID válido
+    // Determinar tipo de pessoa (PF vs PJ) para seleção correta
     const documentoCliente = (cliente?.cpf_cnpj || cliente?.cpf || cliente?.documento || '').replace(/\D/g, '');
     const isPessoaFisica = documentoCliente.length <= 11;
-    const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken, isPessoaFisica);
-    console.log('[BLING] ✅ Natureza de operação garantida:', naturezaOperacaoId, isPessoaFisica ? '(PF)' : '(PJ)');
+    
+    // ✅ DETECÇÃO EXPLÍCITA DE ROTA PENHA - ANTES de resolver natureza
+    // Penha = retirada_penha OU pagamento_loja com deposito_origem === 'local'
+    const isRotaPenha = (
+      metodo_frete === 'retirada_penha' ||
+      (forma_pagamento === 'pagamento_loja' && deposito_origem === 'local')
+    );
+    
+    console.log('[ROUTING_FISCAL] Detecção de rota:', {
+      metodo_frete,
+      forma_pagamento,
+      deposito_origem,
+      isRotaPenha,
+      isPessoaFisica,
+      docLen: documentoCliente.length,
+    });
+    
+    // ✅ NATUREZA FIXA PARA PENHA (override obrigatório)
+    let naturezaOperacaoId: number;
+    if (isRotaPenha) {
+      // IDs fixos da Penha - não usar API, forçar diretamente
+      naturezaOperacaoId = isPessoaFisica ? NATUREZA_PENHA_PF : NATUREZA_PENHA_PJ;
+      console.log(`[ROUTING_FISCAL] ✅ PENHA DETECTADA - Natureza FORÇADA: ${naturezaOperacaoId} (${isPessoaFisica ? 'PF' : 'PJ'})`);
+    } else {
+      // Pedido normal - usar resolução padrão (ainda com fallback Penha se API falhar)
+      naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken, isPessoaFisica);
+      console.log('[BLING] ✅ Natureza de operação via API:', naturezaOperacaoId, isPessoaFisica ? '(PF)' : '(PJ)');
+    }
 
     // ✅ FORMA DE PAGAMENTO - Buscar ID de "Conta a receber/pagar" para gerar Contas a Receber
     const formaPagamentoContaReceberPagarId = await resolveFormaPagamentoContaReceberPagarId(accessToken);
