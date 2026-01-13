@@ -31,6 +31,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useVendedor } from "@/hooks/useVendedor";
 import { useUserRole } from "@/hooks/useUserRole";
 import { FaturamentoSelectionDialog, FreteManualData, PagamentoLojaData } from "@/components/shopify/FaturamentoSelectionDialog";
+import { VendaConcluidaDialog } from "@/components/shopify/VendaConcluidaDialog";
 import { DescontoRevendedorBanner } from "@/components/shopify/DescontoRevendedorBanner";
 import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { EnderecoEntregaSection } from "@/components/shopify/EnderecoEntregaSection";
@@ -121,6 +122,14 @@ export default function ShopifyPedidos() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [messageCopied, setMessageCopied] = useState(false);
   const [propostaClienteNome, setPropostaClienteNome] = useState<string>("");
+  
+  // Estados para diálogo de venda concluída (Pagar na Loja)
+  const [showVendaConcluidaDialog, setShowVendaConcluidaDialog] = useState(false);
+  const [vendaConcluida, setVendaConcluida] = useState<{
+    clienteNome: string;
+    blingOrderId: number | null;
+    blingOrderNumber: string | null;
+  } | null>(null);
   
   // Estados para endereço
   const [selectedEndereco, setSelectedEndereco] = useState<any>(null);
@@ -1532,9 +1541,14 @@ export default function ShopifyPedidos() {
                   }
                 });
                 if (error) throw error;
-                toast.success('Pedido registrado no Bling!', {
-                  description: `Pedido criado com sucesso para ${selectedCliente.nome_igreja}`,
+                
+                // Mostrar diálogo de venda concluída com opção de gerar NF-e
+                setVendaConcluida({
+                  clienteNome: selectedCliente.nome_igreja,
+                  blingOrderId: data?.bling_order_id || null,
+                  blingOrderNumber: data?.bling_order_number || null,
                 });
+                setShowVendaConcluidaDialog(true);
                 clearCart();
                 setIsCartOpen(false);
               } catch (err: any) {
@@ -1547,6 +1561,21 @@ export default function ShopifyPedidos() {
           />
         );
       })()}
+
+      {/* Venda Concluída Dialog - para Pagar na Loja */}
+      {vendaConcluida && (
+        <VendaConcluidaDialog
+          open={showVendaConcluidaDialog}
+          onOpenChange={setShowVendaConcluidaDialog}
+          clienteNome={vendaConcluida.clienteNome}
+          blingOrderId={vendaConcluida.blingOrderId}
+          blingOrderNumber={vendaConcluida.blingOrderNumber}
+          onClose={() => {
+            setVendaConcluida(null);
+            setShowVendaConcluidaDialog(false);
+          }}
+        />
+      )}
 
       {/* Proposta Link Dialog */}
       <Dialog open={showPropostaLinkDialog} onOpenChange={setShowPropostaLinkDialog}>
