@@ -112,83 +112,8 @@ serve(async (req) => {
       );
     }
 
-    // 1) Primeiro, verificar se já existe NF-e para este pedido
-    console.log(`[BLING-NFE] Verificando NF-es existentes para pedido ${bling_order_id}...`);
-    
-    const nfeSearchUrl = `https://www.bling.com.br/Api/v3/nfe?idPedidoVenda=${bling_order_id}`;
-    const nfeSearchResp = await fetch(nfeSearchUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (nfeSearchResp.ok) {
-      const nfeSearchData = await nfeSearchResp.json();
-      const nfes: any[] = Array.isArray(nfeSearchData?.data) ? nfeSearchData.data : [];
-      
-      // Procurar NF-e autorizada (situacao = 6)
-      const nfeAutorizada = nfes.find((n: any) => Number(n?.situacao) === 6);
-      
-      if (nfeAutorizada) {
-        console.log(`[BLING-NFE] NF-e já existe e está autorizada: ${nfeAutorizada.id}`);
-        
-        // Buscar detalhes para pegar o link da DANFE
-        const nfeDetailUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeAutorizada.id}`;
-        const nfeDetailResp = await fetch(nfeDetailUrl, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
-          },
-        });
-
-        if (nfeDetailResp.ok) {
-          const nfeDetail = await nfeDetailResp.json();
-          const detail = nfeDetail?.data;
-          
-          // Pegar link da DANFE
-          let danfeUrl = detail?.linkDanfe || detail?.link || detail?.linkPdf || null;
-          
-          // Preferir link doc.view.php (DANFE real)
-          if (detail?.link && detail.link.includes('doc.view.php')) {
-            danfeUrl = detail.link;
-          } else if (detail?.linkDanfe && detail.linkDanfe.includes('doc.view.php')) {
-            danfeUrl = detail.linkDanfe;
-          }
-
-          console.log(`[BLING-NFE] DANFE URL encontrada: ${danfeUrl}`);
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              nfe_id: nfeAutorizada.id,
-              nfe_numero: detail?.numero || nfeAutorizada.numero,
-              nfe_url: danfeUrl,
-              nfe_pendente: false,
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      // Se existe NF-e mas não está autorizada, está pendente
-      if (nfes.length > 0) {
-        console.log(`[BLING-NFE] NF-e existe mas ainda não está autorizada. Situação: ${nfes[0]?.situacao}`);
-        return new Response(
-          JSON.stringify({
-            success: true,
-            nfe_pendente: true,
-            message: 'NF-e em processamento',
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    // 2) Se não existe NF-e, gerar uma nova
-    console.log(`[BLING-NFE] Gerando nova NF-e para pedido ${bling_order_id}...`);
-
-    // Buscar dados do pedido para montar a NF-e
+    // PRIMEIRO: Buscar dados do pedido para saber o contato correto
+    console.log(`[BLING-NFE] Buscando dados do pedido ${bling_order_id}...`);
     const pedidoUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}`;
     const pedidoResp = await fetch(pedidoUrl, {
       headers: {
@@ -208,6 +133,138 @@ serve(async (req) => {
     if (!pedido) {
       throw new Error('Pedido não encontrado');
     }
+
+    const contatoIdDoPedido = pedido.contato?.id;
+    const contatoNome = pedido.contato?.nome || 'Desconhecido';
+    console.log(`[BLING-NFE] Pedido ${bling_order_id} pertence ao contato ID: ${contatoIdDoPedido} (${contatoNome})`);
+
+    // 1) Verificar se já existe NF-e para este pedido
+    console.log(`[BLING-NFE] Verificando NF-es existentes para pedido ${bling_order_id}...`);
+    
+    const nfeSearchUrl = `https://www.bling.com.br/Api/v3/nfe?idPedidoVenda=${bling_order_id}`;
+    const nfeSearchResp = await fetch(nfeSearchUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (nfeSearchResp.ok) {
+      const nfeSearchData = await nfeSearchResp.json();
+      const nfes: any[] = Array.isArray(nfeSearchData?.data) ? nfeSearchData.data : [];
+      console.log(`[BLING-NFE] Encontradas ${nfes.length} NF-es candidatas`);
+      
+      // Iterar por todas as NF-es e validar cada uma
+      let nfeValidaEncontrada = null;
+      let nfePendenteEncontrada = null;
+
+      for (const nfeCandidate of nfes) {
+        const sitId = Number(nfeCandidate?.situacao);
+        console.log(`[BLING-NFE] Analisando NF-e ${nfeCandidate.id}, situação: ${sitId}`);
+        
+        // Buscar detalhes da NF-e para validação
+        const nfeDetailUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeCandidate.id}`;
+        const nfeDetailResp = await fetch(nfeDetailUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+
+        if (!nfeDetailResp.ok) {
+          console.log(`[BLING-NFE] Falha ao buscar detalhes da NF-e ${nfeCandidate.id}, pulando...`);
+          continue;
+        }
+
+        const nfeDetailData = await nfeDetailResp.json();
+        const nfeDetail = nfeDetailData?.data;
+
+        if (!nfeDetail) {
+          console.log(`[BLING-NFE] NF-e ${nfeCandidate.id} sem dados, pulando...`);
+          continue;
+        }
+
+        // VALIDAÇÃO CRÍTICA: Verificar se a NF-e pertence ao pedido correto
+        const nfePedidoId = nfeDetail.pedidoVenda?.id;
+        const nfeContatoId = nfeDetail.contato?.id;
+        const nfeContatoNome = nfeDetail.contato?.nome || 'Desconhecido';
+
+        console.log(`[BLING-NFE] NF-e ${nfeCandidate.id}: pedidoVenda.id=${nfePedidoId}, contato.id=${nfeContatoId} (${nfeContatoNome})`);
+
+        // Rejeitar se o pedido não corresponder
+        if (nfePedidoId && nfePedidoId !== bling_order_id) {
+          console.log(`[BLING-NFE] REJEITADA: NF-e pertence ao pedido ${nfePedidoId}, não ao ${bling_order_id}`);
+          continue;
+        }
+
+        // Rejeitar se o contato não corresponder
+        if (contatoIdDoPedido && nfeContatoId && nfeContatoId !== contatoIdDoPedido) {
+          console.log(`[BLING-NFE] REJEITADA: NF-e pertence ao contato ${nfeContatoId} (${nfeContatoNome}), não ao ${contatoIdDoPedido} (${contatoNome})`);
+          continue;
+        }
+
+        console.log(`[BLING-NFE] NF-e ${nfeCandidate.id} VALIDADA - pertence ao pedido e contato corretos`);
+
+        // Se chegou aqui, a NF-e pertence ao pedido correto
+        if (sitId === 6) {
+          // NF-e autorizada e válida!
+          nfeValidaEncontrada = nfeDetail;
+          break; // Encontrou a NF-e perfeita, pode parar
+        } else {
+          // NF-e válida mas não autorizada ainda
+          nfePendenteEncontrada = nfeDetail;
+        }
+      }
+
+      // Se encontrou NF-e autorizada e válida
+      if (nfeValidaEncontrada) {
+        console.log(`[BLING-NFE] NF-e válida e autorizada encontrada: ${nfeValidaEncontrada.id}`);
+        
+        // Pegar link da DANFE
+        let danfeUrl = nfeValidaEncontrada.linkDanfe || nfeValidaEncontrada.link || nfeValidaEncontrada.linkPdf || null;
+        
+        // Preferir link doc.view.php (DANFE real)
+        if (nfeValidaEncontrada.link && nfeValidaEncontrada.link.includes('doc.view.php')) {
+          danfeUrl = nfeValidaEncontrada.link;
+        } else if (nfeValidaEncontrada.linkDanfe && nfeValidaEncontrada.linkDanfe.includes('doc.view.php')) {
+          danfeUrl = nfeValidaEncontrada.linkDanfe;
+        }
+
+        console.log(`[BLING-NFE] DANFE URL encontrada: ${danfeUrl}`);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            nfe_id: nfeValidaEncontrada.id,
+            nfe_numero: nfeValidaEncontrada.numero,
+            nfe_url: danfeUrl,
+            nfe_pendente: false,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Se existe NF-e válida mas não autorizada ainda
+      if (nfePendenteEncontrada) {
+        console.log(`[BLING-NFE] NF-e válida encontrada mas ainda não autorizada: ${nfePendenteEncontrada.id}, situação: ${nfePendenteEncontrada.situacao}`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            nfe_pendente: true,
+            message: 'NF-e em processamento. Aguarde autorização.',
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Se tinha NF-es candidatas mas nenhuma passou na validação
+      if (nfes.length > 0) {
+        console.log(`[BLING-NFE] ${nfes.length} NF-es encontradas, mas NENHUMA corresponde ao pedido ${bling_order_id}`);
+      }
+    }
+
+    // 2) Se não existe NF-e válida, gerar uma nova
+    console.log(`[BLING-NFE] Gerando nova NF-e para pedido ${bling_order_id}...`);
 
     // Criar NF-e a partir do pedido de venda
     // Endpoint para gerar NF-e: POST /Api/v3/nfe
