@@ -277,34 +277,94 @@ serve(async (req) => {
     const numeroDoc = contato.numeroDocumento?.replace(/\D/g, '') || '';
     const tipoPessoa = numeroDoc.length > 11 ? 'J' : 'F';
 
+    // Buscar detalhes completos do contato (o pedido pode vir sem endereço)
+    let contatoDetalhe: any = contato;
+    if (contato?.id) {
+      try {
+        const contatoUrl = `https://api.bling.com.br/Api/v3/contatos/${contato.id}`;
+        const contatoResp = await fetch(contatoUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+
+        if (contatoResp.ok) {
+          const contatoJson = await contatoResp.json();
+          contatoDetalhe = contatoJson?.data || contato;
+          console.log('[BLING-NFE] ✓ Contato detalhado carregado', {
+            id: contatoDetalhe?.id,
+            nome: contatoDetalhe?.nome,
+            hasEndereco: !!contatoDetalhe?.endereco,
+            cep: contatoDetalhe?.endereco?.cep,
+            uf: contatoDetalhe?.endereco?.uf,
+            municipio: contatoDetalhe?.endereco?.municipio,
+          });
+        } else {
+          const contatoErr = await contatoResp.json().catch(() => ({}));
+          console.log('[BLING-NFE] Aviso: não foi possível buscar contato detalhado', {
+            status: contatoResp.status,
+            error: extractFiscalError(contatoErr),
+          });
+        }
+      } catch (e) {
+        console.log('[BLING-NFE] Aviso: erro ao buscar contato detalhado', e);
+      }
+    }
+
     // Montar payload completo da NF-e com dados fiscais obrigatórios
     // Incluir endereço completo do contato para transmissão SEFAZ
-    const enderecoContato = contato.endereco || {};
-    
+    const enderecoContato = contatoDetalhe?.endereco || {};
+
+    // Validar endereço obrigatório (SEFAZ rejeita sem destinatário completo)
+    const enderecoLinha = enderecoContato.endereco || enderecoContato.logradouro;
+    const cep = enderecoContato.cep?.replace(/\D/g, '');
+    const municipio = enderecoContato.municipio || enderecoContato.cidade;
+    const uf = enderecoContato.uf || enderecoContato.estado;
+
+    const missingAddress = !enderecoLinha || !municipio || !uf || !cep;
+    if (missingAddress) {
+      console.log('[BLING-NFE] ✗ Endereço do destinatário incompleto', {
+        endereco: enderecoLinha,
+        municipio,
+        uf,
+        cep,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'create',
+          fiscal_error: 'Endereço do destinatário incompleto (CEP/UF/Município/Endereço). Atualize o cadastro do cliente no Bling e tente novamente.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const nfePayload: any = {
       tipo: 1, // 1 = Saída (venda)
       dataOperacao: hoje,
       dataEmissao: hoje,
       contato: {
-        id: contato.id,
-        nome: contato.nome,
-        numeroDocumento: contato.numeroDocumento,
+        id: contatoDetalhe.id,
+        nome: contatoDetalhe.nome,
+        numeroDocumento: contatoDetalhe.numeroDocumento || contato.numeroDocumento,
         tipoPessoa: tipoPessoa, // 'F' = Física, 'J' = Jurídica
         // Endereço completo (obrigatório para SEFAZ)
-        endereco: enderecoContato.endereco || enderecoContato.logradouro ? {
-          endereco: enderecoContato.endereco || enderecoContato.logradouro,
+        endereco: {
+          endereco: enderecoLinha,
           numero: enderecoContato.numero || 'S/N',
           bairro: enderecoContato.bairro,
-          cep: enderecoContato.cep?.replace(/\D/g, ''),
-          municipio: enderecoContato.municipio || enderecoContato.cidade,
-          uf: enderecoContato.uf || enderecoContato.estado,
-        } : undefined,
+          cep: cep,
+          municipio: municipio,
+          uf: uf,
+        },
       },
       itens: itensNfe,
       // Vincular ao pedido de venda original
       idPedidoVenda: orderId,
     };
-    
+
     console.log(`[BLING-NFE] Contato completo:`, JSON.stringify(nfePayload.contato, null, 2));
 
     // Adicionar natureza de operação se disponível
@@ -503,6 +563,33 @@ serve(async (req) => {
     const sendNfeData = await sendNfeResp.json();
     console.log(`[BLING-NFE] Status envio: ${sendNfeResp.status}`);
     console.log(`[BLING-NFE] Resposta envio:`, JSON.stringify(sendNfeData, null, 2));
+
+    // Se o Bling retornar XML da SEFAZ, extrair motivo (ex.: Rejeição 726)
+    const sefazXml: string | undefined = sendNfeData?.data?.xml;
+    const xmlInfProtMotivo = typeof sefazXml === 'string'
+      ? (sefazXml.match(/<infProt[\s\S]*?<xMotivo>([^<]+)<\/xMotivo>/)?.[1] || null)
+      : null;
+    const xmlInfProtCStat = typeof sefazXml === 'string'
+      ? (sefazXml.match(/<infProt[\s\S]*?<cStat>(\d+)<\/cStat>/)?.[1] || null)
+      : null;
+
+    if (xmlInfProtCStat && xmlInfProtMotivo) {
+      console.log('[BLING-NFE] Retorno SEFAZ (infProt)', { cStat: xmlInfProtCStat, xMotivo: xmlInfProtMotivo });
+      const cStatNum = Number(xmlInfProtCStat);
+      // 100 = Autorizado. Outros códigos (ex.: 726) = rejeição
+      if (!Number.isNaN(cStatNum) && cStatNum !== 100) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            stage: 'authorization',
+            nfe_id: nfeId,
+            fiscal_error: `NF-e rejeitada pela SEFAZ: ${xmlInfProtMotivo}`,
+            raw: sendNfeData,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     if (!sendNfeResp.ok) {
       const fiscalError = extractFiscalError(sendNfeData);
