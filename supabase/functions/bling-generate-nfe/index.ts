@@ -203,17 +203,22 @@ serve(async (req) => {
     }
 
     // =======================================================================
-    // PASSO 1: CRIAR NF-e via POST /nfe/vendas/{id} (ENDPOINT CORRETO V3)
+    // PASSO 1: CRIAR NF-e via POST /nfe (ENDPOINT CORRETO API V3)
+    // Body: { idPedidoVenda: ID_DO_PEDIDO }
     // =======================================================================
-    console.log(`[BLING-NFE] PASSO 1: Criando NF-e via POST /nfe/vendas/${bling_order_id}`);
+    console.log(`[BLING-NFE] PASSO 1: Criando NF-e via POST /nfe com idPedidoVenda=${bling_order_id}`);
 
-    const createNfeUrl = `https://api.bling.com.br/Api/v3/nfe/vendas/${bling_order_id}`;
+    const createNfeUrl = 'https://api.bling.com.br/Api/v3/nfe';
     const createNfeResp = await fetch(createNfeUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json',
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        idPedidoVenda: bling_order_id
+      }),
     });
 
     const createNfeData = await createNfeResp.json();
