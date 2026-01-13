@@ -36,7 +36,9 @@ export default function VendedorNotasEmitidas() {
   const { data: notas, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["notas-emitidas", vendedor?.id],
     queryFn: async () => {
-      // Buscar pedidos com NF-e emitida
+      if (!vendedor?.id) return [];
+      
+      // Buscar pedidos com NF-e emitida, filtrados pelo vendedor
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select(`
@@ -51,6 +53,7 @@ export default function VendedorNotasEmitidas() {
           status_pagamento,
           cliente_id
         `)
+        .eq("vendedor_id", vendedor.id)
         .not("nota_fiscal_numero", "is", null)
         .order("created_at", { ascending: false })
         .limit(100);
