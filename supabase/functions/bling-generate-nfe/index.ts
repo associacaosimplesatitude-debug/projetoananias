@@ -6,6 +6,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper para extrair mensagem de erro fiscal do Bling
+function extractFiscalError(data: any): string | null {
+  if (!data) return null;
+  
+  // Tentar diferentes formatos de erro do Bling
+  if (data.error?.message) return data.error.message;
+  if (data.error?.description) return data.error.description;
+  if (data.message) return data.message;
+  if (data.mensagem) return data.mensagem;
+  
+  // Array de erros
+  if (Array.isArray(data.errors) && data.errors.length > 0) {
+    return data.errors.map((e: any) => e.message || e.mensagem || JSON.stringify(e)).join('; ');
+  }
+  if (Array.isArray(data.erros) && data.erros.length > 0) {
+    return data.erros.map((e: any) => e.message || e.mensagem || JSON.stringify(e)).join('; ');
+  }
+  
+  // Estrutura data.error com campos específicos
+  if (data.error?.fields) {
+    const fieldErrors = Object.entries(data.error.fields)
+      .map(([field, msg]) => `${field}: ${msg}`)
+      .join('; ');
+    if (fieldErrors) return fieldErrors;
+  }
+  
+  return null;
+}
+
 // Função para renovar o token do Bling
 async function refreshBlingToken(supabase: any, config: any, tableName: string, clientId: string, clientSecret: string): Promise<string> {
   if (!config.refresh_token) {
@@ -16,7 +45,7 @@ async function refreshBlingToken(supabase: any, config: any, tableName: string, 
   
   const credentials = btoa(`${clientId}:${clientSecret}`);
   
-  const tokenResponse = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
+  const tokenResponse = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -64,6 +93,21 @@ function isTokenExpired(tokenExpiresAt: string | null): boolean {
   return now.getTime() >= expiresAt.getTime() - bufferMs;
 }
 
+// Helper para extrair DANFE URL
+function extractDanfeUrl(nfeDetail: any): string | null {
+  if (!nfeDetail) return null;
+  
+  // Preferir link doc.view.php (DANFE real)
+  if (nfeDetail.link && nfeDetail.link.includes('doc.view.php')) {
+    return nfeDetail.link;
+  }
+  if (nfeDetail.linkDanfe && nfeDetail.linkDanfe.includes('doc.view.php')) {
+    return nfeDetail.linkDanfe;
+  }
+  
+  return nfeDetail.linkDanfe || nfeDetail.link || nfeDetail.linkPdf || null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -74,12 +118,12 @@ serve(async (req) => {
 
     if (!bling_order_id) {
       return new Response(
-        JSON.stringify({ error: 'bling_order_id é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'bling_order_id é obrigatório' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[BLING-NFE] Gerando NF-e para pedido: ${bling_order_id}`);
+    console.log(`[BLING-NFE] ===== INICIANDO GERAÇÃO DE NF-e para pedido: ${bling_order_id} =====`);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -96,7 +140,10 @@ serve(async (req) => {
 
     if (configError || !blingConfig) {
       console.error('[BLING-NFE] Erro ao buscar config:', configError);
-      throw new Error('Configuração do Bling não encontrada');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Configuração do Bling não encontrada', stage: 'config' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     let accessToken = blingConfig.access_token;
@@ -112,413 +159,261 @@ serve(async (req) => {
       );
     }
 
-    // PRIMEIRO: Buscar dados do pedido para saber o contato correto
-    console.log(`[BLING-NFE] Buscando dados do pedido ${bling_order_id}...`);
-    const pedidoUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}`;
-    const pedidoResp = await fetch(pedidoUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!pedidoResp.ok) {
-      console.error('[BLING-NFE] Erro ao buscar pedido:', await pedidoResp.text());
-      throw new Error('Não foi possível buscar dados do pedido');
-    }
-
-    const pedidoData = await pedidoResp.json();
-    const pedido = pedidoData?.data;
-
-    if (!pedido) {
-      throw new Error('Pedido não encontrado');
-    }
-
-    const contatoIdDoPedido = pedido.contato?.id;
-    const contatoNome = pedido.contato?.nome || 'Desconhecido';
-    console.log(`[BLING-NFE] Pedido ${bling_order_id} pertence ao contato ID: ${contatoIdDoPedido} (${contatoNome})`);
-
-    // 1) Verificar se já existe NF-e para este pedido
-    console.log(`[BLING-NFE] Verificando NF-es existentes para pedido ${bling_order_id}...`);
+    // =======================================================================
+    // FLUXO OBRIGATÓRIO: CRIAR NF-e PRIMEIRO via POST /nfe/pedido/{idPedido}
+    // =======================================================================
+    console.log(`[BLING-NFE] PASSO 1: Criando NF-e via POST /nfe/pedido/${bling_order_id}`);
     
-    const nfeSearchUrl = `https://www.bling.com.br/Api/v3/nfe?idPedidoVenda=${bling_order_id}`;
-    const nfeSearchResp = await fetch(nfeSearchUrl, {
+    const createNfeUrl = `https://api.bling.com.br/Api/v3/nfe/pedido/${bling_order_id}`;
+    const createNfeResp = await fetch(createNfeUrl, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json',
       },
     });
 
-    if (nfeSearchResp.ok) {
-      const nfeSearchData = await nfeSearchResp.json();
-      const nfes: any[] = Array.isArray(nfeSearchData?.data) ? nfeSearchData.data : [];
-      console.log(`[BLING-NFE] Encontradas ${nfes.length} NF-es candidatas`);
+    const createNfeData = await createNfeResp.json();
+    console.log(`[BLING-NFE] Status criação: ${createNfeResp.status}`);
+    console.log(`[BLING-NFE] Resposta criação:`, JSON.stringify(createNfeData, null, 2));
+
+    let nfeId: number | null = null;
+
+    // Analisar resposta da criação
+    if (createNfeResp.ok && createNfeData?.data?.id) {
+      // SUCESSO: NF-e criada!
+      nfeId = createNfeData.data.id;
+      console.log(`[BLING-NFE] ✓ NF-e criada com sucesso! ID: ${nfeId}`);
       
-      // Iterar por todas as NF-es e validar cada uma
-      let nfeValidaEncontrada = null;
-      let nfePendenteEncontrada = null;
-
-      for (const nfeCandidate of nfes) {
-        const sitId = Number(nfeCandidate?.situacao);
-        console.log(`[BLING-NFE] Analisando NF-e ${nfeCandidate.id}, situação: ${sitId}`);
+    } else if (createNfeResp.status === 409 || createNfeResp.status === 422) {
+      // Possível duplicidade - NF-e já existe para este pedido
+      const fiscalError = extractFiscalError(createNfeData);
+      console.log(`[BLING-NFE] Status ${createNfeResp.status}: ${fiscalError}`);
+      
+      // Verificar se é erro de duplicidade
+      const isDuplicate = fiscalError?.toLowerCase().includes('já existe') ||
+                          fiscalError?.toLowerCase().includes('duplicad') ||
+                          fiscalError?.toLowerCase().includes('already exists') ||
+                          createNfeData?.data?.id; // Às vezes retorna 422 mas com o ID
+      
+      if (isDuplicate || createNfeData?.data?.id) {
+        nfeId = createNfeData?.data?.id;
+        console.log(`[BLING-NFE] NF-e já existe para este pedido. ID: ${nfeId || 'buscando...'}`);
         
-        // Buscar detalhes da NF-e para validação
-        const nfeDetailUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeCandidate.id}`;
-        const nfeDetailResp = await fetch(nfeDetailUrl, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
-          },
-        });
-
-        if (!nfeDetailResp.ok) {
-          console.log(`[BLING-NFE] Falha ao buscar detalhes da NF-e ${nfeCandidate.id}, pulando...`);
-          continue;
-        }
-
-        const nfeDetailData = await nfeDetailResp.json();
-        const nfeDetail = nfeDetailData?.data;
-
-        if (!nfeDetail) {
-          console.log(`[BLING-NFE] NF-e ${nfeCandidate.id} sem dados, pulando...`);
-          continue;
-        }
-
-        // VALIDAÇÃO CRÍTICA: Verificar se a NF-e pertence ao pedido correto
-        const nfePedidoId = nfeDetail.pedidoVenda?.id;
-        const nfeContatoId = nfeDetail.contato?.id;
-        const nfeContatoNome = nfeDetail.contato?.nome || 'Desconhecido';
-
-        console.log(`[BLING-NFE] NF-e ${nfeCandidate.id}: pedidoVenda.id=${nfePedidoId}, contato.id=${nfeContatoId} (${nfeContatoNome})`);
-
-        // Rejeitar se o pedido não corresponder
-        if (nfePedidoId && nfePedidoId !== bling_order_id) {
-          console.log(`[BLING-NFE] REJEITADA: NF-e pertence ao pedido ${nfePedidoId}, não ao ${bling_order_id}`);
-          continue;
-        }
-
-        // Rejeitar se o contato não corresponder
-        if (contatoIdDoPedido && nfeContatoId && nfeContatoId !== contatoIdDoPedido) {
-          console.log(`[BLING-NFE] REJEITADA: NF-e pertence ao contato ${nfeContatoId} (${nfeContatoNome}), não ao ${contatoIdDoPedido} (${contatoNome})`);
-          continue;
-        }
-
-        console.log(`[BLING-NFE] NF-e ${nfeCandidate.id} VALIDADA - pertence ao pedido e contato corretos`);
-
-        // Se chegou aqui, a NF-e pertence ao pedido correto
-        if (sitId === 6) {
-          // NF-e autorizada e válida!
-          nfeValidaEncontrada = nfeDetail;
-          break; // Encontrou a NF-e perfeita, pode parar
-        } else {
-          // NF-e válida mas não autorizada ainda
-          nfePendenteEncontrada = nfeDetail;
-        }
-      }
-
-      // Se encontrou NF-e autorizada e válida
-      if (nfeValidaEncontrada) {
-        console.log(`[BLING-NFE] NF-e válida e autorizada encontrada: ${nfeValidaEncontrada.id}`);
-        
-        // Pegar link da DANFE
-        let danfeUrl = nfeValidaEncontrada.linkDanfe || nfeValidaEncontrada.link || nfeValidaEncontrada.linkPdf || null;
-        
-        // Preferir link doc.view.php (DANFE real)
-        if (nfeValidaEncontrada.link && nfeValidaEncontrada.link.includes('doc.view.php')) {
-          danfeUrl = nfeValidaEncontrada.link;
-        } else if (nfeValidaEncontrada.linkDanfe && nfeValidaEncontrada.linkDanfe.includes('doc.view.php')) {
-          danfeUrl = nfeValidaEncontrada.linkDanfe;
-        }
-
-        console.log(`[BLING-NFE] DANFE URL encontrada: ${danfeUrl}`);
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            nfe_id: nfeValidaEncontrada.id,
-            nfe_numero: nfeValidaEncontrada.numero,
-            nfe_url: danfeUrl,
-            nfe_pendente: false,
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Se existe NF-e válida mas não autorizada ainda, ENVIAR para SEFAZ
-      if (nfePendenteEncontrada) {
-        const nfeId = nfePendenteEncontrada.id;
-        console.log(`[BLING-NFE] NF-e pendente encontrada: ${nfeId}, situação: ${nfePendenteEncontrada.situacao}. Enviando para SEFAZ...`);
-        
-        // Enviar NF-e para autorização na SEFAZ
-        const enviarUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeId}/enviar`;
-        const enviarResp = await fetch(enviarUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
-          },
-        });
-        
-        const enviarData = await enviarResp.json();
-        console.log(`[BLING-NFE] Resposta envio SEFAZ:`, JSON.stringify(enviarData, null, 2));
-        
-        if (enviarResp.ok) {
-          // Aguardar processamento
-          console.log(`[BLING-NFE] NF-e enviada. Aguardando processamento...`);
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          // Buscar NF-e atualizada
-          const nfeAtualizadaResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/${nfeId}`, {
+        // Se não veio o ID, buscar a NF-e existente
+        if (!nfeId) {
+          console.log(`[BLING-NFE] Buscando NF-e existente para pedido ${bling_order_id}...`);
+          const searchUrl = `https://api.bling.com.br/Api/v3/nfe?idPedidoVenda=${bling_order_id}`;
+          const searchResp = await fetch(searchUrl, {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
               'Accept': 'application/json',
             },
           });
           
-          if (nfeAtualizadaResp.ok) {
-            const nfeAtualizadaData = await nfeAtualizadaResp.json();
-            const nfeAtualizada = nfeAtualizadaData?.data;
-            
-            if (Number(nfeAtualizada?.situacao) === 6) {
-              // Autorizada!
-              let danfeUrl = nfeAtualizada.linkDanfe || nfeAtualizada.link || nfeAtualizada.linkPdf || null;
-              
-              if (nfeAtualizada.link && nfeAtualizada.link.includes('doc.view.php')) {
-                danfeUrl = nfeAtualizada.link;
-              }
-              
-              console.log(`[BLING-NFE] NF-e autorizada com sucesso! DANFE: ${danfeUrl}`);
-              
-              return new Response(
-                JSON.stringify({
-                  success: true,
-                  nfe_id: nfeId,
-                  nfe_numero: nfeAtualizada.numero,
-                  nfe_url: danfeUrl,
-                  nfe_pendente: false,
-                }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
+          if (searchResp.ok) {
+            const searchData = await searchResp.json();
+            const nfes = Array.isArray(searchData?.data) ? searchData.data : [];
+            if (nfes.length > 0) {
+              nfeId = nfes[0].id;
+              console.log(`[BLING-NFE] NF-e encontrada: ${nfeId}`);
             }
           }
         }
         
-        // Se ainda não autorizou, retornar como pendente
-        return new Response(
-          JSON.stringify({
-            success: true,
-            nfe_pendente: true,
-            message: 'NF-e enviada para SEFAZ. Aguarde autorização e clique novamente.',
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Se tinha NF-es candidatas mas nenhuma passou na validação
-      if (nfes.length > 0) {
-        console.log(`[BLING-NFE] ${nfes.length} NF-es encontradas, mas NENHUMA corresponde ao pedido ${bling_order_id}`);
-      }
-    }
-
-    // 2) Se não existe NF-e válida, gerar uma nova
-    console.log(`[BLING-NFE] Gerando nova NF-e para pedido ${bling_order_id}...`);
-
-    // Criar NF-e a partir do pedido de venda
-    // Endpoint para gerar NF-e: POST /Api/v3/nfe
-    const nfePayload = {
-      tipo: 1, // 1 = NF-e de Saída
-      dataOperacao: new Date().toISOString().split('T')[0],
-      contato: pedido.contato,
-      itens: pedido.itens?.map((item: any) => ({
-        codigo: item.codigo || item.sku,
-        descricao: item.descricao,
-        unidade: item.unidade || 'UN',
-        quantidade: item.quantidade,
-        valor: item.valor,
-        tipo: 'P', // Produto
-      })),
-      // Usar natureza de operação padrão para venda
-      naturezaOperacao: {
-        id: pedido.naturezaOperacao?.id || 1,
-      },
-      // Transporte
-      transporte: pedido.transporte,
-    };
-
-    console.log('[BLING-NFE] Payload para criação de NF-e:', JSON.stringify(nfePayload, null, 2));
-
-    const createNfeResp = await fetch('https://www.bling.com.br/Api/v3/nfe', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(nfePayload),
-    });
-
-    const createNfeData = await createNfeResp.json();
-    console.log('[BLING-NFE] Resposta criação NF-e:', JSON.stringify(createNfeData, null, 2));
-
-    if (!createNfeResp.ok) {
-      // Tentar método alternativo: gerar NF-e a partir do pedido
-      console.log('[BLING-NFE] Tentando método alternativo: POST /nfe/pedido/{idPedido}');
-      
-      const altNfeResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/pedido/${bling_order_id}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-        },
-      });
-
-      const altNfeData = await altNfeResp.json();
-      console.log('[BLING-NFE] Resposta alternativa:', JSON.stringify(altNfeData, null, 2));
-
-      if (!altNfeResp.ok) {
+        if (!nfeId) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              stage: 'create',
+              fiscal_error: fiscalError || 'NF-e pode já existir mas não foi possível localizá-la. Verifique no Bling.',
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
+        // Erro fiscal real (não é duplicidade)
+        console.log(`[BLING-NFE] ✗ Erro fiscal na criação: ${fiscalError}`);
         return new Response(
           JSON.stringify({
             success: false,
-            error: 'Não foi possível gerar a NF-e. Gere manualmente pelo Bling.',
-            nfe_pendente: true,
+            stage: 'create',
+            bling_status: createNfeResp.status,
+            fiscal_error: fiscalError || 'Erro ao criar NF-e. Verifique os dados do pedido no Bling.',
+            raw: createNfeData,
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      // NF-e criada via método alternativo - enviar para SEFAZ
-      const altNfeId = altNfeData?.data?.id;
-      if (altNfeId) {
-        console.log(`[BLING-NFE] NF-e criada (${altNfeId}). Enviando para SEFAZ...`);
-        
-        const enviarAltResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/${altNfeId}/enviar`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
-          },
-        });
-        
-        console.log(`[BLING-NFE] Resposta envio (alt):`, await enviarAltResp.text());
-        
-        // Aguardar e verificar status
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        const altCheckResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/${altNfeId}`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
-          },
-        });
-        
-        if (altCheckResp.ok) {
-          const altCheckData = await altCheckResp.json();
-          const altDetail = altCheckData?.data;
-          
-          if (Number(altDetail?.situacao) === 6) {
-            let danfeUrl = altDetail.linkDanfe || altDetail.link || null;
-            if (altDetail.link && altDetail.link.includes('doc.view.php')) {
-              danfeUrl = altDetail.link;
-            }
-            
-            return new Response(
-              JSON.stringify({
-                success: true,
-                nfe_id: altNfeId,
-                nfe_numero: altDetail.numero,
-                nfe_url: danfeUrl,
-                nfe_pendente: false,
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-        }
-      }
-
+      
+    } else if (createNfeResp.status === 400) {
+      // Erro de validação - mostrar erro fiscal detalhado
+      const fiscalError = extractFiscalError(createNfeData);
+      console.log(`[BLING-NFE] ✗ Erro 400 na criação: ${fiscalError}`);
+      
       return new Response(
         JSON.stringify({
-          success: true,
-          nfe_id: altNfeId,
-          nfe_pendente: true,
-          message: 'NF-e criada e enviada para SEFAZ. Aguarde autorização.',
+          success: false,
+          stage: 'create',
+          bling_status: 400,
+          fiscal_error: fiscalError || 'Dados do pedido incompletos ou inválidos. Verifique cliente, endereço e natureza de operação no Bling.',
+          raw: createNfeData,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+      
+    } else {
+      // Outro erro
+      const fiscalError = extractFiscalError(createNfeData);
+      console.log(`[BLING-NFE] ✗ Erro ${createNfeResp.status} na criação: ${fiscalError}`);
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'create',
+          bling_status: createNfeResp.status,
+          fiscal_error: fiscalError || `Erro inesperado ao criar NF-e (código ${createNfeResp.status}).`,
+          raw: createNfeData,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // NF-e criada com sucesso - enviar para SEFAZ
-    const nfeId = createNfeData?.data?.id;
+    // =======================================================================
+    // PASSO 2: ENVIAR NF-e para SEFAZ via POST /nfe/{id}/enviar
+    // =======================================================================
+    console.log(`[BLING-NFE] PASSO 2: Enviando NF-e ${nfeId} para SEFAZ...`);
     
-    if (nfeId) {
-      console.log(`[BLING-NFE] NF-e criada (${nfeId}). Enviando para SEFAZ...`);
-      
-      const enviarResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/${nfeId}/enviar`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-        },
-      });
-      
-      const enviarData = await enviarResp.json();
-      console.log(`[BLING-NFE] Resposta envio SEFAZ:`, JSON.stringify(enviarData, null, 2));
-    }
-
-    // Aguardar processamento
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    // Buscar detalhes da NF-e criada
-    const newNfeDetailUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeId}`;
-    const newNfeDetailResp = await fetch(newNfeDetailUrl, {
+    const sendNfeUrl = `https://api.bling.com.br/Api/v3/nfe/${nfeId}/enviar`;
+    const sendNfeResp = await fetch(sendNfeUrl, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json',
       },
     });
 
-    if (newNfeDetailResp.ok) {
-      const newNfeDetail = await newNfeDetailResp.json();
-      const detail = newNfeDetail?.data;
+    const sendNfeData = await sendNfeResp.json();
+    console.log(`[BLING-NFE] Status envio: ${sendNfeResp.status}`);
+    console.log(`[BLING-NFE] Resposta envio:`, JSON.stringify(sendNfeData, null, 2));
+
+    if (!sendNfeResp.ok) {
+      const fiscalError = extractFiscalError(sendNfeData);
       
-      if (Number(detail?.situacao) === 6) {
-        // Autorizada!
-        let danfeUrl = detail?.linkDanfe || detail?.link || detail?.linkPdf || null;
-        
-        if (detail?.link && detail.link.includes('doc.view.php')) {
-          danfeUrl = detail.link;
-        }
-
-        console.log(`[BLING-NFE] NF-e autorizada! DANFE: ${danfeUrl}`);
-
+      // Verificar se é erro de "já enviada"
+      const alreadySent = fiscalError?.toLowerCase().includes('já enviada') ||
+                          fiscalError?.toLowerCase().includes('already sent') ||
+                          fiscalError?.toLowerCase().includes('autorizada');
+      
+      if (!alreadySent) {
+        console.log(`[BLING-NFE] ✗ Erro ao enviar para SEFAZ: ${fiscalError}`);
         return new Response(
           JSON.stringify({
-            success: true,
+            success: false,
+            stage: 'send',
+            bling_status: sendNfeResp.status,
+            fiscal_error: fiscalError || 'Erro ao enviar NF-e para SEFAZ. Verifique os dados fiscais no Bling.',
             nfe_id: nfeId,
-            nfe_numero: detail?.numero,
-            nfe_url: danfeUrl,
-            nfe_pendente: false,
+            raw: sendNfeData,
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      console.log(`[BLING-NFE] NF-e já foi enviada anteriormente, verificando status...`);
+    } else {
+      console.log(`[BLING-NFE] ✓ NF-e enviada para SEFAZ com sucesso!`);
     }
 
-    // NF-e criada mas ainda pendente de autorização
+    // =======================================================================
+    // PASSO 3: AGUARDAR e VERIFICAR STATUS
+    // =======================================================================
+    console.log(`[BLING-NFE] PASSO 3: Aguardando processamento...`);
+    await new Promise(resolve => setTimeout(resolve, 2500));
+
+    console.log(`[BLING-NFE] Verificando status da NF-e ${nfeId}...`);
+    const checkNfeUrl = `https://api.bling.com.br/Api/v3/nfe/${nfeId}`;
+    const checkNfeResp = await fetch(checkNfeUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!checkNfeResp.ok) {
+      console.log(`[BLING-NFE] Erro ao verificar NF-e: ${checkNfeResp.status}`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          nfe_id: nfeId,
+          nfe_pendente: true,
+          message: 'NF-e criada e enviada. Aguarde autorização e tente novamente.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const checkNfeData = await checkNfeResp.json();
+    const nfeDetail = checkNfeData?.data;
+    const situacao = Number(nfeDetail?.situacao);
+    
+    console.log(`[BLING-NFE] Situação NF-e: ${situacao} (6=Autorizada)`);
+
+    if (situacao === 6) {
+      // AUTORIZADA!
+      const danfeUrl = extractDanfeUrl(nfeDetail);
+      console.log(`[BLING-NFE] ✓ NF-e AUTORIZADA! DANFE: ${danfeUrl}`);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          nfe_id: nfeId,
+          nfe_numero: nfeDetail?.numero,
+          nfe_url: danfeUrl,
+          nfe_pendente: false,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // NF-e ainda não autorizada
+    console.log(`[BLING-NFE] NF-e ainda pendente (situação: ${situacao})`);
+    
+    // Verificar se há erro de rejeição
+    if (situacao === 4 || situacao === 5) { // Rejeitada ou com erro
+      const rejectReason = nfeDetail?.motivoRejeicao || nfeDetail?.erroEnvio || 'Motivo não informado';
+      console.log(`[BLING-NFE] NF-e rejeitada/com erro: ${rejectReason}`);
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'authorization',
+          nfe_id: nfeId,
+          fiscal_error: `NF-e rejeitada pela SEFAZ: ${rejectReason}`,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         nfe_id: nfeId,
+        nfe_numero: nfeDetail?.numero,
         nfe_pendente: true,
-        message: 'NF-e criada e enviada para SEFAZ. Aguarde autorização.',
+        message: 'NF-e enviada para SEFAZ. Aguarde autorização e clique novamente em alguns segundos.',
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('[BLING-NFE] Erro:', error);
+    console.error('[BLING-NFE] Erro inesperado:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        stage: 'unknown',
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

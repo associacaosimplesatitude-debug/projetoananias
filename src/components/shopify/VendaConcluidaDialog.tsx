@@ -51,18 +51,37 @@ export function VendaConcluidaDialog({
 
       if (error) throw error;
 
+      // Verificar se houve erro fiscal
+      if (data?.success === false) {
+        const errorMsg = data.fiscal_error || data.error || "Erro ao gerar NF-e";
+        const stage = data.stage || "unknown";
+        
+        console.error(`[NF-e] Erro na etapa '${stage}':`, errorMsg, data.raw);
+        
+        // Mostrar erro fiscal detalhado
+        toast.error(errorMsg, { 
+          duration: 8000,
+          description: stage === 'create' 
+            ? 'Verifique os dados do pedido no Bling.' 
+            : stage === 'send' 
+              ? 'Verifique as configurações fiscais.'
+              : undefined
+        });
+        return;
+      }
+
       if (data?.nfe_url) {
         setNfeUrl(data.nfe_url);
         setNfePendente(false);
-        toast.success("NF-e gerada com sucesso!");
+        toast.success("NF-e autorizada com sucesso!");
       } else if (data?.nfe_pendente) {
-        toast.info("NF-e em processamento. Tente novamente em alguns segundos.");
+        toast.info(data.message || "NF-e enviada para SEFAZ. Aguarde alguns segundos e clique novamente.");
       } else {
-        toast.error("Não foi possível gerar a NF-e. Tente novamente.");
+        toast.warning("Resposta inesperada. Tente novamente.");
       }
     } catch (err: any) {
       console.error("Erro ao gerar NF-e:", err);
-      toast.error("Erro ao gerar NF-e: " + (err.message || "Tente novamente"));
+      toast.error("Erro de conexão: " + (err.message || "Tente novamente"));
     } finally {
       setIsGeneratingNfe(false);
     }
@@ -134,8 +153,8 @@ export function VendaConcluidaDialog({
               <>
                 <p className="text-sm text-muted-foreground">
                   {nfePendente 
-                    ? "A NF-e está sendo processada. Clique para tentar buscar ou gerar novamente."
-                    : "Gere a nota fiscal para imprimir e entregar ao cliente."}
+                    ? "A NF-e foi enviada para SEFAZ. Clique para verificar autorização."
+                    : "Clique para gerar e enviar a NF-e automaticamente."}
                 </p>
                 <Button
                   onClick={handleGenerateNfe}
