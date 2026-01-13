@@ -1543,12 +1543,20 @@ export default function ShopifyPedidos() {
                 if (error) throw error;
                 
                 // Mostrar diálogo de venda concluída com opção de gerar NF-e
-                setVendaConcluida({
-                  clienteNome: selectedCliente.nome_igreja,
-                  blingOrderId: data?.bling_order_id || null,
-                  blingOrderNumber: data?.bling_order_number || null,
-                });
-                setShowVendaConcluidaDialog(true);
+                // Apenas para vendas com material saindo do depósito Penha (local)
+                if (pagamentoData.depositoOrigem === 'local') {
+                  setVendaConcluida({
+                    clienteNome: selectedCliente.nome_igreja,
+                    blingOrderId: data?.bling_order_id || null,
+                    blingOrderNumber: data?.bling_order_number || null,
+                  });
+                  setShowVendaConcluidaDialog(true);
+                } else {
+                  // Matriz ou PE: apenas toast de sucesso, fluxo normal
+                  toast.success('Pedido criado com sucesso!', {
+                    description: `Pedido #${data?.bling_order_number || data?.bling_order_id} registrado no Bling`
+                  });
+                }
                 clearCart();
                 setIsCartOpen(false);
               } catch (err: any) {

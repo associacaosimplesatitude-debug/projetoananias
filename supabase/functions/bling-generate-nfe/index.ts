@@ -85,12 +85,13 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Usar integração Penha (vendas presenciais são da loja Penha)
-    const tableName = 'bling_config_penha';
+    // Usar integração RJ (todas as vendas presenciais usam bling_config RJ)
+    const tableName = 'bling_config';
+    console.log(`[BLING-NFE] Usando configuração: ${tableName}`);
+    
     const { data: blingConfig, error: configError } = await supabase
       .from(tableName)
       .select('*')
-      .limit(1)
       .single();
 
     if (configError || !blingConfig) {
