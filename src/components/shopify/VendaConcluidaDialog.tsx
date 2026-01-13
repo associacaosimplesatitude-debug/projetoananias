@@ -98,7 +98,41 @@ export function VendaConcluidaDialog({
       const stage = data?.stage;
 
       if (data?.success === false) {
-        const errorMsg = data.fiscal_error || data.error || "Erro ao gerar NF-e";
+        // Extrair erro fiscal detalhado
+        let errorMsg = data.fiscal_error || data.error || "Erro ao gerar NF-e";
+        
+        // Tentar extrair erros de campos específicos (validação do Bling)
+        const rawData = data.raw;
+        if (rawData?.error?.fields) {
+          const fields = rawData.error.fields;
+          let fieldsErrors: string[] = [];
+          
+          if (Array.isArray(fields)) {
+            fieldsErrors = fields.map((f: any) => f?.msg || f?.message).filter(Boolean);
+          } else if (typeof fields === 'object') {
+            fieldsErrors = Object.entries(fields).map(([key, val]: [string, any]) => {
+              const msg = typeof val === 'string' ? val : val?.msg || val?.message;
+              return msg ? `${key}: ${msg}` : null;
+            }).filter(Boolean) as string[];
+          }
+          
+          if (fieldsErrors.length > 0) {
+            errorMsg = fieldsErrors.join(' | ');
+          }
+        }
+        
+        // Verificar payload_error e fallback_error para erros combinados
+        if (rawData?.payload_error?.error?.fields || rawData?.fallback_error?.error?.fields) {
+          const payloadFields = rawData?.payload_error?.error?.fields;
+          const fallbackFields = rawData?.fallback_error?.error?.fields;
+          const allFields = payloadFields || fallbackFields;
+          
+          if (Array.isArray(allFields)) {
+            const msgs = allFields.map((f: any) => f?.msg || f?.message).filter(Boolean);
+            if (msgs.length > 0) errorMsg = msgs.join(' | ');
+          }
+        }
+        
         console.error(`[NF-e] Erro na etapa '${stage}':`, errorMsg, data.raw);
         setNfeError(errorMsg);
         setNfeStage('error');
