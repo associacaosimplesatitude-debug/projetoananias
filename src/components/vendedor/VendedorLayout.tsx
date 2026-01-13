@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   Scale,
   Store,
+  FileText,
   LucideIcon
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -51,6 +52,7 @@ const allMenuItems: MenuItem[] = [
   { to: "/vendedor/pendentes", icon: Clock, label: "Ativação Pendente", vendedorOnly: true },
   { to: "/vendedor/proximas-compras", icon: ShoppingCart, label: "Próximas Compras" },
   { to: "/vendedor/em-risco", icon: AlertTriangle, label: "Clientes em Risco", vendedorOnly: true },
+  { to: "/vendedor/notas-emitidas", icon: FileText, label: "Notas Emitidas" },
   { to: "/vendedor/pedidos", icon: Package, label: "Pedidos" },
   { to: "/vendedor/calculadora-peso", icon: Scale, label: "Orçamento Transportadora" },
   { to: "/vendedor/tutoriais", icon: Video, label: "Tutoriais" },
