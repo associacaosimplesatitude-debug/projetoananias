@@ -203,39 +203,160 @@ serve(async (req) => {
 
     const pedidoData = await checkPedidoResp.json();
     let pedido = pedidoData?.data;
-    console.log(`[BLING-NFE] ✓ Pedido encontrado: #${pedido?.numero}`);
-    
-    // ℹ️ NOTA: A API V3 do Bling NÃO retorna naturezaOperacao no GET /pedidos/vendas/{id}
-    // O pedido foi criado com a natureza correta pelo bling-create-order.
-    // Confiamos na criação e prosseguimos para emissão de NF-e.
-    if (pedido?.naturezaOperacao?.id) {
-      console.log(`[BLING-NFE] ✓ Natureza de operação encontrada: ${pedido.naturezaOperacao.id}`);
-    } else {
-      console.log(`[BLING-NFE] ℹ️ Natureza não retornada pelo GET (comportamento normal da API V3) - prosseguindo com emissão`);
+    console.log(`[BLING-NFE] ✓ Pedido encontrado: #${pedido?.numero}`, {
+      contatoId: pedido?.contato?.id,
+      contatoNome: pedido?.contato?.nome,
+      contatoDoc: pedido?.contato?.numeroDocumento,
+      totalItens: pedido?.itens?.length,
+      naturezaId: pedido?.naturezaOperacao?.id,
+    });
+
+    // =======================================================================
+    // PASSO 1: CRIAR NF-e via POST /nfe COM PAYLOAD COMPLETO
+    // Como a herança automática falha em pedidos "Atendido", montamos 
+    // a NF-e manualmente com os dados do pedido.
+    // =======================================================================
+    console.log(`[BLING-NFE] PASSO 1: Criando NF-e com payload completo...`);
+
+    const hoje = new Date().toISOString().split('T')[0]; // AAAA-MM-DD
+
+    // Mapear itens do pedido para itens da NF-e
+    const itensNfe = (pedido.itens || []).map((item: any, idx: number) => {
+      const codigo = item.codigo || item.produto?.codigo || `ITEM-${idx + 1}`;
+      const descricao = item.descricao || item.produto?.descricao || item.produto?.nome || 'Produto';
+      
+      console.log(`[BLING-NFE] Item ${idx + 1}: ${codigo} - ${descricao} (qtd: ${item.quantidade}, valor: ${item.valor})`);
+      
+      return {
+        codigo: codigo,
+        descricao: descricao,
+        unidade: item.unidade || 'UN',
+        quantidade: Number(item.quantidade) || 1,
+        valor: Number(item.valor) || 0,
+        tipo: 'P', // Produto
+        origem: 0, // Nacional
+      };
+    });
+
+    if (itensNfe.length === 0) {
+      console.log(`[BLING-NFE] ✗ Pedido não possui itens!`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'create',
+          fiscal_error: 'Pedido não possui itens. Verifique o pedido no Bling.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // =======================================================================
-    // PASSO 1: CRIAR NF-e via POST /nfe (ENDPOINT CORRETO API V3)
-    // Body: { idPedidoVenda: ID_DO_PEDIDO }
-    // =======================================================================
-    console.log(`[BLING-NFE] PASSO 1: Criando NF-e via POST /nfe com idPedidoVenda=${orderId} (tipo: number)`);
+    // Validar dados do contato
+    const contato = pedido.contato;
+    if (!contato?.id && !contato?.numeroDocumento) {
+      console.log(`[BLING-NFE] ✗ Contato do pedido sem ID ou documento!`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'create',
+          fiscal_error: 'Cliente do pedido não possui documento (CPF/CNPJ). Atualize o cadastro no Bling.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Determinar tipo de pessoa baseado no documento
+    const numeroDoc = contato.numeroDocumento?.replace(/\D/g, '') || '';
+    const tipoPessoa = numeroDoc.length > 11 ? 'J' : 'F';
+
+    // Montar payload completo da NF-e
+    const nfePayload: any = {
+      tipo: 1, // 1 = Saída (venda)
+      dataOperacao: hoje,
+      dataEmissao: hoje,
+      contato: {
+        id: contato.id,
+      },
+      itens: itensNfe,
+      // Vincular ao pedido de venda original
+      idPedidoVenda: orderId,
+    };
+
+    // Adicionar natureza de operação se disponível
+    if (pedido.naturezaOperacao?.id) {
+      nfePayload.naturezaOperacao = { id: pedido.naturezaOperacao.id };
+    }
+
+    console.log(`[BLING-NFE] Payload NF-e:`, JSON.stringify(nfePayload, null, 2));
 
     const createNfeUrl = 'https://api.bling.com.br/Api/v3/nfe';
-    const createNfeResp = await fetch(createNfeUrl, {
+    let createNfeResp = await fetch(createNfeUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        idPedidoVenda: orderId  // ✅ Número inteiro garantido
-      }),
+      body: JSON.stringify(nfePayload),
     });
 
-    const createNfeData = await createNfeResp.json();
-    console.log(`[BLING-NFE] Status criação: ${createNfeResp.status}`);
+    let createNfeData = await createNfeResp.json();
+    console.log(`[BLING-NFE] Status criação (payload completo): ${createNfeResp.status}`);
     console.log(`[BLING-NFE] Resposta criação:`, JSON.stringify(createNfeData, null, 2));
+
+    // Se payload completo falhar com erro de validação, tentar herança simples como fallback
+    if (!createNfeResp.ok && createNfeResp.status === 400) {
+      const fiscalError = extractFiscalError(createNfeData);
+      console.log(`[BLING-NFE] Payload completo falhou (${fiscalError}), tentando herança simples...`);
+      
+      const fallbackResp = await fetch(createNfeUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idPedidoVenda: orderId }),
+      });
+      
+      const fallbackData = await fallbackResp.json();
+      console.log(`[BLING-NFE] Status criação (fallback): ${fallbackResp.status}`);
+      console.log(`[BLING-NFE] Resposta fallback:`, JSON.stringify(fallbackData, null, 2));
+      
+      // Usar resposta do fallback se funcionou OU se tem mensagem de erro diferente
+      if (fallbackResp.ok || fallbackData?.data?.id) {
+        createNfeResp = fallbackResp;
+        createNfeData = fallbackData;
+      } else {
+        // Ambos falharam - retornar erro mais detalhado combinando os dois
+        const fallbackError = extractFiscalError(fallbackData);
+        const combinedError = fiscalError || fallbackError || 'Erro ao criar NF-e. Verifique dados do pedido no Bling.';
+        
+        // Extrair erros de campos específicos se existirem
+        let fieldsError = '';
+        const fields = createNfeData?.error?.fields || fallbackData?.error?.fields;
+        if (fields) {
+          if (Array.isArray(fields)) {
+            fieldsError = fields.map((f: any) => f?.msg || f?.message).filter(Boolean).join(' | ');
+          } else if (typeof fields === 'object') {
+            fieldsError = Object.values(fields).map((f: any) => typeof f === 'string' ? f : f?.msg || f?.message).filter(Boolean).join(' | ');
+          }
+        }
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            stage: 'create',
+            bling_status: createNfeResp.status,
+            fiscal_error: fieldsError || combinedError,
+            raw: { payload_error: createNfeData, fallback_error: fallbackData },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // createNfeData já foi definido acima - usar diretamente
+    console.log(`[BLING-NFE] Analisando resposta da criação de NF-e...`);
 
     let nfeId: number | null = null;
 
