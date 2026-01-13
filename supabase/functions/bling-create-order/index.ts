@@ -158,10 +158,13 @@ async function resolveSituacaoEmAbertoId(accessToken: string): Promise<number> {
   return id ?? 9;
 }
 
-// Resolver ID da natureza de operação padrão (evita que Bling force status ATENDIDO)
-async function resolveNaturezaOperacaoId(accessToken: string): Promise<number | null> {
+// IDs fixos da Penha para fallback absoluto
+const NATUREZA_PENHA_PF = 15108893128; // Pessoa Física (CPF)
+const NATUREZA_PENHA_PJ = 15108893188; // Pessoa Jurídica (CNPJ)
+
+// Resolver ID da natureza de operação padrão - SEMPRE retorna um ID válido
+async function resolveNaturezaOperacaoId(accessToken: string, isPessoaFisica: boolean): Promise<number> {
   try {
-    // ✅ Usar api.bling.com.br (não www)
     const url = 'https://api.bling.com.br/Api/v3/naturezas-operacoes';
     const resp = await fetch(url, {
       headers: {
@@ -173,8 +176,8 @@ async function resolveNaturezaOperacaoId(accessToken: string): Promise<number | 
     const json = await resp.json();
 
     if (!resp.ok) {
-      console.warn('[BLING] Falha ao listar naturezas de operação.', json);
-      return null;
+      console.warn('[BLING] Falha ao listar naturezas de operação, usando fallback Penha');
+      return isPessoaFisica ? NATUREZA_PENHA_PF : NATUREZA_PENHA_PJ;
     }
 
     const naturezas: any[] = Array.isArray(json?.data) ? json.data : [];
@@ -201,10 +204,12 @@ async function resolveNaturezaOperacaoId(accessToken: string): Promise<number | 
       return Number(naturezas[0].id);
     }
     
-    return null;
+    // Fallback final: IDs fixos da Penha
+    console.log('[BLING] Sem naturezas na API, usando fallback Penha:', isPessoaFisica ? 'PF' : 'PJ');
+    return isPessoaFisica ? NATUREZA_PENHA_PF : NATUREZA_PENHA_PJ;
   } catch (e) {
-    console.warn('[BLING] Erro ao resolver natureza de operação.', e);
-    return null;
+    console.warn('[BLING] Erro ao resolver natureza de operação, usando fallback Penha:', e);
+    return isPessoaFisica ? NATUREZA_PENHA_PF : NATUREZA_PENHA_PJ;
   }
 }
 
@@ -834,8 +839,12 @@ serve(async (req) => {
       isPagamentoLoja ? '(Pagamento na Loja → Atendido)' :
       isFaturamentoPagamento ? '(Faturamento → Em andamento)' : '(Pagamento direto → Em aberto)');
     
-    // ✅ NATUREZA DE OPERAÇÃO - Evita que regras automáticas forcem status ATENDIDO
-    const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken);
+    // ✅ NATUREZA DE OPERAÇÃO - SEMPRE retorna ID válido (com fallback Penha)
+    // Determinar tipo de pessoa (PF vs PJ) para fallback correto
+    const documentoCliente = (cliente?.cpf_cnpj || cliente?.cpf || cliente?.documento || '').replace(/\D/g, '');
+    const isPessoaFisica = documentoCliente.length <= 11;
+    const naturezaOperacaoId = await resolveNaturezaOperacaoId(accessToken, isPessoaFisica);
+    console.log('[BLING] ✅ Natureza de operação garantida:', naturezaOperacaoId, isPessoaFisica ? '(PF)' : '(PJ)');
 
     // ✅ FORMA DE PAGAMENTO - Buscar ID de "Conta a receber/pagar" para gerar Contas a Receber
     const formaPagamentoContaReceberPagarId = await resolveFormaPagamentoContaReceberPagarId(accessToken);
@@ -2269,12 +2278,10 @@ serve(async (req) => {
       // A automação de 06/01/2026 foi interna do Bling, não via payload
       // Usaremos PATCH após criação para alterar o status
       
-      // ✅ NATUREZA DE OPERAÇÃO - Evita regras automáticas que forçam ATENDIDO
-      ...(naturezaOperacaoId && {
-        naturezaOperacao: {
-          id: naturezaOperacaoId,
-        },
-      }),
+      // ✅ NATUREZA DE OPERAÇÃO - SEMPRE incluída (garantida pelo fallback)
+      naturezaOperacao: {
+        id: naturezaOperacaoId,
+      },
       observacoes: observacoes 
         + (isFaturamento ? ` | FATURAMENTO B2B ${faturamento_prazo} DIAS` : '') 
         + (desconto_percentual ? ` | DESCONTO: ${desconto_percentual}%` : '')

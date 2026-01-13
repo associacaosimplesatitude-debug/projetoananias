@@ -193,17 +193,26 @@ serve(async (req) => {
     const pedido = pedidoData?.data;
     console.log(`[BLING-NFE] ✓ Pedido encontrado: #${pedido?.numero}`);
 
-    // Verificar se tem natureza de operação
+    // VALIDAÇÃO CRÍTICA: Verificar se tem natureza de operação
     if (!pedido?.naturezaOperacao?.id) {
-      console.log(`[BLING-NFE] ⚠ Alerta: Pedido sem natureza de operação definida`);
+      console.log(`[BLING-NFE] ✗ ERRO: Pedido sem natureza de operação - bloqueando emissão`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'missing_natureza',
+          fiscal_error: 'Pedido sem Natureza de Operação. O pedido precisa ser recriado com a natureza correta.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+    console.log(`[BLING-NFE] ✓ Natureza de operação confirmada: ${pedido.naturezaOperacao.id}`);
 
     // =======================================================================
-    // PASSO 1: CRIAR NF-e via POST /nfe/pedidos/vendas/{id} (ENDPOINT CORRETO V3)
+    // PASSO 1: CRIAR NF-e via POST /nfe/vendas/{id} (ENDPOINT CORRETO V3)
     // =======================================================================
-    console.log(`[BLING-NFE] PASSO 1: Criando NF-e via POST /nfe/pedidos/vendas/${bling_order_id}`);
+    console.log(`[BLING-NFE] PASSO 1: Criando NF-e via POST /nfe/vendas/${bling_order_id}`);
 
-    const createNfeUrl = `https://api.bling.com.br/Api/v3/nfe/pedidos/vendas/${bling_order_id}`;
+    const createNfeUrl = `https://api.bling.com.br/Api/v3/nfe/vendas/${bling_order_id}`;
     const createNfeResp = await fetch(createNfeUrl, {
       method: 'POST',
       headers: {
