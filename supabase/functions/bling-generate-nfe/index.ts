@@ -244,14 +244,71 @@ serve(async (req) => {
         );
       }
 
-      // Se existe NF-e válida mas não autorizada ainda
+      // Se existe NF-e válida mas não autorizada ainda, ENVIAR para SEFAZ
       if (nfePendenteEncontrada) {
-        console.log(`[BLING-NFE] NF-e válida encontrada mas ainda não autorizada: ${nfePendenteEncontrada.id}, situação: ${nfePendenteEncontrada.situacao}`);
+        const nfeId = nfePendenteEncontrada.id;
+        console.log(`[BLING-NFE] NF-e pendente encontrada: ${nfeId}, situação: ${nfePendenteEncontrada.situacao}. Enviando para SEFAZ...`);
+        
+        // Enviar NF-e para autorização na SEFAZ
+        const enviarUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeId}/enviar`;
+        const enviarResp = await fetch(enviarUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        
+        const enviarData = await enviarResp.json();
+        console.log(`[BLING-NFE] Resposta envio SEFAZ:`, JSON.stringify(enviarData, null, 2));
+        
+        if (enviarResp.ok) {
+          // Aguardar processamento
+          console.log(`[BLING-NFE] NF-e enviada. Aguardando processamento...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // Buscar NF-e atualizada
+          const nfeAtualizadaResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/${nfeId}`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          });
+          
+          if (nfeAtualizadaResp.ok) {
+            const nfeAtualizadaData = await nfeAtualizadaResp.json();
+            const nfeAtualizada = nfeAtualizadaData?.data;
+            
+            if (Number(nfeAtualizada?.situacao) === 6) {
+              // Autorizada!
+              let danfeUrl = nfeAtualizada.linkDanfe || nfeAtualizada.link || nfeAtualizada.linkPdf || null;
+              
+              if (nfeAtualizada.link && nfeAtualizada.link.includes('doc.view.php')) {
+                danfeUrl = nfeAtualizada.link;
+              }
+              
+              console.log(`[BLING-NFE] NF-e autorizada com sucesso! DANFE: ${danfeUrl}`);
+              
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  nfe_id: nfeId,
+                  nfe_numero: nfeAtualizada.numero,
+                  nfe_url: danfeUrl,
+                  nfe_pendente: false,
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+        }
+        
+        // Se ainda não autorizou, retornar como pendente
         return new Response(
           JSON.stringify({
             success: true,
             nfe_pendente: true,
-            message: 'NF-e em processamento. Aguarde autorização.',
+            message: 'NF-e enviada para SEFAZ. Aguarde autorização e clique novamente.',
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -329,23 +386,86 @@ serve(async (req) => {
         );
       }
 
-      // NF-e foi criada, mas pode levar alguns segundos para processar
+      // NF-e criada via método alternativo - enviar para SEFAZ
+      const altNfeId = altNfeData?.data?.id;
+      if (altNfeId) {
+        console.log(`[BLING-NFE] NF-e criada (${altNfeId}). Enviando para SEFAZ...`);
+        
+        const enviarAltResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/${altNfeId}/enviar`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        
+        console.log(`[BLING-NFE] Resposta envio (alt):`, await enviarAltResp.text());
+        
+        // Aguardar e verificar status
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const altCheckResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/${altNfeId}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        
+        if (altCheckResp.ok) {
+          const altCheckData = await altCheckResp.json();
+          const altDetail = altCheckData?.data;
+          
+          if (Number(altDetail?.situacao) === 6) {
+            let danfeUrl = altDetail.linkDanfe || altDetail.link || null;
+            if (altDetail.link && altDetail.link.includes('doc.view.php')) {
+              danfeUrl = altDetail.link;
+            }
+            
+            return new Response(
+              JSON.stringify({
+                success: true,
+                nfe_id: altNfeId,
+                nfe_numero: altDetail.numero,
+                nfe_url: danfeUrl,
+                nfe_pendente: false,
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
-          nfe_id: altNfeData?.data?.id,
+          nfe_id: altNfeId,
           nfe_pendente: true,
-          message: 'NF-e criada. Aguarde processamento e clique novamente para obter a DANFE.',
+          message: 'NF-e criada e enviada para SEFAZ. Aguarde autorização.',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // NF-e criada com sucesso
+    // NF-e criada com sucesso - enviar para SEFAZ
     const nfeId = createNfeData?.data?.id;
+    
+    if (nfeId) {
+      console.log(`[BLING-NFE] NF-e criada (${nfeId}). Enviando para SEFAZ...`);
+      
+      const enviarResp = await fetch(`https://www.bling.com.br/Api/v3/nfe/${nfeId}/enviar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        },
+      });
+      
+      const enviarData = await enviarResp.json();
+      console.log(`[BLING-NFE] Resposta envio SEFAZ:`, JSON.stringify(enviarData, null, 2));
+    }
 
-    // Aguardar um pouco e verificar se já foi autorizada
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Aguardar processamento
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Buscar detalhes da NF-e criada
     const newNfeDetailUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeId}`;
@@ -368,6 +488,8 @@ serve(async (req) => {
           danfeUrl = detail.link;
         }
 
+        console.log(`[BLING-NFE] NF-e autorizada! DANFE: ${danfeUrl}`);
+
         return new Response(
           JSON.stringify({
             success: true,
@@ -387,7 +509,7 @@ serve(async (req) => {
         success: true,
         nfe_id: nfeId,
         nfe_pendente: true,
-        message: 'NF-e criada. Aguarde autorização e clique novamente.',
+        message: 'NF-e criada e enviada para SEFAZ. Aguarde autorização.',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
