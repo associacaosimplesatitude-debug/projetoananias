@@ -209,6 +209,9 @@ serve(async (req) => {
       contatoDoc: pedido?.contato?.numeroDocumento,
       totalItens: pedido?.itens?.length,
       naturezaId: pedido?.naturezaOperacao?.id,
+      lojaId: pedido?.loja?.id,
+      lojaDescricao: pedido?.loja?.descricao,
+      unidadeNegocioId: pedido?.loja?.unidadeNegocio?.id,
     });
 
     // =======================================================================
@@ -374,6 +377,26 @@ serve(async (req) => {
     // Adicionar natureza de operação se disponível
     if (pedido.naturezaOperacao?.id) {
       nfePayload.naturezaOperacao = { id: pedido.naturezaOperacao.id };
+    }
+
+    // Adicionar loja e unidade de negócio (herdar do pedido para filtrar corretamente)
+    if (pedido.loja?.id) {
+      nfePayload.loja = { 
+        id: pedido.loja.id 
+      };
+      
+      // Adicionar unidade de negócio se existir
+      if (pedido.loja?.unidadeNegocio?.id) {
+        nfePayload.loja.unidadeNegocio = {
+          id: pedido.loja.unidadeNegocio.id
+        };
+      }
+      
+      console.log(`[BLING-NFE] Loja/Unidade definidas:`, {
+        lojaId: pedido.loja.id,
+        lojaDescricao: pedido.loja.descricao,
+        unidadeNegocioId: pedido.loja?.unidadeNegocio?.id,
+      });
     }
 
     console.log(`[BLING-NFE] Payload NF-e:`, JSON.stringify(nfePayload, null, 2));
