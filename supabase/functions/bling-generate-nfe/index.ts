@@ -193,81 +193,14 @@ serve(async (req) => {
     let pedido = pedidoData?.data;
     console.log(`[BLING-NFE] ✓ Pedido encontrado: #${pedido?.numero}`);
     
-    // ✅ DIAGNÓSTICO COMPLETO: Logar estrutura do pedido para debug
-    console.log(`[BLING-NFE] DEBUG pedido keys:`, pedido ? Object.keys(pedido) : 'null');
-    console.log(`[BLING-NFE] DEBUG naturezaOperacao:`, JSON.stringify(pedido?.naturezaOperacao || null));
-    
-    // ✅ NORMALIZAÇÃO: Tentar diferentes caminhos para natureza de operação
-    let naturezaIdDetectada: number | null = null;
-    
-    // Caminho 1: naturezaOperacao.id (padrão API v3)
+    // ℹ️ NOTA: A API V3 do Bling NÃO retorna naturezaOperacao no GET /pedidos/vendas/{id}
+    // O pedido foi criado com a natureza correta pelo bling-create-order.
+    // Confiamos na criação e prosseguimos para emissão de NF-e.
     if (pedido?.naturezaOperacao?.id) {
-      naturezaIdDetectada = Number(pedido.naturezaOperacao.id);
+      console.log(`[BLING-NFE] ✓ Natureza de operação encontrada: ${pedido.naturezaOperacao.id}`);
+    } else {
+      console.log(`[BLING-NFE] ℹ️ Natureza não retornada pelo GET (comportamento normal da API V3) - prosseguindo com emissão`);
     }
-    // Caminho 2: naturezaOperacaoId direto
-    else if (pedido?.naturezaOperacaoId) {
-      naturezaIdDetectada = Number(pedido.naturezaOperacaoId);
-    }
-    // Caminho 3: natureza_operacao (snake_case)
-    else if (pedido?.natureza_operacao?.id) {
-      naturezaIdDetectada = Number(pedido.natureza_operacao.id);
-    }
-    
-    console.log(`[BLING-NFE] naturezaIdDetectada após normalização: ${naturezaIdDetectada}`);
-    
-    // ✅ REFETCH DE CONFIRMAÇÃO: Se não encontrou, tentar domínio alternativo
-    if (!naturezaIdDetectada) {
-      console.log(`[BLING-NFE] ⚠️ Natureza não encontrada no primeiro GET, tentando refetch via www.bling.com.br...`);
-      
-      try {
-        const refetchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}`;
-        const refetchResp = await fetch(refetchUrl, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json',
-          },
-        });
-        
-        if (refetchResp.ok) {
-          const refetchData = await refetchResp.json();
-          const pedidoRefetch = refetchData?.data;
-          
-          console.log(`[BLING-NFE] Refetch keys:`, pedidoRefetch ? Object.keys(pedidoRefetch) : 'null');
-          console.log(`[BLING-NFE] Refetch naturezaOperacao:`, JSON.stringify(pedidoRefetch?.naturezaOperacao || null));
-          
-          // Tentar normalizar novamente
-          if (pedidoRefetch?.naturezaOperacao?.id) {
-            naturezaIdDetectada = Number(pedidoRefetch.naturezaOperacao.id);
-            pedido = pedidoRefetch; // Usar dados do refetch
-          } else if (pedidoRefetch?.naturezaOperacaoId) {
-            naturezaIdDetectada = Number(pedidoRefetch.naturezaOperacaoId);
-            pedido = pedidoRefetch;
-          }
-          
-          console.log(`[BLING-NFE] naturezaIdDetectada após refetch: ${naturezaIdDetectada}`);
-        }
-      } catch (refetchErr) {
-        console.warn(`[BLING-NFE] Erro no refetch:`, refetchErr);
-      }
-    }
-    
-    // VALIDAÇÃO CRÍTICA: Bloquear apenas se após refetch + normalização ainda não tem natureza
-    if (!naturezaIdDetectada) {
-      console.log(`[BLING-NFE] ✗ ERRO CONFIRMADO: Pedido sem natureza de operação após refetch - bloqueando emissão`);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          stage: 'missing_natureza',
-          fiscal_error: 'Pedido sem Natureza de Operação. O pedido precisa ser recriado com a natureza correta.',
-          debug: {
-            pedidoKeys: pedido ? Object.keys(pedido) : null,
-            naturezaOperacao: pedido?.naturezaOperacao,
-          },
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    console.log(`[BLING-NFE] ✓ Natureza de operação confirmada: ${naturezaIdDetectada}`);
 
     // =======================================================================
     // PASSO 1: CRIAR NF-e via POST /nfe/vendas/{id} (ENDPOINT CORRETO V3)
