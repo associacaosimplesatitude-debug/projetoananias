@@ -160,11 +160,50 @@ serve(async (req) => {
     }
 
     // =======================================================================
-    // FLUXO OBRIGATÓRIO: CRIAR NF-e PRIMEIRO via POST /nfe/pedido/{idPedido}
+    // PASSO 0: VERIFICAR SE O PEDIDO EXISTE NO BLING
     // =======================================================================
-    console.log(`[BLING-NFE] PASSO 1: Criando NF-e via POST /nfe/pedido/${bling_order_id}`);
-    
-    const createNfeUrl = `https://api.bling.com.br/Api/v3/nfe/pedido/${bling_order_id}`;
+    console.log(`[BLING-NFE] PASSO 0: Verificando pedido ${bling_order_id}...`);
+
+    const checkPedidoUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}`;
+    const checkPedidoResp = await fetch(checkPedidoUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!checkPedidoResp.ok) {
+      const checkError = await checkPedidoResp.json().catch(() => ({}));
+      const errorMsg = extractFiscalError(checkError) || 'Pedido não encontrado';
+      console.log(`[BLING-NFE] ✗ Pedido não encontrado (${checkPedidoResp.status}): ${errorMsg}`);
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'check_order',
+          bling_status: checkPedidoResp.status,
+          fiscal_error: `Pedido #${bling_order_id} não encontrado no Bling. Aguarde alguns segundos e tente novamente.`,
+          raw: checkError,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const pedidoData = await checkPedidoResp.json();
+    const pedido = pedidoData?.data;
+    console.log(`[BLING-NFE] ✓ Pedido encontrado: #${pedido?.numero}`);
+
+    // Verificar se tem natureza de operação
+    if (!pedido?.naturezaOperacao?.id) {
+      console.log(`[BLING-NFE] ⚠ Alerta: Pedido sem natureza de operação definida`);
+    }
+
+    // =======================================================================
+    // PASSO 1: CRIAR NF-e via POST /nfe/pedidos/vendas/{id} (ENDPOINT CORRETO V3)
+    // =======================================================================
+    console.log(`[BLING-NFE] PASSO 1: Criando NF-e via POST /nfe/pedidos/vendas/${bling_order_id}`);
+
+    const createNfeUrl = `https://api.bling.com.br/Api/v3/nfe/pedidos/vendas/${bling_order_id}`;
     const createNfeResp = await fetch(createNfeUrl, {
       method: 'POST',
       headers: {
