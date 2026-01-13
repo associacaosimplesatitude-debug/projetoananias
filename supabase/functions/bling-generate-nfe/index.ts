@@ -292,13 +292,16 @@ serve(async (req) => {
         if (contatoResp.ok) {
           const contatoJson = await contatoResp.json();
           contatoDetalhe = contatoJson?.data || contato;
+          // API V3 do Bling: endereço está em endereco.geral
+          const endGeral = contatoDetalhe?.endereco?.geral || contatoDetalhe?.endereco || {};
           console.log('[BLING-NFE] ✓ Contato detalhado carregado', {
             id: contatoDetalhe?.id,
             nome: contatoDetalhe?.nome,
             hasEndereco: !!contatoDetalhe?.endereco,
-            cep: contatoDetalhe?.endereco?.cep,
-            uf: contatoDetalhe?.endereco?.uf,
-            municipio: contatoDetalhe?.endereco?.municipio,
+            hasEnderecoGeral: !!contatoDetalhe?.endereco?.geral,
+            cep: endGeral?.cep,
+            uf: endGeral?.uf,
+            municipio: endGeral?.municipio,
           });
         } else {
           const contatoErr = await contatoResp.json().catch(() => ({}));
@@ -314,7 +317,8 @@ serve(async (req) => {
 
     // Montar payload completo da NF-e com dados fiscais obrigatórios
     // Incluir endereço completo do contato para transmissão SEFAZ
-    const enderecoContato = contatoDetalhe?.endereco || {};
+    // API V3 do Bling: endereço está aninhado em endereco.geral
+    const enderecoContato = contatoDetalhe?.endereco?.geral || contatoDetalhe?.endereco || {};
 
     // Validar endereço obrigatório (SEFAZ rejeita sem destinatário completo)
     const enderecoLinha = enderecoContato.endereco || enderecoContato.logradouro;
