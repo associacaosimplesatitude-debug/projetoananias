@@ -119,6 +119,48 @@ function extractDanfeUrl(nfeDetail: any): string | null {
   return nfeDetail.linkDanfe || nfeDetail.link || nfeDetail.linkPdf || null;
 }
 
+// ========== FUNÇÃO PARA BUSCAR ÚLTIMO NÚMERO NF-e POR SÉRIE ==========
+async function getLastNfeNumber(
+  accessToken: string, 
+  serie: number
+): Promise<number | null> {
+  try {
+    // Buscar NF-es autorizadas (situacao=6) nesta série, limite 100 para pegar maior numero
+    const searchUrl = `https://api.bling.com.br/Api/v3/nfe?serie=${serie}&situacao=6&pagina=1&limite=100`;
+    
+    console.log(`[BLING-NFE] Buscando última NF-e da série ${serie}...`);
+    
+    const resp = await fetch(searchUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!resp.ok) {
+      console.log(`[BLING-NFE] ⚠️ Não foi possível buscar última NF-e da série ${serie} (status: ${resp.status})`);
+      return null;
+    }
+    
+    const data = await resp.json();
+    const nfes = Array.isArray(data?.data) ? data.data : [];
+    
+    if (nfes.length === 0) {
+      console.log(`[BLING-NFE] Nenhuma NF-e autorizada encontrada na série ${serie}`);
+      return null;
+    }
+    
+    // Pegar o maior número entre as notas retornadas
+    const maxNumber = Math.max(...nfes.map((n: any) => Number(n.numero) || 0));
+    console.log(`[BLING-NFE] ✓ Série ${serie}: último número encontrado = ${maxNumber}`);
+    
+    return maxNumber;
+  } catch (error) {
+    console.error(`[BLING-NFE] Erro ao buscar última NF-e da série ${serie}:`, error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -499,6 +541,71 @@ serve(async (req) => {
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+    }
+
+    // ========== AUTO-RETRY: Detectar conflito de numeração e tentar com próximo número ==========
+    const fiscalErrorCheck = extractFiscalError(createNfeData);
+    const isNumberConflict = fiscalErrorCheck?.toLowerCase().includes('já existe uma nota com este número') ||
+                             fiscalErrorCheck?.toLowerCase().includes('numero já existe') ||
+                             fiscalErrorCheck?.toLowerCase().includes('número já existe');
+
+    if (isNumberConflict && !createNfeData?.data?.id) {
+      console.log(`[BLING-NFE] ⚠️ Conflito de numeração detectado, buscando próximo número disponível...`);
+      
+      // Identificar qual série está sendo usada
+      const serieAtual = nfePayload.serie || 15;
+      
+      // Buscar último número autorizado
+      const lastNumber = await getLastNfeNumber(accessToken, serieAtual);
+      
+      if (lastNumber) {
+        const nextNumber = lastNumber + 1;
+        console.log(`[BLING-NFE] 🔄 Tentando novamente com número ${nextNumber} (série ${serieAtual})...`);
+        
+        // Forçar o próximo número no payload
+        nfePayload.numero = nextNumber;
+        
+        // Segunda tentativa com número forçado
+        const retryResp = await fetch(createNfeUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(nfePayload),
+        });
+        
+        const retryData = await retryResp.json();
+        console.log(`[BLING-NFE] Status retry: ${retryResp.status}`);
+        console.log(`[BLING-NFE] Resposta retry:`, JSON.stringify(retryData, null, 2));
+        
+        // Substituir resposta original pela retry
+        if (retryResp.ok || retryData?.data?.id) {
+          createNfeResp = retryResp;
+          createNfeData = retryData;
+          console.log(`[BLING-NFE] ✓ Retry com número ${nextNumber} funcionou!`);
+        } else {
+          // Retry também falhou - retornar erro detalhado
+          const retryError = extractFiscalError(retryData);
+          console.log(`[BLING-NFE] ✗ Retry falhou: ${retryError}`);
+          
+          return new Response(
+            JSON.stringify({
+              success: false,
+              stage: 'create_retry',
+              fiscal_error: `Conflito de numeração na Série ${serieAtual}. Última NF-e: #${lastNumber}. Tentativa com #${nextNumber} falhou: ${retryError}`,
+              lastNumber: lastNumber,
+              attemptedNumber: nextNumber,
+              serie: serieAtual,
+              raw: retryData,
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
+        console.log(`[BLING-NFE] ⚠️ Não foi possível obter último número da série, retornando erro original`);
       }
     }
 
