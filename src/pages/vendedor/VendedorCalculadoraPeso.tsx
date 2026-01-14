@@ -17,7 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useVendedor } from "@/hooks/useVendedor";
 import { calcularDescontosLocal, type ItemCalculadora, type DescontosCategoriaRepresentante } from "@/lib/descontosCalculadora";
-import { ENDERECO_MATRIZ, ENDERECO_PERNAMBUCO, formatarEnderecoMatriz, formatarEnderecoPernambuco, calcularCaixas } from "@/constants/enderecoMatriz";
+import { ENDERECO_MATRIZ, ENDERECO_PERNAMBUCO, ENDERECO_PENHA, formatarEnderecoMatriz, formatarEnderecoPernambuco, formatarEnderecoPenha, calcularCaixas } from "@/constants/enderecoMatriz";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { AdicionarFreteOrcamentoDialog } from "@/components/vendedor/AdicionarFreteOrcamentoDialog";
@@ -50,7 +50,7 @@ interface Cliente {
   cpf: string | null;
 }
 
-type LocalColeta = 'matriz' | 'polo_pe';
+type LocalColeta = 'matriz' | 'polo_pe' | 'penha';
 
 interface OrcamentoFrete {
   id: string;
@@ -253,6 +253,14 @@ CEP: ${cliente.endereco_cep || ''}`,
         nome: 'Polo PE'
       };
     }
+    if (localColeta === 'penha') {
+      return {
+        endereco: ENDERECO_PENHA,
+        enderecoFormatado: formatarEnderecoPenha(),
+        cnpj: ENDERECO_PENHA.cnpj,
+        nome: 'Loja Penha'
+      };
+    }
     return {
       endereco: ENDERECO_MATRIZ,
       enderecoFormatado: formatarEnderecoMatriz(),
@@ -370,7 +378,11 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
       peso_kg: item.weightKg
     }));
 
-    const enderecoSelecionado = localColeta === 'polo_pe' ? ENDERECO_PERNAMBUCO : ENDERECO_MATRIZ;
+    const enderecoSelecionado = localColeta === 'polo_pe' 
+      ? ENDERECO_PERNAMBUCO 
+      : localColeta === 'penha' 
+        ? ENDERECO_PENHA 
+        : ENDERECO_MATRIZ;
     const enderecoColeta = {
       rua: enderecoSelecionado.rua,
       numero: enderecoSelecionado.numero,
@@ -911,11 +923,15 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                   <RadioGroup 
                     value={localColeta} 
                     onValueChange={(v) => setLocalColeta(v as LocalColeta)}
-                    className="flex gap-4"
+                    className="flex flex-wrap gap-4"
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="matriz" id="coleta-matriz" />
                       <Label htmlFor="coleta-matriz" className="text-sm cursor-pointer">Matriz RJ</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="penha" id="coleta-penha" />
+                      <Label htmlFor="coleta-penha" className="text-sm cursor-pointer">Loja Penha</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="polo_pe" id="coleta-polo" />

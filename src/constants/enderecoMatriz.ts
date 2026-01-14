@@ -9,7 +9,7 @@ export const ENDERECO_MATRIZ = {
   estado: "RJ",
   cep: "22713-001",
   referencia: "Central Gospel - Matriz",
-  cnpj: "00.000.000/0001-00" // Placeholder - Atualizar com CNPJ real
+  cnpj: "03.147.650/0001-52"
 };
 
 /**
@@ -24,7 +24,22 @@ export const ENDERECO_PERNAMBUCO = {
   estado: "PE",
   cep: "54315-110",
   referencia: "Central Gospel - Polo Pernambuco",
-  cnpj: "00.000.000/0002-00" // Placeholder - Atualizar com CNPJ real
+  cnpj: "03.147.650/0014-77"
+};
+
+/**
+ * Endereço da Loja Penha para coleta de frete
+ */
+export const ENDERECO_PENHA = {
+  rua: "Rua Honório Bicalho",
+  numero: "102",
+  complemento: "Térreo",
+  bairro: "Penha",
+  cidade: "Rio de Janeiro",
+  estado: "RJ",
+  cep: "21020-002",
+  referencia: "Central Gospel - Loja Penha",
+  cnpj: "03.147.650/0003-14"
 };
 
 /**
@@ -100,4 +115,14 @@ CEP: ${ENDERECO_PERNAMBUCO.cep}`;
 
 export function formatarEnderecoPernambucaLinha(): string {
   return `${ENDERECO_PERNAMBUCO.rua}, ${ENDERECO_PERNAMBUCO.numero}, ${ENDERECO_PERNAMBUCO.complemento} - ${ENDERECO_PERNAMBUCO.bairro}, ${ENDERECO_PERNAMBUCO.cidade}/${ENDERECO_PERNAMBUCO.estado} - CEP: ${ENDERECO_PERNAMBUCO.cep}`;
+}
+
+export function formatarEnderecoPenha(): string {
+  return `${ENDERECO_PENHA.rua}, ${ENDERECO_PENHA.numero}, ${ENDERECO_PENHA.complemento}
+${ENDERECO_PENHA.bairro} - ${ENDERECO_PENHA.cidade}/${ENDERECO_PENHA.estado}
+CEP: ${ENDERECO_PENHA.cep}`;
+}
+
+export function formatarEnderecoPenhaLinha(): string {
+  return `${ENDERECO_PENHA.rua}, ${ENDERECO_PENHA.numero}, ${ENDERECO_PENHA.complemento} - ${ENDERECO_PENHA.bairro}, ${ENDERECO_PENHA.cidade}/${ENDERECO_PENHA.estado} - CEP: ${ENDERECO_PENHA.cep}`;
 }
