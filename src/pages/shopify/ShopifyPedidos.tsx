@@ -632,20 +632,21 @@ export default function ShopifyPedidos() {
 
       const descontoFinal = descontoCalculado ?? autoCalcAdvec;
 
-      // Calcular valores
-      let valorProdutos: number;
-      let valorDesconto: number;
+      // Calcular valores - SEMPRE usar subtotal original sem desconto
       let valorFrete = frete?.cost || 0;
+      
+      // Subtotal original (sem desconto) - sempre calculado da mesma forma
+      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
+      
+      let valorDesconto: number;
       let valorTotal: number;
 
       if (descontoFinal) {
-        // Usar valores do cálculo específico (ADVEC, etc.)
-        valorProdutos = descontoFinal.subtotal;
+        // Usar valor de desconto do cálculo específico (ADVEC, Representante, etc.)
         valorDesconto = descontoFinal.descontoValor;
-        valorTotal = descontoFinal.total + valorFrete;
+        valorTotal = valorProdutos - valorDesconto + valorFrete;
       } else {
         // Cálculo tradicional com percentual fixo
-        valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
         valorDesconto = valorProdutos * (descontoPercent / 100);
         valorTotal = valorProdutos - valorDesconto + valorFrete;
       }
