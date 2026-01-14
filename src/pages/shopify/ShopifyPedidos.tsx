@@ -1542,6 +1542,28 @@ export default function ShopifyPedidos() {
                 });
                 if (error) throw error;
                 
+                // CRIAR REGISTRO EM vendas_balcao para aparecer em Notas Emitidas
+                if (data?.bling_order_id && vendedor?.id) {
+                  const poloMap: Record<string, string> = {
+                    'local': 'penha',
+                    'matriz': 'matriz',
+                    'pernambuco': 'pernambuco'
+                  };
+                  
+                  await supabase.from('vendas_balcao').insert({
+                    vendedor_id: vendedor.id,
+                    polo: poloMap[pagamentoData.depositoOrigem] || 'penha',
+                    bling_order_id: data.bling_order_id,
+                    cliente_nome: selectedCliente.nome_igreja,
+                    cliente_cpf: selectedCliente.cnpj || selectedCliente.cpf || null,
+                    cliente_telefone: selectedCliente.telefone || null,
+                    valor_total: totalComDesconto,
+                    forma_pagamento: pagamentoData.formaPagamento,
+                    status: 'finalizada',
+                    status_nfe: 'CRIADA', // Marca como pronta para gerar NF-e
+                  });
+                }
+                
                 // Mostrar diálogo de venda concluída com opção de gerar NF-e
                 // Apenas para vendas com material saindo do depósito Penha (local)
                 if (pagamentoData.depositoOrigem === 'local') {
