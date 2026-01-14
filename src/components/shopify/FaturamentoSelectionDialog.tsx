@@ -394,6 +394,7 @@ export function FaturamentoSelectionDialog({
     { value: '30', label: '30 dias', description: '1 boleto em 30 dias' },
     { value: '60_direto', label: '60 dias (à vista)', description: '1 boleto em 60 dias' },
     { value: '60', label: '30/60 dias', description: '2 boletos parcelados' },
+    { value: '60_90', label: '60/90 dias', description: '2 boletos em 60 e 90 dias' },
     { value: '90', label: '30/60/90 dias', description: '3 boletos parcelados' },
   ];
 
