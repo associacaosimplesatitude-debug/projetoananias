@@ -143,7 +143,7 @@ export function VendaConcluidaDialog({
       if (stage === 'polling' || data?.nfe_pendente) {
         setNfeStage('polling');
         setPollingAttempt(data?.polling_attempts || 4);
-        toast.info("NF-e ainda em processamento. Clique novamente em alguns segundos.");
+        toast.info("Nota em processamento. Verifique o menu Notas Emitidas em alguns segundos.");
         return;
       }
 

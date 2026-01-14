@@ -601,21 +601,9 @@ serve(async (req) => {
       : null;
 
     if (xmlInfProtCStat && xmlInfProtMotivo) {
-      console.log('[BLING-NFE] Retorno SEFAZ (infProt)', { cStat: xmlInfProtCStat, xMotivo: xmlInfProtMotivo });
-      const cStatNum = Number(xmlInfProtCStat);
-      // 100 = Autorizado. Outros códigos (ex.: 726) = rejeição
-      if (!Number.isNaN(cStatNum) && cStatNum !== 100) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            stage: 'authorization',
-            nfe_id: nfeId,
-            fiscal_error: `NF-e rejeitada pela SEFAZ: ${xmlInfProtMotivo}`,
-            raw: sendNfeData,
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      // Log informativo apenas - NÃO retornar erro aqui
+      // A situação 6 do Bling é a fonte de verdade para autorização
+      console.log('[BLING-NFE] Retorno SEFAZ (info only)', { cStat: xmlInfProtCStat, xMotivo: xmlInfProtMotivo });
     }
 
     if (!sendNfeResp.ok) {
@@ -677,13 +665,38 @@ serve(async (req) => {
       if (situacao === 6) {
         // AUTORIZADA!
         const danfeUrl = extractDanfeUrl(nfeDetail);
-        console.log(`[BLING-NFE] ✓ NF-e AUTORIZADA na tentativa ${attempt}! DANFE: ${danfeUrl}`);
+        const nfeNumero = nfeDetail?.numero;
+        const nfeChave = nfeDetail?.chaveAcesso || null;
+        
+        console.log(`[BLING-NFE] ✓ NF-e AUTORIZADA na tentativa ${attempt}!`, {
+          nfeId,
+          numero: nfeNumero,
+          chave: nfeChave,
+          url: danfeUrl,
+        });
+        
+        // SALVAR NO BANCO DE DADOS
+        const { error: updateError } = await supabase
+          .from('ebd_shopify_pedidos')
+          .update({
+            nota_fiscal_numero: String(nfeNumero),
+            nota_fiscal_chave: nfeChave,
+            nota_fiscal_url: danfeUrl,
+          })
+          .eq('bling_order_id', orderId);
+        
+        if (updateError) {
+          console.error('[BLING-NFE] Erro ao salvar NF-e no banco:', updateError);
+        } else {
+          console.log('[BLING-NFE] ✓ Dados da NF-e salvos no banco com sucesso!');
+        }
         
         return new Response(
           JSON.stringify({
             success: true,
             nfe_id: nfeId,
-            nfe_numero: nfeDetail?.numero,
+            nfe_numero: nfeNumero,
+            nfe_chave: nfeChave,
             nfe_url: danfeUrl,
             nfe_pendente: false,
             stage: 'authorized',
