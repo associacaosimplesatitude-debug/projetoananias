@@ -308,24 +308,36 @@ export function VendaConcluidaDialog({
               </div>
             )}
 
-            {/* Estado POLLING pendente (após tentativas) */}
+            {/* Estado POLLING pendente (após tentativas) - NÃO É ERRO */}
             {nfeStage === 'polling' && !isProcessing && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
                   <RefreshCw className="h-5 w-5" />
-                  <span className="font-medium">NF-e em processamento</span>
+                  <span className="font-medium">Nota em processamento</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  A SEFAZ ainda está processando. Aguarde alguns segundos e tente novamente.
+                  Verifique o menu <strong>Notas Emitidas</strong> em alguns segundos para acompanhar o status.
                 </p>
-                <Button
-                  onClick={handleGenerateNfe}
-                  className="w-full"
-                  variant="outline"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Verificar Novamente
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleGenerateNfe}
+                    className="flex-1"
+                    variant="outline"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Verificar Agora
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      handleClose();
+                      window.location.href = '/vendedor/notas-emitidas';
+                    }}
+                    className="flex-1"
+                    variant="default"
+                  >
+                    Ir para Notas Emitidas
+                  </Button>
+                </div>
               </div>
             )}
 

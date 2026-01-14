@@ -675,10 +675,12 @@ serve(async (req) => {
           url: danfeUrl,
         });
         
-        // SALVAR NO BANCO DE DADOS
+        // SALVAR NO BANCO DE DADOS - incluindo nfe_id e status
         const { error: updateError } = await supabase
           .from('ebd_shopify_pedidos')
           .update({
+            nfe_id: nfeId,
+            status_nfe: 'AUTORIZADA',
             nota_fiscal_numero: String(nfeNumero),
             nota_fiscal_chave: nfeChave,
             nota_fiscal_url: danfeUrl,
@@ -705,10 +707,16 @@ serve(async (req) => {
         );
       }
 
-      // Verificar se há erro de rejeição - retornar imediatamente
-      if (situacao === 4 || situacao === 5) {
+      // Situação 4 = Rejeitada definitivamente
+      if (situacao === 4) {
         const rejectReason = nfeDetail?.motivoRejeicao || nfeDetail?.erroEnvio || 'Motivo não informado';
-        console.log(`[BLING-NFE] NF-e rejeitada/com erro na tentativa ${attempt}: ${rejectReason}`);
+        console.log(`[BLING-NFE] NF-e REJEITADA na tentativa ${attempt}: ${rejectReason}`);
+        
+        // Atualizar status no banco
+        await supabase
+          .from('ebd_shopify_pedidos')
+          .update({ status_nfe: 'REJEITADA', nfe_id: nfeId })
+          .eq('bling_order_id', orderId);
         
         return new Response(
           JSON.stringify({
@@ -720,10 +728,28 @@ serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      
+      // Situação 5 = Estado intermediário (aguardando/processando) - NÃO É REJEIÇÃO!
+      if (situacao === 5) {
+        console.log(`[BLING-NFE] NF-e em estado intermediário (situação 5) na tentativa ${attempt} - aguardando...`);
+        // Atualizar status no banco como processando
+        await supabase
+          .from('ebd_shopify_pedidos')
+          .update({ status_nfe: 'PROCESSANDO', nfe_id: nfeId })
+          .eq('bling_order_id', orderId);
+        // Continua o polling, não retorna erro
+      }
     }
 
-    // Após 4 tentativas, retornar pendente
-    console.log(`[BLING-NFE] NF-e ainda pendente após ${MAX_POLLING_ATTEMPTS} tentativas`);
+    // Após 4 tentativas, retornar pendente (não é erro!)
+    console.log(`[BLING-NFE] NF-e ainda pendente após ${MAX_POLLING_ATTEMPTS} tentativas - retornando sucesso com pendente`);
+    
+    // Atualizar status como processando
+    await supabase
+      .from('ebd_shopify_pedidos')
+      .update({ status_nfe: 'PROCESSANDO', nfe_id: nfeId })
+      .eq('bling_order_id', orderId);
+    
     return new Response(
       JSON.stringify({
         success: true,
@@ -731,7 +757,7 @@ serve(async (req) => {
         nfe_pendente: true,
         polling_attempts: MAX_POLLING_ATTEMPTS,
         stage: 'polling',
-        message: 'NF-e ainda em processamento. Clique novamente em alguns segundos.',
+        message: 'Nota em processamento. Verifique o menu Notas Emitidas.',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

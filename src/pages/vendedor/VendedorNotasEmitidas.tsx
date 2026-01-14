@@ -23,10 +23,12 @@ interface NotaEmitida {
   customer_name: string;
   customer_phone: string | null;
   order_date: string;
-  nota_fiscal_numero: string;
+  nota_fiscal_numero: string | null;
   nota_fiscal_chave: string | null;
   nota_fiscal_url: string | null;
   status_pagamento: string;
+  status_nfe: string | null;
+  nfe_id: number | null;
   cliente_telefone?: string | null;
 }
 
@@ -36,7 +38,7 @@ export default function VendedorNotasEmitidas() {
   const { data: notas, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["notas-emitidas", vendedor?.id],
     queryFn: async () => {
-      // Buscar pedidos com NF-e emitida
+      // Buscar pedidos com NF-e emitida ou em processamento
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select(`
@@ -49,9 +51,11 @@ export default function VendedorNotasEmitidas() {
           nota_fiscal_chave,
           nota_fiscal_url,
           status_pagamento,
+          status_nfe,
+          nfe_id,
           cliente_id
         `)
-        .not("nota_fiscal_numero", "is", null)
+        .or("nota_fiscal_numero.not.is.null,status_nfe.not.is.null")
         .order("created_at", { ascending: false })
         .limit(100);
 
@@ -199,7 +203,7 @@ export default function VendedorNotasEmitidas() {
                   <TableCell>{formatDate(nota.order_date)}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{nota.nota_fiscal_numero}</span>
+                      <span className="font-medium">{nota.nota_fiscal_numero || '-'}</span>
                       {nota.nota_fiscal_chave && (
                         <span className="text-xs text-muted-foreground truncate max-w-[120px]" title={nota.nota_fiscal_chave}>
                           {nota.nota_fiscal_chave.slice(0, 15)}...
@@ -208,7 +212,19 @@ export default function VendedorNotasEmitidas() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {nota.nota_fiscal_chave ? (
+                    {nota.status_nfe === 'AUTORIZADA' ? (
+                      <Badge variant="default" className="bg-green-600">
+                        Autorizada
+                      </Badge>
+                    ) : nota.status_nfe === 'REJEITADA' ? (
+                      <Badge variant="destructive">
+                        Rejeitada
+                      </Badge>
+                    ) : nota.status_nfe === 'PROCESSANDO' || nota.status_nfe === 'ENVIADA' || nota.status_nfe === 'CRIADA' ? (
+                      <Badge variant="secondary">
+                        Processando
+                      </Badge>
+                    ) : nota.nota_fiscal_chave ? (
                       <Badge variant="default" className="bg-green-600">
                         Autorizada
                       </Badge>
