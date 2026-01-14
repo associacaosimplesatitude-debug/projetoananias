@@ -10,7 +10,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { CheckCircle, Loader2, MapPin, Building2, Package, ShoppingCart, Truck, CreditCard, Minus, Plus } from "lucide-react";
+import { CheckCircle, Loader2, MapPin, Building2, Package, ShoppingCart, Truck, CreditCard, Minus, Plus, PlayCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { pushPropostaAprovada } from "@/lib/gtm";
 
 interface PropostaItem {
@@ -94,6 +95,7 @@ export default function PropostaDigital() {
   const { token } = useParams<{ token: string }>();
   const queryClient = useQueryClient();
   const [isConfirming, setIsConfirming] = useState(false);
+  const [showVideoTutorial, setShowVideoTutorial] = useState(false);
   const [selectedPrazo, setSelectedPrazo] = useState<string>("30");
   const [selectedFrete, setSelectedFrete] = useState<string>("");
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
@@ -723,6 +725,40 @@ export default function PropostaDigital() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        {/* Video Tutorial Button - Only for pending proposals with standard payment */}
+        {isPending && proposta.pode_faturar === false && (
+          <Button
+            variant="outline"
+            className="flex items-center gap-2 border-primary text-primary hover:bg-primary/10 w-full sm:w-auto"
+            onClick={() => setShowVideoTutorial(true)}
+          >
+            <PlayCircle className="h-5 w-5" />
+            Veja como aprovar e pagar
+          </Button>
+        )}
+
+        {/* Video Tutorial Dialog */}
+        <Dialog open={showVideoTutorial} onOpenChange={setShowVideoTutorial}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Como aprovar e pagar sua proposta</DialogTitle>
+              <DialogDescription>
+                Assista o vídeo para entender o passo a passo de como confirmar e efetuar o pagamento.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="aspect-video w-full">
+              <video 
+                controls 
+                className="w-full h-full rounded-lg"
+                autoPlay
+              >
+                <source src="/videos/Pagar_No_Pix_Clientes.mp4" type="video/mp4" />
+                Seu navegador não suporta vídeos.
+              </video>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Status Banner */}
         {isAccepted && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
