@@ -379,7 +379,12 @@ export default function ShopifyPedidos() {
   // Filtrar produtos por categoria, subcategoria e termo de busca
   const filteredProducts = products?.filter(product => {
     const title = product.node.title.toLowerCase();
-    const matchesSearch = title.includes(searchTerm.toLowerCase());
+    const searchLower = searchTerm.toLowerCase().trim();
+    
+    // Buscar por título OU por SKU
+    const variant = product.node.variants.edges[0]?.node;
+    const sku = variant?.sku?.toLowerCase() || '';
+    const matchesSearch = title.includes(searchLower) || sku.includes(searchLower);
     
     // Se não há categoria selecionada, apenas filtrar por busca
     if (selectedCategory === 'all') {
@@ -416,7 +421,10 @@ export default function ShopifyPedidos() {
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
 
-  const handleAddToCart = (product: ShopifyProduct) => {
+  // Estado para quantidade por produto (key = product.node.id)
+  const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
+
+  const handleAddToCart = (product: ShopifyProduct, quantity: number = 1) => {
     const variant = product.node.variants.edges[0]?.node;
     if (!variant) {
       toast.error("Produto sem variante disponível");
@@ -429,12 +437,14 @@ export default function ShopifyPedidos() {
       variantTitle: variant.title,
       sku: variant.sku || null,
       price: variant.price,
-      quantity: 1,
+      quantity: quantity,
       selectedOptions: variant.selectedOptions || []
     };
     
     addItem(cartItem);
-    toast.success("Produto adicionado ao carrinho", { position: "top-center" });
+    // Limpar quantidade digitada após adicionar
+    setProductQuantities(prev => ({ ...prev, [product.node.id]: 1 }));
+    toast.success(`${quantity}x ${product.node.title.substring(0, 30)}... adicionado`, { position: "top-center" });
   };
 
   const handleCheckoutClick = async () => {
@@ -1285,7 +1295,7 @@ export default function ShopifyPedidos() {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
-                placeholder="Buscar produtos..."
+                placeholder="Buscar por nome ou SKU..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -1437,13 +1447,27 @@ export default function ShopifyPedidos() {
                     <p className="text-xs text-muted-foreground mb-2">
                       SKU: {variant?.sku ? variant.sku : "não informado"}
                     </p>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-2">
                       <span className="font-bold text-lg">
                         R$ {parseFloat(price).toFixed(2)}
                       </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={productQuantities[product.node.id] || 1}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 1;
+                          setProductQuantities(prev => ({ ...prev, [product.node.id]: Math.max(1, val) }));
+                        }}
+                        className="w-16 h-8 text-center text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        disabled={!variant?.availableForSale}
+                      />
                       <Button
                         size="sm"
-                        onClick={() => handleAddToCart(product)}
+                        className="flex-1"
+                        onClick={() => handleAddToCart(product, productQuantities[product.node.id] || 1)}
                         disabled={!variant?.availableForSale}
                       >
                         <Plus className="h-4 w-4 mr-1" />
