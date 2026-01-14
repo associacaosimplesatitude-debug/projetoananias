@@ -54,7 +54,9 @@ import {
   Mail,
   Calendar,
   Play,
+  ExternalLink,
 } from "lucide-react";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
@@ -170,6 +172,7 @@ export default function AdminEBD() {
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
+  const { impersonateVendedor } = useImpersonation();
   const isGerenteEbd = role === 'gerente_ebd';
   
   // Map URL paths to tab keys
@@ -2557,6 +2560,24 @@ export default function AdminEBD() {
                     </div>
                   </div>
                   <div className="mt-4 flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => impersonateVendedor({
+                        id: vendedor.id,
+                        nome: vendedor.nome,
+                        email: vendedor.email,
+                        email_bling: null,
+                        comissao_percentual: vendedor.comissao_percentual,
+                        meta_mensal_valor: vendedor.meta_mensal_valor,
+                        tipo_perfil: vendedor.tipo_perfil,
+                        status: vendedor.status,
+                        foto_url: vendedor.foto_url,
+                      })}
+                      title="Acessar o painel como este vendedor"
+                    >
+                      <Eye className="h-4 w-4 mr-1" />Acessar
+                    </Button>
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(vendedor)}>
                       <Pencil className="h-4 w-4 mr-1" />Editar
                     </Button>

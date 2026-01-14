@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { DomainBrandingProvider } from "@/contexts/DomainBrandingContext";
+import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import { ConditionalNavigation } from "@/components/layout/ConditionalNavigation";
 import { PaymentBanner } from "@/components/layout/PaymentBanner";
 import { EBDTrimesterBanner } from "@/components/ebd/EBDTrimesterBanner";
@@ -151,6 +152,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <ImpersonationProvider>
             <Routes>
               <Route path="/auth" element={
                 <EBDLandingRedirect>
@@ -472,7 +474,8 @@ const App = () => (
               }
             />
           </Routes>
-        </AuthProvider>
+            </ImpersonationProvider>
+          </AuthProvider>
       </BrowserRouter>
       </DomainBrandingProvider>
     </TooltipProvider>

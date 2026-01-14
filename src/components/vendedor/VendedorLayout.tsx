@@ -12,12 +12,16 @@ import {
   Scale,
   Store,
   FileText,
-  LucideIcon
+  LucideIcon,
+  ArrowLeft,
+  Eye,
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NotificationBell } from "@/components/vendedor/NotificationBell";
 import { useVendedor } from "@/hooks/useVendedor";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -60,7 +64,8 @@ const allMenuItems: MenuItem[] = [
 
 export function VendedorLayout() {
   const location = useLocation();
-  const { vendedor, tipoPerfil, isRepresentante, isLoading } = useVendedor();
+  const { vendedor, tipoPerfil, isRepresentante, isLoading, isImpersonating } = useVendedor();
+  const { stopImpersonation } = useImpersonation();
   
   // Verificar se é vendedor de polo (Glorinha - Polo Penha)
   const isPolo = vendedor?.email === 'glorinha21carreiro@gmail.com';
@@ -90,59 +95,87 @@ export function VendedorLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <Sidebar>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel>
-                {isLoading ? (
-                  <Skeleton className="h-4 w-20" />
-                ) : (
-                  sidebarLabel
-                )}
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {isLoading ? (
-                    // Loading skeleton for menu items
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <SidebarMenuItem key={i}>
-                        <div className="flex items-center gap-2 px-3 py-2">
-                          <Skeleton className="h-4 w-4" />
-                          <Skeleton className="h-4 w-24" />
-                        </div>
-                      </SidebarMenuItem>
-                    ))
-                  ) : (
-                    menuItems.map((item) => (
-                      <SidebarMenuItem key={item.to}>
-                        <SidebarMenuButton asChild isActive={isActive(item.to)}>
-                          <RouterNavLink to={item.to} end={item.end}>
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.label}</span>
-                          </RouterNavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-        </Sidebar>
-
-        <div className="flex-1 flex flex-col">
-          <header className="border-b bg-background px-4 py-3 flex items-center justify-between">
-            <SidebarTrigger />
+      <div className="min-h-screen flex w-full flex-col">
+        {/* Impersonation Banner */}
+        {isImpersonating && (
+          <div className="bg-orange-500 text-white px-4 py-2 flex items-center justify-between z-50">
             <div className="flex items-center gap-2">
-              <NotificationBell />
-              <UserProfileDropdown />
+              <Eye className="h-4 w-4" />
+              <span>
+                Você está visualizando como: <strong>{vendedor?.nome}</strong>
+                {vendedor?.tipo_perfil && (
+                  <span className="ml-2 text-orange-100">
+                    ({vendedor.tipo_perfil === 'representante' ? 'Representante' : 'Vendedor'})
+                  </span>
+                )}
+              </span>
             </div>
-          </header>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={stopImpersonation}
+              className="text-white hover:bg-orange-600 hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Voltar ao Admin
+            </Button>
+          </div>
+        )}
+        
+        <div className="flex flex-1">
+          <Sidebar>
+            <SidebarContent>
+              <SidebarGroup>
+                <SidebarGroupLabel>
+                  {isLoading ? (
+                    <Skeleton className="h-4 w-20" />
+                  ) : (
+                    sidebarLabel
+                  )}
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {isLoading ? (
+                      // Loading skeleton for menu items
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <SidebarMenuItem key={i}>
+                          <div className="flex items-center gap-2 px-3 py-2">
+                            <Skeleton className="h-4 w-4" />
+                            <Skeleton className="h-4 w-24" />
+                          </div>
+                        </SidebarMenuItem>
+                      ))
+                    ) : (
+                      menuItems.map((item) => (
+                        <SidebarMenuItem key={item.to}>
+                          <SidebarMenuButton asChild isActive={isActive(item.to)}>
+                            <RouterNavLink to={item.to} end={item.end}>
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.label}</span>
+                            </RouterNavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))
+                    )}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </SidebarContent>
+          </Sidebar>
 
-          <main className="flex-1 p-6 overflow-auto">
-            <Outlet />
-          </main>
+          <div className="flex-1 flex flex-col">
+            <header className="border-b bg-background px-4 py-3 flex items-center justify-between">
+              <SidebarTrigger />
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+                <UserProfileDropdown />
+              </div>
+            </header>
+
+            <main className="flex-1 p-6 overflow-auto">
+              <Outlet />
+            </main>
+          </div>
         </div>
       </div>
     </SidebarProvider>
