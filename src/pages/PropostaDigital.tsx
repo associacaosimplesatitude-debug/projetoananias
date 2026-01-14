@@ -104,6 +104,7 @@ export default function PropostaDigital() {
       case '30': return '30 dias';
       case '60_direto': return '60 dias (1 boleto)';
       case '60': return '30/60 dias (2 boletos)';
+      case '60_90': return '60/90 dias (2 boletos)';
       case '90': return '30/60/90 dias (3 boletos)';
       default: return prazo;
     }
