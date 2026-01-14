@@ -546,9 +546,14 @@ serve(async (req) => {
 
     // ========== AUTO-RETRY: Detectar conflito de numeração e tentar com próximo número ==========
     const fiscalErrorCheck = extractFiscalError(createNfeData);
-    const isNumberConflict = fiscalErrorCheck?.toLowerCase().includes('já existe uma nota com este número') ||
-                             fiscalErrorCheck?.toLowerCase().includes('numero já existe') ||
-                             fiscalErrorCheck?.toLowerCase().includes('número já existe');
+    console.log(`[BLING-NFE] Verificando conflito de numeração. fiscalError="${fiscalErrorCheck}"`);
+    
+    // Normalizar para comparação (remover acentos e lowercase)
+    const normalizedError = fiscalErrorCheck?.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
+    
+    const isNumberConflict = normalizedError.includes('ja existe uma nota com este numero') ||
+                             normalizedError.includes('numero ja existe');
 
     if (isNumberConflict && !createNfeData?.data?.id) {
       console.log(`[BLING-NFE] ⚠️ Conflito de numeração detectado, buscando próximo número disponível...`);
