@@ -141,9 +141,11 @@ export function VendaConcluidaDialog({
 
       // Atualizar stage baseado na resposta
       if (stage === 'polling' || data?.nfe_pendente) {
-        setNfeStage('polling');
-        setPollingAttempt(data?.polling_attempts || 4);
-        toast.info("Nota em processamento. Verifique o menu Notas Emitidas em alguns segundos.");
+        // Fechar modal e redirecionar imediatamente para Notas Emitidas
+        toast.info("NF-e em processamento. Redirecionando para Notas Emitidas...");
+        onOpenChange(false);
+        onClose();
+        window.location.href = '/vendedor/notas-emitidas';
         return;
       }
 
