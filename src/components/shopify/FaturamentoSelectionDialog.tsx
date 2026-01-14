@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { FileText, CreditCard, Clock, Receipt, CheckCircle2, Truck, Package, Store, Building2, MapPin, Banknote, Smartphone, CreditCardIcon } from "lucide-react";
+import { FileText, CreditCard, Clock, Receipt, CheckCircle2, Truck, Package, Store, Building2, MapPin, Banknote, Smartphone, CreditCardIcon, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -405,6 +405,13 @@ export function FaturamentoSelectionDialog({
   return (
     <AlertDialog open={open} onOpenChange={handleClose}>
       <AlertDialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <button
+          onClick={handleClose}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 z-10"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Fechar</span>
+        </button>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-xl">
             <Receipt className="h-6 w-6 text-primary" />
