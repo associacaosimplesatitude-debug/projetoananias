@@ -49,6 +49,7 @@ export default function VendedorNotasEmitidas() {
       if (!vendedor?.id) return [];
       
       // Buscar de vendas_balcao - vendas feitas no PDV/balcão
+      // Inclui vendas com NF-e gerada E vendas em processamento (para mostrar status)
       const { data, error } = await supabase
         .from("vendas_balcao")
         .select(`
@@ -66,7 +67,7 @@ export default function VendedorNotasEmitidas() {
           created_at
         `)
         .eq("vendedor_id", vendedor.id)
-        .not("nota_fiscal_numero", "is", null)
+        .not("bling_order_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(100);
 

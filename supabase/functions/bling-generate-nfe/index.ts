@@ -675,24 +675,7 @@ serve(async (req) => {
           url: danfeUrl,
         });
         
-        // Buscar vendedor_id do cliente se não existir no pedido
-        let vendedorIdToSave: string | null = null;
-        const { data: pedidoAtual } = await supabase
-          .from('ebd_shopify_pedidos')
-          .select('vendedor_id, cliente_id')
-          .eq('bling_order_id', orderId)
-          .single();
-        
-        if (!pedidoAtual?.vendedor_id && pedidoAtual?.cliente_id) {
-          const { data: clienteData } = await supabase
-            .from('ebd_clientes')
-            .select('vendedor_id')
-            .eq('id', pedidoAtual.cliente_id)
-            .single();
-          vendedorIdToSave = clienteData?.vendedor_id || null;
-        }
-        
-        // SALVAR NO BANCO DE DADOS - incluindo nfe_id, status e vendedor_id
+        // SALVAR NO BANCO DE DADOS - vendas_balcao (venda de balcão/loja)
         const updatePayload: any = {
           nfe_id: nfeId,
           status_nfe: 'AUTORIZADA',
@@ -701,19 +684,28 @@ serve(async (req) => {
           nota_fiscal_url: danfeUrl,
         };
         
-        if (vendedorIdToSave) {
-          updatePayload.vendedor_id = vendedorIdToSave;
-        }
-        
-        const { error: updateError } = await supabase
-          .from('ebd_shopify_pedidos')
+        // Primeiro tentar atualizar em vendas_balcao (fluxo principal para Pagar na Loja)
+        const { data: vendaBalcao, error: vendaBalcaoError } = await supabase
+          .from('vendas_balcao')
           .update(updatePayload)
-          .eq('bling_order_id', orderId);
+          .eq('bling_order_id', orderId)
+          .select('id')
+          .maybeSingle();
         
-        if (updateError) {
-          console.error('[BLING-NFE] Erro ao salvar NF-e no banco:', updateError);
+        if (vendaBalcao) {
+          console.log('[BLING-NFE] ✓ Dados da NF-e salvos em vendas_balcao com sucesso!');
         } else {
-          console.log('[BLING-NFE] ✓ Dados da NF-e salvos no banco com sucesso!');
+          // Fallback: tentar atualizar em ebd_shopify_pedidos (pedidos online)
+          const { error: updateError } = await supabase
+            .from('ebd_shopify_pedidos')
+            .update(updatePayload)
+            .eq('bling_order_id', orderId);
+          
+          if (updateError) {
+            console.error('[BLING-NFE] Erro ao salvar NF-e no banco:', updateError);
+          } else {
+            console.log('[BLING-NFE] ✓ Dados da NF-e salvos em ebd_shopify_pedidos com sucesso!');
+          }
         }
         
         return new Response(
@@ -735,11 +727,20 @@ serve(async (req) => {
         const rejectReason = nfeDetail?.motivoRejeicao || nfeDetail?.erroEnvio || 'Motivo não informado';
         console.log(`[BLING-NFE] NF-e REJEITADA na tentativa ${attempt}: ${rejectReason}`);
         
-        // Atualizar status no banco
-        await supabase
-          .from('ebd_shopify_pedidos')
+        // Atualizar status no banco - tentar vendas_balcao primeiro
+        const { data: rejeitadaBalcao } = await supabase
+          .from('vendas_balcao')
           .update({ status_nfe: 'REJEITADA', nfe_id: nfeId })
-          .eq('bling_order_id', orderId);
+          .eq('bling_order_id', orderId)
+          .select('id')
+          .maybeSingle();
+        
+        if (!rejeitadaBalcao) {
+          await supabase
+            .from('ebd_shopify_pedidos')
+            .update({ status_nfe: 'REJEITADA', nfe_id: nfeId })
+            .eq('bling_order_id', orderId);
+        }
         
         return new Response(
           JSON.stringify({
@@ -755,11 +756,20 @@ serve(async (req) => {
       // Situação 5 = Estado intermediário (aguardando/processando) - NÃO É REJEIÇÃO!
       if (situacao === 5) {
         console.log(`[BLING-NFE] NF-e em estado intermediário (situação 5) na tentativa ${attempt} - aguardando...`);
-        // Atualizar status no banco como processando
-        await supabase
-          .from('ebd_shopify_pedidos')
+        // Atualizar status no banco como processando - tentar vendas_balcao primeiro
+        const { data: processandoBalcao } = await supabase
+          .from('vendas_balcao')
           .update({ status_nfe: 'PROCESSANDO', nfe_id: nfeId })
-          .eq('bling_order_id', orderId);
+          .eq('bling_order_id', orderId)
+          .select('id')
+          .maybeSingle();
+        
+        if (!processandoBalcao) {
+          await supabase
+            .from('ebd_shopify_pedidos')
+            .update({ status_nfe: 'PROCESSANDO', nfe_id: nfeId })
+            .eq('bling_order_id', orderId);
+        }
         // Continua o polling, não retorna erro
       }
     }
@@ -767,11 +777,20 @@ serve(async (req) => {
     // Após 4 tentativas, retornar pendente (não é erro!)
     console.log(`[BLING-NFE] NF-e ainda pendente após ${MAX_POLLING_ATTEMPTS} tentativas - retornando sucesso com pendente`);
     
-    // Atualizar status como processando
-    await supabase
-      .from('ebd_shopify_pedidos')
+    // Atualizar status como processando - tentar vendas_balcao primeiro
+    const { data: pendingBalcao } = await supabase
+      .from('vendas_balcao')
       .update({ status_nfe: 'PROCESSANDO', nfe_id: nfeId })
-      .eq('bling_order_id', orderId);
+      .eq('bling_order_id', orderId)
+      .select('id')
+      .maybeSingle();
+    
+    if (!pendingBalcao) {
+      await supabase
+        .from('ebd_shopify_pedidos')
+        .update({ status_nfe: 'PROCESSANDO', nfe_id: nfeId })
+        .eq('bling_order_id', orderId);
+    }
     
     return new Response(
       JSON.stringify({
