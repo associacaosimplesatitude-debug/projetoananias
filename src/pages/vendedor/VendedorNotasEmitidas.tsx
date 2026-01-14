@@ -42,6 +42,7 @@ interface NotaEmitida {
 export default function VendedorNotasEmitidas() {
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
   const [isImporting, setIsImporting] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const { data: notas, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["notas-emitidas-balcao", vendedor?.id],
@@ -197,6 +198,49 @@ export default function VendedorNotasEmitidas() {
     }).format(value);
   };
 
+  // Verificar status das NF-es em processamento no Bling
+  const handleCheckNfeStatus = async () => {
+    const notasProcessando = notas?.filter(
+      n => n.nfe_id && ['PROCESSANDO', 'ENVIADA', 'CRIADA'].includes(n.status_nfe || '')
+    );
+
+    if (!notasProcessando || notasProcessando.length === 0) {
+      toast.info("Nenhuma nota em processamento para verificar");
+      refetch();
+      return;
+    }
+
+    setIsCheckingStatus(true);
+    let atualizadas = 0;
+
+    try {
+      for (const nota of notasProcessando) {
+        if (!nota.nfe_id) continue;
+
+        const { data, error } = await supabase.functions.invoke('bling-check-nfe-status', {
+          body: { nfe_id: nota.nfe_id, venda_id: nota.id }
+        });
+
+        if (!error && data?.updated) {
+          atualizadas++;
+        }
+      }
+
+      if (atualizadas > 0) {
+        toast.success(`${atualizadas} nota(s) atualizada(s)`);
+      } else {
+        toast.info("Notas ainda em processamento no Bling");
+      }
+      
+      refetch();
+    } catch (error: any) {
+      console.error("Erro ao verificar status:", error);
+      toast.error("Erro ao verificar status das notas");
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
   if (vendedorLoading || isLoading) {
     return (
       <div className="space-y-6">
@@ -247,11 +291,11 @@ export default function VendedorNotasEmitidas() {
           
           <Button
             variant="outline"
-            onClick={() => refetch()}
-            disabled={isRefetching}
+            onClick={handleCheckNfeStatus}
+            disabled={isRefetching || isCheckingStatus}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? "animate-spin" : ""}`} />
-            Atualizar
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching || isCheckingStatus ? "animate-spin" : ""}`} />
+            {isCheckingStatus ? "Verificando..." : "Atualizar"}
           </Button>
         </div>
       </div>
