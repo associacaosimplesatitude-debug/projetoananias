@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useVendedor } from "@/hooks/useVendedor";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Printer, MessageCircle, RefreshCw, FileText, ExternalLink, Download, Loader2 } from "lucide-react";
+import { Printer, MessageCircle, RefreshCw, FileText, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -16,13 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 
 interface NotaEmitida {
@@ -41,7 +34,6 @@ interface NotaEmitida {
 
 export default function VendedorNotasEmitidas() {
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
-  const [isImporting, setIsImporting] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const { data: notas, isLoading, refetch, isRefetching } = useQuery({
@@ -90,56 +82,6 @@ export default function VendedorNotasEmitidas() {
     },
     enabled: !!vendedor?.id,
   });
-
-  const handleImportNfes = async (periodo: string) => {
-    setIsImporting(true);
-    
-    try {
-      let dataInicial: string;
-      let dataFinal: string;
-      const today = new Date();
-      
-      switch (periodo) {
-        case "hoje":
-          dataInicial = format(today, "yyyy-MM-dd");
-          dataFinal = format(today, "yyyy-MM-dd");
-          break;
-        case "semana":
-          dataInicial = format(subDays(today, 7), "yyyy-MM-dd");
-          dataFinal = format(today, "yyyy-MM-dd");
-          break;
-        case "mes":
-          dataInicial = format(subDays(today, 30), "yyyy-MM-dd");
-          dataFinal = format(today, "yyyy-MM-dd");
-          break;
-        default:
-          dataInicial = format(today, "yyyy-MM-dd");
-          dataFinal = format(today, "yyyy-MM-dd");
-      }
-
-      const response = await supabase.functions.invoke("bling-import-nfe-penha", {
-        body: { dataInicial, dataFinal },
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message);
-      }
-
-      const result = response.data;
-      
-      if (result.success) {
-        toast.success(result.message || `${result.imported} notas importadas`);
-        refetch();
-      } else {
-        toast.error(result.error || "Erro ao importar NF-es");
-      }
-    } catch (error: any) {
-      console.error("Erro importando NF-es:", error);
-      toast.error(error.message || "Erro ao importar NF-es do Bling");
-    } finally {
-      setIsImporting(false);
-    }
-  };
 
   const formatPhone = (phone: string | null | undefined): string | null => {
     if (!phone) return null;
@@ -265,46 +207,20 @@ export default function VendedorNotasEmitidas() {
           <h1 className="text-2xl font-bold">Notas Emitidas</h1>
         </div>
         
-        <div className="flex items-center gap-2">
-          <Select onValueChange={handleImportNfes} disabled={isImporting}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder={
-                isImporting ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Importando...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Download className="h-4 w-4" />
-                    Importar do Bling
-                  </span>
-                )
-              } />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="hoje">Hoje</SelectItem>
-              <SelectItem value="semana">Últimos 7 dias</SelectItem>
-              <SelectItem value="mes">Últimos 30 dias</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Button
-            variant="outline"
-            onClick={handleCheckNfeStatus}
-            disabled={isRefetching || isCheckingStatus}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching || isCheckingStatus ? "animate-spin" : ""}`} />
-            {isCheckingStatus ? "Verificando..." : "Atualizar"}
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          onClick={handleCheckNfeStatus}
+          disabled={isRefetching || isCheckingStatus}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching || isCheckingStatus ? "animate-spin" : ""}`} />
+          {isCheckingStatus ? "Verificando..." : "Atualizar"}
+        </Button>
       </div>
 
       {notas && notas.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p className="mb-4">Nenhuma nota fiscal emitida encontrada</p>
-          <p className="text-sm">Clique em "Importar do Bling" para buscar as NF-es</p>
+          <p>Nenhuma nota fiscal emitida encontrada</p>
         </div>
       ) : (
         <div className="border rounded-lg">
