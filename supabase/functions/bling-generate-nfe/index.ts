@@ -528,6 +528,31 @@ serve(async (req) => {
     }
     console.log(`[BLING-NFE] =====================================`);
 
+    // ========== VERIFICAR SE É PJ NÃO CONTRIBUINTE (SEM IE) ==========
+    // SEFAZ Rejeição 696: "Operacao com nao contribuinte deve indicar operacao com consumidor final"
+    // Se for PJ (CNPJ) e não tiver Inscrição Estadual válida, deve marcar como consumidor final
+    const inscricaoEstadual = contatoDetalhe?.inscricaoEstadual || contatoDetalhe?.ie || '';
+    const ieValida = inscricaoEstadual && 
+                     inscricaoEstadual.trim() !== '' && 
+                     inscricaoEstadual.toUpperCase() !== 'ISENTO' &&
+                     inscricaoEstadual.toUpperCase() !== 'ISENTA';
+    
+    console.log(`[BLING-NFE] ===== VERIFICAÇÃO CONSUMIDOR FINAL =====`);
+    console.log(`[BLING-NFE] tipoPessoa=${tipoPessoa}, inscricaoEstadual="${inscricaoEstadual}", ieValida=${ieValida}`);
+    
+    if (tipoPessoa === 'J' && !ieValida) {
+      // PJ não contribuinte = consumidor final
+      nfePayload.indFinal = 1;
+      console.log(`[BLING-NFE] ✓ PJ NÃO CONTRIBUINTE DETECTADO - Definindo indFinal=1 (consumidor final)`);
+    } else if (tipoPessoa === 'F') {
+      // Pessoa física sempre é consumidor final
+      nfePayload.indFinal = 1;
+      console.log(`[BLING-NFE] ✓ Pessoa Física - indFinal=1 (consumidor final)`);
+    } else {
+      console.log(`[BLING-NFE] PJ Contribuinte com IE válida - indFinal não necessário`);
+    }
+    console.log(`[BLING-NFE] ==========================================`);
+
     console.log(`[BLING-NFE] Payload NF-e FINAL:`, JSON.stringify(nfePayload, null, 2));
 
     const createNfeUrl = 'https://api.bling.com.br/Api/v3/nfe';
