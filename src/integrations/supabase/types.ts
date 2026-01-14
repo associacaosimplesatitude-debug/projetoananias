@@ -3260,6 +3260,7 @@ export type Database = {
           endereco_numero: string | null
           endereco_rua: string | null
           id: string
+          nfe_id: number | null
           nota_fiscal_chave: string | null
           nota_fiscal_numero: string | null
           nota_fiscal_url: string | null
@@ -3267,6 +3268,7 @@ export type Database = {
           order_number: string
           shopify_cancelled_at: string | null
           shopify_order_id: number
+          status_nfe: string | null
           status_pagamento: string
           updated_at: string
           url_rastreio: string | null
@@ -3295,6 +3297,7 @@ export type Database = {
           endereco_numero?: string | null
           endereco_rua?: string | null
           id?: string
+          nfe_id?: number | null
           nota_fiscal_chave?: string | null
           nota_fiscal_numero?: string | null
           nota_fiscal_url?: string | null
@@ -3302,6 +3305,7 @@ export type Database = {
           order_number: string
           shopify_cancelled_at?: string | null
           shopify_order_id: number
+          status_nfe?: string | null
           status_pagamento?: string
           updated_at?: string
           url_rastreio?: string | null
@@ -3330,6 +3334,7 @@ export type Database = {
           endereco_numero?: string | null
           endereco_rua?: string | null
           id?: string
+          nfe_id?: number | null
           nota_fiscal_chave?: string | null
           nota_fiscal_numero?: string | null
           nota_fiscal_url?: string | null
@@ -3337,6 +3342,7 @@ export type Database = {
           order_number?: string
           shopify_cancelled_at?: string | null
           shopify_order_id?: number
+          status_nfe?: string | null
           status_pagamento?: string
           updated_at?: string
           url_rastreio?: string | null
