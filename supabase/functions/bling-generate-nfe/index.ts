@@ -675,16 +675,39 @@ serve(async (req) => {
           url: danfeUrl,
         });
         
-        // SALVAR NO BANCO DE DADOS - incluindo nfe_id e status
+        // Buscar vendedor_id do cliente se não existir no pedido
+        let vendedorIdToSave: string | null = null;
+        const { data: pedidoAtual } = await supabase
+          .from('ebd_shopify_pedidos')
+          .select('vendedor_id, cliente_id')
+          .eq('bling_order_id', orderId)
+          .single();
+        
+        if (!pedidoAtual?.vendedor_id && pedidoAtual?.cliente_id) {
+          const { data: clienteData } = await supabase
+            .from('ebd_clientes')
+            .select('vendedor_id')
+            .eq('id', pedidoAtual.cliente_id)
+            .single();
+          vendedorIdToSave = clienteData?.vendedor_id || null;
+        }
+        
+        // SALVAR NO BANCO DE DADOS - incluindo nfe_id, status e vendedor_id
+        const updatePayload: any = {
+          nfe_id: nfeId,
+          status_nfe: 'AUTORIZADA',
+          nota_fiscal_numero: String(nfeNumero),
+          nota_fiscal_chave: nfeChave,
+          nota_fiscal_url: danfeUrl,
+        };
+        
+        if (vendedorIdToSave) {
+          updatePayload.vendedor_id = vendedorIdToSave;
+        }
+        
         const { error: updateError } = await supabase
           .from('ebd_shopify_pedidos')
-          .update({
-            nfe_id: nfeId,
-            status_nfe: 'AUTORIZADA',
-            nota_fiscal_numero: String(nfeNumero),
-            nota_fiscal_chave: nfeChave,
-            nota_fiscal_url: danfeUrl,
-          })
+          .update(updatePayload)
           .eq('bling_order_id', orderId);
         
         if (updateError) {

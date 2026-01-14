@@ -38,7 +38,9 @@ export default function VendedorNotasEmitidas() {
   const { data: notas, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["notas-emitidas", vendedor?.id],
     queryFn: async () => {
-      // Buscar pedidos com NF-e emitida ou em processamento
+      if (!vendedor?.id) return [];
+      
+      // Buscar pedidos com NF-e emitida ou em processamento FILTRADOS pelo vendedor
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select(`
@@ -55,6 +57,7 @@ export default function VendedorNotasEmitidas() {
           nfe_id,
           cliente_id
         `)
+        .eq("vendedor_id", vendedor.id)
         .or("nota_fiscal_numero.not.is.null,status_nfe.not.is.null")
         .order("created_at", { ascending: false })
         .limit(100);
@@ -87,7 +90,7 @@ export default function VendedorNotasEmitidas() {
         cliente_telefone: pedido.cliente_id ? clientesTelefones[pedido.cliente_id] : null
       })) as NotaEmitida[];
     },
-    enabled: !vendedorLoading,
+    enabled: !!vendedor?.id,
   });
 
   const formatPhone = (phone: string | null | undefined): string | null => {
