@@ -543,15 +543,27 @@ serve(async (req) => {
     console.log(`[BLING-NFE] tipoPessoa=${tipoPessoa}, inscricaoEstadual="${inscricaoEstadual}", ieValida=${ieValida}`);
     
     if (tipoPessoa === 'J' && !ieValida) {
-      // PJ não contribuinte = consumidor final
+      // PJ não contribuinte = consumidor final + indicador de IE = 9 (não contribuinte)
       nfePayload.indFinal = 1;
-      console.log(`[BLING-NFE] ✓ PJ NÃO CONTRIBUINTE DETECTADO - Definindo indFinal=1 (consumidor final)`);
+      if (nfePayload.contato) {
+        nfePayload.contato.indicadorie = 9;  // 9 = Não Contribuinte
+        nfePayload.contato.inscricaoEstadual = '';  // Limpar IE para evitar inconsistência
+      }
+      console.log(`[BLING-NFE] ✓ PJ NÃO CONTRIBUINTE - indFinal=1, indicadorie=9`);
     } else if (tipoPessoa === 'F') {
-      // Pessoa física sempre é consumidor final
+      // Pessoa física sempre é consumidor final e não contribuinte
       nfePayload.indFinal = 1;
-      console.log(`[BLING-NFE] ✓ Pessoa Física - indFinal=1 (consumidor final)`);
+      if (nfePayload.contato) {
+        nfePayload.contato.indicadorie = 9;  // 9 = Não Contribuinte
+        nfePayload.contato.inscricaoEstadual = '';
+      }
+      console.log(`[BLING-NFE] ✓ Pessoa Física - indFinal=1, indicadorie=9`);
     } else {
-      console.log(`[BLING-NFE] PJ Contribuinte com IE válida - indFinal não necessário`);
+      // PJ Contribuinte com IE válida
+      if (nfePayload.contato) {
+        nfePayload.contato.indicadorie = 1;  // 1 = Contribuinte ICMS
+      }
+      console.log(`[BLING-NFE] PJ Contribuinte com IE válida - indicadorie=1`);
     }
     console.log(`[BLING-NFE] ==========================================`);
 
