@@ -1360,10 +1360,10 @@ serve(async (req) => {
     let UNIDADE_NEGOCIO_PENHA = resolveUnidadeNegocioPenhaId(unidadesNegocioMap);
 
     if (UNIDADE_NEGOCIO_PENHA === null) {
-      // Fallback seguro: hoje no Bling a unidade "Loja Penha" existe e costuma ser ID=3.
-      // Mantemos o lookup dinâmico como prioridade, mas evitamos cair na Matriz quando o endpoint não retorna a lista.
-      console.warn('[BLING] ⚠️ Unidade Penha não encontrada via API! Usando fallback ID=3 (Loja Penha)');
-      UNIDADE_NEGOCIO_PENHA = 3;
+      // API não retorna lista de unidades de negócio - definir como 0 para OMITIR do payload
+      // Isso evita erro "Unidade de negócio não encontrada" quando ID não existe
+      console.warn('[BLING] ⚠️ Unidade Penha não encontrada via API! Definindo como 0 para omitir do payload');
+      UNIDADE_NEGOCIO_PENHA = 0;
     } else {
       console.log(`[BLING] ✅ Unidade Penha resolvida dinamicamente: ID=${UNIDADE_NEGOCIO_PENHA}`);
     }
@@ -2276,11 +2276,14 @@ serve(async (req) => {
     // Demais regiões -> Loja FATURADOS (205797806) + Unidade 2
     
     // Montar objeto loja com unidadeNegocio baseado na região
+    // IMPORTANTE: Se unidadeNegocioIdSelecionada === 0, OMITIR o campo para evitar erro
+    // "Unidade de negócio não encontrada" quando a API não retorna lista de unidades
     const lojaPayload: any = {
       id: lojaIdSelecionada,
-      unidadeNegocio: {
-        id: unidadeNegocioIdSelecionada,
-      },
+      // Somente incluir unidadeNegocio se temos um ID válido (> 0)
+      ...(unidadeNegocioIdSelecionada > 0 && {
+        unidadeNegocio: { id: unidadeNegocioIdSelecionada }
+      }),
     };
     
     // LOG OBRIGATÓRIO antes do POST
