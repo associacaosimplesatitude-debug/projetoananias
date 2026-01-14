@@ -132,11 +132,13 @@ async function getLastNfeNumber(
     const maxPaginas = 5; // Buscar até 5 páginas para garantir encontrar o maior número
     let totalNfesAnalisadas = 0;
     
-    while (pagina <= maxPaginas) {
-      // Buscar NF-es autorizadas (situacao=6) nesta série
-      const searchUrl = `https://api.bling.com.br/Api/v3/nfe?serie=${serie}&situacao=6&pagina=${pagina}&limite=100`;
-      
-      console.log(`[BLING-NFE] Consultando página ${pagina}: ${searchUrl}`);
+     while (pagina <= maxPaginas) {
+       // Buscar NF-es desta série (SEM filtrar por situação)
+       // Motivo: o número pode estar "ocupado" por NF-e em outros status (em digitação, rejeitada, etc.)
+       // e a SEFAZ/Bling ainda assim impedem reutilização.
+       const searchUrl = `https://api.bling.com.br/Api/v3/nfe?serie=${serie}&pagina=${pagina}&limite=100`;
+       
+       console.log(`[BLING-NFE] Consultando página ${pagina}: ${searchUrl}`);
       
       const resp = await fetch(searchUrl, {
         headers: {
