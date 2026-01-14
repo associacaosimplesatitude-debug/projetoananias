@@ -17,7 +17,9 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useVendedor } from "@/hooks/useVendedor";
 import { calcularDescontosLocal, type ItemCalculadora, type DescontosCategoriaRepresentante } from "@/lib/descontosCalculadora";
-import { ENDERECO_MATRIZ, formatarEnderecoMatriz } from "@/constants/enderecoMatriz";
+import { ENDERECO_MATRIZ, ENDERECO_PERNAMBUCO, formatarEnderecoMatriz, formatarEnderecoPernambuco, calcularCaixas } from "@/constants/enderecoMatriz";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { AdicionarFreteOrcamentoDialog } from "@/components/vendedor/AdicionarFreteOrcamentoDialog";
 import { EditarPropostaDialog } from "@/components/vendedor/EditarPropostaDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -45,7 +47,10 @@ interface Cliente {
   endereco_estado: string | null;
   endereco_cep: string | null;
   cnpj: string | null;
+  cpf: string | null;
 }
+
+type LocalColeta = 'matriz' | 'polo_pe';
 
 interface OrcamentoFrete {
   id: string;
@@ -88,6 +93,7 @@ export default function VendedorCalculadoraPeso() {
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [clienteSelecionado, setClienteSelecionado] = useState<string>("");
   const [activeTab, setActiveTab] = useState("novo");
+  const [localColeta, setLocalColeta] = useState<LocalColeta>('matriz');
   
   // Estados para modais
   const [freteDialogOpen, setFreteDialogOpen] = useState(false);
@@ -110,7 +116,7 @@ export default function VendedorCalculadoraPeso() {
       if (!vendedor?.id) return [];
       const { data, error } = await supabase
         .from("ebd_clientes")
-        .select("id, nome_igreja, tipo_cliente, onboarding_concluido, desconto_faturamento, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, cnpj")
+        .select("id, nome_igreja, tipo_cliente, onboarding_concluido, desconto_faturamento, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, cnpj, cpf")
         .eq("vendedor_id", vendedor.id)
         .order("nome_igreja");
       if (error) throw error;
@@ -237,6 +243,27 @@ CEP: ${cliente.endereco_cep || ''}`,
     };
   }, [cliente]);
 
+  // Dados do local de coleta
+  const dadosColeta = useMemo(() => {
+    if (localColeta === 'polo_pe') {
+      return {
+        endereco: ENDERECO_PERNAMBUCO,
+        enderecoFormatado: formatarEnderecoPernambuco(),
+        cnpj: ENDERECO_PERNAMBUCO.cnpj,
+        nome: 'Polo PE'
+      };
+    }
+    return {
+      endereco: ENDERECO_MATRIZ,
+      enderecoFormatado: formatarEnderecoMatriz(),
+      cnpj: ENDERECO_MATRIZ.cnpj,
+      nome: 'Matriz RJ'
+    };
+  }, [localColeta]);
+
+  // Informações de caixas
+  const infoCaixas = useMemo(() => calcularCaixas(calculo.pesoTotal), [calculo.pesoTotal]);
+
   // Mensagem para transportadora
   const mensagemTransportadora = useMemo(() => {
     if (!cliente || carrinho.length === 0) return "";
@@ -245,20 +272,29 @@ CEP: ${cliente.endereco_cep || ''}`,
       ? `${(calculo.pesoTotal * 1000).toFixed(0)}g`
       : `${calculo.pesoTotal.toFixed(2)} kg`;
 
+    const docDestinatario = cliente.cnpj 
+      ? `*CNPJ:* ${cliente.cnpj}` 
+      : cliente.cpf 
+        ? `*CPF:* ${cliente.cpf}` 
+        : '*Documento:* Não informado';
+
     return `📦 *Orçamento de Frete*
 ━━━━━━━━━━━━━━━━━━
 *Peso Total:* ${pesoKg}
 *Valor NF:* R$ ${calculo.total.toFixed(2).replace('.', ',')}
 *Itens:* ${calculo.quantidadeTotal} unidade(s)
+*Volumes:* ${infoCaixas.quantidade} (${infoCaixas.tipo} - ${infoCaixas.dimensoes})
 
-📍 *COLETA:*
-${formatarEnderecoMatriz()}
+📍 *COLETA (Remetente):*
+*CNPJ:* ${dadosColeta.cnpj}
+${dadosColeta.enderecoFormatado}
 
-📍 *ENTREGA:*
+📍 *ENTREGA (Destinatário):*
+${docDestinatario}
 ${cliente.nome_igreja}
 ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
 ━━━━━━━━━━━━━━━━━━`;
-  }, [cliente, carrinho, calculo, enderecoEntrega]);
+  }, [cliente, carrinho, calculo, enderecoEntrega, infoCaixas, dadosColeta]);
 
   // Handlers
   const adicionarProduto = useCallback((product: ShopifyProduct) => {
@@ -334,13 +370,17 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
       peso_kg: item.weightKg
     }));
 
+    const enderecoSelecionado = localColeta === 'polo_pe' ? ENDERECO_PERNAMBUCO : ENDERECO_MATRIZ;
     const enderecoColeta = {
-      rua: ENDERECO_MATRIZ.rua,
-      numero: ENDERECO_MATRIZ.numero,
-      bairro: ENDERECO_MATRIZ.bairro,
-      cidade: ENDERECO_MATRIZ.cidade,
-      estado: ENDERECO_MATRIZ.estado,
-      cep: ENDERECO_MATRIZ.cep
+      rua: enderecoSelecionado.rua,
+      numero: enderecoSelecionado.numero,
+      complemento: 'complemento' in enderecoSelecionado ? enderecoSelecionado.complemento : null,
+      bairro: enderecoSelecionado.bairro,
+      cidade: enderecoSelecionado.cidade,
+      estado: enderecoSelecionado.estado,
+      cep: enderecoSelecionado.cep,
+      cnpj: enderecoSelecionado.cnpj,
+      local: localColeta
     };
 
     const enderecoEntregaData = {
@@ -352,18 +392,19 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
       cep: cliente?.endereco_cep || ""
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase
       .from("vendedor_orcamentos_frete")
       .insert({
         vendedor_id: vendedor.id,
         cliente_id: clienteSelecionado,
-        itens,
+        itens: itens as any,
         peso_total_kg: calculo.pesoTotal,
         valor_produtos: calculo.subtotal,
         desconto_percentual: calculo.descontoPercentual,
         valor_com_desconto: calculo.total,
-        endereco_coleta: enderecoColeta,
-        endereco_entrega: enderecoEntregaData,
+        endereco_coleta: enderecoColeta as any,
+        endereco_entrega: enderecoEntregaData as any,
         status: "aguardando_orcamento"
       });
 
@@ -378,7 +419,7 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
     setClienteSelecionado("");
     refetchOrcamentos();
     setActiveTab("salvos");
-  }, [vendedor, clienteSelecionado, carrinho, calculo, cliente, limparCarrinho, refetchOrcamentos]);
+  }, [vendedor, clienteSelecionado, carrinho, calculo, cliente, limparCarrinho, refetchOrcamentos, localColeta]);
 
   // Abrir modal de adicionar frete
   const handleAbrirFreteDialog = useCallback((orcamento: OrcamentoFrete) => {
@@ -855,34 +896,106 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
             </div>
           </div>
 
-          {/* Endereços */}
+          {/* Endereços e Embalagem */}
           {cliente && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Coleta (Remetente) */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
                     <Building2 className="h-4 w-4" />
-                    COLETA (Matriz)
+                    COLETA (Remetente)
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm whitespace-pre-line">{formatarEnderecoMatriz()}</p>
+                <CardContent className="space-y-3">
+                  <RadioGroup 
+                    value={localColeta} 
+                    onValueChange={(v) => setLocalColeta(v as LocalColeta)}
+                    className="flex gap-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="matriz" id="coleta-matriz" />
+                      <Label htmlFor="coleta-matriz" className="text-sm cursor-pointer">Matriz RJ</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="polo_pe" id="coleta-polo" />
+                      <Label htmlFor="coleta-polo" className="text-sm cursor-pointer">Polo PE</Label>
+                    </div>
+                  </RadioGroup>
+                  
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground">CNPJ:</p>
+                    <p className="font-mono text-sm">{dadosColeta.cnpj}</p>
+                    <p className="text-sm mt-2 whitespace-pre-line">{dadosColeta.enderecoFormatado}</p>
+                  </div>
                 </CardContent>
               </Card>
 
+              {/* Entrega (Destinatário) */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
                     <MapPin className="h-4 w-4" />
-                    ENTREGA
+                    ENTREGA (Destinatário)
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {enderecoEntrega ? (
-                    <p className="text-sm whitespace-pre-line">{enderecoEntrega.completo}</p>
-                  ) : (
-                    <p className="text-sm text-orange-500">⚠️ Endereço não cadastrado</p>
-                  )}
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    {(cliente?.cnpj || cliente?.cpf) && (
+                      <div className="mb-2">
+                        <p className="text-xs text-muted-foreground">
+                          {cliente?.cnpj ? 'CNPJ:' : 'CPF:'}
+                        </p>
+                        <p className="font-mono text-sm">{cliente?.cnpj || cliente?.cpf}</p>
+                      </div>
+                    )}
+                    <p className="font-medium text-sm">{cliente.nome_igreja}</p>
+                    {enderecoEntrega ? (
+                      <p className="text-sm mt-1 whitespace-pre-line">{enderecoEntrega.completo}</p>
+                    ) : (
+                      <p className="text-sm text-orange-500 mt-1">⚠️ Endereço não cadastrado</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Embalagem */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
+                    <Package className="h-4 w-4" />
+                    EMBALAGEM
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    {calculo.pesoTotal > 0 ? (
+                      <>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs text-muted-foreground">Peso Total:</span>
+                          <span className="font-medium text-sm">
+                            {calculo.pesoTotal < 1 
+                              ? `${(calculo.pesoTotal * 1000).toFixed(0)}g`
+                              : `${calculo.pesoTotal.toFixed(2)}kg`
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs text-muted-foreground">Volumes:</span>
+                          <span className="font-bold text-lg text-primary">{infoCaixas.quantidade}</span>
+                        </div>
+                        <div className="border-t pt-2 mt-2">
+                          <p className="text-xs text-muted-foreground">Caixa:</p>
+                          <p className="font-medium text-sm">{infoCaixas.tipo}</p>
+                          <p className="text-xs text-muted-foreground">{infoCaixas.dimensoes}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        Adicione produtos para calcular
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>
