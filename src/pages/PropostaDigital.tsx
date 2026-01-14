@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { CheckCircle, Loader2, MapPin, Building2, Package, ShoppingCart, Truck, CreditCard } from "lucide-react";
+import { CheckCircle, Loader2, MapPin, Building2, Package, ShoppingCart, Truck, CreditCard, Minus, Plus } from "lucide-react";
 import { pushPropostaAprovada } from "@/lib/gtm";
 
 interface PropostaItem {
@@ -97,6 +98,10 @@ export default function PropostaDigital() {
   const [selectedFrete, setSelectedFrete] = useState<string>("");
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
   const [isLoadingShipping, setIsLoadingShipping] = useState(false);
+  
+  // Estado para quantidades editadas pelo cliente
+  const [editedItems, setEditedItems] = useState<PropostaItem[]>([]);
+  const [isRecalculatingShipping, setIsRecalculatingShipping] = useState(false);
 
   // Helper para formatar o prazo de forma legível
   const formatPrazoLabel = (prazo: string): string => {
@@ -145,6 +150,141 @@ export default function PropostaDigital() {
     },
     enabled: !!token,
   });
+
+  // Inicializar editedItems quando proposta carregar
+  useEffect(() => {
+    if (proposta?.itens && editedItems.length === 0) {
+      setEditedItems([...proposta.itens]);
+    }
+  }, [proposta?.itens]);
+
+  // Função para atualizar quantidade de um item
+  const handleQuantityChange = useCallback(async (variantId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    
+    setEditedItems(prev => prev.map(item => 
+      item.variantId === variantId 
+        ? { ...item, quantity: newQuantity }
+        : item
+    ));
+  }, []);
+
+  // Efeito para recalcular frete quando editedItems mudar
+  useEffect(() => {
+    const isFreteManualResolved = proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual';
+    if (proposta && proposta.status === "PROPOSTA_PENDENTE" && !isFreteManualResolved && editedItems.length > 0) {
+      // Verificar se quantidade mudou em relação ao original
+      const quantidadesMudaram = editedItems.some((item, index) => 
+        proposta.itens[index]?.quantity !== item.quantity
+      );
+      
+      if (quantidadesMudaram) {
+        recalculateShipping();
+      }
+    }
+  }, [editedItems]);
+
+  // Função para recalcular frete com novas quantidades
+  const recalculateShipping = async () => {
+    if (!proposta?.cliente_endereco?.cep || editedItems.length === 0) return;
+
+    setIsRecalculatingShipping(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('calculate-shipping', {
+        body: {
+          cep: proposta.cliente_endereco.cep,
+          items: editedItems.map(item => ({ quantity: item.quantity })),
+        }
+      });
+
+      if (error) throw error;
+
+      const options: ShippingOption[] = [];
+      const today = new Date();
+      
+      if (data?.pac) {
+        const pacDays = 5;
+        const pacDate = addBusinessDays(today, pacDays);
+        options.push({
+          type: 'pac',
+          label: `PAC - ${pacDays} dias úteis`,
+          cost: data.pac.cost,
+          days: pacDays,
+          estimatedDate: formatDateBR(pacDate),
+        });
+      }
+
+      if (data?.sedex) {
+        const sedexDays = 2;
+        const sedexDate = addBusinessDays(today, sedexDays);
+        options.push({
+          type: 'sedex',
+          label: `SEDEX - ${sedexDays} dias úteis`,
+          cost: data.sedex.cost,
+          days: sedexDays,
+          estimatedDate: formatDateBR(sedexDate),
+        });
+      }
+
+      // Pontos de retirada - sempre grátis
+      options.push({
+        type: 'retirada',
+        label: 'Retirada na Matriz - Rio de Janeiro',
+        cost: 0,
+        endereco: 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
+
+      options.push({
+        type: 'retirada_pe',
+        label: 'Retirada no Polo - Pernambuco',
+        cost: 0,
+        endereco: 'Rua Adalberto Coimbra, 211, Galpão B - Jardim Jordão, Jaboatão dos Guararapes - PE',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
+
+      options.push({
+        type: 'retirada_penha',
+        label: 'Retirada no Polo - Penha / RJ',
+        cost: 0,
+        endereco: 'R. Honório Bicalho, 102 - Penha, Rio de Janeiro - RJ',
+        horario: 'Segunda a Sexta: 9h às 18h'
+      });
+
+      // Calcular valor com desconto baseado nos itens editados
+      const valorProdutosAtualizado = editedItems.reduce((sum, item) => 
+        sum + parseFloat(item.price) * item.quantity, 0);
+      const descontoTotalAtualizado = editedItems.reduce((total, item) => {
+        const precoOriginal = parseFloat(item.price) * item.quantity;
+        const descontoDoItem = item.descontoItem ?? proposta.desconto_percentual;
+        return total + (precoOriginal * (descontoDoItem / 100));
+      }, 0);
+      const valorComDescontoAtualizado = valorProdutosAtualizado - descontoTotalAtualizado;
+
+      // Frete grátis se total >= R$199,90
+      if (valorComDescontoAtualizado >= 199.90) {
+        const freeDays = 10;
+        const freeDate = addBusinessDays(today, freeDays);
+        const retiradaOptions = options.filter(opt => opt.type.startsWith('retirada'));
+        const deliveryOptions = options.filter(opt => !opt.type.startsWith('retirada'));
+        deliveryOptions.push({ 
+          type: 'free', 
+          label: `Frete Grátis (compras acima de R$199,90) - ${freeDays} dias úteis`, 
+          cost: 0,
+          days: freeDays,
+          estimatedDate: formatDateBR(freeDate),
+        });
+        setShippingOptions([...deliveryOptions, ...retiradaOptions]);
+      } else {
+        setShippingOptions(options);
+      }
+    } catch (error) {
+      console.error('Error recalculating shipping:', error);
+      toast.error("Erro ao recalcular frete");
+    } finally {
+      setIsRecalculatingShipping(false);
+    }
+  };
 
   // Fetch shipping options for ALL pending proposals (both B2B and standard) if NOT manual freight
   useEffect(() => {
@@ -304,9 +444,28 @@ export default function PropostaDigital() {
 
   const confirmMutation = useMutation({
     mutationFn: async () => {
+      // Usar itens editados se houver alterações
+      const itensFinais = editedItems.length > 0 ? editedItems : proposta!.itens;
+      
+      // Recalcular valores com base nos itens editados
+      const valorProdutosFinal = itensFinais.reduce((sum, item) => 
+        sum + parseFloat(item.price) * item.quantity, 0);
+      
+      const descontoTotalFinal = itensFinais.reduce((total, item) => {
+        const precoOriginal = parseFloat(item.price) * item.quantity;
+        const descontoDoItem = item.descontoItem ?? proposta!.desconto_percentual;
+        return total + (precoOriginal * (descontoDoItem / 100));
+      }, 0);
+      
+      const valorComDescontoFinal = valorProdutosFinal - descontoTotalFinal;
+
       const updateData: any = { 
         status: "PROPOSTA_ACEITA",
-        confirmado_em: new Date().toISOString()
+        confirmado_em: new Date().toISOString(),
+        // Salvar itens atualizados (com novas quantidades)
+        itens: itensFinais,
+        // Atualizar valor_produtos com novas quantidades
+        valor_produtos: valorProdutosFinal,
       };
       
       // If B2B, save selected prazo AND freight selection
@@ -317,32 +476,29 @@ export default function PropostaDigital() {
         if (proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual') {
           // Frete manual já está definido - manter valores existentes
           updateData.metodo_frete = 'manual';
+          updateData.valor_total = valorComDescontoFinal + proposta!.valor_frete;
         } else {
           // Frete automático - cliente escolheu
           const selectedShipping = shippingOptions.find(opt => opt.type === selectedFrete);
           if (selectedShipping) {
             updateData.metodo_frete = selectedFrete;
             updateData.valor_frete = selectedShipping.cost;
-            // Recalculate total with selected shipping
-            const valorComDesconto = proposta!.valor_produtos - (proposta!.valor_produtos * (proposta!.desconto_percentual || 0) / 100);
-            updateData.valor_total = valorComDesconto + selectedShipping.cost;
+            updateData.valor_total = valorComDescontoFinal + selectedShipping.cost;
           }
         }
       } else {
         // For standard payment
         if (proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual') {
-          // Frete manual já está definido - manter valores existentes
+          // Frete manual já está definido - manter valor_frete existente
           updateData.metodo_frete = 'manual';
-          // valor_frete e valor_total já estão corretos no banco
+          updateData.valor_total = valorComDescontoFinal + proposta!.valor_frete;
         } else {
           // Frete automático - cliente escolheu
           const selectedShipping = shippingOptions.find(opt => opt.type === selectedFrete);
           if (selectedShipping) {
             updateData.metodo_frete = selectedFrete;
             updateData.valor_frete = selectedShipping.cost;
-            // Recalculate total with selected shipping
-            const valorComDesconto = proposta!.valor_produtos - (proposta!.valor_produtos * (proposta!.desconto_percentual || 0) / 100);
-            updateData.valor_total = valorComDesconto + selectedShipping.cost;
+            updateData.valor_total = valorComDescontoFinal + selectedShipping.cost;
           }
         }
       }
@@ -382,7 +538,7 @@ export default function PropostaDigital() {
         const { data: orderData, error: orderError } = await supabase.functions.invoke('ebd-shopify-order-create', {
           body: {
             cliente: clienteData,
-            items: proposta!.itens,
+            items: itensFinais, // Usar itens editados
             valor_frete: valorFreteUsado.toString(),
             metodo_frete: metodoFreteUsado,
             desconto_percentual: (proposta!.desconto_percentual || 0).toString(),
@@ -493,9 +649,12 @@ export default function PropostaDigital() {
   const isAguardandoPagamento = proposta.status === "AGUARDANDO_PAGAMENTO";
   const isFreteManualResolved = proposta.frete_tipo === 'manual' || proposta.metodo_frete === 'manual';
 
-  // Calculate total discount by summing individual item discounts
+  // Usar items editados para cálculos quando proposta estiver pendente
+  const itemsParaCalculo = isPending && editedItems.length > 0 ? editedItems : proposta.itens;
+
+  // Calculate total discount by summing individual item discounts (usando editedItems)
   const calcularDescontoTotal = () => {
-    return proposta.itens.reduce((total, item) => {
+    return itemsParaCalculo.reduce((total, item) => {
       const precoOriginal = parseFloat(item.price) * item.quantity;
       const descontoDoItem = item.descontoItem ?? proposta.desconto_percentual;
       const valorDesconto = precoOriginal * (descontoDoItem / 100);
@@ -503,9 +662,20 @@ export default function PropostaDigital() {
     }, 0);
   };
   
+  // Valor dos produtos atualizado (baseado nas quantidades editadas)
+  const valorProdutosAtualizado = itemsParaCalculo.reduce((sum, item) => 
+    sum + parseFloat(item.price) * item.quantity, 0);
+  
   const descontoTotalCalculado = calcularDescontoTotal();
-  const valorComDesconto = proposta.valor_produtos - descontoTotalCalculado;
-  const valorTotalFinal = valorComDesconto + proposta.valor_frete;
+  const valorComDesconto = valorProdutosAtualizado - descontoTotalCalculado;
+  
+  // Frete selecionado pelo cliente (se aplicável)
+  const freteSelecionado = shippingOptions.find(opt => opt.type === selectedFrete);
+  const valorFreteAtual = isPending && !isFreteManualResolved 
+    ? (freteSelecionado?.cost || 0) 
+    : proposta.valor_frete;
+  
+  const valorTotalFinal = valorComDesconto + valorFreteAtual;
   const parcela2x = valorTotalFinal / 2;
   const parcela3x = valorTotalFinal / 3;
 
@@ -653,15 +823,25 @@ export default function PropostaDigital() {
         {/* Items List */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Itens da Proposta ({proposta.itens.length} {proposta.itens.length === 1 ? 'item' : 'itens'})
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Itens da Proposta ({itemsParaCalculo.length} {itemsParaCalculo.length === 1 ? 'item' : 'itens'})
+              </CardTitle>
+              {isPending && isRecalculatingShipping && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Recalculando frete...</span>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {proposta.itens.map((item, index) => {
-                const precoOriginal = parseFloat(item.price) * item.quantity;
+              {itemsParaCalculo.map((item, index) => {
+                const editedItem = editedItems.find(ei => ei.variantId === item.variantId) || item;
+                const quantidadeAtual = isPending ? editedItem.quantity : item.quantity;
+                const precoOriginal = parseFloat(item.price) * quantidadeAtual;
                 // Usar desconto individual do item se disponível, senão usar o desconto global
                 const descontoDoItem = item.descontoItem ?? proposta.desconto_percentual;
                 const precoComDesconto = descontoDoItem > 0 
@@ -701,7 +881,42 @@ export default function PropostaDigital() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-                        <span>Quantidade: {item.quantity}</span>
+                        {/* Controle de quantidade editável quando proposta pendente */}
+                        {isPending ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">Qtd:</span>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleQuantityChange(item.variantId, quantidadeAtual - 1)}
+                                disabled={quantidadeAtual <= 1 || isRecalculatingShipping}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <Input
+                                type="number"
+                                value={quantidadeAtual}
+                                onChange={(e) => handleQuantityChange(item.variantId, parseInt(e.target.value) || 1)}
+                                className="w-14 h-7 text-center text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                min={1}
+                                disabled={isRecalculatingShipping}
+                              />
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleQuantityChange(item.variantId, quantidadeAtual + 1)}
+                                disabled={isRecalculatingShipping}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <span>Quantidade: {quantidadeAtual}</span>
+                        )}
                         {(() => {
                           const resolvedSku = (item as any).sku || (item as any).codigo || (item as any).variantSku || null;
                           return resolvedSku ? (
@@ -745,7 +960,7 @@ export default function PropostaDigital() {
               <div className="flex justify-between text-sm">
                 <span>Subtotal dos produtos:</span>
                 <span className={descontoTotalCalculado > 0 ? "text-muted-foreground line-through" : ""}>
-                  R$ {proposta.valor_produtos.toFixed(2)}
+                  R$ {valorProdutosAtualizado.toFixed(2)}
                 </span>
               </div>
               
@@ -762,16 +977,19 @@ export default function PropostaDigital() {
               </>
               )}
               
-              {/* Shipping Section - Show ONLY when already confirmed OR manual freight is resolved OR metodo_frete is set */}
-              {(!isPending || isFreteManualResolved || proposta.metodo_frete) && (
+              {/* Shipping Section - Show when freight is selected or already set */}
+              {(selectedFrete || isFreteManualResolved || proposta.metodo_frete) && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-sm items-center">
                     <span className="flex items-center gap-2">
                       <Truck className="h-4 w-4" />
-                      {getFreteLabel()}:
+                      {isPending && !isFreteManualResolved && selectedFrete 
+                        ? (freteSelecionado?.label || 'Frete Selecionado')
+                        : getFreteLabel()
+                      }:
                     </span>
-                    <span className={proposta.valor_frete === 0 ? "text-green-600 font-medium" : ""}>
-                      {proposta.valor_frete === 0 ? "Grátis" : `R$ ${proposta.valor_frete.toFixed(2)}`}
+                    <span className={valorFreteAtual === 0 ? "text-green-600 font-medium" : ""}>
+                      {valorFreteAtual === 0 ? "Grátis" : `R$ ${valorFreteAtual.toFixed(2)}`}
                     </span>
                   </div>
                   {getDeliveryEstimate() && (
@@ -783,7 +1001,7 @@ export default function PropostaDigital() {
               )}
               
               {/* For pending proposals without freight selected yet (both B2B and standard) */}
-              {isPending && !isFreteManualResolved && !proposta.metodo_frete && (
+              {isPending && !isFreteManualResolved && !selectedFrete && !proposta.metodo_frete && (
                 <div className="flex justify-between text-sm items-center text-muted-foreground">
                   <span className="flex items-center gap-2">
                     <Truck className="h-4 w-4" />
@@ -796,11 +1014,7 @@ export default function PropostaDigital() {
               <div className="flex justify-between text-lg font-bold pt-2 border-t">
                 <span>Total:</span>
                 <span>
-                  {/* Show final total if: not pending, OR manual freight, OR metodo_frete already set */}
-                  R$ {(!isPending || isFreteManualResolved || proposta.metodo_frete)
-                    ? proposta.valor_total.toFixed(2)
-                    : (valorComDesconto + (shippingOptions.find(opt => opt.type === selectedFrete)?.cost || 0)).toFixed(2)
-                  }
+                  R$ {valorTotalFinal.toFixed(2)}
                 </span>
               </div>
               
