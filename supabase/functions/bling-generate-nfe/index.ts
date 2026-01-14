@@ -6,6 +6,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ========== CONFIGURAÇÃO FISCAL LOJA PENHA ==========
+// Série fiscal diferenciada para a loja Penha
+const LOJA_PENHA_ID = 205891152;
+const SERIE_PENHA = 1;  // Série 1 para Penha (em vez de 15 da Matriz)
+
+// Natureza de Operação específicas para Penha
+const NATUREZA_PENHA_PF_ID = 15108893128; // "PENHA - Venda de mercadoria - PF"
+const NATUREZA_PENHA_PJ_ID = 15108893188; // "PENHA - Venda de mercadoria - PJ"
+// ====================================================
+
 // Helper para extrair mensagem de erro fiscal do Bling
 function extractFiscalError(data: any): string | null {
   if (!data) return null;
@@ -203,6 +213,10 @@ serve(async (req) => {
 
     const pedidoData = await checkPedidoResp.json();
     let pedido = pedidoData?.data;
+    // Detectar se pedido é da Loja Penha
+    const isLojaPenha = pedido?.loja?.id === LOJA_PENHA_ID || 
+                        pedido?.loja?.descricao?.toLowerCase().includes('penha');
+    
     console.log(`[BLING-NFE] ✓ Pedido encontrado: #${pedido?.numero}`, {
       contatoId: pedido?.contato?.id,
       contatoNome: pedido?.contato?.nome,
@@ -212,6 +226,7 @@ serve(async (req) => {
       lojaId: pedido?.loja?.id,
       lojaDescricao: pedido?.loja?.descricao,
       unidadeNegocioId: pedido?.loja?.unidadeNegocio?.id,
+      isLojaPenha: isLojaPenha,
     });
 
     // =======================================================================
@@ -374,10 +389,24 @@ serve(async (req) => {
 
     console.log(`[BLING-NFE] Contato completo:`, JSON.stringify(nfePayload.contato, null, 2));
 
-    // Adicionar natureza de operação se disponível
-    if (pedido.naturezaOperacao?.id) {
-      nfePayload.naturezaOperacao = { id: pedido.naturezaOperacao.id };
+    // ========== CONFIGURAÇÃO FISCAL ESPECÍFICA PARA PENHA ==========
+    if (isLojaPenha) {
+      // SÉRIE: Sempre 1 para Penha (nunca usar 15 da Matriz)
+      nfePayload.serie = SERIE_PENHA;
+      
+      // NATUREZA DE OPERAÇÃO: Usar natureza específica da Penha
+      const naturezaIdPenha = tipoPessoa === 'J' ? NATUREZA_PENHA_PJ_ID : NATUREZA_PENHA_PF_ID;
+      nfePayload.naturezaOperacao = { id: naturezaIdPenha };
+      
+      console.log(`[BLING-NFE] ✓ PENHA DETECTADA: Serie=${SERIE_PENHA}, Natureza=${naturezaIdPenha} (${tipoPessoa === 'J' ? 'PJ' : 'PF'})`);
+    } else {
+      // Para outras lojas, usar natureza do pedido se disponível
+      if (pedido.naturezaOperacao?.id) {
+        nfePayload.naturezaOperacao = { id: pedido.naturezaOperacao.id };
+        console.log(`[BLING-NFE] Usando natureza do pedido: ${pedido.naturezaOperacao.id}`);
+      }
     }
+    // ================================================================
 
     // Adicionar loja e unidade de negócio (herdar do pedido para filtrar corretamente)
     if (pedido.loja?.id) {
@@ -396,6 +425,8 @@ serve(async (req) => {
         lojaId: pedido.loja.id,
         lojaDescricao: pedido.loja.descricao,
         unidadeNegocioId: pedido.loja?.unidadeNegocio?.id,
+        isLojaPenha: isLojaPenha,
+        serieUsada: isLojaPenha ? SERIE_PENHA : 'padrão',
       });
     }
 
