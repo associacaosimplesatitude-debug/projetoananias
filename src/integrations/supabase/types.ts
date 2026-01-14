@@ -4198,9 +4198,14 @@ export type Database = {
           forma_pagamento: string
           id: string
           itens: Json
+          nfe_id: number | null
+          nota_fiscal_chave: string | null
+          nota_fiscal_numero: string | null
+          nota_fiscal_url: string | null
           observacoes: string | null
           polo: string
           status: string
+          status_nfe: string | null
           updated_at: string
           valor_desconto: number
           valor_subtotal: number
@@ -4217,9 +4222,14 @@ export type Database = {
           forma_pagamento: string
           id?: string
           itens?: Json
+          nfe_id?: number | null
+          nota_fiscal_chave?: string | null
+          nota_fiscal_numero?: string | null
+          nota_fiscal_url?: string | null
           observacoes?: string | null
           polo?: string
           status?: string
+          status_nfe?: string | null
           updated_at?: string
           valor_desconto?: number
           valor_subtotal?: number
@@ -4236,9 +4246,14 @@ export type Database = {
           forma_pagamento?: string
           id?: string
           itens?: Json
+          nfe_id?: number | null
+          nota_fiscal_chave?: string | null
+          nota_fiscal_numero?: string | null
+          nota_fiscal_url?: string | null
           observacoes?: string | null
           polo?: string
           status?: string
+          status_nfe?: string | null
           updated_at?: string
           valor_desconto?: number
           valor_subtotal?: number
