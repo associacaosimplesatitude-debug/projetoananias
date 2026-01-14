@@ -143,14 +143,29 @@ serve(async (req) => {
     const nfeData = await nfeResp.json();
     const nfeDetail = nfeData?.data;
     const situacao = Number(nfeDetail?.situacao);
+    const nfeNumero = nfeDetail?.numero;
+    const nfeChave = nfeDetail?.chaveAcesso;
 
-    console.log(`[CHECK-NFE] Situação atual: ${situacao}`, JSON.stringify(nfeDetail).slice(0, 500));
+    console.log(`[CHECK-NFE] Situação atual: ${situacao}, Número: ${nfeNumero}, Chave: ${nfeChave?.slice(0, 20)}...`);
 
-    // Situação 6 = Autorizada
-    if (situacao === 6) {
-      const nfeNumero = nfeDetail?.numero;
-      const nfeChave = nfeDetail?.chaveAcesso;
-      const danfeUrl = extractDanfeUrl(nfeDetail);
+    // Verificar se a NF-e está autorizada
+    // Indicadores: situacao=6 OU (chaveAcesso válida com 44 dígitos + número preenchido)
+    const hasValidChave = nfeChave && String(nfeChave).length === 44;
+    const hasNumero = nfeNumero && Number(nfeNumero) > 0;
+    const isAutorizada = situacao === 6 || (hasValidChave && hasNumero);
+
+    console.log(`[CHECK-NFE] hasValidChave: ${hasValidChave}, hasNumero: ${hasNumero}, isAutorizada: ${isAutorizada}`);
+
+    if (isAutorizada) {
+      // Tentar pegar link da DANFE do Bling
+      let danfeUrl = extractDanfeUrl(nfeDetail);
+      
+      // Se não tiver link, construir URL padrão do Bling usando a chave de acesso
+      if (!danfeUrl && nfeChave) {
+        // O Bling usa um hash MD5 da chave para gerar o link
+        // Mas podemos usar a API de consulta pública da NF-e
+        danfeUrl = `https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx?tipoConsulta=completa&nfe=${nfeChave}`;
+      }
 
       console.log(`[CHECK-NFE] ✓ NF-e AUTORIZADA! Número: ${nfeNumero}, Chave: ${nfeChave}, DANFE: ${danfeUrl}`);
 
