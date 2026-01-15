@@ -453,6 +453,13 @@ export default function ShopifyPedidos() {
       return;
     }
 
+    // TESTE: Vendedor teste usa checkout Mercado Pago
+    if (vendedor?.email === 'vendedorteste@gmail.com') {
+      navigate('/ebd/checkout-shopify-mp');
+      setIsCartOpen(false);
+      return;
+    }
+
     // Se não é vendedor e não tem cliente cadastrado, fazer checkout direto no Shopify
     if (!isVendedor && !selectedCliente) {
       setIsCreatingDraft(true);
