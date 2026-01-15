@@ -541,29 +541,49 @@ serve(async (req) => {
     
     console.log(`[BLING-NFE] ===== VERIFICAÇÃO CONSUMIDOR FINAL =====`);
     console.log(`[BLING-NFE] tipoPessoa=${tipoPessoa}, inscricaoEstadual="${inscricaoEstadual}", ieValida=${ieValida}`);
+    console.log(`[BLING-NFE] isLojaPenha=${isLojaPenha}`);
     
     if (tipoPessoa === 'J' && !ieValida) {
-      // PJ não contribuinte = consumidor final + indicador de IE = 9 (não contribuinte)
-      nfePayload.indFinal = 1;
+      // ========== CORREÇÃO ERRO 696: PJ NÃO CONTRIBUINTE ==========
+      // Forçar TODOS os campos necessários para SEFAZ aceitar como consumidor final
+      nfePayload.indFinal = 1;       // 1 = Consumidor Final
+      nfePayload.indIEDest = 9;      // 9 = Não Contribuinte (campo crítico para SEFAZ!)
+      
       if (nfePayload.contato) {
-        nfePayload.contato.indicadorie = 9;  // 9 = Não Contribuinte
-        nfePayload.contato.inscricaoEstadual = '';  // Limpar IE para evitar inconsistência
+        nfePayload.contato.indicadorie = 9;       // Indicador IE para Bling
+        nfePayload.contato.indicadorIE = 9;       // Nome alternativo
+        nfePayload.contato.indIEDest = 9;         // Nome direto do campo SEFAZ
+        nfePayload.contato.inscricaoEstadual = ''; // Limpar IE
       }
-      console.log(`[BLING-NFE] ✓ PJ NÃO CONTRIBUINTE - indFinal=1, indicadorie=9`);
+      
+      // ========== TRUQUE FISCAL: FORÇAR NATUREZA DE OPERAÇÃO PF ==========
+      // Se for Loja Penha, usar a Natureza de PF que já funciona (ex: Bruna)
+      // A Natureza PJ pode estar configurada internamente para contribuinte
+      if (isLojaPenha) {
+        nfePayload.naturezaOperacao = { id: NATUREZA_PENHA_PF_ID };
+        console.log(`[BLING-NFE] ✓ TRUQUE FISCAL PENHA: PJ sem IE usando Natureza PF (ID ${NATUREZA_PENHA_PF_ID})`);
+      }
+      
+      console.log(`[BLING-NFE] ✓ PJ NÃO CONTRIBUINTE - indFinal=1, indIEDest=9, indicadorie=9`);
     } else if (tipoPessoa === 'F') {
       // Pessoa física sempre é consumidor final e não contribuinte
       nfePayload.indFinal = 1;
+      nfePayload.indIEDest = 9;       // 9 = Não Contribuinte
+      
       if (nfePayload.contato) {
-        nfePayload.contato.indicadorie = 9;  // 9 = Não Contribuinte
+        nfePayload.contato.indicadorie = 9;
+        nfePayload.contato.indicadorIE = 9;
+        nfePayload.contato.indIEDest = 9;
         nfePayload.contato.inscricaoEstadual = '';
       }
-      console.log(`[BLING-NFE] ✓ Pessoa Física - indFinal=1, indicadorie=9`);
+      console.log(`[BLING-NFE] ✓ Pessoa Física - indFinal=1, indIEDest=9`);
     } else {
       // PJ Contribuinte com IE válida
+      nfePayload.indIEDest = 1;       // 1 = Contribuinte ICMS
       if (nfePayload.contato) {
-        nfePayload.contato.indicadorie = 1;  // 1 = Contribuinte ICMS
+        nfePayload.contato.indicadorie = 1;
       }
-      console.log(`[BLING-NFE] PJ Contribuinte com IE válida - indicadorie=1`);
+      console.log(`[BLING-NFE] PJ Contribuinte com IE válida - indIEDest=1`);
     }
     console.log(`[BLING-NFE] ==========================================`);
 
@@ -928,6 +948,44 @@ serve(async (req) => {
       const situacao = Number(nfeDetail?.situacao);
       
       console.log(`[BLING-NFE] Tentativa ${attempt}: Situação NF-e: ${situacao} (6=Autorizada, 4/5=Rejeitada)`);
+      
+      // ========== DIAGNÓSTICO: CAPTURA DO XML FINAL DA NF-e ==========
+      // Tentar extrair o XML real que foi enviado à SEFAZ para verificar indFinal/indIEDest
+      const xmlFinal = nfeDetail?.xml || nfeDetail?.xmlNfe || nfeDetail?.xmlEnvio;
+      if (typeof xmlFinal === 'string' && xmlFinal.length > 0) {
+        // Decodificar se estiver escapado (HTML entities)
+        let xmlDecoded = xmlFinal;
+        if (xmlFinal.includes('&lt;') || xmlFinal.includes('&gt;')) {
+          xmlDecoded = xmlFinal
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"');
+        }
+        
+        // Extrair campos do bloco <ide> (identificação da NF-e) - suporta namespace
+        const xmlIndFinalFinal = xmlDecoded.match(/<(?:\w+:)?indFinal>(\d)<\/(?:\w+:)?indFinal>/)?.[1];
+        const xmlIndIEDestFinal = xmlDecoded.match(/<(?:\w+:)?indIEDest>(\d)<\/(?:\w+:)?indIEDest>/)?.[1];
+        const xmlIdDestFinal = xmlDecoded.match(/<(?:\w+:)?idDest>(\d)<\/(?:\w+:)?idDest>/)?.[1];
+        const xmlIndPresFinal = xmlDecoded.match(/<(?:\w+:)?indPres>(\d)<\/(?:\w+:)?indPres>/)?.[1];
+        
+        console.log('[BLING-NFE] ╔══════════════════════════════════════════════════════════════╗');
+        console.log('[BLING-NFE] ║          XML FINAL DA NF-e (do GET /nfe/{id})               ║');
+        console.log('[BLING-NFE] ╠══════════════════════════════════════════════════════════════╣');
+        console.log(`[BLING-NFE] ║ indFinal:  ${xmlIndFinalFinal ?? 'NÃO ENCONTRADO'} (esperado: 1)`);
+        console.log(`[BLING-NFE] ║ indIEDest: ${xmlIndIEDestFinal ?? 'NÃO ENCONTRADO'} (esperado: 9)`);
+        console.log(`[BLING-NFE] ║ idDest:    ${xmlIdDestFinal ?? 'NÃO ENCONTRADO'}`);
+        console.log(`[BLING-NFE] ║ indPres:   ${xmlIndPresFinal ?? 'NÃO ENCONTRADO'}`);
+        console.log('[BLING-NFE] ╚══════════════════════════════════════════════════════════════╝');
+        
+        // ALERTA se valores incorretos
+        if ((xmlIndFinalFinal && xmlIndFinalFinal !== '1') || (xmlIndIEDestFinal && xmlIndIEDestFinal !== '9')) {
+          console.error('[BLING-NFE] ⚠️⚠️⚠️ XML FINAL INCORRETO! Bling ignorou nossos campos!');
+          console.error(`[BLING-NFE] ⚠️ Payload enviou indFinal=1, indIEDest=9 mas XML tem: indFinal=${xmlIndFinalFinal}, indIEDest=${xmlIndIEDestFinal}`);
+        }
+      } else {
+        console.log(`[BLING-NFE] Tentativa ${attempt}: XML não disponível no detalhe da NF-e (chaves: ${Object.keys(nfeDetail || {}).filter(k => k.toLowerCase().includes('xml')).join(', ') || 'nenhuma com xml'})`);
+      }
 
       if (situacao === 6) {
         // AUTORIZADA!
