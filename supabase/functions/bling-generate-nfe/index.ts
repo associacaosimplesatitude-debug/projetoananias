@@ -660,9 +660,9 @@ serve(async (req) => {
         
         // ESTRATÉGIA: Incremento Local - buscar UMA vez, depois só incrementar
         console.log(`[BLING-NFE] 🔍 Buscando maior número em TODAS as situações (busca única)...`);
-        let baseNumber = await getLastNfeNumber(accessToken, serieAtual, false);
+        let baseNumber: number = await getLastNfeNumber(accessToken, serieAtual, false) || 0;
         
-        if (!baseNumber) {
+        if (baseNumber === 0) {
           baseNumber = (nfePayload.numero || 1) - 1;
           console.log(`[BLING-NFE] ⚠️ Nenhum número encontrado, usando base: ${baseNumber}`);
         }
@@ -677,29 +677,11 @@ serve(async (req) => {
         console.log(`[BLING-NFE] 🎯 Base: ${baseNumber} | Candidato inicial: ${candidateNumber}`);
         
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-          console.log(`[BLING-NFE] ═══════════════════════════════════════════════════════════`);
-          console.log(`[BLING-NFE] 🔄 TENTATIVA ${attempt}/${MAX_RETRIES} - Série ${serieAtual}`);
-          console.log(`[BLING-NFE] ═══════════════════════════════════════════════════════════`);
-          
-          // SEMPRE buscar em TODAS as situações (não só autorizadas)
-          // Isso garante pegar números de NF-e em rascunho, digitação, rejeitadas, etc.
-          console.log(`[BLING-NFE] 🔍 Buscando maior número em TODAS as situações...`);
-          const lastNumberAll = await getLastNfeNumber(accessToken, serieAtual, false);
-          
-          if (!lastNumberAll) {
-            console.log(`[BLING-NFE] ⚠️ Não foi possível obter último número`);
-            lastRetryError = 'Falha ao buscar último número da série';
-            continue;
+          if (attempt % 10 === 1 || attempt <= 3) {
+            console.log(`[BLING-NFE] 🔄 Tentativa ${attempt}/${MAX_RETRIES} com número #${candidateNumber}`);
           }
           
-          // Usar +1 (não +2) para evitar buracos na numeração
-          const nextNumber = lastNumberAll + 1;
-          lastAttemptedNumber = nextNumber;
-          
-          console.log(`[BLING-NFE] 📊 Último número existente: ${lastNumberAll}`);
-          console.log(`[BLING-NFE] 🎯 Próximo número a tentar: ${nextNumber}`);
-          
-          nfePayload.numero = nextNumber;
+          nfePayload.numero = candidateNumber;
           
           const retryResp = await fetch(createNfeUrl, {
             method: 'POST',
@@ -712,20 +694,17 @@ serve(async (req) => {
           });
           
           const retryData = await retryResp.json();
-          console.log(`[BLING-NFE] Status tentativa ${attempt}: ${retryResp.status}`);
           
           if (retryResp.ok || retryData?.data?.id) {
             createNfeResp = retryResp;
             createNfeData = retryData;
-            console.log(`[BLING-NFE] ✅ SUCESSO na tentativa ${attempt} com número ${nextNumber}!`);
+            console.log(`[BLING-NFE] ✅ SUCESSO na tentativa ${attempt} com número #${candidateNumber}!`);
             retrySuccess = true;
             break;
           }
           
-          // Verificar se ainda é conflito de número para continuar tentando
           const retryError = extractFiscalError(retryData);
           lastRetryError = retryError || 'Erro desconhecido';
-          console.log(`[BLING-NFE] ❌ Tentativa ${attempt} falhou: ${retryError}`);
           
           const normalizedRetryError = retryError?.toLowerCase()
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
@@ -735,25 +714,27 @@ serve(async (req) => {
                                       normalizedRetryError.includes('ja existe nota');
           
           if (!stillNumberConflict) {
-            console.log(`[BLING-NFE] ⚠️ Erro não é mais conflito de numeração, parando retry`);
+            console.log(`[BLING-NFE] ⚠️ Erro diferente de conflito: ${retryError}`);
             break;
           }
           
-          // Pequeno delay entre tentativas para dar tempo ao Bling sincronizar
+          // INCREMENTO LOCAL: simplesmente +1 e tentar novamente
+          candidateNumber++;
+          
           if (attempt < MAX_RETRIES) {
-            console.log(`[BLING-NFE] ⏳ Aguardando 500ms antes da próxima tentativa...`);
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 200));
           }
         }
         
         if (!retrySuccess) {
           console.log(`[BLING-NFE] ❌ TODAS AS ${MAX_RETRIES} TENTATIVAS FALHARAM`);
+          console.log(`[BLING-NFE] Último número tentado: #${candidateNumber - 1}`);
           return new Response(
             JSON.stringify({
               success: false,
               stage: 'create_retry',
-              fiscal_error: `Conflito de numeração na Série ${serieAtual} após ${MAX_RETRIES} tentativas. Último número tentado: #${lastAttemptedNumber}. Erro: ${lastRetryError}`,
-              lastAttemptedNumber,
+              fiscal_error: `Conflito de numeração na Série ${serieAtual} após ${MAX_RETRIES} tentativas. Último número tentado: #${candidateNumber - 1}. Erro: ${lastRetryError}`,
+              lastAttemptedNumber: candidateNumber - 1,
               serie: serieAtual,
               attempts: MAX_RETRIES,
               raw: createNfeData,
