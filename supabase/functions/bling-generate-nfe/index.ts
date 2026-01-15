@@ -119,26 +119,29 @@ function extractDanfeUrl(nfeDetail: any): string | null {
   return nfeDetail.linkDanfe || nfeDetail.link || nfeDetail.linkPdf || null;
 }
 
-// ========== FUNÇÃO PARA BUSCAR ÚLTIMO NÚMERO NF-e POR SÉRIE (MELHORADA) ==========
+// ========== FUNÇÃO PARA BUSCAR ÚLTIMO NÚMERO NF-e POR SÉRIE (ESCUDO DE AUTO-NUMERAÇÃO) ==========
 async function getLastNfeNumber(
   accessToken: string, 
-  serie: number
+  serie: number,
+  apenasAutorizadas: boolean = false // Novo parâmetro: filtrar apenas NF-e autorizadas (situação 6)
 ): Promise<number | null> {
   console.log(`[BLING-NFE] ========== BUSCANDO ÚLTIMO NÚMERO SÉRIE ${serie} ==========`);
+  console.log(`[BLING-NFE] Filtro: ${apenasAutorizadas ? 'APENAS AUTORIZADAS (situação 6)' : 'TODAS AS SITUAÇÕES'}`);
   
   try {
     let maxNumber = 0;
     let pagina = 1;
-    const maxPaginas = 5; // Buscar até 5 páginas para garantir encontrar o maior número
+    const maxPaginas = 10; // Aumentado para 10 páginas para garantir encontrar o maior número
     let totalNfesAnalisadas = 0;
     
-     while (pagina <= maxPaginas) {
-       // Buscar NF-es desta série (SEM filtrar por situação)
-       // Motivo: o número pode estar "ocupado" por NF-e em outros status (em digitação, rejeitada, etc.)
-       // e a SEFAZ/Bling ainda assim impedem reutilização.
-       const searchUrl = `https://api.bling.com.br/Api/v3/nfe?serie=${serie}&pagina=${pagina}&limite=100`;
-       
-       console.log(`[BLING-NFE] Consultando página ${pagina}: ${searchUrl}`);
+    while (pagina <= maxPaginas) {
+      // Montar URL com ou sem filtro de situação
+      let searchUrl = `https://api.bling.com.br/Api/v3/nfe?serie=${serie}&pagina=${pagina}&limite=100`;
+      if (apenasAutorizadas) {
+        searchUrl += '&situacao=6'; // 6 = Autorizada
+      }
+      
+      console.log(`[BLING-NFE] Consultando página ${pagina}: ${searchUrl}`);
       
       const resp = await fetch(searchUrl, {
         headers: {
@@ -185,6 +188,7 @@ async function getLastNfeNumber(
     console.log(`[BLING-NFE] ========== RESULTADO SÉRIE ${serie} ==========`);
     console.log(`[BLING-NFE] Total de NF-es analisadas: ${totalNfesAnalisadas}`);
     console.log(`[BLING-NFE] Páginas consultadas: ${pagina}`);
+    console.log(`[BLING-NFE] Filtro usado: ${apenasAutorizadas ? 'AUTORIZADAS' : 'TODAS'}`);
     console.log(`[BLING-NFE] ÚLTIMO NÚMERO ENCONTRADO: ${maxNumber > 0 ? maxNumber : 'NENHUM'}`);
     console.log(`[BLING-NFE] ================================================`);
     
@@ -509,26 +513,36 @@ serve(async (req) => {
       });
     }
 
-    // ========== PRÉ-CALCULAR PRÓXIMO NÚMERO (EVITAR CONFLITO) ==========
-    // Como o Bling pode ter a config "Próximo número" desatualizada,
-    // vamos descobrir o número real antes de criar a NF-e
+    // ========== ESCUDO DE AUTO-NUMERAÇÃO (CONSULTA AUTORIZADAS) ==========
+    // Antes de cada emissão, consulta o Bling para ver o último número AUTORIZADO.
+    // Isso impede erros de "Nota com este número já existe" mesmo com emissões manuais.
     const serieParaUsar = nfePayload.serie || 15;
-    console.log(`[BLING-NFE] ===== PRÉ-CÁLCULO DE NUMERAÇÃO =====`);
-    console.log(`[BLING-NFE] Série a usar: ${serieParaUsar}`);
-    console.log(`[BLING-NFE] Buscando último número emitido na série ${serieParaUsar}...`);
+    console.log(`[BLING-NFE] ╔══════════════════════════════════════════════════════════════╗`);
+    console.log(`[BLING-NFE] ║          ESCUDO DE AUTO-NUMERAÇÃO ATIVADO                    ║`);
+    console.log(`[BLING-NFE] ╠══════════════════════════════════════════════════════════════╣`);
+    console.log(`[BLING-NFE] ║ Série a usar: ${serieParaUsar}`);
     
-    const lastNumberPreCalc = await getLastNfeNumber(accessToken, serieParaUsar);
+    // PASSO 1: Buscar último número AUTORIZADO (situação 6) - prioridade
+    console.log(`[BLING-NFE] ║ 🔍 Buscando última NF-e AUTORIZADA na série ${serieParaUsar}...`);
+    let lastNumberPreCalc = await getLastNfeNumber(accessToken, serieParaUsar, true); // true = apenas autorizadas
     
+    // PASSO 2: Se não encontrar autorizadas, buscar TODAS (pode ter em digitação, rejeitadas, etc.)
+    if (!lastNumberPreCalc) {
+      console.log(`[BLING-NFE] ║ ⚠️ Nenhuma NF-e autorizada encontrada. Buscando em TODOS os status...`);
+      lastNumberPreCalc = await getLastNfeNumber(accessToken, serieParaUsar, false); // false = todas
+    }
+    
+    // PASSO 3: Calcular próximo número com margem de segurança (+2)
     if (lastNumberPreCalc) {
-      const nextNumberPreCalc = lastNumberPreCalc + 1;
-      console.log(`[BLING-NFE] ✓ ÚLTIMO NÚMERO: ${lastNumberPreCalc}`);
-      console.log(`[BLING-NFE] ✓ PRÓXIMO NÚMERO CALCULADO: ${nextNumberPreCalc}`);
-      console.log(`[BLING-NFE] Forçando numero=${nextNumberPreCalc} no payload para evitar conflito`);
+      const nextNumberPreCalc = lastNumberPreCalc + 2; // +2 para margem de segurança
+      console.log(`[BLING-NFE] ║ ✓ ÚLTIMO NÚMERO ENCONTRADO: ${lastNumberPreCalc}`);
+      console.log(`[BLING-NFE] ║ ✓ PRÓXIMO NÚMERO (margem +2): ${nextNumberPreCalc}`);
       nfePayload.numero = nextNumberPreCalc;
     } else {
-      console.log(`[BLING-NFE] ⚠️ Não foi possível obter último número. Deixando Bling escolher (pode dar conflito).`);
+      console.log(`[BLING-NFE] ║ ⚠️ Nenhuma NF-e encontrada na série. Iniciando em 1.`);
+      nfePayload.numero = 1;
     }
-    console.log(`[BLING-NFE] =====================================`);
+    console.log(`[BLING-NFE] ╚══════════════════════════════════════════════════════════════╝`);
 
     // ========== VERIFICAR SE É PJ NÃO CONTRIBUINTE (SEM IE) ==========
     // SEFAZ Rejeição 696: "Operacao com nao contribuinte deve indicar operacao com consumidor final"
@@ -668,17 +682,26 @@ serve(async (req) => {
                              normalizedError.includes('numero ja existe');
 
     if (isNumberConflict && !createNfeData?.data?.id) {
-      console.log(`[BLING-NFE] ⚠️ Conflito de numeração detectado, buscando próximo número disponível...`);
+      console.log(`[BLING-NFE] ╔══════════════════════════════════════════════════════════════╗`);
+      console.log(`[BLING-NFE] ║      ⚠️ CONFLITO DE NUMERAÇÃO DETECTADO - RETRY ATIVO        ║`);
+      console.log(`[BLING-NFE] ╚══════════════════════════════════════════════════════════════╝`);
       
       // Identificar qual série está sendo usada
       const serieAtual = nfePayload.serie || 15;
       
-      // Buscar último número autorizado
-      const lastNumber = await getLastNfeNumber(accessToken, serieAtual);
+      // Buscar último número AUTORIZADO primeiro
+      console.log(`[BLING-NFE] 🔄 Buscando último número AUTORIZADO na série ${serieAtual}...`);
+      let lastNumber = await getLastNfeNumber(accessToken, serieAtual, true); // true = apenas autorizadas
+      
+      // Fallback: buscar todas se não encontrar autorizadas
+      if (!lastNumber) {
+        console.log(`[BLING-NFE] ⚠️ Nenhuma autorizada. Buscando em TODOS os status...`);
+        lastNumber = await getLastNfeNumber(accessToken, serieAtual, false);
+      }
       
       if (lastNumber) {
-        const nextNumber = lastNumber + 1;
-        console.log(`[BLING-NFE] 🔄 Tentando novamente com número ${nextNumber} (série ${serieAtual})...`);
+        const nextNumber = lastNumber + 2; // +2 para margem de segurança
+        console.log(`[BLING-NFE] 🔢 RETRY NUMERAÇÃO: último=${lastNumber} → próximo=${nextNumber} (+2 margem)`);
         
         // Forçar o próximo número no payload
         nfePayload.numero = nextNumber;
@@ -702,7 +725,7 @@ serve(async (req) => {
         if (retryResp.ok || retryData?.data?.id) {
           createNfeResp = retryResp;
           createNfeData = retryData;
-          console.log(`[BLING-NFE] ✓ Retry com número ${nextNumber} funcionou!`);
+          console.log(`[BLING-NFE] ✓ RETRY com número ${nextNumber} FUNCIONOU!`);
         } else {
           // Retry também falhou - retornar erro detalhado
           const retryError = extractFiscalError(retryData);
