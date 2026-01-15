@@ -3566,6 +3566,7 @@ export type Database = {
           payment_method: string | null
           payment_status: string | null
           prazo_entrega_dias: number | null
+          proposta_token: string | null
           status: string | null
           updated_at: string
           valor_desconto: number | null
@@ -3601,6 +3602,7 @@ export type Database = {
           payment_method?: string | null
           payment_status?: string | null
           prazo_entrega_dias?: number | null
+          proposta_token?: string | null
           status?: string | null
           updated_at?: string
           valor_desconto?: number | null
@@ -3636,6 +3638,7 @@ export type Database = {
           payment_method?: string | null
           payment_status?: string | null
           prazo_entrega_dias?: number | null
+          proposta_token?: string | null
           status?: string | null
           updated_at?: string
           valor_desconto?: number | null
