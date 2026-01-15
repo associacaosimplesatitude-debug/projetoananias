@@ -530,6 +530,53 @@ function resolveUnidadeNegocioPenhaId(unidadesMap: Map<string, number>): number 
   return null;
 }
 
+// ✅ FUNÇÃO: Resolver ID da Unidade de Negócio "Polo Pernambuco / Norte-Nordeste"
+function resolveUnidadeNegocioPEId(unidadesMap: Map<string, number>): number | null {
+  if (unidadesMap.size === 0) return null;
+
+  // Termos de busca para encontrar a unidade de Pernambuco/Norte-Nordeste
+  const searchTerms = ['pernambuco', 'jaboatao', 'polo pe', 'polo jaboatão', 'norte', 'nordeste'];
+  
+  for (const term of searchTerms) {
+    for (const [desc, id] of unidadesMap.entries()) {
+      if (desc.includes(term)) {
+        console.log(`[BLING] ✅ Unidade "PE/Norte-Nordeste" encontrada: "${desc}" (ID: ${id})`);
+        return id;
+      }
+    }
+  }
+
+  console.warn('[BLING] ⚠️ Unidade de Negócio "PE/Norte-Nordeste" não encontrada nas unidades disponíveis');
+  return null;
+}
+
+// ✅ FUNÇÃO: Resolver ID da Unidade de Negócio "Matriz RJ"
+function resolveUnidadeNegocioRJId(unidadesMap: Map<string, number>): number | null {
+  if (unidadesMap.size === 0) return null;
+
+  // Termos de busca para encontrar a unidade Matriz RJ
+  const searchTerms = ['matriz', 'rio', 'rj', 'centro', 'sede', 'principal'];
+  
+  for (const term of searchTerms) {
+    for (const [desc, id] of unidadesMap.entries()) {
+      if (desc.includes(term)) {
+        console.log(`[BLING] ✅ Unidade "Matriz RJ" encontrada: "${desc}" (ID: ${id})`);
+        return id;
+      }
+    }
+  }
+
+  // Se não encontrou por termo específico, usa a primeira unidade como fallback
+  const firstEntry = unidadesMap.entries().next().value;
+  if (firstEntry) {
+    console.log(`[BLING] ⚠️ Unidade "Matriz RJ" não encontrada, usando primeira unidade: "${firstEntry[0]}" (ID: ${firstEntry[1]})`);
+    return firstEntry[1];
+  }
+
+  console.warn('[BLING] ⚠️ Nenhuma Unidade de Negócio disponível');
+  return null;
+}
+
 // ✅ MAPEAMENTO ESTRITO: Email → ID numérico do vendedor no Bling
 // Ambas variações de email da Neila estão mapeadas para o mesmo ID.
 // Se o email não estiver aqui, o campo vendedor será omitido.
@@ -1346,27 +1393,47 @@ serve(async (req) => {
     const BLING_LOJA_PENHA_ID = 205891152;
     const BLING_LOJA_PENHA_PDV_ID = 205441191; // Canal de vendas para pagamentos presenciais
     
-    // Unidades de Negócio FIXAS (sem depender de secrets)
-    // Norte/Nordeste -> unidadeNegocio.id = 1 (Polo Pernambuco)
-    // Outras UFs -> unidadeNegocio.id = 2 (Matriz RJ)
-    const UNIDADE_NEGOCIO_NORTE_NORDESTE = 1;
-    const UNIDADE_NEGOCIO_OUTRAS = 2;
-    
-    // Unidade de Negócio Penha - BUSCA DINÂMICA via API
+    // ✅ BUSCA DINÂMICA de Unidades de Negócio via API
+    // Não usa mais IDs hardcoded - resolve dinamicamente pela API do Bling
     console.log('[BLING] 🔍 Buscando Unidades de Negócio via API...');
     const unidadesNegocioMap = await loadAllUnidadesNegocio(accessToken);
+    
+    console.log(`[BLING] 📋 Total de unidades encontradas: ${unidadesNegocioMap.size}`);
+    if (unidadesNegocioMap.size > 0) {
+      for (const [desc, id] of unidadesNegocioMap.entries()) {
+        console.log(`[BLING] 📋 Unidade disponível: "${desc}" (ID: ${id})`);
+      }
+    }
 
-    // Tentar resolver dinamicamente, fallback para Matriz
+    // ✅ Resolver dinamicamente TODAS as unidades de negócio
+    // Penha
     let UNIDADE_NEGOCIO_PENHA = resolveUnidadeNegocioPenhaId(unidadesNegocioMap);
-
     if (UNIDADE_NEGOCIO_PENHA === null) {
-      // API não retorna lista de unidades de negócio - definir como 0 para OMITIR do payload
-      // Isso evita erro "Unidade de negócio não encontrada" quando ID não existe
-      console.warn('[BLING] ⚠️ Unidade Penha não encontrada via API! Definindo como 0 para omitir do payload');
+      console.warn('[BLING] ⚠️ Unidade Penha não encontrada! Definindo como 0 para omitir do payload');
       UNIDADE_NEGOCIO_PENHA = 0;
     } else {
-      console.log(`[BLING] ✅ Unidade Penha resolvida dinamicamente: ID=${UNIDADE_NEGOCIO_PENHA}`);
+      console.log(`[BLING] ✅ Unidade Penha resolvida: ID=${UNIDADE_NEGOCIO_PENHA}`);
     }
+    
+    // Pernambuco / Norte-Nordeste
+    let UNIDADE_NEGOCIO_NORTE_NORDESTE = resolveUnidadeNegocioPEId(unidadesNegocioMap);
+    if (UNIDADE_NEGOCIO_NORTE_NORDESTE === null) {
+      console.warn('[BLING] ⚠️ Unidade PE/Norte-Nordeste não encontrada! Definindo como 0 para omitir do payload');
+      UNIDADE_NEGOCIO_NORTE_NORDESTE = 0;
+    } else {
+      console.log(`[BLING] ✅ Unidade PE/Norte-Nordeste resolvida: ID=${UNIDADE_NEGOCIO_NORTE_NORDESTE}`);
+    }
+    
+    // Matriz RJ / Outras regiões
+    let UNIDADE_NEGOCIO_OUTRAS = resolveUnidadeNegocioRJId(unidadesNegocioMap);
+    if (UNIDADE_NEGOCIO_OUTRAS === null) {
+      console.warn('[BLING] ⚠️ Unidade Matriz RJ não encontrada! Definindo como 0 para omitir do payload');
+      UNIDADE_NEGOCIO_OUTRAS = 0;
+    } else {
+      console.log(`[BLING] ✅ Unidade Matriz RJ resolvida: ID=${UNIDADE_NEGOCIO_OUTRAS}`);
+    }
+    
+    console.log(`[BLING] 📊 RESUMO UNIDADES: Penha=${UNIDADE_NEGOCIO_PENHA}, PE=${UNIDADE_NEGOCIO_NORTE_NORDESTE}, RJ=${UNIDADE_NEGOCIO_OUTRAS}`)
     
     // Depósitos - OBRIGATÓRIOS (via secrets)
     const BLING_DEPOSITO_ID_GERAL_RAW = Deno.env.get('BLING_DEPOSITO_ID_GERAL');
