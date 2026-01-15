@@ -75,6 +75,7 @@ import EBDCatalogo from "./pages/ebd/Catalogo";
 import EBDCarrinho from "./pages/ebd/Carrinho";
 import EBDCheckout from "./pages/ebd/Checkout";
 import EBDCheckoutBling from "./pages/ebd/CheckoutBling";
+import EBDCheckoutShopifyMP from "./pages/ebd/CheckoutShopifyMP";
 import EBDMyOrders from "./pages/ebd/MyOrders";
 import EBDOrderSuccess from "./pages/ebd/OrderSuccess";
 import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
@@ -301,6 +302,7 @@ const App = () => (
                       <Route path="carrinho" element={<EBDCarrinho />} />
                       <Route path="checkout" element={<EBDCheckout />} />
                       <Route path="checkout-bling" element={<EBDCheckoutBling />} />
+                      <Route path="checkout-shopify-mp" element={<EBDCheckoutShopifyMP />} />
                       <Route path="pedidos" element={<EBDMyOrders />} />
                       <Route path="my-orders" element={<EBDMyOrders />} />
                       <Route path="order-success" element={<EBDOrderSuccess />} />
