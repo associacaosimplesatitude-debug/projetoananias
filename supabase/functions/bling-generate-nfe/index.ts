@@ -140,10 +140,11 @@ function extractDanfeUrl(nfeDetail: any): string | null {
 }
 
 // ========== FUNÇÃO PARA BUSCAR ÚLTIMO NÚMERO NF-e POR SÉRIE (ESCUDO DE AUTO-NUMERAÇÃO) ==========
+// VERSÃO MELHORADA: Varre até 50 páginas (5000 NF-es) para garantir encontrar o maior número
 async function getLastNfeNumber(
   accessToken: string, 
   serie: number,
-  apenasAutorizadas: boolean = false // Novo parâmetro: filtrar apenas NF-e autorizadas (situação 6)
+  apenasAutorizadas: boolean = false
 ): Promise<number | null> {
   console.log(`[BLING-NFE] ========== BUSCANDO ÚLTIMO NÚMERO SÉRIE ${serie} ==========`);
   console.log(`[BLING-NFE] Filtro: ${apenasAutorizadas ? 'APENAS AUTORIZADAS (situação 6)' : 'TODAS AS SITUAÇÕES'}`);
@@ -151,17 +152,19 @@ async function getLastNfeNumber(
   try {
     let maxNumber = 0;
     let pagina = 1;
-    const maxPaginas = 10; // Aumentado para 10 páginas para garantir encontrar o maior número
+    const maxPaginas = 50; // AUMENTADO: 50 páginas = até 5000 NF-es
     let totalNfesAnalisadas = 0;
     
     while (pagina <= maxPaginas) {
-      // Montar URL com ou sem filtro de situação
       let searchUrl = `https://api.bling.com.br/Api/v3/nfe?serie=${serie}&pagina=${pagina}&limite=100`;
       if (apenasAutorizadas) {
-        searchUrl += '&situacao=6'; // 6 = Autorizada
+        searchUrl += '&situacao=6';
       }
       
-      console.log(`[BLING-NFE] Consultando página ${pagina}: ${searchUrl}`);
+      // Log apenas a cada 10 páginas para não poluir
+      if (pagina === 1 || pagina % 10 === 0) {
+        console.log(`[BLING-NFE] Consultando página ${pagina}...`);
+      }
       
       const resp = await fetch(searchUrl, {
         headers: {
@@ -178,14 +181,10 @@ async function getLastNfeNumber(
       const data = await resp.json();
       const nfes = Array.isArray(data?.data) ? data.data : [];
       
-      console.log(`[BLING-NFE] Página ${pagina}: ${nfes.length} NF-es retornadas`);
-      
       if (nfes.length === 0) {
-        console.log(`[BLING-NFE] Página ${pagina} vazia, parando busca.`);
         break;
       }
       
-      // Encontrar o maior número nesta página
       for (const nfe of nfes) {
         const num = Number(nfe.numero) || 0;
         if (num > maxNumber) {
@@ -194,11 +193,8 @@ async function getLastNfeNumber(
       }
       
       totalNfesAnalisadas += nfes.length;
-      console.log(`[BLING-NFE] Página ${pagina}: maior até agora = ${maxNumber}`);
       
-      // Se retornou menos de 100, é a última página
       if (nfes.length < 100) {
-        console.log(`[BLING-NFE] Página ${pagina} com menos de 100 itens, fim da busca.`);
         break;
       }
       
@@ -206,10 +202,8 @@ async function getLastNfeNumber(
     }
     
     console.log(`[BLING-NFE] ========== RESULTADO SÉRIE ${serie} ==========`);
-    console.log(`[BLING-NFE] Total de NF-es analisadas: ${totalNfesAnalisadas}`);
-    console.log(`[BLING-NFE] Páginas consultadas: ${pagina}`);
-    console.log(`[BLING-NFE] Filtro usado: ${apenasAutorizadas ? 'AUTORIZADAS' : 'TODAS'}`);
-    console.log(`[BLING-NFE] ÚLTIMO NÚMERO ENCONTRADO: ${maxNumber > 0 ? maxNumber : 'NENHUM'}`);
+    console.log(`[BLING-NFE] NF-es analisadas: ${totalNfesAnalisadas} | Páginas: ${pagina}`);
+    console.log(`[BLING-NFE] MAIOR NÚMERO ENCONTRADO: ${maxNumber > 0 ? maxNumber : 'NENHUM'}`);
     console.log(`[BLING-NFE] ================================================`);
     
     return maxNumber > 0 ? maxNumber : null;
@@ -656,14 +650,31 @@ serve(async (req) => {
       
       if (isNumberConflict) {
         console.log(`[BLING-NFE] ╔══════════════════════════════════════════════════════════════╗`);
-        console.log(`[BLING-NFE] ║      ⚠️ CONFLITO DE NUMERAÇÃO DETECTADO - LOOP DE RETRY       ║`);
+        console.log(`[BLING-NFE] ║   ⚠️ CONFLITO DE NUMERAÇÃO - INCREMENTO LOCAL ATIVADO        ║`);
         console.log(`[BLING-NFE] ╚══════════════════════════════════════════════════════════════╝`);
         
         const serieAtual = nfePayload.serie || 15;
-        const MAX_RETRIES = 5;
+        const MAX_RETRIES = 50;
         let retrySuccess = false;
-        let lastAttemptedNumber = 0;
         let lastRetryError = '';
+        
+        // ESTRATÉGIA: Incremento Local - buscar UMA vez, depois só incrementar
+        console.log(`[BLING-NFE] 🔍 Buscando maior número em TODAS as situações (busca única)...`);
+        let baseNumber = await getLastNfeNumber(accessToken, serieAtual, false);
+        
+        if (!baseNumber) {
+          baseNumber = (nfePayload.numero || 1) - 1;
+          console.log(`[BLING-NFE] ⚠️ Nenhum número encontrado, usando base: ${baseNumber}`);
+        }
+        
+        const failedNumber = nfePayload.numero || 0;
+        if (failedNumber > baseNumber) {
+          console.log(`[BLING-NFE] 📊 Número que falhou (${failedNumber}) > GET (${baseNumber}), usando falhou como base`);
+          baseNumber = failedNumber;
+        }
+        
+        let candidateNumber = baseNumber + 1;
+        console.log(`[BLING-NFE] 🎯 Base: ${baseNumber} | Candidato inicial: ${candidateNumber}`);
         
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           console.log(`[BLING-NFE] ═══════════════════════════════════════════════════════════`);
