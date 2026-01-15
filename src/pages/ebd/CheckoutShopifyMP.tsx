@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -106,12 +106,15 @@ type AddressForm = z.infer<typeof addressSchema>;
 
 export default function CheckoutShopifyMP() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const propostaToken = searchParams.get('proposta');
+  
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
-  const { items, clearCart } = useShopifyCartStore();
+  const { items: cartItems, clearCart } = useShopifyCartStore();
   
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card'>('pix');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [shippingMethod, setShippingMethod] = useState<'pac' | 'sedex'>('pac');
+  const [shippingMethod, setShippingMethod] = useState<'pac' | 'sedex' | 'manual'>('pac');
   const [pacCost, setPacCost] = useState<number>(0);
   const [sedexCost, setSedexCost] = useState<number>(0);
   const [pacDays, setPacDays] = useState<number>(0);
@@ -123,9 +126,48 @@ export default function CheckoutShopifyMP() {
   const [pixCode, setPixCode] = useState('');
   const [showAddressForm, setShowAddressForm] = useState(true);
 
-  // Cliente selecionado pelo vendedor
+  // Cliente selecionado pelo vendedor (para carrinho Shopify)
   const vendedorClienteId = sessionStorage.getItem('vendedor-cliente-id');
   const vendedorClienteNome = sessionStorage.getItem('vendedor-cliente-nome');
+
+  // Buscar proposta se token existir
+  const { data: proposta, isLoading: isLoadingProposta } = useQuery({
+    queryKey: ['proposta-checkout-mp', propostaToken],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vendedor_propostas')
+        .select(`
+          *,
+          ebd_clientes:cliente_id (
+            email_superintendente,
+            telefone,
+            cnpj,
+            cpf
+          ),
+          vendedores:vendedor_id (
+            id,
+            email,
+            nome
+          )
+        `)
+        .eq('token', propostaToken!)
+        .single();
+      
+      if (error) throw error;
+      
+      // Parse dados
+      const parsedData = {
+        ...data,
+        itens: typeof data.itens === 'string' ? JSON.parse(data.itens) : data.itens,
+        cliente_endereco: typeof data.cliente_endereco === 'string' 
+          ? JSON.parse(data.cliente_endereco) 
+          : data.cliente_endereco,
+      };
+      
+      return parsedData;
+    },
+    enabled: !!propostaToken,
+  });
 
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -145,7 +187,49 @@ export default function CheckoutShopifyMP() {
     },
   });
 
-  // Buscar dados do cliente do vendedor
+  // Preencher dados da proposta
+  useEffect(() => {
+    if (proposta && propostaToken) {
+      const clienteData = proposta.ebd_clientes as any;
+      const endereco = proposta.cliente_endereco || {};
+      const nomeCompleto = proposta.cliente_nome || '';
+      const partesNome = nomeCompleto.split(' ');
+      const primeiroNome = partesNome[0] || '';
+      const sobrenome = partesNome.slice(1).join(' ') || '';
+      
+      form.reset({
+        nome: primeiroNome,
+        sobrenome: sobrenome,
+        cpf: clienteData?.cnpj || clienteData?.cpf || proposta.cliente_cnpj || '',
+        email: clienteData?.email_superintendente || '',
+        telefone: clienteData?.telefone || '',
+        cep: endereco.cep || '',
+        rua: endereco.rua || '',
+        numero: endereco.numero || '',
+        complemento: endereco.complemento || '',
+        bairro: endereco.bairro || '',
+        cidade: endereco.cidade || '',
+        estado: endereco.estado || '',
+      });
+      
+      // Frete já vem da proposta
+      if (proposta.metodo_frete === 'manual' || proposta.frete_tipo === 'manual') {
+        setShippingMethod('manual');
+        setPacCost(proposta.valor_frete || 0);
+        setSedexCost(proposta.valor_frete || 0);
+      } else {
+        // Recalcular frete se necessário
+        if (endereco.cep) {
+          handleCEPBlur(endereco.cep);
+        }
+      }
+      
+      setIsCepValid(true);
+      setShowAddressForm(false); // Dados preenchidos, mostrar resumo
+    }
+  }, [proposta, propostaToken]);
+
+  // Buscar dados do cliente do vendedor (fluxo carrinho)
   const { data: vendedorCliente, isLoading: isLoadingVendedorCliente } = useQuery({
     queryKey: ['vendedor-cliente-checkout-mp', vendedorClienteId],
     queryFn: async () => {
@@ -161,12 +245,12 @@ export default function CheckoutShopifyMP() {
       }
       return data;
     },
-    enabled: !!vendedorClienteId,
+    enabled: !!vendedorClienteId && !propostaToken,
   });
 
-  // Preencher dados do cliente
+  // Preencher dados do cliente (fluxo carrinho)
   useEffect(() => {
-    if (vendedorCliente && !isLoadingVendedorCliente) {
+    if (vendedorCliente && !isLoadingVendedorCliente && !propostaToken) {
       const nomeCompleto = vendedorCliente.nome_responsavel || vendedorCliente.nome_superintendente || vendedorCliente.nome_igreja || '';
       const partesNome = nomeCompleto.split(' ');
       const primeiroNome = partesNome[0] || '';
@@ -191,11 +275,49 @@ export default function CheckoutShopifyMP() {
         handleCEPBlur(vendedorCliente.endereco_cep);
       }
     }
-  }, [vendedorCliente, isLoadingVendedorCliente]);
+  }, [vendedorCliente, isLoadingVendedorCliente, propostaToken]);
+
+  // Itens: da proposta ou do carrinho
+  const checkoutItems = useMemo(() => {
+    if (proposta?.itens && propostaToken) {
+      // Itens da proposta
+      return proposta.itens.map((item: any) => ({
+        variantId: item.variantId,
+        quantity: item.quantity,
+        title: item.title,
+        price: item.price,
+        imageUrl: item.imageUrl,
+        sku: item.sku,
+        descontoItem: item.descontoItem,
+      }));
+    }
+    // Itens do carrinho Shopify
+    return cartItems;
+  }, [proposta, propostaToken, cartItems]);
 
   // Calcular valores
-  const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
-  const shippingCost = shippingMethod === 'sedex' ? sedexCost : pacCost;
+  const subtotal = useMemo(() => {
+    if (proposta && propostaToken) {
+      // Usar valores da proposta (já com desconto aplicado)
+      const valorProdutos = proposta.valor_produtos || 0;
+      const descontoTotal = proposta.itens?.reduce((total: number, item: any) => {
+        const precoOriginal = parseFloat(item.price) * item.quantity;
+        const descontoDoItem = item.descontoItem ?? proposta.desconto_percentual ?? 0;
+        return total + (precoOriginal * (descontoDoItem / 100));
+      }, 0) || 0;
+      return valorProdutos - descontoTotal;
+    }
+    // Carrinho Shopify
+    return cartItems.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
+  }, [proposta, propostaToken, cartItems]);
+
+  const shippingCost = useMemo(() => {
+    if (proposta && propostaToken && (proposta.metodo_frete === 'manual' || proposta.frete_tipo === 'manual')) {
+      return proposta.valor_frete || 0;
+    }
+    return shippingMethod === 'sedex' ? sedexCost : pacCost;
+  }, [proposta, propostaToken, shippingMethod, sedexCost, pacCost]);
+
   const total = subtotal + shippingCost;
 
   const handleCEPBlur = async (cep: string) => {
@@ -221,14 +343,17 @@ export default function CheckoutShopifyMP() {
         form.setValue('estado', data.uf || '');
 
         // Calcular frete usando peso estimado dos produtos
-        const totalWeight = items.reduce((sum, item) => sum + (0.3 * item.quantity), 0); // 300g por item
+        const itemsParaCalculo = propostaToken && proposta?.itens 
+          ? proposta.itens 
+          : cartItems;
+        const totalWeight = itemsParaCalculo.reduce((sum: number, item: any) => sum + (0.3 * (item.quantity || 1)), 0); // 300g por item
         
         const { data: shippingData, error: shippingError } = await supabase.functions.invoke(
           'calculate-shipping',
           {
             body: { 
               cep: cleanCEP, 
-              items: items.map(item => ({ id: item.variantId, quantity: item.quantity })),
+              items: itemsParaCalculo.map((item: any) => ({ id: item.variantId, quantity: item.quantity })),
               pesoTotal: totalWeight
             },
           }
@@ -258,27 +383,62 @@ export default function CheckoutShopifyMP() {
     setIsProcessing(true);
     
     try {
-      if (!vendedor) {
+      // Determinar vendedor: da proposta ou do contexto atual
+      const vendedorInfo = propostaToken && proposta?.vendedores 
+        ? proposta.vendedores as { id: string; email: string; nome: string }
+        : vendedor;
+        
+      if (!vendedorInfo) {
         toast.error('Vendedor não identificado');
         return;
       }
 
-      // Preparar itens para o pagamento
-      const paymentItems = items.map(item => ({
-        id: item.variantId,
-        title: item.product.node.title,
-        quantity: item.quantity,
-        unit_price: parseFloat(item.price.amount),
-      }));
+      // Preparar itens para o pagamento - suportar ambos os formatos
+      const paymentItems = propostaToken && proposta?.itens
+        ? proposta.itens.map((item: any) => ({
+            id: item.variantId,
+            title: item.title,
+            quantity: item.quantity,
+            unit_price: parseFloat(item.price),
+          }))
+        : cartItems.map(item => ({
+            id: item.variantId,
+            title: item.product.node.title,
+            quantity: item.quantity,
+            unit_price: parseFloat(item.price.amount),
+          }));
+
+      // Preparar itens para salvar no pedido
+      const itemsParaSalvar = propostaToken && proposta?.itens
+        ? proposta.itens.map((item: any) => ({
+            variantId: item.variantId,
+            productId: item.variantId.split('/').pop(),
+            title: item.title,
+            variantTitle: item.title,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.imageUrl || null,
+            sku: item.sku || null,
+          }))
+        : cartItems.map(item => ({
+            variantId: item.variantId,
+            productId: item.product.node.id,
+            title: item.product.node.title,
+            variantTitle: item.variantTitle,
+            quantity: item.quantity,
+            price: item.price.amount,
+            image: item.product.node.images.edges[0]?.node.url || null,
+            sku: item.sku,
+          }));
 
       // Criar pedido na tabela nova
       const { data: pedido, error: pedidoError } = await supabase
         .from('ebd_shopify_pedidos_mercadopago')
         .insert({
-          vendedor_id: vendedor.id,
-          vendedor_email: vendedor.email,
-          vendedor_nome: vendedor.nome,
-          cliente_id: vendedorClienteId || null,
+          vendedor_id: vendedorInfo.id,
+          vendedor_email: vendedorInfo.email,
+          vendedor_nome: vendedorInfo.nome,
+          cliente_id: propostaToken ? proposta?.cliente_id : vendedorClienteId || null,
           cliente_nome: `${data.nome} ${data.sobrenome}`.trim(),
           cliente_cpf_cnpj: data.cpf.replace(/\D/g, ''),
           cliente_email: data.email,
@@ -295,18 +455,10 @@ export default function CheckoutShopifyMP() {
           endereco_bairro: data.bairro,
           endereco_cidade: data.cidade,
           endereco_estado: data.estado,
-          items: items.map(item => ({
-            variantId: item.variantId,
-            productId: item.product.node.id,
-            title: item.product.node.title,
-            variantTitle: item.variantTitle,
-            quantity: item.quantity,
-            price: item.price.amount,
-            image: item.product.node.images.edges[0]?.node.url || null,
-            sku: item.sku,
-          })),
+          items: itemsParaSalvar,
           payment_method: 'pix',
           status: 'AGUARDANDO_PAGAMENTO',
+          proposta_token: propostaToken || null,
         })
         .select()
         .single();
@@ -396,7 +548,10 @@ export default function CheckoutShopifyMP() {
     );
   }
 
-  if (items.length === 0) {
+  // Se não há proposta E carrinho está vazio, mostrar mensagem
+  const hasItems = propostaToken ? (proposta?.itens?.length > 0) : (cartItems.length > 0);
+  
+  if (!hasItems && !isLoadingProposta) {
     return (
       <div className="container mx-auto p-6">
         <div className="max-w-4xl mx-auto text-center py-12">
@@ -424,12 +579,22 @@ export default function CheckoutShopifyMP() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Checkout - Mercado Pago</h1>
-            {vendedorClienteNome && (
+            {propostaToken && proposta?.cliente_nome && (
+              <p className="text-muted-foreground">
+                Cliente: <span className="font-medium text-foreground">{proposta.cliente_nome}</span>
+              </p>
+            )}
+            {!propostaToken && vendedorClienteNome && (
               <p className="text-muted-foreground">
                 Cliente: <span className="font-medium text-foreground">{vendedorClienteNome}</span>
               </p>
             )}
-            {vendedor && (
+            {propostaToken && proposta?.vendedores && (
+              <p className="text-sm text-green-600">
+                Vendedor: {(proposta.vendedores as any).nome} ({(proposta.vendedores as any).email})
+              </p>
+            )}
+            {!propostaToken && vendedor && (
               <p className="text-sm text-green-600">
                 Vendedor: {vendedor.nome} ({vendedor.email})
               </p>
@@ -447,42 +612,79 @@ export default function CheckoutShopifyMP() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <ShoppingCart className="h-5 w-5" />
-                      Produtos ({items.length})
+                      Produtos ({checkoutItems.length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {items.map((item) => {
-                      const itemImage = item.product.node.images.edges[0]?.node.url;
-                      const itemTitle = item.product.node.title;
-                      const itemPrice = parseFloat(item.price.amount);
-                      return (
-                        <div key={item.variantId} className="flex gap-4 p-3 border rounded-lg">
-                          <div className="w-16 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
-                            {itemImage ? (
-                              <img src={itemImage} alt={itemTitle} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                                Sem img
-                              </div>
-                            )}
+                    {propostaToken && proposta?.itens ? (
+                      // Renderizar itens da proposta
+                      proposta.itens.map((item: any) => {
+                        const itemPrice = parseFloat(item.price);
+                        return (
+                          <div key={item.variantId} className="flex gap-4 p-3 border rounded-lg">
+                            <div className="w-16 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
+                              {item.imageUrl ? (
+                                <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+                                  Sem img
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{item.title}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Qtd: {item.quantity} × R$ {itemPrice.toFixed(2)}
+                              </p>
+                              {item.descontoItem && item.descontoItem > 0 && (
+                                <p className="text-xs text-green-600">
+                                  Desconto: {item.descontoItem}%
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold">
+                                R$ {(itemPrice * item.quantity * (1 - (item.descontoItem || 0) / 100)).toFixed(2)}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{itemTitle}</p>
-                            {item.variantTitle && item.variantTitle !== 'Default Title' && (
-                              <p className="text-xs text-muted-foreground">{item.variantTitle}</p>
-                            )}
-                            <p className="text-sm text-muted-foreground">
-                              Qtd: {item.quantity} × R$ {itemPrice.toFixed(2)}
-                            </p>
+                        );
+                      })
+                    ) : (
+                      // Renderizar itens do carrinho Shopify
+                      cartItems.map((item) => {
+                        const itemImage = item.product.node.images.edges[0]?.node.url;
+                        const itemTitle = item.product.node.title;
+                        const itemPrice = parseFloat(item.price.amount);
+                        return (
+                          <div key={item.variantId} className="flex gap-4 p-3 border rounded-lg">
+                            <div className="w-16 h-16 bg-muted rounded overflow-hidden flex-shrink-0">
+                              {itemImage ? (
+                                <img src={itemImage} alt={itemTitle} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+                                  Sem img
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{itemTitle}</p>
+                              {item.variantTitle && item.variantTitle !== 'Default Title' && (
+                                <p className="text-xs text-muted-foreground">{item.variantTitle}</p>
+                              )}
+                              <p className="text-sm text-muted-foreground">
+                                Qtd: {item.quantity} × R$ {itemPrice.toFixed(2)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold">
+                                R$ {(itemPrice * item.quantity).toFixed(2)}
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold">
-                              R$ {(itemPrice * item.quantity).toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </CardContent>
                 </Card>
 
@@ -767,7 +969,11 @@ export default function CheckoutShopifyMP() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Produtos ({items.reduce((s, i) => s + i.quantity, 0)} itens):</span>
+                      <span className="text-muted-foreground">
+                        Produtos ({propostaToken && proposta?.itens 
+                          ? proposta.itens.reduce((s: number, i: any) => s + i.quantity, 0) 
+                          : cartItems.reduce((s, i) => s + i.quantity, 0)} itens):
+                      </span>
                       <span className="font-medium">R$ {subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">

@@ -120,7 +120,7 @@ export default function PropostaDigital() {
   const { data: proposta, isLoading, error } = useQuery({
     queryKey: ["proposta", token],
     queryFn: async () => {
-      // Buscar proposta com join no cliente para pegar email/telefone
+      // Buscar proposta com join no cliente para pegar email/telefone E join no vendedor para pegar email
       const { data, error } = await supabase
         .from("vendedor_propostas")
         .select(`
@@ -128,6 +128,9 @@ export default function PropostaDigital() {
           ebd_clientes:cliente_id (
             email_superintendente,
             telefone
+          ),
+          vendedores:vendedor_id (
+            email
           )
         `)
         .eq("token", token!)
@@ -137,6 +140,7 @@ export default function PropostaDigital() {
       
       // Parse itens from JSON if necessary
       const clienteData = data.ebd_clientes as { email_superintendente: string | null; telefone: string | null } | null;
+      const vendedorData = data.vendedores as { email: string | null } | null;
       
       const parsedData = {
         ...data,
@@ -146,9 +150,10 @@ export default function PropostaDigital() {
           : data.cliente_endereco,
         cliente_email: clienteData?.email_superintendente || null,
         cliente_telefone: clienteData?.telefone || null,
+        vendedor_email: vendedorData?.email || null,
       };
       
-      return parsedData as Proposta;
+      return parsedData as Proposta & { vendedor_email: string | null };
     },
     enabled: !!token,
   });
@@ -516,6 +521,25 @@ export default function PropostaDigital() {
       
       // For standard payment (not B2B), automatically create draft order and open checkout
       if (!proposta?.pode_faturar) {
+        // NOVO FLUXO: Se vendedor é vendedorteste@gmail.com, redirecionar para checkout Mercado Pago
+        const vendedorEmail = (proposta as any)?.vendedor_email;
+        if (vendedorEmail === 'vendedorteste@gmail.com') {
+          console.log("Vendedor teste detectado, redirecionando para checkout Mercado Pago...");
+          
+          // Atualizar status para aguardando pagamento
+          await supabase
+            .from("vendedor_propostas")
+            .update({
+              status: "AGUARDANDO_PAGAMENTO",
+            })
+            .eq("token", token!);
+          
+          // Redirecionar para checkout Mercado Pago com token da proposta
+          window.location.assign(`/ebd/checkout-shopify-mp?proposta=${token}`);
+          return data; // Return early since we're redirecting
+        }
+
+        // Fluxo padrão: Shopify checkout
         const clienteData = {
           id: proposta!.cliente_id || "",
           nome_igreja: proposta!.cliente_nome,
