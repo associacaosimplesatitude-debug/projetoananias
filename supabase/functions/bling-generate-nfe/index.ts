@@ -837,11 +837,40 @@ serve(async (req) => {
     const xmlInfProtCStat = typeof sefazXml === 'string'
       ? (sefazXml.match(/<infProt[\s\S]*?<cStat>(\d+)<\/cStat>/)?.[1] || null)
       : null;
-
+    
+    // ====== DIAGNÓSTICO: Extrair campos fiscais do XML para debug do erro 696 ======
+    if (typeof sefazXml === 'string') {
+      const xmlIndFinal = sefazXml.match(/<indFinal>(\d)<\/indFinal>/)?.[1];
+      const xmlIndIEDest = sefazXml.match(/<indIEDest>(\d)<\/indIEDest>/)?.[1];
+      const xmlIdDest = sefazXml.match(/<idDest>(\d)<\/idDest>/)?.[1];
+      const xmlIndPres = sefazXml.match(/<indPres>(\d)<\/indPres>/)?.[1];
+      const xmlCNPJ = sefazXml.match(/<dest>[\s\S]*?<CNPJ>([^<]+)<\/CNPJ>/)?.[1];
+      const xmlCPF = sefazXml.match(/<dest>[\s\S]*?<CPF>([^<]+)<\/CPF>/)?.[1];
+      const xmlIE = sefazXml.match(/<dest>[\s\S]*?<IE>([^<]*)<\/IE>/)?.[1];
+      
+      console.log('[BLING-NFE] ╔═══════════════════════════════════════════════════════════════╗');
+      console.log('[BLING-NFE] ║            DIAGNÓSTICO XML ENVIADO À SEFAZ                    ║');
+      console.log('[BLING-NFE] ╠═══════════════════════════════════════════════════════════════╣');
+      console.log(`[BLING-NFE] ║ indFinal no XML:  ${xmlIndFinal || 'NÃO ENCONTRADO'} (esperado: 1 para consumidor final)`);
+      console.log(`[BLING-NFE] ║ indIEDest no XML: ${xmlIndIEDest || 'NÃO ENCONTRADO'} (esperado: 9 para não contribuinte)`);
+      console.log(`[BLING-NFE] ║ idDest no XML:    ${xmlIdDest || 'NÃO ENCONTRADO'} (1=interna, 2=interestadual, 3=exterior)`);
+      console.log(`[BLING-NFE] ║ indPres no XML:   ${xmlIndPres || 'NÃO ENCONTRADO'} (0=N/A, 1=presencial, 2=internet...)`);
+      console.log(`[BLING-NFE] ║ Destinatário:     ${xmlCNPJ ? `CNPJ ${xmlCNPJ}` : (xmlCPF ? `CPF ${xmlCPF}` : 'NÃO ENCONTRADO')}`);
+      console.log(`[BLING-NFE] ║ IE Destinatário:  ${xmlIE !== undefined ? (xmlIE || 'VAZIA') : 'NÃO ENCONTRADO'}`);
+      console.log('[BLING-NFE] ╚═══════════════════════════════════════════════════════════════╝');
+      
+      // ALERTA ESPECÍFICO para erro 696
+      if (xmlIndFinal !== '1' || xmlIndIEDest !== '9') {
+        console.warn('[BLING-NFE] ⚠️ PROBLEMA DETECTADO! Para não-contribuinte precisa: indFinal=1 e indIEDest=9');
+        console.warn(`[BLING-NFE] ⚠️ Valores atuais: indFinal=${xmlIndFinal}, indIEDest=${xmlIndIEDest}`);
+      }
+    }
+    
+    // Guardar erro SEFAZ do envio para uso posterior em rejeição
+    let sefazErrorFromSend = '';
     if (xmlInfProtCStat && xmlInfProtMotivo) {
-      // Log informativo apenas - NÃO retornar erro aqui
-      // A situação 6 do Bling é a fonte de verdade para autorização
-      console.log('[BLING-NFE] Retorno SEFAZ (info only)', { cStat: xmlInfProtCStat, xMotivo: xmlInfProtMotivo });
+      sefazErrorFromSend = `SEFAZ cStat ${xmlInfProtCStat}: ${xmlInfProtMotivo}`;
+      console.log('[BLING-NFE] Retorno SEFAZ do envio:', sefazErrorFromSend);
     }
 
     if (!sendNfeResp.ok) {
@@ -962,7 +991,37 @@ serve(async (req) => {
 
       // Situação 4 = Rejeitada definitivamente
       if (situacao === 4) {
-        const rejectReason = nfeDetail?.motivoRejeicao || nfeDetail?.erroEnvio || 'Motivo não informado';
+        // PRIORIDADE 1: Tentar extrair motivo do XML da NF-e detalhada
+        let rejectReason = '';
+        
+        try {
+          const nfeXml = nfeDetail?.xml;
+          if (typeof nfeXml === 'string') {
+            const sefazMotivo = nfeXml.match(/<infProt[\s\S]*?<xMotivo>([^<]+)<\/xMotivo>/)?.[1];
+            const sefazCstat = nfeXml.match(/<infProt[\s\S]*?<cStat>(\d+)<\/cStat>/)?.[1];
+            if (sefazCstat && sefazMotivo) {
+              rejectReason = `SEFAZ cStat ${sefazCstat}: ${sefazMotivo}`;
+            }
+          }
+        } catch (e) {
+          console.log('[BLING-NFE] Erro ao extrair motivo do XML do detalhe:', e);
+        }
+        
+        // PRIORIDADE 2: Usar erro do envio inicial (capturado antes do polling)
+        if (!rejectReason && sefazErrorFromSend) {
+          rejectReason = sefazErrorFromSend;
+        }
+        
+        // PRIORIDADE 3: Campos padrão do Bling
+        if (!rejectReason) {
+          rejectReason = nfeDetail?.motivoRejeicao || nfeDetail?.erroEnvio || '';
+        }
+        
+        // PRIORIDADE 4: Fallback genérico
+        if (!rejectReason) {
+          rejectReason = 'Motivo não retornado pelo Bling. Verifique os logs para detalhes.';
+        }
+        
         console.log(`[BLING-NFE] NF-e REJEITADA na tentativa ${attempt}: ${rejectReason}`);
         
         // Atualizar status no banco - tentar vendas_balcao primeiro
