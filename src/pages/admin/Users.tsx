@@ -117,40 +117,27 @@ export default function AdminUsers() {
     if (!validateCreateUser()) return;
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: newUser.email.trim(),
-        password: newUser.password,
-        options: {
-          data: {
-            full_name: newUser.fullName.trim(),
-          },
+      const { data: response, error } = await supabase.functions.invoke('create-admin-user', {
+        body: {
+          email: newUser.email.trim(),
+          password: newUser.password,
+          fullName: newUser.fullName.trim(),
+          role: newUser.role,
         },
       });
 
       if (error) throw error;
+      if (response?.error) throw new Error(response.error);
 
-      if (data.user) {
-        await supabase.from('profiles').insert({
-          id: data.user.id,
-          email: newUser.email.trim(),
-          full_name: newUser.fullName.trim(),
-        });
+      toast({
+        title: 'Sucesso',
+        description: 'Usuário criado com sucesso',
+      });
 
-        await supabase.from('user_roles').insert({
-          user_id: data.user.id,
-          role: newUser.role,
-        });
-
-        toast({
-          title: 'Sucesso',
-          description: 'Usuário criado com sucesso',
-        });
-
-        setCreateDialogOpen(false);
-        setNewUser({ email: '', password: '', fullName: '', role: 'client' });
-        setErrors({});
-        fetchUsers();
-      }
+      setCreateDialogOpen(false);
+      setNewUser({ email: '', password: '', fullName: '', role: 'client' });
+      setErrors({});
+      fetchUsers();
     } catch (error: any) {
       toast({
         title: 'Erro',
