@@ -46,7 +46,24 @@ serve(async (req) => {
       const payment = await paymentResponse.json();
       console.log('Pagamento:', payment.id, 'Status:', payment.status, 'Método:', payment.payment_type_id);
 
-      // Buscar pedido pelo mercadopago_payment_id com dados completos
+      // PRIMEIRO: Tentar buscar na nova tabela ebd_shopify_pedidos_mercadopago
+      const { data: shopifyMPPedido, error: shopifyMPError } = await supabase
+        .from('ebd_shopify_pedidos_mercadopago')
+        .select('*')
+        .eq('mercadopago_payment_id', paymentId.toString())
+        .maybeSingle();
+
+      if (shopifyMPPedido) {
+        console.log('Pedido encontrado na tabela ebd_shopify_pedidos_mercadopago:', shopifyMPPedido.id);
+        await processShopifyMPPedido(supabase, supabaseUrl, supabaseKey, shopifyMPPedido, payment);
+        
+        return new Response(
+          JSON.stringify({ success: true, source: 'shopify_mp' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        );
+      }
+
+      // SEGUNDO: Tentar tabela original ebd_pedidos
       const { data: pedido, error: pedidoError } = await supabase
         .from('ebd_pedidos')
         .select(`
@@ -100,7 +117,6 @@ serve(async (req) => {
           try {
             console.log('Criando pedido no Bling para pedido:', pedido.id);
             
-            // Dados do Cliente (do formulário de checkout)
             const cliente = {
               nome: pedido.nome_cliente || pedido.email_cliente?.split('@')[0] || 'Cliente',
               sobrenome: pedido.sobrenome_cliente || '',
@@ -109,7 +125,6 @@ serve(async (req) => {
               telefone: pedido.telefone_cliente || pedido.church?.pastor_whatsapp || '',
             };
 
-            // Endereço de entrega (do formulário de checkout)
             const endereco_entrega = {
               rua: pedido.endereco_rua,
               numero: pedido.endereco_numero,
@@ -120,16 +135,14 @@ serve(async (req) => {
               estado: pedido.endereco_estado,
             };
 
-            // Preparar itens com preço já com desconto (30% off)
             const itensBling = pedido.ebd_pedidos_itens?.map((item: any) => ({
               codigo: item.revista?.bling_produto_id?.toString() || '0',
               descricao: item.revista?.titulo || 'Revista EBD',
               unidade: 'UN',
               quantidade: item.quantidade,
-              valor: Number(item.preco_unitario.toFixed(2)), // Já vem com desconto do checkout
+              valor: Number(item.preco_unitario.toFixed(2)),
             })) || [];
 
-            // Mapear forma de pagamento do Mercado Pago
             const paymentTypeMap: { [key: string]: string } = {
               'credit_card': 'card',
               'debit_card': 'card',
@@ -139,7 +152,6 @@ serve(async (req) => {
             };
             const formaPagamento = paymentTypeMap[payment.payment_type_id] || 'pix';
 
-            // Chamar função bling-create-order com dados completos
             const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
               method: 'POST',
               headers: {
@@ -242,3 +254,123 @@ serve(async (req) => {
     );
   }
 });
+
+// Função para processar pedidos da tabela ebd_shopify_pedidos_mercadopago
+async function processShopifyMPPedido(
+  supabase: any, 
+  supabaseUrl: string, 
+  supabaseKey: string,
+  pedido: any, 
+  payment: any
+) {
+  console.log('Processando pedido Shopify MP:', pedido.id);
+  
+  let newStatus = pedido.status;
+  let paymentStatus = payment.status;
+  let blingOrderId = pedido.bling_order_id;
+
+  if (payment.status === 'approved') {
+    newStatus = 'PAGO';
+
+    // CRIAR PEDIDO NO BLING COM EMAIL DO VENDEDOR!
+    if (!pedido.bling_order_id) {
+      try {
+        console.log('Criando pedido no Bling para pedido Shopify MP:', pedido.id);
+        console.log('VENDEDOR EMAIL:', pedido.vendedor_email); // IMPORTANTE: Email do vendedor!
+        
+        const cliente = {
+          nome: pedido.cliente_nome?.split(' ')[0] || 'Cliente',
+          sobrenome: pedido.cliente_nome?.split(' ').slice(1).join(' ') || '',
+          cpf_cnpj: pedido.cliente_cpf_cnpj || '',
+          email: pedido.cliente_email || '',
+          telefone: pedido.cliente_telefone || '',
+        };
+
+        const endereco_entrega = {
+          rua: pedido.endereco_rua,
+          numero: pedido.endereco_numero,
+          complemento: pedido.endereco_complemento,
+          bairro: pedido.endereco_bairro,
+          cep: pedido.endereco_cep,
+          cidade: pedido.endereco_cidade,
+          estado: pedido.endereco_estado,
+        };
+
+        // Converter itens do JSON para formato Bling
+        const items = pedido.items || [];
+        const itensBling = items.map((item: any) => ({
+          codigo: item.sku || item.variantId || '0',
+          descricao: item.title || 'Produto Shopify',
+          unidade: 'UN',
+          quantidade: item.quantity || 1,
+          valor: Number(parseFloat(item.price || '0').toFixed(2)),
+        }));
+
+        const paymentTypeMap: { [key: string]: string } = {
+          'credit_card': 'card',
+          'debit_card': 'card',
+          'account_money': 'pix',
+          'bank_transfer': 'pix',
+          'ticket': 'boleto',
+        };
+        const formaPagamento = paymentTypeMap[payment.payment_type_id] || pedido.payment_method || 'pix';
+
+        const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            cliente,
+            endereco_entrega,
+            itens: itensBling,
+            pedido_id: pedido.id.slice(0, 8).toUpperCase(),
+            valor_frete: pedido.valor_frete || 0,
+            metodo_frete: pedido.metodo_frete || 'pac',
+            forma_pagamento: formaPagamento,
+            valor_produtos: pedido.valor_produtos || 0,
+            valor_total: pedido.valor_total || 0,
+            // IMPORTANTE: Passando o email do vendedor!
+            vendedor_email: pedido.vendedor_email,
+            vendedor_nome: pedido.vendedor_nome,
+            vendedor_id: pedido.vendedor_id,
+            // Identificador de origem
+            origem: 'shopify_mercadopago',
+          }),
+        });
+
+        if (blingResponse.ok) {
+          const blingData = await blingResponse.json();
+          console.log('Resposta do Bling (Shopify MP):', blingData);
+          
+          if (blingData.bling_order_id) {
+            blingOrderId = blingData.bling_order_id;
+            console.log('Pedido criado no Bling com ID:', blingOrderId, 'Vendedor:', pedido.vendedor_email);
+          }
+        } else {
+          const errorText = await blingResponse.text();
+          console.error('Erro ao criar pedido no Bling (Shopify MP):', errorText);
+        }
+      } catch (blingError) {
+        console.error('Erro ao chamar bling-create-order (Shopify MP):', blingError);
+      }
+    }
+  } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
+    newStatus = 'CANCELADO';
+  }
+
+  // Atualizar pedido
+  await supabase
+    .from('ebd_shopify_pedidos_mercadopago')
+    .update({
+      status: newStatus,
+      payment_status: paymentStatus,
+      bling_order_id: blingOrderId,
+      bling_created_at: blingOrderId ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', pedido.id);
+
+  console.log('Pedido Shopify MP atualizado:', pedido.id, 'Status:', newStatus, 'Bling ID:', blingOrderId);
+}

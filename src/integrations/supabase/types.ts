@@ -3540,6 +3540,129 @@ export type Database = {
           },
         ]
       }
+      ebd_shopify_pedidos_mercadopago: {
+        Row: {
+          bling_created_at: string | null
+          bling_order_id: number | null
+          cliente_cpf_cnpj: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefone: string | null
+          created_at: string
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_complemento: string | null
+          endereco_estado: string | null
+          endereco_numero: string | null
+          endereco_rua: string | null
+          id: string
+          items: Json
+          mercadopago_payment_id: string | null
+          mercadopago_preference_id: string | null
+          metodo_frete: string | null
+          observacoes: string | null
+          payment_method: string | null
+          payment_status: string | null
+          prazo_entrega_dias: number | null
+          status: string | null
+          updated_at: string
+          valor_desconto: number | null
+          valor_frete: number | null
+          valor_produtos: number
+          valor_total: number
+          vendedor_email: string | null
+          vendedor_id: string | null
+          vendedor_nome: string | null
+        }
+        Insert: {
+          bling_created_at?: string | null
+          bling_order_id?: number | null
+          cliente_cpf_cnpj?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefone?: string | null
+          created_at?: string
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          id?: string
+          items: Json
+          mercadopago_payment_id?: string | null
+          mercadopago_preference_id?: string | null
+          metodo_frete?: string | null
+          observacoes?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          prazo_entrega_dias?: number | null
+          status?: string | null
+          updated_at?: string
+          valor_desconto?: number | null
+          valor_frete?: number | null
+          valor_produtos: number
+          valor_total: number
+          vendedor_email?: string | null
+          vendedor_id?: string | null
+          vendedor_nome?: string | null
+        }
+        Update: {
+          bling_created_at?: string | null
+          bling_order_id?: number | null
+          cliente_cpf_cnpj?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefone?: string | null
+          created_at?: string
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_numero?: string | null
+          endereco_rua?: string | null
+          id?: string
+          items?: Json
+          mercadopago_payment_id?: string | null
+          mercadopago_preference_id?: string | null
+          metodo_frete?: string | null
+          observacoes?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
+          prazo_entrega_dias?: number | null
+          status?: string | null
+          updated_at?: string
+          valor_desconto?: number | null
+          valor_frete?: number | null
+          valor_produtos?: number
+          valor_total?: number
+          vendedor_email?: string | null
+          vendedor_id?: string | null
+          vendedor_nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_shopify_pedidos_mercadopago_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_shopify_pedidos_mercadopago_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_transfer_requests: {
         Row: {
           aprovado_por: string | null
