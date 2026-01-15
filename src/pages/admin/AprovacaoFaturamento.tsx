@@ -233,11 +233,17 @@ export default function AprovacaoFaturamento() {
         let precoComDesconto = precoOriginal;
 
         if (usarDescontoCategoria) {
-          // Desconto por categoria do representante
-          const categoria = categorizarProduto(item.title);
-          const descontoPercent = descontosCategoria[categoria] || 0;
-          precoComDesconto = Math.round((precoOriginal * (1 - descontoPercent / 100)) * 100) / 100;
-          console.log(`[REP_DESC] Item: ${item.title} | Categoria: ${categoria} | Desconto: ${descontoPercent}% | Original: ${precoOriginal} | Final: ${precoComDesconto}`);
+          // PRIORIDADE 1: Usar descontoItem que já vem salvo na proposta
+          if (item.descontoItem && item.descontoItem > 0) {
+            precoComDesconto = Math.round((precoOriginal * (1 - item.descontoItem / 100)) * 100) / 100;
+            console.log(`[REP_DESC] Usando descontoItem da proposta: ${item.title} | Desconto: ${item.descontoItem}% | Original: ${precoOriginal} | Final: ${precoComDesconto}`);
+          } else {
+            // FALLBACK: Recategorizar e buscar desconto do banco
+            const categoria = categorizarProduto(item.title);
+            const descontoPercent = descontosCategoria[categoria] || 0;
+            precoComDesconto = Math.round((precoOriginal * (1 - descontoPercent / 100)) * 100) / 100;
+            console.log(`[REP_DESC] Recategorizando: ${item.title} | Categoria: ${categoria} | Desconto: ${descontoPercent}% | Original: ${precoOriginal} | Final: ${precoComDesconto}`);
+          }
         } else if ((proposta.desconto_percentual || 0) > 0) {
           // Desconto global padrão
           precoComDesconto = Math.round((precoOriginal * (1 - (proposta.desconto_percentual || 0) / 100)) * 100) / 100;
