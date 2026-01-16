@@ -518,10 +518,19 @@ export default function PropostaDigital() {
       
       // For standard payment (not B2B), automatically create draft order and open checkout
       if (!proposta?.pode_faturar) {
+        // Usar vendedor_email da resposta do UPDATE (mais recente) ou fallback para proposta
+        const vendedorEmailRaw = data?.vendedor_email || (proposta as any)?.vendedor_email || '';
+        const vendedorEmailNormalizado = vendedorEmailRaw.trim().toLowerCase();
+        
+        console.log("=== DEBUG PROPOSTA CONFIRMAÇÃO ===");
+        console.log("Token:", token);
+        console.log("vendedor_email (raw):", vendedorEmailRaw);
+        console.log("vendedor_email (normalizado):", vendedorEmailNormalizado);
+        console.log("pode_faturar:", proposta?.pode_faturar);
+        
         // NOVO FLUXO: Se vendedor é vendedorteste@gmail.com, redirecionar para checkout Mercado Pago
-        const vendedorEmail = (proposta as any)?.vendedor_email;
-        if (vendedorEmail === 'vendedorteste@gmail.com') {
-          console.log("Vendedor teste detectado, redirecionando para checkout Mercado Pago...");
+        if (vendedorEmailNormalizado === 'vendedorteste@gmail.com') {
+          console.log(">>> Vendedor teste detectado! Redirecionando para checkout Mercado Pago...");
           
           // Atualizar status para aguardando pagamento
           await supabase
@@ -535,6 +544,8 @@ export default function PropostaDigital() {
           window.location.assign(`/ebd/checkout-shopify-mp?proposta=${token}`);
           return data; // Return early since we're redirecting
         }
+        
+        console.log(">>> Fluxo padrão: Shopify checkout");
 
         // Fluxo padrão: Shopify checkout
         const clienteData = {
