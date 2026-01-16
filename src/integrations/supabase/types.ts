@@ -4513,6 +4513,7 @@ export type Database = {
           valor_frete: number | null
           valor_produtos: number
           valor_total: number
+          vendedor_email: string | null
           vendedor_id: string | null
           vendedor_nome: string | null
         }
@@ -4547,6 +4548,7 @@ export type Database = {
           valor_frete?: number | null
           valor_produtos?: number
           valor_total?: number
+          vendedor_email?: string | null
           vendedor_id?: string | null
           vendedor_nome?: string | null
         }
@@ -4581,6 +4583,7 @@ export type Database = {
           valor_frete?: number | null
           valor_produtos?: number
           valor_total?: number
+          vendedor_email?: string | null
           vendedor_id?: string | null
           vendedor_nome?: string | null
         }

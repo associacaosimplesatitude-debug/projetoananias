@@ -730,6 +730,7 @@ export default function ShopifyPedidos() {
         .from("vendedor_propostas")
         .insert({
           vendedor_id: vendedor.id,
+          vendedor_email: vendedor.email, // Salvar email do vendedor diretamente
           cliente_id: selectedCliente.id,
           cliente_nome: selectedCliente.nome_igreja,
           cliente_cnpj: selectedCliente.cnpj,
