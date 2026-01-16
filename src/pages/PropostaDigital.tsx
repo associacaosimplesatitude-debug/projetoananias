@@ -476,12 +476,19 @@ export default function PropostaDigital() {
         console.log(">>> TRAVA: Vendedor teste detectado! Redirecionando para checkout Mercado Pago...");
         
         // Atualizar status para aguardando pagamento (sem criar checkout Shopify)
+        // E salvar método de frete escolhido pelo cliente
+        const selectedShipping = shippingOptions.find(opt => opt.type === selectedFrete);
+        const isFreteManualVendedorTeste = proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual';
+        
         await supabase
           .from("vendedor_propostas")
           .update({
             status: "AGUARDANDO_PAGAMENTO",
             confirmado_em: new Date().toISOString(),
             payment_link: null, // Garantir que não tem link Shopify
+            // Salvar método de frete escolhido
+            metodo_frete: isFreteManualVendedorTeste ? 'manual' : (selectedFrete || null),
+            valor_frete: isFreteManualVendedorTeste ? proposta!.valor_frete : (selectedShipping?.cost || 0),
           })
           .eq("token", token!);
         
