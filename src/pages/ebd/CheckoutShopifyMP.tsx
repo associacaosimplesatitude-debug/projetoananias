@@ -130,7 +130,7 @@ export default function CheckoutShopifyMP() {
   const vendedorClienteId = sessionStorage.getItem('vendedor-cliente-id');
   const vendedorClienteNome = sessionStorage.getItem('vendedor-cliente-nome');
 
-  // Buscar proposta se token existir
+  // Buscar proposta se token existir (SEM join com vendedores para funcionar em acesso público)
   const { data: proposta, isLoading: isLoadingProposta } = useQuery({
     queryKey: ['proposta-checkout-mp', propostaToken],
     queryFn: async () => {
@@ -143,11 +143,6 @@ export default function CheckoutShopifyMP() {
             telefone,
             cnpj,
             cpf
-          ),
-          vendedores:vendedor_id (
-            id,
-            email,
-            nome
           )
         `)
         .eq('token', propostaToken!)
@@ -383,12 +378,16 @@ export default function CheckoutShopifyMP() {
     setIsProcessing(true);
     
     try {
-      // Determinar vendedor: da proposta ou do contexto atual
-      const vendedorInfo = propostaToken && proposta?.vendedores 
-        ? proposta.vendedores as { id: string; email: string; nome: string }
+      // Determinar vendedor: usar campos salvos diretamente na proposta (sem join)
+      const vendedorInfo = propostaToken && proposta
+        ? { 
+            id: proposta.vendedor_id as string, 
+            email: proposta.vendedor_email as string || '', 
+            nome: proposta.vendedor_nome as string || '' 
+          }
         : vendedor;
         
-      if (!vendedorInfo) {
+      if (!vendedorInfo || !vendedorInfo.id) {
         toast.error('Vendedor não identificado');
         return;
       }
@@ -589,9 +588,9 @@ export default function CheckoutShopifyMP() {
                 Cliente: <span className="font-medium text-foreground">{vendedorClienteNome}</span>
               </p>
             )}
-            {propostaToken && proposta?.vendedores && (
+            {propostaToken && proposta?.vendedor_email && (
               <p className="text-sm text-green-600">
-                Vendedor: {(proposta.vendedores as any).nome} ({(proposta.vendedores as any).email})
+                Vendedor: {proposta.vendedor_nome || 'N/A'} ({proposta.vendedor_email})
               </p>
             )}
             {!propostaToken && vendedor && (
