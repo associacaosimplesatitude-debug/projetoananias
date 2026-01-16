@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle, Pencil, Trash2, Loader2, RefreshCw } from "lucide-react";
+import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle, Pencil, Trash2, Loader2, RefreshCw, CreditCard } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { PedidoDetailDialog, Pedido } from "./PedidoDetailDialog";
 import { ShopifyPedidoDetailDialog } from "./ShopifyPedidoDetailDialog";
@@ -72,6 +72,22 @@ interface PropostaFaturada {
   prazo_faturamento?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   itens: any;
+}
+
+interface MercadoPagoPedido {
+  id: string;
+  created_at: string;
+  vendedor_id: string | null;
+  vendedor_nome: string | null;
+  cliente_id: string | null;
+  cliente_nome: string | null;
+  payment_status: string;
+  status: string;
+  valor_total: number;
+  valor_frete: number;
+  valor_produtos: number;
+  payment_method: string | null;
+  bling_order_id: number | null;
 }
 
 // Interface for the detail dialog
@@ -135,6 +151,29 @@ const getShopifyStatusBadge = (status: string, cancelledAt?: string | null) => {
       return <Badge variant="outline" className="border-yellow-500 text-yellow-600">Aguardando Pagamento</Badge>;
     default:
       return <Badge variant="secondary">{status}</Badge>;
+  }
+};
+
+/**
+ * Maps Mercado Pago payment status to a display badge
+ */
+const getMercadoPagoStatusBadge = (paymentStatus: string, status: string) => {
+  const statusLower = paymentStatus?.toLowerCase() || status?.toLowerCase() || '';
+  
+  switch (statusLower) {
+    case 'approved':
+    case 'pago':
+      return <Badge className="bg-green-500 hover:bg-green-600">Pago</Badge>;
+    case 'cancelled':
+    case 'refunded':
+    case 'rejected':
+      return <Badge variant="destructive">Cancelado</Badge>;
+    case 'pending':
+    case 'in_process':
+    case 'aguardando_pagamento':
+      return <Badge variant="outline" className="border-yellow-500 text-yellow-600">Aguardando Pagamento</Badge>;
+    default:
+      return <Badge variant="secondary">{paymentStatus || status || 'Pendente'}</Badge>;
   }
 };
 
@@ -337,7 +376,50 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
     staleTime: 30000, // 30 seconds
   });
 
-  const isLoading = isLoadingPedidos || isLoadingShopify || isLoadingFaturados || isLoadingPropostas;
+  // Fetch Mercado Pago orders for this vendedor
+  const { data: mercadoPagoPedidos = [], isLoading: isLoadingMercadoPago, refetch: refetchMercadoPago } = useQuery({
+    queryKey: ["vendedor-mercadopago-pedidos", vendedorId, clienteIds],
+    queryFn: async () => {
+      // Fetch orders by vendedor_id
+      const { data: byVendedor, error: vendedorError } = await supabase
+        .from("ebd_shopify_pedidos_mercadopago")
+        .select("*")
+        .eq("vendedor_id", vendedorId)
+        .order("created_at", { ascending: false });
+      
+      if (vendedorError) {
+        console.error("Error fetching mercadopago pedidos by vendedor:", vendedorError);
+        throw vendedorError;
+      }
+
+      // Also fetch orders by cliente_id for this vendedor's clients
+      let byCliente: MercadoPagoPedido[] = [];
+      if (clienteIds.length > 0) {
+        const { data: clienteData, error: clienteError } = await supabase
+          .from("ebd_shopify_pedidos_mercadopago")
+          .select("*")
+          .in("cliente_id", clienteIds)
+          .order("created_at", { ascending: false });
+        
+        if (clienteError) {
+          console.error("Error fetching mercadopago pedidos by cliente:", clienteError);
+        } else {
+          byCliente = (clienteData || []) as MercadoPagoPedido[];
+        }
+      }
+
+      // Merge and deduplicate by id
+      const allPedidos = [...(byVendedor || []), ...byCliente];
+      const uniquePedidos = Array.from(
+        new Map(allPedidos.map(p => [p.id, p])).values()
+      ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      return uniquePedidos as MercadoPagoPedido[];
+    },
+    enabled: !!vendedorId,
+  });
+
+  const isLoading = isLoadingPedidos || isLoadingShopify || isLoadingFaturados || isLoadingPropostas || isLoadingMercadoPago;
   const [isSyncingStatus, setIsSyncingStatus] = useState(false);
   const hasSyncedRef = useRef(false);
 
@@ -613,7 +695,69 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
             </div>
           )}
 
-          {/* Propostas Faturadas (Approved by Financial) Section */}
+          {/* Mercado Pago Orders Section */}
+          {mercadoPagoPedidos.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-blue-600" />
+                Pedidos Mercado Pago
+              </h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pedido</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Valor Total</TableHead>
+                    <TableHead>Para Meta</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Forma Pgto</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {mercadoPagoPedidos.map((pedido) => (
+                    <TableRow key={pedido.id}>
+                      <TableCell className="font-medium">
+                        #MP{pedido.id.slice(0, 8).toUpperCase()}
+                      </TableCell>
+                      <TableCell>
+                        {pedido.created_at 
+                          ? format(new Date(pedido.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {pedido.cliente_nome || clienteMap[pedido.cliente_id || ''] || 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        R$ {Number(pedido.valor_total || 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-green-600 font-medium">
+                        R$ {(Number(pedido.valor_produtos || 0)).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        {getMercadoPagoStatusBadge(pedido.payment_status, pedido.status)}
+                      </TableCell>
+                      <TableCell>
+                        {getPaymentMethodLabel(pedido.payment_method)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
           {propostasFaturadas.length > 0 && (
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
