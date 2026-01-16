@@ -758,9 +758,21 @@ export default function ShopifyPedidos() {
 
       if (error) throw error;
 
-      // Usar domínio dinâmico para o link da proposta (garante que cliente abra versão atualizada)
+      // TRAVA: Vendedor teste → link direto para checkout MP com proposta_id
+      const vendedorEmailNormalizado = (vendedor.email || '').trim().toLowerCase();
+      const isVendedorTeste = vendedorEmailNormalizado === 'vendedorteste@gmail.com';
+      
       const baseUrl = window.location.origin;
-      const link = `${baseUrl}/proposta/${token}`;
+      let link: string;
+      
+      if (isVendedorTeste && !isFaturamentoB2B) {
+        // Vendedor teste NÃO B2B: link direto para MP com proposta_id (UUID)
+        link = `${baseUrl}/ebd/checkout-shopify-mp?proposta_id=${data.id}`;
+        console.log(">>> VENDEDOR TESTE: Gerando link direto para MP:", link);
+      } else {
+        // Fluxo padrão: link /proposta/:token
+        link = `${baseUrl}/proposta/${token}`;
+      }
       
       setPropostaLink(link);
       setPropostaClienteNome(selectedCliente.nome_igreja);
