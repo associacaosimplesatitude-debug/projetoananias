@@ -227,68 +227,80 @@ export default function CheckoutShopifyMP() {
     },
   });
 
-  // Preencher dados da proposta
+  // Preencher dados da proposta - aguardar clienteDireto se necessário
   useEffect(() => {
-    if (proposta && isPropostaFlow) {
-      const clienteData = proposta.ebd_clientes as any;
-      // Usar clienteDireto como fallback quando o join não retornou dados
-      const clienteFallback = clienteData || clienteDireto;
-      const endereco = proposta.cliente_endereco || {};
-      const nomeCompleto = proposta.cliente_nome || '';
-      const partesNome = nomeCompleto.split(' ');
-      const primeiroNome = partesNome[0] || '';
-      const sobrenome = partesNome.slice(1).join(' ') || '';
-      
-      form.reset({
-        nome: primeiroNome,
-        sobrenome: sobrenome,
-        cpf: clienteFallback?.cnpj || clienteFallback?.cpf || proposta.cliente_cnpj || '',
-        email: clienteFallback?.email_superintendente || '',
-        telefone: clienteFallback?.telefone || '',
-        cep: endereco.cep || '',
-        rua: endereco.rua || '',
-        numero: endereco.numero || '',
-        complemento: endereco.complemento || '',
-        bairro: endereco.bairro || '',
-        cidade: endereco.cidade || '',
-        estado: endereco.estado || '',
-      });
-      
-      // Frete já vem da proposta - verificar método escolhido
-      const metodoFrete = proposta.metodo_frete;
-      
-      if (metodoFrete === 'manual' || proposta.frete_tipo === 'manual') {
-        // Frete manual definido pelo vendedor
-        setShippingMethod('manual');
-        setPacCost(proposta.valor_frete || 0);
-        setSedexCost(proposta.valor_frete || 0);
-      } else if (metodoFrete?.startsWith('retirada')) {
-        // Retirada na matriz/polo - frete R$0
-        setShippingMethod('manual'); // Usar manual para indicar valor fixo
-        setPacCost(0);
-        setSedexCost(0);
-        // Nota: seção de frete será escondida no render quando for retirada
-      } else if (metodoFrete === 'pac') {
-        setShippingMethod('pac');
-        setPacCost(proposta.valor_frete || 0);
-      } else if (metodoFrete === 'sedex') {
-        setShippingMethod('sedex');
-        setSedexCost(proposta.valor_frete || 0);
-      } else if (metodoFrete === 'free') {
-        // Frete grátis
-        setShippingMethod('manual');
-        setPacCost(0);
-        setSedexCost(0);
-      } else {
-        // Fallback: recalcular frete se necessário
-        if (endereco.cep) {
-          handleCEPBlur(endereco.cep);
-        }
+    if (!proposta || !isPropostaFlow) return;
+    
+    const clienteData = proposta.ebd_clientes as any;
+    // Se não tem dados do cliente via join E clienteDireto ainda está carregando, aguardar
+    const precisaClienteDireto = !clienteData && proposta.cliente_id;
+    if (precisaClienteDireto && clienteDireto === undefined) return; // Ainda carregando
+    
+    // Usar clienteDireto como fallback quando o join não retornou dados
+    const clienteFallback = clienteData || clienteDireto;
+    const endereco = proposta.cliente_endereco || {};
+    const nomeCompleto = proposta.cliente_nome || '';
+    const partesNome = nomeCompleto.split(' ');
+    const primeiroNome = partesNome[0] || '';
+    const sobrenome = partesNome.slice(1).join(' ') || '';
+    
+    console.log('Preenchendo formulário com dados:', {
+      email: clienteFallback?.email_superintendente,
+      telefone: clienteFallback?.telefone,
+      clienteData,
+      clienteDireto,
+    });
+    
+    form.reset({
+      nome: primeiroNome,
+      sobrenome: sobrenome,
+      cpf: clienteFallback?.cnpj || clienteFallback?.cpf || proposta.cliente_cnpj || '',
+      email: clienteFallback?.email_superintendente || '',
+      telefone: clienteFallback?.telefone || '',
+      cep: endereco.cep || '',
+      rua: endereco.rua || '',
+      numero: endereco.numero || '',
+      complemento: endereco.complemento || '',
+      bairro: endereco.bairro || '',
+      cidade: endereco.cidade || '',
+      estado: endereco.estado || '',
+    });
+    
+    // Frete já vem da proposta - verificar método escolhido
+    const metodoFrete = proposta.metodo_frete;
+    
+    if (metodoFrete === 'manual' || proposta.frete_tipo === 'manual') {
+      // Frete manual definido pelo vendedor
+      setShippingMethod('manual');
+      setPacCost(proposta.valor_frete || 0);
+      setSedexCost(proposta.valor_frete || 0);
+    } else if (metodoFrete?.startsWith('retirada')) {
+      // Retirada na matriz/polo - frete R$0
+      setShippingMethod('manual'); // Usar manual para indicar valor fixo
+      setPacCost(0);
+      setSedexCost(0);
+      // Nota: seção de frete será escondida no render quando for retirada
+    } else if (metodoFrete === 'pac') {
+      setShippingMethod('pac');
+      setPacCost(proposta.valor_frete || 0);
+    } else if (metodoFrete === 'sedex') {
+      setShippingMethod('sedex');
+      setSedexCost(proposta.valor_frete || 0);
+    } else if (metodoFrete === 'free') {
+      // Frete grátis
+      setShippingMethod('manual');
+      setPacCost(0);
+      setSedexCost(0);
+    } else {
+      // Fallback: recalcular frete se necessário
+      const enderecoData = proposta.cliente_endereco || {};
+      if (enderecoData.cep) {
+        handleCEPBlur(enderecoData.cep);
       }
-      
-      setIsCepValid(true);
-      setShowAddressForm(false); // Dados preenchidos, mostrar resumo
     }
+    
+    setIsCepValid(true);
+    setShowAddressForm(false); // Dados preenchidos, mostrar resumo
   }, [proposta, isPropostaFlow, clienteDireto]);
 
   // Buscar dados do cliente do vendedor (fluxo carrinho)
