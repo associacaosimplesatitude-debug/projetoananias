@@ -675,35 +675,35 @@ export default function CheckoutShopifyMP() {
   return (
     <div className="container mx-auto p-6 pb-24">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Checkout - Mercado Pago</h1>
-            {propostaToken && proposta?.cliente_nome && (
-              <p className="text-muted-foreground">
-                Cliente: <span className="font-medium text-foreground">{proposta.cliente_nome}</span>
-              </p>
-            )}
-            {!propostaToken && vendedorClienteNome && (
-              <p className="text-muted-foreground">
-                Cliente: <span className="font-medium text-foreground">{vendedorClienteNome}</span>
-              </p>
-            )}
-            {propostaToken && proposta?.vendedor_email && (
-              <p className="text-sm text-green-600">
-                Vendedor: {proposta.vendedor_nome || 'N/A'} ({proposta.vendedor_email})
-              </p>
-            )}
-            {!propostaToken && vendedor && (
-              <p className="text-sm text-green-600">
-                Vendedor: {vendedor.nome} ({vendedor.email})
-              </p>
-            )}
-          </div>
+        {/* Header com Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <img 
+            src="/logos/logo-central-gospel.png" 
+            alt="Central Gospel" 
+            className="h-16 mb-4"
+          />
+          <h1 className="text-2xl font-bold text-center">Checkout - Mercado Pago</h1>
+          {(propostaToken && proposta?.cliente_nome) || vendedorClienteNome ? (
+            <p className="text-muted-foreground text-center">
+              Cliente: <span className="font-medium text-foreground">{proposta?.cliente_nome || vendedorClienteNome}</span>
+            </p>
+          ) : null}
+          {(propostaToken && proposta?.vendedor_email) ? (
+            <p className="text-sm text-green-600 text-center">
+              Vendedor: {proposta.vendedor_nome || 'N/A'} ({proposta.vendedor_email})
+            </p>
+          ) : (!propostaToken && vendedor) ? (
+            <p className="text-sm text-green-600 text-center">
+              Vendedor: {vendedor.nome} ({vendedor.email})
+            </p>
+          ) : null}
         </div>
+
+        {/* Botão voltar */}
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mb-4">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Button>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
