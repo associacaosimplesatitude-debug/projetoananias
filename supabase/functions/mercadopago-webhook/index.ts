@@ -279,6 +279,7 @@ async function processShopifyMPPedido(
         console.log('VENDEDOR EMAIL:', pedido.vendedor_email); // IMPORTANTE: Email do vendedor!
         
         const cliente = {
+          id: pedido.cliente_id || null, // IMPORTANTE: ID do cliente para buscar CPF/CNPJ do banco
           nome: pedido.cliente_nome?.split(' ')[0] || 'Cliente',
           sobrenome: pedido.cliente_nome?.split(' ').slice(1).join(' ') || '',
           cpf_cnpj: pedido.cliente_cpf_cnpj || '',
@@ -315,6 +316,16 @@ async function processShopifyMPPedido(
         };
         const formaPagamento = paymentTypeMap[payment.payment_type_id] || pedido.payment_method || 'pix';
 
+        // Normalizar metodo_frete: 'manual' → 'retirada' (Matriz RJ)
+        let metodoFreteNormalizado = pedido.metodo_frete || 'pac';
+        if (metodoFreteNormalizado === 'manual') {
+          // 'manual' com frete 0 significa retirada na matriz
+          if (pedido.valor_frete === 0 || pedido.valor_frete === null) {
+            metodoFreteNormalizado = 'retirada';
+          }
+        }
+        console.log(`[Webhook] metodo_frete: ${pedido.metodo_frete} → normalizado: ${metodoFreteNormalizado}`);
+
         const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
           method: 'POST',
           headers: {
@@ -323,11 +334,12 @@ async function processShopifyMPPedido(
           },
           body: JSON.stringify({
             cliente,
+            cliente_id: pedido.cliente_id, // Passar cliente_id no root para garantir
             endereco_entrega,
             itens: itensBling,
             pedido_id: pedido.id.slice(0, 8).toUpperCase(),
             valor_frete: pedido.valor_frete || 0,
-            metodo_frete: pedido.metodo_frete || 'pac',
+            metodo_frete: metodoFreteNormalizado, // Usando valor normalizado!
             forma_pagamento: formaPagamento,
             valor_produtos: pedido.valor_produtos || 0,
             valor_total: pedido.valor_total || 0,
