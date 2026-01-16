@@ -814,28 +814,42 @@ export default function PropostaDigital() {
         )}
 
         {/* Aguardando Pagamento Banner with Payment Button */}
-        {isAguardandoPagamento && proposta.payment_link && (
-          <Card className="border-2 border-yellow-400 bg-yellow-50">
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center gap-4">
-                <div className="text-center">
-                  <p className="font-semibold text-yellow-800 text-lg">Proposta Confirmada - Aguardando Pagamento</p>
-                  <p className="text-sm text-yellow-700">
-                    Clique no botão abaixo para finalizar sua compra
-                  </p>
+        {isAguardandoPagamento && (() => {
+          const vendedorEmailBanner = ((proposta as any)?.vendedor_email || '').trim().toLowerCase();
+          const isVendedorTesteBanner = vendedorEmailBanner === 'vendedorteste@gmail.com';
+          // Mostrar se tem payment_link OU se é vendedor teste (que usa MP)
+          if (!proposta.payment_link && !isVendedorTesteBanner) return null;
+          
+          return (
+            <Card className="border-2 border-yellow-400 bg-yellow-50">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="text-center">
+                    <p className="font-semibold text-yellow-800 text-lg">Proposta Confirmada - Aguardando Pagamento</p>
+                    <p className="text-sm text-yellow-700">
+                      Clique no botão abaixo para finalizar sua compra
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      // Se vendedor teste, ir para checkout MP
+                      if (isVendedorTesteBanner) {
+                        window.location.assign(`/ebd/checkout-shopify-mp?proposta=${token}`);
+                      } else if (proposta.payment_link) {
+                        window.open(proposta.payment_link, '_blank');
+                      }
+                    }}
+                    className="w-full h-14 text-lg bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+                    size="lg"
+                  >
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    Ir para Pagamento
+                  </Button>
                 </div>
-                <Button
-                  onClick={() => window.open(proposta.payment_link!, '_blank')}
-                  className="w-full h-14 text-lg bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
-                  size="lg"
-                >
-                  <CreditCard className="w-5 h-5 mr-2" />
-                  Ir para Pagamento
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Client Info */}
         <Card>
