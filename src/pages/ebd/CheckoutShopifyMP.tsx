@@ -144,70 +144,64 @@ export default function CheckoutShopifyMP() {
   const vendedorClienteId = sessionStorage.getItem('vendedor-cliente-id');
   const vendedorClienteNome = sessionStorage.getItem('vendedor-cliente-nome');
 
-  // Buscar proposta por ID (prioridade) ou por token (fallback)
-  const { data: proposta, isLoading: isLoadingProposta } = useQuery({
-    queryKey: ['proposta-checkout-mp', propostaId, propostaToken],
-    queryFn: async () => {
-      let query = supabase
-        .from('vendedor_propostas')
-        .select(`
-          *,
-          ebd_clientes:cliente_id (
-            email_superintendente,
-            telefone,
-            cnpj,
-            cpf
-          )
-        `);
-      
-      // Priorizar proposta_id (UUID) sobre token
-      if (propostaId) {
-        query = query.eq('id', propostaId);
-      } else if (propostaToken) {
-        query = query.eq('token', propostaToken);
-      }
-      
-      const { data, error } = await query.single();
-      
-      if (error) throw error;
-      
-      // Parse dados
-      const parsedData = {
-        ...data,
-        itens: typeof data.itens === 'string' ? JSON.parse(data.itens) : data.itens,
-        cliente_endereco: typeof data.cliente_endereco === 'string' 
-          ? JSON.parse(data.cliente_endereco) 
-          : data.cliente_endereco,
-      };
-      
-      return parsedData;
-    },
-    enabled: !!(propostaId || propostaToken),
-  });
-
-  // Buscar dados do cliente diretamente se o join não retornou dados
-  const { data: clienteDireto } = useQuery({
-    queryKey: ['cliente-direto-checkout-mp', proposta?.cliente_id],
-    queryFn: async () => {
-      if (!proposta?.cliente_id) return null;
-      
-      const { data, error } = await supabase
-        .from('ebd_clientes')
-        .select('email_superintendente, telefone, cnpj, cpf')
-        .eq('id', proposta.cliente_id)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('Erro ao buscar cliente direto:', error);
-        return null;
-      }
-      return data;
-    },
-    enabled: !!proposta?.cliente_id && !proposta?.ebd_clientes,
-  });
-  
   // Flag para saber se estamos no fluxo via proposta
   const isPropostaFlow = !!(propostaId || propostaToken);
+
+  // Buscar dados do checkout via backend (função pública - sem RLS)
+  const { data: checkoutData, isLoading: isLoadingCheckout, error: checkoutError } = useQuery({
+    queryKey: ['mp-checkout-init', propostaId, propostaToken],
+    queryFn: async () => {
+      console.log('[Checkout] Buscando dados via mp-checkout-init...');
+      const { data, error } = await supabase.functions.invoke('mp-checkout-init', {
+        body: {
+          proposta_id: propostaId || undefined,
+          proposta_token: propostaToken || undefined,
+        },
+      });
+
+      if (error) {
+        console.error('[Checkout] Erro ao buscar dados:', error);
+        throw error;
+      }
+
+      console.log('[Checkout] Dados recebidos:', {
+        email: data?.email,
+        telefone: data?.telefone,
+        proposta_id: data?.proposta_id,
+      });
+      
+      return data;
+    },
+    enabled: isPropostaFlow,
+    staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+
+  // Compatibilidade: usar checkoutData como proposta
+  const proposta = checkoutData ? {
+    id: checkoutData.proposta_id,
+    token: checkoutData.token,
+    cliente_id: null, // Não precisamos mais, dados já vieram
+    cliente_nome: checkoutData.cliente_nome,
+    cliente_cnpj: checkoutData.cliente_cnpj,
+    cliente_endereco: checkoutData.endereco,
+    valor_produtos: checkoutData.valor_produtos,
+    valor_frete: checkoutData.valor_frete,
+    metodo_frete: checkoutData.metodo_frete,
+    frete_tipo: checkoutData.metodo_frete,
+    desconto_percentual: checkoutData.desconto_percentual,
+    itens: checkoutData.itens,
+    vendedor_id: checkoutData.vendedor?.id,
+    vendedor_email: checkoutData.vendedor?.email,
+    vendedor_nome: checkoutData.vendedor?.nome,
+    // Dados do cliente já incluídos diretamente
+    _email: checkoutData.email,
+    _telefone: checkoutData.telefone,
+  } : null;
+
+  const isLoadingProposta = isLoadingCheckout;
+
+  // clienteDireto não é mais necessário - dados vêm do backend
+  const clienteDireto = null;
 
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -227,36 +221,28 @@ export default function CheckoutShopifyMP() {
     },
   });
 
-  // Preencher dados da proposta - aguardar clienteDireto se necessário
+  // Preencher dados da proposta - dados já vêm do backend mp-checkout-init
   useEffect(() => {
     if (!proposta || !isPropostaFlow) return;
     
-    const clienteData = proposta.ebd_clientes as any;
-    // Se não tem dados do cliente via join E clienteDireto ainda está carregando, aguardar
-    const precisaClienteDireto = !clienteData && proposta.cliente_id;
-    if (precisaClienteDireto && clienteDireto === undefined) return; // Ainda carregando
-    
-    // Usar clienteDireto como fallback quando o join não retornou dados
-    const clienteFallback = clienteData || clienteDireto;
+    // Dados do cliente já vêm direto do backend (proposta._email, proposta._telefone)
     const endereco = proposta.cliente_endereco || {};
     const nomeCompleto = proposta.cliente_nome || '';
     const partesNome = nomeCompleto.split(' ');
     const primeiroNome = partesNome[0] || '';
     const sobrenome = partesNome.slice(1).join(' ') || '';
     
-    console.log('Preenchendo formulário com dados:', {
-      email: clienteFallback?.email_superintendente,
-      telefone: clienteFallback?.telefone,
-      clienteData,
-      clienteDireto,
+    console.log('[Checkout] Preenchendo formulário com dados do backend:', {
+      email: proposta._email,
+      telefone: proposta._telefone,
     });
     
     form.reset({
       nome: primeiroNome,
       sobrenome: sobrenome,
-      cpf: clienteFallback?.cnpj || clienteFallback?.cpf || proposta.cliente_cnpj || '',
-      email: clienteFallback?.email_superintendente || '',
-      telefone: clienteFallback?.telefone || '',
+      cpf: proposta.cliente_cnpj || '',
+      email: proposta._email || '',
+      telefone: proposta._telefone || '',
       cep: endereco.cep || '',
       rua: endereco.rua || '',
       numero: endereco.numero || '',
@@ -301,7 +287,7 @@ export default function CheckoutShopifyMP() {
     
     setIsCepValid(true);
     setShowAddressForm(false); // Dados preenchidos, mostrar resumo
-  }, [proposta, isPropostaFlow, clienteDireto]);
+  }, [proposta, isPropostaFlow]);
 
   // Buscar dados do cliente do vendedor (fluxo carrinho)
   const { data: vendedorCliente, isLoading: isLoadingVendedorCliente } = useQuery({
@@ -453,149 +439,77 @@ export default function CheckoutShopifyMP() {
     }
   };
 
+  // Processar pagamento via backend (função pública mp-create-order-and-pay)
+  const processPaymentViaBackend = async (data: AddressForm, method: 'pix' | 'card' | 'boleto', cardData?: any) => {
+    if (!isPropostaFlow || !proposta) {
+      toast.error('Proposta não encontrada');
+      return null;
+    }
+
+    console.log('[Checkout] Processando pagamento via backend:', { method, proposta_id: proposta.id });
+
+    const requestBody: any = {
+      proposta_id: proposta.id,
+      proposta_token: propostaToken || undefined,
+      payment_method: method,
+      payer: {
+        nome: data.nome,
+        sobrenome: data.sobrenome,
+        email: data.email,
+        telefone: data.telefone,
+        cpf_cnpj: data.cpf,
+      },
+      endereco: {
+        cep: data.cep,
+        rua: data.rua,
+        numero: data.numero,
+        complemento: data.complemento || '',
+        bairro: data.bairro,
+        cidade: data.cidade,
+        estado: data.estado,
+      },
+      frete: {
+        metodo: shippingMethod,
+        valor: shippingCost,
+        prazo_dias: shippingMethod === 'sedex' ? sedexDays : pacDays,
+      },
+    };
+
+    // Adicionar dados do cartão se for pagamento com cartão
+    if (method === 'card' && cardData) {
+      requestBody.card = cardData;
+      requestBody.installments = parseInt(cardInstallments);
+    }
+
+    const { data: result, error } = await supabase.functions.invoke('mp-create-order-and-pay', {
+      body: requestBody,
+    });
+
+    if (error) {
+      console.error('[Checkout] Erro na função:', error);
+      throw new Error(error.message || 'Erro ao processar pagamento');
+    }
+
+    if (!result?.success) {
+      console.error('[Checkout] Erro retornado:', result?.error, 'request_id:', result?.request_id);
+      throw new Error(result?.error || 'Erro ao criar pedido');
+    }
+
+    console.log('[Checkout] Pagamento processado:', result);
+    return result;
+  };
+
   const processPixPayment = async (data: AddressForm) => {
     setIsProcessing(true);
     
     try {
-      // Determinar vendedor: usar campos salvos diretamente na proposta (sem join)
-      const vendedorInfo = isPropostaFlow && proposta
-        ? { 
-            id: proposta.vendedor_id as string, 
-            email: proposta.vendedor_email as string || '', 
-            nome: proposta.vendedor_nome as string || '' 
-          }
-        : vendedor;
-        
-      if (!vendedorInfo || !vendedorInfo.id) {
-        toast.error('Vendedor não identificado');
-        return;
-      }
-
-      // Preparar itens para o pagamento - suportar ambos os formatos
-      const paymentItems = isPropostaFlow && proposta?.itens
-        ? proposta.itens.map((item: any) => ({
-            id: item.variantId,
-            title: item.title,
-            quantity: item.quantity,
-            unit_price: parseFloat(item.price),
-          }))
-        : cartItems.map(item => ({
-            id: item.variantId,
-            title: item.product.node.title,
-            quantity: item.quantity,
-            unit_price: parseFloat(item.price.amount),
-          }));
-
-      // Preparar itens para salvar no pedido
-      const itemsParaSalvar = isPropostaFlow && proposta?.itens
-        ? proposta.itens.map((item: any) => ({
-            variantId: item.variantId,
-            productId: item.variantId.split('/').pop(),
-            title: item.title,
-            variantTitle: item.title,
-            quantity: item.quantity,
-            price: item.price,
-            image: item.imageUrl || null,
-            sku: item.sku || null,
-          }))
-        : cartItems.map(item => ({
-            variantId: item.variantId,
-            productId: item.product.node.id,
-            title: item.product.node.title,
-            variantTitle: item.variantTitle,
-            quantity: item.quantity,
-            price: item.price.amount,
-            image: item.product.node.images.edges[0]?.node.url || null,
-            sku: item.sku,
-          }));
-
-      // Validar que vendedorInfo está completo antes de inserir
-      if (!vendedorInfo.id || !vendedorInfo.email) {
-        console.error("Vendedor info incompleta:", vendedorInfo);
-        toast.error("Erro: dados do vendedor incompletos");
-        return;
-      }
+      const result = await processPaymentViaBackend(data, 'pix');
       
-      // Criar pedido na tabela nova
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('ebd_shopify_pedidos_mercadopago')
-        .insert({
-          vendedor_id: vendedorInfo.id,
-          vendedor_email: vendedorInfo.email,
-          vendedor_nome: vendedorInfo.nome || '',
-          cliente_id: isPropostaFlow ? proposta?.cliente_id : vendedorClienteId || null,
-          proposta_id: isPropostaFlow ? (proposta?.id || null) : null, // Salvar proposta_id para rastreio
-          cliente_nome: `${data.nome} ${data.sobrenome}`.trim(),
-          cliente_cpf_cnpj: data.cpf.replace(/\D/g, ''),
-          cliente_email: data.email,
-          cliente_telefone: data.telefone,
-          valor_produtos: subtotal,
-          valor_frete: shippingCost,
-          valor_total: total,
-          metodo_frete: shippingMethod,
-          prazo_entrega_dias: shippingMethod === 'sedex' ? sedexDays : pacDays,
-          endereco_cep: data.cep.replace(/\D/g, ''),
-          endereco_rua: data.rua,
-          endereco_numero: data.numero,
-          endereco_complemento: data.complemento || null,
-          endereco_bairro: data.bairro,
-          endereco_cidade: data.cidade,
-          endereco_estado: data.estado,
-          items: itemsParaSalvar,
-          payment_method: 'pix',
-          status: 'AGUARDANDO_PAGAMENTO',
-          proposta_token: propostaToken || null,
-        })
-        .select()
-        .single();
-
-      if (pedidoError) {
-        console.error('Erro ao criar pedido:', pedidoError);
-        toast.error('Erro ao criar pedido');
-        return;
-      }
-
-      // Processar pagamento PIX
-      const { data: pixData, error: pixError } = await supabase.functions.invoke(
-        'process-transparent-payment',
-        {
-          body: {
-            payment_method: 'pix',
-            transaction_amount: Math.round(total * 100) / 100,
-            description: `Pedido Shopify #${pedido.id.slice(0, 8).toUpperCase()}`,
-            payer: {
-              email: data.email,
-              first_name: data.nome,
-              last_name: data.sobrenome,
-              identification: {
-                type: data.cpf.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF',
-                number: data.cpf.replace(/\D/g, ''),
-              },
-            },
-            items: paymentItems,
-            external_reference: pedido.id,
-          },
-        }
-      );
-
-      if (pixError) {
-        console.error('Erro ao gerar PIX:', pixError);
-        toast.error('Erro ao gerar código PIX');
-        return;
-      }
-
-      // Atualizar pedido com payment_id
-      await supabase
-        .from('ebd_shopify_pedidos_mercadopago')
-        .update({
-          mercadopago_payment_id: pixData.id?.toString(),
-          mercadopago_preference_id: pixData.id?.toString(),
-        })
-        .eq('id', pedido.id);
+      if (!result) return;
 
       // Exibir QR Code
-      setPixQrCode(pixData.point_of_interaction?.transaction_data?.qr_code_base64 || '');
-      setPixCode(pixData.point_of_interaction?.transaction_data?.qr_code || '');
+      setPixQrCode(result.qr_code_base64 || '');
+      setPixCode(result.qr_code || '');
       setShowPixDialog(true);
 
       toast.success('Código PIX gerado com sucesso!');
@@ -638,19 +552,6 @@ export default function CheckoutShopifyMP() {
     setIsProcessing(true);
     
     try {
-      const vendedorInfo = isPropostaFlow && proposta
-        ? { 
-            id: proposta.vendedor_id as string, 
-            email: proposta.vendedor_email as string || '', 
-            nome: proposta.vendedor_nome as string || '' 
-          }
-        : vendedor;
-        
-      if (!vendedorInfo || !vendedorInfo.id) {
-        toast.error('Vendedor não identificado');
-        return;
-      }
-
       // Validar campos do cartão
       if (cardNumber.replace(/\s/g, '').length < 16) {
         toast.error('Número do cartão inválido');
@@ -669,135 +570,25 @@ export default function CheckoutShopifyMP() {
         return;
       }
 
-      // Preparar itens
-      const paymentItems = isPropostaFlow && proposta?.itens
-        ? proposta.itens.map((item: any) => ({
-            id: item.variantId,
-            title: item.title,
-            quantity: item.quantity,
-            unit_price: parseFloat(item.price),
-          }))
-        : cartItems.map(item => ({
-            id: item.variantId,
-            title: item.product.node.title,
-            quantity: item.quantity,
-            unit_price: parseFloat(item.price.amount),
-          }));
-
-      const itemsParaSalvar = isPropostaFlow && proposta?.itens
-        ? proposta.itens.map((item: any) => ({
-            variantId: item.variantId,
-            productId: item.variantId.split('/').pop(),
-            title: item.title,
-            variantTitle: item.title,
-            quantity: item.quantity,
-            price: item.price,
-            image: item.imageUrl || null,
-            sku: item.sku || null,
-          }))
-        : cartItems.map(item => ({
-            variantId: item.variantId,
-            productId: item.product.node.id,
-            title: item.product.node.title,
-            variantTitle: item.variantTitle,
-            quantity: item.quantity,
-            price: item.price.amount,
-            image: item.product.node.images.edges[0]?.node.url || null,
-            sku: item.sku,
-          }));
-
-      // Criar pedido
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('ebd_shopify_pedidos_mercadopago')
-        .insert({
-          vendedor_id: vendedorInfo.id,
-          vendedor_email: vendedorInfo.email,
-          vendedor_nome: vendedorInfo.nome || '',
-          cliente_id: isPropostaFlow ? proposta?.cliente_id : vendedorClienteId || null,
-          proposta_id: isPropostaFlow ? (proposta?.id || null) : null,
-          cliente_nome: `${data.nome} ${data.sobrenome}`.trim(),
-          cliente_cpf_cnpj: data.cpf.replace(/\D/g, ''),
-          cliente_email: data.email,
-          cliente_telefone: data.telefone,
-          valor_produtos: subtotal,
-          valor_frete: shippingCost,
-          valor_total: total,
-          metodo_frete: shippingMethod,
-          prazo_entrega_dias: shippingMethod === 'sedex' ? sedexDays : pacDays,
-          endereco_cep: data.cep.replace(/\D/g, ''),
-          endereco_rua: data.rua,
-          endereco_numero: data.numero,
-          endereco_complemento: data.complemento || null,
-          endereco_bairro: data.bairro,
-          endereco_cidade: data.cidade,
-          endereco_estado: data.estado,
-          items: itemsParaSalvar,
-          payment_method: 'card',
-          status: 'AGUARDANDO_PAGAMENTO',
-          proposta_token: propostaToken || null,
-        })
-        .select()
-        .single();
-
-      if (pedidoError) {
-        console.error('Erro ao criar pedido:', pedidoError);
-        toast.error('Erro ao criar pedido');
-        return;
-      }
-
-      // Processar pagamento com cartão
       const [expiryMonth, expiryYear] = cardExpiry.split('/');
       
-      const { data: cardData, error: cardError } = await supabase.functions.invoke(
-        'process-transparent-payment',
-        {
-          body: {
-            payment_method: 'card',
-            transaction_amount: Math.round(total * 100) / 100,
-            description: `Pedido Shopify #${pedido.id.slice(0, 8).toUpperCase()}`,
-            installments: parseInt(cardInstallments),
-            card: {
-              number: cardNumber.replace(/\s/g, ''),
-              holder_name: cardHolder,
-              expiration_month: expiryMonth,
-              expiration_year: `20${expiryYear}`,
-              security_code: cardCVV,
-            },
-            payer: {
-              email: data.email,
-              first_name: data.nome,
-              last_name: data.sobrenome,
-              identification: {
-                type: data.cpf.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF',
-                number: data.cpf.replace(/\D/g, ''),
-              },
-            },
-            items: paymentItems,
-            external_reference: pedido.id,
-          },
-        }
-      );
+      const cardData = {
+        card_number: cardNumber.replace(/\s/g, ''),
+        cardholder_name: cardHolder,
+        expiration_month: expiryMonth,
+        expiration_year: `20${expiryYear}`,
+        security_code: cardCVV,
+      };
 
-      if (cardError) {
-        console.error('Erro ao processar cartão:', cardError);
-        toast.error('Erro ao processar pagamento com cartão');
-        return;
-      }
+      const result = await processPaymentViaBackend(data, 'card', cardData);
+      
+      if (!result) return;
 
-      // Atualizar pedido
-      await supabase
-        .from('ebd_shopify_pedidos_mercadopago')
-        .update({
-          mercadopago_payment_id: cardData.id?.toString(),
-          status: cardData.status === 'approved' ? 'PAGO' : 'AGUARDANDO_PAGAMENTO',
-        })
-        .eq('id', pedido.id);
-
-      if (cardData.status === 'approved') {
+      if (result.status === 'approved') {
         toast.success('Pagamento aprovado!');
         clearCart();
         navigate('/ebd/order-success');
-      } else if (cardData.status === 'in_process') {
+      } else if (result.status === 'in_process') {
         toast.info('Pagamento em análise. Você será notificado quando for aprovado.');
         clearCart();
         navigate('/ebd/order-success');
@@ -807,7 +598,7 @@ export default function CheckoutShopifyMP() {
       
     } catch (error) {
       console.error('Erro ao processar cartão:', error);
-      toast.error('Erro ao processar pagamento');
+      toast.error(error instanceof Error ? error.message : 'Erro ao processar pagamento');
     } finally {
       setIsProcessing(false);
     }
@@ -818,150 +609,20 @@ export default function CheckoutShopifyMP() {
     setIsProcessing(true);
     
     try {
-      const vendedorInfo = isPropostaFlow && proposta
-        ? { 
-            id: proposta.vendedor_id as string, 
-            email: proposta.vendedor_email as string || '', 
-            nome: proposta.vendedor_nome as string || '' 
-          }
-        : vendedor;
-        
-      if (!vendedorInfo || !vendedorInfo.id) {
-        toast.error('Vendedor não identificado');
-        return;
-      }
-
-      // Preparar itens
-      const paymentItems = isPropostaFlow && proposta?.itens
-        ? proposta.itens.map((item: any) => ({
-            id: item.variantId,
-            title: item.title,
-            quantity: item.quantity,
-            unit_price: parseFloat(item.price),
-          }))
-        : cartItems.map(item => ({
-            id: item.variantId,
-            title: item.product.node.title,
-            quantity: item.quantity,
-            unit_price: parseFloat(item.price.amount),
-          }));
-
-      const itemsParaSalvar = isPropostaFlow && proposta?.itens
-        ? proposta.itens.map((item: any) => ({
-            variantId: item.variantId,
-            productId: item.variantId.split('/').pop(),
-            title: item.title,
-            variantTitle: item.title,
-            quantity: item.quantity,
-            price: item.price,
-            image: item.imageUrl || null,
-            sku: item.sku || null,
-          }))
-        : cartItems.map(item => ({
-            variantId: item.variantId,
-            productId: item.product.node.id,
-            title: item.product.node.title,
-            variantTitle: item.variantTitle,
-            quantity: item.quantity,
-            price: item.price.amount,
-            image: item.product.node.images.edges[0]?.node.url || null,
-            sku: item.sku,
-          }));
-
-      // Criar pedido
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('ebd_shopify_pedidos_mercadopago')
-        .insert({
-          vendedor_id: vendedorInfo.id,
-          vendedor_email: vendedorInfo.email,
-          vendedor_nome: vendedorInfo.nome || '',
-          cliente_id: isPropostaFlow ? proposta?.cliente_id : vendedorClienteId || null,
-          proposta_id: isPropostaFlow ? (proposta?.id || null) : null,
-          cliente_nome: `${data.nome} ${data.sobrenome}`.trim(),
-          cliente_cpf_cnpj: data.cpf.replace(/\D/g, ''),
-          cliente_email: data.email,
-          cliente_telefone: data.telefone,
-          valor_produtos: subtotal,
-          valor_frete: shippingCost,
-          valor_total: total,
-          metodo_frete: shippingMethod,
-          prazo_entrega_dias: shippingMethod === 'sedex' ? sedexDays : pacDays,
-          endereco_cep: data.cep.replace(/\D/g, ''),
-          endereco_rua: data.rua,
-          endereco_numero: data.numero,
-          endereco_complemento: data.complemento || null,
-          endereco_bairro: data.bairro,
-          endereco_cidade: data.cidade,
-          endereco_estado: data.estado,
-          items: itemsParaSalvar,
-          payment_method: 'boleto',
-          status: 'AGUARDANDO_PAGAMENTO',
-          proposta_token: propostaToken || null,
-        })
-        .select()
-        .single();
-
-      if (pedidoError) {
-        console.error('Erro ao criar pedido:', pedidoError);
-        toast.error('Erro ao criar pedido');
-        return;
-      }
-
-      // Processar boleto
-      const { data: boletoData, error: boletoError } = await supabase.functions.invoke(
-        'process-transparent-payment',
-        {
-          body: {
-            payment_method: 'boleto',
-            transaction_amount: Math.round(total * 100) / 100,
-            description: `Pedido Shopify #${pedido.id.slice(0, 8).toUpperCase()}`,
-            payer: {
-              email: data.email,
-              first_name: data.nome,
-              last_name: data.sobrenome,
-              identification: {
-                type: data.cpf.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF',
-                number: data.cpf.replace(/\D/g, ''),
-              },
-              address: {
-                zip_code: data.cep.replace(/\D/g, ''),
-                street_name: data.rua,
-                street_number: data.numero,
-                neighborhood: data.bairro,
-                city: data.cidade,
-                federal_unit: data.estado,
-              },
-            },
-            items: paymentItems,
-            external_reference: pedido.id,
-          },
-        }
-      );
-
-      if (boletoError) {
-        console.error('Erro ao gerar boleto:', boletoError);
-        toast.error('Erro ao gerar boleto');
-        return;
-      }
-
-      // Atualizar pedido
-      await supabase
-        .from('ebd_shopify_pedidos_mercadopago')
-        .update({
-          mercadopago_payment_id: boletoData.id?.toString(),
-        })
-        .eq('id', pedido.id);
+      const result = await processPaymentViaBackend(data, 'boleto');
+      
+      if (!result) return;
 
       // Exibir boleto
-      setBoletoUrl(boletoData.transaction_details?.external_resource_url || '');
-      setBoletoBarcode(boletoData.barcode?.content || '');
+      setBoletoUrl(result.external_resource_url || '');
+      setBoletoBarcode(result.barcode || '');
       setShowBoletoDialog(true);
 
       toast.success('Boleto gerado com sucesso!');
       
     } catch (error) {
       console.error('Erro ao gerar boleto:', error);
-      toast.error('Erro ao gerar boleto');
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar boleto');
     } finally {
       setIsProcessing(false);
     }
