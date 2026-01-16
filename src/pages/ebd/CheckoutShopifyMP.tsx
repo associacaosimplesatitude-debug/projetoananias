@@ -107,7 +107,8 @@ type AddressForm = z.infer<typeof addressSchema>;
 export default function CheckoutShopifyMP() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const propostaToken = searchParams.get('proposta');
+  const propostaToken = searchParams.get('proposta'); // Token legado
+  const propostaId = searchParams.get('proposta_id'); // UUID direto (prioridade)
   
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
   const { items: cartItems, clearCart } = useShopifyCartStore();
@@ -130,11 +131,11 @@ export default function CheckoutShopifyMP() {
   const vendedorClienteId = sessionStorage.getItem('vendedor-cliente-id');
   const vendedorClienteNome = sessionStorage.getItem('vendedor-cliente-nome');
 
-  // Buscar proposta se token existir (SEM join com vendedores para funcionar em acesso público)
+  // Buscar proposta por ID (prioridade) ou por token (fallback)
   const { data: proposta, isLoading: isLoadingProposta } = useQuery({
-    queryKey: ['proposta-checkout-mp', propostaToken],
+    queryKey: ['proposta-checkout-mp', propostaId, propostaToken],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('vendedor_propostas')
         .select(`
           *,
@@ -144,9 +145,16 @@ export default function CheckoutShopifyMP() {
             cnpj,
             cpf
           )
-        `)
-        .eq('token', propostaToken!)
-        .single();
+        `);
+      
+      // Priorizar proposta_id (UUID) sobre token
+      if (propostaId) {
+        query = query.eq('id', propostaId);
+      } else if (propostaToken) {
+        query = query.eq('token', propostaToken);
+      }
+      
+      const { data, error } = await query.single();
       
       if (error) throw error;
       
@@ -161,8 +169,11 @@ export default function CheckoutShopifyMP() {
       
       return parsedData;
     },
-    enabled: !!propostaToken,
+    enabled: !!(propostaId || propostaToken),
   });
+  
+  // Flag para saber se estamos no fluxo via proposta
+  const isPropostaFlow = !!(propostaId || propostaToken);
 
   const form = useForm<AddressForm>({
     resolver: zodResolver(addressSchema),
@@ -184,7 +195,7 @@ export default function CheckoutShopifyMP() {
 
   // Preencher dados da proposta
   useEffect(() => {
-    if (proposta && propostaToken) {
+    if (proposta && isPropostaFlow) {
       const clienteData = proposta.ebd_clientes as any;
       const endereco = proposta.cliente_endereco || {};
       const nomeCompleto = proposta.cliente_nome || '';
@@ -222,7 +233,7 @@ export default function CheckoutShopifyMP() {
       setIsCepValid(true);
       setShowAddressForm(false); // Dados preenchidos, mostrar resumo
     }
-  }, [proposta, propostaToken]);
+  }, [proposta, isPropostaFlow]);
 
   // Buscar dados do cliente do vendedor (fluxo carrinho)
   const { data: vendedorCliente, isLoading: isLoadingVendedorCliente } = useQuery({
@@ -240,12 +251,12 @@ export default function CheckoutShopifyMP() {
       }
       return data;
     },
-    enabled: !!vendedorClienteId && !propostaToken,
+    enabled: !!vendedorClienteId && !isPropostaFlow,
   });
 
   // Preencher dados do cliente (fluxo carrinho)
   useEffect(() => {
-    if (vendedorCliente && !isLoadingVendedorCliente && !propostaToken) {
+    if (vendedorCliente && !isLoadingVendedorCliente && !isPropostaFlow) {
       const nomeCompleto = vendedorCliente.nome_responsavel || vendedorCliente.nome_superintendente || vendedorCliente.nome_igreja || '';
       const partesNome = nomeCompleto.split(' ');
       const primeiroNome = partesNome[0] || '';
@@ -270,11 +281,11 @@ export default function CheckoutShopifyMP() {
         handleCEPBlur(vendedorCliente.endereco_cep);
       }
     }
-  }, [vendedorCliente, isLoadingVendedorCliente, propostaToken]);
+  }, [vendedorCliente, isLoadingVendedorCliente, isPropostaFlow]);
 
   // Itens: da proposta ou do carrinho
   const checkoutItems = useMemo(() => {
-    if (proposta?.itens && propostaToken) {
+    if (proposta?.itens && isPropostaFlow) {
       // Itens da proposta
       return proposta.itens.map((item: any) => ({
         variantId: item.variantId,
@@ -288,11 +299,11 @@ export default function CheckoutShopifyMP() {
     }
     // Itens do carrinho Shopify
     return cartItems;
-  }, [proposta, propostaToken, cartItems]);
+  }, [proposta, isPropostaFlow, cartItems]);
 
   // Calcular valores
   const subtotal = useMemo(() => {
-    if (proposta && propostaToken) {
+    if (proposta && isPropostaFlow) {
       // Usar valores da proposta (já com desconto aplicado)
       const valorProdutos = proposta.valor_produtos || 0;
       const descontoTotal = proposta.itens?.reduce((total: number, item: any) => {
@@ -304,14 +315,14 @@ export default function CheckoutShopifyMP() {
     }
     // Carrinho Shopify
     return cartItems.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
-  }, [proposta, propostaToken, cartItems]);
+  }, [proposta, isPropostaFlow, cartItems]);
 
   const shippingCost = useMemo(() => {
-    if (proposta && propostaToken && (proposta.metodo_frete === 'manual' || proposta.frete_tipo === 'manual')) {
+    if (proposta && isPropostaFlow && (proposta.metodo_frete === 'manual' || proposta.frete_tipo === 'manual')) {
       return proposta.valor_frete || 0;
     }
     return shippingMethod === 'sedex' ? sedexCost : pacCost;
-  }, [proposta, propostaToken, shippingMethod, sedexCost, pacCost]);
+  }, [proposta, isPropostaFlow, shippingMethod, sedexCost, pacCost]);
 
   const total = subtotal + shippingCost;
 
@@ -338,7 +349,7 @@ export default function CheckoutShopifyMP() {
         form.setValue('estado', data.uf || '');
 
         // Calcular frete usando peso estimado dos produtos
-        const itemsParaCalculo = propostaToken && proposta?.itens 
+        const itemsParaCalculo = isPropostaFlow && proposta?.itens 
           ? proposta.itens 
           : cartItems;
         const totalWeight = itemsParaCalculo.reduce((sum: number, item: any) => sum + (0.3 * (item.quantity || 1)), 0); // 300g por item
@@ -379,7 +390,7 @@ export default function CheckoutShopifyMP() {
     
     try {
       // Determinar vendedor: usar campos salvos diretamente na proposta (sem join)
-      const vendedorInfo = propostaToken && proposta
+      const vendedorInfo = isPropostaFlow && proposta
         ? { 
             id: proposta.vendedor_id as string, 
             email: proposta.vendedor_email as string || '', 
@@ -393,7 +404,7 @@ export default function CheckoutShopifyMP() {
       }
 
       // Preparar itens para o pagamento - suportar ambos os formatos
-      const paymentItems = propostaToken && proposta?.itens
+      const paymentItems = isPropostaFlow && proposta?.itens
         ? proposta.itens.map((item: any) => ({
             id: item.variantId,
             title: item.title,
@@ -408,7 +419,7 @@ export default function CheckoutShopifyMP() {
           }));
 
       // Preparar itens para salvar no pedido
-      const itemsParaSalvar = propostaToken && proposta?.itens
+      const itemsParaSalvar = isPropostaFlow && proposta?.itens
         ? proposta.itens.map((item: any) => ({
             variantId: item.variantId,
             productId: item.variantId.split('/').pop(),
@@ -430,14 +441,22 @@ export default function CheckoutShopifyMP() {
             sku: item.sku,
           }));
 
+      // Validar que vendedorInfo está completo antes de inserir
+      if (!vendedorInfo.id || !vendedorInfo.email) {
+        console.error("Vendedor info incompleta:", vendedorInfo);
+        toast.error("Erro: dados do vendedor incompletos");
+        return;
+      }
+      
       // Criar pedido na tabela nova
       const { data: pedido, error: pedidoError } = await supabase
         .from('ebd_shopify_pedidos_mercadopago')
         .insert({
           vendedor_id: vendedorInfo.id,
           vendedor_email: vendedorInfo.email,
-          vendedor_nome: vendedorInfo.nome,
-          cliente_id: propostaToken ? proposta?.cliente_id : vendedorClienteId || null,
+          vendedor_nome: vendedorInfo.nome || '',
+          cliente_id: isPropostaFlow ? proposta?.cliente_id : vendedorClienteId || null,
+          proposta_id: isPropostaFlow ? (proposta?.id || null) : null, // Salvar proposta_id para rastreio
           cliente_nome: `${data.nome} ${data.sobrenome}`.trim(),
           cliente_cpf_cnpj: data.cpf.replace(/\D/g, ''),
           cliente_email: data.email,

@@ -214,7 +214,19 @@ export function EditarPropostaDialog({
       
       if (error) throw error;
       
-      const link = `https://gestaoebd.com.br/proposta/${novoToken}`;
+      // TRAVA: Vendedor teste → link direto para checkout MP com proposta_id
+      const vendedorEmailNormalizado = (vendedor?.email || '').trim().toLowerCase();
+      const isVendedorTeste = vendedorEmailNormalizado === 'vendedorteste@gmail.com';
+      const baseUrl = window.location.origin;
+      
+      let link: string;
+      if (isVendedorTeste) {
+        link = `${baseUrl}/ebd/checkout-shopify-mp?proposta_id=${proposta.id}`;
+        console.log(">>> VENDEDOR TESTE: Gerando link direto para MP:", link);
+      } else {
+        link = `${baseUrl}/proposta/${novoToken}`;
+      }
+      
       setNewPropostaLink(link);
       setShowSuccessMessage(true);
       
