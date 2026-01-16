@@ -664,6 +664,7 @@ serve(async (req) => {
       bandeira_cartao,      // visa, mastercard, elo, etc.
       parcelas_cartao,      // 1 a 10 (apenas para crédito)
       deposito_origem,      // local, matriz, pernambuco
+      origem,               // shopify_mercadopago, webhook, manual, etc.
     } = body;
 
     if (!cliente || !itens || itens.length === 0) {
@@ -755,6 +756,8 @@ serve(async (req) => {
     // - Pagar na loja (Glorinha): usar "Atendido" (já foi pago)
     const isFaturamentoPagamento = forma_pagamento?.toLowerCase() === 'faturamento';
     const isPagamentoLoja = forma_pagamento === 'pagamento_loja';
+    // ✅ Pedidos Mercado Pago já pagos devem ir como "Em andamento"
+    const isMercadoPagoPago = origem === 'shopify_mercadopago';
 
     // ✅ DESCOBERTA DINÂMICA DE SITUAÇÕES - API V3
     // Primeiro, listar os MÓDULOS disponíveis para encontrar o ID correto de pedidos_venda
@@ -2645,10 +2648,10 @@ serve(async (req) => {
 
     console.log('Pedido criado com sucesso:', responseData);
 
-    // ✅ ATUALIZAR STATUS PARA "EM ANDAMENTO" SE FOR FATURAMENTO B2B
+    // ✅ ATUALIZAR STATUS PARA "EM ANDAMENTO" SE FOR FATURAMENTO B2B OU MERCADO PAGO PAGO
     // O POST não aceita situacao nesta conta, então usamos PATCH após criar
     const createdOrderId = responseData?.data?.id;
-    if (createdOrderId && isFaturamentoPagamento && situacaoEmAndamentoId) {
+    if (createdOrderId && (isFaturamentoPagamento || isMercadoPagoPago) && situacaoEmAndamentoId) {
       console.log(`[BLING] Atualizando pedido ${createdOrderId} para "Em andamento" (ID: ${situacaoEmAndamentoId}) via PATCH`);
       
       await sleep(400); // Respeitar rate limit
