@@ -1538,14 +1538,15 @@ serve(async (req) => {
       depositoSelecionado = 'PERNANBUCO [ALFA]';
       depositoIdSelecionado = BLING_DEPOSITO_ID_PE;
       
-    } else if (metodo_frete === 'retirada') {
-      // PRIORIDADE 1: Retirada na Matriz RJ
+    } else if (metodo_frete === 'retirada' || metodo_frete === 'manual') {
+      // PRIORIDADE 1: Retirada na Matriz RJ (inclui 'manual' que vem das propostas)
       lojaSelecionada = 'FATURADOS';
       lojaIdSelecionada = BLING_LOJA_FATURADOS_ID; // = 205797806
       unidadeNegocioSelecionada = 'Matriz (RJ)';
       unidadeNegocioIdSelecionada = UNIDADE_NEGOCIO_OUTRAS; // = 2
       depositoSelecionado = 'Geral';
       depositoIdSelecionado = BLING_DEPOSITO_ID_RJ;
+      console.log(`[ROUTING] metodo_frete '${metodo_frete}' mapeado para retirada Matriz RJ`);
       
     } else if (isNorteNordeste) {
       // PRIORIDADE 2: Entrega para Norte/Nordeste

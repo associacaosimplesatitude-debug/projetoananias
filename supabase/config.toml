@@ -155,3 +155,6 @@ verify_jwt = false
 
 [functions.mp-create-order-and-pay]
 verify_jwt = false
+
+[functions.mp-sync-payment-status]
+verify_jwt = false
