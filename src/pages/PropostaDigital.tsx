@@ -448,6 +448,50 @@ export default function PropostaDigital() {
 
   const confirmMutation = useMutation({
     mutationFn: async () => {
+      // ===== TRAVA DE SEGURANÇA: SELECT FRESCO ANTES DE QUALQUER COISA =====
+      // Isso garante que não dependemos do estado React (pode estar desatualizado)
+      const { data: propostaFresca, error: selectError } = await supabase
+        .from("vendedor_propostas")
+        .select("vendedor_email, pode_faturar, status")
+        .eq("token", token!)
+        .single();
+      
+      if (selectError || !propostaFresca) {
+        throw new Error("Erro ao carregar proposta. Tente novamente.");
+      }
+      
+      const vendedorEmailFresco = (propostaFresca.vendedor_email || '').trim().toLowerCase();
+      const isVendedorTeste = vendedorEmailFresco === 'vendedorteste@gmail.com';
+      
+      console.log("=== DEBUG PROPOSTA CONFIRMAÇÃO (SELECT FRESCO) ===");
+      console.log("Token:", token);
+      console.log("vendedor_email (fresco):", vendedorEmailFresco);
+      console.log("pode_faturar (fresco):", propostaFresca.pode_faturar);
+      console.log("isVendedorTeste:", isVendedorTeste);
+      
+      // ===== BLOQUEIO IMEDIATO PARA VENDEDOR TESTE =====
+      // Se for vendedor teste e NÃO for B2B, redireciona IMEDIATAMENTE para checkout MP
+      // NUNCA permite que chegue no fluxo Shopify
+      if (isVendedorTeste && !propostaFresca.pode_faturar) {
+        console.log(">>> TRAVA: Vendedor teste detectado! Redirecionando para checkout Mercado Pago...");
+        
+        // Atualizar status para aguardando pagamento (sem criar checkout Shopify)
+        await supabase
+          .from("vendedor_propostas")
+          .update({
+            status: "AGUARDANDO_PAGAMENTO",
+            confirmado_em: new Date().toISOString(),
+            payment_link: null, // Garantir que não tem link Shopify
+          })
+          .eq("token", token!);
+        
+        // Redirecionar para checkout Mercado Pago com token da proposta
+        window.location.assign(`/ebd/checkout-shopify-mp?proposta=${token}`);
+        return null; // Return early since we're redirecting
+      }
+      
+      // ===== FLUXO NORMAL (não é vendedor teste) =====
+      
       // Usar itens editados se houver alterações
       const itensFinais = editedItems.length > 0 ? editedItems : proposta!.itens;
       
@@ -518,32 +562,6 @@ export default function PropostaDigital() {
       
       // For standard payment (not B2B), automatically create draft order and open checkout
       if (!proposta?.pode_faturar) {
-        // Usar vendedor_email da resposta do UPDATE (mais recente) ou fallback para proposta
-        const vendedorEmailRaw = data?.vendedor_email || (proposta as any)?.vendedor_email || '';
-        const vendedorEmailNormalizado = vendedorEmailRaw.trim().toLowerCase();
-        
-        console.log("=== DEBUG PROPOSTA CONFIRMAÇÃO ===");
-        console.log("Token:", token);
-        console.log("vendedor_email (raw):", vendedorEmailRaw);
-        console.log("vendedor_email (normalizado):", vendedorEmailNormalizado);
-        console.log("pode_faturar:", proposta?.pode_faturar);
-        
-        // NOVO FLUXO: Se vendedor é vendedorteste@gmail.com, redirecionar para checkout Mercado Pago
-        if (vendedorEmailNormalizado === 'vendedorteste@gmail.com') {
-          console.log(">>> Vendedor teste detectado! Redirecionando para checkout Mercado Pago...");
-          
-          // Atualizar status para aguardando pagamento
-          await supabase
-            .from("vendedor_propostas")
-            .update({
-              status: "AGUARDANDO_PAGAMENTO",
-            })
-            .eq("token", token!);
-          
-          // Redirecionar para checkout Mercado Pago com token da proposta
-          window.location.assign(`/ebd/checkout-shopify-mp?proposta=${token}`);
-          return data; // Return early since we're redirecting
-        }
         
         console.log(">>> Fluxo padrão: Shopify checkout");
 
