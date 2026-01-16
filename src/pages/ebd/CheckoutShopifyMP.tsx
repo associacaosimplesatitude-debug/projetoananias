@@ -184,6 +184,27 @@ export default function CheckoutShopifyMP() {
     },
     enabled: !!(propostaId || propostaToken),
   });
+
+  // Buscar dados do cliente diretamente se o join não retornou dados
+  const { data: clienteDireto } = useQuery({
+    queryKey: ['cliente-direto-checkout-mp', proposta?.cliente_id],
+    queryFn: async () => {
+      if (!proposta?.cliente_id) return null;
+      
+      const { data, error } = await supabase
+        .from('ebd_clientes')
+        .select('email_superintendente, telefone, cnpj, cpf')
+        .eq('id', proposta.cliente_id)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Erro ao buscar cliente direto:', error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!proposta?.cliente_id && !proposta?.ebd_clientes,
+  });
   
   // Flag para saber se estamos no fluxo via proposta
   const isPropostaFlow = !!(propostaId || propostaToken);
@@ -210,6 +231,8 @@ export default function CheckoutShopifyMP() {
   useEffect(() => {
     if (proposta && isPropostaFlow) {
       const clienteData = proposta.ebd_clientes as any;
+      // Usar clienteDireto como fallback quando o join não retornou dados
+      const clienteFallback = clienteData || clienteDireto;
       const endereco = proposta.cliente_endereco || {};
       const nomeCompleto = proposta.cliente_nome || '';
       const partesNome = nomeCompleto.split(' ');
@@ -219,9 +242,9 @@ export default function CheckoutShopifyMP() {
       form.reset({
         nome: primeiroNome,
         sobrenome: sobrenome,
-        cpf: clienteData?.cnpj || clienteData?.cpf || proposta.cliente_cnpj || '',
-        email: clienteData?.email_superintendente || '',
-        telefone: clienteData?.telefone || '',
+        cpf: clienteFallback?.cnpj || clienteFallback?.cpf || proposta.cliente_cnpj || '',
+        email: clienteFallback?.email_superintendente || '',
+        telefone: clienteFallback?.telefone || '',
         cep: endereco.cep || '',
         rua: endereco.rua || '',
         numero: endereco.numero || '',
@@ -231,13 +254,33 @@ export default function CheckoutShopifyMP() {
         estado: endereco.estado || '',
       });
       
-      // Frete já vem da proposta
-      if (proposta.metodo_frete === 'manual' || proposta.frete_tipo === 'manual') {
+      // Frete já vem da proposta - verificar método escolhido
+      const metodoFrete = proposta.metodo_frete;
+      
+      if (metodoFrete === 'manual' || proposta.frete_tipo === 'manual') {
+        // Frete manual definido pelo vendedor
         setShippingMethod('manual');
         setPacCost(proposta.valor_frete || 0);
         setSedexCost(proposta.valor_frete || 0);
+      } else if (metodoFrete?.startsWith('retirada')) {
+        // Retirada na matriz/polo - frete R$0
+        setShippingMethod('manual'); // Usar manual para indicar valor fixo
+        setPacCost(0);
+        setSedexCost(0);
+        // Nota: seção de frete será escondida no render quando for retirada
+      } else if (metodoFrete === 'pac') {
+        setShippingMethod('pac');
+        setPacCost(proposta.valor_frete || 0);
+      } else if (metodoFrete === 'sedex') {
+        setShippingMethod('sedex');
+        setSedexCost(proposta.valor_frete || 0);
+      } else if (metodoFrete === 'free') {
+        // Frete grátis
+        setShippingMethod('manual');
+        setPacCost(0);
+        setSedexCost(0);
       } else {
-        // Recalcular frete se necessário
+        // Fallback: recalcular frete se necessário
         if (endereco.cep) {
           handleCEPBlur(endereco.cep);
         }
@@ -246,7 +289,7 @@ export default function CheckoutShopifyMP() {
       setIsCepValid(true);
       setShowAddressForm(false); // Dados preenchidos, mostrar resumo
     }
-  }, [proposta, isPropostaFlow]);
+  }, [proposta, isPropostaFlow, clienteDireto]);
 
   // Buscar dados do cliente do vendedor (fluxo carrinho)
   const { data: vendedorCliente, isLoading: isLoadingVendedorCliente } = useQuery({
@@ -1274,47 +1317,93 @@ export default function CheckoutShopifyMP() {
                   </CardContent>
                 </Card>
 
-                {/* Frete */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Truck className="h-5 w-5" />
-                      Forma de Envio
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <RadioGroup
-                      value={shippingMethod}
-                      onValueChange={(value) => setShippingMethod(value as 'pac' | 'sedex')}
-                      className="space-y-3"
-                    >
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <RadioGroupItem value="pac" id="pac" />
-                          <Label htmlFor="pac" className="cursor-pointer">
-                            <span className="font-medium">PAC</span>
-                            <span className="text-sm text-muted-foreground ml-2">
-                              ({pacDays || 10} dias úteis)
-                            </span>
-                          </Label>
-                        </div>
-                        <span className="font-bold">R$ {pacCost.toFixed(2)}</span>
+                {/* Frete - esconder se for retirada, frete grátis ou frete manual */}
+                {isPropostaFlow && proposta?.metodo_frete?.startsWith('retirada') ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5" />
+                        Retirada no Local
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <p className="font-medium text-green-800">
+                          {proposta.metodo_frete === 'retirada' && 'Retirada na Matriz - Rio de Janeiro'}
+                          {proposta.metodo_frete === 'retirada_pe' && 'Retirada no Polo - Pernambuco'}
+                          {proposta.metodo_frete === 'retirada_penha' && 'Retirada no Polo - Penha / RJ'}
+                        </p>
+                        <p className="text-sm text-green-700 mt-1">
+                          {proposta.metodo_frete === 'retirada' && 'Estrada do Guerenguê, 1851 - Taquara, Rio de Janeiro - RJ'}
+                          {proposta.metodo_frete === 'retirada_pe' && 'Rua Adalberto Coimbra, 211, Galpão B - Jardim Jordão, Jaboatão dos Guararapes - PE'}
+                          {proposta.metodo_frete === 'retirada_penha' && 'R. Honório Bicalho, 102 - Penha, Rio de Janeiro - RJ'}
+                        </p>
+                        <p className="text-sm text-green-600 mt-1">Segunda a Sexta: 9h às 18h</p>
+                        <p className="text-sm font-bold text-green-800 mt-2">Frete: Grátis</p>
                       </div>
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <RadioGroupItem value="sedex" id="sedex" />
-                          <Label htmlFor="sedex" className="cursor-pointer">
-                            <span className="font-medium">SEDEX</span>
-                            <span className="text-sm text-muted-foreground ml-2">
-                              ({sedexDays || 5} dias úteis)
-                            </span>
-                          </Label>
-                        </div>
-                        <span className="font-bold">R$ {sedexCost.toFixed(2)}</span>
+                    </CardContent>
+                  </Card>
+                ) : isPropostaFlow && (proposta?.metodo_frete === 'free' || proposta?.metodo_frete === 'manual' || proposta?.frete_tipo === 'manual') ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Truck className="h-5 w-5" />
+                        Forma de Envio
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <p className="font-medium text-green-800">
+                          {proposta?.metodo_frete === 'free' ? 'Frete Grátis' : 'Frete Definido pelo Vendedor'}
+                        </p>
+                        <p className="text-sm font-bold text-green-800 mt-2">
+                          Valor: R$ {(proposta?.valor_frete || 0).toFixed(2)}
+                        </p>
                       </div>
-                    </RadioGroup>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Truck className="h-5 w-5" />
+                        Forma de Envio
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <RadioGroup
+                        value={shippingMethod}
+                        onValueChange={(value) => setShippingMethod(value as 'pac' | 'sedex')}
+                        className="space-y-3"
+                      >
+                        <div className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <RadioGroupItem value="pac" id="pac" />
+                            <Label htmlFor="pac" className="cursor-pointer">
+                              <span className="font-medium">PAC</span>
+                              <span className="text-sm text-muted-foreground ml-2">
+                                ({pacDays || 10} dias úteis)
+                              </span>
+                            </Label>
+                          </div>
+                          <span className="font-bold">R$ {pacCost.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <RadioGroupItem value="sedex" id="sedex" />
+                            <Label htmlFor="sedex" className="cursor-pointer">
+                              <span className="font-medium">SEDEX</span>
+                              <span className="text-sm text-muted-foreground ml-2">
+                                ({sedexDays || 5} dias úteis)
+                              </span>
+                            </Label>
+                          </div>
+                          <span className="font-bold">R$ {sedexCost.toFixed(2)}</span>
+                        </div>
+                      </RadioGroup>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Pagamento */}
                 <Card>
