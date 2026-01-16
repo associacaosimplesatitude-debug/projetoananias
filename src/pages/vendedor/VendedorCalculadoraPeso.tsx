@@ -550,20 +550,12 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
       
       if (updateError) throw updateError;
       
-      // TRAVA: Vendedor teste → link direto para checkout MP com proposta_id
-      const vendedorEmailNormalizado = (vendedor.email || '').trim().toLowerCase();
-      const isVendedorTeste = vendedorEmailNormalizado === 'vendedorteste@gmail.com';
-      
       // Sempre usar domínio oficial de produção
       const baseUrl = 'https://gestaoebd.com.br';
       
-      let link: string;
-      if (isVendedorTeste) {
-        link = `${baseUrl}/ebd/checkout-shopify-mp?proposta_id=${proposta.id}`;
-        console.log(">>> VENDEDOR TESTE: Gerando link direto para MP:", link);
-      } else {
-        link = `${baseUrl}/proposta/${token}`;
-      }
+      // TODOS os vendedores (incluindo vendedor teste) usam link de proposta
+      // O redirecionamento para checkout MP acontece quando o CLIENTE clica "Confirmar Compra"
+      const link = `${baseUrl}/proposta/${token}`;
       
       setPropostaLink(link);
       setPropostaClienteNome(clienteData.nome_igreja);

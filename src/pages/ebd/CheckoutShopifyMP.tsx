@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { ArrowLeft, CreditCard, QrCode, MapPin, Check, Edit, Loader2, ShoppingCart, Truck } from 'lucide-react';
+import { ArrowLeft, CreditCard, QrCode, MapPin, Check, Edit, Loader2, ShoppingCart, Truck, FileText, Copy } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -113,7 +114,7 @@ export default function CheckoutShopifyMP() {
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
   const { items: cartItems, clearCart } = useShopifyCartStore();
   
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card'>('pix');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card' | 'boleto'>('pix');
   const [isProcessing, setIsProcessing] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<'pac' | 'sedex' | 'manual'>('pac');
   const [pacCost, setPacCost] = useState<number>(0);
@@ -126,6 +127,18 @@ export default function CheckoutShopifyMP() {
   const [pixQrCode, setPixQrCode] = useState('');
   const [pixCode, setPixCode] = useState('');
   const [showAddressForm, setShowAddressForm] = useState(true);
+  
+  // Estados para cartão de crédito
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCVV, setCardCVV] = useState('');
+  const [cardInstallments, setCardInstallments] = useState('1');
+  
+  // Estados para boleto
+  const [showBoletoDialog, setShowBoletoDialog] = useState(false);
+  const [boletoUrl, setBoletoUrl] = useState('');
+  const [boletoBarcode, setBoletoBarcode] = useState('');
 
   // Cliente selecionado pelo vendedor (para carrinho Shopify)
   const vendedorClienteId = sessionStorage.getItem('vendedor-cliente-id');
@@ -545,11 +558,367 @@ export default function CheckoutShopifyMP() {
     toast.success('Código PIX copiado!');
   };
 
+  const copyBoletoBarcode = () => {
+    navigator.clipboard.writeText(boletoBarcode);
+    toast.success('Código de barras copiado!');
+  };
+
+  // Formatar número do cartão
+  const formatCardNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 16);
+    return cleaned.replace(/(\d{4})(?=\d)/g, '$1 ');
+  };
+
+  // Formatar validade do cartão
+  const formatCardExpiry = (value: string) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 4);
+    if (cleaned.length > 2) {
+      return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
+    }
+    return cleaned;
+  };
+
+  // Processar pagamento com cartão de crédito
+  const processCardPayment = async (data: AddressForm) => {
+    setIsProcessing(true);
+    
+    try {
+      const vendedorInfo = isPropostaFlow && proposta
+        ? { 
+            id: proposta.vendedor_id as string, 
+            email: proposta.vendedor_email as string || '', 
+            nome: proposta.vendedor_nome as string || '' 
+          }
+        : vendedor;
+        
+      if (!vendedorInfo || !vendedorInfo.id) {
+        toast.error('Vendedor não identificado');
+        return;
+      }
+
+      // Validar campos do cartão
+      if (cardNumber.replace(/\s/g, '').length < 16) {
+        toast.error('Número do cartão inválido');
+        return;
+      }
+      if (!cardHolder.trim()) {
+        toast.error('Nome do titular é obrigatório');
+        return;
+      }
+      if (cardExpiry.length < 5) {
+        toast.error('Data de validade inválida');
+        return;
+      }
+      if (cardCVV.length < 3) {
+        toast.error('CVV inválido');
+        return;
+      }
+
+      // Preparar itens
+      const paymentItems = isPropostaFlow && proposta?.itens
+        ? proposta.itens.map((item: any) => ({
+            id: item.variantId,
+            title: item.title,
+            quantity: item.quantity,
+            unit_price: parseFloat(item.price),
+          }))
+        : cartItems.map(item => ({
+            id: item.variantId,
+            title: item.product.node.title,
+            quantity: item.quantity,
+            unit_price: parseFloat(item.price.amount),
+          }));
+
+      const itemsParaSalvar = isPropostaFlow && proposta?.itens
+        ? proposta.itens.map((item: any) => ({
+            variantId: item.variantId,
+            productId: item.variantId.split('/').pop(),
+            title: item.title,
+            variantTitle: item.title,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.imageUrl || null,
+            sku: item.sku || null,
+          }))
+        : cartItems.map(item => ({
+            variantId: item.variantId,
+            productId: item.product.node.id,
+            title: item.product.node.title,
+            variantTitle: item.variantTitle,
+            quantity: item.quantity,
+            price: item.price.amount,
+            image: item.product.node.images.edges[0]?.node.url || null,
+            sku: item.sku,
+          }));
+
+      // Criar pedido
+      const { data: pedido, error: pedidoError } = await supabase
+        .from('ebd_shopify_pedidos_mercadopago')
+        .insert({
+          vendedor_id: vendedorInfo.id,
+          vendedor_email: vendedorInfo.email,
+          vendedor_nome: vendedorInfo.nome || '',
+          cliente_id: isPropostaFlow ? proposta?.cliente_id : vendedorClienteId || null,
+          proposta_id: isPropostaFlow ? (proposta?.id || null) : null,
+          cliente_nome: `${data.nome} ${data.sobrenome}`.trim(),
+          cliente_cpf_cnpj: data.cpf.replace(/\D/g, ''),
+          cliente_email: data.email,
+          cliente_telefone: data.telefone,
+          valor_produtos: subtotal,
+          valor_frete: shippingCost,
+          valor_total: total,
+          metodo_frete: shippingMethod,
+          prazo_entrega_dias: shippingMethod === 'sedex' ? sedexDays : pacDays,
+          endereco_cep: data.cep.replace(/\D/g, ''),
+          endereco_rua: data.rua,
+          endereco_numero: data.numero,
+          endereco_complemento: data.complemento || null,
+          endereco_bairro: data.bairro,
+          endereco_cidade: data.cidade,
+          endereco_estado: data.estado,
+          items: itemsParaSalvar,
+          payment_method: 'card',
+          status: 'AGUARDANDO_PAGAMENTO',
+          proposta_token: propostaToken || null,
+        })
+        .select()
+        .single();
+
+      if (pedidoError) {
+        console.error('Erro ao criar pedido:', pedidoError);
+        toast.error('Erro ao criar pedido');
+        return;
+      }
+
+      // Processar pagamento com cartão
+      const [expiryMonth, expiryYear] = cardExpiry.split('/');
+      
+      const { data: cardData, error: cardError } = await supabase.functions.invoke(
+        'process-transparent-payment',
+        {
+          body: {
+            payment_method: 'card',
+            transaction_amount: Math.round(total * 100) / 100,
+            description: `Pedido Shopify #${pedido.id.slice(0, 8).toUpperCase()}`,
+            installments: parseInt(cardInstallments),
+            card: {
+              number: cardNumber.replace(/\s/g, ''),
+              holder_name: cardHolder,
+              expiration_month: expiryMonth,
+              expiration_year: `20${expiryYear}`,
+              security_code: cardCVV,
+            },
+            payer: {
+              email: data.email,
+              first_name: data.nome,
+              last_name: data.sobrenome,
+              identification: {
+                type: data.cpf.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF',
+                number: data.cpf.replace(/\D/g, ''),
+              },
+            },
+            items: paymentItems,
+            external_reference: pedido.id,
+          },
+        }
+      );
+
+      if (cardError) {
+        console.error('Erro ao processar cartão:', cardError);
+        toast.error('Erro ao processar pagamento com cartão');
+        return;
+      }
+
+      // Atualizar pedido
+      await supabase
+        .from('ebd_shopify_pedidos_mercadopago')
+        .update({
+          mercadopago_payment_id: cardData.id?.toString(),
+          status: cardData.status === 'approved' ? 'PAGO' : 'AGUARDANDO_PAGAMENTO',
+        })
+        .eq('id', pedido.id);
+
+      if (cardData.status === 'approved') {
+        toast.success('Pagamento aprovado!');
+        clearCart();
+        navigate('/ebd/order-success');
+      } else if (cardData.status === 'in_process') {
+        toast.info('Pagamento em análise. Você será notificado quando for aprovado.');
+        clearCart();
+        navigate('/ebd/order-success');
+      } else {
+        toast.error('Pagamento não aprovado. Por favor, tente novamente.');
+      }
+      
+    } catch (error) {
+      console.error('Erro ao processar cartão:', error);
+      toast.error('Erro ao processar pagamento');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Processar pagamento com boleto
+  const processBoletoPayment = async (data: AddressForm) => {
+    setIsProcessing(true);
+    
+    try {
+      const vendedorInfo = isPropostaFlow && proposta
+        ? { 
+            id: proposta.vendedor_id as string, 
+            email: proposta.vendedor_email as string || '', 
+            nome: proposta.vendedor_nome as string || '' 
+          }
+        : vendedor;
+        
+      if (!vendedorInfo || !vendedorInfo.id) {
+        toast.error('Vendedor não identificado');
+        return;
+      }
+
+      // Preparar itens
+      const paymentItems = isPropostaFlow && proposta?.itens
+        ? proposta.itens.map((item: any) => ({
+            id: item.variantId,
+            title: item.title,
+            quantity: item.quantity,
+            unit_price: parseFloat(item.price),
+          }))
+        : cartItems.map(item => ({
+            id: item.variantId,
+            title: item.product.node.title,
+            quantity: item.quantity,
+            unit_price: parseFloat(item.price.amount),
+          }));
+
+      const itemsParaSalvar = isPropostaFlow && proposta?.itens
+        ? proposta.itens.map((item: any) => ({
+            variantId: item.variantId,
+            productId: item.variantId.split('/').pop(),
+            title: item.title,
+            variantTitle: item.title,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.imageUrl || null,
+            sku: item.sku || null,
+          }))
+        : cartItems.map(item => ({
+            variantId: item.variantId,
+            productId: item.product.node.id,
+            title: item.product.node.title,
+            variantTitle: item.variantTitle,
+            quantity: item.quantity,
+            price: item.price.amount,
+            image: item.product.node.images.edges[0]?.node.url || null,
+            sku: item.sku,
+          }));
+
+      // Criar pedido
+      const { data: pedido, error: pedidoError } = await supabase
+        .from('ebd_shopify_pedidos_mercadopago')
+        .insert({
+          vendedor_id: vendedorInfo.id,
+          vendedor_email: vendedorInfo.email,
+          vendedor_nome: vendedorInfo.nome || '',
+          cliente_id: isPropostaFlow ? proposta?.cliente_id : vendedorClienteId || null,
+          proposta_id: isPropostaFlow ? (proposta?.id || null) : null,
+          cliente_nome: `${data.nome} ${data.sobrenome}`.trim(),
+          cliente_cpf_cnpj: data.cpf.replace(/\D/g, ''),
+          cliente_email: data.email,
+          cliente_telefone: data.telefone,
+          valor_produtos: subtotal,
+          valor_frete: shippingCost,
+          valor_total: total,
+          metodo_frete: shippingMethod,
+          prazo_entrega_dias: shippingMethod === 'sedex' ? sedexDays : pacDays,
+          endereco_cep: data.cep.replace(/\D/g, ''),
+          endereco_rua: data.rua,
+          endereco_numero: data.numero,
+          endereco_complemento: data.complemento || null,
+          endereco_bairro: data.bairro,
+          endereco_cidade: data.cidade,
+          endereco_estado: data.estado,
+          items: itemsParaSalvar,
+          payment_method: 'boleto',
+          status: 'AGUARDANDO_PAGAMENTO',
+          proposta_token: propostaToken || null,
+        })
+        .select()
+        .single();
+
+      if (pedidoError) {
+        console.error('Erro ao criar pedido:', pedidoError);
+        toast.error('Erro ao criar pedido');
+        return;
+      }
+
+      // Processar boleto
+      const { data: boletoData, error: boletoError } = await supabase.functions.invoke(
+        'process-transparent-payment',
+        {
+          body: {
+            payment_method: 'boleto',
+            transaction_amount: Math.round(total * 100) / 100,
+            description: `Pedido Shopify #${pedido.id.slice(0, 8).toUpperCase()}`,
+            payer: {
+              email: data.email,
+              first_name: data.nome,
+              last_name: data.sobrenome,
+              identification: {
+                type: data.cpf.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF',
+                number: data.cpf.replace(/\D/g, ''),
+              },
+              address: {
+                zip_code: data.cep.replace(/\D/g, ''),
+                street_name: data.rua,
+                street_number: data.numero,
+                neighborhood: data.bairro,
+                city: data.cidade,
+                federal_unit: data.estado,
+              },
+            },
+            items: paymentItems,
+            external_reference: pedido.id,
+          },
+        }
+      );
+
+      if (boletoError) {
+        console.error('Erro ao gerar boleto:', boletoError);
+        toast.error('Erro ao gerar boleto');
+        return;
+      }
+
+      // Atualizar pedido
+      await supabase
+        .from('ebd_shopify_pedidos_mercadopago')
+        .update({
+          mercadopago_payment_id: boletoData.id?.toString(),
+        })
+        .eq('id', pedido.id);
+
+      // Exibir boleto
+      setBoletoUrl(boletoData.transaction_details?.external_resource_url || '');
+      setBoletoBarcode(boletoData.barcode?.content || '');
+      setShowBoletoDialog(true);
+
+      toast.success('Boleto gerado com sucesso!');
+      
+    } catch (error) {
+      console.error('Erro ao gerar boleto:', error);
+      toast.error('Erro ao gerar boleto');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleSubmit = async (data: AddressForm) => {
     if (paymentMethod === 'pix') {
       await processPixPayment(data);
-    } else {
-      toast.info('Pagamento por cartão em desenvolvimento');
+    } else if (paymentMethod === 'card') {
+      await processCardPayment(data);
+    } else if (paymentMethod === 'boleto') {
+      await processBoletoPayment(data);
     }
   };
 
@@ -952,29 +1321,116 @@ export default function CheckoutShopifyMP() {
                   <CardHeader>
                     <CardTitle>Forma de Pagamento</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-4">
                     <RadioGroup
                       value={paymentMethod}
-                      onValueChange={(value) => setPaymentMethod(value as 'pix' | 'card')}
+                      onValueChange={(value) => setPaymentMethod(value as 'pix' | 'card' | 'boleto')}
                       className="space-y-3"
                     >
-                      <div className="flex items-center gap-3 p-4 border rounded-lg">
+                      <div className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === 'pix' ? 'border-green-500 bg-green-50' : ''}`}>
                         <RadioGroupItem value="pix" id="pix" />
-                        <Label htmlFor="pix" className="cursor-pointer flex items-center gap-2">
+                        <Label htmlFor="pix" className="cursor-pointer flex items-center gap-2 flex-1">
                           <QrCode className="h-5 w-5 text-green-600" />
-                          <span className="font-medium">PIX</span>
-                          <span className="text-sm text-muted-foreground">(Pagamento instantâneo)</span>
+                          <div>
+                            <span className="font-medium">PIX</span>
+                            <p className="text-sm text-muted-foreground">Pagamento instantâneo</p>
+                          </div>
                         </Label>
                       </div>
-                      <div className="flex items-center gap-3 p-4 border rounded-lg opacity-50">
-                        <RadioGroupItem value="card" id="card" disabled />
-                        <Label htmlFor="card" className="cursor-pointer flex items-center gap-2">
+                      <div className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === 'card' ? 'border-blue-500 bg-blue-50' : ''}`}>
+                        <RadioGroupItem value="card" id="card" />
+                        <Label htmlFor="card" className="cursor-pointer flex items-center gap-2 flex-1">
                           <CreditCard className="h-5 w-5 text-blue-600" />
-                          <span className="font-medium">Cartão de Crédito</span>
-                          <span className="text-sm text-muted-foreground">(Em breve)</span>
+                          <div>
+                            <span className="font-medium">Cartão de Crédito</span>
+                            <p className="text-sm text-muted-foreground">Parcelamento em até 12x</p>
+                          </div>
+                        </Label>
+                      </div>
+                      <div className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${paymentMethod === 'boleto' ? 'border-orange-500 bg-orange-50' : ''}`}>
+                        <RadioGroupItem value="boleto" id="boleto" />
+                        <Label htmlFor="boleto" className="cursor-pointer flex items-center gap-2 flex-1">
+                          <FileText className="h-5 w-5 text-orange-600" />
+                          <div>
+                            <span className="font-medium">Boleto Bancário</span>
+                            <p className="text-sm text-muted-foreground">Vencimento em 3 dias úteis</p>
+                          </div>
                         </Label>
                       </div>
                     </RadioGroup>
+
+                    {/* Formulário de Cartão */}
+                    {paymentMethod === 'card' && (
+                      <div className="mt-4 p-4 border rounded-lg bg-muted/30 space-y-4">
+                        <h4 className="font-medium text-sm">Dados do Cartão</h4>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="cardNumber">Número do Cartão</Label>
+                          <Input
+                            id="cardNumber"
+                            placeholder="0000 0000 0000 0000"
+                            value={cardNumber}
+                            onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                            maxLength={19}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="cardHolder">Nome do Titular</Label>
+                          <Input
+                            id="cardHolder"
+                            placeholder="Nome como está no cartão"
+                            value={cardHolder}
+                            onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="cardExpiry">Validade</Label>
+                            <Input
+                              id="cardExpiry"
+                              placeholder="MM/AA"
+                              value={cardExpiry}
+                              onChange={(e) => setCardExpiry(formatCardExpiry(e.target.value))}
+                              maxLength={5}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="cardCVV">CVV</Label>
+                            <Input
+                              id="cardCVV"
+                              placeholder="000"
+                              value={cardCVV}
+                              onChange={(e) => setCardCVV(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                              maxLength={4}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="cardInstallments">Parcelas</Label>
+                            <Select value={cardInstallments} onValueChange={setCardInstallments}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Parcelas" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">1x de R$ {total.toFixed(2)}</SelectItem>
+                                <SelectItem value="2">2x de R$ {(total / 2).toFixed(2)}</SelectItem>
+                                <SelectItem value="3">3x de R$ {(total / 3).toFixed(2)}</SelectItem>
+                                <SelectItem value="4">4x de R$ {(total / 4).toFixed(2)}</SelectItem>
+                                <SelectItem value="5">5x de R$ {(total / 5).toFixed(2)}</SelectItem>
+                                <SelectItem value="6">6x de R$ {(total / 6).toFixed(2)}</SelectItem>
+                                <SelectItem value="7">7x de R$ {(total / 7).toFixed(2)}</SelectItem>
+                                <SelectItem value="8">8x de R$ {(total / 8).toFixed(2)}</SelectItem>
+                                <SelectItem value="9">9x de R$ {(total / 9).toFixed(2)}</SelectItem>
+                                <SelectItem value="10">10x de R$ {(total / 10).toFixed(2)}</SelectItem>
+                                <SelectItem value="11">11x de R$ {(total / 11).toFixed(2)}</SelectItem>
+                                <SelectItem value="12">12x de R$ {(total / 12).toFixed(2)}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -1074,6 +1530,57 @@ export default function CheckoutShopifyMP() {
               <Button onClick={handlePaymentComplete} className="w-full">
                 Já fiz o pagamento
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog Boleto */}
+        <Dialog open={showBoletoDialog} onOpenChange={setShowBoletoDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-orange-600" />
+                Boleto Bancário Gerado
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Seu boleto foi gerado com sucesso! Você pode imprimir ou copiar o código de barras.
+              </p>
+              
+              {boletoBarcode && (
+                <div className="space-y-2">
+                  <Label>Código de Barras</Label>
+                  <div className="flex gap-2">
+                    <Input value={boletoBarcode} readOnly className="text-xs font-mono" />
+                    <Button variant="outline" onClick={copyBoletoBarcode}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-lg font-bold text-orange-600">
+                Total: R$ {total.toFixed(2)}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                O boleto vence em 3 dias úteis. Após o pagamento, a confirmação pode levar até 2 dias úteis.
+              </p>
+
+              <div className="flex flex-col gap-2">
+                {boletoUrl && (
+                  <Button asChild className="w-full">
+                    <a href={boletoUrl} target="_blank" rel="noopener noreferrer">
+                      <FileText className="h-4 w-4 mr-2" />
+                      Visualizar/Imprimir Boleto
+                    </a>
+                  </Button>
+                )}
+                <Button variant="outline" onClick={handlePaymentComplete} className="w-full">
+                  Continuar
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

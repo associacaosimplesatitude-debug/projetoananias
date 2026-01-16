@@ -758,22 +758,13 @@ export default function ShopifyPedidos() {
 
       if (error) throw error;
 
-      // TRAVA: Vendedor teste → link direto para checkout MP com proposta_id
-      const vendedorEmailNormalizado = (vendedor.email || '').trim().toLowerCase();
-      const isVendedorTeste = vendedorEmailNormalizado === 'vendedorteste@gmail.com';
-      
       // Sempre usar domínio oficial de produção
       const baseUrl = 'https://gestaoebd.com.br';
-      let link: string;
       
-      if (isVendedorTeste && !isFaturamentoB2B) {
-        // Vendedor teste NÃO B2B: link direto para MP com proposta_id (UUID)
-        link = `${baseUrl}/ebd/checkout-shopify-mp?proposta_id=${data.id}`;
-        console.log(">>> VENDEDOR TESTE: Gerando link direto para MP:", link);
-      } else {
-        // Fluxo padrão: link /proposta/:token
-        link = `${baseUrl}/proposta/${token}`;
-      }
+      // TODOS os vendedores (incluindo vendedor teste) usam link de proposta
+      // O redirecionamento para checkout MP acontece quando o CLIENTE clica "Confirmar Compra"
+      // na página da proposta (PropostaDigital.tsx)
+      const link = `${baseUrl}/proposta/${token}`;
       
       setPropostaLink(link);
       setPropostaClienteNome(selectedCliente.nome_igreja);
