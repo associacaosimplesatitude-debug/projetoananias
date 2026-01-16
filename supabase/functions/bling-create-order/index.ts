@@ -877,6 +877,17 @@ serve(async (req) => {
     } else {
       console.log(`[BLING] ✅ Situação "Atendido" encontrada no cache com ID: ${situacaoAtendidoId}`);
     }
+
+    // ✅ Buscar "Aprovado" no cache para pedidos Mercado Pago
+    let situacaoAprovadoId = cachedSituacaoIdsByName.get('aprovado') || 
+                             cachedSituacaoIdsByName.get('aprovada') || 
+                             null;
+    
+    if (situacaoAprovadoId) {
+      console.log(`[BLING] ✅ Situação "Aprovado" encontrada no cache com ID: ${situacaoAprovadoId}`);
+    } else {
+      console.log('[BLING] ⚠️ Situação "Aprovado" não encontrada, usando "Em andamento" como fallback para Mercado Pago');
+    }
     
     // ✅ REGRA: Pagamento na Loja → "Atendido" | Faturamento B2B → "Em andamento" | Outros → "Em aberto"
     const situacaoInicialId = isPagamentoLoja 
@@ -2648,17 +2659,15 @@ serve(async (req) => {
 
     console.log('Pedido criado com sucesso:', responseData);
 
-    // ✅ ATUALIZAR STATUS PARA "EM ANDAMENTO" SE FOR FATURAMENTO B2B OU MERCADO PAGO PAGO
+    // ✅ ATUALIZAR STATUS PARA "EM ANDAMENTO" SE FOR FATURAMENTO B2B
     // O POST não aceita situacao nesta conta, então usamos PATCH após criar
     const createdOrderId = responseData?.data?.id;
-    if (createdOrderId && (isFaturamentoPagamento || isMercadoPagoPago) && situacaoEmAndamentoId) {
-      console.log(`[BLING] Atualizando pedido ${createdOrderId} para "Em andamento" (ID: ${situacaoEmAndamentoId}) via PATCH`);
+    if (createdOrderId && isFaturamentoPagamento && situacaoEmAndamentoId) {
+      console.log(`[BLING] Atualizando pedido ${createdOrderId} para "Em andamento" (ID: ${situacaoEmAndamentoId}) via PATCH - Faturamento B2B`);
       
       await sleep(400); // Respeitar rate limit
       
       try {
-        // Usar endpoint específico PATCH para atualizar APENAS a situação
-        // Ref: https://developer.bling.com.br/referencia#/Pedidos%20-%20Vendas/patch_pedidos_vendas__idPedidoVenda__situacoes__idSituacao_
         const updateStatusResponse = await fetch(
           `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoEmAndamentoId}`,
           {
@@ -2667,7 +2676,6 @@ serve(async (req) => {
               'Authorization': `Bearer ${accessToken}`,
               'Accept': 'application/json',
             },
-            // PATCH neste endpoint não requer body - o ID da situação vai na URL
           }
         );
         
@@ -2676,10 +2684,42 @@ serve(async (req) => {
         } else {
           const updateResult = await updateStatusResponse.json();
           console.warn(`[BLING] ⚠️ Falha ao atualizar status via PATCH (pedido criado com sucesso):`, updateResult);
-          // Não falhar o fluxo - pedido foi criado, só o status não atualizou
         }
       } catch (statusError) {
         console.warn('[BLING] ⚠️ Erro ao tentar atualizar status do pedido:', statusError);
+      }
+    }
+
+    // ✅ ATUALIZAR STATUS PARA "APROVADO" SE FOR MERCADO PAGO PAGO
+    // Usa "Aprovado" se existir, senão fallback para "Em andamento"
+    if (createdOrderId && isMercadoPagoPago) {
+      const situacaoMercadoPago = situacaoAprovadoId || situacaoEmAndamentoId;
+      const nomeStatus = situacaoAprovadoId ? 'Aprovado' : 'Em andamento';
+      
+      console.log(`[BLING] Atualizando pedido ${createdOrderId} para "${nomeStatus}" (ID: ${situacaoMercadoPago}) via PATCH - Mercado Pago`);
+      
+      await sleep(400); // Respeitar rate limit
+      
+      try {
+        const updateStatusResponse = await fetch(
+          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoMercadoPago}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          }
+        );
+        
+        if (updateStatusResponse.ok) {
+          console.log(`[BLING] ✅ Status atualizado para "${nomeStatus}" (ID: ${situacaoMercadoPago}) via PATCH - Mercado Pago`);
+        } else {
+          const updateResult = await updateStatusResponse.json();
+          console.warn(`[BLING] ⚠️ Falha ao atualizar status para "${nomeStatus}" via PATCH:`, updateResult);
+        }
+      } catch (statusError) {
+        console.warn('[BLING] ⚠️ Erro ao tentar atualizar status para Mercado Pago:', statusError);
       }
     }
 
