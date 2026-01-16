@@ -155,15 +155,23 @@ serve(async (req) => {
           estado: pedido.endereco_estado,
         };
 
-        // Converter itens do JSON para formato Bling
+        // Converter itens do JSON para formato Bling COM DESCONTO
         const items = pedido.items || [];
-        const itensBling = items.map((item: any) => ({
-          codigo: item.sku || item.variantId || '0',
-          descricao: item.title || 'Produto Shopify',
-          unidade: 'UN',
-          quantidade: item.quantity || 1,
-          valor: Number(parseFloat(item.price || '0').toFixed(2)),
-        }));
+        const itensBling = items.map((item: any) => {
+          const precoOriginal = Number(parseFloat(item.price || '0').toFixed(2));
+          const descontoPercentual = item.descontoItem ?? 0;
+          const precoComDesconto = Number((precoOriginal * (1 - descontoPercentual / 100)).toFixed(2));
+          
+          return {
+            codigo: item.sku || item.variantId || '0',
+            descricao: item.title || 'Produto Shopify',
+            unidade: 'UN',
+            quantidade: item.quantity || 1,
+            preco_cheio: precoOriginal,           // Preço original (lista)
+            valor: precoComDesconto,               // Preço com desconto aplicado
+            desconto_percentual: descontoPercentual, // Percentual de desconto
+          };
+        });
 
         const paymentTypeMap: { [key: string]: string } = {
           'pix': 'pix',
