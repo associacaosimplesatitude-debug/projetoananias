@@ -163,6 +163,7 @@ const App = () => (
               <Route path="/login/ebd" element={<EBDLogin />} />
               <Route path="/gestao-ebd" element={<LandingEBD />} />
               <Route path="/proposta/:token" element={<PropostaDigital />} />
+              <Route path="/ebd/checkout-shopify-mp" element={<EBDCheckoutShopifyMP />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
             <Route
               path="/*"

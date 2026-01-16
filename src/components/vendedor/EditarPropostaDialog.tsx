@@ -217,7 +217,9 @@ export function EditarPropostaDialog({
       // TRAVA: Vendedor teste → link direto para checkout MP com proposta_id
       const vendedorEmailNormalizado = (vendedor?.email || '').trim().toLowerCase();
       const isVendedorTeste = vendedorEmailNormalizado === 'vendedorteste@gmail.com';
-      const baseUrl = window.location.origin;
+      
+      // Sempre usar domínio oficial de produção
+      const baseUrl = 'https://gestaoebd.com.br';
       
       let link: string;
       if (isVendedorTeste) {
