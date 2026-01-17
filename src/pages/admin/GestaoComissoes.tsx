@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Filter, Search, Wallet, Calendar, Clock, CheckCircle2, 
-  AlertTriangle, FileText, TrendingUp
+  AlertTriangle, FileText, TrendingUp, List, Users
 } from "lucide-react";
-import { format, parseISO, startOfMonth, endOfMonth, addMonths, isToday } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
@@ -19,8 +20,10 @@ import {
   ComissaoKPICards, 
   ComissaoDashboardBlocks, 
   ComissaoTable,
+  ComissaoAgrupadaVendedor,
   LotePagamentoDialog,
-  LotePagamentoList
+  LotePagamentoList,
+  LoteDetalheDialog
 } from "@/components/admin/comissoes";
 
 interface Parcela {
@@ -57,6 +60,7 @@ interface Vendedor {
   nome: string;
   email: string | null;
   comissao_percentual: number;
+  foto_url: string | null;
 }
 
 interface Cliente {
@@ -80,11 +84,14 @@ export default function GestaoComissoes() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>("resumo");
+  const [viewMode, setViewMode] = useState<string>("agrupado");
   const [statusSelecionado, setStatusSelecionado] = useState<string>("liberada");
   const [vendedorSelecionado, setVendedorSelecionado] = useState<string>("todos");
   const [tipoSelecionado, setTipoSelecionado] = useState<string>("todos");
   const [searchTerm, setSearchTerm] = useState("");
   const [showLoteDialog, setShowLoteDialog] = useState(false);
+  const [showLoteDetalheDialog, setShowLoteDetalheDialog] = useState(false);
+  const [selectedLoteId, setSelectedLoteId] = useState<string | null>(null);
 
   // Fetch all parcelas with comissao_status
   const { data: parcelas = [], isLoading: parcelasLoading } = useQuery({
@@ -120,7 +127,7 @@ export default function GestaoComissoes() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendedores")
-        .select("id, nome, email, comissao_percentual")
+        .select("id, nome, email, comissao_percentual, foto_url")
         .order("nome");
       
       if (error) throw error;
@@ -157,18 +164,32 @@ export default function GestaoComissoes() {
     return map;
   }, [vendedores]);
 
-  // Resolve vendedor name
-  const resolveVendedorNome = (parcela: Parcela) => {
-    if (parcela.proposta?.vendedor_nome) return parcela.proposta.vendedor_nome;
+  // Resolve vendedor info
+  const resolveVendedorInfo = (parcela: Parcela) => {
+    let nome = "Desconhecido";
+    let foto: string | null = null;
+    
     if (parcela.vendedor_id) {
       const vendedor = vendedorById.get(parcela.vendedor_id);
-      if (vendedor) return vendedor.nome;
-    }
-    if (parcela.proposta?.vendedor_email) {
+      if (vendedor) {
+        nome = vendedor.nome;
+        foto = vendedor.foto_url;
+      }
+    } else if (parcela.proposta?.vendedor_nome) {
+      nome = parcela.proposta.vendedor_nome;
+      if (parcela.proposta?.vendedor_email) {
+        const vendedor = vendedorByEmail.get(normalizeEmail(parcela.proposta.vendedor_email));
+        if (vendedor) foto = vendedor.foto_url;
+      }
+    } else if (parcela.proposta?.vendedor_email) {
       const vendedor = vendedorByEmail.get(normalizeEmail(parcela.proposta.vendedor_email));
-      if (vendedor) return vendedor.nome;
+      if (vendedor) {
+        nome = vendedor.nome;
+        foto = vendedor.foto_url;
+      }
     }
-    return "Desconhecido";
+    
+    return { nome, foto };
   };
 
   // Calculate KPIs
@@ -214,8 +235,6 @@ export default function GestaoComissoes() {
 
   // Dashboard blocks data
   const dashboardBlocks = useMemo(() => {
-    const hoje = new Date();
-    
     // Pagamento Dia 05 - vendas online do mês
     const agendadasOnline = parcelas.filter(p => 
       p.comissao_status === 'agendada' && p.origem === 'mercadopago'
@@ -255,25 +274,46 @@ export default function GestaoComissoes() {
     };
   }, [parcelas]);
 
+  // Top 5 vendedores (liberadas)
+  const top5Vendedores = useMemo(() => {
+    const liberadas = parcelas.filter(p => p.comissao_status === 'liberada' && !p.lote_pagamento_id);
+    const agrupado = liberadas.reduce((acc, p) => {
+      const info = resolveVendedorInfo(p);
+      const key = info.nome;
+      if (!acc[key]) {
+        acc[key] = { vendedor_nome: info.nome, vendedor_foto: info.foto, total: 0 };
+      }
+      acc[key].total += Number(p.valor_comissao || 0);
+      return acc;
+    }, {} as Record<string, { vendedor_nome: string; vendedor_foto: string | null; total: number }>);
+    
+    return Object.values(agrupado).sort((a, b) => b.total - a.total).slice(0, 5);
+  }, [parcelas, vendedorById, vendedorByEmail]);
+
   // Comissões para lote (liberadas sem lote)
   const comissoesParaLote = useMemo(() => {
     return parcelas
       .filter(p => p.comissao_status === 'liberada' && !p.lote_pagamento_id)
-      .map(p => ({
-        id: p.id,
-        vendedor_nome: resolveVendedorNome(p),
-        cliente_nome: clienteMap.get(p.cliente_id) || "-",
-        valor_comissao: Number(p.valor_comissao || 0),
-        data_vencimento: p.data_vencimento,
-        tipo: p.origem === 'mercadopago' ? 'Online' : 'Faturado'
-      }));
+      .map(p => {
+        const info = resolveVendedorInfo(p);
+        return {
+          id: p.id,
+          vendedor_id: p.vendedor_id,
+          vendedor_nome: info.nome,
+          vendedor_foto: info.foto,
+          cliente_nome: clienteMap.get(p.cliente_id) || "-",
+          valor_comissao: Number(p.valor_comissao || 0),
+          data_vencimento: p.data_vencimento,
+          tipo: p.origem === 'mercadopago' ? 'Online' : 'Faturado'
+        };
+      });
   }, [parcelas, clienteMap, vendedorById, vendedorByEmail]);
 
   // Filter comissoes for table
   const comissoesFiltradas = useMemo(() => {
     let resultado = [...parcelas];
 
-    // Filter by status
+    // Filter by status (only for A Pagar tab)
     if (statusSelecionado !== "todos") {
       resultado = resultado.filter(p => p.comissao_status === statusSelecionado);
     }
@@ -297,30 +337,57 @@ export default function GestaoComissoes() {
       const term = searchTerm.toLowerCase();
       resultado = resultado.filter(p => {
         const cliente = clienteMap.get(p.cliente_id)?.toLowerCase() || "";
-        const vendedor = resolveVendedorNome(p).toLowerCase();
-        return cliente.includes(term) || vendedor.includes(term);
+        const info = resolveVendedorInfo(p);
+        return cliente.includes(term) || info.nome.toLowerCase().includes(term);
       });
     }
 
-    return resultado.map(p => ({
-      id: p.id,
-      vendedor_id: p.vendedor_id,
-      vendedor_nome: resolveVendedorNome(p),
-      cliente_id: p.cliente_id,
-      cliente_nome: clienteMap.get(p.cliente_id) || "-",
-      tipo: (p.origem === 'mercadopago' ? 'online' : 'faturado') as 'online' | 'faturado',
-      numero_parcela: p.numero_parcela,
-      total_parcelas: p.total_parcelas,
-      data_vencimento: p.data_vencimento,
-      data_liberacao: p.data_liberacao,
-      valor: Number(p.valor || 0),
-      valor_comissao: Number(p.valor_comissao || 0),
-      comissao_status: p.comissao_status || 'pendente',
-      metodo_pagamento: p.metodo_pagamento,
-      bling_order_number: p.bling_order_number || p.proposta?.bling_order_number || null,
-      link_danfe: p.proposta?.link_danfe || null
-    }));
+    return resultado.map(p => {
+      const info = resolveVendedorInfo(p);
+      return {
+        id: p.id,
+        vendedor_id: p.vendedor_id,
+        vendedor_nome: info.nome,
+        vendedor_foto: info.foto,
+        cliente_id: p.cliente_id,
+        cliente_nome: clienteMap.get(p.cliente_id) || "-",
+        tipo: (p.origem === 'mercadopago' ? 'online' : 'faturado') as 'online' | 'faturado',
+        numero_parcela: p.numero_parcela,
+        total_parcelas: p.total_parcelas,
+        data_vencimento: p.data_vencimento,
+        data_liberacao: p.data_liberacao,
+        valor: Number(p.valor || 0),
+        valor_comissao: Number(p.valor_comissao || 0),
+        comissao_status: p.comissao_status || 'pendente',
+        metodo_pagamento: p.metodo_pagamento,
+        bling_order_number: p.bling_order_number || p.proposta?.bling_order_number || null,
+        link_danfe: p.proposta?.link_danfe || null
+      };
+    });
   }, [parcelas, statusSelecionado, vendedorSelecionado, tipoSelecionado, searchTerm, clienteMap, vendedorById, vendedorByEmail]);
+
+  // Lote detail comissoes
+  const loteDetalheComissoes = useMemo(() => {
+    if (!selectedLoteId) return [];
+    return parcelas
+      .filter(p => p.lote_pagamento_id === selectedLoteId)
+      .map(p => {
+        const info = resolveVendedorInfo(p);
+        return {
+          id: p.id,
+          vendedor_nome: info.nome,
+          vendedor_foto: info.foto,
+          cliente_nome: clienteMap.get(p.cliente_id) || "-",
+          valor_comissao: Number(p.valor_comissao || 0),
+          data_vencimento: p.data_vencimento,
+          tipo: p.origem === 'mercadopago' ? 'Online' : 'Faturado'
+        };
+      });
+  }, [parcelas, selectedLoteId, clienteMap, vendedorById, vendedorByEmail]);
+
+  const selectedLote = useMemo(() => {
+    return lotes.find(l => l.id === selectedLoteId) || null;
+  }, [lotes, selectedLoteId]);
 
   // Mutation: marcar como paga
   const marcarPagaMutation = useMutation({
@@ -394,6 +461,22 @@ export default function GestaoComissoes() {
     },
   });
 
+  const handleViewDetail = (status: string) => {
+    setStatusSelecionado(status);
+    if (status === 'paga') {
+      setActiveTab('pagas');
+    } else if (status === 'agendada' || status === 'pendente') {
+      setActiveTab('pendentes');
+    } else {
+      setActiveTab('a_pagar');
+    }
+  };
+
+  const handleViewLoteDetail = (loteId: string) => {
+    setSelectedLoteId(loteId);
+    setShowLoteDetalheDialog(true);
+  };
+
   const isLoading = parcelasLoading;
 
   if (isLoading) {
@@ -446,12 +529,17 @@ export default function GestaoComissoes() {
 
         {/* ============ ABA RESUMO ============ */}
         <TabsContent value="resumo" className="space-y-6">
-          <ComissaoKPICards kpis={kpis} />
+          <ComissaoKPICards 
+            kpis={kpis} 
+            onViewDetail={handleViewDetail}
+          />
           
           <ComissaoDashboardBlocks
             pagamentoDia05={dashboardBlocks.pagamentoDia05}
             recebimentos={dashboardBlocks.recebimentos}
+            top5Vendedores={top5Vendedores}
             onGerarLote={() => setShowLoteDialog(true)}
+            onVerTodos={() => { setActiveTab('a_pagar'); setViewMode('agrupado'); }}
             isGenerating={criarLoteMutation.isPending}
           />
 
@@ -499,13 +587,30 @@ export default function GestaoComissoes() {
             </CardContent>
           </Card>
 
-          {/* Filters */}
+          {/* Filters + Toggle */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                Filtros
-              </CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  Filtros
+                </CardTitle>
+                <ToggleGroup 
+                  type="single" 
+                  value={viewMode} 
+                  onValueChange={(v) => v && setViewMode(v)}
+                  className="border rounded-lg"
+                >
+                  <ToggleGroupItem value="agrupado" aria-label="Visão agrupada" className="gap-2">
+                    <Users className="h-4 w-4" />
+                    <span className="hidden sm:inline">Agrupado</span>
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="lista" aria-label="Visão em lista" className="gap-2">
+                    <List className="h-4 w-4" />
+                    <span className="hidden sm:inline">Lista</span>
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-4">
@@ -559,11 +664,19 @@ export default function GestaoComissoes() {
               <CardTitle>Comissões Liberadas ({comissoesFiltradas.filter(c => c.comissao_status === 'liberada').length})</CardTitle>
             </CardHeader>
             <CardContent>
-              <ComissaoTable
-                comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'liberada')}
-                onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
-                isUpdating={marcarPagaMutation.isPending}
-              />
+              {viewMode === 'agrupado' ? (
+                <ComissaoAgrupadaVendedor
+                  comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'liberada')}
+                  onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+                  isUpdating={marcarPagaMutation.isPending}
+                />
+              ) : (
+                <ComissaoTable
+                  comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'liberada')}
+                  onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+                  isUpdating={marcarPagaMutation.isPending}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -655,6 +768,7 @@ export default function GestaoComissoes() {
           <LotePagamentoList
             lotes={lotes}
             isLoading={lotesLoading}
+            onViewDetails={handleViewLoteDetail}
           />
         </TabsContent>
       </Tabs>
@@ -666,6 +780,14 @@ export default function GestaoComissoes() {
         comissoes={comissoesParaLote}
         onConfirmar={(referencia) => criarLoteMutation.mutate(referencia)}
         isLoading={criarLoteMutation.isPending}
+      />
+
+      {/* Dialog de Detalhe de Lote */}
+      <LoteDetalheDialog
+        open={showLoteDetalheDialog}
+        onOpenChange={setShowLoteDetalheDialog}
+        lote={selectedLote}
+        comissoes={loteDetalheComissoes}
       />
     </div>
   );
