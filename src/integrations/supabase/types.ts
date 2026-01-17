@@ -3289,6 +3289,7 @@ export type Database = {
           cliente_id: string | null
           codigo_rastreio: string | null
           codigo_rastreio_bling: string | null
+          comissao_aprovada: boolean | null
           created_at: string
           customer_document: string | null
           customer_email: string | null
@@ -3326,6 +3327,7 @@ export type Database = {
           cliente_id?: string | null
           codigo_rastreio?: string | null
           codigo_rastreio_bling?: string | null
+          comissao_aprovada?: boolean | null
           created_at?: string
           customer_document?: string | null
           customer_email?: string | null
@@ -3363,6 +3365,7 @@ export type Database = {
           cliente_id?: string | null
           codigo_rastreio?: string | null
           codigo_rastreio_bling?: string | null
+          comissao_aprovada?: boolean | null
           created_at?: string
           customer_document?: string | null
           customer_email?: string | null
@@ -4672,6 +4675,7 @@ export type Database = {
           numero_parcela: number
           origem: string | null
           proposta_id: string | null
+          shopify_pedido_id: string | null
           status: string | null
           total_parcelas: number
           updated_at: string | null
@@ -4695,6 +4699,7 @@ export type Database = {
           numero_parcela: number
           origem?: string | null
           proposta_id?: string | null
+          shopify_pedido_id?: string | null
           status?: string | null
           total_parcelas: number
           updated_at?: string | null
@@ -4718,6 +4723,7 @@ export type Database = {
           numero_parcela?: number
           origem?: string | null
           proposta_id?: string | null
+          shopify_pedido_id?: string | null
           status?: string | null
           total_parcelas?: number
           updated_at?: string | null
@@ -4745,6 +4751,13 @@ export type Database = {
             columns: ["proposta_id"]
             isOneToOne: false
             referencedRelation: "vendedor_propostas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendedor_propostas_parcelas_shopify_pedido_id_fkey"
+            columns: ["shopify_pedido_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_shopify_pedidos"
             referencedColumns: ["id"]
           },
           {
