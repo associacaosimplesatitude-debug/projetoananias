@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -41,10 +42,13 @@ import {
   CheckCircle,
   Eye,
   User,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { PedidoOnlineDetailDialog } from "@/components/admin/PedidoOnlineDetailDialog";
+import { useUserRole } from "@/hooks/useUserRole";
+import { toast } from "sonner";
 
 interface ShopifyPedido {
   id: string;
@@ -62,6 +66,8 @@ interface ShopifyPedido {
   order_date?: string | null;
   codigo_rastreio: string | null;
   url_rastreio: string | null;
+  comissao_aprovada?: boolean;
+  source?: 'ebd_shopify_pedidos' | 'ebd_shopify_pedidos_cg';
   cliente?: {
     nome_igreja: string;
     tipo_cliente: string | null;
@@ -121,6 +127,10 @@ export default function PedidosIgrejaCPF() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [selectedPedidos, setSelectedPedidos] = useState<Set<string>>(new Set());
+
+  const { isAdmin } = useUserRole();
+  const queryClient = useQueryClient();
 
   // First fetch all clients with tipo_cliente = 'IGREJA CPF' (or legacy 'Igreja CPF') and vendedor assigned
   const { data: clientesCPF } = useQuery({
@@ -137,7 +147,7 @@ export default function PedidosIgrejaCPF() {
     },
   });
 
-  const { data: pedidos, isLoading } = useQuery({
+  const { data: pedidos, isLoading, refetch } = useQuery({
     queryKey: ["ebd-shopify-pedidos-igreja-cpf", clientesCPF],
     queryFn: async () => {
       if (!clientesCPF || clientesCPF.length === 0) return [];
@@ -200,6 +210,7 @@ export default function PedidosIgrejaCPF() {
             },
             vendedor: cliente.vendedor,
             valor_para_meta: p.valor_total,
+            comissao_aprovada: false, // CG orders não têm esse campo
             source: 'ebd_shopify_pedidos_cg' as const,
           };
         });
@@ -215,6 +226,85 @@ export default function PedidosIgrejaCPF() {
       });
     },
     enabled: !!clientesCPF,
+  });
+
+  // Mutation para aprovar comissão de um pedido
+  const aprovarComissaoMutation = useMutation({
+    mutationFn: async (pedido: ShopifyPedido) => {
+      const vendedorId = pedido.vendedor_id || pedido.cliente?.vendedor_id;
+      if (!vendedorId) throw new Error("Pedido sem vendedor atribuído");
+
+      // Buscar percentual do vendedor
+      const { data: vendedor, error: vendedorError } = await supabase
+        .from("vendedores")
+        .select("comissao_percentual")
+        .eq("id", vendedorId)
+        .single();
+
+      if (vendedorError) throw vendedorError;
+
+      const comissaoPercentual = vendedor?.comissao_percentual || 5;
+      const dataBase = new Date(pedido.order_date || pedido.created_at);
+
+      // Pedido online = 1 parcela, pagamento à vista, comissão já liberada
+      const parcela = {
+        shopify_pedido_id: pedido.id,
+        vendedor_id: vendedorId,
+        cliente_id: pedido.cliente_id,
+        origem: 'online',
+        status: 'aguardando',
+        numero_parcela: 1,
+        total_parcelas: 1,
+        valor: pedido.valor_total,
+        valor_comissao: pedido.valor_total * (comissaoPercentual / 100),
+        data_vencimento: dataBase.toISOString().split('T')[0],
+        comissao_status: 'liberada', // Já pago no Shopify
+      };
+
+      const { error: insertError } = await supabase
+        .from("vendedor_propostas_parcelas")
+        .insert(parcela);
+
+      if (insertError) throw insertError;
+
+      // Marcar pedido como aprovado (apenas para pedidos da tabela principal)
+      if (pedido.source === 'ebd_shopify_pedidos') {
+        const { error: updateError } = await supabase
+          .from("ebd_shopify_pedidos")
+          .update({ comissao_aprovada: true })
+          .eq("id", pedido.id);
+
+        if (updateError) throw updateError;
+      }
+
+      return pedido;
+    },
+  });
+
+  // Mutation para aprovar múltiplas comissões
+  const aprovarSelecionadasMutation = useMutation({
+    mutationFn: async () => {
+      const pedidosParaAprovar = filteredPedidos.filter(
+        p => selectedPedidos.has(p.id) && !p.comissao_aprovada && p.source === 'ebd_shopify_pedidos'
+      );
+      
+      for (const pedido of pedidosParaAprovar) {
+        await aprovarComissaoMutation.mutateAsync(pedido);
+      }
+      
+      return pedidosParaAprovar.length;
+    },
+    onSuccess: (count) => {
+      toast.success(`${count} comissão(ões) aprovada(s) com sucesso!`);
+      setSelectedPedidos(new Set());
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ["comissoes"] });
+    },
+    onError: (error) => {
+      toast.error("Erro ao aprovar comissões", {
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+      });
+    },
   });
 
   const getPedidoDate = (pedido: ShopifyPedido) => pedido.order_date || pedido.created_at;
@@ -268,6 +358,12 @@ export default function PedidosIgrejaCPF() {
         p.cliente?.nome_igreja?.toLowerCase().includes(term)
     );
   }, [filteredByDate, searchTerm]);
+
+  // Pedidos que podem ser selecionados para aprovação
+  const pedidosAprovaveis = useMemo(() => 
+    filteredPedidos.filter(p => !p.comissao_aprovada && p.source === 'ebd_shopify_pedidos'),
+    [filteredPedidos]
+  );
 
   const stats = useMemo(() => {
     const totalPedidos = filteredByDate.length;
@@ -323,6 +419,26 @@ export default function PedidosIgrejaCPF() {
     }
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedPedidos(new Set(pedidosAprovaveis.map(p => p.id)));
+    } else {
+      setSelectedPedidos(new Set());
+    }
+  };
+
+  const handleSelectPedido = (pedidoId: string, checked: boolean) => {
+    const newSelection = new Set(selectedPedidos);
+    if (checked) {
+      newSelection.add(pedidoId);
+    } else {
+      newSelection.delete(pedidoId);
+    }
+    setSelectedPedidos(newSelection);
+  };
+
+  const allSelected = pedidosAprovaveis.length > 0 && pedidosAprovaveis.every(p => selectedPedidos.has(p.id));
+
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
@@ -333,6 +449,30 @@ export default function PedidosIgrejaCPF() {
           </h1>
           <p className="text-muted-foreground">Pedidos de clientes tipo Igreja CPF atribuídos a vendedores</p>
         </div>
+        
+        {isAdmin && selectedPedidos.size > 0 && (
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">
+              {selectedPedidos.size} selecionado(s)
+            </span>
+            <Button
+              onClick={() => aprovarSelecionadasMutation.mutate()}
+              disabled={aprovarSelecionadasMutation.isPending}
+            >
+              {aprovarSelecionadasMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Aprovando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Aprovar Comissões ({selectedPedidos.size})
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </header>
 
       {/* Stats Cards */}
@@ -497,53 +637,95 @@ export default function PedidosIgrejaCPF() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {isAdmin && (
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={handleSelectAll}
+                          disabled={pedidosAprovaveis.length === 0}
+                        />
+                      </TableHead>
+                    )}
                     <TableHead>Pedido</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Vendedor</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
                     <TableHead>Data</TableHead>
+                    <TableHead>Comissão</TableHead>
                     <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPedidos.map((pedido) => (
-                    <TableRow 
-                      key={pedido.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => {
-                        setSelectedPedido(pedido);
-                        setDetailDialogOpen(true);
-                      }}
-                    >
-                      <TableCell className="font-medium">#{pedido.order_number}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{pedido.cliente?.nome_igreja || pedido.customer_name || "—"}</p>
-                          <p className="text-sm text-muted-foreground">{pedido.customer_email}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{pedido.vendedor?.nome || "—"}</TableCell>
-                      <TableCell>{getStatusBadge(pedido.status_pagamento)}</TableCell>
-                      <TableCell className="text-right">
-                        R$ {pedido.valor_total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell>{formatDate(getPedidoDate(pedido))}</TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPedido(pedido);
-                            setDetailDialogOpen(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredPedidos.map((pedido) => {
+                    const isAprovavel = !pedido.comissao_aprovada && pedido.source === 'ebd_shopify_pedidos';
+                    const isSelected = selectedPedidos.has(pedido.id);
+                    
+                    return (
+                      <TableRow 
+                        key={pedido.id}
+                        className={cn(
+                          "cursor-pointer hover:bg-muted/50",
+                          isSelected && "bg-primary/5"
+                        )}
+                        onClick={() => {
+                          setSelectedPedido(pedido);
+                          setDetailDialogOpen(true);
+                        }}
+                      >
+                        {isAdmin && (
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {isAprovavel ? (
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => handleSelectPedido(pedido.id, !!checked)}
+                              />
+                            ) : (
+                              <div className="w-4 h-4" />
+                            )}
+                          </TableCell>
+                        )}
+                        <TableCell className="font-medium">#{pedido.order_number}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{pedido.cliente?.nome_igreja || pedido.customer_name || "—"}</p>
+                            <p className="text-sm text-muted-foreground">{pedido.customer_email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{pedido.vendedor?.nome || "—"}</TableCell>
+                        <TableCell>{getStatusBadge(pedido.status_pagamento)}</TableCell>
+                        <TableCell className="text-right">
+                          R$ {pedido.valor_total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>{formatDate(getPedidoDate(pedido))}</TableCell>
+                        <TableCell>
+                          {pedido.comissao_aprovada ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Aprovada
+                            </Badge>
+                          ) : pedido.source === 'ebd_shopify_pedidos_cg' ? (
+                            <Badge variant="secondary">CG</Badge>
+                          ) : (
+                            <Badge variant="secondary">Pendente</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPedido(pedido);
+                              setDetailDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
