@@ -32,6 +32,7 @@ import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDi
 import { AulasRestantesCard } from "@/components/vendedor/AulasRestantesCard";
 import { ClientesParaAtivarCard } from "@/components/vendedor/ClientesParaAtivarCard";
 import { AniversariantesCard } from "@/components/ebd/AniversariantesCard";
+import { ComissaoPrevisaoCard } from "@/components/vendedor/ComissaoPrevisaoCard";
 import { useVendedor } from "@/hooks/useVendedor";
 
 export default function VendedorDashboard() {
@@ -163,7 +164,6 @@ export default function VendedorDashboard() {
     revendedor: clientes.filter(c => c.tipo_cliente === "REVENDEDOR").length,
   };
 
-  const comissaoMes = vendasMes * ((vendedor?.comissao_percentual || 0) / 100);
   const metaMensal = vendedor?.meta_mensal_valor || 0;
   const progressoMeta = metaMensal > 0 ? Math.min((vendasMes / metaMensal) * 100, 100) : 0;
 
@@ -315,49 +315,35 @@ export default function VendedorDashboard() {
         </div>
       )}
 
-      {/* Comissão e Meta */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">
-              Comissão Acumulada no Mês
-            </CardTitle>
-            <DollarSign className="h-5 w-5 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-700 dark:text-green-300">
-              R$ {comissaoMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-              Vendas do mês: R$ {vendasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} 
-              × {vendedor?.comissao_percentual || 0}%
-            </p>
-          </CardContent>
-        </Card>
+      {/* Comissão e Meta - Novo componente com parcelas */}
+      <ComissaoPrevisaoCard 
+        vendedorId={vendedor.id} 
+        comissaoPercentual={vendedor.comissao_percentual || 0} 
+      />
 
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">
-              Progresso da Meta
-            </CardTitle>
-            <Target className="h-5 w-5 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-end gap-2 mb-2">
-              <span className="text-3xl font-bold text-blue-700 dark:text-blue-300">
-                {progressoMeta.toFixed(1)}%
-              </span>
-              <span className="text-sm text-blue-600 dark:text-blue-400 mb-1">
-                da meta
-              </span>
-            </div>
-            <Progress value={progressoMeta} className="h-3 bg-blue-100 dark:bg-blue-900" />
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-              R$ {vendasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} de R$ {metaMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Progresso da Meta */}
+      <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">
+            Progresso da Meta
+          </CardTitle>
+          <Target className="h-5 w-5 text-blue-600" />
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-2 mb-2">
+            <span className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+              {progressoMeta.toFixed(1)}%
+            </span>
+            <span className="text-sm text-blue-600 dark:text-blue-400 mb-1">
+              da meta
+            </span>
+          </div>
+          <Progress value={progressoMeta} className="h-3 bg-blue-100 dark:bg-blue-900" />
+          <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+            R$ {vendasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} de R$ {metaMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          </p>
+        </CardContent>
+      </Card>
 
       {/* REPRESENTANTE: Ações Rápidas e Últimos Pedidos */}
       {isRepresentante && (
