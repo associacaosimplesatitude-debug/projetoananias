@@ -21,9 +21,10 @@ Deno.serve(async (req) => {
     let atualizadas = 0;
     let erros = 0;
 
-    // 1. Vendas online (mercadopago): agendada → liberada após dia 05
+    // 1. Vendas online (mercadopago e online/shopify): agendada → liberada após dia 05
     if (diaDoMes >= 5) {
-      const { data: agendadas, error: errAgendadas } = await supabase
+      // Mercado Pago
+      const { data: agendadasMP, error: errAgendadasMP } = await supabase
         .from('vendedor_propostas_parcelas')
         .update({ 
           comissao_status: 'liberada',
@@ -33,12 +34,31 @@ Deno.serve(async (req) => {
         .eq('origem', 'mercadopago')
         .select('id');
 
-      if (errAgendadas) {
-        console.error('Erro ao liberar agendadas:', errAgendadas);
+      if (errAgendadasMP) {
+        console.error('Erro ao liberar agendadas MP:', errAgendadasMP);
         erros++;
       } else {
-        atualizadas += agendadas?.length || 0;
-        console.log(`Liberadas ${agendadas?.length || 0} comissões agendadas (dia 05)`);
+        atualizadas += agendadasMP?.length || 0;
+        console.log(`Liberadas ${agendadasMP?.length || 0} comissões agendadas Mercado Pago (dia 05)`);
+      }
+
+      // Shopify Online
+      const { data: agendadasOnline, error: errAgendadasOnline } = await supabase
+        .from('vendedor_propostas_parcelas')
+        .update({ 
+          comissao_status: 'liberada',
+          data_liberacao: hoje.toISOString().split('T')[0]
+        })
+        .eq('comissao_status', 'agendada')
+        .eq('origem', 'online')
+        .select('id');
+
+      if (errAgendadasOnline) {
+        console.error('Erro ao liberar agendadas Online:', errAgendadasOnline);
+        erros++;
+      } else {
+        atualizadas += agendadasOnline?.length || 0;
+        console.log(`Liberadas ${agendadasOnline?.length || 0} comissões agendadas Shopify Online (dia 05)`);
       }
     }
 
