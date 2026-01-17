@@ -3,10 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { RefreshCw, Package, Search, Calendar, Users, DollarSign, Eye } from "lucide-react";
+import { RefreshCw, Search, Calendar, Eye, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +14,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useUserRole } from "@/hooks/useUserRole";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/hooks/useAuth";
 import { PedidoCGDetailDialog } from "@/components/admin/PedidoCGDetailDialog";
 
 type DateFilter = "today" | "7days" | "30days" | "thisMonth" | "custom" | "all";
@@ -38,6 +39,13 @@ function isPaidStatus(statusRaw: string | null | undefined): boolean {
   return canonicalizeStatus(statusRaw) === "paid";
 }
 
+interface EbdCliente {
+  id: string;
+  email_superintendente: string | null;
+  vendedor_id: string | null;
+  vendedor?: { id: string; nome: string } | null;
+}
+
 interface ShopifyPedidoCG {
   id: string;
   shopify_order_id: number;
@@ -52,7 +60,6 @@ interface ShopifyPedidoCG {
   created_at: string;
   order_date?: string | null;
   updated_at: string;
-  // Novos campos de endereço e CPF/CNPJ
   customer_document?: string | null;
   endereco_rua?: string | null;
   endereco_numero?: string | null;
@@ -63,12 +70,19 @@ interface ShopifyPedidoCG {
   endereco_cep?: string | null;
   endereco_nome?: string | null;
   endereco_telefone?: string | null;
+  // New commission fields
+  vendedor_id?: string | null;
+  cliente_id?: string | null;
+  comissao_aprovada?: boolean;
+  // Enriched fields (frontend only)
+  cliente?: EbdCliente | null;
+  vendedor?: { id: string; nome: string } | null;
 }
 
 export default function PedidosCentralGospel() {
   const queryClient = useQueryClient();
-  const { isAdmin, isGerenteEbd } = useUserRole();
-  const canManage = isAdmin || isGerenteEbd;
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("30days");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -77,6 +91,7 @@ export default function PedidosCentralGospel() {
   });
   const [selectedPedido, setSelectedPedido] = useState<ShopifyPedidoCG | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedPedidos, setSelectedPedidos] = useState<Set<string>>(new Set());
 
   const syncOrdersMutation = useMutation({
     mutationFn: async () => {
@@ -138,10 +153,35 @@ export default function PedidosCentralGospel() {
     };
   }, [queryClient]);
 
+  // Query to fetch clients with vendedor info for email matching
+  const { data: clientesMap = new Map() } = useQuery({
+    queryKey: ["ebd-clientes-for-cg"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_clientes")
+        .select("id, email_superintendente, vendedor_id, vendedor:vendedores(id, nome)")
+        .not("email_superintendente", "is", null);
+
+      if (error) throw error;
+
+      const map = new Map<string, EbdCliente>();
+      (data || []).forEach((c: any) => {
+        if (c.email_superintendente) {
+          map.set(c.email_superintendente.toLowerCase(), {
+            id: c.id,
+            email_superintendente: c.email_superintendente,
+            vendedor_id: c.vendedor_id,
+            vendedor: c.vendedor,
+          });
+        }
+      });
+      return map;
+    },
+  });
+
   const { data: pedidos = [], isLoading } = useQuery({
     queryKey: ["shopify-pedidos-cg"],
     queryFn: async () => {
-      // Busca todos os pedidos CG
       const { data: allPedidos, error: pedidosError } = await supabase
         .from("ebd_shopify_pedidos_cg")
         .select("*")
@@ -149,31 +189,70 @@ export default function PedidosCentralGospel() {
 
       if (pedidosError) throw pedidosError;
 
-      // Busca emails de clientes EBD vinculados para excluí-los
-      const { data: clientes } = await supabase
-        .from("ebd_clientes")
-        .select("email_superintendente")
-        .not("email_superintendente", "is", null);
+      return (allPedidos || []) as ShopifyPedidoCG[];
+    },
+  });
 
-      const clienteEmails = new Set(
-        (clientes || [])
-          .map((c) => c.email_superintendente?.toLowerCase())
-          .filter(Boolean)
-      );
+  // Enrich pedidos with cliente/vendedor info from email matching
+  const enrichedPedidos = useMemo(() => {
+    return pedidos.map((p) => {
+      const email = p.customer_email?.toLowerCase();
+      const matchedCliente = email ? clientesMap.get(email) : null;
 
-      // Exclui pedidos cujo email corresponde a um cliente EBD
-      const pedidosFiltrados = (allPedidos || []).filter(
-        (p) => !p.customer_email || !clienteEmails.has(p.customer_email.toLowerCase())
-      );
+      return {
+        ...p,
+        cliente: matchedCliente || null,
+        vendedor: matchedCliente?.vendedor || null,
+        // Use matched vendedor_id if not already set
+        vendedor_id: p.vendedor_id || matchedCliente?.vendedor_id || null,
+        cliente_id: p.cliente_id || matchedCliente?.id || null,
+      };
+    });
+  }, [pedidos, clientesMap]);
 
-      return pedidosFiltrados as ShopifyPedidoCG[];
+  // Mutation to approve commission
+  const aprovarComissaoMutation = useMutation({
+    mutationFn: async (pedidoId: string) => {
+      const { error } = await supabase
+        .from("ebd_shopify_pedidos_cg")
+        .update({ comissao_aprovada: true })
+        .eq("id", pedidoId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Comissão aprovada com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-cg"] });
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao aprovar comissão", { description: err.message });
+    },
+  });
+
+  // Mutation to approve multiple commissions
+  const aprovarSelecionadasMutation = useMutation({
+    mutationFn: async (pedidoIds: string[]) => {
+      const { error } = await supabase
+        .from("ebd_shopify_pedidos_cg")
+        .update({ comissao_aprovada: true })
+        .in("id", pedidoIds);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Comissões aprovadas com sucesso!");
+      setSelectedPedidos(new Set());
+      queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-cg"] });
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao aprovar comissões", { description: err.message });
     },
   });
 
   const filteredByDate = useMemo(() => {
     const now = new Date();
 
-    return pedidos.filter((pedido) => {
+    return enrichedPedidos.filter((pedido) => {
       const dateField = pedido.order_date || pedido.created_at;
       const createdAt = parseISO(dateField);
 
@@ -202,7 +281,7 @@ export default function PedidosCentralGospel() {
           return true;
       }
     });
-  }, [pedidos, dateFilter, customDateRange]);
+  }, [enrichedPedidos, dateFilter, customDateRange]);
 
   const filteredPedidos = useMemo(() => {
     if (!searchTerm) return filteredByDate;
@@ -217,26 +296,41 @@ export default function PedidosCentralGospel() {
     );
   }, [filteredByDate, searchTerm]);
 
-  const stats = useMemo(() => {
-    const paidOrders = filteredByDate.filter((p) => isPaidStatus(p.status_pagamento));
-    
-    // Calculate recurrent customers: unique customers with more than 1 order in the filtered period
-    const customerOrderCounts = new Map<string, number>();
-    filteredByDate.forEach((pedido) => {
-      const customerKey = pedido.customer_email?.toLowerCase() || pedido.customer_name?.toLowerCase() || '';
-      if (customerKey) {
-        customerOrderCounts.set(customerKey, (customerOrderCounts.get(customerKey) || 0) + 1);
-      }
-    });
-    const recurrentCustomers = Array.from(customerOrderCounts.values()).filter((count) => count > 1).length;
+  // Determine which orders are approvable (paid + has vendedor + not yet approved)
+  const approvablePedidos = useMemo(() => {
+    return filteredPedidos.filter(
+      (p) =>
+        isPaidStatus(p.status_pagamento) &&
+        p.vendedor_id &&
+        !p.comissao_aprovada
+    );
+  }, [filteredPedidos]);
 
-    return {
-      total: filteredByDate.length,
-      totalValue: filteredByDate.reduce((sum, p) => sum + (p.valor_total || 0), 0),
-      paid: paidOrders.length,
-      recurrent: recurrentCustomers,
-    };
-  }, [filteredByDate]);
+  const allApprovableSelected = approvablePedidos.length > 0 && 
+    approvablePedidos.every((p) => selectedPedidos.has(p.id));
+
+  const toggleSelectAll = () => {
+    if (allApprovableSelected) {
+      setSelectedPedidos(new Set());
+    } else {
+      setSelectedPedidos(new Set(approvablePedidos.map((p) => p.id)));
+    }
+  };
+
+  const toggleSelectPedido = (pedidoId: string) => {
+    const newSet = new Set(selectedPedidos);
+    if (newSet.has(pedidoId)) {
+      newSet.delete(pedidoId);
+    } else {
+      newSet.add(pedidoId);
+    }
+    setSelectedPedidos(newSet);
+  };
+
+  const handleAprovarSelecionadas = () => {
+    if (selectedPedidos.size === 0) return;
+    aprovarSelecionadasMutation.mutate(Array.from(selectedPedidos));
+  };
 
   const getStatusBadge = (status: string) => {
     const canonical = canonicalizeStatus(status);
@@ -269,6 +363,10 @@ export default function PedidosCentralGospel() {
     if (value !== "custom") {
       setCustomDateRange({ from: undefined, to: undefined });
     }
+  };
+
+  const isApprovable = (pedido: ShopifyPedidoCG) => {
+    return isPaidStatus(pedido.status_pagamento) && pedido.vendedor_id && !pedido.comissao_aprovada;
   };
 
   return (
@@ -337,6 +435,36 @@ export default function PedidosCentralGospel() {
         </div>
       </div>
 
+      {/* Batch selection bar for admin */}
+      {isAdmin && filteredPedidos.length > 0 && (
+        <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={allApprovableSelected}
+              onCheckedChange={toggleSelectAll}
+              disabled={approvablePedidos.length === 0}
+            />
+            <span className="text-sm font-medium">
+              {approvablePedidos.length === 0
+                ? "Todas aprovadas"
+                : allApprovableSelected
+                  ? `${approvablePedidos.length} selecionado(s)`
+                  : "Selecionar todas pendentes"}
+            </span>
+          </div>
+          {selectedPedidos.size > 0 && (
+            <Button
+              size="sm"
+              onClick={handleAprovarSelecionadas}
+              disabled={aprovarSelecionadasMutation.isPending}
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Aprovar Selecionadas ({selectedPedidos.size})
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Orders Table */}
       <Card>
         <CardContent className="p-0">
@@ -344,90 +472,137 @@ export default function PedidosCentralGospel() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAdmin && <TableHead className="w-12"></TableHead>}
                   <TableHead>Pedido</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Cliente</TableHead>
+                  <TableHead>Vendedor</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Comissão</TableHead>
                   <TableHead>Rastreio</TableHead>
-                  <TableHead className="w-12"></TableHead>
+                  {isAdmin && <TableHead className="w-24">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
+                      {isAdmin && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                      {isAdmin && <TableCell><Skeleton className="h-4 w-16" /></TableCell>}
                     </TableRow>
                   ))
                 ) : filteredPedidos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={isAdmin ? 10 : 8} className="text-center py-8 text-muted-foreground">
                       Nenhum pedido encontrado
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredPedidos.map((pedido) => (
-                    <TableRow 
-                      key={pedido.id} 
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => {
-                        setSelectedPedido(pedido);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      <TableCell className="font-medium">{pedido.order_number}</TableCell>
-                      <TableCell>{formatDate(getPedidoDate(pedido))}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{pedido.customer_name || "-"}</div>
-                          <div className="text-sm text-muted-foreground">{pedido.customer_email || "-"}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {pedido.valor_total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(pedido.status_pagamento)}</TableCell>
-                      <TableCell>
-                        {pedido.codigo_rastreio ? (
-                          pedido.url_rastreio ? (
-                            <a
-                              href={pedido.url_rastreio}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {pedido.codigo_rastreio}
-                            </a>
-                          ) : (
-                            <span>{pedido.codigo_rastreio}</span>
-                          )
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
+                  filteredPedidos.map((pedido) => {
+                    const canApprove = isApprovable(pedido);
+                    
+                    return (
+                      <TableRow 
+                        key={pedido.id} 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => {
+                          setSelectedPedido(pedido);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        {isAdmin && (
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            {canApprove && (
+                              <Checkbox
+                                checked={selectedPedidos.has(pedido.id)}
+                                onCheckedChange={() => toggleSelectPedido(pedido.id)}
+                              />
+                            )}
+                          </TableCell>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPedido(pedido);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        <TableCell className="font-medium">{pedido.order_number}</TableCell>
+                        <TableCell>{formatDate(getPedidoDate(pedido))}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pedido.customer_name || "-"}</div>
+                            <div className="text-sm text-muted-foreground">{pedido.customer_email || "-"}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {pedido.vendedor?.nome || (
+                            <span className="text-muted-foreground text-sm">Sem vendedor</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {pedido.valor_total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(pedido.status_pagamento)}</TableCell>
+                        <TableCell>
+                          {pedido.comissao_aprovada ? (
+                            <Badge className="bg-green-500">Aprovada</Badge>
+                          ) : pedido.vendedor_id ? (
+                            <Badge variant="outline">Pendente</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {pedido.codigo_rastreio ? (
+                            pedido.url_rastreio ? (
+                              <a
+                                href={pedido.url_rastreio}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {pedido.codigo_rastreio}
+                              </a>
+                            ) : (
+                              <span>{pedido.codigo_rastreio}</span>
+                            )
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        {isAdmin && (
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedPedido(pedido);
+                                  setDialogOpen(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {canApprove && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => aprovarComissaoMutation.mutate(pedido.id)}
+                                  disabled={aprovarComissaoMutation.isPending}
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
