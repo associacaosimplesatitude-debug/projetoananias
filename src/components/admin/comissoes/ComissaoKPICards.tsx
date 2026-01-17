@@ -32,12 +32,13 @@ export function ComissaoKPICards({ kpis, onViewDetail }: ComissaoKPICardsProps) 
             R$ {kpis.aPagar.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-green-600">{kpis.aPagar.quantidade} comissões liberadas</p>
-          {onViewDetail && kpis.aPagar.quantidade > 0 && (
+          {onViewDetail && (
             <Button 
               variant="ghost" 
               size="sm" 
-              className="mt-2 h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-100"
+              className="mt-2 h-7 px-2 text-xs text-green-700 hover:text-green-800 hover:bg-green-100 disabled:opacity-50"
               onClick={() => onViewDetail('liberada')}
+              disabled={kpis.aPagar.quantidade === 0}
             >
               Ver comissões
               <ChevronRight className="h-3 w-3 ml-1" />
@@ -57,12 +58,13 @@ export function ComissaoKPICards({ kpis, onViewDetail }: ComissaoKPICardsProps) 
             R$ {kpis.agendadas.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-blue-600">{kpis.agendadas.quantidade} vendas online</p>
-          {onViewDetail && kpis.agendadas.quantidade > 0 && (
+          {onViewDetail && (
             <Button 
               variant="ghost" 
               size="sm" 
-              className="mt-2 h-7 px-2 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-100"
+              className="mt-2 h-7 px-2 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-100 disabled:opacity-50"
               onClick={() => onViewDetail('agendada')}
+              disabled={kpis.agendadas.quantidade === 0}
             >
               Ver comissões
               <ChevronRight className="h-3 w-3 ml-1" />
@@ -82,12 +84,13 @@ export function ComissaoKPICards({ kpis, onViewDetail }: ComissaoKPICardsProps) 
             R$ {kpis.pendentes.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-yellow-600">{kpis.pendentes.quantidade} parcelas 30/60/90</p>
-          {onViewDetail && kpis.pendentes.quantidade > 0 && (
+          {onViewDetail && (
             <Button 
               variant="ghost" 
               size="sm" 
-              className="mt-2 h-7 px-2 text-xs text-yellow-700 hover:text-yellow-800 hover:bg-yellow-100"
+              className="mt-2 h-7 px-2 text-xs text-yellow-700 hover:text-yellow-800 hover:bg-yellow-100 disabled:opacity-50"
               onClick={() => onViewDetail('pendente')}
+              disabled={kpis.pendentes.quantidade === 0}
             >
               Ver comissões
               <ChevronRight className="h-3 w-3 ml-1" />
@@ -107,12 +110,13 @@ export function ComissaoKPICards({ kpis, onViewDetail }: ComissaoKPICardsProps) 
             R$ {kpis.pagas.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-muted-foreground">{kpis.pagas.quantidade} comissões pagas</p>
-          {onViewDetail && kpis.pagas.quantidade > 0 && (
+          {onViewDetail && (
             <Button 
               variant="ghost" 
               size="sm" 
-              className="mt-2 h-7 px-2 text-xs"
+              className="mt-2 h-7 px-2 text-xs disabled:opacity-50"
               onClick={() => onViewDetail('paga')}
+              disabled={kpis.pagas.quantidade === 0}
             >
               Ver comissões
               <ChevronRight className="h-3 w-3 ml-1" />
@@ -132,12 +136,13 @@ export function ComissaoKPICards({ kpis, onViewDetail }: ComissaoKPICardsProps) 
             R$ {kpis.atrasadas.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </div>
           <p className="text-xs text-red-600">{kpis.atrasadas.quantidade} requerem atenção</p>
-          {onViewDetail && kpis.atrasadas.quantidade > 0 && (
+          {onViewDetail && (
             <Button 
               variant="ghost" 
               size="sm" 
-              className="mt-2 h-7 px-2 text-xs text-red-700 hover:text-red-800 hover:bg-red-100"
+              className="mt-2 h-7 px-2 text-xs text-red-700 hover:text-red-800 hover:bg-red-100 disabled:opacity-50"
               onClick={() => onViewDetail('atrasada')}
+              disabled={kpis.atrasadas.quantidade === 0}
             >
               Ver comissões
               <ChevronRight className="h-3 w-3 ml-1" />
