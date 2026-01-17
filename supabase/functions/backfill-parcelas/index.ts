@@ -211,33 +211,36 @@ serve(async (req) => {
 
     console.log(`[${requestId}] Pedidos Shopify pagos encontrados: ${pedidosShopify?.length || 0}`);
 
-    // Verificar quais já têm parcelas (por origem online - usando proposta_id como referência ao pedido)
+    // Verificar quais já têm parcelas (por origem online - usando vendedor_id + cliente_id + valor + data)
     const { data: parcelasOnlineExistentes } = await supabase
       .from('vendedor_propostas_parcelas')
-      .select('proposta_id')
-      .eq('origem', 'online')
-      .not('proposta_id', 'is', null);
+      .select('vendedor_id, cliente_id, valor, data_vencimento')
+      .eq('origem', 'online');
 
-    const pedidosShopifyComParcelas = new Set(
-      parcelasOnlineExistentes?.map(p => p.proposta_id) || []
+    // Criar Set de chaves únicas para evitar duplicatas (mesma lógica do mercadopago)
+    const parcelasOnlineSet = new Set(
+      parcelasOnlineExistentes?.map(p => `${p.vendedor_id}-${p.cliente_id}-${p.valor}-${p.data_vencimento}`) || []
     );
 
-    console.log(`[${requestId}] Pedidos Shopify já com parcelas: ${pedidosShopifyComParcelas.size}`);
+    console.log(`[${requestId}] Parcelas online já existentes: ${parcelasOnlineSet.size}`);
 
     for (const pedido of (pedidosShopify || [])) {
       if (!pedido.vendedor_id) continue;
-      if (pedidosShopifyComParcelas.has(pedido.id)) continue;
-
-      totalShopify++;
+      
       const valorTotal = pedido.valor_total || 0;
       const dataPagamento = new Date(pedido.created_at).toISOString().split('T')[0];
+      const chave = `${pedido.vendedor_id}-${pedido.cliente_id}-${valorTotal}-${dataPagamento}`;
+      
+      if (parcelasOnlineSet.has(chave)) continue;
+
+      totalShopify++;
       const comissaoPercentual = vendedorComissao[pedido.vendedor_id] || 1.5;
       const valorComissao = Math.round((valorTotal * (comissaoPercentual / 100)) * 100) / 100;
       const dataPedido = new Date(pedido.created_at);
       const jaLiberada = jaPassouDiaLiberacao(dataPedido);
 
       parcelasToInsert.push({
-        proposta_id: pedido.id, // Referência ao pedido Shopify
+        proposta_id: null, // Não usar FK para pedidos online
         vendedor_id: pedido.vendedor_id,
         cliente_id: pedido.cliente_id,
         numero_parcela: 1,
