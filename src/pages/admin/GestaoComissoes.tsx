@@ -237,10 +237,10 @@ export default function GestaoComissoes() {
   const dashboardBlocks = useMemo(() => {
     // Pagamento Dia 05 - vendas online do mês
     const agendadasOnline = parcelas.filter(p => 
-      p.comissao_status === 'agendada' && p.origem === 'mercadopago'
+      p.comissao_status === 'agendada' && (p.origem === 'mercadopago' || p.origem === 'online')
     );
     const liberadasOnline = parcelas.filter(p => 
-      p.comissao_status === 'liberada' && p.origem === 'mercadopago'
+      p.comissao_status === 'liberada' && (p.origem === 'mercadopago' || p.origem === 'online')
     );
 
     // Recebimentos 30/60/90
@@ -304,7 +304,7 @@ export default function GestaoComissoes() {
           cliente_nome: clienteMap.get(p.cliente_id) || "-",
           valor_comissao: Number(p.valor_comissao || 0),
           data_vencimento: p.data_vencimento,
-          tipo: p.origem === 'mercadopago' ? 'Online' : 'Faturado'
+          tipo: (p.origem === 'mercadopago' || p.origem === 'online') ? 'Online' : 'Faturado'
         };
       });
   }, [parcelas, clienteMap, vendedorById, vendedorByEmail]);
@@ -326,7 +326,7 @@ export default function GestaoComissoes() {
     // Filter by tipo
     if (tipoSelecionado !== "todos") {
       resultado = resultado.filter(p => {
-        if (tipoSelecionado === "online") return p.origem === "mercadopago";
+        if (tipoSelecionado === "online") return p.origem === "mercadopago" || p.origem === "online";
         if (tipoSelecionado === "faturado") return p.origem === "faturado";
         return true;
       });
