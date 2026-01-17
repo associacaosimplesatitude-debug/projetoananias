@@ -88,6 +88,7 @@ interface MercadoPagoPedido {
   valor_produtos: number;
   payment_method: string | null;
   bling_order_id: number | null;
+  items: any[] | null;
 }
 
 // Interface for the detail dialog
@@ -745,7 +746,36 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled
+                          onClick={() => {
+                            // Parse items from JSON
+                            const items = Array.isArray(pedido.items) ? pedido.items : [];
+                            
+                            // Transform items to the format expected by the dialog
+                            const itensFormatted = items.map((item: any, idx: number) => ({
+                              id: item.productId || `item-${idx}`,
+                              nome: item.title || 'Produto',
+                              quantidade: item.quantity || 1,
+                              preco: Number(item.price || 0) * (1 - (item.descontoItem || 0) / 100),
+                              sku: item.sku
+                            }));
+                            
+                            // Calculate discount applied
+                            const valorProdutosSemDesconto = items.reduce((acc: number, item: any) => 
+                              acc + (Number(item.price || 0) * (item.quantity || 1)), 0);
+                            const valorProdutosComDesconto = Number(pedido.valor_produtos || 0);
+                            const descontoAplicado = valorProdutosSemDesconto - valorProdutosComDesconto;
+                            
+                            setSelectedPropostaDetail({
+                              id: pedido.id,
+                              cliente_nome: pedido.cliente_nome || clienteMap[pedido.cliente_id || ''] || 'N/A',
+                              valor_total: Number(pedido.valor_total || 0),
+                              valor_frete: Number(pedido.valor_frete || 0),
+                              desconto_aplicado: descontoAplicado > 0 ? descontoAplicado : 0,
+                              created_at: pedido.created_at,
+                              itens: itensFormatted,
+                            });
+                            setPropostaDetailDialogOpen(true);
+                          }}
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           Ver
