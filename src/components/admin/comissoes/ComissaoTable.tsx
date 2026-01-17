@@ -123,6 +123,7 @@ export function ComissaoTable({ comissoes, onMarcarPaga, isUpdating, showActions
             <TableHead>Tipo</TableHead>
             <TableHead>Parcela</TableHead>
             <TableHead>Vencimento</TableHead>
+            <TableHead className="text-right">Valor</TableHead>
             <TableHead className="text-right">Valor Comissão</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Liberação</TableHead>
@@ -139,6 +140,9 @@ export function ComissaoTable({ comissoes, onMarcarPaga, isUpdating, showActions
               <TableCell>{item.numero_parcela}/{item.total_parcelas}</TableCell>
               <TableCell className="whitespace-nowrap">
                 {format(parseISO(item.data_vencimento), "dd/MM/yyyy")}
+              </TableCell>
+              <TableCell className="text-right font-medium">
+                R$ {item.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </TableCell>
               <TableCell className="text-right font-semibold text-purple-600">
                 R$ {item.valor_comissao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
