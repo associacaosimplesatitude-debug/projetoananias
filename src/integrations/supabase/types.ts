@@ -3415,7 +3415,9 @@ export type Database = {
       }
       ebd_shopify_pedidos_cg: {
         Row: {
+          cliente_id: string | null
           codigo_rastreio: string | null
+          comissao_aprovada: boolean | null
           created_at: string
           customer_document: string | null
           customer_email: string | null
@@ -3438,9 +3440,12 @@ export type Database = {
           url_rastreio: string | null
           valor_frete: number
           valor_total: number
+          vendedor_id: string | null
         }
         Insert: {
+          cliente_id?: string | null
           codigo_rastreio?: string | null
+          comissao_aprovada?: boolean | null
           created_at?: string
           customer_document?: string | null
           customer_email?: string | null
@@ -3463,9 +3468,12 @@ export type Database = {
           url_rastreio?: string | null
           valor_frete?: number
           valor_total?: number
+          vendedor_id?: string | null
         }
         Update: {
+          cliente_id?: string | null
           codigo_rastreio?: string | null
+          comissao_aprovada?: boolean | null
           created_at?: string
           customer_document?: string | null
           customer_email?: string | null
@@ -3488,8 +3496,24 @@ export type Database = {
           url_rastreio?: string | null
           valor_frete?: number
           valor_total?: number
+          vendedor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ebd_shopify_pedidos_cg_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_shopify_pedidos_cg_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ebd_shopify_pedidos_cg_itens: {
         Row: {
