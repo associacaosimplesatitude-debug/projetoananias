@@ -254,6 +254,47 @@ serve(async (req) => {
       console.error(`[${requestId}] Erro ao atualizar pedido:`, updateError);
     }
 
+    // 7. Criar parcela paga para comissão do vendedor (Mercado Pago = pagamento à vista)
+    if (pedido.vendedor_id) {
+      try {
+        // Buscar comissão do vendedor
+        const { data: vendedorData } = await supabase
+          .from('vendedores')
+          .select('comissao_percentual')
+          .eq('id', pedido.vendedor_id)
+          .single();
+
+        const comissaoPercentual = vendedorData?.comissao_percentual || 1.5;
+        const valorTotal = pedido.valor_total || 0;
+        const valorComissao = Math.round((valorTotal * (comissaoPercentual / 100)) * 100) / 100;
+        const hoje = new Date().toISOString().split('T')[0];
+
+        const { error: parcelaError } = await supabase
+          .from('vendedor_propostas_parcelas')
+          .insert({
+            proposta_id: null,  // Não tem proposta associada
+            vendedor_id: pedido.vendedor_id,
+            cliente_id: pedido.cliente_id,
+            numero_parcela: 1,
+            total_parcelas: 1,
+            valor: valorTotal,
+            valor_comissao: valorComissao,
+            data_vencimento: hoje,
+            data_pagamento: hoje,  // Já pago!
+            status: 'paga',
+            origem: 'mercadopago',
+          });
+
+        if (parcelaError) {
+          console.error(`[${requestId}] Erro ao criar parcela:`, parcelaError);
+        } else {
+          console.log(`[${requestId}] ✅ Parcela paga criada para vendedor ${pedido.vendedor_id} - Comissão: R$ ${valorComissao}`);
+        }
+      } catch (parcelaErr) {
+        console.error(`[${requestId}] Erro ao gerar parcela:`, parcelaErr);
+      }
+    }
+
     console.log(`[${requestId}] ✅ Sincronização concluída!`, {
       pedido_id: pedido.id,
       status: 'PAGO',
