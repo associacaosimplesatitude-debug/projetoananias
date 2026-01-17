@@ -4505,6 +4505,7 @@ export type Database = {
           frete_transportadora: string | null
           id: string
           itens: Json
+          link_danfe: string | null
           metodo_frete: string | null
           payment_link: string | null
           pode_faturar: boolean | null
@@ -4540,6 +4541,7 @@ export type Database = {
           frete_transportadora?: string | null
           id?: string
           itens?: Json
+          link_danfe?: string | null
           metodo_frete?: string | null
           payment_link?: string | null
           pode_faturar?: boolean | null
@@ -4575,6 +4577,7 @@ export type Database = {
           frete_transportadora?: string | null
           id?: string
           itens?: Json
+          link_danfe?: string | null
           metodo_frete?: string | null
           payment_link?: string | null
           pode_faturar?: boolean | null
