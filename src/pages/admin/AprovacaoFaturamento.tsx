@@ -359,9 +359,14 @@ export default function AprovacaoFaturamento() {
       }
 
       // SUCESSO: Atualiza para FATURADO após sucesso confirmado no Bling
+      // Também salvar o bling_order_number e bling_order_id na proposta
       const { error: updateError } = await supabase
         .from("vendedor_propostas")
-        .update({ status: "FATURADO" })
+        .update({ 
+          status: "FATURADO",
+          bling_order_id: data.bling_order_id || null,
+          bling_order_number: data.bling_order_number?.toString() || null,
+        })
         .eq("id", proposta.id);
       
       if (updateError) {
@@ -425,6 +430,7 @@ export default function AprovacaoFaturamento() {
           const comissaoPorParcela = Math.round((valorPorParcela * (comissaoPercentual / 100)) * 100) / 100;
           const dataFaturamento = new Date();
 
+          // Usar o bling_order_number/id retornado do Bling (data), não da proposta original
           const parcelasToInsert = diasParcelas.map((dias, index) => ({
             proposta_id: proposta.id,
             vendedor_id: proposta.vendedor_id,
@@ -437,8 +443,8 @@ export default function AprovacaoFaturamento() {
             status: 'aguardando',
             origem: 'faturado',
             metodo_pagamento: metodosParcelas[index],
-            bling_order_number: proposta.bling_order_number || null,
-            bling_order_id: proposta.bling_order_id || null,
+            bling_order_number: data.bling_order_number?.toString() || null,
+            bling_order_id: data.bling_order_id || null,
           }));
 
           const { error: parcelasError } = await supabase

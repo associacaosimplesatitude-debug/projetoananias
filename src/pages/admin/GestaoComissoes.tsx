@@ -84,7 +84,7 @@ type Venda = VendaFaturada | VendaOnline;
 export default function GestaoComissoes() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<string>("vendas");
-  const [mesSelecionado, setMesSelecionado] = useState<string>(format(new Date(), "yyyy-MM"));
+  const [mesSelecionado, setMesSelecionado] = useState<string>("todos");
   const [statusSelecionado, setStatusSelecionado] = useState<string>("todos");
   const [vendedorSelecionado, setVendedorSelecionado] = useState<string>("todos");
   const [origemSelecionada, setOrigemSelecionada] = useState<string>("todos");
@@ -145,7 +145,7 @@ export default function GestaoComissoes() {
       const { data, error } = await supabase
         .from("vendedores")
         .select("id, nome, comissao_percentual")
-        .eq("status", "ativo")
+        .ilike("status", "ativo")
         .order("nome");
       
       if (error) throw error;
