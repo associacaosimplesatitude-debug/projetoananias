@@ -182,10 +182,13 @@ export default function PedidosIgrejaCNPJ() {
 
       if (err2) throw err2;
 
-      // Filter pedidos vinculados by tipo_cliente
+      // Filter pedidos vinculados by tipo_cliente (case-insensitive)
       const filteredVinculados = (pedidosVinculados || [])
         .filter((p) => isPaidStatus(p.status_pagamento))
-        .filter((p) => p.cliente?.tipo_cliente === "Igreja CNPJ" && p.cliente?.vendedor_id)
+        .filter((p) => {
+          const tipo = p.cliente?.tipo_cliente?.trim().toLowerCase() || '';
+          return (tipo === 'igreja cnpj') && p.cliente?.vendedor_id;
+        })
         .map(p => ({
           ...p,
           source: 'ebd_shopify_pedidos' as const,
