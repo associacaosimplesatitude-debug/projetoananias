@@ -17,6 +17,15 @@ import { ptBR } from "date-fns/locale";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 
+interface ParcelaProposta {
+  id: string;
+  vendedor_email: string | null;
+  vendedor_nome: string | null;
+  bling_order_number: string | null;
+  bling_order_id: number | null;
+  link_danfe: string | null;
+}
+
 interface Parcela {
   id: string;
   proposta_id: string | null;
@@ -33,11 +42,13 @@ interface Parcela {
   metodo_pagamento: string | null;
   bling_order_number: string | null;
   bling_order_id: number | null;
+  proposta?: ParcelaProposta | null;
 }
 
 interface Vendedor {
   id: string;
   nome: string;
+  email: string | null;
   comissao_percentual: number;
 }
 
@@ -70,6 +81,8 @@ interface VendaOnline {
   cliente_id: string | null;
   cliente_nome: string | null;
   vendedor_id: string | null;
+  vendedor_email: string | null;
+  vendedor_nome: string | null;
   valor_total: number;
   valor_frete: number | null;
   payment_status: string;
@@ -90,13 +103,13 @@ export default function GestaoComissoes() {
   const [origemSelecionada, setOrigemSelecionada] = useState<string>("todos");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch all parcelas
+  // Fetch all parcelas with related proposta data for vendor fallback
   const { data: parcelas = [], isLoading: parcelasLoading } = useQuery({
     queryKey: ["admin-todas-parcelas"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendedor_propostas_parcelas")
-        .select("*")
+        .select("*, proposta:vendedor_propostas(id, vendedor_email, vendedor_nome, bling_order_number, bling_order_id, link_danfe)")
         .order("data_vencimento", { ascending: true });
       
       if (error) throw error;
@@ -138,14 +151,13 @@ export default function GestaoComissoes() {
     },
   });
 
-  // Fetch all vendedores
+  // Fetch all vendedores (including email for fallback matching)
   const { data: vendedores = [] } = useQuery({
     queryKey: ["admin-vendedores-comissoes"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendedores")
-        .select("id, nome, comissao_percentual")
-        .ilike("status", "ativo")
+        .select("id, nome, email, comissao_percentual")
         .order("nome");
       
       if (error) throw error;
@@ -175,7 +187,48 @@ export default function GestaoComissoes() {
   });
 
   const clienteMap = useMemo(() => new Map(clientes.map(c => [c.id, c.nome_igreja])), [clientes]);
-  const vendedorMap = useMemo(() => new Map(vendedores.map(v => [v.id, v])), [vendedores]);
+  const vendedorById = useMemo(() => new Map(vendedores.map(v => [v.id, v])), [vendedores]);
+  
+  // Normalize email for consistent matching
+  const normalizeEmail = (email: string | null | undefined) => email?.trim().toLowerCase() || "";
+  
+  // Map by email for fallback resolution
+  const vendedorByEmail = useMemo(() => {
+    const map = new Map<string, Vendedor>();
+    vendedores.forEach(v => {
+      if (v.email) {
+        map.set(normalizeEmail(v.email), v);
+      }
+    });
+    return map;
+  }, [vendedores]);
+
+  // Universal vendor name resolver - uses ID first, then email fallback
+  const resolveVendedorNome = (data: { 
+    vendedor_id?: string | null; 
+    vendedor_email?: string | null; 
+    vendedor_nome?: string | null; 
+  }) => {
+    // 1. If vendedor_nome is directly on record, use it
+    if (data.vendedor_nome) return data.vendedor_nome;
+    
+    // 2. Try by ID
+    if (data.vendedor_id) {
+      const vendedor = vendedorById.get(data.vendedor_id);
+      if (vendedor) return vendedor.nome;
+    }
+    
+    // 3. Try by email
+    if (data.vendedor_email) {
+      const vendedor = vendedorByEmail.get(normalizeEmail(data.vendedor_email));
+      if (vendedor) return vendedor.nome;
+    }
+    
+    return "Desconhecido";
+  };
+
+  // Keep vendedorMap for backward compatibility (used in filters, etc.)
+  const vendedorMap = vendedorById;
 
   // Generate month options
   const mesesDisponiveis = useMemo(() => {
@@ -362,33 +415,54 @@ export default function GestaoComissoes() {
     };
   }, [parcelasFiltradas]);
 
-  // Summary by vendedor for vendas
+  // Summary by vendedor for vendas - use resolveVendedorNome for proper name resolution
   const resumoPorVendedorVendas = useMemo(() => {
-    const resumo = new Map<string, { totalVendas: number; comissao: number; quantidade: number }>();
+    const resumo = new Map<string, { 
+      totalVendas: number; 
+      comissao: number; 
+      quantidade: number; 
+      vendedorNome: string;
+    }>();
     
     vendasFiltradas.forEach(v => {
+      // Create a unique key based on vendedor_id or vendedor_email
       const vendedorId = v.vendedor_id || "";
-      if (!vendedorId) return;
+      const vendedorEmail = 'vendedor_email' in v ? (v as VendaOnline).vendedor_email : null;
+      const vendedorNome = 'vendedor_nome' in v ? (v as VendaOnline).vendedor_nome : null;
       
-      const current = resumo.get(vendedorId) || { totalVendas: 0, comissao: 0, quantidade: 0 };
-      const vendedor = vendedorMap.get(vendedorId);
+      // Resolve the vendor name
+      const nome = resolveVendedorNome({ 
+        vendedor_id: vendedorId || undefined, 
+        vendedor_email: vendedorEmail, 
+        vendedor_nome: vendedorNome 
+      });
+      
+      // Use vendedor_id as key if available, otherwise use email
+      const key = vendedorId || normalizeEmail(vendedorEmail) || "unknown";
+      if (key === "unknown" && nome === "Desconhecido") return;
+      
+      const current = resumo.get(key) || { totalVendas: 0, comissao: 0, quantidade: 0, vendedorNome: nome };
+      const vendedor = vendedorById.get(vendedorId);
       const comissaoPercentual = vendedor?.comissao_percentual || 1.5;
       const valorBase = Number(v.valor_total || 0) - Number(v.valor_frete || 0);
       
       current.totalVendas += valorBase;
       current.comissao += valorBase * (comissaoPercentual / 100);
       current.quantidade++;
-      resumo.set(vendedorId, current);
+      current.vendedorNome = nome; // Ensure we keep the resolved name
+      resumo.set(key, current);
     });
 
     return Array.from(resumo.entries())
-      .map(([vendedorId, data]) => ({
-        vendedorId,
-        vendedorNome: vendedorMap.get(vendedorId)?.nome || "Desconhecido",
-        ...data,
+      .map(([vendedorKey, data]) => ({
+        vendedorId: vendedorKey,
+        vendedorNome: data.vendedorNome,
+        totalVendas: data.totalVendas,
+        comissao: data.comissao,
+        quantidade: data.quantidade,
       }))
       .sort((a, b) => b.totalVendas - a.totalVendas);
-  }, [vendasFiltradas, vendedorMap]);
+  }, [vendasFiltradas, vendedorById, vendedorByEmail]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -724,7 +798,11 @@ export default function GestaoComissoes() {
                             {format(parseISO(venda.created_at), "dd/MM/yyyy")}
                           </TableCell>
                           <TableCell>
-                            {vendedorMap.get(venda.vendedor_id || "")?.nome || "-"}
+                            {resolveVendedorNome({
+                              vendedor_id: venda.vendedor_id,
+                              vendedor_email: venda.tipo === 'online' ? (venda as VendaOnline).vendedor_email : null,
+                              vendedor_nome: venda.tipo === 'online' ? (venda as VendaOnline).vendedor_nome : (venda as VendaFaturada).vendedor_nome,
+                            })}
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate">
                             {venda.tipo === 'faturado' 
@@ -940,6 +1018,7 @@ export default function GestaoComissoes() {
                         <TableHead className="text-right">Comissão</TableHead>
                         <TableHead>Método</TableHead>
                         <TableHead>Origem</TableHead>
+                        <TableHead>NF</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Ações</TableHead>
                       </TableRow>
@@ -951,7 +1030,11 @@ export default function GestaoComissoes() {
                             {format(parseISO(parcela.data_vencimento), "dd/MM/yyyy")}
                           </TableCell>
                           <TableCell>
-                            {vendedorMap.get(parcela.vendedor_id)?.nome || "-"}
+                            {resolveVendedorNome({
+                              vendedor_id: parcela.vendedor_id,
+                              vendedor_email: parcela.proposta?.vendedor_email,
+                              vendedor_nome: parcela.proposta?.vendedor_nome,
+                            })}
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate">
                             {clienteMap.get(parcela.cliente_id) || "-"}
@@ -970,6 +1053,28 @@ export default function GestaoComissoes() {
                           </TableCell>
                           <TableCell>
                             {getOrigemBadge(parcela.origem)}
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const blingNumber = parcela.bling_order_number || parcela.proposta?.bling_order_number;
+                              const danfeLink = parcela.proposta?.link_danfe;
+                              if (!blingNumber) return <span className="text-muted-foreground">-</span>;
+                              return (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm">{blingNumber}</span>
+                                  {danfeLink && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() => window.open(danfeLink, "_blank")}
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             {getStatusBadge(parcela.status)}
