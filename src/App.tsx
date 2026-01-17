@@ -118,11 +118,11 @@ import VendedorLeadsPage from "./pages/vendedor/VendedorLeadsPage";
 import VendedorLeadsLandingPage from "./pages/vendedor/VendedorLeadsLandingPage";
 import VendedorPedidosPage from "./pages/vendedor/VendedorPedidosPage";
 import VendedorNotasEmitidas from "./pages/vendedor/VendedorNotasEmitidas";
+import VendedorParcelas from "./pages/vendedor/VendedorParcelas";
 import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 import { VendedorProtectedRoute } from "./components/vendedor/VendedorProtectedRoute";
 import VendedorCalculadoraPeso from "./pages/vendedor/VendedorCalculadoraPeso";
 import VendedorPDV from "./pages/vendedor/VendedorPDV";
-
 
 // Shopify Pages
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
@@ -459,6 +459,7 @@ const App = () => (
                       } />
                       <Route path="pedidos" element={<VendedorPedidosPage />} />
                       <Route path="notas-emitidas" element={<VendedorNotasEmitidas />} />
+                      <Route path="parcelas" element={<VendedorParcelas />} />
                       <Route path="calculadora-peso" element={<VendedorCalculadoraPeso />} />
                       <Route path="shopify" element={<ShopifyPedidos />} />
                       <Route path="tutoriais" element={<Tutoriais />} />

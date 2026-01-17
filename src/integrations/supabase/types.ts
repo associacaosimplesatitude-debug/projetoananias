@@ -4607,6 +4607,79 @@ export type Database = {
           },
         ]
       }
+      vendedor_propostas_parcelas: {
+        Row: {
+          cliente_id: string | null
+          created_at: string | null
+          data_pagamento: string | null
+          data_vencimento: string
+          id: string
+          numero_parcela: number
+          origem: string | null
+          proposta_id: string | null
+          status: string | null
+          total_parcelas: number
+          updated_at: string | null
+          valor: number
+          valor_comissao: number
+          vendedor_id: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string | null
+          data_pagamento?: string | null
+          data_vencimento: string
+          id?: string
+          numero_parcela: number
+          origem?: string | null
+          proposta_id?: string | null
+          status?: string | null
+          total_parcelas: number
+          updated_at?: string | null
+          valor: number
+          valor_comissao: number
+          vendedor_id?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string
+          id?: string
+          numero_parcela?: number
+          origem?: string | null
+          proposta_id?: string | null
+          status?: string | null
+          total_parcelas?: number
+          updated_at?: string | null
+          valor?: number
+          valor_comissao?: number
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendedor_propostas_parcelas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendedor_propostas_parcelas_proposta_id_fkey"
+            columns: ["proposta_id"]
+            isOneToOne: false
+            referencedRelation: "vendedor_propostas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendedor_propostas_parcelas_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendedores: {
         Row: {
           comissao_percentual: number
