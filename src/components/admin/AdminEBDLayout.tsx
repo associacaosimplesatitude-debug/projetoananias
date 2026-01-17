@@ -111,7 +111,7 @@ function AdminSidebar() {
   });
 
   const pedidosSubItems = [
-    { to: "/admin/ebd/pedidos-online", icon: ShoppingBag, label: "Online" },
+    { to: "/admin/ebd/pedidos-online", icon: ShoppingBag, label: "Central Gospel" },
     { to: "/admin/ebd/pedidos-igreja-cpf", icon: User, label: "Igreja CPF" },
     { to: "/admin/ebd/pedidos-igreja-cnpj", icon: Building2, label: "Igreja CNPJ" },
     { to: "/admin/ebd/pedidos-advecs", icon: Church, label: "ADVECS" },
