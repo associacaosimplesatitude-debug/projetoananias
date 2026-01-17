@@ -21,6 +21,7 @@ serve(async (req) => {
 
     let totalPropostas = 0;
     let totalMercadoPago = 0;
+    let totalShopify = 0;
     let parcelasCriadas = 0;
 
     // 1. Buscar todas as propostas FATURADAS que ainda não têm parcelas
@@ -72,6 +73,23 @@ serve(async (req) => {
     };
 
     const parcelasToInsert: any[] = [];
+
+    // Helper: Calcula data de liberação (dia 05 do mês seguinte)
+    const calcularDataLiberacao = (dataPedido: Date): string => {
+      const dataLiberacao = new Date(dataPedido);
+      dataLiberacao.setMonth(dataLiberacao.getMonth() + 1);
+      dataLiberacao.setDate(5);
+      return dataLiberacao.toISOString().split('T')[0];
+    };
+
+    // Helper: Verifica se já passou o dia 05 do mês seguinte
+    const jaPassouDiaLiberacao = (dataPedido: Date): boolean => {
+      const hoje = new Date();
+      const dataLiberacao = new Date(dataPedido);
+      dataLiberacao.setMonth(dataLiberacao.getMonth() + 1);
+      dataLiberacao.setDate(5);
+      return hoje >= dataLiberacao;
+    };
 
     for (const proposta of (propostas || [])) {
       if (propostasComParcelas.has(proposta.id)) continue;
@@ -150,6 +168,8 @@ serve(async (req) => {
       totalMercadoPago++;
       const comissaoPercentual = vendedorComissao[pedido.vendedor_id] || 1.5;
       const valorComissao = Math.round((valorTotal * (comissaoPercentual / 100)) * 100) / 100;
+      const dataPedido = new Date(pedido.created_at);
+      const jaLiberada = jaPassouDiaLiberacao(dataPedido);
 
       parcelasToInsert.push({
         proposta_id: null,
@@ -163,11 +183,78 @@ serve(async (req) => {
         data_pagamento: dataPagamento,
         status: 'paga',
         origem: 'mercadopago',
+        comissao_status: jaLiberada ? 'liberada' : 'agendada',
+        data_liberacao: jaLiberada ? calcularDataLiberacao(dataPedido) : null,
       });
       parcelasCriadas++;
     }
 
-    // 6. Inserir todas as parcelas
+    // 6. NOVO: Buscar pedidos Shopify PAGOS sem parcelas
+    const { data: pedidosShopify, error: pedidosShopifyError } = await supabase
+      .from('ebd_shopify_pedidos')
+      .select(`
+        id,
+        vendedor_id,
+        cliente_id,
+        valor_total,
+        customer_name,
+        order_number,
+        created_at
+      `)
+      .eq('status_pagamento', 'paid')
+      .is('shopify_cancelled_at', null)
+      .not('vendedor_id', 'is', null);
+
+    if (pedidosShopifyError) {
+      console.error(`[${requestId}] Erro ao buscar pedidos Shopify:`, pedidosShopifyError);
+    }
+
+    console.log(`[${requestId}] Pedidos Shopify pagos encontrados: ${pedidosShopify?.length || 0}`);
+
+    // Verificar quais já têm parcelas (por origem online - usando proposta_id como referência ao pedido)
+    const { data: parcelasOnlineExistentes } = await supabase
+      .from('vendedor_propostas_parcelas')
+      .select('proposta_id')
+      .eq('origem', 'online')
+      .not('proposta_id', 'is', null);
+
+    const pedidosShopifyComParcelas = new Set(
+      parcelasOnlineExistentes?.map(p => p.proposta_id) || []
+    );
+
+    console.log(`[${requestId}] Pedidos Shopify já com parcelas: ${pedidosShopifyComParcelas.size}`);
+
+    for (const pedido of (pedidosShopify || [])) {
+      if (!pedido.vendedor_id) continue;
+      if (pedidosShopifyComParcelas.has(pedido.id)) continue;
+
+      totalShopify++;
+      const valorTotal = pedido.valor_total || 0;
+      const dataPagamento = new Date(pedido.created_at).toISOString().split('T')[0];
+      const comissaoPercentual = vendedorComissao[pedido.vendedor_id] || 1.5;
+      const valorComissao = Math.round((valorTotal * (comissaoPercentual / 100)) * 100) / 100;
+      const dataPedido = new Date(pedido.created_at);
+      const jaLiberada = jaPassouDiaLiberacao(dataPedido);
+
+      parcelasToInsert.push({
+        proposta_id: pedido.id, // Referência ao pedido Shopify
+        vendedor_id: pedido.vendedor_id,
+        cliente_id: pedido.cliente_id,
+        numero_parcela: 1,
+        total_parcelas: 1,
+        valor: valorTotal,
+        valor_comissao: valorComissao,
+        data_vencimento: dataPagamento,
+        data_pagamento: dataPagamento,
+        status: 'paga',
+        origem: 'online', // Nova origem para pedidos Shopify pagos
+        comissao_status: jaLiberada ? 'liberada' : 'agendada',
+        data_liberacao: jaLiberada ? calcularDataLiberacao(dataPedido) : null,
+      });
+      parcelasCriadas++;
+    }
+
+    // 7. Inserir todas as parcelas
     if (parcelasToInsert.length > 0) {
       const { error: insertError } = await supabase
         .from('vendedor_propostas_parcelas')
@@ -181,6 +268,7 @@ serve(async (req) => {
     console.log(`[${requestId}] ✅ Backfill concluído!`, {
       propostas_processadas: totalPropostas,
       pedidos_mp_processados: totalMercadoPago,
+      pedidos_shopify_processados: totalShopify,
       parcelas_criadas: parcelasCriadas,
     });
 
@@ -190,6 +278,7 @@ serve(async (req) => {
         message: 'Backfill de parcelas concluído',
         propostas_processadas: totalPropostas,
         pedidos_mp_processados: totalMercadoPago,
+        pedidos_shopify_processados: totalShopify,
         parcelas_criadas: parcelasCriadas,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
