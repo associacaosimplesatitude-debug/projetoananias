@@ -351,7 +351,7 @@ export default function GestaoComissoes() {
         vendedor_foto: info.foto,
         cliente_id: p.cliente_id,
         cliente_nome: clienteMap.get(p.cliente_id) || "-",
-        tipo: (p.origem === 'mercadopago' ? 'online' : 'faturado') as 'online' | 'faturado',
+        tipo: ((p.origem === 'mercadopago' || p.origem === 'online') ? 'online' : 'faturado') as 'online' | 'faturado',
         numero_parcela: p.numero_parcela,
         total_parcelas: p.total_parcelas,
         data_vencimento: p.data_vencimento,
@@ -380,7 +380,7 @@ export default function GestaoComissoes() {
           cliente_nome: clienteMap.get(p.cliente_id) || "-",
           valor_comissao: Number(p.valor_comissao || 0),
           data_vencimento: p.data_vencimento,
-          tipo: p.origem === 'mercadopago' ? 'Online' : 'Faturado'
+          tipo: (p.origem === 'mercadopago' || p.origem === 'online') ? 'Online' : 'Faturado'
         };
       });
   }, [parcelas, selectedLoteId, clienteMap, vendedorById, vendedorByEmail]);
