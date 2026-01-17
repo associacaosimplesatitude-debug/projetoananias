@@ -363,9 +363,13 @@ export default function PedidosIgrejaCNPJ() {
     );
   }, [filteredByDate, searchTerm]);
 
-  // Pedidos que podem ser selecionados para aprovação
+  // Pedidos que podem ser selecionados para aprovação (inclui pedidos de ambas as fontes)
   const pedidosAprovaveis = useMemo(() => 
-    filteredPedidos.filter(p => !p.comissao_aprovada && p.source === 'ebd_shopify_pedidos'),
+    filteredPedidos.filter(p => 
+      !p.comissao_aprovada && 
+      isPaidStatus(p.status_pagamento) &&
+      p.vendedor_id
+    ),
     [filteredPedidos]
   );
 
@@ -671,7 +675,7 @@ export default function PedidosIgrejaCNPJ() {
                 </TableHeader>
                 <TableBody>
                   {filteredPedidos.map((pedido) => {
-                    const isAprovavel = !pedido.comissao_aprovada && pedido.source === 'ebd_shopify_pedidos';
+                    const isAprovavel = !pedido.comissao_aprovada && isPaidStatus(pedido.status_pagamento) && !!pedido.vendedor_id;
                     const isSelected = selectedPedidos.has(pedido.id);
                     
                     return (
@@ -717,8 +721,6 @@ export default function PedidosIgrejaCNPJ() {
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Aprovada
                             </Badge>
-                          ) : pedido.source === 'ebd_shopify_pedidos_cg' ? (
-                            <Badge variant="secondary">CG</Badge>
                           ) : (
                             <Badge variant="secondary">Pendente</Badge>
                           )}
