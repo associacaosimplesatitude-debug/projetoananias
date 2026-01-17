@@ -84,6 +84,9 @@ interface Proposta {
   frete_transportadora?: string | null;
   frete_observacao?: string | null;
   frete_prazo_estimado?: string | null;
+  // Campos Bling
+  bling_order_id?: number | null;
+  bling_order_number?: string | null;
 }
 
 export default function AprovacaoFaturamento() {
@@ -407,15 +410,17 @@ export default function AprovacaoFaturamento() {
           const comissaoPercentual = vendedorData?.comissao_percentual || 1.5;
           
           // Configuração de parcelas baseado no prazo de faturamento
-          const parcelasConfig: { [key: string]: number[] } = {
-            '30': [30],                    // 1 parcela em 30 dias
-            '60_direto': [60],             // 1 parcela em 60 dias
-            '60': [30, 60],                // 2 parcelas: 30 e 60 dias
-            '60_90': [60, 90],             // 2 parcelas: 60 e 90 dias
-            '90': [30, 60, 90],            // 3 parcelas: 30, 60 e 90 dias
+          const parcelasConfig: { [key: string]: { dias: number[]; metodos: string[] } } = {
+            '30': { dias: [30], metodos: ['boleto_30'] },
+            '60_direto': { dias: [60], metodos: ['boleto_60'] },
+            '60': { dias: [30, 60], metodos: ['boleto_30', 'boleto_60'] },
+            '60_90': { dias: [60, 90], metodos: ['boleto_60', 'boleto_90'] },
+            '90': { dias: [30, 60, 90], metodos: ['boleto_30', 'boleto_60', 'boleto_90'] },
           };
 
-          const diasParcelas = parcelasConfig[prazo] || [30];
+          const config = parcelasConfig[prazo] || { dias: [30], metodos: ['boleto_30'] };
+          const diasParcelas = config.dias;
+          const metodosParcelas = config.metodos;
           const valorPorParcela = Math.round((valorTotal / diasParcelas.length) * 100) / 100;
           const comissaoPorParcela = Math.round((valorPorParcela * (comissaoPercentual / 100)) * 100) / 100;
           const dataFaturamento = new Date();
@@ -431,6 +436,9 @@ export default function AprovacaoFaturamento() {
             data_vencimento: format(addDays(dataFaturamento, dias), 'yyyy-MM-dd'),
             status: 'aguardando',
             origem: 'faturado',
+            metodo_pagamento: metodosParcelas[index],
+            bling_order_number: proposta.bling_order_number || null,
+            bling_order_id: proposta.bling_order_id || null,
           }));
 
           const { error: parcelasError } = await supabase

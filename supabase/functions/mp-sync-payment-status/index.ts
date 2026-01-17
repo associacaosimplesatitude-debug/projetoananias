@@ -283,6 +283,9 @@ serve(async (req) => {
             data_pagamento: hoje,  // Já pago!
             status: 'paga',
             origem: 'mercadopago',
+            metodo_pagamento: pedido.payment_method === 'pix' ? 'pix' : 
+                             pedido.payment_method === 'credit_card' ? 'cartao' : 
+                             pedido.payment_method === 'debit_card' ? 'cartao_debito' : 'pix',
           });
 
         if (parcelaError) {

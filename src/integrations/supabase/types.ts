@@ -4609,11 +4609,14 @@ export type Database = {
       }
       vendedor_propostas_parcelas: {
         Row: {
+          bling_order_id: number | null
+          bling_order_number: string | null
           cliente_id: string | null
           created_at: string | null
           data_pagamento: string | null
           data_vencimento: string
           id: string
+          metodo_pagamento: string | null
           numero_parcela: number
           origem: string | null
           proposta_id: string | null
@@ -4625,11 +4628,14 @@ export type Database = {
           vendedor_id: string | null
         }
         Insert: {
+          bling_order_id?: number | null
+          bling_order_number?: string | null
           cliente_id?: string | null
           created_at?: string | null
           data_pagamento?: string | null
           data_vencimento: string
           id?: string
+          metodo_pagamento?: string | null
           numero_parcela: number
           origem?: string | null
           proposta_id?: string | null
@@ -4641,11 +4647,14 @@ export type Database = {
           vendedor_id?: string | null
         }
         Update: {
+          bling_order_id?: number | null
+          bling_order_number?: string | null
           cliente_id?: string | null
           created_at?: string | null
           data_pagamento?: string | null
           data_vencimento?: string
           id?: string
+          metodo_pagamento?: string | null
           numero_parcela?: number
           origem?: string | null
           proposta_id?: string | null

@@ -24,6 +24,7 @@ import {
   Settings,
   Globe,
   ArrowRightLeft,
+  Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -235,6 +236,14 @@ function AdminSidebar() {
                     <RouterNavLink to="/admin/ebd/aprovacao-faturamento">
                       <ClipboardCheck className="h-4 w-4" />
                       <span>Aprovação Faturamento</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/comissoes')}>
+                    <RouterNavLink to="/admin/ebd/comissoes">
+                      <Wallet className="h-4 w-4" />
+                      <span>Gestão de Comissões</span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

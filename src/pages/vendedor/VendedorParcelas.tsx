@@ -25,6 +25,7 @@ interface Parcela {
   data_pagamento: string | null;
   status: string;
   origem: string;
+  metodo_pagamento: string | null;
 }
 
 interface Cliente {

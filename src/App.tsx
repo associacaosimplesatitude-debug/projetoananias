@@ -47,6 +47,7 @@ import AdminOrders from "./pages/admin/Orders";
 import AdminEBD from "./pages/admin/AdminEBD";
 import AdminEBDPropostasPage from "./pages/admin/AdminEBDPropostasPage";
 import AprovacaoFaturamento from "./pages/admin/AprovacaoFaturamento";
+import GestaoComissoes from "./pages/admin/GestaoComissoes";
 import LeadsLandingPage from "./pages/admin/LeadsLandingPage";
 import AdminEBDClientes from "./pages/admin/AdminEBDClientes";
 import TransferRequests from "./pages/admin/TransferRequests";
@@ -397,6 +398,7 @@ const App = () => (
                       <Route index element={<AdminEBD />} />
                       <Route path="propostas" element={<AdminEBDPropostasPage />} />
                       <Route path="aprovacao-faturamento" element={<AprovacaoFaturamento />} />
+                      <Route path="comissoes" element={<GestaoComissoes />} />
                       <Route path="pedidos-igrejas" element={<PedidosOnline />} />
                       <Route path="pedidos-online" element={<PedidosCentralGospel />} />
                       <Route path="pedidos-igreja-cpf" element={<PedidosIgrejaCPF />} />
