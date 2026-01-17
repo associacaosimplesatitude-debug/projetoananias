@@ -167,3 +167,6 @@ verify_jwt = true
 
 [functions.update-parcelas-status]
 verify_jwt = false
+
+[functions.update-comissao-status]
+verify_jwt = false
