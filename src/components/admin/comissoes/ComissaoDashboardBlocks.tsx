@@ -1,6 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, AlertTriangle, Wallet, FileText, TrendingUp } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Calendar, Clock, AlertTriangle, Wallet, FileText, TrendingUp, ChevronRight } from "lucide-react";
+
+interface Top5Vendedor {
+  vendedor_nome: string;
+  vendedor_foto: string | null;
+  total: number;
+}
 
 interface DashboardBlocksProps {
   pagamentoDia05: {
@@ -17,16 +24,29 @@ interface DashboardBlocksProps {
     quantidadeLiberadoHoje: number;
     quantidadeAtrasado: number;
   };
+  top5Vendedores?: Top5Vendedor[];
   onGerarLote: () => void;
+  onVerTodos?: () => void;
   isGenerating?: boolean;
 }
 
 export function ComissaoDashboardBlocks({ 
   pagamentoDia05, 
   recebimentos, 
+  top5Vendedores = [],
   onGerarLote,
+  onVerTodos,
   isGenerating 
 }: DashboardBlocksProps) {
+  const getInitials = (nome: string) => {
+    return nome
+      .split(" ")
+      .map(n => n[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  };
+
   return (
     <div className="grid gap-6 md:grid-cols-2">
       {/* Bloco Pagamento Dia 05 */}
@@ -60,6 +80,42 @@ export function ComissaoDashboardBlocks({
               <p className="text-xs text-green-600">{pagamentoDia05.quantidadeLiberada} comissões</p>
             </div>
           </div>
+
+          {/* Top 5 Vendedores */}
+          {top5Vendedores.length > 0 && (
+            <div className="p-3 rounded-lg bg-white/80 dark:bg-background/80 border border-blue-100">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Top 5 vendedores do lote</p>
+              <div className="space-y-2">
+                {top5Vendedores.slice(0, 5).map((v, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={v.vendedor_foto || undefined} />
+                        <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                          {getInitials(v.vendedor_nome)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm truncate max-w-[120px]">{v.vendedor_nome}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-purple-600">
+                      R$ {v.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {onVerTodos && top5Vendedores.length > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full mt-2 h-7 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-100"
+                  onClick={onVerTodos}
+                >
+                  Ver todos
+                  <ChevronRight className="h-3 w-3 ml-1" />
+                </Button>
+              )}
+            </div>
+          )}
           
           <Button 
             onClick={onGerarLote} 
