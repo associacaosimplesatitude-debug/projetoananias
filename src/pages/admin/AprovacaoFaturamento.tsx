@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle, XCircle, Clock, Loader2, Search, FileText, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AlertDialog,
@@ -393,6 +393,60 @@ export default function AprovacaoFaturamento() {
       if (insertError) {
         console.error("Erro ao inserir pedido para meta:", insertError);
       }
+
+      // ============ GERAR PARCELAS PARA COMISSÃO DO VENDEDOR ============
+      if (proposta.vendedor_id) {
+        try {
+          // Buscar comissão do vendedor
+          const { data: vendedorData } = await supabase
+            .from("vendedores")
+            .select("comissao_percentual")
+            .eq("id", proposta.vendedor_id)
+            .single();
+          
+          const comissaoPercentual = vendedorData?.comissao_percentual || 1.5;
+          
+          // Configuração de parcelas baseado no prazo de faturamento
+          const parcelasConfig: { [key: string]: number[] } = {
+            '30': [30],                    // 1 parcela em 30 dias
+            '60_direto': [60],             // 1 parcela em 60 dias
+            '60': [30, 60],                // 2 parcelas: 30 e 60 dias
+            '60_90': [60, 90],             // 2 parcelas: 60 e 90 dias
+            '90': [30, 60, 90],            // 3 parcelas: 30, 60 e 90 dias
+          };
+
+          const diasParcelas = parcelasConfig[prazo] || [30];
+          const valorPorParcela = Math.round((valorTotal / diasParcelas.length) * 100) / 100;
+          const comissaoPorParcela = Math.round((valorPorParcela * (comissaoPercentual / 100)) * 100) / 100;
+          const dataFaturamento = new Date();
+
+          const parcelasToInsert = diasParcelas.map((dias, index) => ({
+            proposta_id: proposta.id,
+            vendedor_id: proposta.vendedor_id,
+            cliente_id: proposta.cliente_id,
+            numero_parcela: index + 1,
+            total_parcelas: diasParcelas.length,
+            valor: valorPorParcela,
+            valor_comissao: comissaoPorParcela,
+            data_vencimento: format(addDays(dataFaturamento, dias), 'yyyy-MM-dd'),
+            status: 'aguardando',
+            origem: 'faturado',
+          }));
+
+          const { error: parcelasError } = await supabase
+            .from("vendedor_propostas_parcelas")
+            .insert(parcelasToInsert);
+
+          if (parcelasError) {
+            console.error("Erro ao inserir parcelas:", parcelasError);
+          } else {
+            console.log(`[PARCELAS] ✅ ${diasParcelas.length} parcela(s) criada(s) para vendedor ${proposta.vendedor_id}`);
+          }
+        } catch (parcelasErr) {
+          console.error("Erro ao gerar parcelas:", parcelasErr);
+        }
+      }
+      // ============ FIM GERAR PARCELAS ============
       
       toast.success("Pedido aprovado e enviado para faturamento!", {
         description: `Prazo: ${prazo} dias • Pedido Bling: ${blingIdentifier}`,
@@ -404,6 +458,8 @@ export default function AprovacaoFaturamento() {
       queryClient.invalidateQueries({ queryKey: ["vendedor-propostas"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-vendas-mes"] });
       queryClient.invalidateQueries({ queryKey: ["ebd-shopify-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedor-parcelas"] });
+      queryClient.invalidateQueries({ queryKey: ["vendedor-parcelas-previsao"] });
       refetch();
     } catch (error: unknown) {
       console.error("Erro ao aprovar e faturar pedido:", error);

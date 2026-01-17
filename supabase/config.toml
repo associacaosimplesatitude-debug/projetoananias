@@ -161,3 +161,6 @@ verify_jwt = false
 
 [functions.mp-sync-pending-payments]
 verify_jwt = false
+
+[functions.backfill-parcelas]
+verify_jwt = true
