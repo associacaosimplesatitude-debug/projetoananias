@@ -6,9 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText, Trash2, Search } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText, Trash2, Search, Check } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import { useAuth } from "@/hooks/useAuth";
@@ -74,18 +75,33 @@ interface Proposta {
   status: string;
   created_at: string;
   confirmado_em: string | null;
+  comissao_aprovada?: boolean | null;
   cliente?: PropostaCliente | null;
   vendedor?: Vendedor | null;
 }
 
+// Função para calcular os dias das parcelas baseado no prazo
+const calcularDiasParcelas = (prazo: string): number[] => {
+  switch (prazo) {
+    case '30': return [30];
+    case '60': return [30, 60];
+    case '60_direto': return [60];
+    case '90': return [30, 60, 90];
+    case '90_direto': return [90];
+    default: return [30];
+  }
+};
+
 export default function AdminEBDPropostasPage() {
   const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const isGerenteEbd = role === 'gerente_ebd';
   const isFinanceiro = role === 'financeiro';
   const queryClient = useQueryClient();
   const [processingPropostaId, setProcessingPropostaId] = useState<string | null>(null);
   const [deletePropostaId, setDeletePropostaId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPropostas, setSelectedPropostas] = useState<Set<string>>(new Set());
 
   // Fetch vendedores for the pedidos tab
   const { data: vendedores } = useQuery({
@@ -151,6 +167,103 @@ export default function AdminEBDPropostasPage() {
         description: error instanceof Error ? error.message : "Erro desconhecido",
       });
     },
+  });
+
+  // Toggle seleção individual
+  const togglePropostaSelection = (id: string) => {
+    setSelectedPropostas(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Selecionar/Deselecionar todas as não aprovadas
+  const toggleSelectAll = () => {
+    const propostasNaoAprovadas = propostasFaturadas.filter(p => !p.comissao_aprovada);
+    if (selectedPropostas.size === propostasNaoAprovadas.length && propostasNaoAprovadas.length > 0) {
+      setSelectedPropostas(new Set());
+    } else {
+      setSelectedPropostas(new Set(propostasNaoAprovadas.map(p => p.id)));
+    }
+  };
+
+  // Mutation para aprovar comissão individual
+  const aprovarComissaoMutation = useMutation({
+    mutationFn: async (proposta: Proposta) => {
+      // Buscar percentual do vendedor
+      const { data: vendedor, error: vendedorError } = await supabase
+        .from('vendedores')
+        .select('comissao_percentual')
+        .eq('id', proposta.vendedor_id)
+        .single();
+
+      if (vendedorError) throw vendedorError;
+
+      // Calcular parcelas com lógica correta
+      const diasParcelas = calcularDiasParcelas(proposta.prazo_faturamento_selecionado || "30");
+      const dataBase = new Date(proposta.confirmado_em || proposta.created_at);
+      const valorParcela = proposta.valor_total / diasParcelas.length;
+      const comissaoPercentual = vendedor?.comissao_percentual || 5;
+      
+      // Gerar parcelas atribuídas ao vendedor da proposta
+      const parcelas = diasParcelas.map((dias, index) => ({
+        proposta_id: proposta.id,
+        vendedor_id: proposta.vendedor_id,
+        cliente_id: proposta.cliente_id,
+        origem: 'faturado',
+        status: 'aguardando',
+        numero_parcela: index + 1,
+        total_parcelas: diasParcelas.length,
+        valor: valorParcela,
+        valor_comissao: valorParcela * (comissaoPercentual / 100),
+        data_vencimento: format(addDays(dataBase, dias), 'yyyy-MM-dd'),
+        comissao_status: 'pendente'
+      }));
+
+      const { error: insertError } = await supabase
+        .from('vendedor_propostas_parcelas')
+        .insert(parcelas);
+
+      if (insertError) throw insertError;
+
+      // Marcar proposta como aprovada
+      const { error: updateError } = await supabase
+        .from('vendedor_propostas')
+        .update({ comissao_aprovada: true })
+        .eq('id', proposta.id);
+
+      if (updateError) throw updateError;
+
+      return proposta;
+    },
+  });
+
+  // Mutation para aprovação em lote
+  const aprovarSelecionadasMutation = useMutation({
+    mutationFn: async () => {
+      const propostasParaAprovar = propostasFaturadas.filter(p => selectedPropostas.has(p.id) && !p.comissao_aprovada);
+      
+      for (const proposta of propostasParaAprovar) {
+        await aprovarComissaoMutation.mutateAsync(proposta);
+      }
+      
+      return propostasParaAprovar.length;
+    },
+    onSuccess: (count) => {
+      toast.success(`${count} comissões aprovadas com sucesso!`);
+      setSelectedPropostas(new Set());
+      refetch();
+    },
+    onError: (error) => {
+      toast.error("Erro ao aprovar comissões", {
+        description: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
   });
 
   const copyLink = async (token: string) => {
@@ -435,6 +548,9 @@ export default function AdminEBDPropostasPage() {
   const propostasFaturadas = filteredPropostas?.filter(p => 
     p.status === "FATURADO"
   ) || [];
+
+  // Propostas faturadas não aprovadas (para seleção)
+  const propostasNaoAprovadas = propostasFaturadas.filter(p => !p.comissao_aprovada);
   
   const propostasPendentes = propostasAtivas?.filter(p => p.status === "PROPOSTA_PENDENTE") || [];
   const propostasAceitas = propostasAtivas?.filter(p => p.status === "PROPOSTA_ACEITA") || [];
@@ -640,6 +756,41 @@ export default function AdminEBDPropostasPage() {
             </div>
           </div>
 
+          {/* Header com seleção em lote - apenas para admin */}
+          {isAdmin && propostasFaturadas.length > 0 && (
+            <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedPropostas.size > 0 && selectedPropostas.size === propostasNaoAprovadas.length && propostasNaoAprovadas.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                  disabled={propostasNaoAprovadas.length === 0}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedPropostas.size > 0 
+                    ? `${selectedPropostas.size} selecionada(s)` 
+                    : propostasNaoAprovadas.length > 0 
+                      ? "Selecionar todas" 
+                      : "Todas as comissões aprovadas"}
+                </span>
+              </div>
+              
+              {selectedPropostas.size > 0 && (
+                <Button 
+                  onClick={() => aprovarSelecionadasMutation.mutate()}
+                  disabled={aprovarSelecionadasMutation.isPending}
+                  size="sm"
+                >
+                  {aprovarSelecionadasMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-2" />
+                  )}
+                  Aprovar Selecionadas ({selectedPropostas.size})
+                </Button>
+              )}
+            </div>
+          )}
+
           {isLoadingPropostas ? (
             <div className="text-center py-8 text-muted-foreground">Carregando...</div>
           ) : propostasFaturadas.length === 0 ? (
@@ -649,32 +800,75 @@ export default function AdminEBDPropostasPage() {
           ) : (
             <div className="space-y-3">
               {propostasFaturadas.map((proposta) => (
-                <Card key={proposta.id}>
+                <Card 
+                  key={proposta.id}
+                  className={selectedPropostas.has(proposta.id) ? "ring-2 ring-primary" : ""}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="font-semibold">{proposta.cliente_nome}</span>
-                          {getStatusBadge(proposta.status)}
-                          {proposta.pode_faturar && (
-                            <Badge variant="outline" className="text-xs">
-                              B2B {proposta.prazo_faturamento_selecionado && `• ${proposta.prazo_faturamento_selecionado} dias`}
-                            </Badge>
+                      <div className="flex items-center gap-3 flex-1">
+                        {/* Checkbox - apenas para admin e não aprovadas */}
+                        {isAdmin && !proposta.comissao_aprovada && (
+                          <Checkbox
+                            checked={selectedPropostas.has(proposta.id)}
+                            onCheckedChange={() => togglePropostaSelection(proposta.id)}
+                          />
+                        )}
+                        
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-semibold">{proposta.cliente_nome}</span>
+                            {getStatusBadge(proposta.status)}
+                            {proposta.pode_faturar && (
+                              <Badge variant="outline" className="text-xs">
+                                B2B {proposta.prazo_faturamento_selecionado && `• ${proposta.prazo_faturamento_selecionado} dias`}
+                              </Badge>
+                            )}
+                            {/* Badge de comissão aprovada */}
+                            {proposta.comissao_aprovada && (
+                              <Badge className="bg-green-100 text-green-700 border-green-300">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Comissão Aprovada
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            R$ {proposta.valor_total.toFixed(2)} • Criada em {format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Vendedor: {proposta.vendedor?.nome || proposta.vendedor_nome || "N/A"}
+                          </p>
+                          {proposta.confirmado_em && (
+                            <p className="text-xs text-green-600">
+                              Confirmada em {format(new Date(proposta.confirmado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                            </p>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          R$ {proposta.valor_total.toFixed(2)} • Criada em {format(new Date(proposta.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Vendedor: {proposta.vendedor?.nome || proposta.vendedor_nome || "N/A"}
-                        </p>
-                        {proposta.confirmado_em && (
-                          <p className="text-xs text-green-600">
-                            Confirmada em {format(new Date(proposta.confirmado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                          </p>
-                        )}
                       </div>
                       <div className="flex gap-2 flex-wrap justify-end">
+                        {/* Botão aprovar individual - apenas para admin e não aprovadas */}
+                        {isAdmin && !proposta.comissao_aprovada && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              aprovarComissaoMutation.mutate(proposta, {
+                                onSuccess: () => {
+                                  toast.success("Comissão aprovada!");
+                                  refetch();
+                                }
+                              });
+                            }}
+                            disabled={aprovarComissaoMutation.isPending}
+                          >
+                            {aprovarComissaoMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4 mr-1" />
+                            )}
+                            Aprovar
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" asChild>
                           <a href={`/proposta/${proposta.token}`} target="_blank">
                             <ExternalLink className="h-4 w-4" />

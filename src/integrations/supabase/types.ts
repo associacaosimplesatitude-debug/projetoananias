@@ -4537,6 +4537,7 @@ export type Database = {
           cliente_endereco: Json | null
           cliente_id: string | null
           cliente_nome: string
+          comissao_aprovada: boolean | null
           confirmado_em: string | null
           created_at: string
           desconto_percentual: number | null
@@ -4573,6 +4574,7 @@ export type Database = {
           cliente_endereco?: Json | null
           cliente_id?: string | null
           cliente_nome: string
+          comissao_aprovada?: boolean | null
           confirmado_em?: string | null
           created_at?: string
           desconto_percentual?: number | null
@@ -4609,6 +4611,7 @@ export type Database = {
           cliente_endereco?: Json | null
           cliente_id?: string | null
           cliente_nome?: string
+          comissao_aprovada?: boolean | null
           confirmado_em?: string | null
           created_at?: string
           desconto_percentual?: number | null
