@@ -210,13 +210,50 @@ export default function PedidosCentralGospel() {
     });
   }, [pedidos, clientesMap]);
 
-  // Mutation to approve commission
+  // Mutation to approve commission - now creates parcela in vendedor_propostas_parcelas
   const aprovarComissaoMutation = useMutation({
-    mutationFn: async (pedidoId: string) => {
+    mutationFn: async (pedido: ShopifyPedidoCG) => {
+      const vendedorId = pedido.vendedor_id;
+      if (!vendedorId) throw new Error("Pedido sem vendedor atribuído");
+
+      // 1. Fetch vendedor commission percentage
+      const { data: vendedor, error: vendedorError } = await supabase
+        .from("vendedores")
+        .select("comissao_percentual")
+        .eq("id", vendedorId)
+        .single();
+
+      if (vendedorError) throw vendedorError;
+
+      const comissaoPercentual = vendedor?.comissao_percentual || 5;
+      const dataBase = new Date(pedido.order_date || pedido.created_at);
+
+      // 2. Create commission parcela
+      const parcela = {
+        shopify_pedido_id: pedido.id,
+        vendedor_id: vendedorId,
+        cliente_id: pedido.cliente_id,
+        origem: 'online',
+        status: 'aguardando',
+        numero_parcela: 1,
+        total_parcelas: 1,
+        valor: pedido.valor_total,
+        valor_comissao: pedido.valor_total * (comissaoPercentual / 100),
+        data_vencimento: dataBase.toISOString().split('T')[0],
+        comissao_status: 'liberada',
+      };
+
+      const { error: insertError } = await supabase
+        .from("vendedor_propostas_parcelas")
+        .insert(parcela);
+
+      if (insertError) throw insertError;
+
+      // 3. Mark order as commission approved
       const { error } = await supabase
         .from("ebd_shopify_pedidos_cg")
         .update({ comissao_aprovada: true })
-        .eq("id", pedidoId);
+        .eq("id", pedido.id);
 
       if (error) throw error;
     },
@@ -231,13 +268,10 @@ export default function PedidosCentralGospel() {
 
   // Mutation to approve multiple commissions
   const aprovarSelecionadasMutation = useMutation({
-    mutationFn: async (pedidoIds: string[]) => {
-      const { error } = await supabase
-        .from("ebd_shopify_pedidos_cg")
-        .update({ comissao_aprovada: true })
-        .in("id", pedidoIds);
-
-      if (error) throw error;
+    mutationFn: async (pedidosToApprove: ShopifyPedidoCG[]) => {
+      for (const pedido of pedidosToApprove) {
+        await aprovarComissaoMutation.mutateAsync(pedido);
+      }
     },
     onSuccess: () => {
       toast.success("Comissões aprovadas com sucesso!");
@@ -329,7 +363,8 @@ export default function PedidosCentralGospel() {
 
   const handleAprovarSelecionadas = () => {
     if (selectedPedidos.size === 0) return;
-    aprovarSelecionadasMutation.mutate(Array.from(selectedPedidos));
+    const pedidosToApprove = approvablePedidos.filter(p => selectedPedidos.has(p.id));
+    aprovarSelecionadasMutation.mutate(pedidosToApprove);
   };
 
   const getStatusBadge = (status: string) => {
@@ -591,7 +626,7 @@ export default function PedidosCentralGospel() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => aprovarComissaoMutation.mutate(pedido.id)}
+                                  onClick={() => aprovarComissaoMutation.mutate(pedido)}
                                   disabled={aprovarComissaoMutation.isPending}
                                 >
                                   <CheckCircle className="h-4 w-4" />
