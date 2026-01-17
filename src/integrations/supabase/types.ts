@@ -872,6 +872,48 @@ export type Database = {
           },
         ]
       }
+      comissao_lotes_pagamento: {
+        Row: {
+          created_at: string | null
+          fechado_em: string | null
+          id: string
+          mes_referencia: string
+          pago_em: string | null
+          quantidade_itens: number
+          referencia: string
+          responsavel_id: string | null
+          status: string | null
+          tipo: string
+          valor_total: number
+        }
+        Insert: {
+          created_at?: string | null
+          fechado_em?: string | null
+          id?: string
+          mes_referencia: string
+          pago_em?: string | null
+          quantidade_itens?: number
+          referencia: string
+          responsavel_id?: string | null
+          status?: string | null
+          tipo?: string
+          valor_total?: number
+        }
+        Update: {
+          created_at?: string | null
+          fechado_em?: string | null
+          id?: string
+          mes_referencia?: string
+          pago_em?: string | null
+          quantidade_itens?: number
+          referencia?: string
+          responsavel_id?: string | null
+          status?: string | null
+          tipo?: string
+          valor_total?: number
+        }
+        Relationships: []
+      }
       desafio_biblico: {
         Row: {
           church_id: string
@@ -4615,10 +4657,14 @@ export type Database = {
           bling_order_id: number | null
           bling_order_number: string | null
           cliente_id: string | null
+          comissao_paga_em: string | null
+          comissao_status: string | null
           created_at: string | null
+          data_liberacao: string | null
           data_pagamento: string | null
           data_vencimento: string
           id: string
+          lote_pagamento_id: string | null
           metodo_pagamento: string | null
           numero_parcela: number
           origem: string | null
@@ -4634,10 +4680,14 @@ export type Database = {
           bling_order_id?: number | null
           bling_order_number?: string | null
           cliente_id?: string | null
+          comissao_paga_em?: string | null
+          comissao_status?: string | null
           created_at?: string | null
+          data_liberacao?: string | null
           data_pagamento?: string | null
           data_vencimento: string
           id?: string
+          lote_pagamento_id?: string | null
           metodo_pagamento?: string | null
           numero_parcela: number
           origem?: string | null
@@ -4653,10 +4703,14 @@ export type Database = {
           bling_order_id?: number | null
           bling_order_number?: string | null
           cliente_id?: string | null
+          comissao_paga_em?: string | null
+          comissao_status?: string | null
           created_at?: string | null
+          data_liberacao?: string | null
           data_pagamento?: string | null
           data_vencimento?: string
           id?: string
+          lote_pagamento_id?: string | null
           metodo_pagamento?: string | null
           numero_parcela?: number
           origem?: string | null
@@ -4669,6 +4723,13 @@ export type Database = {
           vendedor_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_parcelas_lote_pagamento"
+            columns: ["lote_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "comissao_lotes_pagamento"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vendedor_propostas_parcelas_cliente_id_fkey"
             columns: ["cliente_id"]
