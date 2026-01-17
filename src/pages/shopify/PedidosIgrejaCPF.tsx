@@ -47,7 +47,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { PedidoOnlineDetailDialog } from "@/components/admin/PedidoOnlineDetailDialog";
-import { useUserRole } from "@/hooks/useUserRole";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 interface ShopifyPedido {
@@ -129,7 +129,8 @@ export default function PedidosIgrejaCPF() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedPedidos, setSelectedPedidos] = useState<Set<string>>(new Set());
 
-  const { isAdmin } = useUserRole();
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const queryClient = useQueryClient();
 
   // First fetch all clients with tipo_cliente = 'IGREJA CPF' (or legacy 'Igreja CPF') and vendedor assigned
