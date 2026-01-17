@@ -442,38 +442,12 @@ export default function PedidosIgrejaCPF() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <User className="h-6 w-6" />
-            Pedidos Igreja CPF
-          </h1>
-          <p className="text-muted-foreground">Pedidos de clientes tipo Igreja CPF atribuídos a vendedores</p>
-        </div>
-        
-        {isAdmin && selectedPedidos.size > 0 && (
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              {selectedPedidos.size} selecionado(s)
-            </span>
-            <Button
-              onClick={() => aprovarSelecionadasMutation.mutate()}
-              disabled={aprovarSelecionadasMutation.isPending}
-            >
-              {aprovarSelecionadasMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Aprovando...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Aprovar Comissões ({selectedPedidos.size})
-                </>
-              )}
-            </Button>
-          </div>
-        )}
+      <header>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <User className="h-6 w-6" />
+          Pedidos Igreja CPF
+        </h1>
+        <p className="text-muted-foreground">Pedidos de clientes tipo Igreja CPF atribuídos a vendedores</p>
       </header>
 
       {/* Stats Cards */}
@@ -622,6 +596,41 @@ export default function PedidosIgrejaCPF() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Barra de aprovação em lote - apenas para admin */}
+          {isAdmin && filteredPedidos.length > 0 && (
+            <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg mb-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedPedidos.size > 0 && selectedPedidos.size === pedidosAprovaveis.length && pedidosAprovaveis.length > 0}
+                  onCheckedChange={handleSelectAll}
+                  disabled={pedidosAprovaveis.length === 0}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedPedidos.size > 0 
+                    ? `${selectedPedidos.size} selecionado(s)` 
+                    : pedidosAprovaveis.length > 0 
+                      ? "Selecionar todas" 
+                      : "Todas as comissões aprovadas"}
+                </span>
+              </div>
+              
+              {selectedPedidos.size > 0 && (
+                <Button 
+                  onClick={() => aprovarSelecionadasMutation.mutate()}
+                  disabled={aprovarSelecionadasMutation.isPending}
+                  size="sm"
+                >
+                  {aprovarSelecionadasMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Aprovar Selecionadas ({selectedPedidos.size})
+                </Button>
+              )}
+            </div>
+          )}
+
           {isLoading ? (
             <div className="space-y-3">
               {[...Array(5)].map((_, i) => (
@@ -711,18 +720,39 @@ export default function PedidosIgrejaCPF() {
                             <Badge variant="secondary">Pendente</Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedPedido(pedido);
-                              setDetailDialogOpen(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1">
+                            {/* Botão aprovar individual - apenas para admin e não aprovadas */}
+                            {isAdmin && isAprovavel && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  aprovarComissaoMutation.mutate(pedido);
+                                }}
+                                disabled={aprovarComissaoMutation.isPending}
+                                title="Aprovar comissão"
+                              >
+                                {aprovarComissaoMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPedido(pedido);
+                                setDetailDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
