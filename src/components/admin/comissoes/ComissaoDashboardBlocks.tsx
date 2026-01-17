@@ -81,10 +81,10 @@ export function ComissaoDashboardBlocks({
             </div>
           </div>
 
-          {/* Top 5 Vendedores */}
-          {top5Vendedores.length > 0 && (
-            <div className="p-3 rounded-lg bg-white/80 dark:bg-background/80 border border-blue-100">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Top 5 vendedores do lote</p>
+          {/* Top 5 Vendedores - Sempre visível */}
+          <div className="p-3 rounded-lg bg-white/80 dark:bg-background/80 border border-blue-100">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Top 5 vendedores do lote</p>
+            {top5Vendedores.length > 0 ? (
               <div className="space-y-2">
                 {top5Vendedores.slice(0, 5).map((v, idx) => (
                   <div key={idx} className="flex items-center justify-between">
@@ -103,19 +103,23 @@ export function ComissaoDashboardBlocks({
                   </div>
                 ))}
               </div>
-              {onVerTodos && top5Vendedores.length > 0 && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="w-full mt-2 h-7 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-100"
-                  onClick={onVerTodos}
-                >
-                  Ver todos
-                  <ChevronRight className="h-3 w-3 ml-1" />
-                </Button>
-              )}
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                Nenhuma comissão liberada
+              </p>
+            )}
+            {onVerTodos && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full mt-2 h-7 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-100"
+                onClick={onVerTodos}
+              >
+                Ver todos
+                <ChevronRight className="h-3 w-3 ml-1" />
+              </Button>
+            )}
+          </div>
           
           <Button 
             onClick={onGerarLote} 
