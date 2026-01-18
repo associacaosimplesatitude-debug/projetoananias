@@ -43,7 +43,7 @@ function extrairTitulosLicoes(descricao: string): string[] {
   if (!descricao) return titulos;
 
   // Limpar HTML e normalizar texto
-  const texto = descricao
+  let texto = descricao
     .replace(/<br\s*\/?>(\s*)/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<\/div>/gi, "\n")
@@ -54,10 +54,21 @@ function extrairTitulosLicoes(descricao: string): string[] {
     .replace(/\s+/g, " ")
     .trim();
 
-  // Muitas descrições vêm com "Lições 1- ... 2 - ..." tudo em uma única linha.
+  // Cortar texto antes de "Especificações Técnicas" ou marcadores similares
+  const marcadoresFim = ["especificações técnicas", "especificacoes tecnicas", "formato:", "páginas:", "paginas:", "preço:", "preco:", "sku:", "isbn:"];
   const lower = texto.toLowerCase();
-  const idx = lower.indexOf("lições");
-  const idx2 = idx === -1 ? lower.indexOf("licoes") : idx;
+  for (const marcador of marcadoresFim) {
+    const idx = lower.indexOf(marcador);
+    if (idx !== -1) {
+      texto = texto.slice(0, idx).trim();
+      break;
+    }
+  }
+
+  // Encontrar seção de lições
+  const lowerTexto = texto.toLowerCase();
+  const idx = lowerTexto.indexOf("lições");
+  const idx2 = idx === -1 ? lowerTexto.indexOf("licoes") : idx;
   const trecho = idx2 === -1 ? texto : texto.slice(idx2);
 
   // Captura: 1- Título ... 2 - Título ... até 13 (lookahead no próximo número)
