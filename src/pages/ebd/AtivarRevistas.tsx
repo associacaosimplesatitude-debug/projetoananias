@@ -101,8 +101,8 @@ export default function AtivarRevistas() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="vitrine">Vitrine</TabsTrigger>
-          <TabsTrigger value="ativar" disabled={revistasConfiguradas.length === 0}>
-            Ativar ({revistasConfiguradas.length})
+          <TabsTrigger value="ativar">
+            Ativar {revistasConfiguradas.length > 0 && `(${revistasConfiguradas.length})`}
           </TabsTrigger>
           <TabsTrigger value="escala" disabled={!todasConfiguradas}>
             Montar Escala
