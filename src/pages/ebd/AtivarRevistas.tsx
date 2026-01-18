@@ -1,228 +1,156 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
-import { RevistaVitrine } from "@/components/ebd/ativar-revistas/RevistaVitrine";
-import { RevistaAtivar } from "@/components/ebd/ativar-revistas/RevistaAtivar";
-import { RevistaEscalaConfig } from "@/components/ebd/ativar-revistas/RevistaEscalaConfig";
-import { useAuth } from "@/hooks/useAuth";
+import { RevistaAtivarModal } from "@/components/ebd/ativar-revistas/RevistaAtivarModal";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, BookOpen } from "lucide-react";
 
-export interface RevistaConfig {
-  produto: ShopifyProduct;
-  turmaId?: string;
-  turmaNome?: string;
-  diaSemana?: string;
-  dataInicio?: Date;
-  configurada: boolean;
+// Categorização por faixa etária
+const FAIXAS_ETARIAS = [
+  { nome: "Maternal (0-3 anos)", keywords: ["maternal", "berçário", "bercario", "0 a 3", "0-3"] },
+  { nome: "Jardim de Infância (4-5 anos)", keywords: ["jardim de infância", "jardim de infancia", "4 a 5", "4-5"] },
+  { nome: "Primários (6-8 anos)", keywords: ["primário", "primario", "primários", "primarios", "6 a 8", "6-8"] },
+  { nome: "Juniores (9-11 anos)", keywords: ["junior", "júnior", "juniores", "9 a 11", "9-11"] },
+  { nome: "Pré-Adolescentes (12-14 anos)", keywords: ["pré-adolescente", "pre-adolescente", "preadolescente", "12 a 14", "12-14"] },
+  { nome: "Adolescentes (15-17 anos)", keywords: ["adolescente", "15 a 17", "15-17"] },
+  { nome: "Jovens e Adultos", keywords: ["jovens", "adultos", "jovens e adultos"] },
+  { nome: "Outros", keywords: [] },
+];
+
+function categorizarRevista(title: string): string {
+  const lower = title.toLowerCase();
+  for (const faixa of FAIXAS_ETARIAS) {
+    if (faixa.keywords.some((kw) => lower.includes(kw))) {
+      return faixa.nome;
+    }
+  }
+  return "Outros";
 }
 
-type PersistedRevistaConfig = {
-  productId: string;
-  turmaId?: string;
-  turmaNome?: string;
-  diaSemana?: string;
-  dataInicio?: string; // ISO
-  configurada: boolean;
-};
-
 export default function AtivarRevistas() {
-  const [activeTab, setActiveTab] = useState("vitrine");
-  const [revistasSelecionadas, setRevistasSelecionadas] = useState<ShopifyProduct[]>([]);
-  const [revistasConfiguradas, setRevistasConfiguradas] = useState<RevistaConfig[]>([]);
-  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [revistaSelecionada, setRevistaSelecionada] = useState<ShopifyProduct | null>(null);
 
-  const storageKey = useMemo(() => {
-    // fallback para não perder seleção mesmo se user ainda não carregou
-    const uid = user?.id ?? "anon";
-    return `ebd:ativar-revistas:${uid}`;
-  }, [user?.id]);
-
-  const persistState = (configs: RevistaConfig[]) => {
-    try {
-      const payload: PersistedRevistaConfig[] = configs.map((c) => ({
-        productId: c.produto.node.id,
-        turmaId: c.turmaId,
-        turmaNome: c.turmaNome,
-        diaSemana: c.diaSemana,
-        dataInicio: c.dataInicio ? c.dataInicio.toISOString() : undefined,
-        configurada: c.configurada,
-      }));
-      localStorage.setItem(storageKey, JSON.stringify(payload));
-    } catch {
-      // silêncio: localStorage pode falhar em modo privado
-    }
-  };
-
-  // Buscar produtos da Shopify (500 para garantir que todas revistas sejam carregadas)
+  // Buscar produtos da Shopify
   const { data: produtos, isLoading } = useQuery({
     queryKey: ["shopify-products-revistas-all"],
     queryFn: () => fetchShopifyProducts(500),
   });
 
-  // Filtrar apenas revistas de aluno (excluir kit professor, livros de apoio, infográficos)
+  // Filtrar apenas revistas de aluno
   const revistasAluno =
     produtos?.filter((produto) => {
       const title = produto.node.title.toLowerCase();
 
-      // Deve ser uma revista EBD
       const isRevista =
         title.includes("revista") ||
         (title.includes("estudo") && title.includes("bíblico")) ||
         (title.includes("estudo") && title.includes("biblico")) ||
         title.includes("ebd");
 
-      // Excluir materiais de professor e outros
       const isProfessor = title.includes("professor");
       const isKit = title.includes("kit");
       const isLivroApoio = title.includes("livro de apoio") || title.includes("livro apoio");
       const isInfografico = title.includes("infográfico") || title.includes("infografico");
       const isRecurso = title.includes("recurso didático") || title.includes("recurso didatico");
 
-      // Deve conter "aluno" ou não ser nenhuma das exclusões
       const isAluno = title.includes("aluno");
 
       return isRevista && !isProfessor && !isKit && !isLivroApoio && !isInfografico && !isRecurso && isAluno;
     }) || [];
 
-  // Restaurar seleção/configurações salvas (mesmo se o usuário sair da página e voltar)
-  useEffect(() => {
-    if (!revistasAluno.length) return;
+  // Agrupar por faixa etária
+  const revistasPorFaixa = FAIXAS_ETARIAS.map((faixa) => ({
+    faixa: faixa.nome,
+    revistas: revistasAluno.filter((r) => categorizarRevista(r.node.title) === faixa.nome),
+  })).filter((grupo) => grupo.revistas.length > 0);
 
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return;
-
-      const persisted = JSON.parse(raw) as PersistedRevistaConfig[];
-      if (!Array.isArray(persisted) || persisted.length === 0) return;
-
-      const byId = new Map(revistasAluno.map((p) => [p.node.id, p]));
-
-      const restoredConfigs: RevistaConfig[] = persisted
-        .map((p) => {
-          const produto = byId.get(p.productId);
-          if (!produto) return null;
-          return {
-            produto,
-            turmaId: p.turmaId,
-            turmaNome: p.turmaNome,
-            diaSemana: p.diaSemana,
-            dataInicio: p.dataInicio ? new Date(p.dataInicio) : undefined,
-            configurada: !!p.configurada,
-          } satisfies RevistaConfig;
-        })
-        .filter(Boolean) as RevistaConfig[];
-
-      if (restoredConfigs.length) {
-        setRevistasConfiguradas(restoredConfigs);
-        setRevistasSelecionadas(restoredConfigs.map((c) => c.produto));
-      }
-    } catch {
-      // se payload estiver corrompido, ignora
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revistasAluno.length, storageKey]);
-
-  const handleSelecionarRevista = (produto: ShopifyProduct) => {
-    const jaExiste = revistasSelecionadas.some((r) => r.node.id === produto.node.id);
-
-    if (jaExiste) {
-      const nextSelecionadas = revistasSelecionadas.filter((r) => r.node.id !== produto.node.id);
-      const nextConfigs = revistasConfiguradas.filter((r) => r.produto.node.id !== produto.node.id);
-      setRevistasSelecionadas(nextSelecionadas);
-      setRevistasConfiguradas(nextConfigs);
-      persistState(nextConfigs);
-      return;
-    }
-
-    // A partir do momento que seleciona na vitrine, já aparece na aba "Ativar" como pendente
-    const nextSelecionadas = [...revistasSelecionadas, produto];
-    const nextConfigs: RevistaConfig[] = [
-      ...revistasConfiguradas,
-      {
-        produto,
-        configurada: false,
-      },
-    ];
-
-    setRevistasSelecionadas(nextSelecionadas);
-    setRevistasConfiguradas(nextConfigs);
-    persistState(nextConfigs);
+  const handleSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['ebd-planejamentos-with-turmas'] });
   };
 
-  const handleAtivarRevistas = () => {
-    // Agora o botão só navega para a aba "Ativar" (os itens já ficam salvos ao selecionar)
-    setActiveTab("ativar");
-  };
-
-  const handleConfigurarRevista = (produtoId: string, config: Partial<RevistaConfig>) => {
-    setRevistasConfiguradas((prev) => {
-      const next = prev.map((r) => (r.produto.node.id === produtoId ? { ...r, ...config, configurada: true } : r));
-      persistState(next);
-      return next;
-    });
-  };
-
-  const handleRemoverRevista = (produtoId: string) => {
-    setRevistasConfiguradas((prev) => {
-      const next = prev.filter((r) => r.produto.node.id !== produtoId);
-      persistState(next);
-      return next;
-    });
-    setRevistasSelecionadas((prev) => prev.filter((r) => r.node.id !== produtoId));
-  };
-
-  const handleIrParaEscala = () => {
-    setActiveTab("escala");
-  };
-
-  const todasConfiguradas = revistasConfiguradas.length > 0 && revistasConfiguradas.every((r) => r.configurada);
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Carregando revistas...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Ativar Revistas</h1>
         <p className="text-muted-foreground">
-          Selecione as revistas para configurar turmas e escalas
+          Clique em uma revista para configurar turma, data e escala de professores
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="vitrine">Vitrine</TabsTrigger>
-          <TabsTrigger value="ativar">
-            Ativar {revistasConfiguradas.length > 0 && `(${revistasConfiguradas.length})`}
-          </TabsTrigger>
-          <TabsTrigger value="escala" disabled={!todasConfiguradas}>
-            Montar Escala
-          </TabsTrigger>
-        </TabsList>
+      {revistasPorFaixa.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p>Nenhuma revista de aluno encontrada</p>
+        </div>
+      ) : (
+        revistasPorFaixa.map((grupo) => (
+          <div key={grupo.faixa} className="space-y-3">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Badge variant="secondary">{grupo.faixa}</Badge>
+              <span className="text-sm font-normal text-muted-foreground">
+                ({grupo.revistas.length} {grupo.revistas.length === 1 ? 'revista' : 'revistas'})
+              </span>
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {grupo.revistas.map((produto) => {
+                const imagem = produto.node.images.edges[0]?.node.url;
+                const preco = produto.node.variants.edges[0]?.node.price.amount;
 
-        <TabsContent value="vitrine" className="space-y-4">
-          <RevistaVitrine
-            revistas={revistasAluno}
-            revistasSelecionadas={revistasSelecionadas}
-            onSelecionar={handleSelecionarRevista}
-            onAtivar={handleAtivarRevistas}
-            isLoading={isLoading}
-          />
-        </TabsContent>
+                return (
+                  <Card
+                    key={produto.node.id}
+                    className="cursor-pointer transition-all hover:shadow-lg hover:ring-2 hover:ring-primary/50"
+                    onClick={() => setRevistaSelecionada(produto)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="relative aspect-[3/4] mb-2 bg-muted rounded overflow-hidden">
+                        {imagem ? (
+                          <img
+                            src={imagem}
+                            alt={produto.node.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                            <BookOpen className="w-8 h-8" />
+                          </div>
+                        )}
+                      </div>
+                      <h4 className="text-sm font-medium line-clamp-2 mb-1">
+                        {produto.node.title}
+                      </h4>
+                      {preco && (
+                        <p className="text-sm text-primary font-semibold">
+                          R$ {parseFloat(preco).toFixed(2).replace('.', ',')}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        ))
+      )}
 
-        <TabsContent value="ativar" className="space-y-4">
-          <RevistaAtivar
-            revistas={revistasConfiguradas}
-            onConfigurar={handleConfigurarRevista}
-            onRemover={handleRemoverRevista}
-            onIrParaEscala={handleIrParaEscala}
-            todasConfiguradas={todasConfiguradas}
-          />
-        </TabsContent>
-
-        <TabsContent value="escala" className="space-y-4">
-          <RevistaEscalaConfig
-            revistas={revistasConfiguradas.filter(r => r.configurada)}
-          />
-        </TabsContent>
-      </Tabs>
+      {/* Modal de ativação */}
+      <RevistaAtivarModal
+        produto={revistaSelecionada}
+        open={!!revistaSelecionada}
+        onOpenChange={(open) => !open && setRevistaSelecionada(null)}
+        onSuccess={handleSuccess}
+      />
     </div>
   );
 }
