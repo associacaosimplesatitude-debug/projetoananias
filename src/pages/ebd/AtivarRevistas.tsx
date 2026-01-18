@@ -77,6 +77,11 @@ export default function AtivarRevistas() {
     );
   };
 
+  const handleRemoverRevista = (produtoId: string) => {
+    setRevistasConfiguradas(prev => prev.filter(r => r.produto.node.id !== produtoId));
+    setRevistasSelecionadas(prev => prev.filter(r => r.node.id !== produtoId));
+  };
+
   const handleIrParaEscala = () => {
     setActiveTab("escala");
   };
@@ -118,6 +123,7 @@ export default function AtivarRevistas() {
           <RevistaAtivar
             revistas={revistasConfiguradas}
             onConfigurar={handleConfigurarRevista}
+            onRemover={handleRemoverRevista}
             onIrParaEscala={handleIrParaEscala}
             todasConfiguradas={todasConfiguradas}
           />
