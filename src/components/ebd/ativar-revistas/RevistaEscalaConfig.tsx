@@ -41,12 +41,25 @@ interface RevistaEscala {
 function extrairTitulosLicoes(descricao: string): string[] {
   const titulos: string[] = [];
   
-  // Padrão comum: "1- Título" ou "1 - Título" ou "Lição 1: Título"
-  const linhas = descricao.split(/[\n<br>]+/).map(l => l.replace(/<[^>]*>/g, '').trim());
+  if (!descricao) return titulos;
+  
+  // Limpar HTML e normalizar quebras de linha
+  const textoLimpo = descricao
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+  
+  const linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  
+  console.log('Descrição parseada:', linhas);
   
   for (const linha of linhas) {
-    // Padrão: número seguido de hífen/traço e título
-    const match = linha.match(/^(\d{1,2})\s*[-–—:\.]\s*(.+)$/);
+    // Padrões: "1- Título", "1 - Título", "1. Título", "Lição 1: Título"
+    const match = linha.match(/^(\d{1,2})\s*[-–—:\.\)]\s*(.+)$/);
     if (match) {
       const numero = parseInt(match[1]);
       const titulo = match[2].trim();
@@ -56,6 +69,7 @@ function extrairTitulosLicoes(descricao: string): string[] {
     }
   }
   
+  console.log('Títulos extraídos:', titulos);
   return titulos;
 }
 
