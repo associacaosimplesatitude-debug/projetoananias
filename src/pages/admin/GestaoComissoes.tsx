@@ -48,12 +48,17 @@ interface Parcela {
   lote_pagamento_id: string | null;
   link_danfe: string | null;
   nota_fiscal_numero: string | null;
+  shopify_pedido_id: string | null;
   proposta?: {
     id: string;
     vendedor_email: string | null;
     vendedor_nome: string | null;
     bling_order_number: string | null;
     link_danfe: string | null;
+  } | null;
+  shopify_pedido?: {
+    nota_fiscal_url: string | null;
+    nota_fiscal_numero: string | null;
   } | null;
 }
 
@@ -101,7 +106,7 @@ export default function GestaoComissoes() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendedor_propostas_parcelas")
-        .select("*, proposta:vendedor_propostas(id, vendedor_email, vendedor_nome, bling_order_number, link_danfe)")
+        .select("*, proposta:vendedor_propostas(id, vendedor_email, vendedor_nome, bling_order_number, link_danfe), shopify_pedido:ebd_shopify_pedidos(nota_fiscal_url, nota_fiscal_numero)")
         .order("data_vencimento", { ascending: true });
       
       if (error) throw error;
@@ -364,8 +369,10 @@ export default function GestaoComissoes() {
         metodo_pagamento: p.metodo_pagamento,
         bling_order_number: p.nota_fiscal_numero 
           ? `NF ${p.nota_fiscal_numero}` 
-          : (p.bling_order_number || p.proposta?.bling_order_number || null),
-        link_danfe: p.link_danfe || p.proposta?.link_danfe || null
+          : p.shopify_pedido?.nota_fiscal_numero 
+            ? `NF ${p.shopify_pedido.nota_fiscal_numero}`
+            : (p.bling_order_number || p.proposta?.bling_order_number || null),
+        link_danfe: p.link_danfe || p.shopify_pedido?.nota_fiscal_url || p.proposta?.link_danfe || null
       };
     });
   }, [parcelas, statusSelecionado, vendedorSelecionado, tipoSelecionado, searchTerm, clienteMap, vendedorById, vendedorByEmail]);
