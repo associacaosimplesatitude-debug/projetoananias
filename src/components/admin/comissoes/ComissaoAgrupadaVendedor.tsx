@@ -305,42 +305,12 @@ export function ComissaoAgrupadaVendedor({
                                 </Button>
                               )}
                             </div>
-                          ) : item.bling_order_id && onBuscarNfe ? (
-                            // Lupa só aparece quando bling_order_id existe
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                              onClick={() => {
-                                console.groupCollapsed('[NF] Clique lupa (agrupado) - item/payload');
-                                console.log('bling_order_id:', item.bling_order_id);
-                                console.log('parcelaId:', item.id);
-                                console.groupEnd();
-
-                                onBuscarNfe({
-                                  parcelaId: item.id,
-                                  blingOrderId: item.bling_order_id,
-                                  shopifyOrderNumber: item.shopify_order_number,
-                                  customerEmail: item.customer_email,
-                                  orderValue: item.order_value,
-                                  orderDate: item.order_date,
-                                  shopifyPedidoId: item.shopify_pedido_id,
-                                });
-                              }}
-                              disabled={item.isFetchingNfe}
-                              title={`Buscar NF no Bling (ID: ${item.bling_order_id})`}
-                            >
-                              {item.isFetchingNfe ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <>
-                                  <Search className="h-3 w-3 mr-1" />
-                                  NF
-                                </>
-                              )}
-                            </Button>
-                          ) : item.tipo === 'online' ? (
-                            <span className="text-xs text-muted-foreground">Aguardando</span>
+                          ) : item.bling_order_id ? (
+                            // Tem bling_order_id mas ainda sem DANFE - mostrar loading
+                            <span className="text-xs text-blue-600 flex items-center gap-1" title="NF será sincronizada em lote">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Buscando
+                            </span>
                           ) : item.canSearchBlingOrder ? (
                             // Sem bling_order_id mas tem dados de busca - mostrar aviso
                             <span className="text-xs text-amber-600" title="Pedido sem vínculo com Bling">
