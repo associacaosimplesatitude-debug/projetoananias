@@ -251,8 +251,9 @@ export default function PedidosIgrejaCPF() {
       const dataBase = new Date(pedido.order_date || pedido.created_at);
 
       // Pedido online = 1 parcela, pagamento à vista, comissão já liberada
+      // Só incluir shopify_pedido_id se for da tabela principal (FK constraint)
       const parcela = {
-        shopify_pedido_id: pedido.id,
+        ...(pedido.source === 'ebd_shopify_pedidos' ? { shopify_pedido_id: pedido.id } : {}),
         vendedor_id: vendedorId,
         cliente_id: pedido.cliente_id,
         origem: 'online',
