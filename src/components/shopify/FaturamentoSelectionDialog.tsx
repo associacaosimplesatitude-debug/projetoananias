@@ -390,13 +390,28 @@ export function FaturamentoSelectionDialog({
     setSelectedPrazo(value);
   };
 
-  const prazos = [
-    { value: '30', label: '30 dias', description: '1 boleto em 30 dias' },
-    { value: '60_direto', label: '60 dias (à vista)', description: '1 boleto em 60 dias' },
-    { value: '60', label: '30/60 dias', description: '2 boletos parcelados' },
-    { value: '60_90', label: '60/90 dias', description: '2 boletos em 60 e 90 dias' },
-    { value: '90', label: '30/60/90 dias', description: '3 boletos parcelados' },
+  // Regra de parcela mínima R$300:
+  // - Valor <= R$600: apenas 30 dias (1 parcela = valor total)
+  // - R$600 < Valor <= R$900: 30 ou 30/60 dias (2 parcelas = valor/2)
+  // - Valor > R$900: todas as opções de parcelamento
+  const getAllPrazos = () => [
+    { value: '30', label: '30 dias', description: '1 boleto em 30 dias', numParcelas: 1 },
+    { value: '60_direto', label: '60 dias (à vista)', description: '1 boleto em 60 dias', numParcelas: 1 },
+    { value: '60', label: '30/60 dias', description: '2 boletos parcelados', numParcelas: 2 },
+    { value: '60_90', label: '60/90 dias', description: '2 boletos em 60 e 90 dias', numParcelas: 2 },
+    { value: '90', label: '30/60/90 dias', description: '3 boletos parcelados', numParcelas: 3 },
   ];
+
+  const prazos = getAllPrazos().filter(prazo => {
+    // Calcular valor por parcela
+    const valorPorParcela = totalProdutos / prazo.numParcelas;
+    
+    // Regra: mínimo R$300 por parcela
+    // Exceção: se for 1 parcela, sempre permitir (mesmo que valor total seja menor)
+    if (prazo.numParcelas === 1) return true;
+    
+    return valorPorParcela >= 300;
+  });
 
   const valorParcela = formaPagamentoLoja === 'cartao_credito' && parcelasCartao > 1 
     ? totalProdutos / parcelasCartao 
