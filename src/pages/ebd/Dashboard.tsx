@@ -441,8 +441,10 @@ export default function EBDDashboard() {
         </div>
       </div>
 
-      {/* Card de Onboarding/Gamificação */}
-      <OnboardingProgressCard churchId={ebdClienteId} />
+      {/* Card de Onboarding/Gamificação - Oculto para ADVEC (já tem 40% fixo) */}
+      {!ebdClienteTipo?.toLowerCase().includes("advec") && (
+        <OnboardingProgressCard churchId={ebdClienteId} />
+      )}
 
       {/* Card de Créditos Disponíveis */}
       {(creditosDisponiveis > 0 || creditosUsados > 0) && (
