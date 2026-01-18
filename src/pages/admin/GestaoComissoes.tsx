@@ -556,18 +556,19 @@ export default function GestaoComissoes() {
         return next;
       });
       
-      if (data.found && data.url) {
+      // A edge function retorna: linkDanfe, nfeNumero, situacaoId
+      if (data.found && data.linkDanfe) {
         // Atualizar a parcela no banco
         await supabase
           .from('vendedor_propostas_parcelas')
           .update({
-            link_danfe: data.url,
-            nota_fiscal_numero: data.numero || null
+            link_danfe: data.linkDanfe,
+            nota_fiscal_numero: data.nfeNumero || null
           })
           .eq('id', data.parcelaId);
         
         queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
-        toast.success(`NF ${data.numero || ''} encontrada!`);
+        toast.success(`NF ${data.nfeNumero || ''} encontrada!`);
       } else {
         toast.info(data.message || "NF ainda não disponível");
       }
