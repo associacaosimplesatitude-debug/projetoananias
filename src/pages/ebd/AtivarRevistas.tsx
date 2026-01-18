@@ -20,18 +20,33 @@ export default function AtivarRevistas() {
   const [revistasSelecionadas, setRevistasSelecionadas] = useState<ShopifyProduct[]>([]);
   const [revistasConfiguradas, setRevistasConfiguradas] = useState<RevistaConfig[]>([]);
 
-  // Buscar produtos da Shopify
+  // Buscar produtos da Shopify (500 para garantir que todas revistas sejam carregadas)
   const { data: produtos, isLoading } = useQuery({
-    queryKey: ['shopify-products-revistas'],
-    queryFn: () => fetchShopifyProducts(250),
+    queryKey: ['shopify-products-revistas-all'],
+    queryFn: () => fetchShopifyProducts(500),
   });
 
-  // Filtrar apenas revistas de aluno (excluir kit professor)
+  // Filtrar apenas revistas de aluno (excluir kit professor, livros de apoio, infográficos)
   const revistasAluno = produtos?.filter(produto => {
     const title = produto.node.title.toLowerCase();
-    const isRevista = title.includes('revista') || title.includes('ebd');
-    const isProfessor = title.includes('professor') || title.includes('kit');
-    return isRevista && !isProfessor;
+    
+    // Deve ser uma revista EBD
+    const isRevista = title.includes('revista') || 
+                      (title.includes('estudo') && title.includes('bíblico')) ||
+                      (title.includes('estudo') && title.includes('biblico')) ||
+                      title.includes('ebd');
+    
+    // Excluir materiais de professor e outros
+    const isProfessor = title.includes('professor');
+    const isKit = title.includes('kit');
+    const isLivroApoio = title.includes('livro de apoio') || title.includes('livro apoio');
+    const isInfografico = title.includes('infográfico') || title.includes('infografico');
+    const isRecurso = title.includes('recurso didático') || title.includes('recurso didatico');
+    
+    // Deve conter "aluno" ou não ser nenhuma das exclusões
+    const isAluno = title.includes('aluno');
+    
+    return isRevista && !isProfessor && !isKit && !isLivroApoio && !isInfografico && !isRecurso && isAluno;
   }) || [];
 
   const handleSelecionarRevista = (produto: ShopifyProduct) => {
