@@ -7,6 +7,13 @@ const corsHeaders = {
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Helper function to extract situacao ID (API v3 returns object {id, valor})
+const getSituacaoId = (situacao: any): number | undefined => {
+  if (typeof situacao === 'number') return situacao;
+  if (typeof situacao === 'object' && situacao?.id) return situacao.id;
+  return undefined;
+};
+
 function isTokenExpired(tokenExpiresAt: string | null): boolean {
   if (!tokenExpiresAt) return true;
   const expiresAt = new Date(tokenExpiresAt);
@@ -258,150 +265,59 @@ Deno.serve(async (req) => {
       const nfeDetail = nfeResponse?.data;
       
       if (nfeDetail) {
-        console.log(`[GET-NFE] NF-e encontrada: numero=${nfeDetail.numero}, situacao=${nfeDetail.situacao?.id}`);
+        const situacaoId = getSituacaoId(nfeDetail.situacao);
+        console.log(`[GET-NFE] NF-e encontrada: numero=${nfeDetail.numero}, situacaoId=${situacaoId}`);
         
         // Verificar se está autorizada (situacao.id === 6)
-        const isAuthorized = nfeDetail.situacao?.id === 6 || nfeDetail.situacao?.valor === "Autorizada";
+        const isAuthorized = situacaoId === 6;
         
         if (isAuthorized) {
-          // Buscar link do XML/DANFE
-          const xmlLink = nfeDetail.xml || nfeDetail.linkXml || nfeDetail.urlXml;
-          const danfeLink = nfeDetail.linkDanfe || nfeDetail.danfe || nfeDetail.urlDanfe || nfeDetail.linkPDF || nfeDetail.link;
+          // Buscar link do DANFE
+          const linkDanfe = nfeDetail.linkDanfe || nfeDetail.danfe || nfeDetail.urlDanfe || nfeDetail.linkPDF || nfeDetail.link;
+          const linkXml = nfeDetail.xml?.link || nfeDetail.xml || nfeDetail.linkXml || nfeDetail.urlXml;
           
           console.log(`[GET-NFE] SUCESSO! NF-e autorizada encontrada`);
           console.log(`[GET-NFE] Número: ${nfeDetail.numero}`);
-          console.log(`[GET-NFE] XML: ${xmlLink || "não disponível"}`);
-          console.log(`[GET-NFE] DANFE: ${danfeLink || "não disponível"}`);
+          console.log(`[GET-NFE] linkDanfe: ${linkDanfe || "não disponível"}`);
+          console.log(`[GET-NFE] linkXml: ${linkXml || "não disponível"}`);
           
           return new Response(
             JSON.stringify({
               success: true,
               found: true,
               nfeId: nfeIdFromOrder,
-              numero: String(nfeDetail.numero || ''),
+              nfeNumero: String(nfeDetail.numero || ''),
               chave: nfeDetail.chaveAcesso,
-              situacao: nfeDetail.situacao,
-              url: danfeLink,
-              xmlLink,
-              source: "order_direct",
+              situacaoId: 6,
+              linkDanfe,
+              linkXml,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         } else {
-          console.log(`[GET-NFE] NF-e encontrada mas não autorizada. Situação: ${JSON.stringify(nfeDetail.situacao)}`);
-        }
-      }
-    } else {
-      console.log("[GET-NFE] Nenhum campo de NF-e encontrado no pedido");
-    }
-
-    // ============================================================
-    // PASSO 4 (FALLBACK): Listar NF-es com filtro por pedido
-    // ============================================================
-    console.log("\n[GET-NFE] ========== PASSO 4: Fallback - Listar NF-es ==========");
-    console.log("[GET-NFE] Usando fallback: buscar NF-es autorizadas vinculadas ao pedido");
-    
-    await delay(400); // Rate limit
-    
-    // Buscar apenas NF-es autorizadas (situacao=6) vinculadas ao pedido, limite 10
-    const listNfeUrl = `https://www.bling.com.br/Api/v3/nfe?idPedidoVenda=${blingOrderId}&situacao=6&limite=10`;
-    
-    const { data: listResponse, newToken: token3 } = await blingApiCall(
-      listNfeUrl, 
-      accessToken, 
-      supabase, 
-      config
-    );
-    if (token3) accessToken = token3;
-
-    const nfes = listResponse?.data || [];
-    console.log(`[GET-NFE] NF-es retornadas: ${nfes.length}`);
-
-    if (nfes.length === 0) {
-      console.log("[GET-NFE] Nenhuma NF-e encontrada no fallback");
-      return new Response(
-        JSON.stringify({
-          success: true,
-          found: false,
-          message: "NF-e não encontrada para este pedido",
-          searchedOrderId: blingOrderId,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Processar apenas as primeiras 5 NF-es para evitar rate limit
-    const maxToProcess = Math.min(nfes.length, 5);
-    console.log(`[GET-NFE] Processando ${maxToProcess} NF-es do fallback`);
-
-    for (let i = 0; i < maxToProcess; i++) {
-      const nfe = nfes[i];
-      console.log(`\n[GET-NFE] Verificando NF-e ${i + 1}/${maxToProcess}: ID=${nfe.id}, numero=${nfe.numero}`);
-      
-      await delay(400); // Rate limit
-      
-      try {
-        const nfeDetailUrl = `https://www.bling.com.br/Api/v3/nfe/${nfe.id}`;
-        const { data: nfeDetailResponse } = await blingApiCall(
-          nfeDetailUrl, 
-          accessToken, 
-          supabase, 
-          config
-        );
-
-        const nfeDetail = nfeDetailResponse?.data;
-        
-        if (!nfeDetail) {
-          console.log(`[GET-NFE] NF-e ${nfe.id}: sem detalhes, pulando`);
-          continue;
-        }
-
-        // Verificar se esta NF-e está vinculada ao pedido correto
-        const nfePedidoId = nfeDetail.pedidoVenda?.id;
-        const nfePedidoNumero = nfeDetail.pedidoVenda?.numero;
-        
-        console.log(`[GET-NFE] NF-e ${nfe.numero}: pedidoVenda.id=${nfePedidoId}, pedidoVenda.numero=${nfePedidoNumero}`);
-        
-        // Comparar com o ID do pedido buscado
-        const blingOrderIdNum = Number(blingOrderId);
-        
-        if (nfePedidoId && Number(nfePedidoId) === blingOrderIdNum) {
-          console.log(`[GET-NFE] MATCH! NF-e ${nfe.numero} está vinculada ao pedido ${blingOrderId}`);
-          
-          const xmlLink = nfeDetail.xml || nfeDetail.linkXml || nfeDetail.urlXml;
-          const danfeLink = nfeDetail.linkDanfe || nfeDetail.danfe || nfeDetail.urlDanfe || nfeDetail.linkPDF || nfeDetail.link;
-          
+          console.log(`[GET-NFE] NF-e encontrada mas não autorizada. situacaoId: ${situacaoId}`);
           return new Response(
             JSON.stringify({
               success: true,
-              found: true,
-              nfeId: nfe.id,
-              numero: String(nfeDetail.numero || ''),
-              chave: nfeDetail.chaveAcesso,
-              situacao: nfeDetail.situacao,
-              url: danfeLink,
-              xmlLink,
-              source: "fallback_list",
+              found: false,
+              message: "NF-e encontrada mas não está autorizada",
+              situacaoId,
+              blingOrderId,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
-        } else {
-          console.log(`[GET-NFE] NF-e ${nfe.numero}: pedidoVenda.id (${nfePedidoId}) != blingOrderId (${blingOrderIdNum}), pulando`);
         }
-      } catch (nfeError) {
-        console.error(`[GET-NFE] Erro ao buscar detalhes da NF-e ${nfe.id}:`, nfeError);
-        continue;
       }
     }
 
-    console.log("\n[GET-NFE] Nenhuma NF-e válida encontrada após verificar todas");
+    // NF-e não encontrada no pedido
+    console.log("[GET-NFE] Nenhuma NF-e vinculada ao pedido");
     return new Response(
       JSON.stringify({
         success: true,
         found: false,
-        message: "NF-e não encontrada ou não vinculada corretamente a este pedido",
-        searchedOrderId: blingOrderId,
-        nfesVerificadas: maxToProcess,
+        message: "NF-e ainda não emitida para este pedido",
+        blingOrderId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
