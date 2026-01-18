@@ -133,6 +133,34 @@ export default function EBDLogin() {
         return;
       }
 
+      // 5. PROFESSOR (prioridade sobre "client" / "/dashboard")
+      const { data: professorData } = await supabase
+        .from('ebd_professores')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (professorData) {
+        pushLoginSuccess(user.id, 'Professor');
+        navigate('/ebd/professor');
+        return;
+      }
+
+      // 6. ALUNO (prioridade sobre "client" / "/dashboard")
+      const { data: alunoData } = await supabase
+        .from('ebd_alunos')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (alunoData) {
+        pushLoginSuccess(user.id, 'Aluno');
+        navigate('/ebd/aluno');
+        return;
+      }
+
       if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
         navigate('/dashboard');
         return;
@@ -150,34 +178,6 @@ export default function EBDLogin() {
         } else {
           navigate('/');
         }
-        return;
-      }
-
-      // 5. PROFESSOR
-      const { data: professorData } = await supabase
-        .from('ebd_professores')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (professorData) {
-        pushLoginSuccess(user.id, 'Professor');
-        navigate('/ebd/professor');
-        return;
-      }
-
-      // 6. ALUNO
-      const { data: alunoData } = await supabase
-        .from('ebd_alunos')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (alunoData) {
-        pushLoginSuccess(user.id, 'Aluno');
-        navigate('/ebd/aluno');
         return;
       }
 
