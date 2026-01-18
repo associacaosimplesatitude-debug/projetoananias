@@ -767,23 +767,32 @@ export default function PropostaDigital() {
 
         {/* Status Banner */}
         {isAccepted && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="h-6 w-6 text-green-600" />
-            <div>
-              <p className="font-semibold text-green-800">Proposta Confirmada!</p>
-              <p className="text-sm text-green-600">
-                Confirmada em {new Date(proposta.confirmado_em!).toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-                {proposta.prazo_faturamento_selecionado && (
-                  <> • Prazo selecionado: {proposta.prazo_faturamento_selecionado} dias</>
-                )}
-              </p>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="h-6 w-6 text-green-600" />
+              <div>
+                <p className="font-semibold text-green-800">Proposta Confirmada!</p>
+                <p className="text-sm text-green-600">
+                  Confirmada em {new Date(proposta.confirmado_em!).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                  {proposta.prazo_faturamento_selecionado && (
+                    <> • Prazo selecionado: {proposta.prazo_faturamento_selecionado} dias</>
+                  )}
+                </p>
+              </div>
             </div>
+            <Button
+              onClick={() => window.location.assign('/ebd/shopify-pedidos')}
+              variant="outline"
+              className="w-full border-green-300 text-green-700 hover:bg-green-100"
+            >
+              Voltar ao Dashboard
+            </Button>
           </div>
         )}
 
