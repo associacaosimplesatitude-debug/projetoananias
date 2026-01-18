@@ -73,10 +73,15 @@ export function EditarPlanejamentoDialog({
     enabled: !!churchId && open,
   });
 
+  // Guardar turma_id original para atualizar apenas as escalas corretas
+  const [originalTurmaId, setOriginalTurmaId] = useState<string>("");
+
   // Atualizar estados quando o planejamento mudar
   useEffect(() => {
     if (planejamento) {
-      setTurmaId(planejamento.turma_id || planejamento.turma?.id || "");
+      const turmaIdValue = planejamento.turma_id || planejamento.turma?.id || "";
+      setTurmaId(turmaIdValue);
+      setOriginalTurmaId(turmaIdValue); // Guardar o turma_id original
       setDiaSemana(planejamento.dia_semana || "");
       setDataInicio(planejamento.data_inicio ? parseISO(planejamento.data_inicio) : undefined);
       setDataTermino(planejamento.data_termino ? parseISO(planejamento.data_termino) : undefined);
@@ -102,17 +107,19 @@ export function EditarPlanejamentoDialog({
 
       if (planError) throw planError;
 
-      // Atualizar turma_id nas escalas associadas
-      const { error: escalaError } = await supabase
-        .from("ebd_escalas")
-        .update({ turma_id: turmaId })
-        .eq("church_id", churchId)
-        .gte("data", format(dataInicio, "yyyy-MM-dd"))
-        .lte("data", dataTermino ? format(dataTermino, "yyyy-MM-dd") : format(dataInicio, "yyyy-MM-dd"));
+      // Atualizar turma_id nas escalas associadas - APENAS as que pertencem ao turma_id original
+      if (originalTurmaId && turmaId !== originalTurmaId) {
+        const { error: escalaError } = await supabase
+          .from("ebd_escalas")
+          .update({ turma_id: turmaId })
+          .eq("church_id", churchId)
+          .eq("turma_id", originalTurmaId) // Filtrar apenas escalas do turma_id original
+          .gte("data", planejamento.data_inicio) // Usar datas originais do planejamento
+          .lte("data", planejamento.data_termino);
 
-      if (escalaError) {
-        console.error("Erro ao atualizar escalas:", escalaError);
-        // Não lançar erro aqui, só logar
+        if (escalaError) {
+          console.error("Erro ao atualizar escalas:", escalaError);
+        }
       }
     },
     onSuccess: () => {
