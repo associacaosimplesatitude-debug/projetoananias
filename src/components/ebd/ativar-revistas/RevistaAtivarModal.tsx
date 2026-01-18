@@ -330,14 +330,14 @@ export function RevistaAtivarModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent className="max-w-3xl h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>
             {step === 'config' ? 'Ativar Revista' : 'Montar Escala de Professores'}
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 max-h-[calc(90vh-180px)] pr-4">
+        <ScrollArea className="flex-1 pr-4">
           {step === 'config' ? (
             <div className="py-4 space-y-6">
               {/* Imagem e título da revista */}
