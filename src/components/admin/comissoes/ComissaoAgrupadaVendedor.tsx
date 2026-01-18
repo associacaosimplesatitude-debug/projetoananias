@@ -310,15 +310,33 @@ export function ComissaoAgrupadaVendedor({
                               variant="ghost"
                               size="sm"
                               className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                              onClick={() => onBuscarNfe({
-                                parcelaId: item.id,
-                                blingOrderId: item.bling_order_id,
-                                shopifyOrderNumber: item.shopify_order_number,
-                                customerEmail: item.customer_email,
-                                orderValue: item.order_value,
-                                orderDate: item.order_date,
-                                shopifyPedidoId: item.shopify_pedido_id
-                              })}
+                              onClick={() => {
+                                const debugFields = {
+                                  id: item.id,
+                                  pedido_id: (item as any).pedido_id,
+                                  numero_pedido: (item as any).numero_pedido,
+                                  bling_order_id: item.bling_order_id,
+                                  bling_pedido_id: (item as any).bling_pedido_id,
+                                  id_pedido_venda_bling: (item as any).id_pedido_venda_bling,
+                                  sale_id: (item as any).sale_id,
+                                };
+                                const payload = {
+                                  parcelaId: item.id,
+                                  blingOrderId: item.bling_order_id,
+                                  shopifyOrderNumber: item.shopify_order_number,
+                                  customerEmail: item.customer_email,
+                                  orderValue: item.order_value,
+                                  orderDate: item.order_date,
+                                  shopifyPedidoId: item.shopify_pedido_id,
+                                };
+
+                                console.groupCollapsed('[NF] Clique lupa (agrupado) - item/payload');
+                                console.log('item fields:', debugFields);
+                                console.log('payload onBuscarNfe:', payload);
+                                console.groupEnd();
+
+                                onBuscarNfe(payload);
+                              }}
                               disabled={item.isFetchingNfe}
                               title="Buscar NF no Bling"
                             >

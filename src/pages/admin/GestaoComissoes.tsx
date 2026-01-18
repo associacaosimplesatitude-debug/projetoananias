@@ -505,6 +505,11 @@ export default function GestaoComissoes() {
       orderDate?: string | null;
       shopifyPedidoId?: string | null;
     }) => {
+      // Debug: confirmar payload recebido do clique da lupa
+      console.groupCollapsed('[NF] Clique lupa - params recebidos');
+      console.log('params:', params);
+      console.groupEnd();
+
       setFetchingNfeIds(prev => new Set(prev).add(params.parcelaId));
       
       let blingOrderId = params.blingOrderId;
@@ -538,16 +543,22 @@ export default function GestaoComissoes() {
           throw new Error('Pedido não encontrado no Bling');
         }
       }
+
+      // Debug: payload EXATO que vai para bling-get-nfe-by-order-id
+      const payload = { blingOrderId };
+      console.groupCollapsed('[NF] Payload → bling-get-nfe-by-order-id');
+      console.log(JSON.stringify(payload));
+      console.groupEnd();
       
       // Now fetch the NFe with the blingOrderId
       const { data, error } = await supabase.functions.invoke('bling-get-nfe-by-order-id', {
-        body: { blingOrderId }
+        body: payload
       });
       
       if (error) throw error;
       if (!data.success) throw new Error(data.error || 'Erro ao buscar NF');
       
-      return { parcelaId: params.parcelaId, ...data };
+      return { parcelaId: params.parcelaId, ...data, _debugPayload: payload };
     },
     onSuccess: async (data) => {
       setFetchingNfeIds(prev => {
