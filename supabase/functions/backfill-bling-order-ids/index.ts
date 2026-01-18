@@ -91,7 +91,14 @@ async function findBlingOrderId(
 
   // Strategy 1: Search by numeroLoja (Shopify order number) - MOST RELIABLE
   if (orderNumber) {
-    const cleanNumero = orderNumber.replace('#', '').toUpperCase().trim();
+    // Clean order number: remove # and D prefix
+    let cleanNumero = orderNumber.replace('#', '').toUpperCase().trim();
+    // Skip if it's a #D*** order (internal) - these don't exist in Bling
+    if (cleanNumero.startsWith('D')) {
+      console.log('[backfill-bling] Skipping internal order:', orderNumber);
+      return { blingOrderId: null, strategy: null, newToken: currentToken };
+    }
+    
     console.log('[backfill-bling] Strategy 1: Searching by numeroLoja:', cleanNumero);
     
     const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=20`;
@@ -154,17 +161,10 @@ async function findBlingOrderId(
 interface ShopifyPedido {
   id: string;
   order_number: string | null;
+  customer_name: string | null;
   valor_total: number | null;
   order_date: string | null;
   bling_order_id: number | null;
-}
-
-interface ParcelaItem {
-  id: string;
-  valor: number;
-  data_vencimento: string;
-  shopify_pedido_id: string | null;
-  shopify_pedido: ShopifyPedido | ShopifyPedido[] | null;
 }
 
 Deno.serve(async (req) => {
@@ -178,60 +178,13 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Fetch items from commissions panel that need bling_order_id
-    // These are the ones showing "Sem vínculo"
-    const { data: parcelas, error: parcelasError } = await supabase
-      .from('vendedor_propostas_parcelas')
-      .select(`
-        id,
-        valor,
-        data_vencimento,
-        shopify_pedido_id,
-        shopify_pedido:ebd_shopify_pedidos(
-          id,
-          order_number,
-          valor_total,
-          order_date,
-          bling_order_id
-        )
-      `)
-      .not('shopify_pedido_id', 'is', null)
-      .order('data_vencimento', { ascending: false });
-
-    if (parcelasError) {
-      console.error('[backfill-bling] Error fetching parcelas:', parcelasError);
-      throw parcelasError;
-    }
-
-    // Helper to get shopify_pedido as single object (Supabase can return array or object)
-    const getShopifyPedido = (item: ParcelaItem): ShopifyPedido | null => {
-      if (!item.shopify_pedido) return null;
-      if (Array.isArray(item.shopify_pedido)) {
-        return item.shopify_pedido[0] || null;
-      }
-      return item.shopify_pedido;
+    const results = {
+      phase1_shopify_orders_updated: 0,
+      phase2_parcelas_relinked: 0,
+      phase3_bling_ids_found: 0,
+      failed: 0,
+      details: [] as any[]
     };
-
-    // Filter to only those without bling_order_id
-    const itemsToProcess = ((parcelas || []) as ParcelaItem[]).filter((p) => {
-      const shopifyPedido = getShopifyPedido(p);
-      return shopifyPedido && !shopifyPedido.bling_order_id && shopifyPedido.order_number;
-    });
-
-    console.log('[backfill-bling] Found', itemsToProcess.length, 'items to process');
-
-    if (itemsToProcess.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Nenhum item sem vínculo encontrado',
-          processed: 0,
-          updated: 0,
-          failed: 0
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     // Fetch Bling config
     const { data: blingConfig, error: configError } = await supabase
@@ -249,95 +202,143 @@ Deno.serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, blingConfig);
     }
 
-    const results = {
-      processed: 0,
-      updated: 0,
-      failed: 0,
-      details: [] as any[]
-    };
+    // ==== PHASE 1: Find bling_order_id for Shopify orders (#****) without it ====
+    console.log('[backfill-bling] PHASE 1: Finding bling_order_id for Shopify orders...');
+    
+    const { data: shopifyOrders, error: ordersError } = await supabase
+      .from('ebd_shopify_pedidos')
+      .select('id, order_number, customer_name, valor_total, order_date, bling_order_id')
+      .is('bling_order_id', null)
+      .not('order_number', 'ilike', '#D%')
+      .order('created_at', { ascending: false });
 
-    // Process each item with rate limiting
-    for (const item of itemsToProcess) {
-      const shopifyPedido = getShopifyPedido(item)!;
-      results.processed++;
+    if (ordersError) {
+      console.error('[backfill-bling] Error fetching orders:', ordersError);
+    } else {
+      console.log('[backfill-bling] Found', shopifyOrders?.length || 0, 'Shopify orders without bling_order_id');
+      
+      for (const order of (shopifyOrders || [])) {
+        try {
+          const { blingOrderId, strategy, newToken } = await findBlingOrderId(
+            supabase,
+            blingConfig,
+            accessToken,
+            order.order_number,
+            order.valor_total,
+            order.order_date
+          );
 
-      console.log('[backfill-bling] Processing:', {
-        parcela_id: item.id,
-        order_number: shopifyPedido.order_number,
-        valor: shopifyPedido.valor_total,
-        date: shopifyPedido.order_date
-      });
+          if (newToken) accessToken = newToken;
 
-      try {
-        const { blingOrderId, strategy, newToken } = await findBlingOrderId(
-          supabase,
-          blingConfig,
-          accessToken,
-          shopifyPedido.order_number,
-          shopifyPedido.valor_total || item.valor,
-          shopifyPedido.order_date || item.data_vencimento
-        );
+          if (blingOrderId) {
+            const { error: updateError } = await supabase
+              .from('ebd_shopify_pedidos')
+              .update({ bling_order_id: blingOrderId })
+              .eq('id', order.id);
 
-        if (newToken) accessToken = newToken;
-
-        if (blingOrderId) {
-          // Update ebd_shopify_pedidos
-          const { error: updateError } = await supabase
-            .from('ebd_shopify_pedidos')
-            .update({ bling_order_id: blingOrderId })
-            .eq('id', shopifyPedido.id);
-
-          if (updateError) {
-            console.error('[backfill-bling] Error updating:', updateError);
-            results.failed++;
-            results.details.push({
-              parcela_id: item.id,
-              order_number: shopifyPedido.order_number,
-              status: 'error',
-              error: updateError.message
-            });
-          } else {
-            results.updated++;
-            results.details.push({
-              parcela_id: item.id,
-              order_number: shopifyPedido.order_number,
-              bling_order_id: blingOrderId,
-              strategy,
-              status: 'updated'
-            });
-            console.log('[backfill-bling] ✓ Updated order_number:', shopifyPedido.order_number, '-> bling_order_id:', blingOrderId);
+            if (!updateError) {
+              results.phase1_shopify_orders_updated++;
+              console.log('[backfill-bling] ✓ Updated Shopify order:', order.order_number, '-> bling_order_id:', blingOrderId);
+            }
           }
-        } else {
-          results.failed++;
-          results.details.push({
-            parcela_id: item.id,
-            order_number: shopifyPedido.order_number,
-            status: 'not_found'
-          });
-          console.log('[backfill-bling] ✗ Not found:', shopifyPedido.order_number);
-        }
 
-        // Rate limiting: wait 300ms between API calls to avoid Bling rate limits
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-      } catch (err) {
-        console.error('[backfill-bling] Error processing item:', err);
-        results.failed++;
-        results.details.push({
-          parcela_id: item.id,
-          order_number: shopifyPedido.order_number,
-          status: 'error',
-          error: err instanceof Error ? err.message : 'Unknown error'
-        });
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (err) {
+          console.error('[backfill-bling] Error in phase 1:', err);
+          results.failed++;
+        }
       }
     }
+
+    // ==== PHASE 2: Re-link parcelas from #D*** to matching #**** with bling_order_id ====
+    console.log('[backfill-bling] PHASE 2: Re-linking parcelas from internal orders to Shopify orders...');
+    
+    // Find parcelas linked to #D*** orders
+    const { data: internalParcelas, error: parcelasError } = await supabase
+      .from('vendedor_propostas_parcelas')
+      .select(`
+        id,
+        shopify_pedido_id,
+        valor,
+        shopify_pedido:ebd_shopify_pedidos(id, order_number, customer_name, valor_total, bling_order_id)
+      `)
+      .not('shopify_pedido_id', 'is', null);
+
+    if (parcelasError) {
+      console.error('[backfill-bling] Error fetching parcelas:', parcelasError);
+    } else {
+      const parcelasToRelink = (internalParcelas || []).filter((p: any) => {
+        const shopify = Array.isArray(p.shopify_pedido) ? p.shopify_pedido[0] : p.shopify_pedido;
+        return shopify && 
+               shopify.order_number?.startsWith('#D') && 
+               !shopify.bling_order_id;
+      });
+
+      console.log('[backfill-bling] Found', parcelasToRelink.length, 'parcelas linked to internal orders');
+
+      for (const parcela of parcelasToRelink) {
+        const currentShopify = Array.isArray(parcela.shopify_pedido) 
+          ? parcela.shopify_pedido[0] 
+          : parcela.shopify_pedido;
+        
+        if (!currentShopify) continue;
+
+        // Find a matching Shopify order (#****) with bling_order_id
+        const { data: matchingOrders } = await supabase
+          .from('ebd_shopify_pedidos')
+          .select('id, order_number, customer_name, valor_total, bling_order_id')
+          .eq('customer_name', currentShopify.customer_name)
+          .not('order_number', 'ilike', '#D%')
+          .not('bling_order_id', 'is', null);
+
+        if (matchingOrders && matchingOrders.length > 0) {
+          // Find best match by value (within R$ 1 tolerance)
+          const parcelaValor = Number(currentShopify.valor_total || parcela.valor);
+          const bestMatch = matchingOrders.find((m: any) => 
+            Math.abs(Number(m.valor_total) - parcelaValor) < 1
+          );
+
+          if (bestMatch) {
+            const { error: updateError } = await supabase
+              .from('vendedor_propostas_parcelas')
+              .update({ shopify_pedido_id: bestMatch.id })
+              .eq('id', parcela.id);
+
+            if (!updateError) {
+              results.phase2_parcelas_relinked++;
+              console.log('[backfill-bling] ✓ Relinked parcela:', parcela.id, 
+                'from', currentShopify.order_number, 
+                'to', bestMatch.order_number,
+                '(bling_order_id:', bestMatch.bling_order_id, ')');
+            }
+          }
+        }
+      }
+    }
+
+    // ==== PHASE 3: Final count of items now with bling_order_id ====
+    const { data: finalCheck } = await supabase
+      .from('vendedor_propostas_parcelas')
+      .select(`
+        id,
+        shopify_pedido:ebd_shopify_pedidos(bling_order_id)
+      `)
+      .not('shopify_pedido_id', 'is', null);
+
+    const withBlingId = (finalCheck || []).filter((p: any) => {
+      const shopify = Array.isArray(p.shopify_pedido) ? p.shopify_pedido[0] : p.shopify_pedido;
+      return shopify?.bling_order_id;
+    });
+
+    results.phase3_bling_ids_found = withBlingId.length;
 
     console.log('[backfill-bling] Completed:', results);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Processados ${results.processed} itens. Atualizados: ${results.updated}. Falhas: ${results.failed}`,
+        message: `Fase 1: ${results.phase1_shopify_orders_updated} pedidos Shopify atualizados. Fase 2: ${results.phase2_parcelas_relinked} parcelas re-vinculadas. Total com bling_order_id: ${results.phase3_bling_ids_found}`,
         ...results
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
