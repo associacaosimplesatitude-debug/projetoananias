@@ -68,6 +68,7 @@ interface Vendedor {
   id: string;
   nome: string;
   foto_url: string | null;
+  email?: string | null;
 }
 
 interface Cliente {
@@ -350,7 +351,7 @@ export default function ShopifyPedidos() {
         .from('ebd_clientes')
         .select(`
           *,
-          vendedor:vendedores(id, nome, foto_url)
+          vendedor:vendedores(id, nome, foto_url, email)
         `)
         .eq('superintendente_user_id', user.id)
         .maybeSingle();
@@ -575,8 +576,11 @@ export default function ShopifyPedidos() {
     },
     freteManual?: FreteManualData
   ) => {
-    if (!selectedCliente || !vendedor) {
-      toast.error("Dados incompletos");
+    // Determinar qual vendedor usar: se logado como vendedor, usa o hook; senão, usa o vinculado ao cliente
+    const vendedorParaProposta = isVendedor ? vendedor : selectedCliente?.vendedor;
+    
+    if (!selectedCliente || !vendedorParaProposta) {
+      toast.error("Dados incompletos - vendedor não encontrado");
       return;
     }
 
@@ -705,8 +709,8 @@ export default function ShopifyPedidos() {
       const { data, error } = await supabase
         .from("vendedor_propostas")
         .insert({
-          vendedor_id: vendedor.id,
-          vendedor_email: vendedor.email, // Salvar email do vendedor diretamente
+          vendedor_id: vendedorParaProposta.id,
+          vendedor_email: vendedorParaProposta.email || null,
           cliente_id: selectedCliente.id,
           cliente_nome: selectedCliente.nome_igreja,
           cliente_cnpj: selectedCliente.cnpj,
@@ -720,7 +724,7 @@ export default function ShopifyPedidos() {
           token: token,
           metodo_frete: freteManual ? 'manual' : null, // null = cliente escolherá
           pode_faturar: isFaturamentoB2B,
-          vendedor_nome: vendedor.nome || null,
+          vendedor_nome: vendedorParaProposta.nome || null,
           prazos_disponiveis: isFaturamentoB2B && faturamentoPrazos ? faturamentoPrazos : null,
           // Campos de frete manual
           frete_tipo: freteManual ? 'manual' : null, // null = cliente escolherá na proposta
