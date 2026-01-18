@@ -237,12 +237,14 @@ export function RevistaAtivarModal({
         revistaId = revistaNova.id;
       }
 
-      // 2) Verificar se já existe planejamento para esta revista+turma (sobrescrever)
+      // 2) Verificar se já existe planejamento para esta revista+turma+igreja (sobrescrever)
+      // IMPORTANTE: Filtrar também por turma_id para não misturar planejamentos de turmas diferentes
       const { data: planejamentoExistente, error: planejamentoExistenteError } = await supabase
         .from("ebd_planejamento")
         .select("id")
         .eq("church_id", churchId)
         .eq("revista_id", revistaId)
+        .eq("turma_id", turmaId)
         .maybeSingle();
 
       if (planejamentoExistenteError) throw planejamentoExistenteError;
@@ -257,18 +259,20 @@ export function RevistaAtivarModal({
             data_inicio: dataInicioStr,
             data_termino: dataTermino,
             dia_semana: diaSemana,
+            turma_id: turmaId, // Garantir que turma_id está atualizado
           })
           .eq("id", planejamentoExistente.id);
 
         if (planUpdateError) throw planUpdateError;
         planejamentoId = planejamentoExistente.id;
       } else {
-        // Criar novo planejamento
+        // Criar novo planejamento com turma_id vinculado
         const { data: planNovo, error: planInsertError } = await supabase
           .from("ebd_planejamento")
           .insert({
             church_id: churchId,
             revista_id: revistaId,
+            turma_id: turmaId, // Vincular turma diretamente no planejamento
             data_inicio: dataInicioStr,
             data_termino: dataTermino,
             dia_semana: diaSemana,

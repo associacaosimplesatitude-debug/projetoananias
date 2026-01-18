@@ -80,157 +80,52 @@ export default function EBDSchedule() {
   const { data: churchData } = useEbdChurchId();
 
 
-  // Buscar planejamentos com turma via escalas
+  // Buscar planejamentos com turma diretamente vinculada (turma_id no planejamento)
   const { data: planejamentos } = useQuery({
     queryKey: ['ebd-planejamentos-with-turmas', churchData?.id],
     queryFn: async () => {
       if (!churchData?.id) return [];
       
-      // Buscar planejamentos
-      const { data: planejamentosData0, error: planError } = await supabase
+      // Buscar planejamentos já com turma vinculada diretamente
+      const { data: planejamentosData, error: planError } = await supabase
         .from('ebd_planejamento')
         .select(`
           id,
           revista_id,
+          turma_id,
           data_inicio,
           data_termino,
           dia_semana,
-          revista:ebd_revistas(id, titulo, imagem_url, faixa_etaria_alvo, num_licoes)
+          revista:ebd_revistas(id, titulo, imagem_url, faixa_etaria_alvo, num_licoes),
+          turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .eq('church_id', churchData.id)
         .order('created_at', { ascending: false });
 
       if (planError) throw planError;
 
-      // Buscar escalas para obter turmas associadas e contagem
+      // Buscar escalas para calcular progresso (mas NÃO para inferir turma)
       const { data: escalasData, error: escError } = await supabase
         .from('ebd_escalas')
-        .select(`
-          data,
-          sem_aula,
-          observacao,
-          turma:ebd_turmas(id, nome, faixa_etaria)
-        `)
+        .select('data, sem_aula, turma_id')
         .eq('church_id', churchData.id);
 
       if (escError) throw escError;
 
-      // Reparar automaticamente casos antigos onde existe ebd_escalas mas não existe ebd_planejamento
-      // (por exemplo, escalas criadas via "Ativar Revistas" antes do planejamento ser criado)
-      if ((planejamentosData0?.length || 0) === 0 && (escalasData?.length || 0) > 0) {
-        const grupos = new Map<string, { titulo: string; turma: any; min: string; max: string }>();
-
-        const extrairTituloDaObservacao = (obs: string | null) => {
-          if (!obs) return null;
-          const parts = obs.split(' - ');
-          if (parts.length >= 2) return parts.slice(1).join(' - ').trim();
-          return null;
-        };
-
-        for (const e of escalasData || []) {
-          const titulo = extrairTituloDaObservacao((e as any).observacao);
-          if (!titulo) continue;
-          const key = `${(e.turma as any)?.id || 'sem-turma'}::${titulo}`;
-          const data = e.data;
-
-          const atual = grupos.get(key);
-          if (!atual) {
-            grupos.set(key, {
-              titulo,
-              turma: e.turma,
-              min: data,
-              max: data,
-            });
-          } else {
-            if (data < atual.min) atual.min = data;
-            if (data > atual.max) atual.max = data;
-          }
-        }
-
-        for (const g of grupos.values()) {
-          // 1) Garantir ebd_revistas
-          const { data: revistaExistente, error: revErr } = await supabase
-            .from('ebd_revistas')
-            .select('id')
-            .eq('titulo', g.titulo)
-            .maybeSingle();
-          if (revErr) throw revErr;
-
-          let revistaId = revistaExistente?.id as string | undefined;
-          if (!revistaId) {
-            const { data: revistaNova, error: revInsErr } = await supabase
-              .from('ebd_revistas')
-              .insert({
-                titulo: g.titulo,
-                faixa_etaria_alvo: (g.turma as any)?.faixa_etaria || 'Geral',
-              })
-              .select('id')
-              .single();
-            if (revInsErr) throw revInsErr;
-            revistaId = revistaNova.id;
-          }
-
-          // 2) Garantir ebd_planejamento
-          const { data: planExistente, error: planExistErr } = await supabase
-            .from('ebd_planejamento')
-            .select('id')
-            .eq('church_id', churchData.id)
-            .eq('revista_id', revistaId)
-            .eq('data_inicio', g.min)
-            .maybeSingle();
-          if (planExistErr) throw planExistErr;
-
-          if (!planExistente?.id) {
-            const diaSemana = format(parseISO(g.min), 'EEEE', { locale: ptBR });
-            const { error: planInsErr } = await supabase
-              .from('ebd_planejamento')
-              .insert({
-                church_id: churchData.id,
-                revista_id: revistaId,
-                data_inicio: g.min,
-                data_termino: g.max,
-                dia_semana: diaSemana,
-              });
-            if (planInsErr) throw planInsErr;
-          }
-        }
-      }
-
-      // Recarregar planejamentos (caso tenha criado automaticamente acima)
-      const { data: planejamentosData, error: planReloadError } = await supabase
-        .from('ebd_planejamento')
-        .select(`
-          id,
-          revista_id,
-          data_inicio,
-          data_termino,
-          dia_semana,
-          revista:ebd_revistas(id, titulo, imagem_url, faixa_etaria_alvo, num_licoes)
-        `)
-        .eq('church_id', churchData.id)
-        .order('created_at', { ascending: false });
-
-      if (planReloadError) throw planReloadError;
-
       const hoje = startOfDay(new Date());
 
-      // Mapear turmas para planejamentos baseado nas datas e faixa etária da revista
+      // Mapear resultados - usar turma diretamente do planejamento
       const result = planejamentosData?.map(plan => {
+        const turmaId = (plan as any).turma_id;
+        const turma = (plan as any).turma;
+        
+        // Filtrar escalas por turma_id E período para calcular progresso corretamente
         const escalasDoPlan = escalasData?.filter(e => 
-          e.data >= plan.data_inicio && e.data <= plan.data_termino
+          e.turma_id === turmaId &&
+          e.data >= plan.data_inicio && 
+          e.data <= plan.data_termino
         );
         
-        // Encontrar a turma que corresponde à faixa etária da revista
-        const faixaRevista = (plan.revista as any)?.faixa_etaria_alvo || '';
-        const turmaCorrespondente = escalasDoPlan?.find(e => {
-          const turmaFaixa = (e.turma as any)?.faixa_etaria || '';
-          // Match exato ou parcial (ex: "15-17 anos" contém "15-17")
-          return turmaFaixa === faixaRevista || 
-                 turmaFaixa.includes(faixaRevista.split(':')[0]) ||
-                 faixaRevista.includes(turmaFaixa.split(':')[0]);
-        })?.turma;
-        
-        const turma = turmaCorrespondente || escalasDoPlan?.[0]?.turma;
         const temEscalas = escalasDoPlan && escalasDoPlan.length > 0;
         
         // Calcular progresso: aulas ministradas (datas passadas sem sem_aula)
@@ -251,6 +146,7 @@ export default function EBDSchedule() {
 
       return result as unknown as (Planejamento & { 
         revista_id: string;
+        turma_id: string;
         temEscalas: boolean;
         progresso: { ministradas: number; total: number; percentual: number } 
       })[];
