@@ -4694,8 +4694,10 @@ export type Database = {
           data_pagamento: string | null
           data_vencimento: string
           id: string
+          link_danfe: string | null
           lote_pagamento_id: string | null
           metodo_pagamento: string | null
+          nota_fiscal_numero: string | null
           numero_parcela: number
           origem: string | null
           proposta_id: string | null
@@ -4718,8 +4720,10 @@ export type Database = {
           data_pagamento?: string | null
           data_vencimento: string
           id?: string
+          link_danfe?: string | null
           lote_pagamento_id?: string | null
           metodo_pagamento?: string | null
+          nota_fiscal_numero?: string | null
           numero_parcela: number
           origem?: string | null
           proposta_id?: string | null
@@ -4742,8 +4746,10 @@ export type Database = {
           data_pagamento?: string | null
           data_vencimento?: string
           id?: string
+          link_danfe?: string | null
           lote_pagamento_id?: string | null
           metodo_pagamento?: string | null
+          nota_fiscal_numero?: string | null
           numero_parcela?: number
           origem?: string | null
           proposta_id?: string | null
