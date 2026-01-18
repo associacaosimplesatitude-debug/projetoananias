@@ -70,6 +70,9 @@ interface ShopifyPedidoCG {
   endereco_cep?: string | null;
   endereco_nome?: string | null;
   endereco_telefone?: string | null;
+  // DANFE fields from Bling
+  nota_fiscal_url?: string | null;
+  nota_fiscal_numero?: string | null;
   // New commission fields
   vendedor_id?: string | null;
   cliente_id?: string | null;
@@ -240,6 +243,8 @@ export default function PedidosCentralGospel() {
         valor_comissao: pedido.valor_total * (comissaoPercentual / 100),
         data_vencimento: dataBase.toISOString().split('T')[0],
         comissao_status: 'liberada',
+        link_danfe: pedido.nota_fiscal_url || null,
+        nota_fiscal_numero: pedido.nota_fiscal_numero || null,
       };
 
       const { error: insertError } = await supabase

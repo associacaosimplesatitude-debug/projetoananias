@@ -46,6 +46,8 @@ interface Parcela {
   data_liberacao: string | null;
   comissao_paga_em: string | null;
   lote_pagamento_id: string | null;
+  link_danfe: string | null;
+  nota_fiscal_numero: string | null;
   proposta?: {
     id: string;
     vendedor_email: string | null;
@@ -360,8 +362,10 @@ export default function GestaoComissoes() {
         valor_comissao: Number(p.valor_comissao || 0),
         comissao_status: p.comissao_status || 'pendente',
         metodo_pagamento: p.metodo_pagamento,
-        bling_order_number: p.bling_order_number || p.proposta?.bling_order_number || null,
-        link_danfe: p.proposta?.link_danfe || null
+        bling_order_number: p.nota_fiscal_numero 
+          ? `NF ${p.nota_fiscal_numero}` 
+          : (p.bling_order_number || p.proposta?.bling_order_number || null),
+        link_danfe: p.link_danfe || p.proposta?.link_danfe || null
       };
     });
   }, [parcelas, statusSelecionado, vendedorSelecionado, tipoSelecionado, searchTerm, clienteMap, vendedorById, vendedorByEmail]);

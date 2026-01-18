@@ -67,6 +67,9 @@ interface ShopifyPedido {
   codigo_rastreio: string | null;
   url_rastreio: string | null;
   comissao_aprovada?: boolean;
+  // DANFE fields from Bling
+  nota_fiscal_url?: string | null;
+  nota_fiscal_numero?: string | null;
   source?: 'ebd_shopify_pedidos' | 'ebd_shopify_pedidos_cg';
   cliente?: {
     nome_igreja: string;
@@ -264,6 +267,8 @@ export default function PedidosIgrejaCPF() {
         valor_comissao: pedido.valor_total * (comissaoPercentual / 100),
         data_vencimento: dataBase.toISOString().split('T')[0],
         comissao_status: 'liberada', // Já pago no Shopify
+        link_danfe: pedido.nota_fiscal_url || null,
+        nota_fiscal_numero: pedido.nota_fiscal_numero || null,
       };
 
       const { error: insertError } = await supabase
