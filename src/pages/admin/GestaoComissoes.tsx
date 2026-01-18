@@ -57,6 +57,11 @@ interface Parcela {
     link_danfe: string | null;
   } | null;
   shopify_pedido?: {
+    id: string;
+    order_number: string | null;
+    customer_email: string | null;
+    valor_total: number | null;
+    order_date: string | null;
     nota_fiscal_url: string | null;
     nota_fiscal_numero: string | null;
     bling_order_id: number | null;
@@ -110,7 +115,7 @@ export default function GestaoComissoes() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendedor_propostas_parcelas")
-        .select("*, proposta:vendedor_propostas(id, vendedor_email, vendedor_nome, bling_order_number, link_danfe), shopify_pedido:ebd_shopify_pedidos(nota_fiscal_url, nota_fiscal_numero, bling_order_id)")
+        .select("*, proposta:vendedor_propostas(id, vendedor_email, vendedor_nome, bling_order_number, link_danfe), shopify_pedido:ebd_shopify_pedidos(id, order_number, customer_email, valor_total, order_date, nota_fiscal_url, nota_fiscal_numero, bling_order_id)")
         .order("data_vencimento", { ascending: true });
       
       if (error) throw error;
@@ -357,6 +362,8 @@ export default function GestaoComissoes() {
       const info = resolveVendedorInfo(p);
       // Resolve bling_order_id from parcela or shopify_pedido
       const blingOrderId = p.bling_order_id || p.shopify_pedido?.bling_order_id || null;
+      // Check if we have search info to find bling_order_id
+      const canSearch = !!(p.shopify_pedido?.order_number || p.shopify_pedido?.customer_email);
       
       return {
         id: p.id,
@@ -381,6 +388,12 @@ export default function GestaoComissoes() {
             : (p.bling_order_number || p.proposta?.bling_order_number || null),
         link_danfe: p.link_danfe || p.shopify_pedido?.nota_fiscal_url || p.proposta?.link_danfe || null,
         bling_order_id: blingOrderId,
+        canSearchBlingOrder: canSearch,
+        shopify_order_number: p.shopify_pedido?.order_number || null,
+        customer_email: p.shopify_pedido?.customer_email || null,
+        order_value: p.shopify_pedido?.valor_total || p.valor || null,
+        order_date: p.shopify_pedido?.order_date || p.data_vencimento || null,
+        shopify_pedido_id: p.shopify_pedido?.id || p.shopify_pedido_id || null,
         isFetchingNfe: fetchingNfeIds.has(p.id)
       };
     });
@@ -481,11 +494,52 @@ export default function GestaoComissoes() {
     },
   });
 
-  // Mutation: buscar NF no Bling por bling_order_id
+  // Mutation: buscar NF no Bling (com descoberta de bling_order_id se necessário)
   const buscarNfeMutation = useMutation({
-    mutationFn: async ({ parcelaId, blingOrderId }: { parcelaId: string; blingOrderId: number }) => {
-      setFetchingNfeIds(prev => new Set(prev).add(parcelaId));
+    mutationFn: async (params: { 
+      parcelaId: string; 
+      blingOrderId?: number | null;
+      shopifyOrderNumber?: string | null;
+      customerEmail?: string | null;
+      orderValue?: number | null;
+      orderDate?: string | null;
+      shopifyPedidoId?: string | null;
+    }) => {
+      setFetchingNfeIds(prev => new Set(prev).add(params.parcelaId));
       
+      let blingOrderId = params.blingOrderId;
+      
+      // If no blingOrderId, try to find it first
+      if (!blingOrderId) {
+        console.log('[buscarNfe] No blingOrderId, searching...', params);
+        const { data: findData, error: findError } = await supabase.functions.invoke('bling-find-order-id', {
+          body: {
+            numeroLoja: params.shopifyOrderNumber,
+            customerEmail: params.customerEmail,
+            orderValue: params.orderValue,
+            orderDate: params.orderDate
+          }
+        });
+        
+        if (findError) throw findError;
+        
+        if (findData?.blingOrderId) {
+          blingOrderId = findData.blingOrderId;
+          console.log('[buscarNfe] Found blingOrderId:', blingOrderId);
+          
+          // Update the shopify_pedido with the found bling_order_id
+          if (params.shopifyPedidoId) {
+            await supabase
+              .from('ebd_shopify_pedidos')
+              .update({ bling_order_id: blingOrderId })
+              .eq('id', params.shopifyPedidoId);
+          }
+        } else {
+          throw new Error('Pedido não encontrado no Bling');
+        }
+      }
+      
+      // Now fetch the NFe with the blingOrderId
       const { data, error } = await supabase.functions.invoke('bling-get-nfe-by-order-id', {
         body: { blingOrderId }
       });
@@ -493,7 +547,7 @@ export default function GestaoComissoes() {
       if (error) throw error;
       if (!data.success) throw new Error(data.error || 'Erro ao buscar NF');
       
-      return { parcelaId, ...data };
+      return { parcelaId: params.parcelaId, ...data };
     },
     onSuccess: async (data) => {
       setFetchingNfeIds(prev => {
@@ -525,7 +579,8 @@ export default function GestaoComissoes() {
         return next;
       });
       console.error("Erro ao buscar NF:", error);
-      toast.error("Erro ao buscar NF no Bling");
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao buscar NF no Bling';
+      toast.error(errorMessage);
     },
   });
 
@@ -545,8 +600,16 @@ export default function GestaoComissoes() {
     setShowLoteDetalheDialog(true);
   };
 
-  const handleBuscarNfe = (parcelaId: string, blingOrderId: number) => {
-    buscarNfeMutation.mutate({ parcelaId, blingOrderId });
+  const handleBuscarNfe = (params: {
+    parcelaId: string;
+    blingOrderId?: number | null;
+    shopifyOrderNumber?: string | null;
+    customerEmail?: string | null;
+    orderValue?: number | null;
+    orderDate?: string | null;
+    shopifyPedidoId?: string | null;
+  }) => {
+    buscarNfeMutation.mutate(params);
   };
 
   const isLoading = parcelasLoading;

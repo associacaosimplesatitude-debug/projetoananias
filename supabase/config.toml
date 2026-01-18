@@ -173,3 +173,6 @@ verify_jwt = false
 
 [functions.bling-get-nfe-by-order-id]
 verify_jwt = true
+
+[functions.bling-find-order-id]
+verify_jwt = true
