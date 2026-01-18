@@ -156,32 +156,7 @@ export default function Auth() {
         return;
       }
 
-      // 6. TESOUREIRO/SECRETÁRIO
-      if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
-        console.log('Redirecting to /dashboard (tesoureiro/secretario)');
-        navigate('/dashboard');
-        return;
-      }
-
-      // 6. CLIENT - verificar igreja
-      if (roleData?.role === 'client') {
-        const { data: church } = await supabase
-          .from('churches')
-          .select('process_status')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (church?.process_status === 'completed') {
-          console.log('Redirecting to /dashboard (client completed)');
-          navigate('/dashboard');
-        } else {
-          console.log('Redirecting to / (client in progress)');
-          navigate('/');
-        }
-        return;
-      }
-
-      // 7. PROFESSOR
+      // 6. PROFESSOR (prioridade sobre "client" / "/dashboard")
       const { data: professorData } = await supabase
         .from('ebd_professores')
         .select('id')
@@ -196,7 +171,7 @@ export default function Auth() {
         return;
       }
 
-      // 8. ALUNO
+      // 7. ALUNO (prioridade sobre "client" / "/dashboard")
       const { data: alunoData } = await supabase
         .from('ebd_alunos')
         .select('id')
@@ -208,6 +183,31 @@ export default function Auth() {
         pushLoginSuccess(user.id, 'Aluno');
         console.log('Redirecting to /ebd/aluno');
         navigate('/ebd/aluno');
+        return;
+      }
+
+      // 8. TESOUREIRO/SECRETÁRIO
+      if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
+        console.log('Redirecting to /dashboard (tesoureiro/secretario)');
+        navigate('/dashboard');
+        return;
+      }
+
+      // 9. CLIENT - verificar igreja
+      if (roleData?.role === 'client') {
+        const { data: church } = await supabase
+          .from('churches')
+          .select('process_status')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (church?.process_status === 'completed') {
+          console.log('Redirecting to /dashboard (client completed)');
+          navigate('/dashboard');
+        } else {
+          console.log('Redirecting to / (client in progress)');
+          navigate('/');
+        }
         return;
       }
 
