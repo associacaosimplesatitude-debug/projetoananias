@@ -4858,6 +4858,7 @@ export type Database = {
       get_cliente_by_documento: { Args: { _documento: string }; Returns: Json }
       get_student_turma_id: { Args: { _user_id: string }; Returns: string }
       get_vendedor_id_by_email: { Args: { _email: string }; Returns: string }
+      get_vendedor_public: { Args: { _vendedor_id: string }; Returns: Json }
       has_church_permission: {
         Args: {
           _church_id: string

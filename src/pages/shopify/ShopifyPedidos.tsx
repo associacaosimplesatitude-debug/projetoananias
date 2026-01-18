@@ -347,17 +347,30 @@ export default function ShopifyPedidos() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) return null;
       
-      const { data, error } = await supabase
+      // First, get the client data
+      const { data: clienteData, error: clienteError } = await supabase
         .from('ebd_clientes')
-        .select(`
-          *,
-          vendedor:vendedores(id, nome, foto_url, email)
-        `)
+        .select('*')
         .eq('superintendente_user_id', user.id)
         .maybeSingle();
       
-      if (error) throw error;
-      return data as Cliente | null;
+      if (clienteError) throw clienteError;
+      if (!clienteData) return null;
+      
+      // If client has vendedor_id, fetch vendedor info using RPC function
+      let vendedorInfo: Vendedor | null = null;
+      if (clienteData.vendedor_id) {
+        const { data: vendedorData } = await supabase
+          .rpc('get_vendedor_public', { _vendedor_id: clienteData.vendedor_id });
+        if (vendedorData) {
+          vendedorInfo = vendedorData as unknown as Vendedor;
+        }
+      }
+      
+      return {
+        ...clienteData,
+        vendedor: vendedorInfo
+      } as Cliente;
     },
     enabled: !isVendedor && !isLoadingVendedor && !urlClienteId,
   });
