@@ -22,6 +22,8 @@ import {
   Gamepad2,
   Gift,
   Wallet,
+  Calendar,
+  ChevronRight,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useAuth } from "@/hooks/useAuth";
@@ -324,6 +326,70 @@ export default function EBDDashboard() {
     enabled: !!churchId,
   });
 
+  // Check if superintendent is also a professor
+  const { data: professorData } = useQuery({
+    queryKey: ['superintendente-professor', user?.id, churchId],
+    queryFn: async () => {
+      if (!user?.id || !churchId) return null;
+      
+      const { data, error } = await supabase
+        .from('ebd_professores')
+        .select('id, nome_completo, church_id, turma_id, avatar_url')
+        .eq('user_id', user.id)
+        .eq('church_id', churchId)
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (error || !data) return null;
+      return data;
+    },
+    enabled: !!user?.id && !!churchId,
+  });
+
+  // Fetch schedules for professor-superintendent
+  const { data: escalasSuper = [] } = useQuery({
+    queryKey: ['superintendente-escalas', professorData?.id, professorData?.church_id],
+    queryFn: async () => {
+      if (!professorData?.id) return [];
+      
+      const { data: escalasData, error } = await supabase
+        .from('ebd_escalas')
+        .select(`*, turma:ebd_turmas(id, nome, faixa_etaria)`)
+        .or(`professor_id.eq.${professorData.id},professor_id_2.eq.${professorData.id}`)
+        .gte('data', format(new Date(), 'yyyy-MM-dd'))
+        .order('data', { ascending: true })
+        .limit(10);
+      
+      if (error) return [];
+      
+      // Fetch professor details for each schedule
+      const professorIds = new Set<string>();
+      escalasData.forEach(e => {
+        if (e.professor_id) professorIds.add(e.professor_id);
+        if (e.professor_id_2) professorIds.add(e.professor_id_2);
+      });
+      
+      if (professorIds.size === 0) return escalasData.map(e => ({ ...e, professor: null, professor2: null }));
+      
+      const { data: professoresData } = await supabase
+        .from('ebd_professores')
+        .select('id, nome_completo, avatar_url')
+        .in('id', Array.from(professorIds))
+        .eq('church_id', professorData.church_id);
+      
+      const professoresMap = new Map(professoresData?.map(p => [p.id, p]) || []);
+      
+      return escalasData.map(escala => ({
+        ...escala,
+        professor: escala.professor_id ? professoresMap.get(escala.professor_id) : null,
+        professor2: escala.professor_id_2 ? professoresMap.get(escala.professor_id_2) : null,
+      }));
+    },
+    enabled: !!professorData?.id,
+  });
+
+  const proximaEscala = escalasSuper[0] || null;
+
   // Fetch frequência histórica (últimos 6 meses)
   const { data: frequenciaHistorica = [] } = useQuery({
     queryKey: ['ebd-frequencia-historica', churchId],
@@ -539,6 +605,146 @@ export default function EBDDashboard() {
 
         {/* Card de Taxa de Leitura Semanal */}
         <TaxaLeituraSemanalCard churchId={churchId} />
+
+        {/* Cards de Escala para Superintendente que é Professor */}
+        {professorData && escalasSuper.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Card Minha Escala - Próxima Aula */}
+            {proximaEscala && (
+              <Card className="bg-gradient-to-br from-indigo-500/10 to-indigo-600/5 border-indigo-500/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Calendar className="h-5 w-5 text-indigo-600" />
+                    Minha Escala
+                  </CardTitle>
+                  <CardDescription>Sua próxima aula como professor</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="h-14 w-14 rounded-lg bg-indigo-500/20 flex flex-col items-center justify-center">
+                      <span className="text-xs text-indigo-600 font-medium">
+                        {format(new Date(proximaEscala.data + 'T00:00:00'), 'MMM', { locale: ptBR }).toUpperCase()}
+                      </span>
+                      <span className="text-xl font-bold text-indigo-600">
+                        {format(new Date(proximaEscala.data + 'T00:00:00'), 'dd')}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold">{(proximaEscala.turma as any)?.nome || 'Aula'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {(proximaEscala.turma as any)?.faixa_etaria || 'Turma'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {format(new Date(proximaEscala.data + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Professores da aula */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Professores:</span>
+                    <div className="flex -space-x-2">
+                      {proximaEscala.professor && (
+                        <Avatar className="h-7 w-7 border-2 border-background">
+                          <AvatarImage src={proximaEscala.professor.avatar_url || undefined} />
+                          <AvatarFallback className="bg-indigo-500/20 text-indigo-600 text-xs">
+                            {proximaEscala.professor.nome_completo?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                      {proximaEscala.professor2 && (
+                        <Avatar className="h-7 w-7 border-2 border-background">
+                          <AvatarImage src={proximaEscala.professor2.avatar_url || undefined} />
+                          <AvatarFallback className="bg-indigo-500/20 text-indigo-600 text-xs">
+                            {proximaEscala.professor2.nome_completo?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {proximaEscala.professor?.nome_completo?.split(' ')[0]}
+                      {proximaEscala.professor2 && ` e ${proximaEscala.professor2.nome_completo?.split(' ')[0]}`}
+                    </span>
+                  </div>
+
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full gap-2"
+                    onClick={() => navigate('/ebd/escala')}
+                  >
+                    Ver Escala Completa
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Card Próximas Aulas */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ClipboardList className="h-5 w-5" />
+                  Próximas Aulas
+                </CardTitle>
+                <CardDescription>Sua agenda como professor</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {escalasSuper.slice(0, 4).map((escala: any) => (
+                    <div key={escala.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
+                      <div className="h-10 w-10 rounded bg-primary/10 flex flex-col items-center justify-center">
+                        <span className="text-[10px] text-primary font-medium">
+                          {format(new Date(escala.data + 'T00:00:00'), 'MMM', { locale: ptBR }).toUpperCase()}
+                        </span>
+                        <span className="text-sm font-bold text-primary">
+                          {format(new Date(escala.data + 'T00:00:00'), 'dd')}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {escala.turma?.nome || 'Aula'}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {escala.turma?.faixa_etaria || 'Turma'}
+                        </p>
+                      </div>
+                      <div className="flex -space-x-1">
+                        {escala.professor && (
+                          <Avatar className="h-6 w-6 border border-background">
+                            <AvatarImage src={escala.professor.avatar_url || undefined} />
+                            <AvatarFallback className="text-[10px]">
+                              {escala.professor.nome_completo?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                        {escala.professor2 && (
+                          <Avatar className="h-6 w-6 border border-background">
+                            <AvatarImage src={escala.professor2.avatar_url || undefined} />
+                            <AvatarFallback className="text-[10px]">
+                              {escala.professor2.nome_completo?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {escalasSuper.length > 4 && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="w-full mt-3 gap-2"
+                    onClick={() => navigate('/ebd/escala')}
+                  >
+                    Ver todas ({escalasSuper.length} aulas)
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Segunda linha de widgets */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
