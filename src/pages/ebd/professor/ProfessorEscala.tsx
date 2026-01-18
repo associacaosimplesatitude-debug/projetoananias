@@ -98,11 +98,12 @@ export default function ProfessorEscala() {
         if (e.professor_id_2) professorIds.add(e.professor_id_2);
       });
 
-      // Buscar dados dos professores
+      // Buscar dados dos professores (filtrando pela igreja do contexto)
       const { data: professoresData } = await supabase
         .from("ebd_professores")
         .select("id, nome_completo, avatar_url")
-        .in("id", Array.from(professorIds));
+        .in("id", Array.from(professorIds))
+        .eq("church_id", churchContext);
 
       const professoresMap = new Map(professoresData?.map(p => [p.id, p]) || []);
 
