@@ -514,34 +514,10 @@ export default function GestaoComissoes() {
       
       let blingOrderId = params.blingOrderId;
       
-      // If no blingOrderId, try to find it first
+      // If no blingOrderId, show clear error instead of trying to discover
       if (!blingOrderId) {
-        console.log('[buscarNfe] No blingOrderId, searching...', params);
-        const { data: findData, error: findError } = await supabase.functions.invoke('bling-find-order-id', {
-          body: {
-            numeroLoja: params.shopifyOrderNumber,
-            customerEmail: params.customerEmail,
-            orderValue: params.orderValue,
-            orderDate: params.orderDate
-          }
-        });
-        
-        if (findError) throw findError;
-        
-        if (findData?.blingOrderId) {
-          blingOrderId = findData.blingOrderId;
-          console.log('[buscarNfe] Found blingOrderId:', blingOrderId);
-          
-          // Update the shopify_pedido with the found bling_order_id
-          if (params.shopifyPedidoId) {
-            await supabase
-              .from('ebd_shopify_pedidos')
-              .update({ bling_order_id: blingOrderId })
-              .eq('id', params.shopifyPedidoId);
-          }
-        } else {
-          throw new Error('Pedido não encontrado no Bling');
-        }
+        console.warn('[buscarNfe] bling_order_id is NULL - cannot search for NF-e');
+        throw new Error('Pedido sem vínculo com Bling. Reprocessar pedido ou atualizar vínculo manualmente.');
       }
 
       // Debug: payload EXATO que vai para bling-get-nfe-by-order-id

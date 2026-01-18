@@ -213,22 +213,19 @@ export function ComissaoTable({ comissoes, onMarcarPaga, onBuscarNfe, onRefazerN
                       </Button>
                     )}
                   </div>
-                ) : (item.bling_order_id || item.canSearchBlingOrder) && onBuscarNfe ? (
+                ) : item.bling_order_id && onBuscarNfe ? (
+                  // Lupa só aparece quando bling_order_id existe
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                     onClick={() => {
-                      const debugFields = {
-                        id: item.id,
-                        pedido_id: (item as any).pedido_id,
-                        numero_pedido: (item as any).numero_pedido,
-                        bling_order_id: item.bling_order_id,
-                        bling_pedido_id: (item as any).bling_pedido_id,
-                        id_pedido_venda_bling: (item as any).id_pedido_venda_bling,
-                        sale_id: (item as any).sale_id,
-                      };
-                      const payload = {
+                      console.groupCollapsed('[NF] Clique lupa - item/payload');
+                      console.log('bling_order_id:', item.bling_order_id);
+                      console.log('parcelaId:', item.id);
+                      console.groupEnd();
+
+                      onBuscarNfe({
                         parcelaId: item.id,
                         blingOrderId: item.bling_order_id,
                         shopifyOrderNumber: item.shopify_order_number,
@@ -236,17 +233,10 @@ export function ComissaoTable({ comissoes, onMarcarPaga, onBuscarNfe, onRefazerN
                         orderValue: item.order_value,
                         orderDate: item.order_date,
                         shopifyPedidoId: item.shopify_pedido_id,
-                      };
-
-                      console.groupCollapsed('[NF] Clique lupa - item/payload');
-                      console.log('item fields:', debugFields);
-                      console.log('payload onBuscarNfe:', payload);
-                      console.groupEnd();
-
-                      onBuscarNfe(payload);
+                      });
                     }}
                     disabled={item.isFetchingNfe}
-                    title="Buscar NF no Bling"
+                    title={`Buscar NF no Bling (ID: ${item.bling_order_id})`}
                   >
                     {item.isFetchingNfe ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -259,6 +249,11 @@ export function ComissaoTable({ comissoes, onMarcarPaga, onBuscarNfe, onRefazerN
                   </Button>
                 ) : item.tipo === 'online' ? (
                   <span className="text-xs text-muted-foreground">Aguardando</span>
+                ) : item.canSearchBlingOrder ? (
+                  // Sem bling_order_id mas tem dados de busca - mostrar aviso
+                  <span className="text-xs text-amber-600" title="Pedido sem vínculo com Bling">
+                    Sem vínculo
+                  </span>
                 ) : (
                   <span className="text-muted-foreground">-</span>
                 )}

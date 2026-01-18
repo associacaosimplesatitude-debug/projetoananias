@@ -396,6 +396,8 @@ export default function AprovacaoFaturamento() {
           customer_email: proposta.cliente?.email_superintendente || null,
           customer_name: proposta.cliente_nome,
           order_date: new Date().toISOString(),
+          // IMPORTANTE: Salvar o bling_order_id para busca de NF-e
+          bling_order_id: data.bling_order_id || null,
         });
       
       if (insertError) {
