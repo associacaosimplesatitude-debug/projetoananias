@@ -567,84 +567,33 @@ export default function PropostaDigital() {
 
       if (error) throw error;
       
-      // For standard payment (not B2B), automatically create draft order and open checkout
+      // For standard payment (not B2B), redirect to Mercado Pago checkout
       if (!proposta?.pode_faturar) {
-        
-        console.log(">>> Fluxo padrão: Shopify checkout");
+        console.log(">>> Fluxo padrão: Checkout Mercado Pago");
 
-        // Fluxo padrão: Shopify checkout
-        const clienteData = {
-          id: proposta!.cliente_id || "",
-          nome_igreja: proposta!.cliente_nome,
-          cnpj: proposta!.cliente_cnpj || "",
-          email_superintendente: proposta!.cliente_email || null,
-          telefone: proposta!.cliente_telefone || null,
-          nome_responsavel: proposta!.cliente_nome,
-          endereco_cep: proposta!.cliente_endereco?.cep || null,
-          endereco_rua: proposta!.cliente_endereco?.rua || null,
-          endereco_numero: proposta!.cliente_endereco?.numero || null,
-          endereco_bairro: proposta!.cliente_endereco?.bairro || null,
-          endereco_cidade: proposta!.cliente_endereco?.cidade || null,
-          endereco_estado: proposta!.cliente_endereco?.estado || null,
-        };
-
-        // Determinar frete a usar (manual ou selecionado pelo cliente)
+        // Salvar método de frete escolhido pelo cliente
         const isFreteManual = proposta?.frete_tipo === 'manual' || proposta?.metodo_frete === 'manual';
         const selectedShipping = !isFreteManual ? shippingOptions.find(opt => opt.type === selectedFrete) : null;
         const valorFreteUsado = isFreteManual ? proposta!.valor_frete : (selectedShipping?.cost || 0);
         const metodoFreteUsado = isFreteManual ? 'manual' : (selectedFrete || 'free');
 
-        const { data: orderData, error: orderError } = await supabase.functions.invoke('ebd-shopify-order-create', {
-          body: {
-            cliente: clienteData,
-            items: itensFinais, // Usar itens editados
-            valor_frete: valorFreteUsado.toString(),
+        // Atualizar proposta com frete selecionado antes de ir para checkout
+        await supabase
+          .from("vendedor_propostas")
+          .update({
+            status: "AGUARDANDO_PAGAMENTO",
+            confirmado_em: new Date().toISOString(),
             metodo_frete: metodoFreteUsado,
-            desconto_percentual: (proposta!.desconto_percentual || 0).toString(),
-            // Passar info de frete manual para o backend
-            ...(isFreteManual && {
-              frete_tipo: 'manual',
-              frete_transportadora: proposta!.frete_transportadora,
-              frete_prazo_estimado: proposta!.frete_prazo_estimado,
-            }),
-          }
-        });
+            valor_frete: valorFreteUsado,
+            valor_total: valorComDescontoFinal + valorFreteUsado,
+            itens: JSON.stringify(itensFinais),
+            valor_produtos: valorProdutosFinal,
+          })
+          .eq("token", token!);
 
-        if (orderError) {
-          console.error("Error creating order:", orderError);
-          throw new Error("Erro ao criar pedido. Entre em contato com o vendedor.");
-        }
-
-        if (orderData?.error) {
-          throw new Error(orderData.error);
-        }
-
-        // Save checkout URL and update status to AGUARDANDO_PAGAMENTO
-        const checkoutUrl = orderData?.checkoutUrl || orderData?.cartUrl || orderData?.invoiceUrl;
-        console.log("Checkout URL received from backend:", checkoutUrl);
-
-        if (checkoutUrl) {
-          console.log("Saving payment_link and updating status...");
-          const { error: updateError } = await supabase
-            .from("vendedor_propostas")
-            .update({
-              status: "AGUARDANDO_PAGAMENTO",
-              payment_link: checkoutUrl,
-            })
-            .eq("token", token!);
-
-          if (updateError) {
-            console.error("Error saving payment_link:", updateError);
-          } else {
-            console.log("Payment link saved, redirecting to:", checkoutUrl);
-          }
-
-          // Redirect direto para a página de carrinho/pagamento (checkout)
-          window.location.assign(checkoutUrl);
-          return data; // Return early since we're redirecting
-        } else {
-          console.error("No checkoutUrl received from backend:", orderData);
-        }
+        // Redirecionar para checkout Mercado Pago com token da proposta
+        window.location.assign(`/ebd/checkout-shopify-mp?proposta=${token}`);
+        return null; // Return early since we're redirecting
       }
 
       return data;

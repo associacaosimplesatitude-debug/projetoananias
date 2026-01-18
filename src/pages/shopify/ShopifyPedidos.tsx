@@ -500,36 +500,12 @@ export default function ShopifyPedidos() {
       return;
     }
 
-    // Se tem cliente selecionado (superintendente logado com cadastro), usar seus dados
+    // Se tem cliente selecionado (superintendente logado com cadastro)
+    // Mostrar modal de forma de pagamento igual ao vendedor
     if (!isVendedor && selectedCliente) {
-      setIsCreatingDraft(true);
-      try {
-        const buyerInfo: BuyerInfo = {
-          email: selectedCliente.email_superintendente,
-          phone: selectedCliente.telefone,
-          firstName: selectedCliente.nome_responsavel?.split(' ')[0] || selectedCliente.nome_igreja,
-          lastName: selectedCliente.nome_responsavel?.split(' ').slice(1).join(' ') || '',
-          address: {
-            address1: selectedCliente.endereco_rua ? `${selectedCliente.endereco_rua}, ${selectedCliente.endereco_numero || ''}` : null,
-            address2: selectedCliente.endereco_complemento,
-            city: selectedCliente.endereco_cidade,
-            province: selectedCliente.endereco_estado,
-            zip: selectedCliente.endereco_cep,
-            country: 'BR',
-          }
-        };
-        
-        const checkoutUrl = await createStorefrontCheckout(items, buyerInfo);
-        window.open(checkoutUrl, '_blank');
-        clearCart();
-        setIsCartOpen(false);
-        toast.success("Redirecionando para o checkout...");
-      } catch (error) {
-        console.error('Checkout error:', error);
-        toast.error("Erro ao criar checkout. Tente novamente.");
-      } finally {
-        setIsCreatingDraft(false);
-      }
+      // Cliente com cadastro: abrir modal de faturamento igual ao vendedor
+      // Isso permite que o cliente escolha Faturar ou Pagamento Padrão
+      setShowFaturamentoDialog(true);
       return;
     }
 
@@ -766,13 +742,22 @@ export default function ShopifyPedidos() {
       // na página da proposta (PropostaDigital.tsx)
       const link = `${baseUrl}/proposta/${token}`;
       
-      setPropostaLink(link);
-      setPropostaClienteNome(selectedCliente.nome_igreja);
-      setShowPropostaLinkDialog(true);
-      setLinkCopied(false);
-      setMessageCopied(false);
-      
-      toast.success("Proposta gerada com sucesso!");
+      // Se NÃO é vendedor (é cliente/superintendente fazendo pedido), navegar direto para proposta
+      // Não mostrar modal de mensagem - cliente vai direto escolher frete e confirmar
+      if (!isVendedor) {
+        clearCart();
+        setIsCartOpen(false);
+        toast.success("Proposta criada! Escolha a forma de entrega.");
+        navigate(`/proposta/${token}`);
+      } else {
+        // Vendedor: mostrar modal com mensagem para copiar e enviar ao cliente
+        setPropostaLink(link);
+        setPropostaClienteNome(selectedCliente.nome_igreja);
+        setShowPropostaLinkDialog(true);
+        setLinkCopied(false);
+        setMessageCopied(false);
+        toast.success("Proposta gerada com sucesso!");
+      }
       
     } catch (error: any) {
       console.error("Erro ao gerar proposta:", error);

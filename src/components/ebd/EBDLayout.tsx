@@ -176,9 +176,9 @@ function EBDSidebar() {
             <SidebarGroupLabel>Loja</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive('/ebd/catalogo')}>
-                    <RouterNavLink to="/ebd/catalogo">
+              <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/ebd/shopify-pedidos')}>
+                    <RouterNavLink to="/ebd/shopify-pedidos">
                       <ShoppingCart className="h-4 w-4" />
                       <span>Catálogo</span>
                     </RouterNavLink>
