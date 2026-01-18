@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Filter, Search, Wallet, Calendar, Clock, CheckCircle2, 
-  AlertTriangle, FileText, TrendingUp, List, Users
+  AlertTriangle, FileText, TrendingUp, List, Users, RefreshCw
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -494,6 +494,24 @@ export default function GestaoComissoes() {
     },
   });
 
+  // Mutation: backfill bling_order_id para itens sem vínculo
+  const backfillBlingMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('backfill-bling-order-ids', {});
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+      toast.success(data.message || `Backfill concluído: ${data.updated} atualizados`);
+    },
+    onError: (error) => {
+      console.error("Erro ao executar backfill:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao executar backfill");
+    },
+  });
+
   // Mutation: buscar NF no Bling (com descoberta de bling_order_id se necessário)
   const buscarNfeMutation = useMutation({
     mutationFn: async (params: { 
@@ -803,6 +821,22 @@ export default function GestaoComissoes() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Botão Backfill Bling - aparece se houver itens sem vínculo */}
+                {comissoesFiltradas.some(c => c.canSearchBlingOrder && !c.bling_order_id) && (
+                  <div className="flex items-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => backfillBlingMutation.mutate()}
+                      disabled={backfillBlingMutation.isPending}
+                      className="gap-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${backfillBlingMutation.isPending ? 'animate-spin' : ''}`} />
+                      {backfillBlingMutation.isPending ? 'Vinculando...' : 'Vincular Bling'}
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
