@@ -1,31 +1,73 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ProfessorDashboard } from "@/components/ebd/professor/ProfessorDashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookOpen } from "lucide-react";
-import { ProfessorDashboard } from "@/components/ebd/professor/ProfessorDashboard";
 
 export default function ProfessorHome() {
   const { user } = useAuth();
 
-  const { data: professor, isLoading: professorLoading } = useQuery({
-    queryKey: ["professor-area", user?.id],
+  // Primeiro, buscar o church_id correto do contexto do usuário
+  const { data: churchContext } = useQuery({
+    queryKey: ["professor-church-context", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
 
-      const { data, error } = await supabase
+      // 1) Verificar se é superintendente promovido
+      const { data: promotedRole } = await supabase
+        .from("ebd_user_roles")
+        .select("church_id")
+        .eq("user_id", user.id)
+        .eq("role", "superintendente")
+        .maybeSingle();
+
+      if (promotedRole?.church_id) return promotedRole.church_id;
+
+      // 2) Verificar se é superintendente legacy
+      const { data: ebdCliente } = await supabase
+        .from("ebd_clientes")
+        .select("id")
+        .eq("superintendente_user_id", user.id)
+        .eq("status_ativacao_ebd", true)
+        .maybeSingle();
+
+      if (ebdCliente?.id) return ebdCliente.id;
+
+      // 3) Buscar o church_id do professor mais recente
+      const { data: professorRecord } = await supabase
         .from("ebd_professores")
-        .select("*")
+        .select("church_id")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .limit(1);
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error) throw error;
-      return data && data.length > 0 ? data[0] : null;
+      return professorRecord?.church_id || null;
     },
     enabled: !!user?.id,
   });
 
+  // Buscar o professor usando o church_id correto
+  const { data: professor, isLoading: isLoadingProfessor } = useQuery({
+    queryKey: ["professor-info", user?.id, churchContext],
+    queryFn: async () => {
+      if (!user?.id || !churchContext) return null;
+
+      const { data, error } = await supabase
+        .from("ebd_professores")
+        .select("id, nome_completo, church_id, turma_id")
+        .eq("user_id", user.id)
+        .eq("church_id", churchContext)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id && !!churchContext,
+  });
   // Fetch turmas vinculadas ao professor - busca via escalas + tabela de relacionamento + turma_id
   const { data: turmas, isLoading: turmasLoading } = useQuery({
     queryKey: ["professor-turmas", professor?.id],
@@ -71,7 +113,7 @@ export default function ProfessorHome() {
     enabled: !!professor?.id,
   });
 
-  const isLoading = professorLoading || turmasLoading;
+  const isLoading = isLoadingProfessor || turmasLoading;
 
   if (isLoading) {
     return (
