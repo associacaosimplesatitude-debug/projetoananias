@@ -263,8 +263,13 @@ export function RevistaEscalaConfig({ revistas }: RevistaEscalaConfigProps) {
                       <div className="flex-1 min-w-[180px]">
                         <Select
                           value={aula.professorId2}
-                          onValueChange={(value) => 
-                            handleAulaChange(revistaIndex, aulaIndex, 'professorId2', value)
+                          onValueChange={(value) =>
+                            handleAulaChange(
+                              revistaIndex,
+                              aulaIndex,
+                              'professorId2',
+                              value === "_none" ? "" : value
+                            )
                           }
                           disabled={loadingProfessores}
                         >
@@ -272,7 +277,7 @@ export function RevistaEscalaConfig({ revistas }: RevistaEscalaConfigProps) {
                             <SelectValue placeholder="Professor 2 (opcional)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Nenhum</SelectItem>
+                            <SelectItem value="_none">Nenhum</SelectItem>
                             {professores?.map(prof => (
                               <SelectItem key={prof.id} value={prof.id}>
                                 {prof.nome_completo}
