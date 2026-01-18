@@ -146,39 +146,113 @@ export function RevistaEscalaConfig({ revistas }: RevistaEscalaConfigProps) {
 
   const handleSalvar = async () => {
     setSalvando(true);
-    
+
     try {
+      if (!churchId) throw new Error("churchId não encontrado");
+
       for (const escala of escalas) {
         const revista = escala.revista;
-        
-        // Criar as escalas para cada aula diretamente na tabela ebd_escalas
-        // A tabela ebd_escalas tem os campos: church_id, turma_id, data, tipo, professor_id, professor_id_2, sem_aula, confirmado
-        const aulasParaInserir = escala.aulas.map(aula => ({
-          church_id: churchId!,
+        if (!revista.turmaId || !revista.dataInicio || !revista.diaSemana) {
+          throw new Error("Revista sem turma/data/dia configurados");
+        }
+
+        const dataInicio = format(revista.dataInicio, "yyyy-MM-dd");
+        const ultimaAula = escala.aulas[escala.aulas.length - 1];
+        const dataTermino = format(ultimaAula.data, "yyyy-MM-dd");
+
+        // 1) Garantir que existe um registro em ebd_revistas (necessário para aparecer no menu Escala)
+        const tituloRevista = revista.produto.node.title;
+        const imagemUrl = revista.produto.node.images.edges[0]?.node.url || null;
+
+        const { data: revistaExistente, error: revistaExistenteError } = await supabase
+          .from("ebd_revistas")
+          .select("id")
+          .eq("titulo", tituloRevista)
+          .maybeSingle();
+
+        if (revistaExistenteError) throw revistaExistenteError;
+
+        let revistaId = revistaExistente?.id as string | undefined;
+
+        if (!revistaId) {
+          const { data: revistaNova, error: revistaNovaError } = await supabase
+            .from("ebd_revistas")
+            .insert({
+              titulo: tituloRevista,
+              faixa_etaria_alvo: revista.turmaNome || "Geral",
+              imagem_url: imagemUrl,
+              // num_licoes, possui_plano_leitura e possui_quiz_mestre têm defaults no banco
+            })
+            .select("id")
+            .single();
+
+          if (revistaNovaError) throw revistaNovaError;
+          revistaId = revistaNova.id;
+        }
+
+        // 2) Garantir que existe planejamento (ebd_planejamento) para a revista
+        const { data: planejamentoExistente, error: planejamentoExistenteError } = await supabase
+          .from("ebd_planejamento")
+          .select("id")
+          .eq("church_id", churchId)
+          .eq("revista_id", revistaId)
+          .eq("data_inicio", dataInicio)
+          .maybeSingle();
+
+        if (planejamentoExistenteError) throw planejamentoExistenteError;
+
+        if (!planejamentoExistente?.id) {
+          const { error: planInsertError } = await supabase
+            .from("ebd_planejamento")
+            .insert({
+              church_id: churchId,
+              revista_id: revistaId,
+              data_inicio: dataInicio,
+              data_termino: dataTermino,
+              dia_semana: revista.diaSemana,
+            });
+
+          if (planInsertError) throw planInsertError;
+        }
+
+        // 3) Evitar duplicar escalas ao salvar de novo: limpa o intervalo e recria
+        const { error: deleteError } = await supabase
+          .from("ebd_escalas")
+          .delete()
+          .eq("church_id", churchId)
+          .eq("turma_id", revista.turmaId)
+          .gte("data", dataInicio)
+          .lte("data", dataTermino);
+
+        if (deleteError) throw deleteError;
+
+        // 4) Criar as escalas para cada aula diretamente na tabela ebd_escalas
+        const aulasParaInserir = escala.aulas.map((aula) => ({
+          church_id: churchId,
           turma_id: revista.turmaId!,
-          data: format(aula.data, 'yyyy-MM-dd'),
-          tipo: 'aula', // tipo obrigatório
-          professor_id: aula.semAula ? null : (aula.professorId1 || null),
-          professor_id_2: aula.semAula ? null : (aula.professorId2 || null),
+          data: format(aula.data, "yyyy-MM-dd"),
+          tipo: "aula",
+          professor_id: aula.semAula ? null : aula.professorId1 || null,
+          professor_id_2: aula.semAula ? null : aula.professorId2 || null,
           sem_aula: aula.semAula,
           confirmado: false,
-          observacao: `Aula ${aula.numero} - ${revista.produto.node.title}`,
+          observacao: `Aula ${aula.numero} - ${tituloRevista}`,
         }));
-        
+
         if (aulasParaInserir.length > 0) {
           const { error: escalaError } = await supabase
-            .from('ebd_escalas')
+            .from("ebd_escalas")
             .insert(aulasParaInserir);
-          
+
           if (escalaError) throw escalaError;
         }
       }
-      
-      toast.success('Escalas salvas com sucesso!');
+
+      toast.success("Escalas salvas com sucesso!");
       setSalvo(true);
     } catch (error) {
-      console.error('Erro ao salvar escalas:', error);
-      toast.error('Erro ao salvar escalas. Tente novamente.');
+      console.error("Erro ao salvar escalas:", error);
+      toast.error("Erro ao salvar escalas. Tente novamente.");
     } finally {
       setSalvando(false);
     }
