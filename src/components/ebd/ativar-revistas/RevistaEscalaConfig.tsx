@@ -40,36 +40,38 @@ interface RevistaEscala {
 // Função para extrair títulos das lições da descrição do produto
 function extrairTitulosLicoes(descricao: string): string[] {
   const titulos: string[] = [];
-  
   if (!descricao) return titulos;
-  
-  // Limpar HTML e normalizar quebras de linha
-  const textoLimpo = descricao
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<\/div>/gi, '\n')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&');
-  
-  const linhas = textoLimpo.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  
-  console.log('Descrição parseada:', linhas);
-  
-  for (const linha of linhas) {
-    // Padrões: "1- Título", "1 - Título", "1. Título", "Lição 1: Título"
-    const match = linha.match(/^(\d{1,2})\s*[-–—:\.\)]\s*(.+)$/);
-    if (match) {
-      const numero = parseInt(match[1]);
-      const titulo = match[2].trim();
-      if (numero >= 1 && numero <= 13 && titulo.length > 0) {
-        titulos[numero - 1] = titulo;
-      }
+
+  // Limpar HTML e normalizar texto
+  const texto = descricao
+    .replace(/<br\s*\/?>(\s*)/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Muitas descrições vêm com "Lições 1- ... 2 - ..." tudo em uma única linha.
+  const lower = texto.toLowerCase();
+  const idx = lower.indexOf("lições");
+  const idx2 = idx === -1 ? lower.indexOf("licoes") : idx;
+  const trecho = idx2 === -1 ? texto : texto.slice(idx2);
+
+  // Captura: 1- Título ... 2 - Título ... até 13 (lookahead no próximo número)
+  const re = /(\d{1,2})\s*[-–—:\.\)]\s*(.+?)(?=\s+\d{1,2}\s*[-–—:\.\)]\s*|$)/g;
+
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(trecho)) !== null) {
+    const numero = parseInt(m[1], 10);
+    const titulo = m[2].trim();
+    if (numero >= 1 && numero <= 13 && titulo) {
+      titulos[numero - 1] = titulo;
     }
   }
-  
-  console.log('Títulos extraídos:', titulos);
+
   return titulos;
 }
 
