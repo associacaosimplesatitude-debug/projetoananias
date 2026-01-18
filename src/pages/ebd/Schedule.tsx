@@ -212,12 +212,23 @@ export default function EBDSchedule() {
 
       const hoje = startOfDay(new Date());
 
-      // Mapear turmas para planejamentos baseado nas datas
+      // Mapear turmas para planejamentos baseado nas datas e faixa etária da revista
       const result = planejamentosData?.map(plan => {
         const escalasDoPlan = escalasData?.filter(e => 
           e.data >= plan.data_inicio && e.data <= plan.data_termino
         );
-        const turma = escalasDoPlan?.[0]?.turma;
+        
+        // Encontrar a turma que corresponde à faixa etária da revista
+        const faixaRevista = (plan.revista as any)?.faixa_etaria_alvo || '';
+        const turmaCorrespondente = escalasDoPlan?.find(e => {
+          const turmaFaixa = (e.turma as any)?.faixa_etaria || '';
+          // Match exato ou parcial (ex: "15-17 anos" contém "15-17")
+          return turmaFaixa === faixaRevista || 
+                 turmaFaixa.includes(faixaRevista.split(':')[0]) ||
+                 faixaRevista.includes(turmaFaixa.split(':')[0]);
+        })?.turma;
+        
+        const turma = turmaCorrespondente || escalasDoPlan?.[0]?.turma;
         const temEscalas = escalasDoPlan && escalasDoPlan.length > 0;
         
         // Calcular progresso: aulas ministradas (datas passadas sem sem_aula)
@@ -252,13 +263,13 @@ export default function EBDSchedule() {
     return "bg-red-500";
   };
 
-  // Buscar escalas do planejamento selecionado
+  // Buscar escalas do planejamento selecionado (filtrado por turma_id)
   const { data: escalas } = useQuery({
-    queryKey: ['ebd-escalas-planejamento', selectedPlanejamento?.id, churchData?.id],
+    queryKey: ['ebd-escalas-planejamento', selectedPlanejamento?.id, churchData?.id, selectedPlanejamento?.turma?.id],
     queryFn: async () => {
       if (!churchData?.id || !selectedPlanejamento) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('ebd_escalas')
         .select(`
           id,
@@ -275,8 +286,14 @@ export default function EBDSchedule() {
         `)
         .eq('church_id', churchData.id)
         .gte('data', selectedPlanejamento.data_inicio)
-        .lte('data', selectedPlanejamento.data_termino)
-        .order('data');
+        .lte('data', selectedPlanejamento.data_termino);
+      
+      // Filtrar por turma_id se disponível para evitar misturar escalas de turmas diferentes
+      if (selectedPlanejamento.turma?.id) {
+        query = query.eq('turma_id', selectedPlanejamento.turma.id);
+      }
+      
+      const { data, error } = await query.order('data');
 
       if (error) throw error;
       return data as unknown as Escala[];
