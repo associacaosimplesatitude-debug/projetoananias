@@ -34,12 +34,24 @@ export default function ClassroomForm() {
   });
   const { handleSubmit, setValue } = form;
 
-  // Buscar church_id (cliente EBD para superintendente, church para admin)
+  // Buscar church_id usando a mesma lógica do useEbdChurchId
   const { data: churchData, isLoading: loadingChurch } = useQuery({
     queryKey: ["church-data-form", clientId],
     queryFn: async () => {
       // Admin (visualizando um cliente específico)
       if (clientId) {
+        // Tentar buscar em ebd_clientes primeiro
+        const { data: cliente, error: clienteError } = await supabase
+          .from("ebd_clientes")
+          .select("id, nome_igreja")
+          .eq("id", clientId)
+          .maybeSingle();
+
+        if (!clienteError && cliente) {
+          return { id: cliente.id, church_name: cliente.nome_igreja };
+        }
+
+        // Se não encontrar, buscar em churches
         const { data, error } = await supabase
           .from("churches")
           .select("id, church_name")
@@ -51,12 +63,33 @@ export default function ClassroomForm() {
         return data;
       }
 
-      // Superintendente (módulo EBD)
+      // Superintendente (módulo EBD) - usar mesma lógica do useEbdChurchId
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      // 1) Promoted superintendent via ebd_user_roles
+      const { data: promotedRole } = await supabase
+        .from("ebd_user_roles")
+        .select("church_id")
+        .eq("user_id", user.id)
+        .eq("role", "superintendente")
+        .limit(1)
+        .maybeSingle();
+      
+      if (promotedRole?.church_id) {
+        const { data: cliente } = await supabase
+          .from("ebd_clientes")
+          .select("id, nome_igreja")
+          .eq("id", promotedRole.church_id)
+          .maybeSingle();
+        if (cliente) {
+          return { id: cliente.id, church_name: cliente.nome_igreja };
+        }
+      }
+
+      // 2) Legacy superintendent via ebd_clientes.superintendente_user_id
       const { data: cliente, error: clienteError } = await supabase
         .from("ebd_clientes")
         .select("id, nome_igreja")
@@ -64,10 +97,22 @@ export default function ClassroomForm() {
         .eq("status_ativacao_ebd", true)
         .maybeSingle();
 
-      if (clienteError) throw clienteError;
-      if (!cliente) throw new Error("Cliente EBD não encontrado para este usuário");
+      if (!clienteError && cliente) {
+        return { id: cliente.id, church_name: cliente.nome_igreja };
+      }
 
-      return { id: cliente.id, church_name: cliente.nome_igreja } as any;
+      // 3) Church owner
+      const { data: church } = await supabase
+        .from("churches")
+        .select("id, church_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (church) {
+        return { id: church.id, church_name: church.church_name };
+      }
+
+      throw new Error("Igreja não encontrada para este usuário");
     },
   });
 
