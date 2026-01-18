@@ -612,6 +612,29 @@ export default function GestaoComissoes() {
     buscarNfeMutation.mutate(params);
   };
 
+  // Handler para refazer busca de NF - limpa NF existente e busca novamente
+  const handleRefazerNfe = async (params: {
+    parcelaId: string;
+    blingOrderId?: number | null;
+    shopifyOrderNumber?: string | null;
+    customerEmail?: string | null;
+    orderValue?: number | null;
+    orderDate?: string | null;
+    shopifyPedidoId?: string | null;
+  }) => {
+    // Primeiro limpa os campos de NF da parcela
+    await supabase
+      .from('vendedor_propostas_parcelas')
+      .update({
+        link_danfe: null,
+        nota_fiscal_numero: null
+      })
+      .eq('id', params.parcelaId);
+    
+    // Depois dispara a busca novamente
+    buscarNfeMutation.mutate(params);
+  };
+
   const isLoading = parcelasLoading;
 
   if (isLoading) {
@@ -692,6 +715,7 @@ export default function GestaoComissoes() {
                   comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'atrasada').slice(0, 10)}
                   onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
                   onBuscarNfe={handleBuscarNfe}
+                  onRefazerNfe={handleRefazerNfe}
                   isUpdating={marcarPagaMutation.isPending}
                   showActions={false}
                 />
@@ -805,6 +829,7 @@ export default function GestaoComissoes() {
                   comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'liberada')}
                   onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
                   onBuscarNfe={handleBuscarNfe}
+                  onRefazerNfe={handleRefazerNfe}
                   isUpdating={marcarPagaMutation.isPending}
                 />
               ) : (
@@ -812,6 +837,7 @@ export default function GestaoComissoes() {
                   comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'liberada')}
                   onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
                   onBuscarNfe={handleBuscarNfe}
+                  onRefazerNfe={handleRefazerNfe}
                   isUpdating={marcarPagaMutation.isPending}
                 />
               )}
@@ -865,6 +891,7 @@ export default function GestaoComissoes() {
                 ]}
                 onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
                 onBuscarNfe={handleBuscarNfe}
+                onRefazerNfe={handleRefazerNfe}
                 isUpdating={marcarPagaMutation.isPending}
                 showActions={false}
               />

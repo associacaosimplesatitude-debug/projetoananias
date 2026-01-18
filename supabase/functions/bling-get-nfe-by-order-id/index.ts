@@ -119,7 +119,8 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[GET-NFE-BY-ORDER] Buscando NF-e para pedido Bling ID: ${blingOrderId}`);
+    const blingOrderIdStr = String(blingOrderId);
+    console.log(`[GET-NFE-BY-ORDER] Buscando NF-e para pedido Bling ID: ${blingOrderIdStr}`);
 
     // Inicializar Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -146,14 +147,14 @@ serve(async (req) => {
     }
 
     // Buscar NF-e vinculada ao pedido
-    const nfeUrl = `https://www.bling.com.br/Api/v3/nfe?idPedidoVenda=${blingOrderId}`;
+    const nfeUrl = `https://www.bling.com.br/Api/v3/nfe?idPedidoVenda=${blingOrderIdStr}&limite=50`;
     console.log(`[GET-NFE-BY-ORDER] Buscando NF-e: ${nfeUrl}`);
 
     const nfeResult = await blingApiCall(nfeUrl, accessToken, supabase, config);
     if (nfeResult.newToken) accessToken = nfeResult.newToken;
 
     const nfes = nfeResult.data?.data || [];
-    console.log(`[GET-NFE-BY-ORDER] ${nfes.length} NF-e(s) encontrada(s) para pedido ${blingOrderId}`);
+    console.log(`[GET-NFE-BY-ORDER] ${nfes.length} NF-e(s) retornada(s) pela API para pedido ${blingOrderIdStr}`);
 
     if (nfes.length === 0) {
       return new Response(
@@ -166,34 +167,63 @@ serve(async (req) => {
       );
     }
 
-    // Iterar pelas NF-es para encontrar uma válida
+    // Log de todas as NF-es retornadas
+    console.log(`[GET-NFE-BY-ORDER] NF-es retornadas:`, nfes.map((n: any) => ({
+      id: n.id,
+      numero: n.numero,
+      situacao: n.situacao,
+      chave: n.chaveAcesso?.substring(0, 20) + '...'
+    })));
+
+    // Iterar pelas NF-es para encontrar uma válida E que pertença ao pedido
     for (const nfeCandidate of nfes) {
+      console.log(`[GET-NFE-BY-ORDER] --- Analisando NF-e ${nfeCandidate.numero} (ID: ${nfeCandidate.id}) ---`);
+      
       // Verificar se é autorizada
       const sitId = nfeCandidate?.situacao?.id || nfeCandidate?.situacao;
       const sitNome = String(nfeCandidate?.situacao?.nome || '').toLowerCase();
       const isAutorizada = sitId === 6 || sitId === '6' || sitNome.includes('autoriz');
 
       if (!isAutorizada) {
-        console.log(`[GET-NFE-BY-ORDER] NF-e ${nfeCandidate.numero} não autorizada (${sitId}/${sitNome})`);
+        console.log(`[GET-NFE-BY-ORDER]   → Skip: não autorizada (situacao.id=${sitId}, nome="${sitNome}")`);
         continue;
       }
 
       // Buscar detalhes da NF-e
-      if (!nfeCandidate.id) continue;
+      if (!nfeCandidate.id) {
+        console.log(`[GET-NFE-BY-ORDER]   → Skip: sem ID de NF-e`);
+        continue;
+      }
 
       try {
         const danfeUrl = `https://www.bling.com.br/Api/v3/nfe/${nfeCandidate.id}`;
+        console.log(`[GET-NFE-BY-ORDER]   Buscando detalhes: ${danfeUrl}`);
+        
         const danfeResult = await blingApiCall(danfeUrl, accessToken, supabase, config);
         if (danfeResult.newToken) accessToken = danfeResult.newToken;
 
         const nfeDetail = danfeResult.data?.data;
 
-        // Validar que pertence ao pedido correto
+        // CRITICAL: Exigir vínculo explícito com o pedido
         const nfePedidoId = nfeDetail?.pedidoVenda?.id || nfeDetail?.idPedidoVenda || null;
-        if (nfePedidoId && nfePedidoId !== blingOrderId) {
-          console.log(`[GET-NFE-BY-ORDER] NF-e ${nfeCandidate.numero} pertence a outro pedido (${nfePedidoId})`);
+        const nfePedidoIdStr = nfePedidoId ? String(nfePedidoId) : null;
+        
+        console.log(`[GET-NFE-BY-ORDER]   pedidoVenda.id no detalhe: ${nfePedidoIdStr || 'NÃO INFORMADO'}`);
+        console.log(`[GET-NFE-BY-ORDER]   blingOrderId esperado: ${blingOrderIdStr}`);
+        
+        // Se não vier o vínculo, REJEITAR - não podemos confiar que é do pedido certo
+        if (!nfePedidoIdStr) {
+          console.log(`[GET-NFE-BY-ORDER]   → Skip: NF-e ${nfeCandidate.numero} SEM VÍNCULO DE PEDIDO (não podemos confirmar que pertence ao pedido ${blingOrderIdStr})`);
           continue;
         }
+        
+        // Comparar como strings para evitar mismatch de tipos (number vs string)
+        if (nfePedidoIdStr !== blingOrderIdStr) {
+          console.log(`[GET-NFE-BY-ORDER]   → Skip: NF-e ${nfeCandidate.numero} pertence ao pedido ${nfePedidoIdStr}, NÃO ao pedido ${blingOrderIdStr}`);
+          continue;
+        }
+        
+        console.log(`[GET-NFE-BY-ORDER]   ✓ Vínculo confirmado: NF-e ${nfeCandidate.numero} → pedido ${nfePedidoIdStr} === ${blingOrderIdStr}`);
 
         // Buscar link DANFE
         let nfeUrlFinal: string | null = null;
@@ -203,16 +233,19 @@ serve(async (req) => {
         if (nfeDetail?.linkDanfe) {
           nfeUrlFinal = nfeDetail.linkDanfe;
           tipoLink = 'danfe';
+          console.log(`[GET-NFE-BY-ORDER]   Encontrado linkDanfe: ${nfeUrlFinal?.substring(0, 50)}...`);
         } else if (nfeDetail?.link && nfeDetail.link.includes('doc.view.php')) {
           nfeUrlFinal = nfeDetail.link;
           tipoLink = 'danfe';
+          console.log(`[GET-NFE-BY-ORDER]   Encontrado link doc.view: ${nfeUrlFinal?.substring(0, 50)}...`);
         } else if (nfeDetail?.linkPdf) {
           nfeUrlFinal = nfeDetail.linkPdf;
           tipoLink = 'danfe';
+          console.log(`[GET-NFE-BY-ORDER]   Encontrado linkPdf: ${nfeUrlFinal?.substring(0, 50)}...`);
         }
 
         if (nfeUrlFinal) {
-          console.log(`[GET-NFE-BY-ORDER] ✓ NF-e encontrada! Número: ${nfeCandidate.numero}, URL: ${nfeUrlFinal}`);
+          console.log(`[GET-NFE-BY-ORDER] ✓ NF-e VÁLIDA encontrada! Número: ${nfeCandidate.numero}, pedidoVenda.id: ${nfePedidoIdStr}`);
           
           return new Response(
             JSON.stringify({
@@ -222,22 +255,26 @@ serve(async (req) => {
               chave: nfeCandidate.chaveAcesso || null,
               url: nfeUrlFinal,
               tipo_link: tipoLink,
-              nfe_id: nfeCandidate.id
+              nfe_id: nfeCandidate.id,
+              verified_order_id: nfePedidoIdStr
             }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
+        } else {
+          console.log(`[GET-NFE-BY-ORDER]   → NF-e ${nfeCandidate.numero} é do pedido correto, mas DANFE não disponível ainda`);
         }
       } catch (e) {
-        console.warn(`[GET-NFE-BY-ORDER] Erro ao buscar detalhes NF-e ${nfeCandidate.id}:`, e);
+        console.warn(`[GET-NFE-BY-ORDER]   Erro ao buscar detalhes NF-e ${nfeCandidate.id}:`, e);
       }
     }
 
-    // Nenhuma NF-e válida com DANFE
+    // Nenhuma NF-e válida com DANFE e vínculo comprovado
+    console.log(`[GET-NFE-BY-ORDER] Nenhuma NF-e com vínculo comprovado ao pedido ${blingOrderIdStr} encontrada`);
     return new Response(
       JSON.stringify({ 
         success: true, 
         found: false,
-        message: "NF-e encontrada mas DANFE ainda não disponível"
+        message: "NF-e não encontrada ou DANFE ainda não disponível para este pedido"
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
