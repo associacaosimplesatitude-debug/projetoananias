@@ -266,10 +266,10 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
           </CardTitle>
           <CardDescription>Próxima aula agendada</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-hidden">
           {proximaAula ? (
             <div className="space-y-4">
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-4 min-w-0">
                 {/* Data e Status */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="default" className="text-sm">
@@ -281,12 +281,12 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
                 </div>
 
                 {/* Info da Aula */}
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   {/* Nome da Lição/Revista (do campo observacao) */}
                   {proximaAula.observacao && (
                     <div className="flex items-start gap-2">
                       <BookOpen className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                      <span className="text-sm font-medium">{proximaAula.observacao}</span>
+                      <span className="text-sm font-medium break-words">{proximaAula.observacao}</span>
                     </div>
                   )}
                   
@@ -299,19 +299,19 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
                 </div>
 
                 {/* Professores */}
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                   <span className="text-sm text-muted-foreground">Professores:</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {/* Professor 1 */}
                     {proximaAula.professor && (
                       <div className="flex items-center gap-1.5">
-                        <Avatar className="h-8 w-8 border-2 border-primary">
+                        <Avatar className="h-7 w-7 sm:h-8 sm:w-8 border-2 border-primary flex-shrink-0">
                           <AvatarImage src={proximaAula.professor.avatar_url || undefined} />
                           <AvatarFallback className="text-xs bg-primary/10">
                             {proximaAula.professor.nome_completo?.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm">{proximaAula.professor.nome_completo?.split(' ')[0]}</span>
+                        <span className="text-sm truncate max-w-[100px] sm:max-w-none">{proximaAula.professor.nome_completo?.split(' ')[0]}</span>
                       </div>
                     )}
                     
@@ -320,13 +320,13 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
                       <>
                         <span className="text-muted-foreground">/</span>
                         <div className="flex items-center gap-1.5">
-                          <Avatar className="h-8 w-8 border-2 border-secondary">
+                          <Avatar className="h-7 w-7 sm:h-8 sm:w-8 border-2 border-secondary flex-shrink-0">
                             <AvatarImage src={proximaAula.professor2.avatar_url || undefined} />
                             <AvatarFallback className="text-xs bg-secondary/10">
                               {proximaAula.professor2.nome_completo?.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="text-sm">{proximaAula.professor2.nome_completo?.split(' ')[0]}</span>
+                          <span className="text-sm truncate max-w-[100px] sm:max-w-none">{proximaAula.professor2.nome_completo?.split(' ')[0]}</span>
                         </div>
                       </>
                     )}
