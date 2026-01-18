@@ -45,10 +45,15 @@ interface Escala {
   data: string;
   sem_aula: boolean;
   professor_id: string | null;
+  professor_id_2?: string | null;
   turma_id: string;
   tipo: string;
   observacao: string | null;
   professor: {
+    nome_completo: string;
+    avatar_url: string | null;
+  } | null;
+  professor2?: {
     nome_completo: string;
     avatar_url: string | null;
   } | null;
@@ -260,10 +265,12 @@ export default function EBDSchedule() {
           data,
           sem_aula,
           professor_id,
+          professor_id_2,
           turma_id,
           tipo,
           observacao,
-          professor:ebd_professores(nome_completo, avatar_url),
+          professor:ebd_professores!ebd_escalas_professor_id_fkey(nome_completo, avatar_url),
+          professor2:ebd_professores!ebd_escalas_professor_id_2_fkey(nome_completo, avatar_url),
           turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .eq('church_id', churchData.id)
@@ -609,19 +616,32 @@ export default function EBDSchedule() {
                         <>
                           <div className="mt-1">
                             {noClass ? (
-                              <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                                Sem aula
+                              <span className="text-xs text-red-600 dark:text-red-400 font-semibold tracking-wide">
+                                SEM AULA
                               </span>
                             ) : (
                               <div className="flex flex-col items-center gap-1">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={escala.professor?.avatar_url || undefined} />
-                                  <AvatarFallback className="text-[10px]">
-                                    <User className="h-4 w-4" />
-                                  </AvatarFallback>
-                                </Avatar>
+                                <div className="flex items-center justify-center gap-1">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={escala.professor?.avatar_url || undefined} alt={escala.professor?.nome_completo || "Professor"} />
+                                    <AvatarFallback className="text-[10px]">
+                                      <User className="h-4 w-4" />
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  {escala.professor2 && (
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarImage src={escala.professor2?.avatar_url || undefined} alt={escala.professor2?.nome_completo || "Professor"} />
+                                      <AvatarFallback className="text-[10px]">
+                                        <User className="h-4 w-4" />
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  )}
+                                </div>
+
                                 <span className="text-xs text-blue-600 dark:text-blue-400 font-medium line-clamp-2 text-center">
-                                  {escala.professor?.nome_completo}
+                                  {[escala.professor?.nome_completo, escala.professor2?.nome_completo]
+                                    .filter(Boolean)
+                                    .join(" / ")}
                                 </span>
                               </div>
                             )}
@@ -666,7 +686,7 @@ export default function EBDSchedule() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800" />
-                  <span className="text-sm">Sem aula</span>
+                  <span className="text-sm">SEM AULA</span>
                 </div>
               </div>
             </div>
