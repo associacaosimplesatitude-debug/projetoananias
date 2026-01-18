@@ -208,25 +208,33 @@ Deno.serve(async (req) => {
     
     let nfeIdFromOrder: number | null = null;
     
-    // Tentar diferentes campos possíveis
-    if (order.notaFiscal?.id) {
+    // Tentar diferentes campos possíveis (IGNORAR se id=0)
+    if (order.notaFiscal?.id && order.notaFiscal.id > 0) {
       nfeIdFromOrder = order.notaFiscal.id;
       console.log(`[GET-NFE] NF-e encontrada em 'notaFiscal.id': ${nfeIdFromOrder}`);
-    } else if (order.nfe?.id) {
+    } else if (order.notaFiscal?.id === 0) {
+      console.log(`[GET-NFE] Campo 'notaFiscal.id' é 0 - NF-e ainda não vinculada ao pedido`);
+    } else if (order.nfe?.id && order.nfe.id > 0) {
       nfeIdFromOrder = order.nfe.id;
       console.log(`[GET-NFE] NF-e encontrada em 'nfe.id': ${nfeIdFromOrder}`);
-    } else if (order.idNotaFiscal) {
+    } else if (order.idNotaFiscal && order.idNotaFiscal > 0) {
       nfeIdFromOrder = order.idNotaFiscal;
       console.log(`[GET-NFE] NF-e encontrada em 'idNotaFiscal': ${nfeIdFromOrder}`);
     } else if (Array.isArray(order.notasFiscais) && order.notasFiscais.length > 0) {
-      // Pegar a última nota (mais recente)
-      const lastNfe = order.notasFiscais[order.notasFiscais.length - 1];
-      nfeIdFromOrder = lastNfe.id || lastNfe.idNotaFiscal;
-      console.log(`[GET-NFE] NF-e encontrada em 'notasFiscais[]': ${nfeIdFromOrder}`);
+      // Pegar a última nota (mais recente) com ID válido
+      const validNfes = order.notasFiscais.filter((n: any) => n.id && n.id > 0);
+      if (validNfes.length > 0) {
+        const lastNfe = validNfes[validNfes.length - 1];
+        nfeIdFromOrder = lastNfe.id || lastNfe.idNotaFiscal;
+        console.log(`[GET-NFE] NF-e encontrada em 'notasFiscais[]': ${nfeIdFromOrder}`);
+      }
     } else if (Array.isArray(order.nfes) && order.nfes.length > 0) {
-      const lastNfe = order.nfes[order.nfes.length - 1];
-      nfeIdFromOrder = lastNfe.id || lastNfe.idNotaFiscal;
-      console.log(`[GET-NFE] NF-e encontrada em 'nfes[]': ${nfeIdFromOrder}`);
+      const validNfes = order.nfes.filter((n: any) => n.id && n.id > 0);
+      if (validNfes.length > 0) {
+        const lastNfe = validNfes[validNfes.length - 1];
+        nfeIdFromOrder = lastNfe.id || lastNfe.idNotaFiscal;
+        console.log(`[GET-NFE] NF-e encontrada em 'nfes[]': ${nfeIdFromOrder}`);
+      }
     }
 
     // ============================================================
