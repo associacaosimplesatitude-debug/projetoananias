@@ -71,6 +71,7 @@ export default function EBDSchedule() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [escalaToEdit, setEscalaToEdit] = useState<Escala | null>(null);
   const [escalaToDelete, setEscalaToDelete] = useState<Escala | null>(null);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [showMontarEscalaDialog, setShowMontarEscalaDialog] = useState(false);
   const [planejamentoParaMontarEscala, setPlanejamentoParaMontarEscala] = useState<any>(null);
 
@@ -301,7 +302,7 @@ export default function EBDSchedule() {
     enabled: !!churchData?.id && !!selectedPlanejamento,
   });
 
-  // Mutation para excluir escala
+  // Mutation para excluir escala individual
   const deleteEscalaMutation = useMutation({
     mutationFn: async (escalaId: string) => {
       const { error } = await supabase
@@ -313,11 +314,37 @@ export default function EBDSchedule() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ebd-escalas'] });
       queryClient.invalidateQueries({ queryKey: ['ebd-escalas-planejamento'] });
+      queryClient.invalidateQueries({ queryKey: ['ebd-planejamentos-with-turmas'] });
       toast.success('Escala excluída com sucesso!');
       setEscalaToDelete(null);
     },
     onError: () => {
       toast.error('Erro ao excluir escala');
+    },
+  });
+
+  // Mutation para excluir todas as escalas de um planejamento/turma
+  const deleteAllEscalasMutation = useMutation({
+    mutationFn: async ({ turmaId, dataInicio, dataTermino }: { turmaId: string; dataInicio: string; dataTermino: string }) => {
+      const { error } = await supabase
+        .from('ebd_escalas')
+        .delete()
+        .eq('turma_id', turmaId)
+        .eq('church_id', churchData!.id)
+        .gte('data', dataInicio)
+        .lte('data', dataTermino);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-escalas'] });
+      queryClient.invalidateQueries({ queryKey: ['ebd-escalas-planejamento'] });
+      queryClient.invalidateQueries({ queryKey: ['ebd-planejamentos-with-turmas'] });
+      toast.success('Todas as escalas foram excluídas!');
+      setShowDeleteAllConfirm(false);
+      setSelectedPlanejamento(null);
+    },
+    onError: () => {
+      toast.error('Erro ao excluir escalas');
     },
   });
 
@@ -576,11 +603,27 @@ export default function EBDSchedule() {
         {/* Dialog do Calendário */}
         <Dialog open={!!selectedPlanejamento} onOpenChange={() => setSelectedPlanejamento(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+            <DialogHeader className="flex flex-row items-center justify-between">
               <DialogTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 Escala - {selectedPlanejamento?.revista?.titulo}
+                {selectedPlanejamento?.turma?.nome && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    ({selectedPlanejamento.turma.nome})
+                  </span>
+                )}
               </DialogTitle>
+              {escalas && escalas.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteAllConfirm(true)}
+                  className="ml-4"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir Todas
+                </Button>
+              )}
             </DialogHeader>
 
             <div className="space-y-4">
@@ -736,6 +779,40 @@ export default function EBDSchedule() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Dialog de confirmação para excluir TODAS as escalas */}
+        <AlertDialog open={showDeleteAllConfirm} onOpenChange={setShowDeleteAllConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir todas as escalas?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir TODAS as escalas de{' '}
+                <strong>{selectedPlanejamento?.turma?.nome || 'esta turma'}</strong> no período de{' '}
+                {selectedPlanejamento && format(parseISO(selectedPlanejamento.data_inicio), "dd/MM/yyyy")} a{' '}
+                {selectedPlanejamento && format(parseISO(selectedPlanejamento.data_termino), "dd/MM/yyyy")}?
+                <br /><br />
+                <span className="text-destructive font-medium">Esta ação não pode ser desfeita.</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (selectedPlanejamento?.turma?.id) {
+                    deleteAllEscalasMutation.mutate({
+                      turmaId: selectedPlanejamento.turma.id,
+                      dataInicio: selectedPlanejamento.data_inicio,
+                      dataTermino: selectedPlanejamento.data_termino,
+                    });
+                  }
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir Todas
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

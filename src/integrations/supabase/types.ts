@@ -2715,6 +2715,7 @@ export type Database = {
           dia_semana: string
           id: string
           revista_id: string
+          turma_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2725,6 +2726,7 @@ export type Database = {
           dia_semana: string
           id?: string
           revista_id: string
+          turma_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -2735,6 +2737,7 @@ export type Database = {
           dia_semana?: string
           id?: string
           revista_id?: string
+          turma_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2743,6 +2746,13 @@ export type Database = {
             columns: ["revista_id"]
             isOneToOne: false
             referencedRelation: "ebd_revistas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_planejamento_turma_id_fkey"
+            columns: ["turma_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_turmas"
             referencedColumns: ["id"]
           },
         ]
@@ -3891,7 +3901,15 @@ export type Database = {
           role?: Database["public"]["Enums"]["ebd_role"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_ebd_user_roles_church_id"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       financial_entries: {
         Row: {
