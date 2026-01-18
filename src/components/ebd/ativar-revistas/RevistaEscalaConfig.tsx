@@ -29,6 +29,7 @@ interface AulaEscala {
   semAula: boolean;
   professorId1: string;
   professorId2: string;
+  tituloLicao?: string;
 }
 
 interface RevistaEscala {
@@ -36,20 +37,49 @@ interface RevistaEscala {
   aulas: AulaEscala[];
 }
 
+// Função para extrair títulos das lições da descrição do produto
+function extrairTitulosLicoes(descricao: string): string[] {
+  const titulos: string[] = [];
+  
+  // Padrão comum: "1- Título" ou "1 - Título" ou "Lição 1: Título"
+  const linhas = descricao.split(/[\n<br>]+/).map(l => l.replace(/<[^>]*>/g, '').trim());
+  
+  for (const linha of linhas) {
+    // Padrão: número seguido de hífen/traço e título
+    const match = linha.match(/^(\d{1,2})\s*[-–—:\.]\s*(.+)$/);
+    if (match) {
+      const numero = parseInt(match[1]);
+      const titulo = match[2].trim();
+      if (numero >= 1 && numero <= 13 && titulo.length > 0) {
+        titulos[numero - 1] = titulo;
+      }
+    }
+  }
+  
+  return titulos;
+}
+
 export function RevistaEscalaConfig({ revistas }: RevistaEscalaConfigProps) {
   const { data: churchData } = useEbdChurchId();
   const churchId = churchData?.id;
   const [escalas, setEscalas] = useState<RevistaEscala[]>(() => 
-    revistas.map(revista => ({
-      revista,
-      aulas: Array.from({ length: 13 }, (_, i) => ({
-        numero: i + 1,
-        data: addDays(revista.dataInicio!, i * 7),
-        semAula: false,
-        professorId1: '',
-        professorId2: '',
-      })),
-    }))
+    revistas.map(revista => {
+      // Extrair títulos das lições da descrição do produto
+      const descricao = revista.produto.node.description || '';
+      const titulosLicoes = extrairTitulosLicoes(descricao);
+      
+      return {
+        revista,
+        aulas: Array.from({ length: 13 }, (_, i) => ({
+          numero: i + 1,
+          data: addDays(revista.dataInicio!, i * 7),
+          semAula: false,
+          professorId1: '',
+          professorId2: '',
+          tituloLicao: titulosLicoes[i] || '',
+        })),
+      };
+    })
   );
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
@@ -214,11 +244,18 @@ export function RevistaEscalaConfig({ revistas }: RevistaEscalaConfigProps) {
                     aula.semAula ? 'bg-muted/50' : 'bg-background'
                   }`}
                 >
-                  <div className="w-24 flex-shrink-0">
-                    <span className="font-medium">Aula {aula.numero}</span>
-                    <p className="text-sm text-muted-foreground">
-                      {format(aula.data, "dd/MM", { locale: ptBR })}
-                    </p>
+                  <div className="min-w-[200px] flex-shrink-0">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-medium">Aula {aula.numero}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {format(aula.data, "dd/MM", { locale: ptBR })}
+                      </span>
+                    </div>
+                    {aula.tituloLicao && (
+                      <p className="text-sm text-primary font-medium mt-0.5 line-clamp-1">
+                        {aula.tituloLicao}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
