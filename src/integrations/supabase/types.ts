@@ -3891,15 +3891,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["ebd_role"]
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "fk_ebd_user_roles_church_id"
-            columns: ["church_id"]
-            isOneToOne: false
-            referencedRelation: "ebd_clientes"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       financial_entries: {
         Row: {
