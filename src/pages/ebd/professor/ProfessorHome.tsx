@@ -18,10 +18,10 @@ export default function ProfessorHome() {
         .select("*")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .single();
+        .limit(1);
 
       if (error) throw error;
-      return data;
+      return data && data.length > 0 ? data[0] : null;
     },
     enabled: !!user?.id,
   });
