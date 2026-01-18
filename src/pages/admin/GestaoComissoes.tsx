@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Filter, Search, Wallet, Calendar, Clock, CheckCircle2, 
-  AlertTriangle, FileText, TrendingUp, List, Users, RefreshCw, Download
+  AlertTriangle, FileText, TrendingUp, List, Users, RefreshCw, Download,
+  ShoppingCart
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -166,6 +167,22 @@ export default function GestaoComissoes() {
       return data as Cliente[];
     },
     enabled: clienteIds.length > 0,
+  });
+
+  // Fetch pedidos Shopify de vendedores sem bling_order_id
+  const { data: pedidosShopifyPendentes = [] } = useQuery({
+    queryKey: ["shopify-pedidos-pendentes-bling"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("id, order_number, vendedor_id")
+        .not("vendedor_id", "is", null)
+        .eq("status_pagamento", "paid")
+        .is("bling_order_id", null);
+      
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   // Maps
@@ -530,6 +547,38 @@ export default function GestaoComissoes() {
     },
   });
 
+  // Mutation: sincronizar pedidos Shopify de vendedores com Bling
+  const syncShopifyBlingMutation = useMutation({
+    mutationFn: async () => {
+      const pedidoIds = pedidosShopifyPendentes.map(p => p.id);
+      if (pedidoIds.length === 0) {
+        throw new Error('Nenhum pedido Shopify pendente de sincronização');
+      }
+      
+      const { data, error } = await supabase.functions.invoke('bling-sync-shopify-orders', {
+        body: { pedido_ids: pedidoIds }
+      });
+      
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Erro ao sincronizar pedidos');
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-pendentes-bling"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+      toast.success(`${data.synced || 0} pedidos Shopify sincronizados com Bling!`);
+      
+      // Após sincronizar pedidos, sincronizar NF/DANFE automaticamente
+      setTimeout(() => {
+        syncNfDanfeMutation.mutate();
+      }, 1000);
+    },
+    onError: (error) => {
+      console.error("Erro ao sincronizar pedidos Shopify:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao sincronizar pedidos Shopify");
+    },
+  });
+
   // Mutation: buscar NF no Bling (com descoberta de bling_order_id se necessário)
   const buscarNfeMutation = useMutation({
     mutationFn: async (params: { 
@@ -868,6 +917,24 @@ export default function GestaoComissoes() {
                     >
                       <Download className={`h-4 w-4 ${syncNfDanfeMutation.isPending ? 'animate-spin' : ''}`} />
                       {syncNfDanfeMutation.isPending ? 'Sincronizando...' : 'Sincronizar NF/DANFE'}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Botão Sincronizar Pedidos Shopify - aparece se houver pedidos de vendedores sem bling_order_id */}
+                {pedidosShopifyPendentes.length > 0 && (
+                  <div className="flex items-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => syncShopifyBlingMutation.mutate()}
+                      disabled={syncShopifyBlingMutation.isPending}
+                      className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50"
+                    >
+                      <ShoppingCart className={`h-4 w-4 ${syncShopifyBlingMutation.isPending ? 'animate-pulse' : ''}`} />
+                      {syncShopifyBlingMutation.isPending 
+                        ? 'Sincronizando...' 
+                        : `Sincronizar Shopify (${pedidosShopifyPendentes.length})`}
                     </Button>
                   </div>
                 )}
