@@ -35,24 +35,25 @@ export default function ModuleProtectedRoute({ children, requiredModule }: Modul
     enabled: !!user?.id && !loading,
   });
 
-  // Check if user is a professor
+  // Check if user is a professor (can have multiple rows, so avoid maybeSingle)
   const { data: isProfessor, isLoading: professorLoading } = useQuery({
     queryKey: ['is-professor-check', user?.id],
     queryFn: async () => {
       if (!user?.id) return false;
-      
+
       const { data, error } = await supabase
         .from('ebd_professores')
         .select('id')
         .eq('user_id', user.id)
         .eq('is_active', true)
-        .maybeSingle();
+        .limit(1);
 
       if (error) {
         console.error('Error checking professor status:', error);
         return false;
       }
-      return !!data;
+
+      return !!(data && data.length > 0);
     },
     enabled: !!user?.id && !loading,
   });

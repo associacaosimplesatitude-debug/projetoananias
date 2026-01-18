@@ -139,24 +139,25 @@ export default function DashboardRedirect() {
     enabled: !!user?.id && !authLoading,
   });
 
-  // Check if user is a professor
+  // Check if user is a professor (can have multiple rows, so avoid maybeSingle)
   const { data: professor, isLoading: professorLoading } = useQuery({
     queryKey: ["is-professor-redirect", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      
+
       const { data, error } = await supabase
         .from("ebd_professores")
         .select("id")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .maybeSingle();
+        .limit(1);
 
       if (error) {
         console.error("Error checking professor status:", error);
         return null;
       }
-      return data;
+
+      return data && data.length > 0 ? data[0] : null;
     },
     enabled: !!user?.id && !authLoading,
   });

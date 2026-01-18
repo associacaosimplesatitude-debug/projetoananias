@@ -134,14 +134,15 @@ export default function EBDLogin() {
       }
 
       // 5. PROFESSOR (prioridade sobre "client" / "/dashboard")
-      const { data: professorData } = await supabase
+      // Pode existir mais de um registro ativo para o mesmo user_id, então evitamos maybeSingle
+      const { data: professorRows } = await supabase
         .from('ebd_professores')
         .select('id')
         .eq('user_id', user.id)
         .eq('is_active', true)
-        .maybeSingle();
+        .limit(1);
 
-      if (professorData) {
+      if (professorRows && professorRows.length > 0) {
         pushLoginSuccess(user.id, 'Professor');
         navigate('/ebd/professor');
         return;
