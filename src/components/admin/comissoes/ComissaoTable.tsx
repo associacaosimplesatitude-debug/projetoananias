@@ -25,13 +25,29 @@ interface ComissaoItem {
   bling_order_number: string | null;
   link_danfe: string | null;
   bling_order_id: number | null;
+  canSearchBlingOrder?: boolean;
+  shopify_order_number?: string | null;
+  customer_email?: string | null;
+  order_value?: number | null;
+  order_date?: string | null;
+  shopify_pedido_id?: string | null;
   isFetchingNfe?: boolean;
+}
+
+interface BuscarNfeParams {
+  parcelaId: string;
+  blingOrderId?: number | null;
+  shopifyOrderNumber?: string | null;
+  customerEmail?: string | null;
+  orderValue?: number | null;
+  orderDate?: string | null;
+  shopifyPedidoId?: string | null;
 }
 
 interface ComissaoTableProps {
   comissoes: ComissaoItem[];
   onMarcarPaga: (id: string) => void;
-  onBuscarNfe?: (id: string, blingOrderId: number) => void;
+  onBuscarNfe?: (params: BuscarNfeParams) => void;
   isUpdating?: boolean;
   showActions?: boolean;
 }
@@ -171,12 +187,20 @@ export function ComissaoTable({ comissoes, onMarcarPaga, onBuscarNfe, isUpdating
                       <ExternalLink className="h-3 w-3" />
                     </Button>
                   </div>
-                ) : item.bling_order_id && onBuscarNfe ? (
+                ) : (item.bling_order_id || item.canSearchBlingOrder) && onBuscarNfe ? (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => onBuscarNfe(item.id, item.bling_order_id!)}
+                    onClick={() => onBuscarNfe({
+                      parcelaId: item.id,
+                      blingOrderId: item.bling_order_id,
+                      shopifyOrderNumber: item.shopify_order_number,
+                      customerEmail: item.customer_email,
+                      orderValue: item.order_value,
+                      orderDate: item.order_date,
+                      shopifyPedidoId: item.shopify_pedido_id
+                    })}
                     disabled={item.isFetchingNfe}
                     title="Buscar NF no Bling"
                   >
