@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Filter, Search, Wallet, Calendar, Clock, CheckCircle2, 
-  AlertTriangle, FileText, TrendingUp, List, Users, RefreshCw
+  AlertTriangle, FileText, TrendingUp, List, Users, RefreshCw, Download
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -512,6 +512,24 @@ export default function GestaoComissoes() {
     },
   });
 
+  // Mutation: sincronizar NF/DANFE em lote
+  const syncNfDanfeMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('sync-nf-danfe-batch', {});
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+      toast.success(data.message || 'Sincronização concluída');
+    },
+    onError: (error) => {
+      console.error("Erro ao sincronizar NF/DANFE:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao sincronizar NF/DANFE");
+    },
+  });
+
   // Mutation: buscar NF no Bling (com descoberta de bling_order_id se necessário)
   const buscarNfeMutation = useMutation({
     mutationFn: async (params: { 
@@ -834,6 +852,22 @@ export default function GestaoComissoes() {
                     >
                       <RefreshCw className={`h-4 w-4 ${backfillBlingMutation.isPending ? 'animate-spin' : ''}`} />
                       {backfillBlingMutation.isPending ? 'Vinculando...' : 'Vincular Bling'}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Botão Sincronizar NF/DANFE - aparece se houver itens com bling_order_id mas sem link_danfe */}
+                {comissoesFiltradas.some(c => c.bling_order_id && !c.link_danfe) && (
+                  <div className="flex items-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => syncNfDanfeMutation.mutate()}
+                      disabled={syncNfDanfeMutation.isPending}
+                      className="gap-2"
+                    >
+                      <Download className={`h-4 w-4 ${syncNfDanfeMutation.isPending ? 'animate-spin' : ''}`} />
+                      {syncNfDanfeMutation.isPending ? 'Sincronizando...' : 'Sincronizar NF/DANFE'}
                     </Button>
                   </div>
                 )}
