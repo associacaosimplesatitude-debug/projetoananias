@@ -126,27 +126,41 @@ Deno.serve(async (req) => {
     // Strategy 1: Search by numeroLoja (Shopify order number)
     if (numeroLoja) {
       console.log('[bling-find-order-id] Strategy 1: Searching by numeroLoja:', numeroLoja);
-      const cleanNumero = numeroLoja.replace('#', '');
+      const cleanNumero = numeroLoja.replace('#', '').toUpperCase().trim();
       
-      const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=5`;
+      const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?numeroLoja=${encodeURIComponent(cleanNumero)}&limite=20`;
       const { data: searchResult, newToken } = await blingApiCall(searchUrl, accessToken, supabase, blingConfig);
       
       if (newToken) accessToken = newToken;
 
       if (searchResult?.data && searchResult.data.length > 0) {
-        const order = searchResult.data[0];
-        console.log('[bling-find-order-id] Found order by numeroLoja:', order.id);
+        console.log('[bling-find-order-id] API returned', searchResult.data.length, 'orders. Checking for exact match...');
+        console.log('[bling-find-order-id] Looking for numeroLoja:', cleanNumero);
+        console.log('[bling-find-order-id] Returned numeroLojas:', searchResult.data.map((o: any) => o.numeroLoja));
         
-        return new Response(
-          JSON.stringify({ 
-            blingOrderId: order.id,
-            numeroLoja: order.numeroLoja,
-            strategy: 'numeroLoja'
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // CRITICAL: Find EXACT match - API may return unrelated results
+        const matchingOrder = searchResult.data.find((order: any) => {
+          const orderNumeroLoja = (order.numeroLoja || '').toString().replace('#', '').toUpperCase().trim();
+          return orderNumeroLoja === cleanNumero;
+        });
+        
+        if (matchingOrder) {
+          console.log('[bling-find-order-id] ✓ Exact match found! Order ID:', matchingOrder.id, 'numeroLoja:', matchingOrder.numeroLoja);
+          
+          return new Response(
+            JSON.stringify({ 
+              blingOrderId: matchingOrder.id,
+              numeroLoja: matchingOrder.numeroLoja,
+              strategy: 'numeroLoja'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          console.log('[bling-find-order-id] ✗ No exact match for numeroLoja:', cleanNumero, '- API returned different orders');
+        }
+      } else {
+        console.log('[bling-find-order-id] No orders returned from API for numeroLoja:', cleanNumero);
       }
-      console.log('[bling-find-order-id] No order found by numeroLoja');
     }
 
     // Strategy 2: Search by contact email + date range
