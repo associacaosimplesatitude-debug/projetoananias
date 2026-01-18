@@ -80,7 +80,7 @@ export default function EBDSchedule() {
       if (!churchData?.id) return [];
       
       // Buscar planejamentos
-      const { data: planejamentosData, error: planError } = await supabase
+      const { data: planejamentosData0, error: planError } = await supabase
         .from('ebd_planejamento')
         .select(`
           id,
@@ -101,11 +101,109 @@ export default function EBDSchedule() {
         .select(`
           data,
           sem_aula,
+          observacao,
           turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .eq('church_id', churchData.id);
 
       if (escError) throw escError;
+
+      // Reparar automaticamente casos antigos onde existe ebd_escalas mas não existe ebd_planejamento
+      // (por exemplo, escalas criadas via "Ativar Revistas" antes do planejamento ser criado)
+      if ((planejamentosData0?.length || 0) === 0 && (escalasData?.length || 0) > 0) {
+        const grupos = new Map<string, { titulo: string; turma: any; min: string; max: string }>();
+
+        const extrairTituloDaObservacao = (obs: string | null) => {
+          if (!obs) return null;
+          const parts = obs.split(' - ');
+          if (parts.length >= 2) return parts.slice(1).join(' - ').trim();
+          return null;
+        };
+
+        for (const e of escalasData || []) {
+          const titulo = extrairTituloDaObservacao((e as any).observacao);
+          if (!titulo) continue;
+          const key = `${(e.turma as any)?.id || 'sem-turma'}::${titulo}`;
+          const data = e.data;
+
+          const atual = grupos.get(key);
+          if (!atual) {
+            grupos.set(key, {
+              titulo,
+              turma: e.turma,
+              min: data,
+              max: data,
+            });
+          } else {
+            if (data < atual.min) atual.min = data;
+            if (data > atual.max) atual.max = data;
+          }
+        }
+
+        for (const g of grupos.values()) {
+          // 1) Garantir ebd_revistas
+          const { data: revistaExistente, error: revErr } = await supabase
+            .from('ebd_revistas')
+            .select('id')
+            .eq('titulo', g.titulo)
+            .maybeSingle();
+          if (revErr) throw revErr;
+
+          let revistaId = revistaExistente?.id as string | undefined;
+          if (!revistaId) {
+            const { data: revistaNova, error: revInsErr } = await supabase
+              .from('ebd_revistas')
+              .insert({
+                titulo: g.titulo,
+                faixa_etaria_alvo: (g.turma as any)?.faixa_etaria || 'Geral',
+              })
+              .select('id')
+              .single();
+            if (revInsErr) throw revInsErr;
+            revistaId = revistaNova.id;
+          }
+
+          // 2) Garantir ebd_planejamento
+          const { data: planExistente, error: planExistErr } = await supabase
+            .from('ebd_planejamento')
+            .select('id')
+            .eq('church_id', churchData.id)
+            .eq('revista_id', revistaId)
+            .eq('data_inicio', g.min)
+            .maybeSingle();
+          if (planExistErr) throw planExistErr;
+
+          if (!planExistente?.id) {
+            const diaSemana = format(parseISO(g.min), 'EEEE', { locale: ptBR });
+            const { error: planInsErr } = await supabase
+              .from('ebd_planejamento')
+              .insert({
+                church_id: churchData.id,
+                revista_id: revistaId,
+                data_inicio: g.min,
+                data_termino: g.max,
+                dia_semana: diaSemana,
+              });
+            if (planInsErr) throw planInsErr;
+          }
+        }
+      }
+
+      // Recarregar planejamentos (caso tenha criado automaticamente acima)
+      const { data: planejamentosData, error: planReloadError } = await supabase
+        .from('ebd_planejamento')
+        .select(`
+          id,
+          revista_id,
+          data_inicio,
+          data_termino,
+          dia_semana,
+          revista:ebd_revistas(id, titulo, imagem_url, faixa_etaria_alvo, num_licoes)
+        `)
+        .eq('church_id', churchData.id)
+        .order('created_at', { ascending: false });
+
+      if (planReloadError) throw planReloadError;
 
       const hoje = startOfDay(new Date());
 
