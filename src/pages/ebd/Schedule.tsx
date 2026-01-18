@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEbdChurchId } from "@/hooks/useEbdChurchId";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, User, CheckCircle2, Plus, Settings } from "lucide-react";
+import { Calendar, Eye, BookOpen, Pencil, Trash2, ChevronLeft, ChevronRight, User, CheckCircle2, Plus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { EditarEscalaDialog } from "@/components/ebd/EditarEscalaDialog";
 import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
-import { EditarPlanejamentoDialog } from "@/components/ebd/EditarPlanejamentoDialog";
 import { Progress } from "@/components/ui/progress";
 
 
@@ -26,7 +25,6 @@ interface Planejamento {
   data_inicio: string;
   data_termino: string;
   dia_semana: string;
-  turma_id?: string;
   revista: {
     id: string;
     titulo: string;
@@ -75,7 +73,6 @@ export default function EBDSchedule() {
   const [escalaToDelete, setEscalaToDelete] = useState<Escala | null>(null);
   const [showMontarEscalaDialog, setShowMontarEscalaDialog] = useState(false);
   const [planejamentoParaMontarEscala, setPlanejamentoParaMontarEscala] = useState<any>(null);
-  const [planejamentoToEdit, setPlanejamentoToEdit] = useState<Planejamento | null>(null);
 
   // Buscar dados da igreja (suporta promoted superintendentes, ebd_clientes e churches)
   const { data: churchData } = useEbdChurchId();
@@ -96,9 +93,7 @@ export default function EBDSchedule() {
           data_inicio,
           data_termino,
           dia_semana,
-          turma_id,
-          revista:ebd_revistas(id, titulo, imagem_url, faixa_etaria_alvo, num_licoes),
-          turma:ebd_turmas(id, nome, faixa_etaria)
+          revista:ebd_revistas(id, titulo, imagem_url, faixa_etaria_alvo, num_licoes)
         `)
         .eq('church_id', churchData.id)
         .order('created_at', { ascending: false });
@@ -217,34 +212,23 @@ export default function EBDSchedule() {
 
       const hoje = startOfDay(new Date());
 
-      // Mapear turmas para planejamentos baseado no turma_id direto ou inferido das escalas
+      // Mapear turmas para planejamentos baseado nas datas e faixa etária da revista
       const result = planejamentosData?.map(plan => {
-        // Priorizar turma diretamente do planejamento (nova coluna turma_id)
-        let turma = (plan as any).turma;
-        
-        // Se não tiver turma direta, inferir das escalas
-        if (!turma) {
-          const escalasDoPlan = escalasData?.filter(e => 
-            e.data >= plan.data_inicio && e.data <= plan.data_termino
-          );
-          
-          // Encontrar a turma que corresponde à faixa etária da revista
-          const faixaRevista = (plan.revista as any)?.faixa_etaria_alvo || '';
-          const turmaCorrespondente = escalasDoPlan?.find(e => {
-            const turmaFaixa = (e.turma as any)?.faixa_etaria || '';
-            return turmaFaixa === faixaRevista || 
-                   turmaFaixa.includes(faixaRevista.split(':')[0]) ||
-                   faixaRevista.includes(turmaFaixa.split(':')[0]);
-          })?.turma;
-          
-          turma = turmaCorrespondente || escalasDoPlan?.[0]?.turma;
-        }
-
         const escalasDoPlan = escalasData?.filter(e => 
-          e.data >= plan.data_inicio && e.data <= plan.data_termino &&
-          ((plan as any).turma_id ? e.turma?.id === (plan as any).turma_id : true)
+          e.data >= plan.data_inicio && e.data <= plan.data_termino
         );
         
+        // Encontrar a turma que corresponde à faixa etária da revista
+        const faixaRevista = (plan.revista as any)?.faixa_etaria_alvo || '';
+        const turmaCorrespondente = escalasDoPlan?.find(e => {
+          const turmaFaixa = (e.turma as any)?.faixa_etaria || '';
+          // Match exato ou parcial (ex: "15-17 anos" contém "15-17")
+          return turmaFaixa === faixaRevista || 
+                 turmaFaixa.includes(faixaRevista.split(':')[0]) ||
+                 faixaRevista.includes(turmaFaixa.split(':')[0]);
+        })?.turma;
+        
+        const turma = turmaCorrespondente || escalasDoPlan?.[0]?.turma;
         const temEscalas = escalasDoPlan && escalasDoPlan.length > 0;
         
         // Calcular progresso: aulas ministradas (datas passadas sem sem_aula)
@@ -453,43 +437,35 @@ export default function EBDSchedule() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setPlanejamentoToEdit(planejamento)}
-                            >
-                              <Settings className="w-4 h-4" />
+                          {(planejamento as any).temEscalas ? (
+                            <Button size="sm" onClick={() => setSelectedPlanejamento(planejamento)} className="flex-shrink-0">
+                              <Eye className="w-4 h-4 mr-2" />
+                              Ver Escala
                             </Button>
-                            {(planejamento as any).temEscalas ? (
-                              <Button size="sm" onClick={() => setSelectedPlanejamento(planejamento)}>
-                                <Eye className="w-4 h-4 mr-2" />
-                                Ver Escala
-                              </Button>
-                            ) : (
-                              <Button 
-                                size="sm" 
-                                onClick={() => {
-                                  setPlanejamentoParaMontarEscala({
-                                    id: planejamento.id,
-                                    revista_id: (planejamento as any).revista_id,
-                                    data_inicio: planejamento.data_inicio,
-                                    dia_semana: planejamento.dia_semana,
-                                    data_termino: planejamento.data_termino,
-                                    ebd_revistas: {
-                                      id: planejamento.revista?.id,
-                                      titulo: planejamento.revista?.titulo,
-                                      num_licoes: planejamento.revista?.num_licoes || 13
-                                    }
-                                  });
-                                  setShowMontarEscalaDialog(true);
-                                }}
-                              >
-                                <Plus className="w-4 h-4 mr-2" />
-                                Criar Escala
-                              </Button>
-                            )}
-                          </div>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              onClick={() => {
+                                setPlanejamentoParaMontarEscala({
+                                  id: planejamento.id,
+                                  revista_id: (planejamento as any).revista_id,
+                                  data_inicio: planejamento.data_inicio,
+                                  dia_semana: planejamento.dia_semana,
+                                  data_termino: planejamento.data_termino,
+                                  ebd_revistas: {
+                                    id: planejamento.revista?.id,
+                                    titulo: planejamento.revista?.titulo,
+                                    num_licoes: planejamento.revista?.num_licoes || 13
+                                  }
+                                });
+                                setShowMontarEscalaDialog(true);
+                              }} 
+                              className="flex-shrink-0"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Criar Escala
+                            </Button>
+                          )}
                         </div>
                       </Card>
                     ))
@@ -560,19 +536,10 @@ export default function EBDSchedule() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setPlanejamentoToEdit(planejamento)}
-                            >
-                              <Settings className="w-4 h-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => setSelectedPlanejamento(planejamento)}>
-                              <Eye className="w-4 h-4 mr-2" />
-                              Ver Escala
-                            </Button>
-                          </div>
+                          <Button size="sm" variant="outline" onClick={() => setSelectedPlanejamento(planejamento)} className="flex-shrink-0">
+                            <Eye className="w-4 h-4 mr-2" />
+                            Ver Escala
+                          </Button>
                         </div>
                       </Card>
                     ))
@@ -786,14 +753,6 @@ export default function EBDSchedule() {
             churchId={churchData?.id}
           />
         )}
-
-        {/* Dialog de edição do planejamento */}
-        <EditarPlanejamentoDialog
-          planejamento={planejamentoToEdit}
-          open={!!planejamentoToEdit}
-          onOpenChange={(open) => !open && setPlanejamentoToEdit(null)}
-          churchId={churchData?.id}
-        />
       </div>
     </div>
   );
