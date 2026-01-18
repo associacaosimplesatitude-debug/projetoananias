@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
   CheckCircle2, Clock, AlertTriangle, Calendar, ExternalLink,
-  DollarSign, CreditCard, FileText, Wallet
+  DollarSign, CreditCard, FileText, Wallet, Search, Loader2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -24,16 +24,19 @@ interface ComissaoItem {
   metodo_pagamento: string | null;
   bling_order_number: string | null;
   link_danfe: string | null;
+  bling_order_id: number | null;
+  isFetchingNfe?: boolean;
 }
 
 interface ComissaoTableProps {
   comissoes: ComissaoItem[];
   onMarcarPaga: (id: string) => void;
+  onBuscarNfe?: (id: string, blingOrderId: number) => void;
   isUpdating?: boolean;
   showActions?: boolean;
 }
 
-export function ComissaoTable({ comissoes, onMarcarPaga, isUpdating, showActions = true }: ComissaoTableProps) {
+export function ComissaoTable({ comissoes, onMarcarPaga, onBuscarNfe, isUpdating, showActions = true }: ComissaoTableProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "paga":
@@ -155,20 +158,39 @@ export function ComissaoTable({ comissoes, onMarcarPaga, isUpdating, showActions
                 }
               </TableCell>
               <TableCell>
-                {item.bling_order_number ? (
+                {item.link_danfe ? (
                   <div className="flex items-center gap-1">
-                    <span className="text-sm">{item.bling_order_number}</span>
-                    {item.link_danfe && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => window.open(item.link_danfe!, "_blank")}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
-                    )}
+                    <span className="text-sm">{item.bling_order_number || 'DANFE'}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800"
+                      onClick={() => window.open(item.link_danfe!, "_blank")}
+                      title="Ver DANFE"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
                   </div>
+                ) : item.bling_order_id && onBuscarNfe ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => onBuscarNfe(item.id, item.bling_order_id!)}
+                    disabled={item.isFetchingNfe}
+                    title="Buscar NF no Bling"
+                  >
+                    {item.isFetchingNfe ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <>
+                        <Search className="h-3 w-3 mr-1" />
+                        NF
+                      </>
+                    )}
+                  </Button>
+                ) : item.tipo === 'online' ? (
+                  <span className="text-xs text-muted-foreground">Aguardando</span>
                 ) : (
                   <span className="text-muted-foreground">-</span>
                 )}

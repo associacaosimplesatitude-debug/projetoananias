@@ -59,6 +59,7 @@ interface Parcela {
   shopify_pedido?: {
     nota_fiscal_url: string | null;
     nota_fiscal_numero: string | null;
+    bling_order_id: number | null;
   } | null;
 }
 
@@ -100,13 +101,16 @@ export default function GestaoComissoes() {
   const [showLoteDetalheDialog, setShowLoteDetalheDialog] = useState(false);
   const [selectedLoteId, setSelectedLoteId] = useState<string | null>(null);
 
+  // State for NF loading per row
+  const [fetchingNfeIds, setFetchingNfeIds] = useState<Set<string>>(new Set());
+
   // Fetch all parcelas with comissao_status
   const { data: parcelas = [], isLoading: parcelasLoading } = useQuery({
     queryKey: ["admin-comissoes-parcelas"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendedor_propostas_parcelas")
-        .select("*, proposta:vendedor_propostas(id, vendedor_email, vendedor_nome, bling_order_number, link_danfe), shopify_pedido:ebd_shopify_pedidos(nota_fiscal_url, nota_fiscal_numero)")
+        .select("*, proposta:vendedor_propostas(id, vendedor_email, vendedor_nome, bling_order_number, link_danfe), shopify_pedido:ebd_shopify_pedidos(nota_fiscal_url, nota_fiscal_numero, bling_order_id)")
         .order("data_vencimento", { ascending: true });
       
       if (error) throw error;
@@ -351,6 +355,9 @@ export default function GestaoComissoes() {
 
     return resultado.map(p => {
       const info = resolveVendedorInfo(p);
+      // Resolve bling_order_id from parcela or shopify_pedido
+      const blingOrderId = p.bling_order_id || p.shopify_pedido?.bling_order_id || null;
+      
       return {
         id: p.id,
         vendedor_id: p.vendedor_id,
@@ -372,10 +379,12 @@ export default function GestaoComissoes() {
           : p.shopify_pedido?.nota_fiscal_numero 
             ? `NF ${p.shopify_pedido.nota_fiscal_numero}`
             : (p.bling_order_number || p.proposta?.bling_order_number || null),
-        link_danfe: p.link_danfe || p.shopify_pedido?.nota_fiscal_url || p.proposta?.link_danfe || null
+        link_danfe: p.link_danfe || p.shopify_pedido?.nota_fiscal_url || p.proposta?.link_danfe || null,
+        bling_order_id: blingOrderId,
+        isFetchingNfe: fetchingNfeIds.has(p.id)
       };
     });
-  }, [parcelas, statusSelecionado, vendedorSelecionado, tipoSelecionado, searchTerm, clienteMap, vendedorById, vendedorByEmail]);
+  }, [parcelas, statusSelecionado, vendedorSelecionado, tipoSelecionado, searchTerm, clienteMap, vendedorById, vendedorByEmail, fetchingNfeIds]);
 
   // Lote detail comissoes
   const loteDetalheComissoes = useMemo(() => {
@@ -472,6 +481,54 @@ export default function GestaoComissoes() {
     },
   });
 
+  // Mutation: buscar NF no Bling por bling_order_id
+  const buscarNfeMutation = useMutation({
+    mutationFn: async ({ parcelaId, blingOrderId }: { parcelaId: string; blingOrderId: number }) => {
+      setFetchingNfeIds(prev => new Set(prev).add(parcelaId));
+      
+      const { data, error } = await supabase.functions.invoke('bling-get-nfe-by-order-id', {
+        body: { blingOrderId }
+      });
+      
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Erro ao buscar NF');
+      
+      return { parcelaId, ...data };
+    },
+    onSuccess: async (data) => {
+      setFetchingNfeIds(prev => {
+        const next = new Set(prev);
+        next.delete(data.parcelaId);
+        return next;
+      });
+      
+      if (data.found && data.url) {
+        // Atualizar a parcela no banco
+        await supabase
+          .from('vendedor_propostas_parcelas')
+          .update({
+            link_danfe: data.url,
+            nota_fiscal_numero: data.numero || null
+          })
+          .eq('id', data.parcelaId);
+        
+        queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+        toast.success(`NF ${data.numero || ''} encontrada!`);
+      } else {
+        toast.info(data.message || "NF ainda não disponível");
+      }
+    },
+    onError: (error, variables) => {
+      setFetchingNfeIds(prev => {
+        const next = new Set(prev);
+        next.delete(variables.parcelaId);
+        return next;
+      });
+      console.error("Erro ao buscar NF:", error);
+      toast.error("Erro ao buscar NF no Bling");
+    },
+  });
+
   const handleViewDetail = (status: string) => {
     setStatusSelecionado(status);
     if (status === 'paga') {
@@ -486,6 +543,10 @@ export default function GestaoComissoes() {
   const handleViewLoteDetail = (loteId: string) => {
     setSelectedLoteId(loteId);
     setShowLoteDetalheDialog(true);
+  };
+
+  const handleBuscarNfe = (parcelaId: string, blingOrderId: number) => {
+    buscarNfeMutation.mutate({ parcelaId, blingOrderId });
   };
 
   const isLoading = parcelasLoading;
@@ -567,6 +628,7 @@ export default function GestaoComissoes() {
                 <ComissaoTable
                   comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'atrasada').slice(0, 10)}
                   onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+                  onBuscarNfe={handleBuscarNfe}
                   isUpdating={marcarPagaMutation.isPending}
                   showActions={false}
                 />
@@ -679,12 +741,14 @@ export default function GestaoComissoes() {
                 <ComissaoAgrupadaVendedor
                   comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'liberada')}
                   onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+                  onBuscarNfe={handleBuscarNfe}
                   isUpdating={marcarPagaMutation.isPending}
                 />
               ) : (
                 <ComissaoTable
                   comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'liberada')}
                   onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+                  onBuscarNfe={handleBuscarNfe}
                   isUpdating={marcarPagaMutation.isPending}
                 />
               )}
@@ -737,6 +801,7 @@ export default function GestaoComissoes() {
                   ...comissoesFiltradas.filter(c => c.comissao_status === 'pendente')
                 ]}
                 onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+                onBuscarNfe={handleBuscarNfe}
                 isUpdating={marcarPagaMutation.isPending}
                 showActions={false}
               />
@@ -768,6 +833,7 @@ export default function GestaoComissoes() {
               <ComissaoTable
                 comissoes={comissoesFiltradas.filter(c => c.comissao_status === 'paga')}
                 onMarcarPaga={() => {}}
+                onBuscarNfe={handleBuscarNfe}
                 showActions={false}
               />
             </CardContent>

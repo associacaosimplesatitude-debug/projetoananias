@@ -170,3 +170,6 @@ verify_jwt = false
 
 [functions.update-comissao-status]
 verify_jwt = false
+
+[functions.bling-get-nfe-by-order-id]
+verify_jwt = true
