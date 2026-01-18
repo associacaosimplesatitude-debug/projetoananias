@@ -74,6 +74,7 @@ export default function EBDSchedule() {
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [showMontarEscalaDialog, setShowMontarEscalaDialog] = useState(false);
   const [planejamentoParaMontarEscala, setPlanejamentoParaMontarEscala] = useState<any>(null);
+  const [planejamentoToDelete, setPlanejamentoToDelete] = useState<Planejamento | null>(null);
 
   // Buscar dados da igreja (suporta promoted superintendentes, ebd_clientes e churches)
   const { data: churchData } = useEbdChurchId();
@@ -348,6 +349,39 @@ export default function EBDSchedule() {
     },
   });
 
+  // Mutation para excluir planejamento inteiro (com escalas associadas)
+  const deletePlanejamentoMutation = useMutation({
+    mutationFn: async (planejamento: Planejamento) => {
+      // Primeiro excluir todas as escalas associadas (se houver turma)
+      if (planejamento.turma?.id) {
+        await supabase
+          .from('ebd_escalas')
+          .delete()
+          .eq('turma_id', planejamento.turma.id)
+          .eq('church_id', churchData!.id)
+          .gte('data', planejamento.data_inicio)
+          .lte('data', planejamento.data_termino);
+      }
+      
+      // Depois excluir o planejamento
+      const { error } = await supabase
+        .from('ebd_planejamento')
+        .delete()
+        .eq('id', planejamento.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ebd-planejamentos-with-turmas'] });
+      queryClient.invalidateQueries({ queryKey: ['ebd-escalas'] });
+      toast.success('Planejamento excluído com sucesso!');
+      setPlanejamentoToDelete(null);
+    },
+    onError: () => {
+      toast.error('Erro ao excluir planejamento');
+    },
+  });
+
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -464,35 +498,47 @@ export default function EBDSchedule() {
                               </div>
                             </div>
                           </div>
-                          {(planejamento as any).temEscalas ? (
-                            <Button size="sm" onClick={() => setSelectedPlanejamento(planejamento)} className="flex-shrink-0">
-                              <Eye className="w-4 h-4 mr-2" />
-                              Ver Escala
-                            </Button>
-                          ) : (
-                            <Button 
-                              size="sm" 
-                              onClick={() => {
-                                setPlanejamentoParaMontarEscala({
-                                  id: planejamento.id,
-                                  revista_id: (planejamento as any).revista_id,
-                                  data_inicio: planejamento.data_inicio,
-                                  dia_semana: planejamento.dia_semana,
-                                  data_termino: planejamento.data_termino,
-                                  ebd_revistas: {
-                                    id: planejamento.revista?.id,
-                                    titulo: planejamento.revista?.titulo,
-                                    num_licoes: planejamento.revista?.num_licoes || 13
-                                  }
-                                });
-                                setShowMontarEscalaDialog(true);
-                              }} 
-                              className="flex-shrink-0"
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {(planejamento as any).temEscalas ? (
+                              <Button size="sm" onClick={() => setSelectedPlanejamento(planejamento)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                Ver Escala
+                              </Button>
+                            ) : (
+                              <Button 
+                                size="sm" 
+                                onClick={() => {
+                                  setPlanejamentoParaMontarEscala({
+                                    id: planejamento.id,
+                                    revista_id: (planejamento as any).revista_id,
+                                    data_inicio: planejamento.data_inicio,
+                                    dia_semana: planejamento.dia_semana,
+                                    data_termino: planejamento.data_termino,
+                                    ebd_revistas: {
+                                      id: planejamento.revista?.id,
+                                      titulo: planejamento.revista?.titulo,
+                                      num_licoes: planejamento.revista?.num_licoes || 13
+                                    }
+                                  });
+                                  setShowMontarEscalaDialog(true);
+                                }}
+                              >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Criar Escala
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPlanejamentoToDelete(planejamento);
+                              }}
                             >
-                              <Plus className="w-4 h-4 mr-2" />
-                              Criar Escala
+                              <Trash2 className="w-4 h-4" />
                             </Button>
-                          )}
+                          </div>
                         </div>
                       </Card>
                     ))
@@ -563,10 +609,23 @@ export default function EBDSchedule() {
                               </div>
                             </div>
                           </div>
-                          <Button size="sm" variant="outline" onClick={() => setSelectedPlanejamento(planejamento)} className="flex-shrink-0">
-                            <Eye className="w-4 h-4 mr-2" />
-                            Ver Escala
-                          </Button>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Button size="sm" variant="outline" onClick={() => setSelectedPlanejamento(planejamento)}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              Ver Escala
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPlanejamentoToDelete(planejamento);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       </Card>
                     ))
@@ -830,6 +889,33 @@ export default function EBDSchedule() {
             churchId={churchData?.id}
           />
         )}
+
+        {/* Dialog de confirmação para excluir planejamento inteiro */}
+        <AlertDialog open={!!planejamentoToDelete} onOpenChange={() => setPlanejamentoToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Planejamento</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o planejamento "{planejamentoToDelete?.revista?.titulo}"?
+                {planejamentoToDelete?.temEscalas && (
+                  <span className="block mt-2 text-red-600 font-medium">
+                    Todas as escalas associadas também serão excluídas!
+                  </span>
+                )}
+                <span className="block mt-2">Esta ação não pode ser desfeita.</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700"
+                onClick={() => planejamentoToDelete && deletePlanejamentoMutation.mutate(planejamentoToDelete)}
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
