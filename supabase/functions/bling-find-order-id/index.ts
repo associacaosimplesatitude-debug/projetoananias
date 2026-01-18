@@ -163,110 +163,133 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Strategy 2: Search by contact email + date range
+    // Strategy 2: Search by contact email + date range (mais rigorosa)
     if (customerEmail) {
       console.log('[bling-find-order-id] Strategy 2: Searching by email:', customerEmail);
       
-      // First, find contact by email
-      const contactSearchUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(customerEmail)}&limite=5`;
-      const { data: contactResult, newToken: newToken2 } = await blingApiCall(contactSearchUrl, accessToken, supabase, blingConfig);
+      // Find contact by email
+      const contactUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(customerEmail)}`;
+      const { data: contactResult, newToken: ct1 } = await blingApiCall(contactUrl, accessToken, supabase, blingConfig);
       
-      if (newToken2) accessToken = newToken2;
+      if (ct1) accessToken = ct1;
 
-      let contactId: number | null = null;
       if (contactResult?.data && contactResult.data.length > 0) {
-        contactId = contactResult.data[0].id;
-        console.log('[bling-find-order-id] Found contact:', contactId);
-      }
-
-      if (contactId) {
-        // Search orders by contact
-        let ordersUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?idContato=${contactId}&limite=20`;
+        // CRITICAL: Find exact email match (case-insensitive)
+        const normalizedEmail = customerEmail.trim().toLowerCase();
+        const exactContact = contactResult.data.find((c: any) => {
+          const contactEmail = (c.email || '').trim().toLowerCase();
+          return contactEmail === normalizedEmail;
+        });
         
-        // Add date range if available
-        if (orderDate) {
-          const date = new Date(orderDate);
-          const startDate = new Date(date);
-          startDate.setDate(startDate.getDate() - 30);
-          const endDate = new Date(date);
-          endDate.setDate(endDate.getDate() + 30);
+        if (!exactContact) {
+          console.log('[bling-find-order-id] No exact email match found. Returned contacts:', 
+            contactResult.data.map((c: any) => c.email));
+        } else {
+          const contactId = exactContact.id;
+          console.log('[bling-find-order-id] Found exact contact match. ID:', contactId, 'Email:', exactContact.email);
           
-          ordersUrl += `&dataInicial=${startDate.toISOString().split('T')[0]}&dataFinal=${endDate.toISOString().split('T')[0]}`;
-        }
-
-        const { data: ordersResult, newToken: newToken3 } = await blingApiCall(ordersUrl, accessToken, supabase, blingConfig);
-        if (newToken3) accessToken = newToken3;
-
-        if (ordersResult?.data && ordersResult.data.length > 0) {
-          let bestMatch = ordersResult.data[0];
+          // Search orders by contact
+          let ordersUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?idContato=${contactId}&limite=20`;
           
-          // If we have orderValue, find closest match
-          if (orderValue) {
-            let minDiff = Math.abs((ordersResult.data[0].total || 0) - orderValue);
-            for (const order of ordersResult.data) {
-              const diff = Math.abs((order.total || 0) - orderValue);
-              if (diff < minDiff) {
-                minDiff = diff;
-                bestMatch = order;
-              }
+          if (orderDate) {
+            const date = new Date(orderDate);
+            const startDate = new Date(date);
+            startDate.setDate(startDate.getDate() - 14);
+            const endDate = new Date(date);
+            endDate.setDate(endDate.getDate() + 14);
+            ordersUrl += `&dataInicial=${startDate.toISOString().split('T')[0]}&dataFinal=${endDate.toISOString().split('T')[0]}`;
+          }
+          
+          const { data: ordersResult, newToken: ct2 } = await blingApiCall(ordersUrl, accessToken, supabase, blingConfig);
+          
+          if (ct2) accessToken = ct2;
+
+          if (ordersResult?.data && ordersResult.data.length > 0) {
+            const targetValue = Number(orderValue) || 0;
+            
+            // Find orders within tolerance (max R$ 5 difference)
+            const tolerance = 5;
+            const matchingOrders = ordersResult.data.filter((order: any) => {
+              const diff = Math.abs(Number(order.total || order.totalVenda || 0) - targetValue);
+              return diff <= tolerance;
+            });
+            
+            console.log('[bling-find-order-id] Orders within tolerance (R$', tolerance, '):', matchingOrders.length);
+            
+            if (matchingOrders.length === 1) {
+              // Único match - seguro retornar
+              console.log('[bling-find-order-id] ✓ Unique match found:', matchingOrders[0].id, 'value:', matchingOrders[0].total);
+              
+              return new Response(
+                JSON.stringify({ 
+                  blingOrderId: matchingOrders[0].id,
+                  numeroLoja: matchingOrders[0].numeroLoja,
+                  strategy: 'contact_email_exact'
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            } else if (matchingOrders.length > 1) {
+              console.log('[bling-find-order-id] ✗ Multiple orders match - ambiguous, not returning any');
+              console.log('[bling-find-order-id] Matching orders:', matchingOrders.map((o: any) => ({ id: o.id, valor: o.total, numero: o.numero })));
+            } else {
+              console.log('[bling-find-order-id] No orders within R$', tolerance, 'tolerance. Values found:', 
+                ordersResult.data.map((o: any) => o.total));
             }
           }
-
-          console.log('[bling-find-order-id] Found order by contact:', bestMatch.id, 'total:', bestMatch.total);
-          
-          return new Response(
-            JSON.stringify({ 
-              blingOrderId: bestMatch.id,
-              numeroLoja: bestMatch.numeroLoja,
-              strategy: 'contactEmail'
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
         }
       }
-      console.log('[bling-find-order-id] No order found by contact');
+      console.log('[bling-find-order-id] Strategy 2 failed - no conclusive match');
     }
 
-    // Strategy 3: Search by value range + date (fallback - broad search)
+    // Strategy 3: Search by value + date range (fallback - muito mais rigorosa)
     if (orderValue && orderDate) {
-      console.log('[bling-find-order-id] Strategy 3: Searching by value/date range');
+      console.log('[bling-find-order-id] Strategy 3: Searching by value + date (strict mode)');
       
       const date = new Date(orderDate);
       const startDate = new Date(date);
-      startDate.setDate(startDate.getDate() - 7);
+      startDate.setDate(startDate.getDate() - 3);
       const endDate = new Date(date);
-      endDate.setDate(endDate.getDate() + 7);
+      endDate.setDate(endDate.getDate() + 3);
       
       const searchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?dataInicial=${startDate.toISOString().split('T')[0]}&dataFinal=${endDate.toISOString().split('T')[0]}&limite=50`;
       const { data: searchResult } = await blingApiCall(searchUrl, accessToken, supabase, blingConfig);
 
       if (searchResult?.data && searchResult.data.length > 0) {
-        // Find best match by value
-        let bestMatch = null;
-        let minDiff = 10; // Max 10 BRL difference
+        const targetValue = Number(orderValue);
         
-        for (const order of searchResult.data) {
-          const diff = Math.abs((order.total || 0) - orderValue);
-          if (diff < minDiff) {
-            minDiff = diff;
-            bestMatch = order;
-          }
-        }
-
-        if (bestMatch) {
-          console.log('[bling-find-order-id] Found order by value/date:', bestMatch.id);
+        // STRICT: Only accept orders within R$ 2 tolerance
+        const strictTolerance = 2;
+        const matchingOrders = searchResult.data.filter((order: any) => {
+          const orderTotal = Number(order.total || order.totalVenda || 0);
+          const diff = Math.abs(orderTotal - targetValue);
+          return diff <= strictTolerance;
+        });
+        
+        console.log('[bling-find-order-id] Orders within R$', strictTolerance, 'tolerance:', matchingOrders.length);
+        
+        if (matchingOrders.length === 1) {
+          // ÚNICO match - podemos retornar com confiança
+          console.log('[bling-find-order-id] ✓ Unique value match found:', matchingOrders[0].id, 'value:', matchingOrders[0].total);
           
           return new Response(
             JSON.stringify({ 
-              blingOrderId: bestMatch.id,
-              numeroLoja: bestMatch.numeroLoja,
-              strategy: 'valueDateRange'
+              blingOrderId: matchingOrders[0].id,
+              numeroLoja: matchingOrders[0].numeroLoja,
+              strategy: 'value_date_unique'
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
+        } else if (matchingOrders.length > 1) {
+          // MÚLTIPLOS matches - NÃO retornar nenhum para evitar associar errado
+          console.log('[bling-find-order-id] ✗ Multiple orders match value - AMBIGUOUS, refusing to guess');
+          console.log('[bling-find-order-id] Candidates:', matchingOrders.map((o: any) => ({ id: o.id, valor: o.total, numero: o.numero })));
+          // NÃO retornar - deixar cair para o erro final
+        } else {
+          console.log('[bling-find-order-id] No orders within strict tolerance. All values:', 
+            searchResult.data.slice(0, 10).map((o: any) => o.total));
         }
       }
-      console.log('[bling-find-order-id] No order found by value/date');
+      console.log('[bling-find-order-id] Strategy 3 failed - no unique match');
     }
 
     console.log('[bling-find-order-id] No order found with any strategy');

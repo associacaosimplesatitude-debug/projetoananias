@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   CheckCircle2, Clock, AlertTriangle, Calendar, ExternalLink,
-  Wallet, FileText, Download, User, Search, Loader2
+  Wallet, FileText, Download, User, Search, Loader2, RefreshCw
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -66,6 +66,7 @@ interface ComissaoAgrupadaVendedorProps {
   comissoes: ComissaoItem[];
   onMarcarPaga: (id: string) => void;
   onBuscarNfe?: (params: BuscarNfeParams) => void;
+  onRefazerNfe?: (params: BuscarNfeParams) => void;
   onGerarPagamentoVendedor?: (vendedorId: string, comissoes: ComissaoItem[]) => void;
   isUpdating?: boolean;
 }
@@ -74,6 +75,7 @@ export function ComissaoAgrupadaVendedor({
   comissoes, 
   onMarcarPaga, 
   onBuscarNfe,
+  onRefazerNfe,
   onGerarPagamentoVendedor,
   isUpdating 
 }: ComissaoAgrupadaVendedorProps) {
@@ -277,6 +279,31 @@ export function ComissaoAgrupadaVendedor({
                               >
                                 <ExternalLink className="h-3 w-3" />
                               </Button>
+                              {/* Botão Refazer NF */}
+                              {onRefazerNfe && (item.bling_order_id || item.canSearchBlingOrder) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-orange-500 hover:text-orange-700"
+                                  onClick={() => onRefazerNfe({
+                                    parcelaId: item.id,
+                                    blingOrderId: item.bling_order_id,
+                                    shopifyOrderNumber: item.shopify_order_number,
+                                    customerEmail: item.customer_email,
+                                    orderValue: item.order_value,
+                                    orderDate: item.order_date,
+                                    shopifyPedidoId: item.shopify_pedido_id
+                                  })}
+                                  disabled={item.isFetchingNfe}
+                                  title="Refazer busca de NF"
+                                >
+                                  {item.isFetchingNfe ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              )}
                             </div>
                           ) : (item.bling_order_id || item.canSearchBlingOrder) && onBuscarNfe ? (
                             <Button
