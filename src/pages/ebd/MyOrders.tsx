@@ -76,7 +76,7 @@ export default function MyOrders() {
       if (!clienteData?.email_superintendente) return [];
 
       const { data, error } = await supabase.functions.invoke('bling-list-my-orders', {
-        body: { customer_email: clienteData.email_superintendente }
+        body: { customer_email: clienteData.email_superintendente, limit: 10 }
       });
 
       if (error) {
