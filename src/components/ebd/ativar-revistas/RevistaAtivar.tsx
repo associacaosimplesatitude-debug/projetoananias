@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, AlertCircle, ArrowRight } from "lucide-react";
+import { Check, AlertCircle, ArrowRight, X } from "lucide-react";
 import { RevistaConfig } from "@/pages/ebd/AtivarRevistas";
 import { RevistaConfigurarModal } from "./RevistaConfigurarModal";
 
 interface RevistaAtivarProps {
   revistas: RevistaConfig[];
   onConfigurar: (produtoId: string, config: Partial<RevistaConfig>) => void;
+  onRemover: (produtoId: string) => void;
   onIrParaEscala: () => void;
   todasConfiguradas: boolean;
 }
@@ -16,6 +17,7 @@ interface RevistaAtivarProps {
 export function RevistaAtivar({
   revistas,
   onConfigurar,
+  onRemover,
   onIrParaEscala,
   todasConfiguradas,
 }: RevistaAtivarProps) {
@@ -70,6 +72,18 @@ export function RevistaAtivar({
                       Sem imagem
                     </div>
                   )}
+                  
+                  {/* Botão X para remover */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemover(revista.produto.node.id);
+                    }}
+                    className="absolute top-2 left-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90 transition-colors"
+                    title="Remover revista"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                   
                   {/* Badge de status */}
                   <div className="absolute top-2 right-2">
