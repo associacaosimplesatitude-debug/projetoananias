@@ -45,13 +45,12 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
   const { data: escalas } = useQuery({
     queryKey: ["professor-escalas", professor.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Primeiro buscar as escalas
+      const { data: escalasData, error } = await supabase
         .from("ebd_escalas")
         .select(`
           *,
-          turma:ebd_turmas(id, nome, faixa_etaria),
-          professor:ebd_professores!ebd_escalas_professor_id_fkey(id, nome_completo, avatar_url),
-          professor2:ebd_professores!ebd_escalas_professor_id_2_fkey(id, nome_completo, avatar_url)
+          turma:ebd_turmas(id, nome, faixa_etaria)
         `)
         .or(`professor_id.eq.${professor.id},professor_id_2.eq.${professor.id}`)
         .gte("data", format(today, "yyyy-MM-dd"))
@@ -59,7 +58,29 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
         .limit(10);
 
       if (error) throw error;
-      return data;
+      if (!escalasData || escalasData.length === 0) return [];
+
+      // Coletar todos os IDs de professores
+      const professorIds = new Set<string>();
+      escalasData.forEach(e => {
+        if (e.professor_id) professorIds.add(e.professor_id);
+        if (e.professor_id_2) professorIds.add(e.professor_id_2);
+      });
+
+      // Buscar dados dos professores
+      const { data: professoresData } = await supabase
+        .from("ebd_professores")
+        .select("id, nome_completo, avatar_url")
+        .in("id", Array.from(professorIds));
+
+      const professoresMap = new Map(professoresData?.map(p => [p.id, p]) || []);
+
+      // Enriquecer escalas com dados dos professores
+      return escalasData.map(escala => ({
+        ...escala,
+        professor: escala.professor_id ? professoresMap.get(escala.professor_id) : null,
+        professor2: escala.professor_id_2 ? professoresMap.get(escala.professor_id_2) : null,
+      }));
     },
     enabled: !!professor.id,
   });
