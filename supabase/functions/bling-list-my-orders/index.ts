@@ -170,13 +170,15 @@ serve(async (req) => {
       );
     }
 
-    // 2) Buscar pedidos de venda do canal E-commerce filtrando por idContato
+    // 2) Buscar pedidos de venda filtrando por idContato (TODAS as lojas, não apenas Shopify)
     const filteredOrderIds: number[] = [];
     const limite = 100;
     const maxPaginas = 20; // segurança (até 2000 pedidos)
 
     for (let pagina = 1; pagina <= maxPaginas; pagina++) {
-      const pedidosUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?idLoja=${SHOPIFY_LOJA_ID_BLING}&idContato=${contatoId}&pagina=${pagina}&limite=${limite}`;
+      // Buscar TODOS os pedidos do contato, sem filtrar por loja
+      // Isso inclui pedidos criados via proposta do vendedor (não apenas Shopify)
+      const pedidosUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas?idContato=${contatoId}&pagina=${pagina}&limite=${limite}`;
       console.log('Buscando pedidos no Bling:', pedidosUrl);
 
       const pedidosResult = await blingApiCall(pedidosUrl, accessToken, supabase, config);
