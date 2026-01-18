@@ -70,6 +70,7 @@ import EBDTeachers from "./pages/ebd/Teachers";
 import EBDClassrooms from "./pages/ebd/Classrooms";
 import EBDQuizzes from "./pages/ebd/Quizzes";
 import EBDSchedule from "./pages/ebd/Schedule";
+import EBDAtivarRevistas from "./pages/ebd/AtivarRevistas";
 import EBDAgeRanges from "./pages/ebd/AgeRanges";
 import EBDPlanejamento from "./pages/ebd/PlanejamentoEscolar";
 import EBDCatalogo from "./pages/ebd/Catalogo";
@@ -300,6 +301,7 @@ const App = () => (
                       <Route path="schedule" element={<EBDSchedule />} />
                       <Route path="planejamento" element={<EBDPlanejamento />} />
                       <Route path="escala" element={<EBDSchedule />} />
+                      <Route path="ativar-revistas" element={<EBDAtivarRevistas />} />
                       <Route path="catalogo" element={<EBDCatalogo />} />
                       <Route path="carrinho" element={<EBDCarrinho />} />
                       <Route path="checkout" element={<EBDCheckout />} />

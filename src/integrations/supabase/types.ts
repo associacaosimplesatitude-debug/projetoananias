@@ -1948,6 +1948,7 @@ export type Database = {
           id: string
           observacao: string | null
           professor_id: string | null
+          professor_id_2: string | null
           sem_aula: boolean
           tipo: string
           turma_id: string
@@ -1961,6 +1962,7 @@ export type Database = {
           id?: string
           observacao?: string | null
           professor_id?: string | null
+          professor_id_2?: string | null
           sem_aula?: boolean
           tipo: string
           turma_id: string
@@ -1974,12 +1976,20 @@ export type Database = {
           id?: string
           observacao?: string | null
           professor_id?: string | null
+          professor_id_2?: string | null
           sem_aula?: boolean
           tipo?: string
           turma_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ebd_escalas_professor_id_2_fkey"
+            columns: ["professor_id_2"]
+            isOneToOne: false
+            referencedRelation: "ebd_professores"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ebd_escalas_professor_id_fkey"
             columns: ["professor_id"]

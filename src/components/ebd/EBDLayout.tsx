@@ -110,6 +110,14 @@ function EBDSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/ebd/ativar-revistas')}>
+                    <RouterNavLink to="/ebd/ativar-revistas">
+                      <BookOpen className="h-4 w-4" />
+                      <span>Ativar Revistas</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/escala')}>
                     <RouterNavLink to="/ebd/escala">
                       <Calendar className="h-4 w-4" />

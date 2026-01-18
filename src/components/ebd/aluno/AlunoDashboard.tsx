@@ -177,7 +177,7 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
       // Get the professor from the schedule for this date
       const { data: escala } = await supabase
         .from("ebd_escalas")
-        .select("professor:ebd_professores(id, nome_completo, avatar_url)")
+        .select("professor:ebd_professores!professor_id(id, nome_completo, avatar_url)")
         .eq("turma_id", aluno.turma_id)
         .eq("data", licao.data_aula)
         .eq("tipo", "titular")
