@@ -128,11 +128,11 @@ export function RevistaConfigurarModal({
               </SelectTrigger>
               <SelectContent>
                 {loadingTurmas ? (
-                  <SelectItem value="loading" disabled>Carregando...</SelectItem>
-                ) : turmas?.length === 0 ? (
-                  <SelectItem value="empty" disabled>Nenhuma turma cadastrada</SelectItem>
+                  <SelectItem value="_loading" disabled>Carregando...</SelectItem>
+                ) : !turmas || turmas.length === 0 ? (
+                  <SelectItem value="_empty" disabled>Nenhuma turma cadastrada</SelectItem>
                 ) : (
-                  turmas?.map(turma => (
+                  turmas.map(turma => (
                     <SelectItem key={turma.id} value={turma.id}>
                       {turma.nome}
                     </SelectItem>
