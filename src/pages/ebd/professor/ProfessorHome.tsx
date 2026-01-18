@@ -47,11 +47,11 @@ export default function ProfessorHome() {
         turmaIdsSet.add(professor.turma_id);
       }
 
-      // 3. Buscar turmas via escalas onde o professor está alocado
+      // 3. Buscar turmas via escalas onde o professor está alocado (como professor_id ou professor_id_2)
       const { data: escalas } = await supabase
         .from("ebd_escalas")
         .select("turma_id")
-        .eq("professor_id", professor.id)
+        .or(`professor_id.eq.${professor.id},professor_id_2.eq.${professor.id}`)
         .eq("sem_aula", false);
       
       escalas?.forEach(e => turmaIdsSet.add(e.turma_id));

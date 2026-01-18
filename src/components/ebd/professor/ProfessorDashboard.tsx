@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,7 +41,7 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
   const { user } = useAuth();
   const today = new Date();
 
-  // Fetch próximas escalas do professor
+  // Fetch próximas escalas do professor (inclui professor_id e professor_id_2)
   const { data: escalas } = useQuery({
     queryKey: ["professor-escalas", professor.id],
     queryFn: async () => {
@@ -49,9 +50,10 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
         .select(`
           *,
           turma:ebd_turmas(id, nome, faixa_etaria),
-          professor:ebd_professores(nome_completo)
+          professor:ebd_professores!ebd_escalas_professor_id_fkey(id, nome_completo, avatar_url),
+          professor2:ebd_professores!ebd_escalas_professor_id_2_fkey(id, nome_completo, avatar_url)
         `)
-        .eq("professor_id", professor.id)
+        .or(`professor_id.eq.${professor.id},professor_id_2.eq.${professor.id}`)
         .gte("data", format(today, "yyyy-MM-dd"))
         .order("data", { ascending: true })
         .limit(10);
@@ -245,31 +247,74 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
         <CardContent>
           {proximaAula ? (
             <div className="space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="default" className="text-sm">
-                      {format(parseISO(proximaAula.data), "EEEE, dd 'de' MMMM", { locale: ptBR })}
-                    </Badge>
-                    {proximaAula.sem_aula && (
-                      <Badge variant="destructive">Sem Aula</Badge>
-                    )}
-                  </div>
+              <div className="flex flex-col gap-4">
+                {/* Data e Status */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="default" className="text-sm">
+                    {format(parseISO(proximaAula.data), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                  </Badge>
+                  {proximaAula.sem_aula && (
+                    <Badge variant="destructive">Sem Aula</Badge>
+                  )}
+                </div>
+
+                {/* Info da Aula */}
+                <div className="space-y-2">
+                  {/* Nome da Lição/Revista (do campo observacao) */}
+                  {proximaAula.observacao && (
+                    <div className="flex items-start gap-2">
+                      <BookOpen className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                      <span className="text-sm font-medium">{proximaAula.observacao}</span>
+                    </div>
+                  )}
+                  
                   <h3 className="text-lg font-semibold">
                     Turma: {proximaAula.turma?.nome}
                   </h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     Faixa etária: {proximaAula.turma?.faixa_etaria}
                   </p>
-                  {proximaAula.observacao && (
-                    <p className="text-sm text-muted-foreground">
-                      Obs: {proximaAula.observacao}
-                    </p>
-                  )}
                 </div>
+
+                {/* Professores */}
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground">Professores:</span>
+                  <div className="flex items-center gap-2">
+                    {/* Professor 1 */}
+                    {proximaAula.professor && (
+                      <div className="flex items-center gap-1.5">
+                        <Avatar className="h-8 w-8 border-2 border-primary">
+                          <AvatarImage src={proximaAula.professor.avatar_url || undefined} />
+                          <AvatarFallback className="text-xs bg-primary/10">
+                            {proximaAula.professor.nome_completo?.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{proximaAula.professor.nome_completo?.split(' ')[0]}</span>
+                      </div>
+                    )}
+                    
+                    {/* Professor 2 (se existir) */}
+                    {proximaAula.professor2 && (
+                      <>
+                        <span className="text-muted-foreground">/</span>
+                        <div className="flex items-center gap-1.5">
+                          <Avatar className="h-8 w-8 border-2 border-secondary">
+                            <AvatarImage src={proximaAula.professor2.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs bg-secondary/10">
+                              {proximaAula.professor2.nome_completo?.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm">{proximaAula.professor2.nome_completo?.split(' ')[0]}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botão */}
                 <Button 
                   onClick={() => navigate("/ebd/professor/aulas")}
-                  className="gap-2"
+                  className="gap-2 w-full md:w-auto"
                 >
                   <BookOpen className="h-4 w-4" />
                   Preparar Aula
@@ -449,25 +494,59 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
           </CardHeader>
           <CardContent>
             {escalas && escalas.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {escalas.slice(0, 4).map((escala) => (
                   <div 
                     key={escala.id}
-                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                    className="p-3 rounded-lg bg-muted/50 space-y-2"
                   >
-                    <div className="flex items-center gap-2">
-                      {escala.sem_aula ? (
-                        <Badge variant="secondary" className="text-xs">Sem Aula</Badge>
-                      ) : (
-                        <Check className="h-4 w-4 text-green-500" />
-                      )}
-                      <span className="text-sm font-medium">
-                        {format(parseISO(escala.data), "dd/MM", { locale: ptBR })}
+                    {/* Header: Data + Status */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {escala.sem_aula ? (
+                          <Badge variant="secondary" className="text-xs">Sem Aula</Badge>
+                        ) : (
+                          <Check className="h-4 w-4 text-green-500" />
+                        )}
+                        <span className="text-sm font-medium">
+                          {format(parseISO(escala.data), "dd/MM - EEEE", { locale: ptBR })}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {escala.turma?.nome}
                       </span>
                     </div>
-                    <span className="text-sm text-muted-foreground">
-                      {escala.turma?.nome}
-                    </span>
+                    
+                    {/* Info da aula (observacao) */}
+                    {escala.observacao && (
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {escala.observacao}
+                      </p>
+                    )}
+                    
+                    {/* Professores com avatares */}
+                    <div className="flex items-center gap-1.5">
+                      {escala.professor && (
+                        <Avatar className="h-6 w-6 border border-primary">
+                          <AvatarImage src={escala.professor.avatar_url || undefined} />
+                          <AvatarFallback className="text-[10px] bg-primary/10">
+                            {escala.professor.nome_completo?.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                      {escala.professor2 && (
+                        <Avatar className="h-6 w-6 border border-secondary -ml-1">
+                          <AvatarImage src={escala.professor2.avatar_url || undefined} />
+                          <AvatarFallback className="text-[10px] bg-secondary/10">
+                            {escala.professor2.nome_completo?.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                      <span className="text-xs text-muted-foreground ml-1">
+                        {escala.professor?.nome_completo?.split(' ')[0]}
+                        {escala.professor2 && ` / ${escala.professor2.nome_completo?.split(' ')[0]}`}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
