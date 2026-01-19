@@ -547,6 +547,25 @@ export default function GestaoComissoes() {
     },
   });
 
+  // Mutation: sincronização completa de NF-e para comissões online
+  const syncComissoesNfeMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('sync-comissoes-nfe', {});
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+      queryClient.invalidateQueries({ queryKey: ["shopify-pedidos-pendentes-bling"] });
+      toast.success(data.message || 'Sincronização concluída');
+    },
+    onError: (error) => {
+      console.error("Erro ao sincronizar comissões:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao sincronizar comissões");
+    },
+  });
+
   // Mutation: sincronizar pedidos Shopify de vendedores com Bling
   const syncShopifyBlingMutation = useMutation({
     mutationFn: async () => {
@@ -938,6 +957,22 @@ export default function GestaoComissoes() {
                     </Button>
                   </div>
                 )}
+
+                {/* Botão Sincronização Completa de NF-e - busca bling_order_id + NF automaticamente */}
+                <div className="flex items-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => syncComissoesNfeMutation.mutate()}
+                    disabled={syncComissoesNfeMutation.isPending}
+                    className="gap-2 border-purple-300 text-purple-700 hover:bg-purple-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncComissoesNfeMutation.isPending ? 'animate-spin' : ''}`} />
+                    {syncComissoesNfeMutation.isPending 
+                      ? 'Sincronizando NF-e...' 
+                      : 'Sincronizar NF-e (Automático)'}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
