@@ -32,12 +32,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Package, ShoppingCart, ExternalLink, Pencil, Trash2, CheckCircle, FileText } from "lucide-react";
+import { Package, ShoppingCart, ExternalLink, Pencil, Trash2, CheckCircle, FileText, Search, Check, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface PropostaFaturada {
   id: string;
@@ -69,6 +71,7 @@ interface ShopifyPedido {
   codigo_rastreio: string | null;
   url_rastreio: string | null;
   vendedor?: { nome: string } | null;
+  comissao_aprovada?: boolean | null;
 }
 
 interface AdminPedidosTabProps {
@@ -93,9 +96,28 @@ const getShopifyStatusBadge = (status: string) => {
   }
 };
 
+// Função para calcular os dias das parcelas baseado no prazo (para pedidos online: 30 dias)
+const calcularDiasParcelas = (prazo: string = "30"): number[] => {
+  switch (prazo) {
+    case '30': return [30];
+    case '60': return [30, 60];
+    case '60_direto': return [60];
+    case '90': return [30, 60, 90];
+    case '90_direto': return [90];
+    default: return [30];
+  }
+};
+
 export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPedidosTabProps) {
   const { toast } = useToast();
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const queryClient = useQueryClient();
+  
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<string>("all");
+  const [selectedPedidos, setSelectedPedidos] = useState<Set<string>>(new Set());
   
   // Dialog states for Shopify orders
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -322,6 +344,148 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     deletePropostaMutation.mutate(selectedProposta.id);
   };
 
+  // Toggle seleção individual de pedido
+  const togglePedidoSelection = (id: string) => {
+    setSelectedPedidos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Mutation para aprovar comissão de pedido Shopify
+  const aprovarComissaoShopifyMutation = useMutation({
+    mutationFn: async (pedido: ShopifyPedido) => {
+      if (!pedido.vendedor_id) {
+        throw new Error('Pedido não tem vendedor atribuído');
+      }
+
+      // Buscar percentual do vendedor
+      const { data: vendedor, error: vendedorError } = await supabase
+        .from('vendedores')
+        .select('comissao_percentual')
+        .eq('id', pedido.vendedor_id)
+        .single();
+
+      if (vendedorError) throw vendedorError;
+
+      // Pedidos online: parcela única em 30 dias
+      const diasParcelas = calcularDiasParcelas("30");
+      const dataBase = new Date(pedido.created_at);
+      const valorParcela = pedido.valor_para_meta;
+      const comissaoPercentual = vendedor?.comissao_percentual || 5;
+      
+      // Gerar parcela
+      const parcela = {
+        shopify_pedido_id: pedido.id,
+        vendedor_id: pedido.vendedor_id,
+        cliente_id: pedido.cliente_id,
+        origem: 'online',
+        status: 'aguardando',
+        numero_parcela: 1,
+        total_parcelas: 1,
+        valor: valorParcela,
+        valor_comissao: valorParcela * (comissaoPercentual / 100),
+        data_vencimento: format(addDays(dataBase, 30), 'yyyy-MM-dd'),
+        comissao_status: 'agendada' // Online fica agendada até dia 5
+      };
+
+      const { error: insertError } = await supabase
+        .from('vendedor_propostas_parcelas')
+        .insert([parcela]);
+
+      if (insertError) throw insertError;
+
+      // Marcar pedido como comissão aprovada
+      const { error: updateError } = await supabase
+        .from('ebd_shopify_pedidos')
+        .update({ comissao_aprovada: true })
+        .eq('id', pedido.id);
+
+      if (updateError) throw updateError;
+
+      return pedido;
+    },
+  });
+
+  // Mutation para aprovação em lote de pedidos Shopify
+  const aprovarSelecionadasShopifyMutation = useMutation({
+    mutationFn: async () => {
+      const pedidosParaAprovar = filteredShopifyPedidos.filter(
+        p => selectedPedidos.has(p.id) && !p.comissao_aprovada && p.status_pagamento === 'Pago' && p.vendedor_id
+      );
+      
+      for (const pedido of pedidosParaAprovar) {
+        await aprovarComissaoShopifyMutation.mutateAsync(pedido);
+      }
+      
+      return pedidosParaAprovar.length;
+    },
+    onSuccess: (count) => {
+      toast({ title: `${count} comissões aprovadas com sucesso!` });
+      setSelectedPedidos(new Set());
+      queryClient.invalidateQueries({ queryKey: ["admin-all-shopify-pedidos"] });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Erro ao aprovar comissões", 
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Filter Shopify orders
+  const filteredShopifyPedidos = useMemo(() => {
+    return shopifyPedidos.filter(pedido => {
+      // Filter by vendedor
+      if (selectedVendedorFilter !== "all") {
+        if (selectedVendedorFilter === "ecommerce") {
+          if (pedido.vendedor_id) return false;
+        } else {
+          if (pedido.vendedor_id !== selectedVendedorFilter) return false;
+        }
+      }
+      
+      // Filter by search term
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const customerName = pedido.customer_name?.toLowerCase() || '';
+        const orderNumber = pedido.order_number?.toLowerCase() || '';
+        const clienteName = clienteMap[pedido.cliente_id || '']?.nome?.toLowerCase() || '';
+        
+        if (!customerName.includes(term) && !orderNumber.includes(term) && !clienteName.includes(term)) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [shopifyPedidos, selectedVendedorFilter, searchTerm, clienteMap]);
+
+  // Pedidos que podem ser aprovados (pagos, com vendedor, não aprovados)
+  const pedidosAprovaveis = useMemo(() => 
+    filteredShopifyPedidos.filter(p => 
+      p.status_pagamento === 'Pago' && 
+      p.vendedor_id && 
+      !p.comissao_aprovada
+    ),
+    [filteredShopifyPedidos]
+  );
+
+  // Selecionar/Deselecionar todos os aprovaveis
+  const toggleSelectAllPedidos = () => {
+    if (selectedPedidos.size === pedidosAprovaveis.length && pedidosAprovaveis.length > 0) {
+      setSelectedPedidos(new Set());
+    } else {
+      setSelectedPedidos(new Set(pedidosAprovaveis.map(p => p.id)));
+    }
+  };
+
   // Stats - only Shopify orders now
   const stats = useMemo(() => {
     const total = shopifyPedidos.length;
@@ -414,16 +578,79 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
             Pedidos sincronizados automaticamente
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {shopifyPedidos.length === 0 ? (
+        <CardContent className="space-y-4">
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por cliente ou nº pedido..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="w-[200px]">
+              <Select
+                value={selectedVendedorFilter}
+                onValueChange={setSelectedVendedorFilter}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Filtrar por vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os vendedores</SelectItem>
+                  <SelectItem value="ecommerce">E-commerce (sem vendedor)</SelectItem>
+                  {vendedores.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Header com seleção em lote - apenas para admin */}
+          {isAdmin && pedidosAprovaveis.length > 0 && (
+            <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedPedidos.size > 0 && selectedPedidos.size === pedidosAprovaveis.length}
+                  onCheckedChange={toggleSelectAllPedidos}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedPedidos.size > 0 
+                    ? `${selectedPedidos.size} selecionado(s)` 
+                    : `${pedidosAprovaveis.length} pedido(s) aguardando aprovação de comissão`}
+                </span>
+              </div>
+              
+              {selectedPedidos.size > 0 && (
+                <Button 
+                  onClick={() => aprovarSelecionadasShopifyMutation.mutate()}
+                  disabled={aprovarSelecionadasShopifyMutation.isPending}
+                  size="sm"
+                >
+                  {aprovarSelecionadasShopifyMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-2" />
+                  )}
+                  Aprovar Selecionados ({selectedPedidos.size})
+                </Button>
+              )}
+            </div>
+          )}
+
+          {filteredShopifyPedidos.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>Nenhum pedido encontrado</p>
+              <p>{searchTerm || selectedVendedorFilter !== "all" ? "Nenhum pedido encontrado com os filtros aplicados" : "Nenhum pedido encontrado"}</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAdmin && <TableHead className="w-[50px]"></TableHead>}
                   <TableHead>Pedido</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Cliente</TableHead>
@@ -436,10 +663,23 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {shopifyPedidos.map((pedido) => {
+                {filteredShopifyPedidos.map((pedido) => {
                   const vendedorNome = pedido.vendedor?.nome || (pedido.vendedor_id ? vendedores.find(v => v.id === pedido.vendedor_id)?.nome : null);
+                  const podeAprovar = pedido.status_pagamento === 'Pago' && pedido.vendedor_id && !pedido.comissao_aprovada;
+                  
                   return (
-                    <TableRow key={pedido.id}>
+                    <TableRow key={pedido.id} className={selectedPedidos.has(pedido.id) ? "bg-primary/5" : ""}>
+                      {/* Checkbox para admin */}
+                      {isAdmin && (
+                        <TableCell>
+                          {podeAprovar && (
+                            <Checkbox
+                              checked={selectedPedidos.has(pedido.id)}
+                              onCheckedChange={() => togglePedidoSelection(pedido.id)}
+                            />
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="font-medium">
                         {pedido.order_number}
                       </TableCell>
@@ -458,7 +698,15 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                         R$ {pedido.valor_para_meta.toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        {getShopifyStatusBadge(pedido.status_pagamento)}
+                        <div className="flex flex-col gap-1">
+                          {getShopifyStatusBadge(pedido.status_pagamento)}
+                          {pedido.comissao_aprovada && (
+                            <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Comissão Aprovada
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {vendedorNome || 'E-commerce'}
@@ -484,6 +732,29 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          {/* Botão aprovar individual - apenas para admin */}
+                          {isAdmin && podeAprovar && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                aprovarComissaoShopifyMutation.mutate(pedido, {
+                                  onSuccess: () => {
+                                    toast({ title: "Comissão aprovada!" });
+                                    queryClient.invalidateQueries({ queryKey: ["admin-all-shopify-pedidos"] });
+                                  }
+                                });
+                              }}
+                              disabled={aprovarComissaoShopifyMutation.isPending}
+                              title="Aprovar Comissão"
+                            >
+                              {aprovarComissaoShopifyMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Check className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -509,6 +780,8 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
           )}
         </CardContent>
       </Card>
+
+
 
       {/* Propostas Faturadas (B2B Orders) Section */}
       {propostasFaturadas.length > 0 && (
