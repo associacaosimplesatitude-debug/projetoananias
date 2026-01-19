@@ -250,7 +250,7 @@ export default function PedidosIgrejaCPF() {
 
       if (vendedorError) throw vendedorError;
 
-      const comissaoPercentual = vendedor?.comissao_percentual || 5;
+      const comissaoPercentual = vendedor?.comissao_percentual || 1.5;
       const dataBase = new Date(pedido.order_date || pedido.created_at);
 
       // Pedido online = 1 parcela, pagamento à vista, comissão já liberada

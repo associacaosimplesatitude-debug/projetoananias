@@ -385,7 +385,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
       const diasParcelas = calcularDiasParcelas("30");
       const dataBase = new Date(pedido.created_at);
       const valorParcela = pedido.valor_para_meta;
-      const comissaoPercentual = vendedor?.comissao_percentual || 5;
+      const comissaoPercentual = vendedor?.comissao_percentual || 1.5;
       
       // Gerar parcela
       const parcela = {
