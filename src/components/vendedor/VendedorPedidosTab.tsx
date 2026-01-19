@@ -14,7 +14,8 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Eye, Package, ShoppingCart, ExternalLink, FileText, CheckCircle, Pencil, Trash2, Loader2, RefreshCw, CreditCard } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PedidoDetailDialog, Pedido } from "./PedidoDetailDialog";
 import { ShopifyPedidoDetailDialog } from "./ShopifyPedidoDetailDialog";
 import { PropostaFaturadaDetailDialog } from "./PropostaFaturadaDetailDialog";
@@ -213,6 +214,10 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
 
   // Check if user can edit/delete (financeiro or gerente_ebd)
   const canManagePropostas = role === 'financeiro' || role === 'gerente_ebd' || role === 'admin';
+  
+  // Status filter states - Pago marked by default
+  const [showPago, setShowPago] = useState(true);
+  const [showPendente, setShowPendente] = useState(false);
 
   // Fetch all clients for this vendedor from both ebd_clientes and churches
   const { data: allClients = [] } = useQuery({
@@ -421,6 +426,58 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
   });
 
   const isLoading = isLoadingPedidos || isLoadingShopify || isLoadingFaturados || isLoadingPropostas || isLoadingMercadoPago;
+  
+  // Filter functions for status
+  const isShopifyPago = (status: string, cancelledAt?: string | null) => {
+    if (cancelledAt) return false;
+    return status?.toLowerCase() === 'paid';
+  };
+
+  const isShopifyPendente = (status: string, cancelledAt?: string | null) => {
+    if (cancelledAt) return false;
+    const statusLower = status?.toLowerCase() || '';
+    return ['pending', 'authorized', 'partially_paid', 'unpaid'].includes(statusLower);
+  };
+
+  const isMercadoPagoPago = (paymentStatus: string, status: string) => {
+    const statusLower = paymentStatus?.toLowerCase() || status?.toLowerCase() || '';
+    return ['approved', 'pago'].includes(statusLower);
+  };
+
+  const isMercadoPagoPendente = (paymentStatus: string, status: string) => {
+    const statusLower = paymentStatus?.toLowerCase() || status?.toLowerCase() || '';
+    return ['pending', 'in_process', 'aguardando_pagamento'].includes(statusLower);
+  };
+
+  // Filtered data based on status filters
+  const shopifyPedidosFiltrados = useMemo(() => {
+    // If no filter is active, show all
+    if (!showPago && !showPendente) return shopifyPedidos;
+    
+    return shopifyPedidos.filter(pedido => {
+      const isPago = isShopifyPago(pedido.status_pagamento, pedido.shopify_cancelled_at);
+      const isPendente = isShopifyPendente(pedido.status_pagamento, pedido.shopify_cancelled_at);
+      
+      if (showPago && isPago) return true;
+      if (showPendente && isPendente) return true;
+      return false;
+    });
+  }, [shopifyPedidos, showPago, showPendente]);
+
+  const mercadoPagoPedidosFiltrados = useMemo(() => {
+    // If no filter is active, show all
+    if (!showPago && !showPendente) return mercadoPagoPedidos;
+    
+    return mercadoPagoPedidos.filter(pedido => {
+      const isPago = isMercadoPagoPago(pedido.payment_status, pedido.status);
+      const isPendente = isMercadoPagoPendente(pedido.payment_status, pedido.status);
+      
+      if (showPago && isPago) return true;
+      if (showPendente && isPendente) return true;
+      return false;
+    });
+  }, [mercadoPagoPedidos, showPago, showPendente]);
+
   const [isSyncingStatus, setIsSyncingStatus] = useState(false);
   const hasSyncedRef = useRef(false);
 
@@ -616,10 +673,35 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
               {isSyncingStatus ? 'Sincronizando...' : 'Atualizar Status'}
             </Button>
           </div>
+          
+          {/* Status Filter */}
+          <div className="flex items-center gap-4 mt-4 pt-4 border-t">
+            <span className="text-sm text-muted-foreground">Filtrar por status:</span>
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="filter-pago" 
+                checked={showPago} 
+                onCheckedChange={(checked) => setShowPago(checked === true)}
+              />
+              <label htmlFor="filter-pago" className="flex items-center gap-1.5 cursor-pointer text-sm">
+                <Badge className="bg-green-500 hover:bg-green-500">Pago</Badge>
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="filter-pendente" 
+                checked={showPendente} 
+                onCheckedChange={(checked) => setShowPendente(checked === true)}
+              />
+              <label htmlFor="filter-pendente" className="flex items-center gap-1.5 cursor-pointer text-sm">
+                <Badge variant="outline" className="border-yellow-500 text-yellow-600 hover:bg-transparent">Pendente</Badge>
+              </label>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Shopify Orders Section */}
-          {shopifyPedidos.length > 0 && (
+          {shopifyPedidosFiltrados.length > 0 && (
             <div className="mb-6">
               <Table>
                 <TableHeader>
@@ -635,7 +717,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {shopifyPedidos.map((pedido) => (
+                  {shopifyPedidosFiltrados.map((pedido) => (
                     <TableRow key={pedido.id}>
                       <TableCell className="font-medium">
                         {pedido.order_number}
@@ -697,7 +779,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
           )}
 
           {/* Mercado Pago Orders Section */}
-          {mercadoPagoPedidos.length > 0 && (
+          {mercadoPagoPedidosFiltrados.length > 0 && (
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-blue-600" />
@@ -717,7 +799,7 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mercadoPagoPedidos.map((pedido) => (
+                  {mercadoPagoPedidosFiltrados.map((pedido) => (
                     <TableRow key={pedido.id}>
                       <TableCell className="font-medium">
                         #MP{pedido.id.slice(0, 8).toUpperCase()}
