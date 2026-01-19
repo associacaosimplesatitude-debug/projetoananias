@@ -63,23 +63,71 @@ Deno.serve(async (req) => {
     }
 
     // 2. Faturado: parcela paga → comissão liberada
-    const { data: parcelasPagas, error: errPagas } = await supabase
+    // Primeiro, buscar parcelas faturadas pendentes com status paga
+    const { data: parcelasFaturadoPendentes, error: errBuscaFaturado } = await supabase
       .from('vendedor_propostas_parcelas')
-      .update({ 
-        comissao_status: 'liberada',
-        data_liberacao: hoje.toISOString().split('T')[0]
-      })
+      .select('id, proposta_id, vendedor_id, valor_comissao, data_vencimento')
       .eq('comissao_status', 'pendente')
       .eq('origem', 'faturado')
-      .eq('status', 'paga')
-      .select('id');
+      .eq('status', 'paga');
 
-    if (errPagas) {
-      console.error('Erro ao liberar pagas:', errPagas);
+    if (errBuscaFaturado) {
+      console.error('Erro ao buscar parcelas faturadas:', errBuscaFaturado);
       erros++;
-    } else {
-      atualizadas += parcelasPagas?.length || 0;
-      console.log(`Liberadas ${parcelasPagas?.length || 0} comissões de parcelas pagas`);
+    } else if (parcelasFaturadoPendentes && parcelasFaturadoPendentes.length > 0) {
+      // Para cada parcela faturada, verificar se já existe uma parcela online com mesmos valores
+      const idsParaLiberar: string[] = [];
+      
+      for (const parcela of parcelasFaturadoPendentes) {
+        // Verificar se existe parcela online duplicada
+        const { data: parcelaOnlineExistente } = await supabase
+          .from('vendedor_propostas_parcelas')
+          .select('id')
+          .eq('vendedor_id', parcela.vendedor_id)
+          .eq('valor_comissao', parcela.valor_comissao)
+          .eq('data_vencimento', parcela.data_vencimento)
+          .eq('origem', 'online')
+          .limit(1);
+        
+        if (parcelaOnlineExistente && parcelaOnlineExistente.length > 0) {
+          // Existe parcela online duplicada - excluir esta faturada em vez de liberar
+          console.log(`Parcela faturada ${parcela.id} é duplicada de online - será excluída`);
+          const { error: errDelete } = await supabase
+            .from('vendedor_propostas_parcelas')
+            .delete()
+            .eq('id', parcela.id);
+          
+          if (errDelete) {
+            console.error(`Erro ao excluir parcela duplicada ${parcela.id}:`, errDelete);
+            erros++;
+          } else {
+            console.log(`Parcela duplicada ${parcela.id} excluída com sucesso`);
+          }
+        } else {
+          // Não é duplicada - adicionar para liberação
+          idsParaLiberar.push(parcela.id);
+        }
+      }
+      
+      // Liberar as parcelas que não são duplicadas
+      if (idsParaLiberar.length > 0) {
+        const { data: parcelasPagas, error: errPagas } = await supabase
+          .from('vendedor_propostas_parcelas')
+          .update({ 
+            comissao_status: 'liberada',
+            data_liberacao: hoje.toISOString().split('T')[0]
+          })
+          .in('id', idsParaLiberar)
+          .select('id');
+
+        if (errPagas) {
+          console.error('Erro ao liberar pagas:', errPagas);
+          erros++;
+        } else {
+          atualizadas += parcelasPagas?.length || 0;
+          console.log(`Liberadas ${parcelasPagas?.length || 0} comissões de parcelas pagas`);
+        }
+      }
     }
 
     // 3. Faturado: parcela vencida → comissão atrasada
