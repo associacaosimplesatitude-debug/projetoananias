@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     // Primeiro, buscar parcelas faturadas pendentes com status paga
     const { data: parcelasFaturadoPendentes, error: errBuscaFaturado } = await supabase
       .from('vendedor_propostas_parcelas')
-      .select('id, proposta_id, vendedor_id, valor_comissao, data_vencimento')
+      .select('id, proposta_id, vendedor_id, cliente_id, numero_parcela, valor_comissao, data_vencimento')
       .eq('comissao_status', 'pendente')
       .eq('origem', 'faturado')
       .eq('status', 'paga');
@@ -79,13 +79,13 @@ Deno.serve(async (req) => {
       const idsParaLiberar: string[] = [];
       
       for (const parcela of parcelasFaturadoPendentes) {
-        // Verificar se existe parcela online duplicada
+        // Verificar se existe parcela online duplicada por cliente_id + vendedor_id + numero_parcela
         const { data: parcelaOnlineExistente } = await supabase
           .from('vendedor_propostas_parcelas')
           .select('id')
           .eq('vendedor_id', parcela.vendedor_id)
-          .eq('valor_comissao', parcela.valor_comissao)
-          .eq('data_vencimento', parcela.data_vencimento)
+          .eq('cliente_id', parcela.cliente_id)
+          .eq('numero_parcela', parcela.numero_parcela)
           .eq('origem', 'online')
           .limit(1);
         

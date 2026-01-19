@@ -228,7 +228,7 @@ export default function PedidosCentralGospel() {
 
       if (vendedorError) throw vendedorError;
 
-      const comissaoPercentual = vendedor?.comissao_percentual || 5;
+      const comissaoPercentual = vendedor?.comissao_percentual || 1.5;
       const dataBase = new Date(pedido.order_date || pedido.created_at);
 
       // 2. Create commission parcela (sem shopify_pedido_id pois CG usa tabela diferente)
