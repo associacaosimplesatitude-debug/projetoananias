@@ -250,18 +250,44 @@ serve(async (req) => {
       };
     } else if (body.payment_method === 'card') {
       if (!body.card) {
-        throw new Error('Dados do cartão não fornecidos');
+        throw new Error('Dados do cartao nao fornecidos');
       }
 
-      // Obter payment_method_id
+      // 1. Detectar ambiente (producao vs sandbox)
+      const ambiente = accessToken.startsWith('TEST-') ? 'sandbox' : 'production';
+      
+      // 2. Sanitizar numero do cartao (remover espacos e caracteres nao numericos)
+      const cleanCardNumber = body.card.card_number.replace(/\D/g, '');
+      const bin = cleanCardNumber.substring(0, 6);
+      
+      // 3. Lista de BINs de cartoes de teste do Mercado Pago
+      const BINS_TESTE = ['542935', '503143', '540473', '503175', '450995', '451556', '589662'];
+      const isCartaoTeste = BINS_TESTE.includes(bin);
+      
+      // 4. Validar cartao para ambiente
+      if (ambiente === 'production' && isCartaoTeste) {
+        console.error(`[${requestId}] Cartao de teste usado em producao. BIN: ${bin}`);
+        throw new Error('Cartao de teste nao permitido. Por favor, use um cartao real.');
+      }
+      
+      console.log(`[${requestId}] Cartao info:`, { 
+        ambiente, 
+        bin, 
+        is_teste: isCartaoTeste,
+        card_length: cleanCardNumber.length 
+      });
+
+      // 5. Obter payment_method_id
       const binResponse = await fetch(
-        `https://api.mercadopago.com/v1/payment_methods/search?bin=${body.card.card_number.substring(0, 6)}`,
+        `https://api.mercadopago.com/v1/payment_methods/search?bin=${bin}`,
         { headers: { 'Authorization': `Bearer ${accessToken}` } }
       );
       const binData = await binResponse.json();
       const paymentMethodId = binData.results?.[0]?.id || 'visa';
+      
+      console.log(`[${requestId}] Payment method: ${paymentMethodId}`);
 
-      // Criar token do cartão
+      // 6. Criar token do cartao
       const cardTokenResponse = await fetch('https://api.mercadopago.com/v1/card_tokens', {
         method: 'POST',
         headers: {
@@ -269,7 +295,7 @@ serve(async (req) => {
           'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          card_number: body.card.card_number,
+          card_number: cleanCardNumber,
           cardholder: {
             name: body.card.cardholder_name,
             identification: paymentData.payer.identification,
@@ -281,17 +307,46 @@ serve(async (req) => {
       });
 
       if (!cardTokenResponse.ok) {
-        const errorText = await cardTokenResponse.text();
-        console.error(`[${requestId}] Erro ao criar token do cartão:`, errorText);
-        throw new Error('Erro ao processar dados do cartão');
+        const errorData = await cardTokenResponse.json().catch(() => ({}));
+        console.error(`[${requestId}] Erro token cartao:`, JSON.stringify(errorData));
+        
+        // Verificar erro especifico de BIN incompativel
+        const cause = errorData.cause || [];
+        if (cause.some((c: any) => c.code === 10103 || c.code === '10103')) {
+          const msgErro = ambiente === 'production' 
+            ? 'Cartao incompativel. Verifique os dados ou use outro cartao.'
+            : 'Cartao incompativel com ambiente de teste. Use cartoes de teste validos do Mercado Pago.';
+          throw new Error(msgErro);
+        }
+        
+        // Outros erros comuns
+        if (errorData.message === 'invalid_expiration_date') {
+          throw new Error('Data de validade do cartao invalida.');
+        }
+        if (errorData.message === 'invalid_security_code') {
+          throw new Error('Codigo de seguranca (CVV) invalido.');
+        }
+        if (errorData.message === 'invalid_card_number') {
+          throw new Error('Numero do cartao invalido.');
+        }
+        
+        throw new Error('Erro ao processar dados do cartao');
       }
 
       const cardTokenData = await cardTokenResponse.json();
+      
+      console.log(`[${requestId}] Token criado:`, {
+        token_id: cardTokenData.id,
+        last_four_digits: cardTokenData.last_four_digits,
+        first_six_digits: cardTokenData.first_six_digits,
+      });
+      
       paymentData.token = cardTokenData.id;
       paymentData.payment_method_id = paymentMethodId;
       paymentData.installments = body.installments || 1;
 
-      console.log(`[${requestId}] Processando cartão...`);
+      // 7. Processar pagamento
+      console.log(`[${requestId}] Processando cartao...`);
       const response = await fetch('https://api.mercadopago.com/v1/payments', {
         method: 'POST',
         headers: {
@@ -303,13 +358,31 @@ serve(async (req) => {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[${requestId}] Erro Mercado Pago Cartão:`, errorText);
-        throw new Error(`Erro ao processar pagamento: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`[${requestId}] Erro pagamento cartao:`, JSON.stringify(errorData));
+        
+        // Verificar erro especifico de BIN incompativel
+        const cause = errorData.cause || [];
+        if (cause.some((c: any) => c.code === 10103 || c.code === '10103')) {
+          throw new Error('Cartao incompativel com o ambiente atual (teste x producao).');
+        }
+        
+        // Erros de pagamento recusado
+        if (errorData.status === 'rejected') {
+          const statusDetail = errorData.status_detail || '';
+          if (statusDetail.includes('insufficient_amount')) {
+            throw new Error('Cartao sem limite disponivel.');
+          }
+          if (statusDetail.includes('cc_rejected')) {
+            throw new Error('Pagamento recusado pela operadora do cartao.');
+          }
+        }
+        
+        throw new Error(errorData.message || 'Erro ao processar pagamento com cartao');
       }
 
       const data = await response.json();
-      console.log(`[${requestId}] Pagamento cartão processado:`, data.id, 'status:', data.status);
+      console.log(`[${requestId}] Pagamento cartao:`, data.id, 'status:', data.status, 'detail:', data.status_detail);
 
       paymentResult = {
         payment_id: data.id,
