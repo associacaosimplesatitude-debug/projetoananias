@@ -143,7 +143,7 @@ export function ComissaoTable({ comissoes, onMarcarPaga, onBuscarNfe, onRefazerN
             <TableHead>Tipo</TableHead>
             <TableHead>Parcela</TableHead>
             <TableHead>Vencimento</TableHead>
-            <TableHead className="text-right">Valor</TableHead>
+            <TableHead className="text-right">Valor Compra</TableHead>
             <TableHead className="text-right">Valor Comissão</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Liberação</TableHead>
