@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// BINs de teste oficiais do Mercado Pago
+const BINS_TESTE_MP = ['542935', '524926', '524920', '523421', '528074', '589562', '408730', '411111', '501011', '503143'];
+
 interface PaymentRequest {
   proposta_id?: string;
   proposta_token?: string;
@@ -40,6 +43,41 @@ interface PaymentRequest {
   };
   installments?: number;
 }
+
+// Interface para mp_debug inline
+interface MpDebug {
+  ambiente: string;
+  token_prefix: string;
+  bin_input: string;
+  first_six_digits_token: string | null;
+  payment_method_id_token: string | null;
+  payment_method_id_sent: string | null;
+  payment_method_search_status?: number;
+  payment_method_search_results_count?: number;
+  status: number | null;
+  mp_message: string | null;
+  cause: any[] | null;
+  status_detail: string | null;
+  error_reason?: string;
+}
+
+// Helper para criar resposta de erro com mp_debug
+const createCardErrorResponse = (
+  message: string,
+  mpDebug: MpDebug,
+  requestId: string,
+  corsHeaders: Record<string, string>
+) => {
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: message,
+      request_id: requestId,
+      mp_debug: mpDebug,
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+  );
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -202,7 +240,7 @@ serve(async (req) => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': crypto.randomUUID(),
+          'X-Idempotency-Key': `${pedido.id}-pix`,
         },
         body: JSON.stringify(paymentData),
       });
@@ -237,7 +275,7 @@ serve(async (req) => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': crypto.randomUUID(),
+          'X-Idempotency-Key': `${pedido.id}-boleto`,
         },
         body: JSON.stringify(paymentData),
       });
@@ -262,30 +300,60 @@ serve(async (req) => {
         throw new Error('Dados do cartao nao fornecidos');
       }
 
-      // 1. Detectar ambiente (producao vs sandbox)
-      // Obs: NÃO logar o token completo (somente prefixo) para segurança.
-      const tokenPrefix = accessToken.startsWith('TEST-')
-        ? 'TEST-'
-        : accessToken.startsWith('APP_USR-')
-          ? 'APP_USR-'
-          : 'OTHER';
-      const ambiente = tokenPrefix === 'TEST-' ? 'sandbox' : 'production';
-
-      // 2. Sanitizar numero do cartao (remover espacos e caracteres nao numericos)
+      // Sanitizar numero do cartao (remover espacos e caracteres nao numericos)
       const cleanCardNumber = body.card.card_number.replace(/\D/g, '');
       const bin = cleanCardNumber.substring(0, 6);
+      const isCartaoTeste = BINS_TESTE_MP.includes(bin);
+
+      // Inicializar mp_debug para rastreamento
+      const mpDebug: MpDebug = {
+        ambiente,
+        token_prefix: tokenPrefix,
+        bin_input: bin,
+        first_six_digits_token: null,
+        payment_method_id_token: null,
+        payment_method_id_sent: null,
+        status: null,
+        mp_message: null,
+        cause: null,
+        status_detail: null,
+      };
 
       // Log detalhado do cartao (sem dados sensiveis)
       console.log(`[${requestId}] Cartao info:`, {
         ambiente,
         token_prefix: tokenPrefix,
         bin,
+        is_cartao_teste: isCartaoTeste,
         card_length: cleanCardNumber.length,
-        expiration_month: body.card.expiration_month,
-        expiration_year: body.card.expiration_year,
       });
 
-      // 3. Criar token do cartao PRIMEIRO (para obter payment_method_id correto)
+      // ========== VALIDAÇÃO DE AMBIENTE ==========
+      // Se ambiente = produção e cartão de teste: erro
+      if (ambiente === 'production' && isCartaoTeste) {
+        mpDebug.error_reason = 'test_card_in_production';
+        console.log(`[${requestId}] ERRO: Cartao de teste em producao`);
+        return createCardErrorResponse(
+          'Você está em Produção — use cartão real.',
+          mpDebug,
+          requestId,
+          corsHeaders
+        );
+      }
+
+      // Se ambiente = sandbox e cartão real: erro
+      if (ambiente === 'sandbox' && !isCartaoTeste) {
+        mpDebug.error_reason = 'real_card_in_sandbox';
+        console.log(`[${requestId}] ERRO: Cartao real em sandbox`);
+        return createCardErrorResponse(
+          'Você está em Sandbox — use cartão de teste do Mercado Pago.',
+          mpDebug,
+          requestId,
+          corsHeaders
+        );
+      }
+
+      // ========== CRIAR TOKEN DO CARTÃO ==========
       console.log(`[${requestId}] Criando token do cartao...`);
       const cardTokenResponse = await fetch('https://api.mercadopago.com/v1/card_tokens', {
         method: 'POST',
@@ -309,33 +377,39 @@ serve(async (req) => {
         const errorData = await cardTokenResponse.json().catch(() => ({}));
         console.error(`[${requestId}] Erro token cartao:`, JSON.stringify(errorData));
         
+        mpDebug.status = cardTokenResponse.status;
+        mpDebug.mp_message = errorData.message || null;
+        mpDebug.cause = errorData.cause || null;
+        mpDebug.error_reason = 'token_creation_failed';
+        
         // Mapear erros especificos
         const cause = errorData.cause || [];
         const errorCodes = cause.map((c: any) => c.code?.toString());
         
+        let errorMessage = 'Erro ao processar dados do cartao. Verifique as informacoes.';
+        
         if (errorCodes.includes('10103') || errorCodes.includes('E301')) {
-          throw new Error('Cartao invalido ou incompativel. Verifique os dados.');
-        }
-        if (errorCodes.includes('E302') || errorData.message === 'invalid_security_code') {
-          throw new Error('Codigo de seguranca (CVV) invalido.');
-        }
-        if (errorCodes.includes('E205') || errorData.message === 'invalid_card_number') {
-          throw new Error('Numero do cartao invalido.');
-        }
-        if (errorCodes.includes('E206') || errorData.message === 'invalid_expiration_date') {
-          throw new Error('Data de validade do cartao invalida.');
-        }
-        if (errorCodes.includes('325')) {
-          throw new Error('Mes de validade invalido.');
-        }
-        if (errorCodes.includes('326')) {
-          throw new Error('Ano de validade invalido.');
+          errorMessage = 'Cartao invalido ou incompativel. Verifique os dados.';
+        } else if (errorCodes.includes('E302') || errorData.message === 'invalid_security_code') {
+          errorMessage = 'Codigo de seguranca (CVV) invalido.';
+        } else if (errorCodes.includes('E205') || errorData.message === 'invalid_card_number') {
+          errorMessage = 'Numero do cartao invalido.';
+        } else if (errorCodes.includes('E206') || errorData.message === 'invalid_expiration_date') {
+          errorMessage = 'Data de validade do cartao invalida.';
+        } else if (errorCodes.includes('325')) {
+          errorMessage = 'Mes de validade invalido.';
+        } else if (errorCodes.includes('326')) {
+          errorMessage = 'Ano de validade invalido.';
         }
         
-        throw new Error('Erro ao processar dados do cartao. Verifique as informacoes.');
+        return createCardErrorResponse(errorMessage, mpDebug, requestId, corsHeaders);
       }
 
       const cardTokenData = await cardTokenResponse.json();
+      
+      // Atualizar mpDebug com dados do token
+      mpDebug.first_six_digits_token = cardTokenData.first_six_digits || null;
+      mpDebug.payment_method_id_token = cardTokenData.payment_method_id || null;
       
       console.log(`[${requestId}] Token criado:`, {
         token_id: cardTokenData.id,
@@ -343,11 +417,18 @@ serve(async (req) => {
         first_six_digits: cardTokenData.first_six_digits,
         payment_method_from_token: cardTokenData.payment_method_id,
       });
-      
-      // 4. Obter payment_method_id do token ou buscar pelo BIN do token
+
+      // Verificar discrepância BIN input vs token
+      if (bin !== cardTokenData.first_six_digits) {
+        console.log(`[${requestId}] ALERTA: bin_input (${bin}) != token (${cardTokenData.first_six_digits})`);
+      }
+
+      // ========== OBTER PAYMENT_METHOD_ID ==========
+      // PRIORIDADE: usar payment_method_id do token se existir
       let paymentMethodId = cardTokenData.payment_method_id;
       
       if (!paymentMethodId) {
+        // Usar first_six_digits do token (mais confiável que bin input)
         const tokenBin = cardTokenData.first_six_digits || bin;
         console.log(`[${requestId}] Buscando payment_method pelo BIN: ${tokenBin}`);
         
@@ -355,11 +436,35 @@ serve(async (req) => {
           `https://api.mercadopago.com/v1/payment_methods/search?bin=${tokenBin}`,
           { headers: { 'Authorization': `Bearer ${accessToken}` } }
         );
+        
+        mpDebug.payment_method_search_status = binResponse.status;
+        
         const binData = await binResponse.json();
-        paymentMethodId = binData.results?.[0]?.id || 'visa';
+        mpDebug.payment_method_search_results_count = binData.results?.length || 0;
+        
+        console.log(`[${requestId}] payment_methods/search resultado:`, {
+          status: binResponse.status,
+          results_count: binData.results?.length || 0,
+          first_result_id: binData.results?.[0]?.id || null,
+        });
+        
+        // REMOVER FALLBACK 'visa' - se não encontrar, retornar erro claro
+        paymentMethodId = binData.results?.[0]?.id;
+        
+        if (!paymentMethodId) {
+          mpDebug.error_reason = 'payment_method_not_found';
+          console.log(`[${requestId}] ERRO: Nao foi possivel identificar bandeira do cartao`);
+          return createCardErrorResponse(
+            'Não foi possível identificar a bandeira do cartão. Verifique o número.',
+            mpDebug,
+            requestId,
+            corsHeaders
+          );
+        }
       }
       
-      console.log(`[${requestId}] Payment method: ${paymentMethodId}`);
+      mpDebug.payment_method_id_sent = paymentMethodId;
+      console.log(`[${requestId}] Payment method final: ${paymentMethodId}`);
       
       paymentData.token = cardTokenData.id;
       paymentData.payment_method_id = paymentMethodId;
@@ -373,8 +478,8 @@ serve(async (req) => {
         token_payment_method_id: cardTokenData.payment_method_id,
       });
 
-      // 5. Processar pagamento com idempotency key ESTÁVEL
-      // IMPORTANTE: não usar Date.now() aqui, senão deixa de ser idempotente.
+      // ========== PROCESSAR PAGAMENTO ==========
+      // Idempotency key ESTÁVEL
       const amountKey = Number(valorTotal).toFixed(2).replace('.', '_');
       const idempotencyKey = `${pedido.id}-card-${paymentData.installments}-${amountKey}`;
       console.log(`[${requestId}] Processando pagamento cartao...`, { idempotencyKey });
@@ -390,6 +495,12 @@ serve(async (req) => {
       });
 
       const responseData = await response.json().catch(() => ({}));
+      
+      // Atualizar mpDebug com resposta
+      mpDebug.status = response.status;
+      mpDebug.mp_message = responseData.message || null;
+      mpDebug.cause = responseData.cause || null;
+      mpDebug.status_detail = responseData.status_detail || null;
       
       console.log(`[${requestId}] Resposta MP:`, {
         http_status: response.status,
@@ -426,17 +537,20 @@ serve(async (req) => {
           'pending_review_manual': 'Pagamento em analise.',
         };
         
+        let friendlyMessage: string;
+        
         // Verificar erro 10103 (BIN incompativel)
         if (cause.some((c: any) => c.code?.toString() === '10103')) {
-          throw new Error('Cartao incompativel com o ambiente. Verifique se esta usando cartao correto.');
+          mpDebug.error_reason = 'diff_param_bins';
+          friendlyMessage = 'Cartao incompativel com o ambiente. Verifique se esta usando cartao correto.';
+        } else {
+          // Usar mensagem mapeada ou generica
+          friendlyMessage = errorMessages[statusDetail] || 
+            (statusDetail.startsWith('cc_rejected') ? 'Pagamento recusado pela operadora.' : 
+            responseData.message || 'Erro ao processar pagamento.');
         }
         
-        // Usar mensagem mapeada ou generica
-        const friendlyMessage = errorMessages[statusDetail] || 
-          (statusDetail.startsWith('cc_rejected') ? 'Pagamento recusado pela operadora.' : 
-          responseData.message || 'Erro ao processar pagamento.');
-        
-        throw new Error(friendlyMessage);
+        return createCardErrorResponse(friendlyMessage, mpDebug, requestId, corsHeaders);
       }
 
       paymentResult = {
