@@ -388,22 +388,28 @@ Deno.serve(async (req) => {
       // Try to match orders
       const candidatos: CandidatoTentado[] = [];
       const matches: CandidatoTentado[] = [];
-      const refDate = dataReferencia ? new Date(dataReferencia) : null;
+      
+      // Use parcela.created_at or data_vencimento as fallback date reference
+      const refDate = dataReferencia 
+        ? new Date(dataReferencia) 
+        : (parcela.data_vencimento ? new Date(parcela.data_vencimento) : null);
 
       for (const order of clientOrders) {
         const diffValor = Math.abs(valorParcela - (order.valor_total || 0));
         const orderDate = order.order_date ? new Date(order.order_date) : null;
+        
+        // Calculate diff_dias only if both dates exist
         const diffDias = refDate && orderDate
           ? Math.abs(Math.round((refDate.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24)))
-          : 999;
+          : 0; // If no reference date, set to 0 (no penalty)
 
         let motivoRejeicao: string | null = null;
 
+        // ONLY reject by value - date is for tiebreaker only, not elimination
         if (diffValor > params.tolerance_value) {
           motivoRejeicao = `diff_valor (${diffValor.toFixed(2)}) > tolerance (${params.tolerance_value})`;
-        } else if (diffDias > params.tolerance_days) {
-          motivoRejeicao = `diff_dias (${diffDias}) > tolerance (${params.tolerance_days})`;
         }
+        // DO NOT reject by date - use date only for sorting/tiebreaker
 
         const candidato: CandidatoTentado = {
           order_number: order.order_number,
@@ -423,9 +429,7 @@ Deno.serve(async (req) => {
       }
 
       if (matches.length === 0) {
-        // Determine most specific reason
-        const hasValueMatch = candidatos.some((c) => Math.abs(valorParcela - c.valor_total) <= params.tolerance_value);
-        const motivo = hasValueMatch ? "no_matching_date" : "no_matching_value";
+        const motivo = "no_matching_value";
 
         notFound.push({
           parcela_id: parcela.id,
@@ -628,7 +632,7 @@ Deno.serve(async (req) => {
     // ============================================
     console.log("\n=== ETAPA 3: Propagar DANFE para Parcelas ===");
 
-    // Get updated Shopify orders with NF-e
+    // Get updated Shopify orders with NF-e (real orders, not #D*)
     const { data: ordersWithNfe, error: ordersWithNfeError } = await supabase
       .from("ebd_shopify_pedidos")
       .select(`
@@ -637,7 +641,8 @@ Deno.serve(async (req) => {
         nota_fiscal_url,
         nota_fiscal_numero
       `)
-      .not("nota_fiscal_url", "is", null);
+      .not("nota_fiscal_url", "is", null)
+      .not("order_number", "like", "#D%");
 
     if (ordersWithNfeError) {
       throw new Error(`Error fetching orders with NF-e: ${ordersWithNfeError.message}`);
@@ -647,7 +652,15 @@ Deno.serve(async (req) => {
       ordersWithNfe?.map((o: any) => [o.id, { url: o.nota_fiscal_url, numero: o.nota_fiscal_numero, orderNumber: o.order_number }]) || []
     );
 
+    console.log(`Orders with NF-e available: ${orderNfeMap.size}`);
+
+    // Build a map of parcela_id -> new shopify_pedido_id from vinculados
+    const vinculadosMap = new Map(
+      vinculados.map((v) => [v.parcela_id, v.pedido_id])
+    );
+
     // Get all parcelas that could benefit from propagation
+    // Include ALL liberadas without link_danfe (we'll check if they have valid vinculo)
     const { data: parcelasToPropagateCheck, error: propagateCheckError } = await supabase
       .from("vendedor_propostas_parcelas")
       .select(`
@@ -656,21 +669,29 @@ Deno.serve(async (req) => {
         link_danfe
       `)
       .eq("comissao_status", "liberada")
-      .is("link_danfe", null)
-      .not("shopify_pedido_id", "is", null);
+      .is("link_danfe", null);
 
     if (propagateCheckError) {
       throw new Error(`Error fetching parcelas for propagation: ${propagateCheckError.message}`);
     }
 
+    console.log(`Parcelas to check for propagation: ${parcelasToPropagateCheck?.length || 0}`);
+
     for (const parcela of parcelasToPropagateCheck || []) {
-      const nfeInfo = orderNfeMap.get(parcela.shopify_pedido_id);
+      // Check if this parcela was revinculada in this run
+      const newPedidoId = vinculadosMap.get(parcela.id);
+      const pedidoIdToUse = newPedidoId || parcela.shopify_pedido_id;
+      
+      if (!pedidoIdToUse) continue;
+
+      const nfeInfo = orderNfeMap.get(pedidoIdToUse);
       
       if (nfeInfo && nfeInfo.url) {
         if (!params.dry_run) {
           await supabase
             .from("vendedor_propostas_parcelas")
             .update({
+              shopify_pedido_id: pedidoIdToUse, // Also update the pedido_id if it was revinculado
               link_danfe: nfeInfo.url,
               nota_fiscal_numero: nfeInfo.numero,
             })
@@ -679,7 +700,7 @@ Deno.serve(async (req) => {
 
         danfesPropagados.push({
           parcela_id: parcela.id,
-          pedido_id: parcela.shopify_pedido_id,
+          pedido_id: pedidoIdToUse,
           order_number: nfeInfo.orderNumber,
           nota_fiscal_numero: nfeInfo.numero || "",
           link_danfe: nfeInfo.url,
