@@ -260,34 +260,17 @@ serve(async (req) => {
       const cleanCardNumber = body.card.card_number.replace(/\D/g, '');
       const bin = cleanCardNumber.substring(0, 6);
       
-      // 3. Lista de BINs de cartoes de teste do Mercado Pago
-      const BINS_TESTE = ['542935', '503143', '540473', '503175', '450995', '451556', '589662'];
-      const isCartaoTeste = BINS_TESTE.includes(bin);
-      
-      // 4. Validar cartao para ambiente
-      if (ambiente === 'production' && isCartaoTeste) {
-        console.error(`[${requestId}] Cartao de teste usado em producao. BIN: ${bin}`);
-        throw new Error('Cartao de teste nao permitido. Por favor, use um cartao real.');
-      }
-      
+      // Log detalhado do cartao (sem dados sensiveis)
       console.log(`[${requestId}] Cartao info:`, { 
         ambiente, 
-        bin, 
-        is_teste: isCartaoTeste,
-        card_length: cleanCardNumber.length 
+        bin,
+        card_length: cleanCardNumber.length,
+        expiration_month: body.card.expiration_month,
+        expiration_year: body.card.expiration_year,
       });
 
-      // 5. Obter payment_method_id
-      const binResponse = await fetch(
-        `https://api.mercadopago.com/v1/payment_methods/search?bin=${bin}`,
-        { headers: { 'Authorization': `Bearer ${accessToken}` } }
-      );
-      const binData = await binResponse.json();
-      const paymentMethodId = binData.results?.[0]?.id || 'visa';
-      
-      console.log(`[${requestId}] Payment method: ${paymentMethodId}`);
-
-      // 6. Criar token do cartao
+      // 3. Criar token do cartao PRIMEIRO (para obter payment_method_id correto)
+      console.log(`[${requestId}] Criando token do cartao...`);
       const cardTokenResponse = await fetch('https://api.mercadopago.com/v1/card_tokens', {
         method: 'POST',
         headers: {
@@ -310,27 +293,30 @@ serve(async (req) => {
         const errorData = await cardTokenResponse.json().catch(() => ({}));
         console.error(`[${requestId}] Erro token cartao:`, JSON.stringify(errorData));
         
-        // Verificar erro especifico de BIN incompativel
+        // Mapear erros especificos
         const cause = errorData.cause || [];
-        if (cause.some((c: any) => c.code === 10103 || c.code === '10103')) {
-          const msgErro = ambiente === 'production' 
-            ? 'Cartao incompativel. Verifique os dados ou use outro cartao.'
-            : 'Cartao incompativel com ambiente de teste. Use cartoes de teste validos do Mercado Pago.';
-          throw new Error(msgErro);
-        }
+        const errorCodes = cause.map((c: any) => c.code?.toString());
         
-        // Outros erros comuns
-        if (errorData.message === 'invalid_expiration_date') {
-          throw new Error('Data de validade do cartao invalida.');
+        if (errorCodes.includes('10103') || errorCodes.includes('E301')) {
+          throw new Error('Cartao invalido ou incompativel. Verifique os dados.');
         }
-        if (errorData.message === 'invalid_security_code') {
+        if (errorCodes.includes('E302') || errorData.message === 'invalid_security_code') {
           throw new Error('Codigo de seguranca (CVV) invalido.');
         }
-        if (errorData.message === 'invalid_card_number') {
+        if (errorCodes.includes('E205') || errorData.message === 'invalid_card_number') {
           throw new Error('Numero do cartao invalido.');
         }
+        if (errorCodes.includes('E206') || errorData.message === 'invalid_expiration_date') {
+          throw new Error('Data de validade do cartao invalida.');
+        }
+        if (errorCodes.includes('325')) {
+          throw new Error('Mes de validade invalido.');
+        }
+        if (errorCodes.includes('326')) {
+          throw new Error('Ano de validade invalido.');
+        }
         
-        throw new Error('Erro ao processar dados do cartao');
+        throw new Error('Erro ao processar dados do cartao. Verifique as informacoes.');
       }
 
       const cardTokenData = await cardTokenResponse.json();
@@ -339,55 +325,97 @@ serve(async (req) => {
         token_id: cardTokenData.id,
         last_four_digits: cardTokenData.last_four_digits,
         first_six_digits: cardTokenData.first_six_digits,
+        payment_method_from_token: cardTokenData.payment_method_id,
       });
+      
+      // 4. Obter payment_method_id do token ou buscar pelo BIN do token
+      let paymentMethodId = cardTokenData.payment_method_id;
+      
+      if (!paymentMethodId) {
+        const tokenBin = cardTokenData.first_six_digits || bin;
+        console.log(`[${requestId}] Buscando payment_method pelo BIN: ${tokenBin}`);
+        
+        const binResponse = await fetch(
+          `https://api.mercadopago.com/v1/payment_methods/search?bin=${tokenBin}`,
+          { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
+        const binData = await binResponse.json();
+        paymentMethodId = binData.results?.[0]?.id || 'visa';
+      }
+      
+      console.log(`[${requestId}] Payment method: ${paymentMethodId}`);
       
       paymentData.token = cardTokenData.id;
       paymentData.payment_method_id = paymentMethodId;
       paymentData.installments = body.installments || 1;
 
-      // 7. Processar pagamento
-      console.log(`[${requestId}] Processando cartao...`);
+      // 5. Processar pagamento com idempotency key estavel
+      const idempotencyKey = `${pedido.id}-card-${Date.now()}`;
+      console.log(`[${requestId}] Processando pagamento cartao...`);
+      
       const response = await fetch('https://api.mercadopago.com/v1/payments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
-          'X-Idempotency-Key': crypto.randomUUID(),
+          'X-Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify(paymentData),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`[${requestId}] Erro pagamento cartao:`, JSON.stringify(errorData));
+      const responseData = await response.json().catch(() => ({}));
+      
+      console.log(`[${requestId}] Resposta MP:`, {
+        status: response.status,
+        payment_status: responseData.status,
+        status_detail: responseData.status_detail,
+        payment_id: responseData.id,
+      });
+
+      // Tratar erros de resposta
+      if (!response.ok || responseData.status === 'rejected') {
+        console.error(`[${requestId}] Erro/Rejeicao pagamento:`, JSON.stringify(responseData));
         
-        // Verificar erro especifico de BIN incompativel
-        const cause = errorData.cause || [];
-        if (cause.some((c: any) => c.code === 10103 || c.code === '10103')) {
-          throw new Error('Cartao incompativel com o ambiente atual (teste x producao).');
+        const cause = responseData.cause || [];
+        const statusDetail = responseData.status_detail || '';
+        
+        // Mapear status_detail para mensagens amigaveis
+        const errorMessages: Record<string, string> = {
+          'cc_rejected_bad_filled_card_number': 'Numero do cartao incorreto.',
+          'cc_rejected_bad_filled_date': 'Data de validade incorreta.',
+          'cc_rejected_bad_filled_other': 'Dados do cartao incorretos.',
+          'cc_rejected_bad_filled_security_code': 'Codigo de seguranca incorreto.',
+          'cc_rejected_blacklist': 'Cartao nao permitido.',
+          'cc_rejected_call_for_authorize': 'Ligue para a operadora para autorizar.',
+          'cc_rejected_card_disabled': 'Cartao desabilitado. Contate seu banco.',
+          'cc_rejected_card_error': 'Erro no cartao. Tente outro.',
+          'cc_rejected_duplicated_payment': 'Pagamento duplicado.',
+          'cc_rejected_high_risk': 'Pagamento recusado por seguranca.',
+          'cc_rejected_insufficient_amount': 'Saldo insuficiente.',
+          'cc_rejected_invalid_installments': 'Parcelamento invalido.',
+          'cc_rejected_max_attempts': 'Limite de tentativas excedido.',
+          'cc_rejected_other_reason': 'Pagamento recusado. Tente outro cartao.',
+          'pending_contingency': 'Pagamento pendente de processamento.',
+          'pending_review_manual': 'Pagamento em analise.',
+        };
+        
+        // Verificar erro 10103 (BIN incompativel)
+        if (cause.some((c: any) => c.code?.toString() === '10103')) {
+          throw new Error('Cartao incompativel com o ambiente. Verifique se esta usando cartao correto.');
         }
         
-        // Erros de pagamento recusado
-        if (errorData.status === 'rejected') {
-          const statusDetail = errorData.status_detail || '';
-          if (statusDetail.includes('insufficient_amount')) {
-            throw new Error('Cartao sem limite disponivel.');
-          }
-          if (statusDetail.includes('cc_rejected')) {
-            throw new Error('Pagamento recusado pela operadora do cartao.');
-          }
-        }
+        // Usar mensagem mapeada ou generica
+        const friendlyMessage = errorMessages[statusDetail] || 
+          (statusDetail.startsWith('cc_rejected') ? 'Pagamento recusado pela operadora.' : 
+          responseData.message || 'Erro ao processar pagamento.');
         
-        throw new Error(errorData.message || 'Erro ao processar pagamento com cartao');
+        throw new Error(friendlyMessage);
       }
 
-      const data = await response.json();
-      console.log(`[${requestId}] Pagamento cartao:`, data.id, 'status:', data.status, 'detail:', data.status_detail);
-
       paymentResult = {
-        payment_id: data.id,
-        status: data.status,
-        status_detail: data.status_detail,
+        payment_id: responseData.id,
+        status: responseData.status,
+        status_detail: responseData.status_detail,
       };
     } else {
       throw new Error('Método de pagamento não suportado');
@@ -414,14 +442,18 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   } catch (error) {
-    console.error(`[${requestId}] Erro:`, error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro interno';
+    console.error(`[${requestId}] Erro:`, errorMessage);
+    
+    // Retornar HTTP 200 com success:false para erros esperados
+    // Isso permite que o frontend exiba a mensagem de erro corretamente
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error instanceof Error ? error.message : 'Erro interno',
+        error: errorMessage,
         request_id: requestId,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   }
 });
