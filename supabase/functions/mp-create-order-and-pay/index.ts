@@ -215,16 +215,63 @@ serve(async (req) => {
     const cpfCnpjLimpo = body.payer.cpf_cnpj.replace(/\D/g, '');
     const tipoDocumento = cpfCnpjLimpo.length > 11 ? 'CNPJ' : 'CPF';
 
+    // Extrair DDD e número do telefone
+    const telefoneNumeros = body.payer.telefone?.replace(/\D/g, '') || '';
+    const telefoneDDD = telefoneNumeros.substring(0, 2);
+    const telefoneNumero = telefoneNumeros.substring(2);
+
     const paymentData: any = {
       transaction_amount: valorTotal,
       description: `Pedido #${pedido.id.slice(0, 8).toUpperCase()}`,
       payer: {
         email: body.payer.email,
         first_name: body.payer.nome,
-        last_name: body.payer.sobrenome,
+        last_name: body.payer.sobrenome || '',
         identification: {
           type: tipoDocumento,
           number: cpfCnpjLimpo,
+        },
+        phone: {
+          area_code: telefoneDDD,
+          number: telefoneNumero,
+        },
+        address: {
+          zip_code: body.endereco.cep?.replace(/\D/g, '') || '',
+          street_name: body.endereco.rua || '',
+          street_number: body.endereco.numero || '',
+        },
+      },
+      // Dados adicionais para análise antifraude
+      additional_info: {
+        items: [{
+          id: pedido.id.slice(0, 8),
+          title: `Pedido EBD`,
+          description: 'Materiais para Escola Bíblica Dominical',
+          category_id: 'books',
+          quantity: 1,
+          unit_price: valorTotal,
+        }],
+        payer: {
+          first_name: body.payer.nome,
+          last_name: body.payer.sobrenome || '',
+          phone: {
+            area_code: telefoneDDD,
+            number: telefoneNumero,
+          },
+          address: {
+            zip_code: body.endereco.cep?.replace(/\D/g, '') || '',
+            street_name: body.endereco.rua || '',
+            street_number: body.endereco.numero || '',
+          },
+        },
+        shipments: {
+          receiver_address: {
+            zip_code: body.endereco.cep?.replace(/\D/g, '') || '',
+            street_name: body.endereco.rua || '',
+            street_number: body.endereco.numero || '',
+            city_name: body.endereco.cidade || '',
+            state_name: body.endereco.estado || '',
+          },
         },
       },
       external_reference: pedido.id,
@@ -536,7 +583,7 @@ serve(async (req) => {
           'cc_rejected_card_disabled': 'Cartao desabilitado. Contate seu banco.',
           'cc_rejected_card_error': 'Erro no cartao. Tente outro.',
           'cc_rejected_duplicated_payment': 'Pagamento duplicado.',
-          'cc_rejected_high_risk': 'Pagamento recusado por seguranca.',
+          'cc_rejected_high_risk': 'Pagamento recusado pelo sistema antifraude. Tente novamente ou use outro cartão.',
           'cc_rejected_insufficient_amount': 'Saldo insuficiente.',
           'cc_rejected_invalid_installments': 'Parcelamento invalido.',
           'cc_rejected_max_attempts': 'Limite de tentativas excedido.',
