@@ -14,6 +14,19 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const accessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN') || '';
+
+    const tokenPrefix = accessToken.startsWith('TEST-')
+      ? 'TEST-'
+      : accessToken.startsWith('APP_USR-')
+        ? 'APP_USR-'
+        : 'OTHER';
+
+    const ambiente = tokenPrefix === 'TEST-' ? 'sandbox' : 'production';
+
+    // Logar só o prefixo do token (sem vazar segredo)
+    console.log('[mp-checkout-init] MP ambiente:', { ambiente, token_prefix: tokenPrefix });
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { proposta_id, proposta_token } = await req.json();
@@ -68,10 +81,34 @@ serve(async (req) => {
 
     console.log('[mp-checkout-init] Cliente encontrado:', cliente ? 'sim' : 'não', 'email:', cliente?.email_superintendente);
 
+    // Se houver usuário logado e for admin, expor debug do ambiente no response
+    let mp_debug: { ambiente: string; token_prefix: string } | null = null;
+    try {
+      const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
+      const jwt = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
+
+      if (jwt) {
+        const { data: userData } = await supabase.auth.getUser(jwt);
+        if (userData?.user?.id) {
+          const { data: roleRow } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', userData.user.id)
+            .single();
+
+          if (roleRow?.role === 'admin') {
+            mp_debug = { ambiente, token_prefix: tokenPrefix };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[mp-checkout-init] Falha ao verificar admin para mp_debug');
+    }
+
     // Parse itens e endereço
     const itens = typeof proposta.itens === 'string' ? JSON.parse(proposta.itens) : proposta.itens;
-    const endereco = typeof proposta.cliente_endereco === 'string' 
-      ? JSON.parse(proposta.cliente_endereco) 
+    const endereco = typeof proposta.cliente_endereco === 'string'
+      ? JSON.parse(proposta.cliente_endereco)
       : proposta.cliente_endereco || {};
 
     // Montar resposta com dados para preencher o formulário
@@ -101,6 +138,7 @@ serve(async (req) => {
         email: proposta.vendedor_email,
         nome: proposta.vendedor_nome,
       },
+      ...(mp_debug ? { mp_debug } : {}),
     };
 
     console.log('[mp-checkout-init] Resposta montada, email:', response.email, 'telefone:', response.telefone);

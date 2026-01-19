@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +19,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { useVendedor } from '@/hooks/useVendedor';
+import { useUserRole } from '@/hooks/useUserRole';
 
 // Validação CPF
 const validateCPF = (cpf: string): boolean => {
@@ -110,8 +112,9 @@ export default function CheckoutShopifyMP() {
   const [searchParams] = useSearchParams();
   const propostaToken = searchParams.get('proposta'); // Token legado
   const propostaId = searchParams.get('proposta_id'); // UUID direto (prioridade)
-  
+
   const { vendedor, isLoading: vendedorLoading } = useVendedor();
+  const { isAdmin } = useUserRole();
   const { items: cartItems, clearCart } = useShopifyCartStore();
   
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card' | 'boleto'>('pix');
@@ -553,7 +556,7 @@ export default function CheckoutShopifyMP() {
     
     try {
       // Validar campos do cartão
-      if (cardNumber.replace(/\s/g, '').length < 16) {
+      if (cardNumber.replace(/\D/g, '').length < 16) {
         toast.error('Número do cartão inválido');
         return;
       }
@@ -571,9 +574,9 @@ export default function CheckoutShopifyMP() {
       }
 
       const [expiryMonth, expiryYear] = cardExpiry.split('/');
-      
+
       const cardData = {
-        card_number: cardNumber.replace(/\s/g, ''),
+        card_number: cardNumber.replace(/\D/g, ''),
         cardholder_name: cardHolder,
         expiration_month: expiryMonth,
         expiration_year: `20${expiryYear}`,
@@ -683,6 +686,13 @@ export default function CheckoutShopifyMP() {
             className="h-16 mb-4"
           />
           <h1 className="text-2xl font-bold text-center">Checkout - Mercado Pago</h1>
+          {isAdmin && (checkoutData as any)?.mp_debug?.ambiente && (
+            <div className="mt-2">
+              <Badge variant={(checkoutData as any).mp_debug.ambiente === 'sandbox' ? 'secondary' : 'default'}>
+                MP: {(checkoutData as any).mp_debug.ambiente === 'sandbox' ? 'Sandbox' : 'Produção'}
+              </Badge>
+            </div>
+          )}
           {(propostaToken && proposta?.cliente_nome) || vendedorClienteNome ? (
             <p className="text-muted-foreground text-center">
               Cliente: <span className="font-medium text-foreground">{proposta?.cliente_nome || vendedorClienteNome}</span>

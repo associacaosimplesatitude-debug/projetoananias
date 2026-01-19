@@ -53,10 +53,19 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const accessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
-    
+
     if (!accessToken) {
       throw new Error('MERCADO_PAGO_ACCESS_TOKEN não configurado');
     }
+
+    const tokenPrefix = accessToken.startsWith('TEST-')
+      ? 'TEST-'
+      : accessToken.startsWith('APP_USR-')
+        ? 'APP_USR-'
+        : 'OTHER';
+
+    const ambiente = tokenPrefix === 'TEST-' ? 'sandbox' : 'production';
+    console.log(`[${requestId}] MP ambiente:`, { ambiente, token_prefix: tokenPrefix });
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: PaymentRequest = await req.json();
@@ -254,15 +263,22 @@ serve(async (req) => {
       }
 
       // 1. Detectar ambiente (producao vs sandbox)
-      const ambiente = accessToken.startsWith('TEST-') ? 'sandbox' : 'production';
-      
+      // Obs: NÃO logar o token completo (somente prefixo) para segurança.
+      const tokenPrefix = accessToken.startsWith('TEST-')
+        ? 'TEST-'
+        : accessToken.startsWith('APP_USR-')
+          ? 'APP_USR-'
+          : 'OTHER';
+      const ambiente = tokenPrefix === 'TEST-' ? 'sandbox' : 'production';
+
       // 2. Sanitizar numero do cartao (remover espacos e caracteres nao numericos)
       const cleanCardNumber = body.card.card_number.replace(/\D/g, '');
       const bin = cleanCardNumber.substring(0, 6);
-      
+
       // Log detalhado do cartao (sem dados sensiveis)
-      console.log(`[${requestId}] Cartao info:`, { 
-        ambiente, 
+      console.log(`[${requestId}] Cartao info:`, {
+        ambiente,
+        token_prefix: tokenPrefix,
         bin,
         card_length: cleanCardNumber.length,
         expiration_month: body.card.expiration_month,
@@ -349,10 +365,20 @@ serve(async (req) => {
       paymentData.payment_method_id = paymentMethodId;
       paymentData.installments = body.installments || 1;
 
-      // 5. Processar pagamento com idempotency key estavel
-      const idempotencyKey = `${pedido.id}-card-${Date.now()}`;
-      console.log(`[${requestId}] Processando pagamento cartao...`);
-      
+      console.log(`[${requestId}] Payment payload (sem dados sensíveis):`, {
+        transaction_amount: paymentData.transaction_amount,
+        installments: paymentData.installments,
+        payment_method_id: paymentData.payment_method_id,
+        token_first_six_digits: cardTokenData.first_six_digits,
+        token_payment_method_id: cardTokenData.payment_method_id,
+      });
+
+      // 5. Processar pagamento com idempotency key ESTÁVEL
+      // IMPORTANTE: não usar Date.now() aqui, senão deixa de ser idempotente.
+      const amountKey = Number(valorTotal).toFixed(2).replace('.', '_');
+      const idempotencyKey = `${pedido.id}-card-${paymentData.installments}-${amountKey}`;
+      console.log(`[${requestId}] Processando pagamento cartao...`, { idempotencyKey });
+
       const response = await fetch('https://api.mercadopago.com/v1/payments', {
         method: 'POST',
         headers: {
@@ -366,10 +392,11 @@ serve(async (req) => {
       const responseData = await response.json().catch(() => ({}));
       
       console.log(`[${requestId}] Resposta MP:`, {
-        status: response.status,
+        http_status: response.status,
         payment_status: responseData.status,
         status_detail: responseData.status_detail,
         payment_id: responseData.id,
+        cause: responseData.cause,
       });
 
       // Tratar erros de resposta
