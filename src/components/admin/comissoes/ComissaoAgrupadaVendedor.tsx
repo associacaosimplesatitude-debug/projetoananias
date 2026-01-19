@@ -11,8 +11,19 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   CheckCircle2, Clock, AlertTriangle, Calendar, ExternalLink,
-  Wallet, FileText, User, Loader2, RefreshCw, Link2
+  Wallet, FileText, User, Loader2, RefreshCw, Link2, Trash2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { format, parseISO } from "date-fns";
 
 interface ComissaoItem {
@@ -68,6 +79,7 @@ interface ComissaoAgrupadaVendedorProps {
   onBuscarNfe?: (params: BuscarNfeParams) => void;
   onRefazerNfe?: (params: BuscarNfeParams) => void;
   onVincularManual?: (parcelaId: string, clienteNome: string) => void;
+  onExcluir?: (id: string) => void;
   onGerarPagamentoVendedor?: (vendedorId: string, comissoes: ComissaoItem[]) => void;
   isUpdating?: boolean;
   isAdmin?: boolean;
@@ -79,6 +91,7 @@ export function ComissaoAgrupadaVendedor({
   onBuscarNfe,
   onRefazerNfe,
   onVincularManual,
+  onExcluir,
   onGerarPagamentoVendedor,
   isUpdating,
   isAdmin = false
@@ -339,17 +352,57 @@ export function ComissaoAgrupadaVendedor({
                           )}
                         </TableCell>
                         <TableCell>
-                          {item.comissao_status === "liberada" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onMarcarPaga(item.id)}
-                              disabled={isUpdating}
-                            >
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Pagar
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {item.comissao_status === "liberada" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onMarcarPaga(item.id)}
+                                disabled={isUpdating}
+                              >
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Pagar
+                              </Button>
+                            )}
+                            {isAdmin && onExcluir && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    disabled={isUpdating}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Excluir Comissão</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Tem certeza que deseja excluir esta comissão de <strong>{item.cliente_nome}</strong>?
+                                      <br />
+                                      <span className="text-sm text-muted-foreground">
+                                        Valor: R$ {item.valor_comissao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} • 
+                                        Parcela {item.numero_parcela}/{item.total_parcelas}
+                                      </span>
+                                      <br /><br />
+                                      Esta ação não pode ser desfeita.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      className="bg-red-600 hover:bg-red-700"
+                                      onClick={() => onExcluir(item.id)}
+                                    >
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
