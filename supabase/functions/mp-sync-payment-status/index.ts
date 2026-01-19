@@ -283,6 +283,8 @@ serve(async (req) => {
             data_pagamento: hoje,  // Já pago!
             status: 'paga',
             origem: 'mercadopago',
+            comissao_status: 'liberada',  // ✅ Comissão já liberada para pagamento
+            data_liberacao: hoje,          // ✅ Data da liberação
             metodo_pagamento: pedido.payment_method === 'pix' ? 'pix' : 
                              pedido.payment_method === 'credit_card' ? 'cartao' : 
                              pedido.payment_method === 'debit_card' ? 'cartao_debito' : 'pix',
