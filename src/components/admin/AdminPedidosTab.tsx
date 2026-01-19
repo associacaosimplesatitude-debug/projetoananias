@@ -121,6 +121,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<string>("all");
   const [selectedPedidos, setSelectedPedidos] = useState<Set<string>>(new Set());
   const [dateFilter, setDateFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -497,9 +498,14 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
         }
       }
       
+      // Filter by status
+      if (statusFilter !== "all" && pedido.status_pagamento !== statusFilter) {
+        return false;
+      }
+      
       return true;
     });
-  }, [shopifyPedidos, selectedVendedorFilter, searchTerm, clienteMap, dateFilter, customDateRange]);
+  }, [shopifyPedidos, selectedVendedorFilter, searchTerm, clienteMap, dateFilter, customDateRange, statusFilter]);
 
   // Pedidos que podem ser aprovados (pagos, com vendedor, não aprovados)
   const pedidosAprovaveis = useMemo(() => 
@@ -638,6 +644,23 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                   {vendedores.map((v) => (
                     <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Filtro de Status */}
+            <div className="w-[160px]">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="Pago">Pago</SelectItem>
+                  <SelectItem value="Pendente">Pendente</SelectItem>
+                  <SelectItem value="Reembolsado">Reembolsado</SelectItem>
+                  <SelectItem value="Parcialmente Reembolsado">Parcial</SelectItem>
+                  <SelectItem value="Cancelado">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
