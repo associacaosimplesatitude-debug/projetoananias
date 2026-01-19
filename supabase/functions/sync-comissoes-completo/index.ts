@@ -256,15 +256,29 @@ Deno.serve(async (req) => {
 
     const propostaMap = new Map(propostas?.map((p: any) => [p.id, p]) || []);
 
-    // Get client names
-    const clienteIds = [...new Set(propostas?.map((p: any) => p.cliente_id).filter(Boolean) || [])];
+    // Get client names - first from propostas, but we'll expand later
+    let clienteIds = [...new Set(propostas?.map((p: any) => p.cliente_id).filter(Boolean) || [])];
     
-    const { data: clientes, error: clientesError } = await supabase
-      .from("ebd_clientes")
-      .select("id, nome_igreja")
-      .in("id", clienteIds);
+    // Also get cliente_ids from all Shopify orders (including #D*) for better matching
+    const { data: allClienteIds, error: allClienteError } = await supabase
+      .from("ebd_shopify_pedidos")
+      .select("cliente_id")
+      .not("cliente_id", "is", null);
 
-    const clienteMap = new Map(clientes?.map((c: any) => [c.id, c.nome_igreja]) || []);
+    if (!allClienteError && allClienteIds) {
+      const shopifyClienteIds = allClienteIds.map((c: any) => c.cliente_id).filter(Boolean);
+      clienteIds = [...new Set([...clienteIds, ...shopifyClienteIds])];
+    }
+    
+    let clienteMap = new Map<string, string>();
+    if (clienteIds.length > 0) {
+      const { data: clientes, error: clientesError } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja")
+        .in("id", clienteIds);
+
+      clienteMap = new Map(clientes?.map((c: any) => [c.id, c.nome_igreja]) || []);
+    }
 
     // Get all Shopify orders for potential matching
     const { data: allShopifyOrders, error: shopifyError } = await supabase
@@ -298,15 +312,39 @@ Deno.serve(async (req) => {
       ordersByCliente.get(order.cliente_id)!.push(order);
     }
 
+    // Get all digital proposals (#D*) to extract cliente_id when proposta is null
+    const { data: digitalProposals, error: digitalError } = await supabase
+      .from("ebd_shopify_pedidos")
+      .select("id, cliente_id, order_number, valor_total, order_date")
+      .like("order_number", "#D%");
+
+    if (digitalError) {
+      console.error("Error fetching digital proposals:", digitalError.message);
+    }
+
+    const digitalProposalMap = new Map(
+      digitalProposals?.map((dp: any) => [dp.id, dp]) || []
+    );
+
     // Process each parcela
     for (const parcela of parcelasLiberadas || []) {
       const proposta = propostaMap.get(parcela.proposta_id);
-      const clienteId = proposta?.cliente_id;
-      const clienteNome = clienteId ? clienteMap.get(clienteId) : null;
+      let clienteId = proposta?.cliente_id;
+      let clienteNome: string | null = clienteId ? (clienteMap.get(clienteId) || null) : null;
       const valorParcela = parcela.valor || 0;
-      const dataReferencia = proposta?.created_at || parcela.created_at;
+      let dataReferencia = proposta?.created_at || parcela.created_at;
 
-      // Check if already has valid shopify_pedido_id pointing to real order
+      // If no proposta, try to get cliente_id from the linked digital proposal
+      if (!clienteId && parcela.shopify_pedido_id) {
+        const digitalProposal = digitalProposalMap.get(parcela.shopify_pedido_id);
+        if (digitalProposal) {
+          clienteId = digitalProposal.cliente_id;
+          clienteNome = clienteId ? (clienteMap.get(clienteId) || null) : null;
+          dataReferencia = digitalProposal.order_date || parcela.created_at;
+        }
+      }
+
+      // Check if already has valid shopify_pedido_id pointing to real order (not #D*)
       if (parcela.shopify_pedido_id) {
         const existingOrder = allShopifyOrders?.find((o: any) => o.id === parcela.shopify_pedido_id);
         if (existingOrder && existingOrder.bling_order_id) {
