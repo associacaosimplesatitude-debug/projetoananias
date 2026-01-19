@@ -575,8 +575,13 @@ export default function CheckoutShopifyMP() {
 
       const [expiryMonth, expiryYear] = cardExpiry.split('/');
 
+      const cleanCardNumber = cardNumber.replace(/\D/g, '');
+      
+      // LOG TEMPORÁRIO - verificar BIN enviado
+      console.log('[Checkout] BIN sendo enviado:', cleanCardNumber.substring(0, 6));
+
       const cardData = {
-        card_number: cardNumber.replace(/\D/g, ''),
+        card_number: cleanCardNumber,
         cardholder_name: cardHolder,
         expiration_month: expiryMonth,
         expiration_year: `20${expiryYear}`,
@@ -1144,6 +1149,11 @@ export default function CheckoutShopifyMP() {
                             value={cardNumber}
                             onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
                             maxLength={19}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                            inputMode="numeric"
                           />
                         </div>
                         
