@@ -6,8 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// BINs de teste oficiais do Mercado Pago
-const BINS_TESTE_MP = ['542935', '524926', '524920', '523421', '528074', '589562', '408730', '411111', '501011', '503143'];
+// Ambiente é detectado apenas pelo prefixo do token (TEST- = sandbox, APP_USR- = produção)
+// Não bloqueamos por BIN - deixamos o Mercado Pago validar
 
 interface PaymentRequest {
   proposta_id?: string;
@@ -303,7 +303,7 @@ serve(async (req) => {
       // Sanitizar numero do cartao (remover espacos e caracteres nao numericos)
       const cleanCardNumber = body.card.card_number.replace(/\D/g, '');
       const bin = cleanCardNumber.substring(0, 6);
-      const isCartaoTeste = BINS_TESTE_MP.includes(bin);
+      
 
       // Inicializar mp_debug para rastreamento
       const mpDebug: MpDebug = {
@@ -324,34 +324,11 @@ serve(async (req) => {
         ambiente,
         token_prefix: tokenPrefix,
         bin,
-        is_cartao_teste: isCartaoTeste,
         card_length: cleanCardNumber.length,
       });
 
-      // ========== VALIDAÇÃO DE AMBIENTE ==========
-      // Se ambiente = produção e cartão de teste: erro
-      if (ambiente === 'production' && isCartaoTeste) {
-        mpDebug.error_reason = 'test_card_in_production';
-        console.log(`[${requestId}] ERRO: Cartao de teste em producao`);
-        return createCardErrorResponse(
-          'Você está em Produção — use cartão real.',
-          mpDebug,
-          requestId,
-          corsHeaders
-        );
-      }
-
-      // Se ambiente = sandbox e cartão real: erro
-      if (ambiente === 'sandbox' && !isCartaoTeste) {
-        mpDebug.error_reason = 'real_card_in_sandbox';
-        console.log(`[${requestId}] ERRO: Cartao real em sandbox`);
-        return createCardErrorResponse(
-          'Você está em Sandbox — use cartão de teste do Mercado Pago.',
-          mpDebug,
-          requestId,
-          corsHeaders
-        );
-      }
+      // Ambiente é detectado apenas pelo prefixo do token
+      // Não bloqueamos por BIN - deixamos o Mercado Pago validar e retornar erro real se houver
 
       // ========== CRIAR TOKEN DO CARTÃO ==========
       console.log(`[${requestId}] Criando token do cartao...`);
