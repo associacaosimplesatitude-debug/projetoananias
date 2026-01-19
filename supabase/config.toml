@@ -182,3 +182,6 @@ verify_jwt = true
 
 [functions.fix-comissoes-shopify-link]
 verify_jwt = true
+
+[functions.sync-comissoes-completo]
+verify_jwt = true
