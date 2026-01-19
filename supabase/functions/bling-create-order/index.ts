@@ -2772,6 +2772,34 @@ serve(async (req) => {
       console.warn('[BLING] Não foi possível consultar a situação do pedido após criar.', e);
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // ✅ PROPAGAR bling_order_id PARA vendedor_propostas
+    // Isso permite que bling-sync-order-status encontre a proposta
+    // ═══════════════════════════════════════════════════════════════
+    if (createdOrderId && pedido_id) {
+      console.log(`[BLING] Propagando bling_order_id ${createdOrderId} para vendedor_propostas (proposta_id: ${pedido_id})`);
+      
+      try {
+        const { error: propostaUpdateError } = await supabase
+          .from('vendedor_propostas')
+          .update({
+            bling_order_id: createdOrderId,
+            bling_order_number: responseData.data?.numero || null,
+            status: 'PAGO',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pedido_id);
+
+        if (propostaUpdateError) {
+          console.warn('[BLING] ⚠️ Erro ao propagar bling_order_id para vendedor_propostas:', propostaUpdateError);
+        } else {
+          console.log(`[BLING] ✅ vendedor_propostas atualizada com bling_order_id: ${createdOrderId}, status: PAGO`);
+        }
+      } catch (propError) {
+        console.warn('[BLING] ⚠️ Erro inesperado ao propagar para vendedor_propostas:', propError);
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
