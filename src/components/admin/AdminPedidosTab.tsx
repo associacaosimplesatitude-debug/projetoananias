@@ -424,7 +424,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const aprovarSelecionadasShopifyMutation = useMutation({
     mutationFn: async () => {
       const pedidosParaAprovar = filteredShopifyPedidos.filter(
-        p => selectedPedidos.has(p.id) && !p.comissao_aprovada && p.status_pagamento === 'Pago' && p.vendedor_id
+        p => selectedPedidos.has(p.id) && !p.comissao_aprovada && (p.status_pagamento === 'paid' || p.status_pagamento === 'Pago') && p.vendedor_id
       );
       
       for (const pedido of pedidosParaAprovar) {
@@ -510,7 +510,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   // Pedidos que podem ser aprovados (pagos, com vendedor, não aprovados)
   const pedidosAprovaveis = useMemo(() => 
     filteredShopifyPedidos.filter(p => 
-      p.status_pagamento === 'Pago' && 
+      (p.status_pagamento === 'paid' || p.status_pagamento === 'Pago') && 
       p.vendedor_id && 
       !p.comissao_aprovada
     ),
@@ -779,7 +779,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
               <TableBody>
                 {filteredShopifyPedidos.map((pedido) => {
                   const vendedorNome = pedido.vendedor?.nome || (pedido.vendedor_id ? vendedores.find(v => v.id === pedido.vendedor_id)?.nome : null);
-                  const podeAprovar = pedido.status_pagamento === 'Pago' && pedido.vendedor_id && !pedido.comissao_aprovada;
+                  const podeAprovar = (pedido.status_pagamento === 'paid' || pedido.status_pagamento === 'Pago') && pedido.vendedor_id && !pedido.comissao_aprovada;
                   
                   return (
                     <TableRow key={pedido.id} className={selectedPedidos.has(pedido.id) ? "bg-primary/5" : ""}>
