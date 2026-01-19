@@ -833,6 +833,62 @@ export default function GestaoComissoes() {
     },
   });
 
+  // Mutation: excluir comissão (Admin)
+  const excluirComissaoMutation = useMutation({
+    mutationFn: async (parcelaId: string) => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+      if (!isAdmin) throw new Error("Apenas administradores podem excluir comissões");
+
+      // 1. Buscar dados da parcela para audit log
+      const { data: parcelaAntiga, error: fetchError } = await supabase
+        .from("vendedor_propostas_parcelas")
+        .select("*")
+        .eq("id", parcelaId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // 2. Excluir a parcela
+      const { error: deleteError } = await supabase
+        .from("vendedor_propostas_parcelas")
+        .delete()
+        .eq("id", parcelaId);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Registrar no audit log
+      const { error: auditError } = await supabase
+        .from("admin_audit_log")
+        .insert({
+          admin_id: user.id,
+          action: "excluir_comissao",
+          table_name: "vendedor_propostas_parcelas",
+          record_id: parcelaId,
+          old_values: parcelaAntiga,
+          new_values: null,
+        });
+
+      if (auditError) {
+        console.error("Erro ao registrar audit log:", auditError);
+      }
+
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+      toast.success("Comissão excluída com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Erro ao excluir comissão:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao excluir comissão");
+    },
+  });
+
+  // Handler para excluir comissão
+  const handleExcluirComissao = (parcelaId: string) => {
+    excluirComissaoMutation.mutate(parcelaId);
+  };
+
   const isLoading = parcelasLoading;
 
   if (isLoading) {
@@ -1095,7 +1151,8 @@ export default function GestaoComissoes() {
                   onBuscarNfe={handleBuscarNfe}
                   onRefazerNfe={handleRefazerNfe}
                   onVincularManual={isAdmin ? handleVincularManual : undefined}
-                  isUpdating={marcarPagaMutation.isPending}
+                  onExcluir={isAdmin ? handleExcluirComissao : undefined}
+                  isUpdating={marcarPagaMutation.isPending || excluirComissaoMutation.isPending}
                   isAdmin={isAdmin}
                 />
               ) : (
@@ -1105,7 +1162,8 @@ export default function GestaoComissoes() {
                   onBuscarNfe={handleBuscarNfe}
                   onRefazerNfe={handleRefazerNfe}
                   onVincularManual={isAdmin ? handleVincularManual : undefined}
-                  isUpdating={marcarPagaMutation.isPending}
+                  onExcluir={isAdmin ? handleExcluirComissao : undefined}
+                  isUpdating={marcarPagaMutation.isPending || excluirComissaoMutation.isPending}
                   isAdmin={isAdmin}
                 />
               )}
