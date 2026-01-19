@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
   CheckCircle2, Clock, AlertTriangle, Calendar, ExternalLink,
-  DollarSign, CreditCard, FileText, Wallet, Search, Loader2, RefreshCw
+  DollarSign, CreditCard, FileText, Wallet, Loader2, RefreshCw, Link2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -49,11 +49,22 @@ interface ComissaoTableProps {
   onMarcarPaga: (id: string) => void;
   onBuscarNfe?: (params: BuscarNfeParams) => void;
   onRefazerNfe?: (params: BuscarNfeParams) => void;
+  onVincularManual?: (parcelaId: string, clienteNome: string) => void;
   isUpdating?: boolean;
   showActions?: boolean;
+  isAdmin?: boolean;
 }
 
-export function ComissaoTable({ comissoes, onMarcarPaga, onBuscarNfe, onRefazerNfe, isUpdating, showActions = true }: ComissaoTableProps) {
+export function ComissaoTable({ 
+  comissoes, 
+  onMarcarPaga, 
+  onBuscarNfe, 
+  onRefazerNfe, 
+  onVincularManual,
+  isUpdating, 
+  showActions = true,
+  isAdmin = false 
+}: ComissaoTableProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "paga":
@@ -220,10 +231,24 @@ export function ComissaoTable({ comissoes, onMarcarPaga, onBuscarNfe, onRefazerN
                     Buscando
                   </span>
                 ) : item.canSearchBlingOrder ? (
-                  // Sem bling_order_id mas tem dados de busca - mostrar aviso
-                  <span className="text-xs text-amber-600" title="Pedido sem vínculo com Bling">
-                    Sem vínculo
-                  </span>
+                  // Sem bling_order_id mas tem dados de busca - mostrar aviso + botão vincular manual
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-amber-600" title="Pedido sem vínculo com Bling">
+                      Sem vínculo
+                    </span>
+                    {isAdmin && onVincularManual && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50"
+                        onClick={() => onVincularManual(item.id, item.cliente_nome)}
+                        title="Vincular manualmente (Admin)"
+                      >
+                        <Link2 className="h-3 w-3 mr-1" />
+                        <span className="text-xs">Vincular</span>
+                      </Button>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-muted-foreground">-</span>
                 )}

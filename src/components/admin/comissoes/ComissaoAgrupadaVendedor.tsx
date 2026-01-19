@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   CheckCircle2, Clock, AlertTriangle, Calendar, ExternalLink,
-  Wallet, FileText, Download, User, Search, Loader2, RefreshCw
+  Wallet, FileText, User, Loader2, RefreshCw, Link2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -67,8 +67,10 @@ interface ComissaoAgrupadaVendedorProps {
   onMarcarPaga: (id: string) => void;
   onBuscarNfe?: (params: BuscarNfeParams) => void;
   onRefazerNfe?: (params: BuscarNfeParams) => void;
+  onVincularManual?: (parcelaId: string, clienteNome: string) => void;
   onGerarPagamentoVendedor?: (vendedorId: string, comissoes: ComissaoItem[]) => void;
   isUpdating?: boolean;
+  isAdmin?: boolean;
 }
 
 export function ComissaoAgrupadaVendedor({ 
@@ -76,8 +78,10 @@ export function ComissaoAgrupadaVendedor({
   onMarcarPaga, 
   onBuscarNfe,
   onRefazerNfe,
+  onVincularManual,
   onGerarPagamentoVendedor,
-  isUpdating 
+  isUpdating,
+  isAdmin = false
 }: ComissaoAgrupadaVendedorProps) {
   const [expandedVendedores, setExpandedVendedores] = useState<string[]>([]);
 
@@ -312,10 +316,24 @@ export function ComissaoAgrupadaVendedor({
                               Buscando
                             </span>
                           ) : item.canSearchBlingOrder ? (
-                            // Sem bling_order_id mas tem dados de busca - mostrar aviso
-                            <span className="text-xs text-amber-600" title="Pedido sem vínculo com Bling">
-                              Sem vínculo
-                            </span>
+                            // Sem bling_order_id mas tem dados de busca - mostrar aviso + botão vincular
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-amber-600" title="Pedido sem vínculo com Bling">
+                                Sem vínculo
+                              </span>
+                              {isAdmin && onVincularManual && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50"
+                                  onClick={() => onVincularManual(item.id, item.cliente_nome)}
+                                  title="Vincular manualmente (Admin)"
+                                >
+                                  <Link2 className="h-3 w-3 mr-1" />
+                                  <span className="text-xs">Vincular</span>
+                                </Button>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}

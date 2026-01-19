@@ -24,8 +24,10 @@ import {
   ComissaoAgrupadaVendedor,
   LotePagamentoDialog,
   LotePagamentoList,
-  LoteDetalheDialog
+  LoteDetalheDialog,
+  VincularComissaoDialog
 } from "@/components/admin/comissoes";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface Parcela {
   id: string;
@@ -97,6 +99,7 @@ interface LotePagamento {
 export default function GestaoComissoes() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const [activeTab, setActiveTab] = useState<string>("resumo");
   const [viewMode, setViewMode] = useState<string>("agrupado");
   const [statusSelecionado, setStatusSelecionado] = useState<string>("liberada");
@@ -106,6 +109,10 @@ export default function GestaoComissoes() {
   const [showLoteDialog, setShowLoteDialog] = useState(false);
   const [showLoteDetalheDialog, setShowLoteDetalheDialog] = useState(false);
   const [selectedLoteId, setSelectedLoteId] = useState<string | null>(null);
+  
+  // State for manual linking dialog
+  const [showVincularDialog, setShowVincularDialog] = useState(false);
+  const [selectedParcelaVincular, setSelectedParcelaVincular] = useState<{ id: string; clienteNome: string } | null>(null);
 
   // State for NF loading per row
   const [fetchingNfeIds, setFetchingNfeIds] = useState<Set<string>>(new Set());
@@ -727,6 +734,105 @@ export default function GestaoComissoes() {
     buscarNfeMutation.mutate(params);
   };
 
+  // Handler para abrir dialog de vinculação manual
+  const handleVincularManual = (parcelaId: string, clienteNome: string) => {
+    setSelectedParcelaVincular({ id: parcelaId, clienteNome });
+    setShowVincularDialog(true);
+  };
+
+  // Mutation: vincular comissão manualmente (Admin)
+  const vincularManualMutation = useMutation({
+    mutationFn: async (data: {
+      parcelaId: string;
+      shopifyPedidoId: string;
+      notaFiscalNumero: string;
+      linkDanfe: string;
+      blingOrderId?: number;
+    }) => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+      if (!isAdmin) throw new Error("Apenas administradores podem vincular manualmente");
+
+      // 1. Buscar valores antigos da parcela
+      const { data: parcelaAntiga, error: fetchError } = await supabase
+        .from("vendedor_propostas_parcelas")
+        .select("shopify_pedido_id, nota_fiscal_numero, link_danfe")
+        .eq("id", data.parcelaId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // 2. Atualizar parcela
+      const { error: updateError } = await supabase
+        .from("vendedor_propostas_parcelas")
+        .update({
+          shopify_pedido_id: data.shopifyPedidoId,
+          nota_fiscal_numero: data.notaFiscalNumero,
+          link_danfe: data.linkDanfe,
+        })
+        .eq("id", data.parcelaId);
+
+      if (updateError) throw updateError;
+
+      // 3. Se bling_order_id foi informado, verificar e atualizar ebd_shopify_pedidos
+      if (data.blingOrderId) {
+        const { data: shopifyPedido, error: shopifyFetchError } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select("id, bling_order_id")
+          .eq("id", data.shopifyPedidoId)
+          .single();
+
+        if (!shopifyFetchError && shopifyPedido && !shopifyPedido.bling_order_id) {
+          await supabase
+            .from("ebd_shopify_pedidos")
+            .update({
+              bling_order_id: data.blingOrderId,
+              nota_fiscal_numero: data.notaFiscalNumero,
+              nota_fiscal_url: data.linkDanfe,
+            })
+            .eq("id", data.shopifyPedidoId);
+        }
+      }
+
+      // 4. Registrar no audit log
+      const { error: auditError } = await supabase
+        .from("admin_audit_log")
+        .insert({
+          admin_id: user.id,
+          action: "vincular_comissao_manual",
+          table_name: "vendedor_propostas_parcelas",
+          record_id: data.parcelaId,
+          old_values: {
+            shopify_pedido_id: parcelaAntiga?.shopify_pedido_id,
+            nota_fiscal_numero: parcelaAntiga?.nota_fiscal_numero,
+            link_danfe: parcelaAntiga?.link_danfe,
+          },
+          new_values: {
+            shopify_pedido_id: data.shopifyPedidoId,
+            nota_fiscal_numero: data.notaFiscalNumero,
+            link_danfe: data.linkDanfe,
+            bling_order_id: data.blingOrderId || null,
+          },
+        });
+
+      if (auditError) {
+        console.error("Erro ao registrar audit log:", auditError);
+        // Não impede a operação, apenas loga
+      }
+
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+      setShowVincularDialog(false);
+      setSelectedParcelaVincular(null);
+      toast.success("Comissão vinculada com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Erro ao vincular comissão:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao vincular comissão");
+    },
+  });
+
   const isLoading = parcelasLoading;
 
   if (isLoading) {
@@ -988,7 +1094,9 @@ export default function GestaoComissoes() {
                   onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
                   onBuscarNfe={handleBuscarNfe}
                   onRefazerNfe={handleRefazerNfe}
+                  onVincularManual={isAdmin ? handleVincularManual : undefined}
                   isUpdating={marcarPagaMutation.isPending}
+                  isAdmin={isAdmin}
                 />
               ) : (
                 <ComissaoTable
@@ -996,7 +1104,9 @@ export default function GestaoComissoes() {
                   onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
                   onBuscarNfe={handleBuscarNfe}
                   onRefazerNfe={handleRefazerNfe}
+                  onVincularManual={isAdmin ? handleVincularManual : undefined}
                   isUpdating={marcarPagaMutation.isPending}
+                  isAdmin={isAdmin}
                 />
               )}
             </CardContent>
@@ -1114,6 +1224,21 @@ export default function GestaoComissoes() {
         lote={selectedLote}
         comissoes={loteDetalheComissoes}
       />
+
+      {/* Dialog de Vinculação Manual (Admin) */}
+      {selectedParcelaVincular && (
+        <VincularComissaoDialog
+          open={showVincularDialog}
+          onOpenChange={(open) => {
+            setShowVincularDialog(open);
+            if (!open) setSelectedParcelaVincular(null);
+          }}
+          parcelaId={selectedParcelaVincular.id}
+          clienteNome={selectedParcelaVincular.clienteNome}
+          onConfirm={(data) => vincularManualMutation.mutate(data)}
+          isLoading={vincularManualMutation.isPending}
+        />
+      )}
     </div>
   );
 }
