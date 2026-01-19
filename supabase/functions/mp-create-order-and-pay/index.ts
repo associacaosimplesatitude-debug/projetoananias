@@ -54,6 +54,7 @@ interface MpDebug {
   payment_method_id_sent: string | null;
   payment_method_search_status?: number;
   payment_method_search_results_count?: number;
+  payment_method_inferred?: boolean;
   status: number | null;
   mp_message: string | null;
   cause: any[] | null;
@@ -425,18 +426,48 @@ serve(async (req) => {
           first_result_id: binData.results?.[0]?.id || null,
         });
         
-        // REMOVER FALLBACK 'visa' - se não encontrar, retornar erro claro
         paymentMethodId = binData.results?.[0]?.id;
         
+        // Se /payment_methods/search falhou, tentar inferir pela faixa de BIN
         if (!paymentMethodId) {
-          mpDebug.error_reason = 'payment_method_not_found';
-          console.log(`[${requestId}] ERRO: Nao foi possivel identificar bandeira do cartao`);
-          return createCardErrorResponse(
-            'Não foi possível identificar a bandeira do cartão. Verifique o número.',
-            mpDebug,
-            requestId,
-            corsHeaders
-          );
+          const binPrefix = tokenBin.charAt(0);
+          const binPrefix2 = tokenBin.substring(0, 2);
+          
+          // Regras de inferência por BIN prefix:
+          // Visa: começa com 4
+          // Mastercard: começa com 5 (51-55) ou 2 (2221-2720)
+          // American Express: começa com 34 ou 37
+          // Elo: vários ranges (começa com 4, 5, 6)
+          // Hipercard: começa com 606282, 3841 (difícil inferir)
+          
+          let inferredMethod: string | null = null;
+          
+          if (binPrefix === '4') {
+            inferredMethod = 'visa';
+          } else if (binPrefix === '5' && ['51', '52', '53', '54', '55'].includes(binPrefix2)) {
+            inferredMethod = 'master';
+          } else if (binPrefix === '2') {
+            inferredMethod = 'master'; // Mastercard série 2
+          } else if (binPrefix2 === '34' || binPrefix2 === '37') {
+            inferredMethod = 'amex';
+          } else if (binPrefix === '6') {
+            inferredMethod = 'elo';
+          }
+          
+          if (inferredMethod) {
+            paymentMethodId = inferredMethod;
+            console.log(`[${requestId}] Bandeira inferida pelo BIN prefix: ${inferredMethod}`);
+            mpDebug.payment_method_inferred = true;
+          } else {
+            mpDebug.error_reason = 'payment_method_not_found';
+            console.log(`[${requestId}] ERRO: Nao foi possivel identificar bandeira do cartao (BIN: ${tokenBin})`);
+            return createCardErrorResponse(
+              'Não foi possível identificar a bandeira do cartão. Verifique o número.',
+              mpDebug,
+              requestId,
+              corsHeaders
+            );
+          }
         }
       }
       
