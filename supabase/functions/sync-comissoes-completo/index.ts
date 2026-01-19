@@ -7,8 +7,7 @@ const corsHeaders = {
 
 interface SyncParams {
   dry_run: boolean;
-  tolerance_value: number;
-  tolerance_days: number;
+  tolerance_steps: number[]; // [1, 3, 5] reais
 }
 
 interface VinculoResult {
@@ -17,6 +16,7 @@ interface VinculoResult {
   order_number: string;
   diff_valor: number;
   diff_dias: number;
+  tolerance_used: number;
 }
 
 interface CandidatoTentado {
@@ -24,29 +24,32 @@ interface CandidatoTentado {
   pedido_id: string;
   valor_total: number;
   diff_valor: number;
-  order_date: string;
-  diff_dias: number;
-  motivo_rejeicao: string | null;
+  order_date: string | null;
+  diff_dias: number | null;
+  bling_order_id: number | null;
 }
 
 interface NotFoundResult {
   parcela_id: string;
-  proposta_id: string;
-  motivo: string;
+  valor: number;
+  created_at: string;
+  data_vencimento: string | null;
+  shopify_pedido_id: string | null;
+  shopify_order_number: string | null;
+  proposta_id: string | null;
   cliente_id: string | null;
   cliente_nome: string | null;
-  valor_parcela: number;
-  data_referencia: string | null;
-  candidatos_tentados: CandidatoTentado[];
+  motivo: string;
+  candidatos_top5: CandidatoTentado[];
 }
 
 interface AmbiguousResult {
   parcela_id: string;
-  proposta_id: string;
-  motivo: string;
+  proposta_id: string | null;
   cliente_id: string;
-  cliente_nome: string;
+  cliente_nome: string | null;
   valor_parcela: number;
+  tolerance_used: number;
   candidatos: CandidatoTentado[];
 }
 
@@ -150,7 +153,6 @@ async function blingApiCall(
 }
 
 function extractNfeId(orderData: any): number | null {
-  // Check multiple possible paths for NF-e ID
   if (orderData.notasFiscais && orderData.notasFiscais.length > 0) {
     return orderData.notasFiscais[0].id;
   }
@@ -176,8 +178,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const params: SyncParams = {
       dry_run: body.dry_run ?? true,
-      tolerance_value: body.tolerance_value ?? 1.0,
-      tolerance_days: body.tolerance_days ?? 7,
+      tolerance_steps: body.tolerance_steps ?? [1, 3, 5],
     };
 
     console.log("=== SYNC COMISSOES COMPLETO ===");
@@ -206,10 +207,11 @@ Deno.serve(async (req) => {
     const danfesPropagados: DanfePropagado[] = [];
 
     // ============================================
-    // ETAPA 1: Buscar parcelas liberadas sem DANFE
+    // ETAPA 1: Carregar todos os dados necessários
     // ============================================
-    console.log("\n=== ETAPA 1: Revinculação de Parcelas ===");
+    console.log("\n=== ETAPA 1: Carregando dados ===");
 
+    // 1.1 Parcelas liberadas sem DANFE
     const { data: parcelasLiberadas, error: parcelasError } = await supabase
       .from("vendedor_propostas_parcelas")
       .select(`
@@ -222,65 +224,39 @@ Deno.serve(async (req) => {
         shopify_pedido_id,
         link_danfe,
         nota_fiscal_numero,
-        created_at
+        created_at,
+        vendedor_id
       `)
       .eq("comissao_status", "liberada")
       .is("link_danfe", null);
 
-    if (parcelasError) {
-      throw new Error(`Error fetching parcelas: ${parcelasError.message}`);
-    }
+    if (parcelasError) throw new Error(`Error fetching parcelas: ${parcelasError.message}`);
+    console.log(`Parcelas liberadas sem DANFE: ${parcelasLiberadas?.length || 0}`);
 
-    console.log(`Found ${parcelasLiberadas?.length || 0} parcelas liberadas sem DANFE`);
-
-    // Get all proposals for these parcels
+    // 1.2 Propostas (para obter cliente_id)
     const propostaIds = [...new Set(parcelasLiberadas?.map((p: any) => p.proposta_id).filter(Boolean) || [])];
     
-    let propostas: any[] = [];
+    let propostaMap = new Map<string, any>();
     if (propostaIds.length > 0) {
-      const { data: propostasData, error: propostasError } = await supabase
+      const { data: propostas, error: propostasError } = await supabase
         .from("vendedor_propostas")
-        .select(`
-          id,
-          cliente_id,
-          vendedor_id,
-          valor_total,
-          created_at
-        `)
+        .select("id, cliente_id, vendedor_id, valor_total, created_at")
         .in("id", propostaIds);
 
-      if (propostasError) {
-        throw new Error(`Error fetching propostas: ${propostasError.message}`);
-      }
+      if (propostasError) throw new Error(`Error fetching propostas: ${propostasError.message}`);
+      propostaMap = new Map(propostas?.map((p: any) => [p.id, p]) || []);
     }
 
-    const propostaMap = new Map(propostas?.map((p: any) => [p.id, p]) || []);
-
-    // Get client names - first from propostas, but we'll expand later
-    let clienteIds = [...new Set(propostas?.map((p: any) => p.cliente_id).filter(Boolean) || [])];
-    
-    // Also get cliente_ids from all Shopify orders (including #D*) for better matching
-    const { data: allClienteIds, error: allClienteError } = await supabase
+    // 1.3 Digital proposals (#D*) para obter cliente_id quando proposta_id é null
+    const { data: digitalProposals, error: digitalError } = await supabase
       .from("ebd_shopify_pedidos")
-      .select("cliente_id")
-      .not("cliente_id", "is", null);
+      .select("id, cliente_id, order_number, valor_total, order_date")
+      .like("order_number", "#D%");
 
-    if (!allClienteError && allClienteIds) {
-      const shopifyClienteIds = allClienteIds.map((c: any) => c.cliente_id).filter(Boolean);
-      clienteIds = [...new Set([...clienteIds, ...shopifyClienteIds])];
-    }
-    
-    let clienteMap = new Map<string, string>();
-    if (clienteIds.length > 0) {
-      const { data: clientes, error: clientesError } = await supabase
-        .from("ebd_clientes")
-        .select("id, nome_igreja")
-        .in("id", clienteIds);
+    if (digitalError) console.error("Error fetching digital proposals:", digitalError.message);
+    const digitalProposalMap = new Map(digitalProposals?.map((dp: any) => [dp.id, dp]) || []);
 
-      clienteMap = new Map(clientes?.map((c: any) => [c.id, c.nome_igreja]) || []);
-    }
-
-    // Get all Shopify orders for potential matching
+    // 1.4 ALL real Shopify orders (both with and without bling_order_id for matching)
     const { data: allShopifyOrders, error: shopifyError } = await supabase
       .from("ebd_shopify_pedidos")
       .select(`
@@ -293,16 +269,33 @@ Deno.serve(async (req) => {
         nota_fiscal_url,
         nota_fiscal_numero
       `)
-      .not("order_number", "like", "#D%")
-      .not("bling_order_id", "is", null);
+      .not("order_number", "like", "#D%");
 
-    if (shopifyError) {
-      throw new Error(`Error fetching Shopify orders: ${shopifyError.message}`);
+    if (shopifyError) throw new Error(`Error fetching Shopify orders: ${shopifyError.message}`);
+    console.log(`Total real Shopify orders: ${allShopifyOrders?.length || 0}`);
+
+    // Filter for orders with bling_order_id (can get NF-e)
+    const ordersWithBlingId = allShopifyOrders?.filter((o: any) => o.bling_order_id) || [];
+    console.log(`Orders with bling_order_id: ${ordersWithBlingId.length}`);
+
+    // 1.5 Client names
+    const allClienteIds = [...new Set([
+      ...Array.from(propostaMap.values()).map((p: any) => p.cliente_id).filter(Boolean),
+      ...allShopifyOrders?.map((o: any) => o.cliente_id).filter(Boolean) || [],
+      ...digitalProposals?.map((d: any) => d.cliente_id).filter(Boolean) || [],
+    ])];
+
+    let clienteMap = new Map<string, string>();
+    if (allClienteIds.length > 0) {
+      const { data: clientes, error: clientesError } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja")
+        .in("id", allClienteIds);
+
+      clienteMap = new Map(clientes?.map((c: any) => [c.id, c.nome_igreja]) || []);
     }
 
-    console.log(`Found ${allShopifyOrders?.length || 0} real Shopify orders with bling_order_id`);
-
-    // Group Shopify orders by cliente_id
+    // Group real Shopify orders by cliente_id (include all, not just with bling_order_id)
     const ordersByCliente = new Map<string, any[]>();
     for (const order of allShopifyOrders || []) {
       if (!order.cliente_id) continue;
@@ -312,169 +305,183 @@ Deno.serve(async (req) => {
       ordersByCliente.get(order.cliente_id)!.push(order);
     }
 
-    // Get all digital proposals (#D*) to extract cliente_id when proposta is null
-    const { data: digitalProposals, error: digitalError } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select("id, cliente_id, order_number, valor_total, order_date")
-      .like("order_number", "#D%");
+    // ============================================
+    // ETAPA 2: Processar cada parcela
+    // ============================================
+    console.log("\n=== ETAPA 2: Processando parcelas ===");
 
-    if (digitalError) {
-      console.error("Error fetching digital proposals:", digitalError.message);
-    }
-
-    const digitalProposalMap = new Map(
-      digitalProposals?.map((dp: any) => [dp.id, dp]) || []
-    );
-
-    // Process each parcela
     for (const parcela of parcelasLiberadas || []) {
-      const proposta = propostaMap.get(parcela.proposta_id);
-      let clienteId = proposta?.cliente_id;
-      let clienteNome: string | null = clienteId ? (clienteMap.get(clienteId) || null) : null;
       const valorParcela = parcela.valor || 0;
-      let dataReferencia = proposta?.created_at || parcela.created_at;
 
-      // If no proposta, try to get cliente_id from the linked digital proposal
-      if (!clienteId && parcela.shopify_pedido_id) {
-        const digitalProposal = digitalProposalMap.get(parcela.shopify_pedido_id);
-        if (digitalProposal) {
-          clienteId = digitalProposal.cliente_id;
-          clienteNome = clienteId ? (clienteMap.get(clienteId) || null) : null;
-          dataReferencia = digitalProposal.order_date || parcela.created_at;
-        }
-      }
-
-      // Check if already has valid shopify_pedido_id pointing to real order (not #D*)
+      // --- REGRA 1: Se shopify_pedido_id já aponta para pedido REAL com bling_order_id ---
       if (parcela.shopify_pedido_id) {
         const existingOrder = allShopifyOrders?.find((o: any) => o.id === parcela.shopify_pedido_id);
-        if (existingOrder && existingOrder.bling_order_id) {
-          // Already linked to a real order, skip revinculação but continue to DANFE check
+        
+        // Check if it's a real order (not #D*)
+        if (existingOrder && !existingOrder.order_number.startsWith("#D")) {
+          // Already linked to real order - skip revinculação, just check for DANFE later
+          console.log(`Parcela ${parcela.id} já vinculada a ${existingOrder.order_number} - skip`);
           continue;
         }
       }
 
-      // Validate cliente_id
+      // --- Determinar cliente_id ---
+      let clienteId: string | null = null;
+      let clienteNome: string | null = null;
+      let shopifyOrderNumber: string | null = null;
+
+      // Try from proposta first
+      const proposta = propostaMap.get(parcela.proposta_id);
+      if (proposta?.cliente_id) {
+        clienteId = proposta.cliente_id;
+      }
+
+      // If no proposta or no cliente_id, try from digital proposal (#D*)
+      if (!clienteId && parcela.shopify_pedido_id) {
+        const digitalProposal = digitalProposalMap.get(parcela.shopify_pedido_id);
+        if (digitalProposal) {
+          clienteId = digitalProposal.cliente_id;
+          shopifyOrderNumber = digitalProposal.order_number;
+        }
+      }
+
+      clienteNome = clienteId ? (clienteMap.get(clienteId) || null) : null;
+
+      // --- Validar cliente_id ---
       if (!clienteId) {
         notFound.push({
           parcela_id: parcela.id,
+          valor: valorParcela,
+          created_at: parcela.created_at,
+          data_vencimento: parcela.data_vencimento,
+          shopify_pedido_id: parcela.shopify_pedido_id,
+          shopify_order_number: shopifyOrderNumber,
           proposta_id: parcela.proposta_id,
-          motivo: "missing_cliente_id",
           cliente_id: null,
           cliente_nome: null,
-          valor_parcela: valorParcela,
-          data_referencia: dataReferencia,
-          candidatos_tentados: [],
+          motivo: "missing_cliente_id",
+          candidatos_top5: [],
         });
         continue;
       }
 
-      // Get orders for this client
+      // --- Buscar orders do cliente ---
       const clientOrders = ordersByCliente.get(clienteId) || [];
 
       if (clientOrders.length === 0) {
         notFound.push({
           parcela_id: parcela.id,
+          valor: valorParcela,
+          created_at: parcela.created_at,
+          data_vencimento: parcela.data_vencimento,
+          shopify_pedido_id: parcela.shopify_pedido_id,
+          shopify_order_number: shopifyOrderNumber,
           proposta_id: parcela.proposta_id,
-          motivo: "no_shopify_orders",
           cliente_id: clienteId,
           cliente_nome: clienteNome,
-          valor_parcela: valorParcela,
-          data_referencia: dataReferencia,
-          candidatos_tentados: [],
+          motivo: "no_shopify_orders_for_cliente",
+          candidatos_top5: [],
         });
         continue;
       }
 
-      // Try to match orders
-      const candidatos: CandidatoTentado[] = [];
-      const matches: CandidatoTentado[] = [];
-      
-      // Use parcela.created_at or data_vencimento as fallback date reference
-      const refDate = dataReferencia 
-        ? new Date(dataReferencia) 
-        : (parcela.data_vencimento ? new Date(parcela.data_vencimento) : null);
+      // --- REGRA 2 e 3: Tentar match com tolerância em degraus ---
+      // Calculate date reference for tiebreaker (NOT elimination)
+      const parcelaDate = parcela.created_at ? new Date(parcela.created_at) : null;
+      const vencimentoDate = parcela.data_vencimento ? new Date(parcela.data_vencimento) : null;
+      const refDate = parcelaDate || vencimentoDate;
 
-      for (const order of clientOrders) {
+      // Build candidatos with diff_valor
+      const candidatos: CandidatoTentado[] = clientOrders.map((order: any) => {
         const diffValor = Math.abs(valorParcela - (order.valor_total || 0));
         const orderDate = order.order_date ? new Date(order.order_date) : null;
-        
-        // Calculate diff_dias only if both dates exist
         const diffDias = refDate && orderDate
           ? Math.abs(Math.round((refDate.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24)))
-          : 0; // If no reference date, set to 0 (no penalty)
+          : null;
 
-        let motivoRejeicao: string | null = null;
-
-        // ONLY reject by value - date is for tiebreaker only, not elimination
-        if (diffValor > params.tolerance_value) {
-          motivoRejeicao = `diff_valor (${diffValor.toFixed(2)}) > tolerance (${params.tolerance_value})`;
-        }
-        // DO NOT reject by date - use date only for sorting/tiebreaker
-
-        const candidato: CandidatoTentado = {
+        return {
           order_number: order.order_number,
           pedido_id: order.id,
           valor_total: order.valor_total || 0,
           diff_valor: diffValor,
-          order_date: order.order_date || "",
+          order_date: order.order_date,
           diff_dias: diffDias,
-          motivo_rejeicao: motivoRejeicao,
+          bling_order_id: order.bling_order_id,
         };
+      });
 
-        candidatos.push(candidato);
+      // Sort by diff_valor, then by diff_dias (null goes last)
+      candidatos.sort((a, b) => {
+        if (a.diff_valor !== b.diff_valor) return a.diff_valor - b.diff_valor;
+        if (a.diff_dias === null && b.diff_dias === null) return 0;
+        if (a.diff_dias === null) return 1;
+        if (b.diff_dias === null) return -1;
+        return a.diff_dias - b.diff_dias;
+      });
 
-        if (!motivoRejeicao) {
-          matches.push(candidato);
+      // Try each tolerance step
+      let matched = false;
+      for (const tolerance of params.tolerance_steps) {
+        const matches = candidatos.filter((c) => c.diff_valor <= tolerance);
+
+        if (matches.length === 0) continue;
+
+        if (matches.length === 1) {
+          // Unique match found
+          const match = matches[0];
+
+          if (!params.dry_run) {
+            await supabase
+              .from("vendedor_propostas_parcelas")
+              .update({ shopify_pedido_id: match.pedido_id })
+              .eq("id", parcela.id);
+          }
+
+          vinculados.push({
+            parcela_id: parcela.id,
+            pedido_id: match.pedido_id,
+            order_number: match.order_number,
+            diff_valor: match.diff_valor,
+            diff_dias: match.diff_dias || 0,
+            tolerance_used: tolerance,
+          });
+
+          matched = true;
+          break;
+        } else {
+          // Multiple matches - ambiguous
+          // Only mark as ambiguous at the last tolerance step to allow narrowing
+          if (tolerance === params.tolerance_steps[params.tolerance_steps.length - 1]) {
+            ambiguous.push({
+              parcela_id: parcela.id,
+              proposta_id: parcela.proposta_id,
+              cliente_id: clienteId,
+              cliente_nome: clienteNome,
+              valor_parcela: valorParcela,
+              tolerance_used: tolerance,
+              candidatos: matches,
+            });
+            matched = true;
+          }
         }
       }
 
-      if (matches.length === 0) {
-        const motivo = "no_matching_value";
-
+      if (!matched) {
+        // No match found even at max tolerance
         notFound.push({
           parcela_id: parcela.id,
+          valor: valorParcela,
+          created_at: parcela.created_at,
+          data_vencimento: parcela.data_vencimento,
+          shopify_pedido_id: parcela.shopify_pedido_id,
+          shopify_order_number: shopifyOrderNumber,
           proposta_id: parcela.proposta_id,
-          motivo,
           cliente_id: clienteId,
           cliente_nome: clienteNome,
-          valor_parcela: valorParcela,
-          data_referencia: dataReferencia,
-          candidatos_tentados: candidatos,
-        });
-      } else if (matches.length === 1) {
-        // Unique match - vincular
-        const match = matches[0];
-        
-        if (!params.dry_run) {
-          await supabase
-            .from("vendedor_propostas_parcelas")
-            .update({ shopify_pedido_id: match.pedido_id })
-            .eq("id", parcela.id);
-        }
-
-        vinculados.push({
-          parcela_id: parcela.id,
-          pedido_id: match.pedido_id,
-          order_number: match.order_number,
-          diff_valor: match.diff_valor,
-          diff_dias: match.diff_dias,
-        });
-      } else {
-        // Multiple matches - ambiguous
-        // Sort by diff_dias, then diff_valor
-        matches.sort((a, b) => {
-          if (a.diff_dias !== b.diff_dias) return a.diff_dias - b.diff_dias;
-          return a.diff_valor - b.diff_valor;
-        });
-
-        ambiguous.push({
-          parcela_id: parcela.id,
-          proposta_id: parcela.proposta_id,
-          motivo: `${matches.length} pedidos com match`,
-          cliente_id: clienteId,
-          cliente_nome: clienteNome || "",
-          valor_parcela: valorParcela,
-          candidatos: matches,
+          motivo: candidatos.length > 0 
+            ? `no_match_within_tolerance (min_diff: ${candidatos[0].diff_valor.toFixed(2)})`
+            : "no_candidates",
+          candidatos_top5: candidatos.slice(0, 5),
         });
       }
     }
@@ -482,37 +489,40 @@ Deno.serve(async (req) => {
     console.log(`Vinculados: ${vinculados.length}, Ambiguous: ${ambiguous.length}, Not Found: ${notFound.length}`);
 
     // ============================================
-    // ETAPA 2: Buscar NF-e do Bling
+    // ETAPA 3: Buscar NF-e do Bling
     // ============================================
-    console.log("\n=== ETAPA 2: Buscar NF-e do Bling ===");
+    console.log("\n=== ETAPA 3: Buscar NF-e do Bling ===");
 
-    // Get all Shopify orders that need NF-e update
-    const { data: ordersNeedingNfe, error: ordersNfeError } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select(`
-        id,
-        order_number,
-        bling_order_id,
-        nota_fiscal_url,
-        nota_fiscal_numero
-      `)
-      .not("bling_order_id", "is", null);
+    // Get orders that need NF-e update (have bling_order_id but no nota_fiscal_url)
+    const ordersNeedingNfe = allShopifyOrders?.filter((o: any) => 
+      o.bling_order_id && !o.nota_fiscal_url
+    ) || [];
 
-    if (ordersNfeError) {
-      throw new Error(`Error fetching orders for NF-e: ${ordersNfeError.message}`);
+    console.log(`Orders needing NF-e fetch: ${ordersNeedingNfe.length}`);
+
+    // Build map of order.id -> NF-e info
+    const orderNfeMap = new Map<string, { url: string; numero: string; orderNumber: string }>();
+
+    // Pre-populate with existing NF-e data
+    for (const order of allShopifyOrders || []) {
+      if (order.nota_fiscal_url) {
+        orderNfeMap.set(order.id, {
+          url: order.nota_fiscal_url,
+          numero: order.nota_fiscal_numero || "",
+          orderNumber: order.order_number,
+        });
+      }
     }
-
-    console.log(`Processing ${ordersNeedingNfe?.length || 0} orders with bling_order_id`);
 
     let nfesBuscadas = 0;
     let nfesEncontradas = 0;
+    const ordersToUpdate: { id: string; url: string; numero: string; orderNumber: string }[] = [];
 
-    for (const order of ordersNeedingNfe || []) {
-      // Always fetch fresh data from Bling
+    for (const order of ordersNeedingNfe) {
       try {
         nfesBuscadas++;
         
-        // Small delay to avoid rate limiting
+        // Rate limiting
         if (nfesBuscadas > 1 && nfesBuscadas % 5 === 0) {
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
@@ -548,8 +558,6 @@ Deno.serve(async (req) => {
             payload_resumido: {
               hasNotasFiscais: !!orderDetail.notasFiscais,
               notasFiscaisLength: orderDetail.notasFiscais?.length || 0,
-              hasNotaFiscal: !!orderDetail.notaFiscal,
-              hasNfe: !!orderDetail.nfe,
             },
           });
           continue;
@@ -571,7 +579,6 @@ Deno.serve(async (req) => {
             bling_order_id: order.bling_order_id,
             order_number: order.order_number,
             motivo: "nfe_not_found",
-            payload_resumido: { nfeId },
           });
           continue;
         }
@@ -589,7 +596,7 @@ Deno.serve(async (req) => {
 
         // Extract DANFE link
         const linkDanfe = nfeDetail.linkDanfe || nfeDetail.xml?.linkDanfe;
-        const nfNumero = nfeDetail.numero?.toString();
+        const nfNumero = nfeDetail.numero?.toString() || "";
 
         if (!linkDanfe) {
           nfeErrors.push({
@@ -601,17 +608,20 @@ Deno.serve(async (req) => {
         }
 
         nfesEncontradas++;
+        
+        // Add to map for propagation
+        orderNfeMap.set(order.id, {
+          url: linkDanfe,
+          numero: nfNumero,
+          orderNumber: order.order_number,
+        });
 
-        // Update ebd_shopify_pedidos
-        if (!params.dry_run) {
-          await supabase
-            .from("ebd_shopify_pedidos")
-            .update({
-              nota_fiscal_url: linkDanfe,
-              nota_fiscal_numero: nfNumero,
-            })
-            .eq("id", order.id);
-        }
+        ordersToUpdate.push({
+          id: order.id,
+          url: linkDanfe,
+          numero: nfNumero,
+          orderNumber: order.order_number,
+        });
 
         console.log(`✓ NF-e found for ${order.order_number}: ${nfNumero}`);
 
@@ -627,53 +637,38 @@ Deno.serve(async (req) => {
 
     console.log(`NF-es buscadas: ${nfesBuscadas}, encontradas: ${nfesEncontradas}`);
 
-    // ============================================
-    // ETAPA 3: Propagar DANFE para Parcelas
-    // ============================================
-    console.log("\n=== ETAPA 3: Propagar DANFE para Parcelas ===");
-
-    // Get updated Shopify orders with NF-e (real orders, not #D*)
-    const { data: ordersWithNfe, error: ordersWithNfeError } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select(`
-        id,
-        order_number,
-        nota_fiscal_url,
-        nota_fiscal_numero
-      `)
-      .not("nota_fiscal_url", "is", null)
-      .not("order_number", "like", "#D%");
-
-    if (ordersWithNfeError) {
-      throw new Error(`Error fetching orders with NF-e: ${ordersWithNfeError.message}`);
+    // Update ebd_shopify_pedidos with NF-e data
+    if (!params.dry_run && ordersToUpdate.length > 0) {
+      console.log(`Updating ${ordersToUpdate.length} orders with NF-e data...`);
+      for (const order of ordersToUpdate) {
+        await supabase
+          .from("ebd_shopify_pedidos")
+          .update({
+            nota_fiscal_url: order.url,
+            nota_fiscal_numero: order.numero,
+          })
+          .eq("id", order.id);
+      }
     }
 
-    const orderNfeMap = new Map(
-      ordersWithNfe?.map((o: any) => [o.id, { url: o.nota_fiscal_url, numero: o.nota_fiscal_numero, orderNumber: o.order_number }]) || []
-    );
+    // ============================================
+    // ETAPA 4: Propagar DANFE para Parcelas
+    // ============================================
+    console.log("\n=== ETAPA 4: Propagar DANFE para Parcelas ===");
 
-    console.log(`Orders with NF-e available: ${orderNfeMap.size}`);
+    // Build map of parcela_id -> new shopify_pedido_id from vinculados
+    const vinculadosMap = new Map(vinculados.map((v) => [v.parcela_id, v.pedido_id]));
 
-    // Build a map of parcela_id -> new shopify_pedido_id from vinculados
-    const vinculadosMap = new Map(
-      vinculados.map((v) => [v.parcela_id, v.pedido_id])
-    );
+    console.log(`Orders with NF-e available for propagation: ${orderNfeMap.size}`);
 
     // Get all parcelas that could benefit from propagation
-    // Include ALL liberadas without link_danfe (we'll check if they have valid vinculo)
     const { data: parcelasToPropagateCheck, error: propagateCheckError } = await supabase
       .from("vendedor_propostas_parcelas")
-      .select(`
-        id,
-        shopify_pedido_id,
-        link_danfe
-      `)
+      .select(`id, shopify_pedido_id, link_danfe`)
       .eq("comissao_status", "liberada")
       .is("link_danfe", null);
 
-    if (propagateCheckError) {
-      throw new Error(`Error fetching parcelas for propagation: ${propagateCheckError.message}`);
-    }
+    if (propagateCheckError) throw new Error(`Error fetching parcelas for propagation: ${propagateCheckError.message}`);
 
     console.log(`Parcelas to check for propagation: ${parcelasToPropagateCheck?.length || 0}`);
 
@@ -691,7 +686,7 @@ Deno.serve(async (req) => {
           await supabase
             .from("vendedor_propostas_parcelas")
             .update({
-              shopify_pedido_id: pedidoIdToUse, // Also update the pedido_id if it was revinculado
+              shopify_pedido_id: pedidoIdToUse,
               link_danfe: nfeInfo.url,
               nota_fiscal_numero: nfeInfo.numero,
             })
@@ -716,11 +711,13 @@ Deno.serve(async (req) => {
     const result = {
       success: true,
       dry_run: params.dry_run,
+      tolerance_steps: params.tolerance_steps,
       summary: {
         parcelas_processadas: parcelasLiberadas?.length || 0,
         vinculos_criados: vinculados.length,
         nfes_buscadas_bling: nfesBuscadas,
         nfes_encontradas: nfesEncontradas,
+        orders_atualizados_nfe: ordersToUpdate.length,
         danfes_propagados: danfesPropagados.length,
         ambiguous: ambiguous.length,
         not_found: notFound.length,
