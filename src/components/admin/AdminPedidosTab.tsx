@@ -656,11 +656,12 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="Pago">Pago</SelectItem>
+                  <SelectItem value="paid">Pago</SelectItem>
+                  <SelectItem value="Faturado">Faturado</SelectItem>
                   <SelectItem value="Pendente">Pendente</SelectItem>
-                  <SelectItem value="Reembolsado">Reembolsado</SelectItem>
-                  <SelectItem value="Parcialmente Reembolsado">Parcial</SelectItem>
-                  <SelectItem value="Cancelado">Cancelado</SelectItem>
+                  <SelectItem value="refunded">Reembolsado</SelectItem>
+                  <SelectItem value="partially_refunded">Parcial</SelectItem>
+                  <SelectItem value="voided">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
