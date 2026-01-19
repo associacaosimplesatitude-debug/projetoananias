@@ -32,10 +32,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Package, ShoppingCart, ExternalLink, Pencil, Trash2, CheckCircle, FileText, Search, Check, Loader2 } from "lucide-react";
+import { Package, ShoppingCart, ExternalLink, Pencil, Trash2, CheckCircle, FileText, Search, Check, Loader2, CalendarIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -118,6 +120,11 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<string>("all");
   const [selectedPedidos, setSelectedPedidos] = useState<Set<string>>(new Set());
+  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [customDateRange, setCustomDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({ from: undefined, to: undefined });
   
   // Dialog states for Shopify orders
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -439,8 +446,27 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     }
   });
 
+  // Helper function to get date range based on filter
+  const getDateRange = () => {
+    const now = new Date();
+    switch (dateFilter) {
+      case "today":
+        return { from: startOfDay(now), to: endOfDay(now) };
+      case "week":
+        return { from: startOfWeek(now, { weekStartsOn: 0 }), to: endOfWeek(now, { weekStartsOn: 0 }) };
+      case "month":
+        return { from: startOfMonth(now), to: endOfMonth(now) };
+      case "custom":
+        return customDateRange.from && customDateRange.to ? customDateRange : null;
+      default:
+        return null;
+    }
+  };
+
   // Filter Shopify orders
   const filteredShopifyPedidos = useMemo(() => {
+    const dateRange = getDateRange();
+    
     return shopifyPedidos.filter(pedido => {
       // Filter by vendedor
       if (selectedVendedorFilter !== "all") {
@@ -463,9 +489,17 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
         }
       }
       
+      // Filter by date
+      if (dateRange && dateRange.from && dateRange.to) {
+        const pedidoDate = new Date(pedido.created_at);
+        if (!isWithinInterval(pedidoDate, { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to) })) {
+          return false;
+        }
+      }
+      
       return true;
     });
-  }, [shopifyPedidos, selectedVendedorFilter, searchTerm, clienteMap]);
+  }, [shopifyPedidos, selectedVendedorFilter, searchTerm, clienteMap, dateFilter, customDateRange]);
 
   // Pedidos que podem ser aprovados (pagos, com vendedor, não aprovados)
   const pedidosAprovaveis = useMemo(() => 
@@ -607,6 +641,62 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                 </SelectContent>
               </Select>
             </div>
+            
+            {/* Filtro de Data */}
+            <div className="w-[180px]">
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger>
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os períodos</SelectItem>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="week">Esta semana</SelectItem>
+                  <SelectItem value="month">Este mês</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date Picker para período personalizado */}
+            {dateFilter === "custom" && (
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[130px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customDateRange.from ? format(customDateRange.from, "dd/MM/yyyy") : "De"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customDateRange.from}
+                      onSelect={(date) => setCustomDateRange(prev => ({ ...prev, from: date }))}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-muted-foreground">até</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[130px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customDateRange.to ? format(customDateRange.to, "dd/MM/yyyy") : "Até"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={customDateRange.to}
+                      onSelect={(date) => setCustomDateRange(prev => ({ ...prev, to: date }))}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
           </div>
 
           {/* Header com seleção em lote - apenas para admin */}
