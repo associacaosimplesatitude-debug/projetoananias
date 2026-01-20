@@ -267,10 +267,10 @@ serve(async (req) => {
         if (existingParcela) {
           console.log(`[${requestId}] Comissão já existe para pedido MP ${pedido.id} - ignorando duplicata`);
         } else {
-          // Buscar comissão do vendedor
+        // Buscar comissão do vendedor (com email para fallback)
           const { data: vendedorData } = await supabase
             .from('vendedores')
-            .select('comissao_percentual')
+            .select('comissao_percentual, email')
             .eq('id', pedido.vendedor_id)
             .single();
 
@@ -282,11 +282,15 @@ serve(async (req) => {
           // Pegar bling_order_id do pedido (pode ter sido criado agora ou já existir)
           const finalBlingOrderId = blingOrderId || pedido.bling_order_id || null;
 
+          // Buscar email do vendedor como fallback se não estiver no pedido
+          const vendedorEmail = pedido.vendedor_email || vendedorData?.email || null;
+
           const { error: parcelaError } = await supabase
             .from('vendedor_propostas_parcelas')
             .insert({
               proposta_id: pedido.proposta_id || null,  // Usar proposta_id se existir
               vendedor_id: pedido.vendedor_id,
+              vendedor_email: vendedorEmail, // ✅ ADICIONADO!
               cliente_id: pedido.cliente_id,
               numero_parcela: 1,
               total_parcelas: 1,
