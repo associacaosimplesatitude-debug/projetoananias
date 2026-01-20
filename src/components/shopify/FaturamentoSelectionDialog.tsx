@@ -400,6 +400,8 @@ export function FaturamentoSelectionDialog({
     { value: '60', label: '30/60 dias', description: '2 boletos parcelados', numParcelas: 2 },
     { value: '60_90', label: '60/90 dias', description: '2 boletos em 60 e 90 dias', numParcelas: 2 },
     { value: '90', label: '30/60/90 dias', description: '3 boletos parcelados', numParcelas: 3 },
+    { value: '60_75_90', label: '60/75/90 dias', description: '3 boletos em 60, 75 e 90 dias', numParcelas: 3 },
+    { value: '60_90_120', label: '60/90/120 dias', description: '3 boletos em 60, 90 e 120 dias', numParcelas: 3 },
   ];
 
   const prazos = getAllPrazos().filter(prazo => {
@@ -746,23 +748,23 @@ export function FaturamentoSelectionDialog({
               <p className="text-xs text-muted-foreground mb-2">
                 Selecione o prazo de pagamento:
               </p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 {prazos.map((prazo) => (
                   <button
                     key={prazo.value}
                     onClick={() => selectPrazo(prazo.value)}
                     className={cn(
-                      "relative p-3 rounded-lg border-2 transition-all text-center",
+                      "relative p-2.5 rounded-lg border-2 transition-all text-center min-w-0",
                       selectedPrazo === prazo.value
                         ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                         : "border-muted hover:border-primary/50 hover:bg-muted/50"
                     )}
                   >
                     {selectedPrazo === prazo.value && (
-                      <CheckCircle2 className="absolute top-1.5 right-1.5 h-3.5 w-3.5 text-primary" />
+                      <CheckCircle2 className="absolute top-1 right-1 h-3 w-3 text-primary" />
                     )}
-                    <div className="text-xl font-bold text-primary">{prazo.value}</div>
-                    <div className="text-xs text-muted-foreground">dias</div>
+                    <div className="text-base font-bold text-primary truncate">{prazo.value}</div>
+                    <div className="text-[10px] text-muted-foreground">dias</div>
                   </button>
                 ))}
               </div>
