@@ -37,6 +37,7 @@ interface ComissaoItem {
   link_danfe: string | null;
   bling_order_id: number | null;
   canSearchBlingOrder?: boolean;
+  nota_fiscal_numero?: string | null;
   shopify_order_number?: string | null;
   customer_email?: string | null;
   order_value?: number | null;
@@ -201,16 +202,20 @@ export function ComissaoTable({
               <TableCell>
                 {item.link_danfe ? (
                   <div className="flex items-center gap-1">
-                    <span className="text-sm">{item.bling_order_number || 'DANFE'}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800"
-                      onClick={() => window.open(item.link_danfe!, "_blank")}
-                      title="Ver DANFE"
+                    {/* NF com número: "NF 030319" clicável em azul */}
+                    <a
+                      href={item.link_danfe}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                      title="Abrir DANFE"
                     >
+                      {item.nota_fiscal_numero 
+                        ? `NF ${item.nota_fiscal_numero}` 
+                        : (item.bling_order_number || 'Ver DANFE')
+                      }
                       <ExternalLink className="h-3 w-3" />
-                    </Button>
+                    </a>
                     {/* Botão Refazer NF - para corrigir NF errada */}
                     {onRefazerNfe && (item.bling_order_id || item.canSearchBlingOrder) && (
                       <Button
@@ -238,10 +243,13 @@ export function ComissaoTable({
                     )}
                   </div>
                 ) : item.bling_order_id ? (
-                  // Tem bling_order_id mas ainda sem DANFE - mostrar loading ou lupa
-                  <span className="text-xs text-blue-600 flex items-center gap-1" title="NF será sincronizada em lote">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Buscando
+                  // Tem bling_order_id mas ainda sem DANFE - AGUARDANDO (não mais "Buscando")
+                  <span 
+                    className="text-xs text-amber-600 flex items-center gap-1" 
+                    title="NF-e será detectada automaticamente quando o pedido for despachado"
+                  >
+                    <Clock className="h-3 w-3" />
+                    Aguardando
                   </span>
                 ) : item.canSearchBlingOrder ? (
                   // Sem bling_order_id mas tem dados de busca - mostrar aviso + botão vincular manual
