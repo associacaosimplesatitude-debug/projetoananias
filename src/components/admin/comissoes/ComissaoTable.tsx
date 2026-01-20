@@ -271,7 +271,21 @@ export function ComissaoTable({
                     )}
                   </div>
                 ) : (
-                  <span className="text-muted-foreground">-</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">-</span>
+                    {isAdmin && onVincularManual && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50"
+                        onClick={() => onVincularManual(item.id, item.cliente_nome)}
+                        title="Vincular manualmente (Admin)"
+                      >
+                        <Link2 className="h-3 w-3 mr-1" />
+                        <span className="text-xs">Vincular</span>
+                      </Button>
+                    )}
+                  </div>
                 )}
               </TableCell>
               {showActions && (
