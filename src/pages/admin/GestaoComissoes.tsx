@@ -386,8 +386,8 @@ export default function GestaoComissoes() {
       const info = resolveVendedorInfo(p);
       // Resolve bling_order_id from parcela or shopify_pedido
       const blingOrderId = p.bling_order_id || p.shopify_pedido?.bling_order_id || null;
-      // Check if we have search info to find bling_order_id
-      const canSearch = !!(p.shopify_pedido?.order_number || p.shopify_pedido?.customer_email);
+      // Sempre permitir vínculo manual para admins quando não há link_danfe
+      const canSearch = true;
       
       return {
         id: p.id,
