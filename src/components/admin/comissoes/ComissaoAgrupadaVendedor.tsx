@@ -250,6 +250,7 @@ export function ComissaoAgrupadaVendedor({
                       <TableHead>Tipo</TableHead>
                       <TableHead>Parcela</TableHead>
                       <TableHead>Liberação</TableHead>
+                      <TableHead className="text-right">Valor Compra</TableHead>
                       <TableHead className="text-right">Comissão</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>NF</TableHead>
@@ -276,6 +277,12 @@ export function ComissaoAgrupadaVendedor({
                         <TableCell className="whitespace-nowrap">
                           {item.data_liberacao 
                             ? format(parseISO(item.data_liberacao), "dd/MM/yyyy")
+                            : <span className="text-muted-foreground">-</span>
+                          }
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.order_value 
+                            ? `R$ ${item.order_value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
                             : <span className="text-muted-foreground">-</span>
                           }
                         </TableCell>
