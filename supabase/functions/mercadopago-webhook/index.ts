@@ -386,6 +386,25 @@ async function processShopifyMPPedido(
 
   console.log('Pedido Shopify MP atualizado:', pedido.id, 'Status:', newStatus, 'Bling ID:', blingOrderId);
 
+  // ✅ ETAPA B.1: ATUALIZAR PROPOSTA ORIGINAL PARA PAGO
+  if (newStatus === 'PAGO' && pedido.proposta_id) {
+    const { error: propostaError } = await supabase
+      .from('vendedor_propostas')
+      .update({
+        status: 'PAGO',
+        bling_order_id: blingOrderId,
+        bling_order_number: blingOrderId?.toString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', pedido.proposta_id);
+
+    if (propostaError) {
+      console.error('❌ Erro ao atualizar proposta:', propostaError);
+    } else {
+      console.log(`✅ Proposta ${pedido.proposta_id} atualizada para PAGO com bling_order_id=${blingOrderId}`);
+    }
+  }
+
   // ✅ ETAPA C: CRIAR COMISSÃO ATOMICAMENTE APÓS PAGAMENTO APROVADO
   if (newStatus === 'PAGO' && pedido.vendedor_id) {
     try {
