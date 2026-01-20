@@ -206,6 +206,7 @@ interface ParcelaRow {
   nota_fiscal_numero: string | null;
   origem: string;
   shopify_pedido_id: string | null;
+  mp_pedido_id: string | null;  // ✅ Vínculo com ebd_shopify_pedidos_mercadopago
   shopify_pedido?: {
     id: string;
     order_number: string | null;
@@ -244,7 +245,7 @@ Deno.serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, blingConfig);
     }
 
-    // Fetch parcelas online sem link_danfe
+    // Fetch parcelas online/mercadopago sem link_danfe
     const { data: parcelas, error: parcelasError } = await supabase
       .from('vendedor_propostas_parcelas')
       .select(`
@@ -255,6 +256,7 @@ Deno.serve(async (req) => {
         nota_fiscal_numero,
         origem,
         shopify_pedido_id,
+        mp_pedido_id,
         shopify_pedido:ebd_shopify_pedidos(
           id,
           order_number,
@@ -304,10 +306,15 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get bling_order_id - from parcela, or from shopify_pedido
+      // Get bling_order_id - from parcela first (MP orders), then from shopify_pedido
       let blingOrderId = parcela.bling_order_id || shopify?.bling_order_id || null;
 
-      // === PHASE 1: If no bling_order_id, try to find it via API ===
+      // ✅ Log para pedidos MP que usam bling_order_id direto (sem shopify)
+      if (!shopify && parcela.bling_order_id) {
+        console.log(`[sync-comissoes-nfe] MP parcela usando bling_order_id direto: ${parcela.bling_order_id}`);
+      }
+
+      // === PHASE 1: If no bling_order_id, try to find it via API (only for Shopify orders) ===
       if (!blingOrderId && orderNumber) {
         console.log(`[sync-comissoes-nfe] Phase 1: Finding bling_order_id for ${orderNumber}`);
         
@@ -325,6 +332,12 @@ Deno.serve(async (req) => {
                 .eq('id', shopify.id);
               console.log(`[sync-comissoes-nfe] ✓ Updated shopify_pedido with bling_order_id: ${blingOrderId}`);
             }
+            
+            // Also update the parcela with bling_order_id for future syncs
+            await supabase
+              .from('vendedor_propostas_parcelas')
+              .update({ bling_order_id: blingOrderId })
+              .eq('id', parcela.id);
           }
         } catch (error) {
           console.error(`[sync-comissoes-nfe] Error finding bling_order_id for ${orderNumber}:`, error);
@@ -348,6 +361,7 @@ Deno.serve(async (req) => {
               .update({
                 link_danfe: nfeResult.linkDanfe,
                 nota_fiscal_numero: nfeResult.nfeNumero || null,
+                bling_order_id: blingOrderId,  // ✅ Garantir que bling_order_id está salvo
               })
               .eq('id', parcela.id);
 
@@ -385,9 +399,10 @@ Deno.serve(async (req) => {
         await delay(400);
       } else {
         // No bling_order_id and couldn't find it
-        if (orderNumber) {
+        const ref = orderNumber || (parcela.origem === 'mercadopago' ? `MP parcela ${parcela.id.slice(0,8)}` : null);
+        if (ref) {
           results.failed++;
-          results.errors.push({ id: parcela.id, error: `Pedido ${orderNumber} não encontrado no Bling` });
+          results.errors.push({ id: parcela.id, error: `Pedido ${ref} sem vínculo Bling` });
         }
       }
     }

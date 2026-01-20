@@ -257,43 +257,59 @@ serve(async (req) => {
     // 7. Criar parcela paga para comissão do vendedor (Mercado Pago = pagamento à vista)
     if (pedido.vendedor_id) {
       try {
-        // Buscar comissão do vendedor
-        const { data: vendedorData } = await supabase
-          .from('vendedores')
-          .select('comissao_percentual')
-          .eq('id', pedido.vendedor_id)
-          .single();
-
-        const comissaoPercentual = vendedorData?.comissao_percentual || 1.5;
-        const valorTotal = pedido.valor_total || 0;
-        const valorComissao = Math.round((valorTotal * (comissaoPercentual / 100)) * 100) / 100;
-        const hoje = new Date().toISOString().split('T')[0];
-
-        const { error: parcelaError } = await supabase
+        // ✅ Anti-duplicidade: verificar se já existe comissão para este pedido MP
+        const { data: existingParcela } = await supabase
           .from('vendedor_propostas_parcelas')
-          .insert({
-            proposta_id: null,  // Não tem proposta associada
-            vendedor_id: pedido.vendedor_id,
-            cliente_id: pedido.cliente_id,
-            numero_parcela: 1,
-            total_parcelas: 1,
-            valor: valorTotal,
-            valor_comissao: valorComissao,
-            data_vencimento: hoje,
-            data_pagamento: hoje,  // Já pago!
-            status: 'paga',
-            origem: 'mercadopago',
-            comissao_status: 'liberada',  // ✅ Comissão já liberada para pagamento
-            data_liberacao: hoje,          // ✅ Data da liberação
-            metodo_pagamento: pedido.payment_method === 'pix' ? 'pix' : 
-                             pedido.payment_method === 'credit_card' ? 'cartao' : 
-                             pedido.payment_method === 'debit_card' ? 'cartao_debito' : 'pix',
-          });
+          .select('id')
+          .eq('mp_pedido_id', pedido.id)
+          .maybeSingle();
 
-        if (parcelaError) {
-          console.error(`[${requestId}] Erro ao criar parcela:`, parcelaError);
+        if (existingParcela) {
+          console.log(`[${requestId}] Comissão já existe para pedido MP ${pedido.id} - ignorando duplicata`);
         } else {
-          console.log(`[${requestId}] ✅ Parcela paga criada para vendedor ${pedido.vendedor_id} - Comissão: R$ ${valorComissao}`);
+          // Buscar comissão do vendedor
+          const { data: vendedorData } = await supabase
+            .from('vendedores')
+            .select('comissao_percentual')
+            .eq('id', pedido.vendedor_id)
+            .single();
+
+          const comissaoPercentual = vendedorData?.comissao_percentual || 1.5;
+          const valorTotal = pedido.valor_total || 0;
+          const valorComissao = Math.round((valorTotal * (comissaoPercentual / 100)) * 100) / 100;
+          const hoje = new Date().toISOString().split('T')[0];
+
+          // Pegar bling_order_id do pedido (pode ter sido criado agora ou já existir)
+          const finalBlingOrderId = blingOrderId || pedido.bling_order_id || null;
+
+          const { error: parcelaError } = await supabase
+            .from('vendedor_propostas_parcelas')
+            .insert({
+              proposta_id: pedido.proposta_id || null,  // Usar proposta_id se existir
+              vendedor_id: pedido.vendedor_id,
+              cliente_id: pedido.cliente_id,
+              numero_parcela: 1,
+              total_parcelas: 1,
+              valor: valorTotal,
+              valor_comissao: valorComissao,
+              data_vencimento: hoje,
+              data_pagamento: hoje,  // Já pago!
+              status: 'paga',
+              origem: 'mercadopago',
+              comissao_status: 'liberada',  // ✅ Comissão já liberada para pagamento
+              data_liberacao: hoje,          // ✅ Data da liberação
+              bling_order_id: finalBlingOrderId,  // ✅ Vínculo com Bling para buscar NF-e
+              mp_pedido_id: pedido.id,             // ✅ Vínculo direto com registro MP (unique)
+              metodo_pagamento: pedido.payment_method === 'pix' ? 'pix' : 
+                               pedido.payment_method === 'credit_card' ? 'cartao' : 
+                               pedido.payment_method === 'debit_card' ? 'cartao_debito' : 'pix',
+            });
+
+          if (parcelaError) {
+            console.error(`[${requestId}] Erro ao criar parcela:`, parcelaError);
+          } else {
+            console.log(`[${requestId}] ✅ Parcela paga criada para vendedor ${pedido.vendedor_id} - Comissão: R$ ${valorComissao}, bling_order_id: ${finalBlingOrderId}, mp_pedido_id: ${pedido.id}`);
+          }
         }
       } catch (parcelaErr) {
         console.error(`[${requestId}] Erro ao gerar parcela:`, parcelaErr);

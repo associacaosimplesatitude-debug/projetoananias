@@ -4758,6 +4758,7 @@ export type Database = {
           link_danfe: string | null
           lote_pagamento_id: string | null
           metodo_pagamento: string | null
+          mp_pedido_id: string | null
           nota_fiscal_numero: string | null
           numero_parcela: number
           origem: string | null
@@ -4784,6 +4785,7 @@ export type Database = {
           link_danfe?: string | null
           lote_pagamento_id?: string | null
           metodo_pagamento?: string | null
+          mp_pedido_id?: string | null
           nota_fiscal_numero?: string | null
           numero_parcela: number
           origem?: string | null
@@ -4810,6 +4812,7 @@ export type Database = {
           link_danfe?: string | null
           lote_pagamento_id?: string | null
           metodo_pagamento?: string | null
+          mp_pedido_id?: string | null
           nota_fiscal_numero?: string | null
           numero_parcela?: number
           origem?: string | null
@@ -4835,6 +4838,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendedor_propostas_parcelas_mp_pedido_id_fkey"
+            columns: ["mp_pedido_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_shopify_pedidos_mercadopago"
             referencedColumns: ["id"]
           },
           {
