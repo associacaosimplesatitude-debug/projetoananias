@@ -423,6 +423,8 @@ export default function AprovacaoFaturamento() {
             '60': { dias: [30, 60], metodos: ['boleto_30', 'boleto_60'] },
             '60_90': { dias: [60, 90], metodos: ['boleto_60', 'boleto_90'] },
             '90': { dias: [30, 60, 90], metodos: ['boleto_30', 'boleto_60', 'boleto_90'] },
+            '60_75_90': { dias: [60, 75, 90], metodos: ['boleto_60', 'boleto_75', 'boleto_90'] },
+            '60_90_120': { dias: [60, 90, 120], metodos: ['boleto_60', 'boleto_90', 'boleto_120'] },
           };
 
           const config = parcelasConfig[prazo] || { dias: [30], metodos: ['boleto_30'] };
