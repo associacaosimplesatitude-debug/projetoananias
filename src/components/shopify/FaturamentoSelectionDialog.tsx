@@ -408,6 +408,20 @@ export function FaturamentoSelectionDialog({
     // Calcular valor por parcela
     const valorPorParcela = totalProdutos / prazo.numParcelas;
     
+    // Regras de valor mínimo por prazo:
+    // - 60_direto e 60_90: acima de R$1000
+    // - 60_75_90: acima de R$2000
+    // - 60_90_120: acima de R$4000
+    if (prazo.value === '60_direto' || prazo.value === '60_90') {
+      if (totalProdutos < 1000) return false;
+    }
+    if (prazo.value === '60_75_90') {
+      if (totalProdutos < 2000) return false;
+    }
+    if (prazo.value === '60_90_120') {
+      if (totalProdutos < 4000) return false;
+    }
+    
     // Regra: mínimo R$300 por parcela
     // Exceção: se for 1 parcela, sempre permitir (mesmo que valor total seja menor)
     if (prazo.numParcelas === 1) return true;
