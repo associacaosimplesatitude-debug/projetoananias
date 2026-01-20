@@ -4769,6 +4769,7 @@ export type Database = {
           updated_at: string | null
           valor: number
           valor_comissao: number
+          vendedor_email: string | null
           vendedor_id: string | null
         }
         Insert: {
@@ -4796,6 +4797,7 @@ export type Database = {
           updated_at?: string | null
           valor: number
           valor_comissao: number
+          vendedor_email?: string | null
           vendedor_id?: string | null
         }
         Update: {
@@ -4823,6 +4825,7 @@ export type Database = {
           updated_at?: string | null
           valor?: number
           valor_comissao?: number
+          vendedor_email?: string | null
           vendedor_id?: string | null
         }
         Relationships: [
