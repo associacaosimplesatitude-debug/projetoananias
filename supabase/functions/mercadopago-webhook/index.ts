@@ -385,4 +385,67 @@ async function processShopifyMPPedido(
     .eq('id', pedido.id);
 
   console.log('Pedido Shopify MP atualizado:', pedido.id, 'Status:', newStatus, 'Bling ID:', blingOrderId);
+
+  // ✅ ETAPA C: CRIAR COMISSÃO ATOMICAMENTE APÓS PAGAMENTO APROVADO
+  if (newStatus === 'PAGO' && pedido.vendedor_id) {
+    try {
+      // Verificar duplicidade por mp_pedido_id
+      const { data: existingParcela } = await supabase
+        .from('vendedor_propostas_parcelas')
+        .select('id')
+        .eq('mp_pedido_id', pedido.id)
+        .maybeSingle();
+
+      if (existingParcela) {
+        console.log(`⚠️ Comissão já existe para mp_pedido_id=${pedido.id} - ignorando duplicata`);
+      } else {
+        // Buscar percentual de comissão do vendedor
+        const { data: vendedorData } = await supabase
+          .from('vendedores')
+          .select('comissao_percentual, email')
+          .eq('id', pedido.vendedor_id)
+          .single();
+
+        const comissaoPercentual = vendedorData?.comissao_percentual || 1.5;
+        const valorTotal = pedido.valor_total || 0;
+        const valorComissao = Math.round((valorTotal * (comissaoPercentual / 100)) * 100) / 100;
+        const hoje = new Date().toISOString().split('T')[0];
+
+        // Usar email do pedido ou do vendedor como fallback
+        const vendedorEmail = pedido.vendedor_email || vendedorData?.email || null;
+
+        const { error: parcelaError } = await supabase
+          .from('vendedor_propostas_parcelas')
+          .insert({
+            proposta_id: pedido.proposta_id || null,
+            vendedor_id: pedido.vendedor_id,
+            vendedor_email: vendedorEmail, // ✅ CRÍTICO!
+            cliente_id: pedido.cliente_id,
+            numero_parcela: 1,
+            total_parcelas: 1,
+            valor: valorTotal,
+            valor_comissao: valorComissao,
+            data_vencimento: hoje,
+            data_pagamento: hoje,
+            status: 'paga',
+            origem: 'mercadopago',
+            comissao_status: 'liberada',  // ✅ Vai direto para "A Pagar"
+            data_liberacao: hoje,
+            bling_order_id: blingOrderId,
+            mp_pedido_id: pedido.id,      // ✅ Deduplicação
+            metodo_pagamento: payment.payment_type_id === 'credit_card' ? 'cartao' : 
+                             payment.payment_type_id === 'debit_card' ? 'cartao_debito' : 'pix',
+          });
+
+        if (parcelaError) {
+          console.error('❌ Erro ao criar comissão:', parcelaError);
+        } else {
+          console.log(`✅ Comissão criada atomicamente: vendedor=${vendedorEmail}, valor=R$${valorComissao}, bling_order_id=${blingOrderId}`);
+        }
+      }
+    } catch (comissaoError) {
+      console.error('❌ Erro crítico ao processar comissão:', comissaoError);
+      // Não interrompe o fluxo - pedido já está PAGO e Bling criado
+    }
+  }
 }

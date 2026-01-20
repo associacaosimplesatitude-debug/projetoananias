@@ -191,3 +191,9 @@ verify_jwt = true
 
 [functions.sync-comissoes-faturado]
 verify_jwt = false
+
+[functions.sync-comissoes-nfe]
+verify_jwt = false
+
+[functions.mp-backfill-comissoes]
+verify_jwt = false
