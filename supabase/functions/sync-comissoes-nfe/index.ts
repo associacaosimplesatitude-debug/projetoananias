@@ -226,7 +226,16 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('[sync-comissoes-nfe] Starting sync...');
+    // Parse body for optional filtering by specific bling_order_ids
+    let bodyData: { bling_order_ids?: number[] } = {};
+    try {
+      bodyData = await req.json();
+    } catch {
+      // Empty body is OK
+    }
+    const targetBlingOrderIds = bodyData?.bling_order_ids;
+
+    console.log('[sync-comissoes-nfe] Starting sync...', targetBlingOrderIds ? `(filtered: ${targetBlingOrderIds.length} orders)` : '(all)');
 
     // Fetch Bling config
     const { data: blingConfig, error: configError } = await supabase
@@ -245,8 +254,8 @@ Deno.serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, blingConfig);
     }
 
-    // Fetch parcelas online/mercadopago sem link_danfe
-    const { data: parcelas, error: parcelasError } = await supabase
+    // Build query - fetch parcelas online/mercadopago sem link_danfe
+    let parcelasQuery = supabase
       .from('vendedor_propostas_parcelas')
       .select(`
         id,
@@ -267,8 +276,14 @@ Deno.serve(async (req) => {
       `)
       .is('link_danfe', null)
       .in('origem', ['online', 'mercadopago'])
-      .not('vendedor_id', 'is', null)
-      .order('data_vencimento', { ascending: false });
+      .not('vendedor_id', 'is', null);
+
+    // Apply filter if specific bling_order_ids provided
+    if (targetBlingOrderIds && targetBlingOrderIds.length > 0) {
+      parcelasQuery = parcelasQuery.in('bling_order_id', targetBlingOrderIds);
+    }
+
+    const { data: parcelas, error: parcelasError } = await parcelasQuery.order('data_vencimento', { ascending: false });
 
     if (parcelasError) {
       throw new Error(`Erro ao buscar parcelas: ${parcelasError.message}`);

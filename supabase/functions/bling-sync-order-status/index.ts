@@ -192,6 +192,9 @@ serve(async (req) => {
 
     // Processar cada proposta
     const results: { id: string; success: boolean; status?: string | null; error?: string }[] = [];
+    
+    // Coletar pedidos que mudaram para ATENDIDO (ID 31) para trigger automático de NF-e
+    const pedidosAtendidos: number[] = [];
 
     for (const proposta of propostas) {
       try {
@@ -231,10 +234,11 @@ serve(async (req) => {
           updateData.status = 'CANCELADA';
         }
 
-        // Se foi atendido no Bling, marcar como FATURADO_ENTREGUE
+        // Se foi atendido no Bling, marcar como FATURADO_ENTREGUE e adicionar à lista para sync de NF-e
         if (blingStatusId === 31 && proposta.status !== 'FATURADO_ENTREGUE') {
-          console.log(`Pedido ${blingOrderId} foi ATENDIDO no Bling, atualizando para FATURADO_ENTREGUE`);
+          console.log(`Pedido ${blingOrderId} foi ATENDIDO no Bling - disparando sync de NF-e`);
           updateData.status = 'FATURADO_ENTREGUE';
+          pedidosAtendidos.push(blingOrderId);
         }
 
         const { error: updateError } = await supabase
@@ -262,17 +266,41 @@ serve(async (req) => {
       }
     }
 
+    // Trigger automático: chamar sync-comissoes-nfe para os pedidos que foram ATENDIDOS
+    let nfeSyncResult = null;
+    if (pedidosAtendidos.length > 0) {
+      console.log(`Triggering sync-comissoes-nfe for ${pedidosAtendidos.length} ATENDIDO orders:`, pedidosAtendidos);
+      try {
+        const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-comissoes-nfe', {
+          body: { bling_order_ids: pedidosAtendidos }
+        });
+        
+        if (syncError) {
+          console.error('Erro ao chamar sync-comissoes-nfe:', syncError);
+          nfeSyncResult = { success: false, error: syncError.message };
+        } else {
+          console.log('sync-comissoes-nfe result:', syncData);
+          nfeSyncResult = syncData;
+        }
+      } catch (invokeErr) {
+        console.error('Erro ao invocar sync-comissoes-nfe:', invokeErr);
+        nfeSyncResult = { success: false, error: invokeErr instanceof Error ? invokeErr.message : 'Erro' };
+      }
+    }
+
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
     const duration = Date.now() - startTime;
 
-    console.log(`=== SYNC CONCLUÍDO: ${successCount} sucesso, ${failCount} falhas (${duration}ms) ===`);
+    console.log(`=== SYNC CONCLUÍDO: ${successCount} sucesso, ${failCount} falhas, ${pedidosAtendidos.length} NF-e triggered (${duration}ms) ===`);
 
     return new Response(
       JSON.stringify({
         success: true,
         synced: successCount,
         failed: failCount,
+        nfe_triggered: pedidosAtendidos.length,
+        nfe_sync_result: nfeSyncResult,
         duration_ms: duration,
         results,
       }),
