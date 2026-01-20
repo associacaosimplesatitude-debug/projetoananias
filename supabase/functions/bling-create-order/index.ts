@@ -2190,7 +2190,9 @@ serve(async (req) => {
       // Verificar se é prazo "direto" (1 boleto no prazo especificado)
       const isPrazoDireto = String(faturamento_prazo).includes('_direto');
       const isPrazo60_90 = String(faturamento_prazo) === '60_90';
-      const prazoNumerico = parseInt(String(faturamento_prazo).replace('_direto', '').replace('_90', ''));
+      const isPrazo60_75_90 = String(faturamento_prazo) === '60_75_90';
+      const isPrazo60_90_120 = String(faturamento_prazo) === '60_90_120';
+      const prazoNumerico = parseInt(String(faturamento_prazo).replace('_direto', '').replace('_90', '').replace('_75_90', '').replace('_90_120', ''));
       
       // Número de parcelas e dias de vencimento
       let numParcelas: number;
@@ -2200,9 +2202,17 @@ serve(async (req) => {
         numParcelas = 1; // Sempre 1 boleto para prazo direto (ex: 60_direto = 1 boleto em 60 dias)
         diasVencimentos = [prazoNumerico];
       } else if (isPrazo60_90) {
-        // Novo: 60/90 = 2 parcelas em 60 e 90 dias
+        // 60/90 = 2 parcelas em 60 e 90 dias
         numParcelas = 2;
         diasVencimentos = [60, 90];
+      } else if (isPrazo60_75_90) {
+        // 60/75/90 = 3 parcelas em 60, 75 e 90 dias
+        numParcelas = 3;
+        diasVencimentos = [60, 75, 90];
+      } else if (isPrazo60_90_120) {
+        // 60/90/120 = 3 parcelas em 60, 90 e 120 dias
+        numParcelas = 3;
+        diasVencimentos = [60, 90, 120];
       } else {
         numParcelas = prazoNumerico === 30 ? 1 : prazoNumerico === 60 ? 2 : 3;
         for (let i = 1; i <= numParcelas; i++) {
@@ -2251,6 +2261,10 @@ serve(async (req) => {
           observacoesLabel = `Pagamento único - Faturamento ${prazoNumerico} dias (à vista)`;
         } else if (isPrazo60_90) {
           observacoesLabel = `Parcela ${i}/${numParcelas} - Faturamento 60/90 dias`;
+        } else if (isPrazo60_75_90) {
+          observacoesLabel = `Parcela ${i}/${numParcelas} - Faturamento 60/75/90 dias`;
+        } else if (isPrazo60_90_120) {
+          observacoesLabel = `Parcela ${i}/${numParcelas} - Faturamento 60/90/120 dias`;
         } else {
           observacoesLabel = `Parcela ${i}/${numParcelas} - Faturamento ${prazo} dias`;
         }

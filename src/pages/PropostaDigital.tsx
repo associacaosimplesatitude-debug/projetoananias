@@ -113,6 +113,8 @@ export default function PropostaDigital() {
       case '60': return '30/60 dias (2 boletos)';
       case '60_90': return '60/90 dias (2 boletos)';
       case '90': return '30/60/90 dias (3 boletos)';
+      case '60_75_90': return '60/75/90 dias (3 boletos)';
+      case '60_90_120': return '60/90/120 dias (3 boletos)';
       default: return prazo;
     }
   };
@@ -1298,6 +1300,30 @@ export default function PropostaDigital() {
                       <span className="font-medium">30/60/90 dias</span>
                       <span className="text-muted-foreground ml-2">
                         - 3x de R$ {parcela3x.toFixed(2)} (parcelas em 30/60/90 dias)
+                      </span>
+                    </Label>
+                  </div>
+                )}
+                
+                {(proposta.prazos_disponiveis || []).includes('60_75_90') && (
+                  <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
+                    <RadioGroupItem value="60_75_90" id="prazo-60-75-90" />
+                    <Label htmlFor="prazo-60-75-90" className="flex-1 cursor-pointer">
+                      <span className="font-medium">60/75/90 dias</span>
+                      <span className="text-muted-foreground ml-2">
+                        - 3x de R$ {parcela3x.toFixed(2)} (parcelas em 60/75/90 dias)
+                      </span>
+                    </Label>
+                  </div>
+                )}
+                
+                {(proposta.prazos_disponiveis || []).includes('60_90_120') && (
+                  <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 transition-colors">
+                    <RadioGroupItem value="60_90_120" id="prazo-60-90-120" />
+                    <Label htmlFor="prazo-60-90-120" className="flex-1 cursor-pointer">
+                      <span className="font-medium">60/90/120 dias</span>
+                      <span className="text-muted-foreground ml-2">
+                        - 3x de R$ {parcela3x.toFixed(2)} (parcelas em 60/90/120 dias)
                       </span>
                     </Label>
                   </div>
