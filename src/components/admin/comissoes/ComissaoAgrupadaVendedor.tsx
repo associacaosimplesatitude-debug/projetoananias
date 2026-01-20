@@ -323,10 +323,10 @@ export function ComissaoAgrupadaVendedor({
                               )}
                             </div>
                           ) : item.bling_order_id ? (
-                            // Tem bling_order_id mas ainda sem DANFE - mostrar loading
-                            <span className="text-xs text-blue-600 flex items-center gap-1" title="NF será sincronizada em lote">
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Buscando
+                            // Tem bling_order_id mas ainda sem DANFE - AGUARDANDO (padronizado)
+                            <span className="text-xs text-amber-600 flex items-center gap-1" title="NF-e será detectada automaticamente quando o pedido for despachado">
+                              <Clock className="h-3 w-3" />
+                              Aguardando
                             </span>
                           ) : item.canSearchBlingOrder ? (
                             // Sem bling_order_id mas tem dados de busca - mostrar aviso + botão vincular
