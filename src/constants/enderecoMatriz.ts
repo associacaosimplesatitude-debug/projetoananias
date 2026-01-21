@@ -61,6 +61,15 @@ export interface InfoCaixa {
   pesoMaximo: number;
 }
 
+export interface InfoCaixaMultipla {
+  caixas: Array<{
+    tipo: string;
+    dimensoes: string;
+    quantidade: number;
+  }>;
+  totalVolumes: number;
+}
+
 /**
  * Calcula tipo e quantidade de caixas baseado no peso total
  * Regra: A cada 30kg adiciona mais 1 volume (sempre Cx 01 para volumes extras)
@@ -94,6 +103,59 @@ export function calcularCaixas(pesoTotalKg: number): InfoCaixa {
     dimensoes: '63x33x23 cm', 
     quantidade: volumesPrincipais, 
     pesoMaximo: 30 
+  };
+}
+
+/**
+ * Calcula tipo e quantidade de caixas de forma detalhada
+ * Retorna combinação de caixas (ex: 1x Cx 01 + 1x Cx 02 para 39kg)
+ */
+export function calcularCaixasDetalhado(pesoTotalKg: number): InfoCaixaMultipla {
+  if (pesoTotalKg <= 0) {
+    return { caixas: [], totalVolumes: 0 };
+  }
+
+  // Peso cabe em uma única caixa
+  if (pesoTotalKg <= 30) {
+    const caixa = TABELA_CAIXAS.find(c => pesoTotalKg >= c.min && pesoTotalKg <= c.max);
+    if (caixa) {
+      return { 
+        caixas: [{ tipo: caixa.tipo, dimensoes: caixa.dimensoes, quantidade: 1 }],
+        totalVolumes: 1
+      };
+    }
+    // Peso entre 20-30kg usa Cx 01
+    return { 
+      caixas: [{ tipo: 'Cx 01', dimensoes: '63x33x23 cm', quantidade: 1 }],
+      totalVolumes: 1
+    };
+  }
+
+  // Peso > 30kg: calcular volumes de 30kg + resto
+  const volumesCheios = Math.floor(pesoTotalKg / 30);  // Quantas Cx 01 cheias
+  const pesoRestante = pesoTotalKg % 30;               // Sobra
+
+  const caixas: Array<{ tipo: string; dimensoes: string; quantidade: number }> = [];
+  
+  // Adicionar Cx 01 para volumes cheios
+  if (volumesCheios > 0) {
+    caixas.push({ tipo: 'Cx 01', dimensoes: '63x33x23 cm', quantidade: volumesCheios });
+  }
+
+  // Adicionar caixa adequada para o peso restante
+  if (pesoRestante > 0) {
+    const caixaResto = TABELA_CAIXAS.find(c => pesoRestante >= c.min && pesoRestante <= c.max);
+    if (caixaResto) {
+      caixas.push({ tipo: caixaResto.tipo, dimensoes: caixaResto.dimensoes, quantidade: 1 });
+    } else if (pesoRestante > 20) {
+      // Resto entre 20-30kg também usa Cx 01
+      caixas.push({ tipo: 'Cx 01', dimensoes: '63x33x23 cm', quantidade: 1 });
+    }
+  }
+
+  return { 
+    caixas,
+    totalVolumes: caixas.reduce((sum, c) => sum + c.quantidade, 0)
   };
 }
 

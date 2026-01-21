@@ -17,7 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useVendedor } from "@/hooks/useVendedor";
 import { calcularDescontosLocal, type ItemCalculadora, type DescontosCategoriaRepresentante } from "@/lib/descontosCalculadora";
-import { ENDERECO_MATRIZ, ENDERECO_PERNAMBUCO, ENDERECO_PENHA, formatarEnderecoMatriz, formatarEnderecoPernambuco, formatarEnderecoPenha, calcularCaixas } from "@/constants/enderecoMatriz";
+import { ENDERECO_MATRIZ, ENDERECO_PERNAMBUCO, ENDERECO_PENHA, formatarEnderecoMatriz, formatarEnderecoPernambuco, formatarEnderecoPenha, calcularCaixasDetalhado } from "@/constants/enderecoMatriz";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { AdicionarFreteOrcamentoDialog } from "@/components/vendedor/AdicionarFreteOrcamentoDialog";
@@ -270,7 +270,7 @@ CEP: ${cliente.endereco_cep || ''}`,
   }, [localColeta]);
 
   // Informações de caixas
-  const infoCaixas = useMemo(() => calcularCaixas(calculo.pesoTotal), [calculo.pesoTotal]);
+  const infoCaixas = useMemo(() => calcularCaixasDetalhado(calculo.pesoTotal), [calculo.pesoTotal]);
 
   // Mensagem para transportadora
   const mensagemTransportadora = useMemo(() => {
@@ -286,12 +286,16 @@ CEP: ${cliente.endereco_cep || ''}`,
         ? `*CPF:* ${cliente.cpf}` 
         : '*Documento:* Não informado';
 
+    const volumesFormatado = infoCaixas.caixas.map(c => 
+      `${c.quantidade}x ${c.tipo} (${c.dimensoes})`
+    ).join(' + ');
+
     return `📦 *Orçamento de Frete*
 ━━━━━━━━━━━━━━━━━━
 *Peso Total:* ${pesoKg}
 *Valor NF:* R$ ${calculo.total.toFixed(2).replace('.', ',')}
 *Itens:* ${calculo.quantidadeTotal} unidade(s)
-*Volumes:* ${infoCaixas.quantidade} (${infoCaixas.tipo} - ${infoCaixas.dimensoes})
+*Volumes:* ${infoCaixas.totalVolumes} (${volumesFormatado})
 
 📍 *COLETA (Remetente):*
 *CNPJ:* ${dadosColeta.cnpj}
@@ -1004,12 +1008,16 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                         </div>
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-xs text-muted-foreground">Volumes:</span>
-                          <span className="font-bold text-lg text-primary">{infoCaixas.quantidade}</span>
+                          <span className="font-bold text-lg text-primary">{infoCaixas.totalVolumes}</span>
                         </div>
                         <div className="border-t pt-2 mt-2">
-                          <p className="text-xs text-muted-foreground">Caixa:</p>
-                          <p className="font-medium text-sm">{infoCaixas.tipo}</p>
-                          <p className="text-xs text-muted-foreground">{infoCaixas.dimensoes}</p>
+                          <p className="text-xs text-muted-foreground">Caixa(s):</p>
+                          {infoCaixas.caixas.map((caixa, idx) => (
+                            <div key={idx} className="mb-1">
+                              <p className="font-medium text-sm">{caixa.quantidade}x {caixa.tipo}</p>
+                              <p className="text-xs text-muted-foreground">{caixa.dimensoes}</p>
+                            </div>
+                          ))}
                         </div>
                       </>
                     ) : (
