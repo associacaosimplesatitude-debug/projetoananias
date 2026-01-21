@@ -120,16 +120,28 @@ serve(async (req) => {
     const metodoFrete = proposta.metodo_frete || 'COMBINAR';
     const cliente = proposta.cliente || {};
 
-    // Montar itens para o Bling
-    const itens = (proposta.itens || []).map((item: any) => ({
-      codigo: item.sku || item.codigo || item.variantSku,
-      sku: item.sku || item.codigo || item.variantSku,
-      descricao: item.title,
-      unidade: 'UN',
-      quantidade: item.quantity,
-      valor: Number(item.price),
-      preco_cheio: Number(item.price),
-    }));
+    // Montar itens para o Bling (com desconto aplicado)
+    const itens = (proposta.itens || []).map((item: any) => {
+      const precoOriginal = Number(item.price);
+      const descontoItem = Number(item.descontoItem || 0);
+      
+      // Calcular preço com desconto aplicado
+      const precoComDesconto = descontoItem > 0 
+        ? Math.round(precoOriginal * (1 - descontoItem / 100) * 100) / 100
+        : precoOriginal;
+      
+      console.log(`[APROVAR-FAT] Item: ${item.title} | Preço Original: ${precoOriginal} | Desconto: ${descontoItem}% | Preço Final: ${precoComDesconto}`);
+      
+      return {
+        codigo: item.sku || item.codigo || item.variantSku,
+        sku: item.sku || item.codigo || item.variantSku,
+        descricao: item.title,
+        unidade: 'UN',
+        quantidade: item.quantity,
+        valor: precoComDesconto,     // Preço COM desconto
+        preco_cheio: precoOriginal,  // Preço ORIGINAL (cheio)
+      };
+    });
 
     // Verificar se todos os itens têm SKU
     const itensSemSku = itens.filter((i: any) => !i.sku);
