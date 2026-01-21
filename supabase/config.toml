@@ -197,3 +197,48 @@ verify_jwt = false
 
 [functions.mp-backfill-comissoes]
 verify_jwt = false
+
+[functions.backfill-comissoes-hierarquicas]
+verify_jwt = true
+
+[functions.shopify-storefront-products]
+verify_jwt = false
+
+[functions.shopify-storefront-checkout]
+verify_jwt = false
+
+[functions.bling-list-empresas]
+verify_jwt = true
+
+[functions.bling-check-nfe-status]
+verify_jwt = true
+
+[functions.bling-generate-nfe]
+verify_jwt = true
+
+[functions.backfill-bling-order-ids]
+verify_jwt = true
+
+[functions.bling-list-my-orders]
+verify_jwt = true
+
+[functions.bling-callback-penha]
+verify_jwt = false
+
+[functions.sync-nf-danfe-batch]
+verify_jwt = true
+
+[functions.bling-test-nfe-penha]
+verify_jwt = true
+
+[functions.bling-import-nfe-penha]
+verify_jwt = true
+
+[functions.update-user-password-by-email]
+verify_jwt = false
+
+[functions.create-auth-user-direct]
+verify_jwt = true
+
+[functions.ebd-link-orphan-shopify-orders]
+verify_jwt = true
