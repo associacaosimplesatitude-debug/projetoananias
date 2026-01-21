@@ -6,3 +6,5 @@ export { LotePagamentoDialog } from './LotePagamentoDialog';
 export { LotePagamentoList } from './LotePagamentoList';
 export { LoteDetalheDialog } from './LoteDetalheDialog';
 export { VincularComissaoDialog } from './VincularComissaoDialog';
+export { ComissaoHierarquicaTable } from './ComissaoHierarquicaTable';
+export type { ComissaoHierarquicaItem } from './ComissaoHierarquicaTable';

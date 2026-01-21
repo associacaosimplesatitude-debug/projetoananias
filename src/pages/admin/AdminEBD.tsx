@@ -114,6 +114,8 @@ interface Vendedor {
   meta_mensal_valor: number;
   created_at: string;
   tipo_perfil: 'vendedor' | 'representante';
+  gerente_id: string | null;
+  is_gerente: boolean;
 }
 
 interface Church {
@@ -215,6 +217,8 @@ export default function AdminEBD() {
     status: 'Ativo',
     meta_mensal_valor: 0,
     tipo_perfil: 'vendedor' as 'vendedor' | 'representante',
+    gerente_id: '' as string,
+    is_gerente: false,
   });
 
   // Clientes EBD filter states
@@ -1198,6 +1202,8 @@ export default function AdminEBD() {
           status: data.status,
           meta_mensal_valor: data.meta_mensal_valor,
           tipo_perfil: data.tipo_perfil,
+          gerente_id: data.gerente_id || null,
+          is_gerente: data.is_gerente || false,
         })
         .eq('id', id);
       if (error) throw error;
@@ -1459,7 +1465,7 @@ export default function AdminEBD() {
   };
 
   const resetForm = () => {
-    setFormData({ nome: '', email: '', senha: '', foto_url: '', comissao_percentual: 5, status: 'Ativo', meta_mensal_valor: 0, tipo_perfil: 'vendedor' });
+    setFormData({ nome: '', email: '', senha: '', foto_url: '', comissao_percentual: 5, status: 'Ativo', meta_mensal_valor: 0, tipo_perfil: 'vendedor', gerente_id: '', is_gerente: false });
     setEditingVendedor(null);
     setShowPassword(false);
   };
@@ -1475,6 +1481,8 @@ export default function AdminEBD() {
       status: vendedor.status,
       meta_mensal_valor: vendedor.meta_mensal_valor,
       tipo_perfil: vendedor.tipo_perfil || 'vendedor',
+      gerente_id: vendedor.gerente_id || '',
+      is_gerente: vendedor.is_gerente || false,
     });
     setDialogOpen(true);
   };
@@ -2513,6 +2521,43 @@ export default function AdminEBD() {
                         <SelectItem value="Inativo">Inativo</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  
+                  {/* Gerente Responsável - aparece apenas para vendedores (não gerentes) */}
+                  {!formData.is_gerente && (
+                    <div className="space-y-2">
+                      <Label>Gerente Responsável</Label>
+                      <Select 
+                        value={formData.gerente_id || ''} 
+                        onValueChange={(value) => setFormData({ ...formData, gerente_id: value || '' })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sem gerente (vendedor direto)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Sem gerente</SelectItem>
+                          {vendedores?.filter(v => v.is_gerente && v.id !== editingVendedor?.id).map(g => (
+                            <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">O gerente receberá comissão sobre as vendas deste vendedor</p>
+                    </div>
+                  )}
+
+                  {/* Checkbox É Gerente */}
+                  <div className="flex items-center space-x-2 p-3 rounded-lg border bg-muted/30">
+                    <input 
+                      type="checkbox" 
+                      id="is_gerente"
+                      checked={formData.is_gerente} 
+                      onChange={(e) => setFormData({ ...formData, is_gerente: e.target.checked, gerente_id: e.target.checked ? '' : formData.gerente_id })}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <div>
+                      <Label htmlFor="is_gerente" className="cursor-pointer font-medium">É Gerente</Label>
+                      <p className="text-xs text-muted-foreground">Gerentes recebem comissão sobre vendas da equipe</p>
+                    </div>
                   </div>
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
                     {isSubmitting ? 'Salvando...' : (editingVendedor ? 'Atualizar' : `Criar ${formData.tipo_perfil === 'representante' ? 'Representante' : 'Vendedor'}`)}

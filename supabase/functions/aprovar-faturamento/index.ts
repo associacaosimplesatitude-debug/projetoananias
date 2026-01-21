@@ -80,17 +80,18 @@ serve(async (req) => {
       prazo: proposta.prazo_faturamento_selecionado,
     });
 
-    // ============ PASSO 2: Buscar dados do vendedor ============
-    console.log(`[APROVAR-FAT] [2/6] Buscando vendedor...`);
+    // ============ PASSO 2: Buscar dados do vendedor (incluindo gerente) ============
+    console.log(`[APROVAR-FAT] [2/7] Buscando vendedor...`);
     
     let vendedorEmail: string | null = null;
     let vendedorNome: string | null = proposta.vendedor_nome;
     let comissaoPercentual = 1.5;
+    let gerenteId: string | null = null;
 
     if (proposta.vendedor_id) {
       const { data: vendedor, error: vendedorError } = await supabase
         .from('vendedores')
-        .select('id, nome, email, comissao_percentual')
+        .select('id, nome, email, comissao_percentual, gerente_id')
         .eq('id', proposta.vendedor_id)
         .single();
 
@@ -100,10 +101,12 @@ serve(async (req) => {
         vendedorEmail = vendedor.email;
         vendedorNome = vendedor.nome;
         comissaoPercentual = vendedor.comissao_percentual || 1.5;
+        gerenteId = vendedor.gerente_id;
         console.log(`[APROVAR-FAT] ✅ Vendedor encontrado:`, {
           nome: vendedorNome,
           email: vendedorEmail,
           comissao: comissaoPercentual,
+          gerente_id: gerenteId,
         });
       }
     }
@@ -113,7 +116,7 @@ serve(async (req) => {
     }
 
     // ============ PASSO 3: Criar pedido no Bling ============
-    console.log(`[APROVAR-FAT] [3/6] Criando pedido no Bling...`);
+    console.log(`[APROVAR-FAT] [3/7] Criando pedido no Bling...`);
 
     const prazo = proposta.prazo_faturamento_selecionado || '30';
     const valorFrete = proposta.valor_frete || 0;
@@ -230,7 +233,7 @@ serve(async (req) => {
     console.log(`[APROVAR-FAT] ✅ Status atualizado para FATURADO`);
 
     // ============ PASSO 5: Criar registro em ebd_shopify_pedidos (meta) ============
-    console.log(`[APROVAR-FAT] [5/6] Criando registro de meta do vendedor...`);
+    console.log(`[APROVAR-FAT] [5/7] Criando registro de meta do vendedor...`);
 
     const { error: metaError } = await supabase
       .from('ebd_shopify_pedidos')
@@ -257,7 +260,7 @@ serve(async (req) => {
     console.log(`[APROVAR-FAT] ✅ Registro de meta criado`);
 
     // ============ PASSO 6: Criar parcelas de comissão ============
-    console.log(`[APROVAR-FAT] [6/6] Criando parcelas de comissão...`);
+    console.log(`[APROVAR-FAT] [6/7] Criando parcelas de comissão...`);
 
     // Configuração de parcelas baseado no prazo
     const parcelasConfig: { [key: string]: { dias: number[]; metodos: string[] } } = {
@@ -323,6 +326,89 @@ serve(async (req) => {
 
     console.log(`[APROVAR-FAT] ✅ ${parcelasToInsert.length} parcela(s) de comissão criada(s)`);
 
+    // ============ PASSO 7: Criar comissões hierárquicas (Gerente + Admin) ============
+    console.log(`[APROVAR-FAT] [7/7] Criando comissões hierárquicas...`);
+
+    const comissoesHierarquicas: any[] = [];
+
+    // Buscar config do admin
+    const { data: adminConfig } = await supabase
+      .from('comissoes_config')
+      .select('*')
+      .eq('tipo', 'admin')
+      .eq('ativo', true)
+      .single();
+
+    // Buscar dados do gerente se existir
+    let gerenteData: { id: string; nome: string; email: string; comissao_percentual: number } | null = null;
+    if (gerenteId) {
+      const { data: gerente } = await supabase
+        .from('vendedores')
+        .select('id, nome, email, comissao_percentual')
+        .eq('id', gerenteId)
+        .single();
+      gerenteData = gerente;
+    }
+
+    // Para cada parcela, criar comissões hierárquicas
+    for (const parcela of parcelasToInsert) {
+      // 1. Comissão do GERENTE (se vendedor tem gerente)
+      if (gerenteData) {
+        const valorComissaoGerente = Math.round(parcela.valor * (gerenteData.comissao_percentual / 100) * 100) / 100;
+        comissoesHierarquicas.push({
+          parcela_origem_id: null, // Não temos o ID aqui, será uma relação lógica
+          tipo_beneficiario: 'gerente',
+          beneficiario_id: gerenteData.id,
+          beneficiario_email: gerenteData.email,
+          beneficiario_nome: gerenteData.nome,
+          vendedor_origem_id: proposta.vendedor_id,
+          vendedor_origem_nome: vendedorNome,
+          cliente_id: proposta.cliente_id,
+          cliente_nome: proposta.cliente_nome,
+          valor_venda: parcela.valor,
+          percentual_comissao: gerenteData.comissao_percentual,
+          valor_comissao: valorComissaoGerente,
+          data_vencimento: parcela.data_vencimento,
+          status: 'pendente',
+        });
+      }
+
+      // 2. Comissão do ADMIN (sempre, se configurado)
+      if (adminConfig) {
+        const valorComissaoAdmin = Math.round(parcela.valor * (adminConfig.percentual / 100) * 100) / 100;
+        comissoesHierarquicas.push({
+          parcela_origem_id: null,
+          tipo_beneficiario: 'admin',
+          beneficiario_id: null,
+          beneficiario_email: adminConfig.email_beneficiario,
+          beneficiario_nome: 'Administrador',
+          vendedor_origem_id: proposta.vendedor_id,
+          vendedor_origem_nome: vendedorNome,
+          cliente_id: proposta.cliente_id,
+          cliente_nome: proposta.cliente_nome,
+          valor_venda: parcela.valor,
+          percentual_comissao: adminConfig.percentual,
+          valor_comissao: valorComissaoAdmin,
+          data_vencimento: parcela.data_vencimento,
+          status: 'pendente',
+        });
+      }
+    }
+
+    if (comissoesHierarquicas.length > 0) {
+      const { error: hierarquicasError } = await supabase
+        .from('comissoes_hierarquicas')
+        .insert(comissoesHierarquicas);
+
+      if (hierarquicasError) {
+        console.warn(`[APROVAR-FAT] ⚠️ Erro ao criar comissões hierárquicas (não crítico):`, hierarquicasError);
+      } else {
+        console.log(`[APROVAR-FAT] ✅ ${comissoesHierarquicas.length} comissão(ões) hierárquica(s) criada(s)`);
+      }
+    } else {
+      console.log(`[APROVAR-FAT] ℹ️ Nenhuma comissão hierárquica configurada`);
+    }
+
     // ============ SUCESSO COMPLETO ============
     console.log(`[APROVAR-FAT] ========== ✅ APROVAÇÃO CONCLUÍDA COM SUCESSO ==========`);
     console.log(`[APROVAR-FAT] Resumo:`);
@@ -330,13 +416,15 @@ serve(async (req) => {
     console.log(`[APROVAR-FAT]   - Vendedor: ${vendedorNome} (${vendedorEmail})`);
     console.log(`[APROVAR-FAT]   - Valor Total: R$ ${valorTotal.toFixed(2)}`);
     console.log(`[APROVAR-FAT]   - Parcelas: ${diasParcelas.length}x (${prazo} dias)`);
-    console.log(`[APROVAR-FAT]   - Comissão Total: R$ ${parcelasToInsert.reduce((s, p) => s + p.valor_comissao, 0).toFixed(2)}`);
+    console.log(`[APROVAR-FAT]   - Comissão Vendedor: R$ ${parcelasToInsert.reduce((s, p) => s + p.valor_comissao, 0).toFixed(2)}`);
+    console.log(`[APROVAR-FAT]   - Comissões Hierárquicas: ${comissoesHierarquicas.length}`);
 
     return new Response(JSON.stringify({
       success: true,
       bling_order_id: blingOrderId,
       bling_order_number: blingOrderNumber,
       parcelas_criadas: parcelasToInsert.length,
+      comissoes_hierarquicas: comissoesHierarquicas.length,
       valor_total: valorTotal,
       vendedor_email: vendedorEmail,
       message: `Pedido aprovado! Bling: ${blingOrderNumber || blingOrderId} • ${parcelasToInsert.length} parcela(s)`,
