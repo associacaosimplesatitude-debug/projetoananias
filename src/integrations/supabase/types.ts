@@ -947,6 +947,124 @@ export type Database = {
         }
         Relationships: []
       }
+      comissoes_config: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          email_beneficiario: string | null
+          id: string
+          percentual: number
+          tipo: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          email_beneficiario?: string | null
+          id?: string
+          percentual?: number
+          tipo: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          email_beneficiario?: string | null
+          id?: string
+          percentual?: number
+          tipo?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      comissoes_hierarquicas: {
+        Row: {
+          beneficiario_email: string | null
+          beneficiario_id: string | null
+          beneficiario_nome: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          created_at: string | null
+          data_liberacao: string | null
+          data_vencimento: string
+          id: string
+          pago_em: string | null
+          parcela_origem_id: string | null
+          percentual_comissao: number
+          status: string | null
+          tipo_beneficiario: string
+          valor_comissao: number
+          valor_venda: number
+          vendedor_origem_id: string | null
+          vendedor_origem_nome: string | null
+        }
+        Insert: {
+          beneficiario_email?: string | null
+          beneficiario_id?: string | null
+          beneficiario_nome?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          created_at?: string | null
+          data_liberacao?: string | null
+          data_vencimento: string
+          id?: string
+          pago_em?: string | null
+          parcela_origem_id?: string | null
+          percentual_comissao: number
+          status?: string | null
+          tipo_beneficiario: string
+          valor_comissao: number
+          valor_venda: number
+          vendedor_origem_id?: string | null
+          vendedor_origem_nome?: string | null
+        }
+        Update: {
+          beneficiario_email?: string | null
+          beneficiario_id?: string | null
+          beneficiario_nome?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          created_at?: string | null
+          data_liberacao?: string | null
+          data_vencimento?: string
+          id?: string
+          pago_em?: string | null
+          parcela_origem_id?: string | null
+          percentual_comissao?: number
+          status?: string | null
+          tipo_beneficiario?: string
+          valor_comissao?: number
+          valor_venda?: number
+          vendedor_origem_id?: string | null
+          vendedor_origem_nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comissoes_hierarquicas_beneficiario_id_fkey"
+            columns: ["beneficiario_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comissoes_hierarquicas_parcela_origem_id_fkey"
+            columns: ["parcela_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vendedor_propostas_parcelas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comissoes_hierarquicas_vendedor_origem_id_fkey"
+            columns: ["vendedor_origem_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       desafio_biblico: {
         Row: {
           church_id: string
@@ -4880,7 +4998,9 @@ export type Database = {
           email: string
           email_bling: string | null
           foto_url: string | null
+          gerente_id: string | null
           id: string
+          is_gerente: boolean | null
           meta_mensal_valor: number
           nome: string
           status: string
@@ -4893,7 +5013,9 @@ export type Database = {
           email: string
           email_bling?: string | null
           foto_url?: string | null
+          gerente_id?: string | null
           id?: string
+          is_gerente?: boolean | null
           meta_mensal_valor?: number
           nome: string
           status?: string
@@ -4906,14 +5028,24 @@ export type Database = {
           email?: string
           email_bling?: string | null
           foto_url?: string | null
+          gerente_id?: string | null
           id?: string
+          is_gerente?: boolean | null
           meta_mensal_valor?: number
           nome?: string
           status?: string
           tipo_perfil?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vendedores_gerente_id_fkey"
+            columns: ["gerente_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

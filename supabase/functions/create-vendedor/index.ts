@@ -57,7 +57,9 @@ serve(async (req) => {
       comissao_percentual, 
       status, 
       meta_mensal_valor,
-      tipo_perfil = 'vendedor' // Default to vendedor if not specified
+      tipo_perfil = 'vendedor',
+      gerente_id = null,
+      is_gerente = false
     } = await req.json();
 
     if (!email || !password || !nome) {
@@ -117,7 +119,7 @@ serve(async (req) => {
       authUserId = authData.user.id;
     }
 
-    // Create vendedor with tipo_perfil
+    // Create vendedor with tipo_perfil, gerente_id, is_gerente
     const { data: vendedorData, error: vendedorError } = await supabaseAdmin
       .from('vendedores')
       .insert({
@@ -128,6 +130,8 @@ serve(async (req) => {
         status: status || 'Ativo',
         meta_mensal_valor: meta_mensal_valor || 0,
         tipo_perfil: tipo_perfil,
+        gerente_id: gerente_id || null,
+        is_gerente: is_gerente || false,
       })
       .select()
       .single();

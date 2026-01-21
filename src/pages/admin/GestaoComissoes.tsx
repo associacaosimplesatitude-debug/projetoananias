@@ -10,7 +10,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Filter, Search, Wallet, Calendar, Clock, CheckCircle2, 
   AlertTriangle, FileText, TrendingUp, List, Users, RefreshCw, Download,
-  ShoppingCart
+  ShoppingCart, Crown
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,7 +25,9 @@ import {
   LotePagamentoDialog,
   LotePagamentoList,
   LoteDetalheDialog,
-  VincularComissaoDialog
+  VincularComissaoDialog,
+  ComissaoHierarquicaTable,
+  ComissaoHierarquicaItem,
 } from "@/components/admin/comissoes";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -99,7 +101,7 @@ interface LotePagamento {
 export default function GestaoComissoes() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isFinanceiro } = useUserRole();
   const [activeTab, setActiveTab] = useState<string>("resumo");
   const [viewMode, setViewMode] = useState<string>("agrupado");
   const [statusSelecionado, setStatusSelecionado] = useState<string>("liberada");
@@ -189,6 +191,52 @@ export default function GestaoComissoes() {
       
       if (error) throw error;
       return data || [];
+    },
+  });
+
+  // Fetch comissões hierárquicas (gerentes) - visível para admin e financeiro
+  const { data: comissoesGerentes = [] } = useQuery({
+    queryKey: ["comissoes-hierarquicas-gerentes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('comissoes_hierarquicas')
+        .select('*')
+        .eq('tipo_beneficiario', 'gerente')
+        .order('data_vencimento', { ascending: false });
+      if (error) throw error;
+      return data as ComissaoHierarquicaItem[];
+    },
+    enabled: isAdmin || isFinanceiro,
+  });
+
+  // Fetch comissões do admin - visível apenas para admin
+  const { data: comissoesAdmin = [] } = useQuery({
+    queryKey: ["comissoes-hierarquicas-admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('comissoes_hierarquicas')
+        .select('*')
+        .eq('tipo_beneficiario', 'admin')
+        .order('data_vencimento', { ascending: false });
+      if (error) throw error;
+      return data as ComissaoHierarquicaItem[];
+    },
+    enabled: isAdmin,
+  });
+
+  // Mutation para comissões hierárquicas
+  const marcarHierarquicaPagaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("comissoes_hierarquicas")
+        .update({ status: 'paga', pago_em: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["comissoes-hierarquicas-gerentes"] });
+      queryClient.invalidateQueries({ queryKey: ["comissoes-hierarquicas-admin"] });
+      toast.success("Comissão marcada como paga!");
     },
   });
 
@@ -911,7 +959,7 @@ export default function GestaoComissoes() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-7 max-w-3xl">
           <TabsTrigger value="resumo" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             <span className="hidden sm:inline">Resumo</span>
@@ -933,6 +981,16 @@ export default function GestaoComissoes() {
             <CheckCircle2 className="h-4 w-4" />
             <span className="hidden sm:inline">Pagas</span>
           </TabsTrigger>
+          <TabsTrigger value="gerentes" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">Gerentes</span>
+          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="minhas" className="flex items-center gap-2">
+              <Crown className="h-4 w-4" />
+              <span className="hidden sm:inline">Minhas</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="lotes" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Lotes</span>
@@ -1255,6 +1313,51 @@ export default function GestaoComissoes() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ============ ABA GERENTES ============ */}
+        <TabsContent value="gerentes" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Comissões dos Gerentes (1.5% sobre vendas da equipe)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ComissaoHierarquicaTable
+                comissoes={comissoesGerentes}
+                onMarcarPaga={(id) => marcarHierarquicaPagaMutation.mutate(id)}
+                isUpdating={marcarHierarquicaPagaMutation.isPending}
+                tipo="gerente"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ============ ABA MINHAS (ADMIN) ============ */}
+        {isAdmin && (
+          <TabsContent value="minhas" className="space-y-6">
+            <Card className="bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200">
+              <CardHeader>
+                <CardTitle className="text-amber-700 flex items-center gap-2">
+                  <Crown className="h-5 w-5" />
+                  Minhas Comissões (Admin 1.5%)
+                </CardTitle>
+                <p className="text-sm text-amber-600">
+                  Comissão de 1.5% sobre todas as vendas da operação
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ComissaoHierarquicaTable
+                  comissoes={comissoesAdmin}
+                  onMarcarPaga={(id) => marcarHierarquicaPagaMutation.mutate(id)}
+                  isUpdating={marcarHierarquicaPagaMutation.isPending}
+                  tipo="admin"
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {/* ============ ABA LOTES ============ */}
         <TabsContent value="lotes" className="space-y-6">
