@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { ArrowLeft, CreditCard, QrCode, MapPin, Check, Edit, Loader2, ShoppingCart, Truck, FileText, Copy } from 'lucide-react';
+import { ArrowLeft, CreditCard, QrCode, MapPin, Check, Edit, Loader2, ShoppingCart, Truck, FileText, Copy, AlertTriangle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -87,6 +87,49 @@ const formatCEP = (value: string): string => {
   return cleanValue.replace(/(\d{5})(\d)/, '$1-$2');
 };
 
+// Validação de TLD de email - detecta erros de digitação comuns
+const EMAIL_TYPOS: Record<string, string> = {
+  '.con': '.com',
+  '.cmo': '.com',
+  '.ocm': '.com',
+  '.comm': '.com',
+  '.cm': '.com',
+  '.om': '.com',
+  '.br.com': '.com.br',
+  '.co.br': '.com.br',
+  'gmal.com': 'gmail.com',
+  'gamil.com': 'gmail.com',
+  'gmial.com': 'gmail.com',
+  'gnail.com': 'gmail.com',
+  'hotnail.com': 'hotmail.com',
+  'hotmal.com': 'hotmail.com',
+  'hotmial.com': 'hotmail.com',
+  'outloo.com': 'outlook.com',
+  'outlok.com': 'outlook.com',
+  'yaho.com': 'yahoo.com',
+  'yahooo.com': 'yahoo.com',
+};
+
+const validateEmailTLD = (email: string): boolean => {
+  const lowerEmail = email.toLowerCase();
+  for (const typo of Object.keys(EMAIL_TYPOS)) {
+    if (lowerEmail.includes(typo)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const getSuggestedEmail = (email: string): string | null => {
+  const lowerEmail = email.toLowerCase();
+  for (const [typo, correction] of Object.entries(EMAIL_TYPOS)) {
+    if (lowerEmail.includes(typo)) {
+      return email.replace(new RegExp(typo.replace('.', '\\.'), 'i'), correction);
+    }
+  }
+  return null;
+};
+
 const addressSchema = z.object({
   nome: z.string().min(3, 'Nome é obrigatório').max(100, 'Nome muito longo'),
   sobrenome: z.string().min(2, 'Sobrenome é obrigatório').max(100, 'Sobrenome muito longo'),
@@ -94,7 +137,12 @@ const addressSchema = z.object({
     .min(11, 'CPF/CNPJ inválido')
     .max(18, 'CPF/CNPJ inválido')
     .refine(validateCPFOrCNPJ, { message: 'CPF ou CNPJ inválido' }),
-  email: z.string().email('Email inválido').max(255, 'Email muito longo'),
+  email: z.string()
+    .email('Email inválido')
+    .max(255, 'Email muito longo')
+    .refine(validateEmailTLD, {
+      message: 'Email parece ter erro de digitação. Verifique o domínio (.com, .com.br, etc)'
+    }),
   telefone: z.string().min(10, 'Telefone inválido').max(20, 'Telefone muito longo'),
   cep: z.string().min(8, 'CEP inválido').max(9),
   rua: z.string().min(3, 'Rua é obrigatória').max(200, 'Endereço muito longo'),
@@ -141,6 +189,9 @@ export default function CheckoutShopifyMP() {
   // Estados para boleto
   const [showBoletoDialog, setShowBoletoDialog] = useState(false);
   const [boletoUrl, setBoletoUrl] = useState('');
+  
+  // Estado para sugestão de correção de email
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const [boletoBarcode, setBoletoBarcode] = useState('');
 
   // Cliente selecionado pelo vendedor (para carrinho Shopify)
@@ -869,8 +920,38 @@ export default function CheckoutShopifyMP() {
                           <FormItem>
                             <FormLabel>Email</FormLabel>
                             <FormControl>
-                              <Input {...field} type="email" placeholder="email@exemplo.com" />
+                              <Input 
+                                {...field} 
+                                type="email" 
+                                placeholder="email@exemplo.com"
+                                autoComplete="off"
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  const suggestion = getSuggestedEmail(e.target.value);
+                                  setEmailSuggestion(suggestion);
+                                }}
+                              />
                             </FormControl>
+                            {emailSuggestion && (
+                              <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 p-2 rounded border border-amber-200 mt-1">
+                                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                                <span className="flex-1">
+                                  Você quis dizer <strong>{emailSuggestion}</strong>?
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  size="sm"
+                                  className="text-amber-700 p-0 h-auto font-semibold"
+                                  onClick={() => {
+                                    form.setValue('email', emailSuggestion);
+                                    setEmailSuggestion(null);
+                                  }}
+                                >
+                                  Corrigir
+                                </Button>
+                              </div>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
