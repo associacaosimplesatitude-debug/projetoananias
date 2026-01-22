@@ -50,8 +50,8 @@ export const useDomainBranding = (): DomainBranding => {
       return ananiasBranding;
     }
     
-    // Default to Ananias for localhost and other domains
-    return ananiasBranding;
+    // Default to EBD for localhost and other domains (including Lovable preview)
+    return ebdBranding;
   }, []);
 
   return branding;
