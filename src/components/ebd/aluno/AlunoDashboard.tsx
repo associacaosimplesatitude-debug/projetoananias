@@ -154,24 +154,22 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
     enabled: !!leituraDoDia?.licaoId,
   });
 
-  // Get pending quizzes with release time info
-  const { data: quizPendente } = useQuery({
-    queryKey: ["quiz-pendente", aluno.id, aluno.turma_id],
+  // Get ALL pending quizzes with release time info
+  const { data: quizzesPendentes } = useQuery({
+    queryKey: ["quizzes-pendentes", aluno.id, aluno.turma_id],
     queryFn: async () => {
-      if (!aluno.turma_id) return null;
-
-      const hoje = format(new Date(), "yyyy-MM-dd");
+      if (!aluno.turma_id) return [];
 
       // Buscar todos os quizzes ativos (incluindo passados que não foram respondidos)
       const { data: quizzes, error: quizzesError } = await supabase
         .from("ebd_quizzes")
-        .select("id, titulo, pontos_max, data_limite")
+        .select("id, titulo, pontos_max, data_limite, hora_liberacao, contexto, nivel")
         .eq("turma_id", aluno.turma_id)
         .eq("is_active", true)
         .order("data_limite", { ascending: true, nullsFirst: true });
 
       if (quizzesError) throw quizzesError;
-      if (!quizzes?.length) return null;
+      if (!quizzes?.length) return [];
 
       // Check which ones are completed
       const { data: respostas, error: respostasError } = await supabase
@@ -183,23 +181,16 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
       if (respostasError) throw respostasError;
 
       const respondidos = new Set(respostas?.map((r) => r.quiz_id) || []);
-      const pendente = quizzes.find((q) => !respondidos.has(q.id));
-
-      if (!pendente) return null;
-
-      // Buscar hora_liberacao (campo novo)
-      const { data: extraInfo } = await supabase
-        .from("ebd_quizzes")
-        .select("hora_liberacao, contexto, nivel")
-        .eq("id", pendente.id)
-        .single();
-
-      return {
-        ...pendente,
-        hora_liberacao: (extraInfo as any)?.hora_liberacao || "09:00:00",
-        contexto: (extraInfo as any)?.contexto || null,
-        nivel: (extraInfo as any)?.nivel || null,
-      };
+      
+      // Retornar TODOS os quizzes não respondidos
+      const pendentes = quizzes.filter((q) => !respondidos.has(q.id));
+      
+      return pendentes.map((q) => ({
+        ...q,
+        hora_liberacao: q.hora_liberacao || "09:00:00",
+        contexto: q.contexto || null,
+        nivel: q.nivel || null,
+      }));
     },
     enabled: !!aluno.turma_id,
   });
@@ -422,13 +413,13 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Card 2: Quiz Pendente */}
-        {quizPendente && (() => {
+        {/* Cards de Quizzes Pendentes - Mostrar TODOS */}
+        {quizzesPendentes && quizzesPendentes.length > 0 && quizzesPendentes.map((quiz) => {
           // Calcular se quiz está liberado
           const agora = new Date();
           const hojeStr = format(agora, "yyyy-MM-dd");
-          const dataQuiz = quizPendente.data_limite || hojeStr;
-          const horaLib = quizPendente.hora_liberacao || "09:00:00";
+          const dataQuiz = quiz.data_limite || hojeStr;
+          const horaLib = quiz.hora_liberacao || "09:00:00";
           
           // Criar data/hora de liberação
           const [hora, minuto] = horaLib.split(":");
@@ -450,30 +441,30 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
           const mostrarCronometro = !dataQuizPassou && !liberado;
 
           return (
-            <Card className={`border-2 ${liberado ? "border-purple-500/50 bg-purple-50/50 dark:bg-purple-950/20" : "border-gray-300 bg-gray-50/50 dark:bg-gray-950/20"}`}>
+            <Card key={quiz.id} className={`border-2 ${liberado ? "border-purple-500/50 bg-purple-50/50 dark:bg-purple-950/20" : "border-gray-300 bg-gray-50/50 dark:bg-gray-950/20"}`}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
                     <HelpCircle className={`w-5 h-5 ${liberado ? "text-purple-500" : "text-gray-400"}`} />
                     Quiz da Aula
                   </CardTitle>
-                  {quizPendente.nivel && (
-                    <Badge variant="outline" className="text-xs">{quizPendente.nivel}</Badge>
+                  {quiz.nivel && (
+                    <Badge variant="outline" className="text-xs">{quiz.nivel}</Badge>
                   )}
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="font-medium mb-2">{quizPendente.titulo}</p>
-                {quizPendente.contexto && (
-                  <p className="text-xs text-muted-foreground mb-2">{quizPendente.contexto}</p>
+                <p className="font-medium mb-2">{quiz.titulo}</p>
+                {quiz.contexto && (
+                  <p className="text-xs text-muted-foreground mb-2">{quiz.contexto}</p>
                 )}
                 
                 {liberado ? (
                   <>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Ganhe até {quizPendente.pontos_max} pontos respondendo!
+                      Ganhe até {quiz.pontos_max} pontos respondendo!
                     </p>
-                    <Link to={`/ebd/aluno/quiz/${quizPendente.id}`}>
+                    <Link to={`/ebd/aluno/quiz/${quiz.id}`}>
                       <Button className="w-full bg-purple-600 hover:bg-purple-700">
                         Responder Agora
                         <ChevronRight className="w-4 h-4 ml-auto" />
@@ -504,7 +495,7 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
               </CardContent>
             </Card>
           );
-        })()}
+        })}
 
         {/* Card 3: Aula da Semana */}
         <Card className="border-2 border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/20">
