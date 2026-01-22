@@ -30,6 +30,7 @@ import {
   ComissaoHierarquicaItem,
   ComissaoResumoVendedoresCards,
   ComissaoResumoGerentesCards,
+  ComissaoResumoAdminCard,
 } from "@/components/admin/comissoes";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -444,6 +445,21 @@ export default function GestaoComissoes() {
       };
     });
   }, [gerentes, comissoesGerentes, vendedores]);
+
+  // Resumo das comissões do admin (1.5% overhead) - visível apenas para admin
+  const resumoAdmin = useMemo(() => {
+    if (!isAdmin) return null;
+    
+    const liberadas = comissoesAdmin.filter(c => c.status === 'liberada');
+    const pendentes = comissoesAdmin.filter(c => c.status === 'pendente');
+    
+    return {
+      aPagar: liberadas.reduce((sum, c) => sum + Number(c.valor_comissao || 0), 0),
+      pendentes: pendentes.reduce((sum, c) => sum + Number(c.valor_comissao || 0), 0),
+      quantidadeAPagar: liberadas.length,
+      quantidadePendentes: pendentes.length,
+    };
+  }, [comissoesAdmin, isAdmin]);
 
   // Filtrar comissões hierárquicas (gerentes) com os novos filtros
   const comissoesGerentesFiltradas = useMemo(() => {
@@ -1137,6 +1153,20 @@ export default function GestaoComissoes() {
                 setGerenteFiltro(gerenteId);
                 setStatusHierarquicoFiltro(status);
                 setActiveTab('gerentes');
+              }}
+            />
+          )}
+
+          {/* Card de Resumo do Admin - apenas visível para admin */}
+          {isAdmin && resumoAdmin && (resumoAdmin.aPagar > 0 || resumoAdmin.pendentes > 0) && (
+            <ComissaoResumoAdminCard
+              aPagar={resumoAdmin.aPagar}
+              pendentes={resumoAdmin.pendentes}
+              quantidadeAPagar={resumoAdmin.quantidadeAPagar}
+              quantidadePendentes={resumoAdmin.quantidadePendentes}
+              onVerMinhas={(status) => {
+                setStatusHierarquicoFiltro(status);
+                setActiveTab('minhas');
               }}
             />
           )}
