@@ -75,7 +75,20 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
         .eq("sem_aula", false)
         .order("data", { ascending: true });
       if (error) throw error;
-      return data || [];
+      
+      // Mapear as aulas com número da lição extraído da observação
+      return (data || []).map((escala, index) => {
+        // Extrair número da lição do campo observacao (ex: "Aula 4 - O Fim do Reino de Judá")
+        const matchLicao = escala.observacao?.match(/Aula (\d+)/i);
+        const numeroLicao = matchLicao ? parseInt(matchLicao[1]) : index + 1;
+        const tituloLicao = escala.observacao?.replace(/^Aula \d+\s*-?\s*/i, "").trim() || "";
+        
+        return {
+          ...escala,
+          numeroLicao,
+          tituloLicao,
+        };
+      });
     },
     enabled: !!turmaId,
   });
@@ -208,9 +221,9 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
                     <SelectValue placeholder="Selecione a aula" />
                   </SelectTrigger>
                   <SelectContent>
-                    {aulas?.map((a, i) => (
+                    {aulas?.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
-                        Aula {i + 1} - {format(parseISO(a.data), "dd/MM")}
+                        Aula {a.numeroLicao} - {format(parseISO(a.data), "dd/MM")}{a.tituloLicao ? ` - ${a.tituloLicao}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
