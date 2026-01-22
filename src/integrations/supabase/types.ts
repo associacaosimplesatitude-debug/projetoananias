@@ -3282,12 +3282,16 @@ export type Database = {
       ebd_quizzes: {
         Row: {
           church_id: string
+          contexto: string | null
           created_at: string
           data_limite: string | null
           descricao: string | null
+          escala_id: string | null
+          hora_liberacao: string | null
           id: string
           is_active: boolean
           licao_id: string | null
+          nivel: string | null
           pontos_max: number
           titulo: string
           turma_id: string | null
@@ -3295,12 +3299,16 @@ export type Database = {
         }
         Insert: {
           church_id: string
+          contexto?: string | null
           created_at?: string
           data_limite?: string | null
           descricao?: string | null
+          escala_id?: string | null
+          hora_liberacao?: string | null
           id?: string
           is_active?: boolean
           licao_id?: string | null
+          nivel?: string | null
           pontos_max?: number
           titulo: string
           turma_id?: string | null
@@ -3308,12 +3316,16 @@ export type Database = {
         }
         Update: {
           church_id?: string
+          contexto?: string | null
           created_at?: string
           data_limite?: string | null
           descricao?: string | null
+          escala_id?: string | null
+          hora_liberacao?: string | null
           id?: string
           is_active?: boolean
           licao_id?: string | null
+          nivel?: string | null
           pontos_max?: number
           titulo?: string
           turma_id?: string | null
@@ -3325,6 +3337,13 @@ export type Database = {
             columns: ["church_id"]
             isOneToOne: false
             referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_quizzes_escala_id_fkey"
+            columns: ["escala_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_escalas"
             referencedColumns: ["id"]
           },
           {
