@@ -386,22 +386,47 @@ async function processShopifyMPPedido(
 
   console.log('Pedido Shopify MP atualizado:', pedido.id, 'Status:', newStatus, 'Bling ID:', blingOrderId);
 
-  // ✅ ETAPA B.1: ATUALIZAR PROPOSTA ORIGINAL PARA PAGO
+  // ✅ ETAPA B.1: ATUALIZAR PROPOSTA ORIGINAL PARA PAGO (COM FALLBACK PARA PROPOSTA DELETADA)
   if (newStatus === 'PAGO' && pedido.proposta_id) {
-    const { error: propostaError } = await supabase
+    // Primeiro verificar se a proposta ainda existe
+    const { data: propostaExiste, error: propostaFindError } = await supabase
       .from('vendedor_propostas')
-      .update({
-        status: 'PAGO',
-        bling_order_id: blingOrderId,
-        bling_order_number: blingOrderId?.toString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', pedido.proposta_id);
+      .select('id')
+      .eq('id', pedido.proposta_id)
+      .maybeSingle();
 
-    if (propostaError) {
-      console.error('❌ Erro ao atualizar proposta:', propostaError);
+    if (propostaFindError) {
+      console.error('❌ Erro ao buscar proposta:', propostaFindError);
+    }
+
+    if (!propostaExiste) {
+      // ⚠️ PROPOSTA FOI DELETADA - LOG DE ALERTA MAS CONTINUA O PROCESSAMENTO
+      console.warn(`⚠️ ALERTA CRÍTICO: Proposta ${pedido.proposta_id} NÃO ENCONTRADA - possivelmente deletada!`);
+      console.log('📦 Continuando processamento com dados do pedido MP (fallback mode)...');
+      console.log('📊 Dados disponíveis:', {
+        cliente_id: pedido.cliente_id,
+        cliente_nome: pedido.cliente_nome,
+        vendedor_email: pedido.vendedor_email,
+        valor_total: pedido.valor_total,
+      });
+      // Não falha - continua normalmente para criar comissão
     } else {
-      console.log(`✅ Proposta ${pedido.proposta_id} atualizada para PAGO com bling_order_id=${blingOrderId}`);
+      // Proposta existe - atualizar normalmente
+      const { error: propostaError } = await supabase
+        .from('vendedor_propostas')
+        .update({
+          status: 'PAGO',
+          bling_order_id: blingOrderId,
+          bling_order_number: blingOrderId?.toString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', pedido.proposta_id);
+
+      if (propostaError) {
+        console.error('❌ Erro ao atualizar proposta:', propostaError);
+      } else {
+        console.log(`✅ Proposta ${pedido.proposta_id} atualizada para PAGO com bling_order_id=${blingOrderId}`);
+      }
     }
   }
 
