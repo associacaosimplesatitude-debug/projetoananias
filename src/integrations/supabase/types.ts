@@ -3240,6 +3240,7 @@ export type Database = {
           id: string
           pontos_obtidos: number
           quiz_id: string
+          respostas: Json | null
           updated_at: string
         }
         Insert: {
@@ -3250,6 +3251,7 @@ export type Database = {
           id?: string
           pontos_obtidos?: number
           quiz_id: string
+          respostas?: Json | null
           updated_at?: string
         }
         Update: {
@@ -3260,6 +3262,7 @@ export type Database = {
           id?: string
           pontos_obtidos?: number
           quiz_id?: string
+          respostas?: Json | null
           updated_at?: string
         }
         Relationships: [
