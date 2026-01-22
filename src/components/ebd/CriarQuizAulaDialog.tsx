@@ -110,7 +110,7 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
   // Mutation para criar quiz
   const createQuizMutation = useMutation({
     mutationFn: async () => {
-      if (!parsedQuiz || !validation?.valid || !turmaId || !escalaId || !aulaSelecionada) {
+      if (!churchId || !parsedQuiz || !validation?.valid || !turmaId || !escalaId || !aulaSelecionada) {
         throw new Error("Dados incompletos");
       }
 
@@ -118,6 +118,7 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
       const { data: quiz, error: quizError } = await supabase
         .from("ebd_quizzes")
         .insert([{
+          church_id: churchId,
           turma_id: turmaId,
           titulo: parsedQuiz.titulo,
           descricao: parsedQuiz.descricao || null,
@@ -175,6 +176,7 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
   };
 
   const canCreate =
+    churchId &&
     turmaId &&
     escalaId &&
     parsedQuiz &&
@@ -250,7 +252,12 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {["07:00", "08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"].map((h) => (
+                      {[
+                        "00:00", "01:00", "02:00", "03:00", "04:00", "05:00",
+                        "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
+                        "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
+                        "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"
+                      ].map((h) => (
                         <SelectItem key={h} value={h}>
                           {h}
                         </SelectItem>
