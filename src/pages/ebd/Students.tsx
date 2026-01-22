@@ -113,7 +113,8 @@ export default function EBDStudents() {
   console.log("Church ID para busca de membros:", churchData.id);
 
   const handleCopyLink = async () => {
-    const link = `${window.location.origin}/cadastro-aluno/${churchData.id}`;
+    // Sempre usar domínio oficial de produção
+    const link = `https://gestaoebd.com.br/cadastro-aluno/${churchData.id}`;
     try {
       await navigator.clipboard.writeText(link);
       toast.success("Link de cadastro copiado!");

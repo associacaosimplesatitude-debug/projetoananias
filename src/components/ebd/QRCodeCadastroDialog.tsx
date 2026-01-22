@@ -18,7 +18,8 @@ export function QRCodeCadastroDialog({
   churchName 
 }: QRCodeCadastroDialogProps) {
   const qrRef = useRef<HTMLDivElement>(null);
-  const registrationUrl = `${window.location.origin}/cadastro-aluno/${churchId}`;
+  // Sempre usar domínio oficial de produção para o link
+  const registrationUrl = `https://gestaoebd.com.br/cadastro-aluno/${churchId}`;
 
   const handleDownload = () => {
     const svg = qrRef.current?.querySelector("svg");
