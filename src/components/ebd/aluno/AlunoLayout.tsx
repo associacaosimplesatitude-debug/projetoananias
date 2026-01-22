@@ -31,8 +31,21 @@ export function AlunoLayout() {
 
   const navBgColor = brandingSettings?.nav_background_color || domainBranding.navBackgroundColor;
   const navTextColor = brandingSettings?.nav_text_color || domainBranding.navTextColor;
-  const accentColor = brandingSettings?.accent_color || domainBranding.accentColor;
+  const rawAccentColor = brandingSettings?.accent_color || domainBranding.accentColor;
   const logoUrl = brandingSettings?.nav_logo_url || domainBranding.logoHorizontalUrl || logoAnanias;
+
+  // Check if accent color is too dark and use fallback
+  const isColorTooDark = (hex: string): boolean => {
+    if (!hex || !hex.startsWith("#")) return false;
+    const rgb = parseInt(hex.slice(1), 16);
+    const r = (rgb >> 16) & 0xff;
+    const g = (rgb >> 8) & 0xff;
+    const b = rgb & 0xff;
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance < 0.2;
+  };
+
+  const accentColor = isColorTooDark(rawAccentColor) ? "#3b82f6" : rawAccentColor;
 
   // Get aluno data for avatar
   const { data: aluno } = useQuery({
