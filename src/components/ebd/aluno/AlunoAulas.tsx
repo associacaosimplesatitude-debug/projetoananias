@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BookOpen, Calendar, CheckCircle } from "lucide-react";
-import { format } from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { BookOpen, Calendar, User, CheckCircle } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface AlunoAulasProps {
   alunoId: string;
@@ -13,40 +15,61 @@ interface AlunoAulasProps {
   churchId: string;
 }
 
+interface EscalaAula {
+  id: string;
+  data: string;
+  observacao: string | null;
+  sem_aula: boolean;
+  professor: {
+    id: string;
+    nome_completo: string;
+    avatar_url: string | null;
+  } | null;
+}
+
 export function AlunoAulas({ alunoId, turmaId, churchId }: AlunoAulasProps) {
-  const { data: licoes, isLoading } = useQuery({
-    queryKey: ["aluno-licoes", turmaId, churchId],
+  const hoje = format(new Date(), "yyyy-MM-dd");
+
+  // Buscar aulas da escala (que já tem as 13 lições)
+  const { data: aulasEscala, isLoading } = useQuery({
+    queryKey: ["aluno-aulas-escala", turmaId],
     queryFn: async () => {
       if (!turmaId) return [];
 
-      const { data, error } = await supabase
-        .from("ebd_licoes")
-        .select("*")
-        .or(`turma_id.eq.${turmaId},and(church_id.is.null,publicada.eq.true)`)
-        .order("data_aula", { ascending: false })
-        .limit(20);
+      const { data: escalas, error } = await supabase
+        .from("ebd_escalas")
+        .select(`
+          id, 
+          data, 
+          observacao, 
+          sem_aula,
+          professor:ebd_professores!professor_id(id, nome_completo, avatar_url)
+        `)
+        .eq("turma_id", turmaId)
+        .eq("tipo", "aula")
+        .order("data", { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      return (escalas || []) as EscalaAula[];
     },
     enabled: !!turmaId,
   });
 
-  const { data: acessos } = useQuery({
-    queryKey: ["aluno-licoes-acesso", alunoId],
+  // Buscar quais aulas o aluno já participou (via frequência)
+  const { data: frequencias } = useQuery({
+    queryKey: ["aluno-frequencias", alunoId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ebd_licoes_acesso")
-        .select("licao_id, acessado_em")
-        .eq("aluno_id", alunoId);
+        .from("ebd_frequencia")
+        .select("data")
+        .eq("aluno_id", alunoId)
+        .eq("presente", true);
 
       if (error) throw error;
-      return data || [];
+      return new Set(data?.map((f) => f.data) || []);
     },
     enabled: !!alunoId,
   });
-
-  const acessosMap = new Map(acessos?.map((a) => [a.licao_id, a.acessado_em]));
 
   if (isLoading) {
     return (
@@ -62,69 +85,116 @@ export function AlunoAulas({ alunoId, turmaId, churchId }: AlunoAulasProps) {
     );
   }
 
-  if (!licoes?.length) {
+  if (!aulasEscala?.length) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
           <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="font-semibold mb-2">Nenhuma aula disponível</h3>
+          <h3 className="font-semibold mb-2">Nenhuma aula programada</h3>
           <p className="text-muted-foreground text-sm">
-            As lições serão exibidas aqui quando forem publicadas.
+            As aulas serão exibidas aqui quando a escala for montada.
           </p>
         </CardContent>
       </Card>
     );
   }
 
+  // Encontrar a próxima aula (primeira aula >= hoje que não seja sem_aula)
+  const proximaAula = aulasEscala.find((a) => a.data >= hoje && !a.sem_aula);
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BookOpen className="w-5 h-5" />
-          Aulas Disponíveis
+          Aulas do Trimestre ({aulasEscala.length} lições)
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[500px] pr-4">
+        <ScrollArea className="h-[600px] pr-4">
           <div className="space-y-3">
-            {licoes.map((licao) => {
-              const acessado = acessosMap.has(licao.id);
+            {aulasEscala.map((aula, index) => {
+              const aulaNumero = index + 1;
+              const isHoje = aula.data === hoje && !aula.sem_aula;
+              const isProximaAula = proximaAula?.id === aula.id && !isHoje;
+              const isPast = aula.data < hoje;
+              const foiPresente = frequencias?.has(aula.data);
+
+              // Extrair título da observação (remover "Aula X - ")
+              const tituloLicao = aula.observacao?.replace(/^Aula \d+ - /, "") || `Lição ${aulaNumero}`;
+
               return (
                 <Card
-                  key={licao.id}
-                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${
-                    acessado ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" : ""
-                  }`}
+                  key={aula.id}
+                  className={cn(
+                    "transition-all",
+                    isHoje && "ring-2 ring-primary border-primary bg-primary/5",
+                    isProximaAula && "border-blue-500/50 bg-blue-50/30 dark:bg-blue-950/20",
+                    isPast && !isHoje && "opacity-70",
+                    aula.sem_aula && "bg-muted/50 opacity-60"
+                  )}
                 >
                   <CardContent className="py-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {licao.numero_licao && (
-                            <Badge variant="outline" className="text-xs">
-                              Lição {licao.numero_licao}
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <Badge 
+                            variant={isHoje ? "default" : "outline"} 
+                            className={cn(
+                              "text-xs",
+                              isHoje && "bg-primary"
+                            )}
+                          >
+                            Lição {aulaNumero}
+                          </Badge>
+                          {isHoje && (
+                            <Badge className="bg-green-500 text-white">
+                              HOJE
                             </Badge>
                           )}
-                          {acessado && (
+                          {isProximaAula && (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                              Próxima
+                            </Badge>
+                          )}
+                          {aula.sem_aula && (
+                            <Badge variant="secondary">Sem aula</Badge>
+                          )}
+                          {foiPresente && !aula.sem_aula && (
                             <CheckCircle className="w-4 h-4 text-green-500" />
                           )}
                         </div>
-                        <h4 className="font-medium truncate">{licao.titulo}</h4>
-                        <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+
+                        <h4 className="font-medium">{tituloLicao}</h4>
+
+                        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                           <Calendar className="w-4 h-4" />
-                          <span>
-                            {format(new Date(licao.data_aula), "dd 'de' MMMM", {
+                          <span className="capitalize">
+                            {format(parseISO(aula.data), "EEEE, dd 'de' MMMM", {
                               locale: ptBR,
                             })}
                           </span>
                         </div>
                       </div>
+
+                      {/* Avatar do Professor */}
+                      {aula.professor && !aula.sem_aula && (
+                        <div className="flex flex-col items-center gap-1 min-w-fit">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage 
+                              src={aula.professor.avatar_url || undefined} 
+                              className="object-cover" 
+                            />
+                            <AvatarFallback>
+                              <User className="h-4 w-4" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-muted-foreground text-center max-w-[80px] truncate">
+                            {aula.professor.nome_completo.split(" ")[0]}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {licao.conteudo && (
-                      <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                        {licao.conteudo}
-                      </p>
-                    )}
                   </CardContent>
                 </Card>
               );

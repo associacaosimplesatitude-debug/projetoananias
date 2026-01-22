@@ -62,40 +62,73 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
     enabled: !!aluno.turma_id,
   });
 
-  // Get today's reading
+  // Get today's reading from ebd_desafio_biblico_conteudo
   const { data: leituraDoDia } = useQuery({
-    queryKey: ["leitura-do-dia", aluno.turma_id],
+    queryKey: ["leitura-do-dia", aluno.turma_id, aluno.church_id],
     queryFn: async () => {
       if (!aluno.turma_id) return null;
 
       const hoje = new Date();
-      const inicioSemana = startOfWeek(hoje, { weekStartsOn: 0 });
-      const diaIndex = hoje.getDay();
+      const hojeStr = format(hoje, "yyyy-MM-dd");
+      const diaIndex = hoje.getDay(); // 0=domingo, 1=segunda, 2=terça...
 
-      // Find the current week's lesson
-      const { data: licao, error } = await supabase
-        .from("ebd_licoes")
-        .select("id, titulo, plano_leitura_semanal, data_aula")
+      // Domingo não tem leitura no desafio
+      if (diaIndex === 0) return null;
+
+      // Buscar planejamento ativo para a turma
+      const { data: planejamento, error: planejamentoError } = await supabase
+        .from("ebd_planejamento")
+        .select("id, revista_id, data_inicio")
         .eq("turma_id", aluno.turma_id)
-        .gte("data_aula", format(inicioSemana, "yyyy-MM-dd"))
-        .lte("data_aula", format(addDays(inicioSemana, 6), "yyyy-MM-dd"))
-        .order("data_aula", { ascending: false })
+        .lte("data_inicio", hojeStr)
+        .order("data_inicio", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
+      if (planejamentoError || !planejamento) return null;
 
-      if (licao?.plano_leitura_semanal) {
-        const plano = licao.plano_leitura_semanal as string[];
-        if (Array.isArray(plano) && plano[diaIndex]) {
-          return {
-            licaoId: licao.id,
-            titulo: plano[diaIndex],
-            licaoTitulo: licao.titulo,
-          };
-        }
-      }
-      return null;
+      // Buscar próxima aula para identificar a lição atual
+      const { data: proximaEscala } = await supabase
+        .from("ebd_escalas")
+        .select("data, observacao")
+        .eq("turma_id", aluno.turma_id)
+        .eq("sem_aula", false)
+        .gte("data", hojeStr)
+        .order("data", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!proximaEscala) return null;
+
+      // Extrair número da lição da observação
+      const matchLicao = proximaEscala.observacao?.match(/Aula (\d+)/);
+      const numeroLicao = matchLicao ? parseInt(matchLicao[1]) : null;
+
+      if (!numeroLicao) return null;
+
+      // Buscar conteúdo bíblico da lição
+      const { data: conteudo, error: conteudoError } = await supabase
+        .from("ebd_desafio_biblico_conteudo")
+        .select("*")
+        .eq("revista_id", planejamento.revista_id)
+        .eq("licao_numero", numeroLicao)
+        .maybeSingle();
+
+      if (conteudoError || !conteudo) return null;
+
+      // Mapear dia da semana para campo do conteúdo (seg=1, ter=2, qua=3, qui=4, sex=5, sab=6)
+      const diaField = `dia${diaIndex}`;
+      const livro = (conteudo as any)[`${diaField}_livro`];
+      const versiculo = (conteudo as any)[`${diaField}_versiculo`];
+
+      if (!livro || !versiculo) return null;
+
+      return {
+        licaoId: conteudo.id,
+        titulo: `${livro} ${versiculo}`,
+        licaoTitulo: `Lição ${numeroLicao}`,
+        numeroLicao,
+      };
     },
     enabled: !!aluno.turma_id,
   });
@@ -152,7 +185,7 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
     enabled: !!aluno.turma_id,
   });
 
-  // Get current week lesson with magazine and professor info
+  // Get current week lesson from escala with magazine and professor info
   const { data: aulaDaSemana } = useQuery({
     queryKey: ["aula-da-semana", aluno.turma_id, aluno.church_id],
     queryFn: async () => {
@@ -161,31 +194,44 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
       const hoje = new Date();
       const hojeStr = format(hoje, "yyyy-MM-dd");
 
-      // Get the lesson
-      const { data: licao, error: licaoError } = await supabase
-        .from("ebd_licoes")
-        .select("id, titulo, data_aula, numero_licao, revista:ebd_revistas(id, titulo, imagem_url)")
+      // Buscar próxima aula da escala
+      const { data: escala, error: escalaError } = await supabase
+        .from("ebd_escalas")
+        .select(`
+          id, data, observacao, sem_aula,
+          professor:ebd_professores!professor_id(id, nome_completo, avatar_url)
+        `)
         .eq("turma_id", aluno.turma_id)
-        .gte("data_aula", hojeStr)
-        .order("data_aula", { ascending: true })
+        .eq("sem_aula", false)
+        .eq("tipo", "aula")
+        .gte("data", hojeStr)
+        .order("data", { ascending: true })
         .limit(1)
         .maybeSingle();
 
-      if (licaoError) throw licaoError;
-      if (!licao) return null;
+      if (escalaError || !escala) return null;
 
-      // Get the professor from the schedule for this date
-      const { data: escala } = await supabase
-        .from("ebd_escalas")
-        .select("professor:ebd_professores!professor_id(id, nome_completo, avatar_url)")
+      // Extrair número da lição da observação (ex: "Aula 4 - O Cativeiro...")
+      const matchLicao = escala.observacao?.match(/Aula (\d+)/);
+      const numeroLicao = matchLicao ? parseInt(matchLicao[1]) : null;
+      const tituloLicao = escala.observacao?.replace(/^Aula \d+ - /, "") || "Lição";
+
+      // Buscar planejamento para pegar revista
+      const { data: planejamento } = await supabase
+        .from("ebd_planejamento")
+        .select("revista:ebd_revistas!ebd_planejamento_revista_id_fkey(id, titulo, imagem_url)")
         .eq("turma_id", aluno.turma_id)
-        .eq("data", licao.data_aula)
-        .eq("tipo", "titular")
+        .order("data_inicio", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       return {
-        ...licao,
-        professor: escala?.professor || null,
+        id: escala.id,
+        data_aula: escala.data,
+        titulo: tituloLicao,
+        numero_licao: numeroLicao,
+        professor: escala.professor || null,
+        revista: planejamento?.revista || null,
       };
     },
     enabled: !!aluno.turma_id,
