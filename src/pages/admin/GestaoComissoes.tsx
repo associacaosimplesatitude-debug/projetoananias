@@ -28,8 +28,20 @@ import {
   VincularComissaoDialog,
   ComissaoHierarquicaTable,
   ComissaoHierarquicaItem,
+  ComissaoResumoVendedoresCards,
+  ComissaoResumoGerentesCards,
 } from "@/components/admin/comissoes";
 import { useUserRole } from "@/hooks/useUserRole";
+
+interface VendedorExtended {
+  id: string;
+  nome: string;
+  email: string | null;
+  comissao_percentual: number;
+  foto_url: string | null;
+  is_gerente?: boolean;
+  gerente_id?: string | null;
+}
 
 interface Parcela {
   id: string;
@@ -79,6 +91,8 @@ interface Vendedor {
   email: string | null;
   comissao_percentual: number;
   foto_url: string | null;
+  is_gerente?: boolean;
+  gerente_id?: string | null;
 }
 
 interface Cliente {
@@ -111,6 +125,12 @@ export default function GestaoComissoes() {
   const [showLoteDialog, setShowLoteDialog] = useState(false);
   const [showLoteDetalheDialog, setShowLoteDetalheDialog] = useState(false);
   const [selectedLoteId, setSelectedLoteId] = useState<string | null>(null);
+  
+  // Filtros para aba Gerentes
+  const [gerenteSearchTerm, setGerenteSearchTerm] = useState("");
+  const [gerenteFiltro, setGerenteFiltro] = useState<string>("todos");
+  const [vendedorEquipeFiltro, setVendedorEquipeFiltro] = useState<string>("todos");
+  const [statusHierarquicoFiltro, setStatusHierarquicoFiltro] = useState<string>("todos");
   
   // State for manual linking dialog
   const [showVincularDialog, setShowVincularDialog] = useState(false);
@@ -147,13 +167,13 @@ export default function GestaoComissoes() {
     },
   });
 
-  // Fetch vendedores
+  // Fetch vendedores (com is_gerente e gerente_id)
   const { data: vendedores = [] } = useQuery({
     queryKey: ["admin-vendedores-comissoes"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendedores")
-        .select("id, nome, email, comissao_percentual, foto_url")
+        .select("id, nome, email, comissao_percentual, foto_url, is_gerente, gerente_id")
         .order("nome");
       
       if (error) throw error;
@@ -377,6 +397,90 @@ export default function GestaoComissoes() {
     
     return Object.values(agrupado).sort((a, b) => b.total - a.total).slice(0, 5);
   }, [parcelas, vendedorById, vendedorByEmail]);
+
+  // Resumo por vendedor para cards
+  const resumoPorVendedor = useMemo(() => {
+    return vendedores.map(v => {
+      const comissoesVendedor = parcelas.filter(p => p.vendedor_id === v.id);
+      return {
+        id: v.id,
+        nome: v.nome,
+        foto: v.foto_url,
+        aPagar: comissoesVendedor
+          .filter(c => c.comissao_status === 'liberada')
+          .reduce((sum, c) => sum + Number(c.valor_comissao || 0), 0),
+        pendentes: comissoesVendedor
+          .filter(c => c.comissao_status === 'pendente' || c.comissao_status === 'agendada')
+          .reduce((sum, c) => sum + Number(c.valor_comissao || 0), 0),
+      };
+    }).filter(v => v.aPagar > 0 || v.pendentes > 0);
+  }, [parcelas, vendedores]);
+
+  // Lista de gerentes
+  const gerentes = useMemo(() => {
+    return vendedores.filter(v => v.is_gerente === true);
+  }, [vendedores]);
+
+  // Resumo por gerente para cards
+  const resumoPorGerente = useMemo(() => {
+    return gerentes.map(g => {
+      const comissoesGerente = comissoesGerentes.filter(
+        c => c.beneficiario_id === g.id
+      );
+      const equipe = vendedores
+        .filter(v => v.gerente_id === g.id)
+        .map(v => v.nome);
+      return {
+        id: g.id,
+        nome: g.nome,
+        foto: g.foto_url,
+        equipe,
+        aPagar: comissoesGerente
+          .filter(c => c.status === 'liberada')
+          .reduce((sum, c) => sum + Number(c.valor_comissao || 0), 0),
+        pendentes: comissoesGerente
+          .filter(c => c.status === 'pendente')
+          .reduce((sum, c) => sum + Number(c.valor_comissao || 0), 0),
+      };
+    });
+  }, [gerentes, comissoesGerentes, vendedores]);
+
+  // Filtrar comissões hierárquicas (gerentes) com os novos filtros
+  const comissoesGerentesFiltradas = useMemo(() => {
+    let resultado = [...comissoesGerentes];
+
+    // Filtro por gerente
+    if (gerenteFiltro !== "todos") {
+      resultado = resultado.filter(c => c.beneficiario_id === gerenteFiltro);
+    }
+
+    // Filtro por vendedor da equipe
+    if (vendedorEquipeFiltro !== "todos") {
+      resultado = resultado.filter(c => c.vendedor_origem_id === vendedorEquipeFiltro);
+    }
+
+    // Filtro por status
+    if (statusHierarquicoFiltro !== "todos") {
+      resultado = resultado.filter(c => c.status === statusHierarquicoFiltro);
+    }
+
+    // Busca textual
+    if (gerenteSearchTerm) {
+      const term = gerenteSearchTerm.toLowerCase();
+      resultado = resultado.filter(c =>
+        c.beneficiario_nome?.toLowerCase().includes(term) ||
+        c.vendedor_origem_nome?.toLowerCase().includes(term) ||
+        c.cliente_nome?.toLowerCase().includes(term)
+      );
+    }
+
+    return resultado;
+  }, [comissoesGerentes, gerenteFiltro, vendedorEquipeFiltro, statusHierarquicoFiltro, gerenteSearchTerm]);
+
+  // Vendedores vinculados a gerentes (para filtro)
+  const vendedoresVinculados = useMemo(() => {
+    return vendedores.filter(v => v.gerente_id !== null && v.gerente_id !== undefined);
+  }, [vendedores]);
 
   // Comissões para lote (liberadas sem lote)
   const comissoesParaLote = useMemo(() => {
@@ -1013,6 +1117,30 @@ export default function GestaoComissoes() {
             isGenerating={criarLoteMutation.isPending}
           />
 
+          {/* Cards de Resumo por Vendedor */}
+          <ComissaoResumoVendedoresCards
+            vendedores={resumoPorVendedor}
+            onVerVendedor={(vendedorId, tab) => {
+              setVendedorSelecionado(vendedorId);
+              if (tab === 'a_pagar') {
+                setStatusSelecionado('liberada');
+              }
+              setActiveTab(tab === 'a_pagar' ? 'a_pagar' : 'pendentes');
+            }}
+          />
+
+          {/* Cards de Resumo por Gerente */}
+          {(isAdmin || isFinanceiro) && resumoPorGerente.length > 0 && (
+            <ComissaoResumoGerentesCards
+              gerentes={resumoPorGerente}
+              onVerGerente={(gerenteId, status) => {
+                setGerenteFiltro(gerenteId);
+                setStatusHierarquicoFiltro(status);
+                setActiveTab('gerentes');
+              }}
+            />
+          )}
+
           {/* Atrasadas (se houver) */}
           {kpis.atrasadas.quantidade > 0 && (
             <Card className="border-red-200">
@@ -1316,16 +1444,87 @@ export default function GestaoComissoes() {
 
         {/* ============ ABA GERENTES ============ */}
         <TabsContent value="gerentes" className="space-y-6">
+          {/* Filtros */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filtros
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                <div className="w-48">
+                  <label className="text-sm font-medium mb-1 block">Buscar</label>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Cliente, gerente..."
+                      value={gerenteSearchTerm}
+                      onChange={(e) => setGerenteSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+
+                <div className="w-44">
+                  <label className="text-sm font-medium mb-1 block">Gerente</label>
+                  <Select value={gerenteFiltro} onValueChange={setGerenteFiltro}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {gerentes.map(g => (
+                        <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="w-44">
+                  <label className="text-sm font-medium mb-1 block">Vendedor da Equipe</label>
+                  <Select value={vendedorEquipeFiltro} onValueChange={setVendedorEquipeFiltro}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      {vendedoresVinculados.map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="w-36">
+                  <label className="text-sm font-medium mb-1 block">Status</label>
+                  <Select value={statusHierarquicoFiltro} onValueChange={setStatusHierarquicoFiltro}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="pendente">Pendente</SelectItem>
+                      <SelectItem value="liberada">Liberada</SelectItem>
+                      <SelectItem value="paga">Paga</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Comissões dos Gerentes (1.5% sobre vendas da equipe)
+                Comissões dos Gerentes ({comissoesGerentesFiltradas.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ComissaoHierarquicaTable
-                comissoes={comissoesGerentes}
+                comissoes={comissoesGerentesFiltradas}
                 onMarcarPaga={(id) => marcarHierarquicaPagaMutation.mutate(id)}
                 isUpdating={marcarHierarquicaPagaMutation.isPending}
                 tipo="gerente"
