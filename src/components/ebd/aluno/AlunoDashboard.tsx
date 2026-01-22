@@ -210,9 +210,13 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
       if (!aluno.turma_id) return null;
 
       const hoje = new Date();
-      const hojeStr = format(hoje, "yyyy-MM-dd");
+      // Buscar aula da semana corrente (domingo a sábado)
+      const inicioSemana = startOfWeek(hoje, { weekStartsOn: 0 });
+      const fimSemana = addDays(inicioSemana, 6);
+      const inicioStr = format(inicioSemana, "yyyy-MM-dd");
+      const fimStr = format(fimSemana, "yyyy-MM-dd");
 
-      // Buscar próxima aula da escala
+      // Buscar aula da escala dentro da semana corrente
       const { data: escala, error: escalaError } = await supabase
         .from("ebd_escalas")
         .select(`
@@ -222,7 +226,8 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
         .eq("turma_id", aluno.turma_id)
         .eq("sem_aula", false)
         .eq("tipo", "aula")
-        .gte("data", hojeStr)
+        .gte("data", inicioStr)
+        .lte("data", fimStr)
         .order("data", { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -251,6 +256,52 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
         professor: escala.professor || null,
         revista: planejamento?.revista || null,
       };
+    },
+    enabled: !!aluno.turma_id,
+  });
+
+  // Get lessons list for the trimester with teacher info
+  const { data: aulasDoTrimestre } = useQuery({
+    queryKey: ["aulas-trimestre", aluno.turma_id],
+    queryFn: async () => {
+      if (!aluno.turma_id) return null;
+
+      const hoje = new Date();
+      const hojeStr = format(hoje, "yyyy-MM-dd");
+
+      const { data: escalas, error } = await supabase
+        .from("ebd_escalas")
+        .select(`
+          id, data, observacao, sem_aula,
+          professor:ebd_professores!professor_id(id, nome_completo, avatar_url)
+        `)
+        .eq("turma_id", aluno.turma_id)
+        .eq("tipo", "aula")
+        .eq("sem_aula", false)
+        .order("data", { ascending: true })
+        .limit(13);
+
+      if (error || !escalas) return null;
+
+      return escalas.map((escala) => {
+        const matchLicao = escala.observacao?.match(/Aula (\d+)/);
+        const numeroLicao = matchLicao ? parseInt(matchLicao[1]) : null;
+        const tituloLicao = escala.observacao?.replace(/^Aula \d+ - /, "") || "Lição";
+        const isHoje = escala.data === hojeStr;
+        const isPast = escala.data < hojeStr;
+
+        return {
+          id: escala.id,
+          data: escala.data,
+          dataFormatada: format(new Date(escala.data), "dd/MM", { locale: ptBR }),
+          diaSemana: format(new Date(escala.data), "EEEE", { locale: ptBR }),
+          numero: numeroLicao,
+          titulo: tituloLicao,
+          professor: escala.professor || null,
+          isHoje,
+          isPast,
+        };
+      });
     },
     enabled: !!aluno.turma_id,
   });
@@ -516,6 +567,66 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lista de Aulas do Trimestre */}
+      {aulasDoTrimestre && aulasDoTrimestre.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Aulas do Trimestre
+            </CardTitle>
+            <Link to="/ebd/aluno/aulas">
+              <Button variant="ghost" size="sm" className="text-xs">
+                Ver todas <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {aulasDoTrimestre.slice(0, 6).map((aula) => (
+                <div 
+                  key={aula.id} 
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                    aula.isHoje 
+                      ? "border-green-500 bg-green-50 dark:bg-green-950/30" 
+                      : aula.isPast 
+                        ? "opacity-60 bg-muted/30" 
+                        : ""
+                  }`}
+                >
+                  {/* Avatar do Professor */}
+                  <Avatar className="h-10 w-10 flex-shrink-0">
+                    <AvatarImage src={aula.professor?.avatar_url || undefined} className="object-cover" />
+                    <AvatarFallback className="bg-primary/10">
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  {/* Info da Aula */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {aula.numero && (
+                        <Badge variant="outline" className="text-xs">
+                          Lição {aula.numero}
+                        </Badge>
+                      )}
+                      {aula.isHoje && (
+                        <Badge className="bg-green-500 text-xs">HOJE</Badge>
+                      )}
+                    </div>
+                    <p className="font-medium text-sm truncate">{aula.titulo}</p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {aula.diaSemana}, {aula.dataFormatada}
+                      {aula.professor && ` • ${aula.professor.nome_completo.split(" ")[0]}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Acesso Rápido */}
       <Card>
