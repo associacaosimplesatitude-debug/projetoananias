@@ -15,6 +15,7 @@ import {
   Gamepad2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { DescontoSidebarBadge } from "./DescontoSidebarBadge";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
@@ -218,6 +219,8 @@ function EBDSidebar() {
 }
 
 export function EBDLayout() {
+  const isMobile = useIsMobile();
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -227,6 +230,16 @@ export function EBDLayout() {
           {/* Header */}
           <header className="border-b bg-background h-14 flex items-center px-4 gap-4">
             <SidebarTrigger />
+            
+            {/* Logo EBD no mobile */}
+            {isMobile && (
+              <img 
+                src="/logos/logo-ebd-horizontal.png" 
+                alt="Gestão EBD" 
+                className="h-8 object-contain"
+              />
+            )}
+            
             <div className="flex-1" />
             <UserProfileDropdown />
           </header>
