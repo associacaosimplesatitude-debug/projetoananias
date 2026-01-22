@@ -161,8 +161,19 @@ export default function AlunoQuizPage() {
 
       if (respostaError) throw respostaError;
 
+      // Buscar pontos ATUAIS do banco antes de somar (evita cache desatualizado)
+      const { data: alunoAtual, error: fetchError } = await supabase
+        .from("ebd_alunos")
+        .select("pontos_totais")
+        .eq("id", aluno.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const pontosAtuais = alunoAtual?.pontos_totais || 0;
+      const novosPontos = pontosAtuais + pontos;
+
       // Atualizar pontos do aluno
-      const novosPontos = (aluno.pontos_totais || 0) + pontos;
       const { error: updateError } = await supabase
         .from("ebd_alunos")
         .update({ pontos_totais: novosPontos })
