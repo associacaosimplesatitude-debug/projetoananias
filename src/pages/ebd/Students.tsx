@@ -3,13 +3,14 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Users, UserPlus, User, Plus, Pencil, Trash2, Link, Copy } from "lucide-react";
+import { Search, Users, UserPlus, User, Plus, Pencil, Trash2, Link, QrCode } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import MemberSearchDialog from "@/components/ebd/MemberSearchDialog";
 import ActivateMemberDialog from "@/components/ebd/ActivateMemberDialog";
 import { CadastrarAlunoDialog } from "@/components/ebd/CadastrarAlunoDialog";
 import { EditarAlunoDialog } from "@/components/ebd/EditarAlunoDialog";
+import { QRCodeCadastroDialog } from "@/components/ebd/QRCodeCadastroDialog";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
@@ -36,6 +37,7 @@ export default function EBDStudents() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [selectedAluno, setSelectedAluno] = useState<any>(null);
+  const [qrCodeOpen, setQrCodeOpen] = useState(false);
 
   const { data: churchData, isLoading: isLoadingChurch } = useEbdChurchId(clientId);
 
@@ -135,6 +137,13 @@ export default function EBDStudents() {
             >
               <Link className="w-4 h-4 mr-2" />
               Copiar Link de Cadastro
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => setQrCodeOpen(true)}
+            >
+              <QrCode className="w-4 h-4 mr-2" />
+              QR Code
             </Button>
             <Button 
               onClick={() => setCadastrarAlunoOpen(true)}
@@ -295,6 +304,12 @@ export default function EBDStudents() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <QRCodeCadastroDialog
+        open={qrCodeOpen}
+        onOpenChange={setQrCodeOpen}
+        churchId={churchData.id}
+      />
     </div>
   );
 }
