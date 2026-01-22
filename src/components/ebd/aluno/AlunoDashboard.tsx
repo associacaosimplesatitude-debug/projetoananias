@@ -195,6 +195,46 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
     enabled: !!aluno.turma_id,
   });
 
+  // Get recently completed quizzes to show "Ver Resultado"
+  const { data: quizzesRespondidos } = useQuery({
+    queryKey: ["quizzes-respondidos", aluno.id, aluno.turma_id],
+    queryFn: async () => {
+      if (!aluno.turma_id) return [];
+
+      const { data: respostas, error: respostasError } = await supabase
+        .from("ebd_quiz_respostas")
+        .select("quiz_id, pontos_obtidos, created_at")
+        .eq("aluno_id", aluno.id)
+        .eq("completado", true)
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (respostasError) throw respostasError;
+      if (!respostas?.length) return [];
+
+      // Buscar info dos quizzes respondidos
+      const quizIds = respostas.map((r) => r.quiz_id);
+      const { data: quizzes, error: quizzesError } = await supabase
+        .from("ebd_quizzes")
+        .select("id, titulo, pontos_max")
+        .in("id", quizIds);
+
+      if (quizzesError) throw quizzesError;
+
+      return respostas.map((r) => {
+        const quiz = quizzes?.find((q) => q.id === r.quiz_id);
+        return {
+          quiz_id: r.quiz_id,
+          titulo: quiz?.titulo || "Quiz",
+          pontos_obtidos: r.pontos_obtidos,
+          pontos_max: quiz?.pontos_max || 0,
+          created_at: r.created_at,
+        };
+      });
+    },
+    enabled: !!aluno.turma_id,
+  });
+
   // Get current week lesson from escala with magazine and professor info
   const { data: aulaDaSemana } = useQuery({
     queryKey: ["aula-da-semana", aluno.turma_id, aluno.church_id],
@@ -496,6 +536,35 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
             </Card>
           );
         })}
+
+        {/* Cards de Quizzes Respondidos - Ver Resultado */}
+        {quizzesRespondidos && quizzesRespondidos.length > 0 && quizzesRespondidos.map((quiz) => (
+          <Card key={quiz.quiz_id} className="border-2 border-green-500/50 bg-green-50/50 dark:bg-green-950/20">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-green-500" />
+                  Quiz Concluído
+                </CardTitle>
+                <Badge variant="default" className="bg-green-500">
+                  {quiz.pontos_obtidos} pts
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="font-medium mb-2">{quiz.titulo}</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Você ganhou {quiz.pontos_obtidos} de {quiz.pontos_max} pontos possíveis
+              </p>
+              <Link to={`/ebd/aluno/quiz/${quiz.quiz_id}`}>
+                <Button className="w-full" variant="outline">
+                  Ver Resultado
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ))}
 
         {/* Card 3: Aula da Semana */}
         <Card className="border-2 border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/20">

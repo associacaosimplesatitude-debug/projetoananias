@@ -105,14 +105,14 @@ export default function AlunoQuizPage() {
     enabled: !!quizId,
   });
 
-  // Verificar se já respondeu
+  // Verificar se já respondeu e buscar respostas salvas
   const { data: jaRespondeu } = useQuery({
     queryKey: ["quiz-ja-respondeu", quizId, aluno?.id],
     queryFn: async () => {
       if (!quizId || !aluno?.id) return null;
       const { data, error } = await supabase
         .from("ebd_quiz_respostas")
-        .select("id, pontos_obtidos, completado")
+        .select("id, pontos_obtidos, completado, respostas")
         .eq("quiz_id", quizId)
         .eq("aluno_id", aluno.id)
         .maybeSingle();
@@ -175,8 +175,11 @@ export default function AlunoQuizPage() {
     onSuccess: (data) => {
       setResultado(data);
       setFinalizado(true);
-      queryClient.invalidateQueries({ queryKey: ["aluno"] });
-
+      // Invalidar todas as queries relacionadas ao aluno para atualizar pontos no dashboard
+      queryClient.invalidateQueries({ queryKey: ["aluno-area"] });
+      queryClient.invalidateQueries({ queryKey: ["aluno-layout"] });
+      queryClient.invalidateQueries({ queryKey: ["aluno-rank"] });
+      queryClient.invalidateQueries({ queryKey: ["quizzes-pendentes"] });
       // Confetti se acertou mais de 70%
       if (data.acertos / data.total >= 0.7) {
         confetti({
@@ -229,23 +232,100 @@ export default function AlunoQuizPage() {
     );
   }
 
-  // Já respondeu
-  if (jaRespondeu?.completado) {
+  // Já respondeu - mostrar resultado detalhado
+  if (jaRespondeu?.completado && questoes) {
+    const respostasSalvas = (jaRespondeu.respostas || {}) as Record<string, string>;
+    
+    // Calcular acertos a partir das respostas salvas
+    let acertos = 0;
+    questoes.forEach((q) => {
+      if (respostasSalvas[q.id] === q.resposta_correta) acertos++;
+    });
+    const percentual = Math.round((acertos / questoes.length) * 100);
+
     return (
       <div className="max-w-2xl mx-auto space-y-6">
-        <Card className="text-center">
-          <CardContent className="py-12">
-            <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Você já respondeu este quiz!</h2>
-            <p className="text-muted-foreground mb-4">
-              Sua pontuação: <span className="font-bold text-primary">{jaRespondeu.pontos_obtidos} pontos</span>
-            </p>
-            <Button onClick={() => navigate("/ebd/aluno")} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Voltar ao Dashboard
-            </Button>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/ebd/aluno")} className="gap-1">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Button>
+          <Badge variant="secondary">Resultado do Quiz</Badge>
+        </div>
+
+        <Card className="text-center border-2 border-primary">
+          <CardContent className="py-8">
+            <Sparkles className="h-12 w-12 mx-auto text-primary mb-4" />
+            <h2 className="text-2xl font-bold mb-2">{quiz?.titulo}</h2>
+
+            <div className="my-6">
+              <div className="text-5xl font-bold text-primary mb-2">
+                {jaRespondeu.pontos_obtidos} pontos
+              </div>
+              <p className="text-lg text-muted-foreground">
+                {acertos} de {questoes.length} acertos ({percentual}%)
+              </p>
+            </div>
+
+            <Badge
+              variant={percentual >= 70 ? "default" : percentual >= 50 ? "secondary" : "destructive"}
+              className="text-lg px-4 py-1"
+            >
+              {percentual >= 70 ? "Excelente!" : percentual >= 50 ? "Bom trabalho!" : "Continue estudando!"}
+            </Badge>
           </CardContent>
         </Card>
+
+        {/* Detalhes das respostas */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Resultado detalhado</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {questoes.map((q, i) => {
+              const respostaAluno = respostasSalvas[q.id];
+              const correta = respostaAluno === q.resposta_correta;
+
+              return (
+                <div
+                  key={q.id}
+                  className={`p-3 rounded-lg border ${
+                    correta ? "bg-green-50 border-green-200 dark:bg-green-950/20" : "bg-red-50 border-red-200 dark:bg-red-950/20"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    {correta ? (
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">
+                        {i + 1}. {q.pergunta}
+                      </p>
+                      {!correta && (
+                        <p className="text-xs mt-1 text-muted-foreground">
+                          Sua resposta: {respostaAluno || "—"} | Correta: {q.resposta_correta}
+                        </p>
+                      )}
+                    </div>
+                    <Badge variant={correta ? "default" : "destructive"} className="text-xs">
+                      {correta ? "+10" : "0"}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <div className="text-center">
+          <Button onClick={() => navigate("/ebd/aluno")} className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
