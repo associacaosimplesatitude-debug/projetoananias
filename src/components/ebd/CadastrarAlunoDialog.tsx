@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -16,6 +16,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { User, Upload } from "lucide-react";
 import { z } from "zod";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const alunoSchema = z.object({
   nome: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
@@ -44,9 +51,25 @@ export function CadastrarAlunoDialog({
   const [senha, setSenha] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [dataNascimento, setDataNascimento] = useState("");
+  const [turmaId, setTurmaId] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const { data: turmas } = useQuery({
+    queryKey: ["ebd-turmas-cadastro", churchId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_turmas")
+        .select("id, nome")
+        .eq("church_id", churchId)
+        .eq("is_active", true)
+        .order("nome");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!churchId,
+  });
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -66,6 +89,7 @@ export function CadastrarAlunoDialog({
     setSenha("");
     setWhatsapp("");
     setDataNascimento("");
+    setTurmaId("");
     setAvatarFile(null);
     setAvatarPreview(null);
     setErrors({});
@@ -154,6 +178,7 @@ export function CadastrarAlunoDialog({
         avatar_url: avatarUrl,
         user_id: userId,
         is_active: true,
+        turma_id: turmaId || null,
       });
 
       if (alunoError) {
@@ -282,6 +307,23 @@ export function CadastrarAlunoDialog({
               value={dataNascimento}
               onChange={(e) => setDataNascimento(e.target.value)}
             />
+          </div>
+
+          {/* Turma */}
+          <div className="space-y-2">
+            <Label htmlFor="turma">Turma</Label>
+            <Select value={turmaId} onValueChange={setTurmaId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma turma" />
+              </SelectTrigger>
+              <SelectContent>
+                {turmas?.map((turma) => (
+                  <SelectItem key={turma.id} value={turma.id}>
+                    {turma.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
