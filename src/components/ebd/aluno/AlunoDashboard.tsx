@@ -154,18 +154,20 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
     enabled: !!leituraDoDia?.licaoId,
   });
 
-  // Get pending quizzes
+  // Get pending quizzes with release time info
   const { data: quizPendente } = useQuery({
     queryKey: ["quiz-pendente", aluno.id, aluno.turma_id],
     queryFn: async () => {
       if (!aluno.turma_id) return null;
 
+      const hoje = format(new Date(), "yyyy-MM-dd");
+
       const { data: quizzes, error: quizzesError } = await supabase
         .from("ebd_quizzes")
-        .select("id, titulo, pontos_max")
+        .select("id, titulo, pontos_max, data_limite")
         .eq("turma_id", aluno.turma_id)
         .eq("is_active", true)
-        .or(`data_limite.is.null,data_limite.gte.${format(new Date(), "yyyy-MM-dd")}`);
+        .or(`data_limite.is.null,data_limite.gte.${hoje}`);
 
       if (quizzesError) throw quizzesError;
       if (!quizzes?.length) return null;
@@ -180,7 +182,23 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
       if (respostasError) throw respostasError;
 
       const respondidos = new Set(respostas?.map((r) => r.quiz_id) || []);
-      return quizzes.find((q) => !respondidos.has(q.id)) || null;
+      const pendente = quizzes.find((q) => !respondidos.has(q.id));
+
+      if (!pendente) return null;
+
+      // Buscar hora_liberacao (campo novo)
+      const { data: extraInfo } = await supabase
+        .from("ebd_quizzes")
+        .select("hora_liberacao, contexto, nivel")
+        .eq("id", pendente.id)
+        .single();
+
+      return {
+        ...pendente,
+        hora_liberacao: (extraInfo as any)?.hora_liberacao || "09:00:00",
+        contexto: (extraInfo as any)?.contexto || null,
+        nivel: (extraInfo as any)?.nivel || null,
+      };
     },
     enabled: !!aluno.turma_id,
   });
@@ -353,26 +371,80 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
         </Card>
 
         {/* Card 2: Quiz Pendente */}
-        {quizPendente && (
-          <Card className="border-2 border-purple-500/50 bg-purple-50/50 dark:bg-purple-950/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-purple-500" />
-                Novo Quiz Disponível!
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="font-medium mb-2">{quizPendente.titulo}</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                Ganhe até {quizPendente.pontos_max} pontos respondendo!
-              </p>
-              <Button className="w-full" variant="default">
-                Responder Agora
-                <ChevronRight className="w-4 h-4 ml-auto" />
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        {quizPendente && (() => {
+          // Calcular se quiz está liberado
+          const agora = new Date();
+          const hojeStr = format(agora, "yyyy-MM-dd");
+          const dataQuiz = quizPendente.data_limite || hojeStr;
+          const horaLib = quizPendente.hora_liberacao || "09:00:00";
+          
+          // Criar data/hora de liberação
+          const [hora, minuto] = horaLib.split(":");
+          const dataHoraLiberacao = new Date(`${dataQuiz}T${hora}:${minuto}:00`);
+          const liberado = agora >= dataHoraLiberacao;
+          
+          // Calcular tempo restante
+          const diffMs = dataHoraLiberacao.getTime() - agora.getTime();
+          const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+          const horasRestantes = Math.floor(diffMins / 60);
+          const minsRestantes = diffMins % 60;
+
+          return (
+            <Card className={`border-2 ${liberado ? "border-purple-500/50 bg-purple-50/50 dark:bg-purple-950/20" : "border-gray-300 bg-gray-50/50 dark:bg-gray-950/20"}`}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <HelpCircle className={`w-5 h-5 ${liberado ? "text-purple-500" : "text-gray-400"}`} />
+                    Quiz da Aula
+                  </CardTitle>
+                  {quizPendente.nivel && (
+                    <Badge variant="outline" className="text-xs">{quizPendente.nivel}</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="font-medium mb-2">{quizPendente.titulo}</p>
+                {quizPendente.contexto && (
+                  <p className="text-xs text-muted-foreground mb-2">{quizPendente.contexto}</p>
+                )}
+                
+                {liberado ? (
+                  <>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Ganhe até {quizPendente.pontos_max} pontos respondendo!
+                    </p>
+                    <Link to={`/ebd/aluno/quiz/${quizPendente.id}`}>
+                      <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                        Responder Agora
+                        <ChevronRight className="w-4 h-4 ml-auto" />
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                      <Calendar className="w-4 h-4" />
+                      <span>
+                        Libera em {format(dataHoraLiberacao, "dd/MM")} às {horaLib.slice(0, 5)}
+                      </span>
+                    </div>
+                    {diffMins > 0 && diffMins <= 1440 && (
+                      <div className="p-3 bg-muted rounded-lg text-center">
+                        <p className="text-xs text-muted-foreground mb-1">Faltam</p>
+                        <p className="text-lg font-bold">
+                          {horasRestantes > 0 ? `${horasRestantes}h ${minsRestantes}min` : `${minsRestantes} minutos`}
+                        </p>
+                      </div>
+                    )}
+                    <Button className="w-full mt-3" variant="outline" disabled>
+                      Aguardando liberação
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Card 3: Aula da Semana */}
         <Card className="border-2 border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/20">
