@@ -223,7 +223,7 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
                   <SelectContent>
                     {aulas?.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
-                        Aula {a.numeroLicao} - {format(parseISO(a.data), "dd/MM")}{a.tituloLicao ? ` - ${a.tituloLicao}` : ""}
+                        Aula {a.numeroLicao} - {format(parseISO(a.data), "dd/MM")}
                       </SelectItem>
                     ))}
                   </SelectContent>
