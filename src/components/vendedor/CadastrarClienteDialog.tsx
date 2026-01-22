@@ -31,10 +31,56 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { MapPin, User, Building, Lock, Phone, Pencil, Search, CheckCircle2, Loader2, Send } from "lucide-react";
+import { MapPin, User, Building, Lock, Phone, Pencil, Search, CheckCircle2, Loader2, Send, AlertTriangle } from "lucide-react";
+
+// Email TLD validation - common typos mapping
+const EMAIL_TYPOS: Record<string, string> = {
+  '.con': '.com',
+  '.cmo': '.com',
+  '.ocm': '.com',
+  '.comm': '.com',
+  '.cm': '.com',
+  '.om': '.com',
+  '.br.com': '.com.br',
+  '.co.br': '.com.br',
+  'gmal.com': 'gmail.com',
+  'gamil.com': 'gmail.com',
+  'gmial.com': 'gmail.com',
+  'gnail.com': 'gmail.com',
+  'gmaill.com': 'gmail.com',
+  'hotnail.com': 'hotmail.com',
+  'hotmal.com': 'hotmail.com',
+  'hotmial.com': 'hotmail.com',
+  'outloo.com': 'outlook.com',
+  'outlok.com': 'outlook.com',
+  'yaho.com': 'yahoo.com',
+  'yahooo.com': 'yahoo.com',
+};
+
+const validateEmailTLD = (email: string): boolean => {
+  if (!email) return true;
+  const lowerEmail = email.toLowerCase();
+  for (const typo of Object.keys(EMAIL_TYPOS)) {
+    if (lowerEmail.includes(typo)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const getSuggestedEmail = (email: string): string | null => {
+  if (!email) return null;
+  const lowerEmail = email.toLowerCase();
+  for (const [typo, correction] of Object.entries(EMAIL_TYPOS)) {
+    if (lowerEmail.includes(typo)) {
+      return email.replace(new RegExp(typo, 'i'), correction);
+    }
+  }
+  return null;
+};
+
 import { DescontosCategoriaSection } from "./DescontosCategoriaSection";
 import { TransferRequestDialog } from "./TransferRequestDialog";
-
 interface Cliente {
   id: string;
   tipo_cliente: string | null;
@@ -132,6 +178,7 @@ export function CadastrarClienteDialog({
     vendedorAtualId: string | null;
   }>({ open: false, nomeVendedor: "", nomeCliente: "", clienteId: null, vendedorAtualId: null });
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
 
   const isEditMode = !!clienteParaEditar;
 
@@ -373,6 +420,12 @@ export function CadastrarClienteDialog({
     
     if (!formData.nome_igreja || !formData.documento || !formData.email_superintendente) {
       toast.error("Nome, Documento e E-mail são obrigatórios");
+      return;
+    }
+
+    // Validate email TLD
+    if (!validateEmailTLD(formData.email_superintendente)) {
+      toast.error("Email parece ter erro de digitação. Verifique o domínio (.com, .com.br, etc)");
       return;
     }
 
@@ -765,10 +818,33 @@ export function CadastrarClienteDialog({
                     id="email"
                     type="email"
                     value={formData.email_superintendente}
-                    onChange={(e) => setFormData({ ...formData, email_superintendente: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({ ...formData, email_superintendente: value });
+                      setEmailSuggestion(getSuggestedEmail(value));
+                    }}
                     placeholder="email@igreja.com"
                     required
+                    className={emailSuggestion ? "border-amber-500" : ""}
                   />
+                  {emailSuggestion && (
+                    <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                      <span>Você quis dizer <strong>{emailSuggestion}</strong>?</span>
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="text-amber-700 p-0 h-auto"
+                        onClick={() => {
+                          setFormData({ ...formData, email_superintendente: emailSuggestion });
+                          setEmailSuggestion(null);
+                        }}
+                      >
+                        Corrigir
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
