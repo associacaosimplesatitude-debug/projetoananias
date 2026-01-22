@@ -1404,13 +1404,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ebd_alunos_church_id_fkey"
-            columns: ["church_id"]
-            isOneToOne: false
-            referencedRelation: "churches"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ebd_alunos_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
