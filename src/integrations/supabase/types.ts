@@ -3333,13 +3333,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ebd_quizzes_church_id_fkey"
-            columns: ["church_id"]
-            isOneToOne: false
-            referencedRelation: "churches"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ebd_quizzes_escala_id_fkey"
             columns: ["escala_id"]
             isOneToOne: false

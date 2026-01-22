@@ -162,9 +162,14 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
       resetForm();
       onOpenChange(false);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Erro ao criar quiz:", error);
-      toast.error("Erro ao criar quiz");
+      const errorMessage = error?.message || "Erro desconhecido";
+      const errorDetails = error?.details || error?.hint || "";
+      toast.error(`Erro ao criar quiz: ${errorMessage}`, {
+        description: errorDetails ? `Detalhes: ${errorDetails}` : undefined,
+        duration: 8000,
+      });
     },
   });
 
