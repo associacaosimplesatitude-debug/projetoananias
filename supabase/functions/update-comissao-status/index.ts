@@ -148,6 +148,40 @@ Deno.serve(async (req) => {
       console.log(`Marcadas ${atrasadas?.length || 0} comissões como atrasadas`);
     }
 
+    // 4. SINCRONIZAR comissoes_hierarquicas com parcelas liberadas
+    // Buscar todas as parcelas que estão liberadas
+    const { data: parcelasLiberadas, error: errParcelasLiberadas } = await supabase
+      .from('vendedor_propostas_parcelas')
+      .select('id')
+      .eq('comissao_status', 'liberada');
+
+    if (errParcelasLiberadas) {
+      console.error('Erro ao buscar parcelas liberadas:', errParcelasLiberadas);
+      erros++;
+    } else if (parcelasLiberadas && parcelasLiberadas.length > 0) {
+      const parcelasIds = parcelasLiberadas.map(p => p.id);
+      
+      // Atualizar comissões hierárquicas vinculadas que ainda estão pendentes
+      const { data: hierarquicasAtualizadas, error: errHierarquicas } = await supabase
+        .from('comissoes_hierarquicas')
+        .update({ 
+          status: 'liberada',
+          data_liberacao: hoje.toISOString().split('T')[0]
+        })
+        .in('parcela_origem_id', parcelasIds)
+        .eq('status', 'pendente')
+        .select('id');
+
+      if (errHierarquicas) {
+        console.error('Erro ao sincronizar comissões hierárquicas:', errHierarquicas);
+        erros++;
+      } else {
+        const qtdHierarquicas = hierarquicasAtualizadas?.length || 0;
+        atualizadas += qtdHierarquicas;
+        console.log(`Sincronizadas ${qtdHierarquicas} comissões hierárquicas para liberada`);
+      }
+    }
+
     return new Response(JSON.stringify({
       success: true,
       atualizadas,
