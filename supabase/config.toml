@@ -245,3 +245,6 @@ verify_jwt = true
 
 [functions.create-aluno-public]
 verify_jwt = false
+
+[functions.mp-sync-orphan-order]
+verify_jwt = true
