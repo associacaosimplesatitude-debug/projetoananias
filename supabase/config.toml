@@ -242,3 +242,6 @@ verify_jwt = true
 
 [functions.ebd-link-orphan-shopify-orders]
 verify_jwt = true
+
+[functions.create-aluno-public]
+verify_jwt = false

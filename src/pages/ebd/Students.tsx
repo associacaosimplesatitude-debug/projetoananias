@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Users, UserPlus, User, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, Users, UserPlus, User, Plus, Pencil, Trash2, Link, Copy } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import MemberSearchDialog from "@/components/ebd/MemberSearchDialog";
@@ -110,15 +110,32 @@ export default function EBDStudents() {
 
   console.log("Church ID para busca de membros:", churchData.id);
 
+  const handleCopyLink = async () => {
+    const link = `${window.location.origin}/cadastro-aluno/${churchData.id}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success("Link de cadastro copiado!");
+    } catch {
+      toast.error("Erro ao copiar link");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold">Cadastro de Alunos</h1>
             <p className="text-muted-foreground">Gerencie alunos da EBD</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              variant="outline"
+              onClick={handleCopyLink}
+            >
+              <Link className="w-4 h-4 mr-2" />
+              Copiar Link de Cadastro
+            </Button>
             <Button 
               onClick={() => setCadastrarAlunoOpen(true)}
             >
