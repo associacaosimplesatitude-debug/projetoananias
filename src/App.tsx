@@ -90,6 +90,7 @@ import EBDDesafioLiderPlay from "./pages/ebd/DesafioLiderPlay";
 import EBDDesafioAcompanhamento from "./pages/ebd/DesafioAcompanhamento";
 import EBDDesafioLeituraRelatorio from "./pages/ebd/DesafioLeituraRelatorio";
 import EBDAlunoPerfil from "./pages/ebd/AlunoPerfil";
+import CadastroAlunoPublico from "./pages/ebd/CadastroAlunoPublico";
 
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
@@ -166,6 +167,7 @@ const App = () => (
               <Route path="/gestao-ebd" element={<LandingEBD />} />
               <Route path="/proposta/:token" element={<PropostaDigital />} />
               <Route path="/ebd/checkout-shopify-mp" element={<EBDCheckoutShopifyMP />} />
+              <Route path="/cadastro-aluno/:churchId" element={<CadastroAlunoPublico />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
             <Route
               path="/*"
