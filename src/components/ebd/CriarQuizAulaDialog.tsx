@@ -72,7 +72,7 @@ export function CriarQuizAulaDialog({ open, onOpenChange }: CriarQuizAulaDialogP
         .select("id, data, observacao, sem_aula")
         .eq("turma_id", turmaId)
         .eq("tipo", "aula")
-        .eq("sem_aula", false)
+        // Mostrar todas as aulas (passadas e futuras) para permitir cadastro retroativo de quizzes
         .order("data", { ascending: true });
       if (error) throw error;
       
