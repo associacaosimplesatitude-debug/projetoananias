@@ -162,12 +162,13 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
 
       const hoje = format(new Date(), "yyyy-MM-dd");
 
+      // Buscar todos os quizzes ativos (incluindo passados que não foram respondidos)
       const { data: quizzes, error: quizzesError } = await supabase
         .from("ebd_quizzes")
         .select("id, titulo, pontos_max, data_limite")
         .eq("turma_id", aluno.turma_id)
         .eq("is_active", true)
-        .or(`data_limite.is.null,data_limite.gte.${hoje}`);
+        .order("data_limite", { ascending: true, nullsFirst: true });
 
       if (quizzesError) throw quizzesError;
       if (!quizzes?.length) return null;
@@ -432,13 +433,21 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
           // Criar data/hora de liberação
           const [hora, minuto] = horaLib.split(":");
           const dataHoraLiberacao = new Date(`${dataQuiz}T${hora}:${minuto}:00`);
-          const liberado = agora >= dataHoraLiberacao;
           
-          // Calcular tempo restante
+          // Quiz está liberado SE:
+          // 1. Data do quiz já passou (data_limite < hoje) → liberar imediatamente
+          // 2. Data é hoje ou futura E hora já passou → liberar
+          const dataQuizPassou = dataQuiz < hojeStr;
+          const liberado = dataQuizPassou || agora >= dataHoraLiberacao;
+          
+          // Calcular tempo restante (só se não passou)
           const diffMs = dataHoraLiberacao.getTime() - agora.getTime();
           const diffMins = Math.max(0, Math.floor(diffMs / 60000));
           const horasRestantes = Math.floor(diffMins / 60);
           const minsRestantes = diffMins % 60;
+          
+          // Não mostrar cronômetro para quizzes de datas passadas
+          const mostrarCronometro = !dataQuizPassou && !liberado;
 
           return (
             <Card className={`border-2 ${liberado ? "border-purple-500/50 bg-purple-50/50 dark:bg-purple-950/20" : "border-gray-300 bg-gray-50/50 dark:bg-gray-950/20"}`}>
@@ -471,7 +480,7 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
                       </Button>
                     </Link>
                   </>
-                ) : (
+                ) : mostrarCronometro ? (
                   <>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                       <Calendar className="w-4 h-4" />
@@ -491,7 +500,7 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
                       Aguardando liberação
                     </Button>
                   </>
-                )}
+                ) : null}
               </CardContent>
             </Card>
           );
