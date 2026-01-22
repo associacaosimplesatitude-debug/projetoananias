@@ -10,3 +10,4 @@ export { ComissaoHierarquicaTable } from './ComissaoHierarquicaTable';
 export type { ComissaoHierarquicaItem } from './ComissaoHierarquicaTable';
 export { ComissaoResumoVendedoresCards } from './ComissaoResumoVendedoresCards';
 export { ComissaoResumoGerentesCards } from './ComissaoResumoGerentesCards';
+export { ComissaoResumoAdminCard } from './ComissaoResumoAdminCard';
