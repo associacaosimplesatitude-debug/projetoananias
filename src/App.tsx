@@ -98,6 +98,7 @@ import AlunoTurma from "./pages/ebd/aluno/AlunoTurma";
 import AlunoAulasPage from "./pages/ebd/aluno/AlunoAulasPage";
 import AlunoLeiturasPage from "./pages/ebd/aluno/AlunoLeiturasPage";
 import AlunoPerfilPage from "./pages/ebd/aluno/AlunoPerfilPage";
+import AlunoQuizPage from "./pages/ebd/aluno/AlunoQuizPage";
 
 // Professor Module Pages
 import ProfessorHome from "./pages/ebd/professor/ProfessorHome";
@@ -340,6 +341,7 @@ const App = () => (
                       <Route path="aulas" element={<AlunoAulasPage />} />
                       <Route path="leituras" element={<AlunoLeiturasPage />} />
                       <Route path="perfil" element={<AlunoPerfilPage />} />
+                      <Route path="quiz/:quizId" element={<AlunoQuizPage />} />
                     </Route>
 
                     {/* Professor Module Routes with Sidebar Layout */}
