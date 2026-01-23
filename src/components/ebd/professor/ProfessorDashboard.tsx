@@ -137,7 +137,6 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
         .from("ebd_alunos")
         .select("id, nome_completo, pontos_totais, nivel, avatar_url, turma:ebd_turmas(nome)")
         .in("turma_id", turmaIds)
-        .eq("is_active", true)
         .order("pontos_totais", { ascending: false })
         .limit(5);
 
