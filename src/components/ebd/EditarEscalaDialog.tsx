@@ -23,6 +23,7 @@ interface Escala {
   data: string;
   sem_aula: boolean;
   professor_id: string | null;
+  professor_id_2?: string | null;
   turma_id: string;
   tipo: string;
   observacao: string | null;
@@ -43,11 +44,13 @@ interface Professor {
 export function EditarEscalaDialog({ escala, open, onOpenChange, churchId }: EditarEscalaDialogProps) {
   const queryClient = useQueryClient();
   const [professorId, setProfessorId] = useState<string>("");
+  const [professor2Id, setProfessor2Id] = useState<string>("");
   const [semAula, setSemAula] = useState(false);
 
   useEffect(() => {
     if (escala) {
       setProfessorId(escala.professor_id || "");
+      setProfessor2Id(escala.professor_id_2 || "");
       setSemAula(escala.sem_aula);
     }
   }, [escala]);
@@ -82,6 +85,7 @@ export function EditarEscalaDialog({ escala, open, onOpenChange, churchId }: Edi
         .from('ebd_escalas')
         .update({
           professor_id: semAula ? null : professorId,
+          professor_id_2: semAula ? null : (professor2Id || null),
           sem_aula: semAula,
         })
         .eq('id', escala.id);
@@ -135,23 +139,44 @@ export function EditarEscalaDialog({ escala, open, onOpenChange, churchId }: Edi
           </div>
 
           {!semAula && (
-            <div>
-              <Label htmlFor="professor-edit" className="text-sm font-medium mb-2 block">
-                Professor *
-              </Label>
-              <Select value={professorId} onValueChange={setProfessorId}>
-                <SelectTrigger id="professor-edit">
-                  <SelectValue placeholder="Selecionar professor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {professores?.map((professor) => (
-                    <SelectItem key={professor.id} value={professor.id}>
-                      {professor.nome_completo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div>
+                <Label htmlFor="professor-edit" className="text-sm font-medium mb-2 block">
+                  Professor Principal *
+                </Label>
+                <Select value={professorId} onValueChange={setProfessorId}>
+                  <SelectTrigger id="professor-edit">
+                    <SelectValue placeholder="Selecionar professor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {professores?.map((professor) => (
+                      <SelectItem key={professor.id} value={professor.id}>
+                        {professor.nome_completo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="professor2-edit" className="text-sm font-medium mb-2 block">
+                  Professor Auxiliar (opcional)
+                </Label>
+                <Select value={professor2Id} onValueChange={setProfessor2Id}>
+                  <SelectTrigger id="professor2-edit">
+                    <SelectValue placeholder="Nenhum" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum</SelectItem>
+                    {professores?.filter(p => p.id !== professorId).map((professor) => (
+                      <SelectItem key={professor.id} value={professor.id}>
+                        {professor.nome_completo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
         </div>
 

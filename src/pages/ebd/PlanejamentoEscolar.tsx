@@ -46,10 +46,15 @@ interface Escala {
   data: string;
   sem_aula: boolean;
   professor_id: string | null;
+  professor_id_2?: string | null;
   turma_id: string;
   tipo: string;
   observacao: string | null;
   professor: {
+    nome_completo: string;
+    avatar_url: string | null;
+  } | null;
+  professor2?: {
     nome_completo: string;
     avatar_url: string | null;
   } | null;
