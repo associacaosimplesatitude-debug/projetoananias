@@ -59,9 +59,14 @@ const EMAIL_TYPOS: Record<string, string> = {
 
 const validateEmailTLD = (email: string): boolean => {
   if (!email) return true;
-  const lowerEmail = email.toLowerCase();
+  const atIndex = email.indexOf('@');
+  if (atIndex === -1) return true;
+  
+  // Verificar apenas a parte do domínio (após o @)
+  const domain = email.substring(atIndex + 1).toLowerCase();
+  
   for (const typo of Object.keys(EMAIL_TYPOS)) {
-    if (lowerEmail.includes(typo)) {
+    if (domain.includes(typo)) {
       return false;
     }
   }
@@ -70,10 +75,16 @@ const validateEmailTLD = (email: string): boolean => {
 
 const getSuggestedEmail = (email: string): string | null => {
   if (!email) return null;
-  const lowerEmail = email.toLowerCase();
+  const atIndex = email.indexOf('@');
+  if (atIndex === -1) return null;
+  
+  const localPart = email.substring(0, atIndex);
+  const domain = email.substring(atIndex + 1).toLowerCase();
+  
   for (const [typo, correction] of Object.entries(EMAIL_TYPOS)) {
-    if (lowerEmail.includes(typo)) {
-      return email.replace(new RegExp(typo, 'i'), correction);
+    if (domain.includes(typo)) {
+      const correctedDomain = domain.replace(new RegExp(typo.replace('.', '\\.'), 'i'), correction);
+      return `${localPart}@${correctedDomain}`;
     }
   }
   return null;
@@ -831,18 +842,29 @@ export function CadastrarClienteDialog({
                     <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
                       <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                       <span>Você quis dizer <strong>{emailSuggestion}</strong>?</span>
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="text-amber-700 p-0 h-auto"
-                        onClick={() => {
-                          setFormData({ ...formData, email_superintendente: emailSuggestion });
-                          setEmailSuggestion(null);
-                        }}
-                      >
-                        Corrigir
-                      </Button>
+                      <div className="flex gap-2 ml-auto">
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="text-amber-700 p-0 h-auto"
+                          onClick={() => {
+                            setFormData({ ...formData, email_superintendente: emailSuggestion });
+                            setEmailSuggestion(null);
+                          }}
+                        >
+                          Corrigir
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="text-muted-foreground p-0 h-auto"
+                          onClick={() => setEmailSuggestion(null)}
+                        >
+                          Ignorar
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
