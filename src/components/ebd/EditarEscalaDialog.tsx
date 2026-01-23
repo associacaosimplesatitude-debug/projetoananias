@@ -162,12 +162,12 @@ export function EditarEscalaDialog({ escala, open, onOpenChange, churchId }: Edi
                 <Label htmlFor="professor2-edit" className="text-sm font-medium mb-2 block">
                   Professor Auxiliar (opcional)
                 </Label>
-                <Select value={professor2Id} onValueChange={setProfessor2Id}>
+                <Select value={professor2Id || "_none"} onValueChange={(val) => setProfessor2Id(val === "_none" ? "" : val)}>
                   <SelectTrigger id="professor2-edit">
                     <SelectValue placeholder="Nenhum" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="_none">Nenhum</SelectItem>
                     {professores?.filter(p => p.id !== professorId).map((professor) => (
                       <SelectItem key={professor.id} value={professor.id}>
                         {professor.nome_completo}
