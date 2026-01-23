@@ -125,6 +125,28 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
     enabled: turmas.length > 0,
   });
 
+  // Fetch ranking de alunos (top 5)
+  const { data: rankingAlunos } = useQuery({
+    queryKey: ["professor-ranking-alunos", turmas.map(t => t.id)],
+    queryFn: async () => {
+      if (!turmas.length) return [];
+
+      const turmaIds = turmas.map(t => t.id);
+      
+      const { data, error } = await supabase
+        .from("ebd_alunos")
+        .select("id, nome_completo, pontos_totais, nivel, avatar_url, turma:ebd_turmas(nome)")
+        .in("turma_id", turmaIds)
+        .eq("is_active", true)
+        .order("pontos_totais", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: turmas.length > 0,
+  });
+
   // Check for pending launches (last Sunday without data)
   const { data: lancamentosPendentes } = useQuery({
     queryKey: ["professor-lancamentos-pendentes", turmas.map(t => t.id)],
@@ -477,7 +499,7 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
         )}
 
 
-        {/* Card: Ações de Gamificação */}
+        {/* Card: Gamificação */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -502,6 +524,71 @@ export function ProfessorDashboard({ professor, turmas }: ProfessorDashboardProp
             >
               <ClipboardList className="h-4 w-4 text-blue-500" />
               Lançar Pontuação Manual
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Card: Ranking de Alunos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              Ranking de Alunos
+            </CardTitle>
+            <CardDescription>
+              Top 5 alunos por pontuação
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {rankingAlunos && rankingAlunos.length > 0 ? (
+              <div className="space-y-2">
+                {rankingAlunos.map((aluno, index) => (
+                  <div 
+                    key={aluno.id}
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-bold w-5 ${
+                        index === 0 ? 'text-amber-500' : 
+                        index === 1 ? 'text-slate-400' : 
+                        index === 2 ? 'text-amber-700' : 'text-muted-foreground'
+                      }`}>
+                        {index + 1}º
+                      </span>
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={aluno.avatar_url || undefined} />
+                        <AvatarFallback className="text-xs">
+                          {aluno.nome_completo?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium truncate max-w-[120px]">
+                          {aluno.nome_completo?.split(' ').slice(0, 2).join(' ')}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {(aluno.turma as any)?.nome}
+                        </span>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {aluno.pontos_totais || 0} pts
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum aluno cadastrado
+              </p>
+            )}
+            <Button 
+              variant="ghost" 
+              className="w-full mt-3 gap-2"
+              onClick={() => navigate("/ebd/professor/classe")}
+              size="sm"
+            >
+              Ver Todos os Alunos
+              <ArrowRight className="h-4 w-4" />
             </Button>
           </CardContent>
         </Card>
