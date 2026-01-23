@@ -145,15 +145,27 @@ export default function EBDDashboard() {
 
       const roleChurchId = roleData[0].church_id;
 
-      // For promoted superintendents, church_id points to `churches.id`
-      const { data: roleChurch, error: churchError } = await supabase
+      // Tentar primeiro em churches
+      const { data: church } = await supabase
         .from('churches')
         .select('id, church_name')
         .eq('id', roleChurchId)
         .maybeSingle();
 
-      if (churchError) return null;
-      return roleChurch;
+      if (church) return church;
+
+      // Se não encontrar, buscar em ebd_clientes
+      const { data: ebdCliente } = await supabase
+        .from('ebd_clientes')
+        .select('id, nome_igreja')
+        .eq('id', roleChurchId)
+        .maybeSingle();
+
+      if (ebdCliente) {
+        return { id: ebdCliente.id, church_name: ebdCliente.nome_igreja };
+      }
+
+      return null;
     },
     enabled: !!user?.id,
   });
