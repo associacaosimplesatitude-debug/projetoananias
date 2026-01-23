@@ -124,16 +124,22 @@ serve(async (req) => {
     const cliente = proposta.cliente || {};
 
     // Montar itens para o Bling (com desconto aplicado)
+    // FALLBACK: Se item não tem descontoItem, usar desconto_percentual da proposta
+    const descontoGlobal = Number(proposta.desconto_percentual || 0);
+    
     const itens = (proposta.itens || []).map((item: any) => {
       const precoOriginal = Number(item.price);
-      const descontoItem = Number(item.descontoItem || 0);
+      // Usar descontoItem do item, ou fallback para desconto global da proposta
+      const descontoItem = item.descontoItem !== undefined && item.descontoItem !== null
+        ? Number(item.descontoItem)
+        : descontoGlobal;
       
       // Calcular preço com desconto aplicado
       const precoComDesconto = descontoItem > 0 
         ? Math.round(precoOriginal * (1 - descontoItem / 100) * 100) / 100
         : precoOriginal;
       
-      console.log(`[APROVAR-FAT] Item: ${item.title} | Preço Original: ${precoOriginal} | Desconto: ${descontoItem}% | Preço Final: ${precoComDesconto}`);
+      console.log(`[APROVAR-FAT] Item: ${item.title} | Preço Original: ${precoOriginal} | descontoItem: ${item.descontoItem} | Fallback Global: ${descontoGlobal} | Usando: ${descontoItem}% | Preço Final: ${precoComDesconto}`);
       
       return {
         codigo: item.sku || item.codigo || item.variantSku,

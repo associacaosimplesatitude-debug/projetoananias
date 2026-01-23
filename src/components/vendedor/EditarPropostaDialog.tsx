@@ -23,6 +23,7 @@ interface PropostaItem {
   sku?: string | null;
   imageUrl?: string | null;
   peso_kg?: number;
+  descontoItem?: number;
 }
 
 interface Proposta {
@@ -129,12 +130,14 @@ export function EditarPropostaDialog({
     }).slice(0, 10);
   }, [produtos, searchTerm]);
 
-  // Adicionar produto
+  // Adicionar produto - SEMPRE inclui descontoItem baseado no desconto global da proposta
   const adicionarProduto = useCallback((product: ShopifyProduct) => {
     const variant = product.node.variants?.edges?.[0]?.node;
     if (!variant) return;
     
     const imageUrl = product.node.images?.edges?.[0]?.node?.url || null;
+    // Usar o desconto global da proposta para novos itens
+    const descontoParaItem = proposta?.desconto_percentual || 0;
     
     setItens(prev => {
       const existe = prev.find(item => item.variantId === variant.id);
@@ -151,11 +154,12 @@ export function EditarPropostaDialog({
         quantity: 1,
         price: variant.price.amount,
         sku: variant.sku,
-        imageUrl
-      }];
+        imageUrl,
+        descontoItem: descontoParaItem, // SEMPRE incluir desconto para evitar erros no Bling
+      } as PropostaItem];
     });
     setSearchTerm("");
-  }, []);
+  }, [proposta?.desconto_percentual]);
 
   // Alterar quantidade
   const alterarQuantidade = useCallback((variantId: string, delta: number) => {
