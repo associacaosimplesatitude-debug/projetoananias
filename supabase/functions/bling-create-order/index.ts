@@ -2032,39 +2032,33 @@ serve(async (req) => {
         );
       }
 
-      // Calcular desconto percentual do item - ARREDONDAR PARA INTEIRO
-      // O Bling processa melhor descontos inteiros para evitar dízimas periódicas
-      // desconto_percentual_item = Math.round(((precoLista - precoComDesconto) / precoLista) * 100)
+      const isFaturamentoPedido = String(forma_pagamento || '').toLowerCase() === 'faturamento';
+
+      // Calcular desconto percentual do item (apenas para logs/relatórios)
+      // OBS: em FATURAMENTO, NÃO enviamos desconto % para o Bling (evita divergência de arredondamento por unidade).
       let descontoPercentualItem = 0;
       if (precoLista > precoComDesconto && precoLista > 0) {
-        // CORREÇÃO: Arredondar para inteiro (ex: 44.99% vira 45%)
         descontoPercentualItem = Math.round(((precoLista - precoComDesconto) / precoLista) * 100);
       }
 
-      // IMPORTANTÍSSIMO: o Bling pode arredondar o desconto por UNIDADE antes de multiplicar.
-      // Para que parcelas batam com o total calculado no Bling, simulamos o mesmo:
-      // - calcula preço unitário líquido com 2 casas
-      // - total do item = preço unitário líquido * quantidade
-      const precoUnitarioLiquido = descontoPercentualItem > 0
-        ? Math.round((precoLista * (1 - (descontoPercentualItem / 100))) * 100) / 100
-        : Math.round(precoLista * 100) / 100;
+      // Para FATURAMENTO: enviar o valor unitário JÁ com desconto (2 casas) e não enviar `desconto`.
+      // Isso evita o cenário onde o Bling recalcula desconto por unidade e gera diferença (ex.: 18 centavos).
+      const precoUnitarioLiquido = isFaturamentoPedido
+        ? Math.round(precoComDesconto * 100) / 100
+        : (descontoPercentualItem > 0
+          ? Math.round((precoLista * (1 - (descontoPercentualItem / 100))) * 100) / 100
+          : Math.round(precoLista * 100) / 100);
 
       const totalItemLiquido = Math.round((precoUnitarioLiquido * quantidade) * 100) / 100;
       const totalItemBruto = Math.round((precoLista * quantidade) * 100) / 100;
       const descontoTotalItem = Math.max(0, Math.round((totalItemBruto - totalItemLiquido) * 100) / 100);
 
-      // Método B (total do item): Bling frequentemente valida parcelas contra esse total
-      const totalItemLiquidoMetodoB = descontoPercentualItem > 0
-        ? Math.round((precoLista * quantidade * (1 - (descontoPercentualItem / 100))) * 100) / 100
-        : Math.round((precoLista * quantidade) * 100) / 100;
-
       // Total que o Bling deve computar via itens (após desconto)
-      // A: por unidade
+      // A e B ficam iguais quando enviamos valor líquido.
       totalBrutoBling += totalItemLiquido;
-      // B: por total do item
-      totalBrutoBlingMetodoB += totalItemLiquidoMetodoB;
+      totalBrutoBlingMetodoB += totalItemLiquido;
 
-      // Acumular desconto total (para exibição)
+      // Acumular desconto total (para exibição/log)
       descontoTotalVenda += descontoTotalItem;
 
       console.log(`Item: ${item.descricao}`);
@@ -2078,11 +2072,10 @@ serve(async (req) => {
       console.log(`  - Desconto Total do Item (simulado): R$ ${descontoTotalItem.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
 
-      // IMPORTANTE (Bling): para exibir o PREÇO DE LISTA e o DESCONTO aplicado,
-      // enviamos o preço cheio no campo 'valor' e o desconto em PORCENTAGEM no campo 'desconto'.
-      // Observação: o Bling interpreta `desconto` numérico como %, então 40 = 40%.
-      // O Bling calcula: valor * (1 - desconto/100) * quantidade.
-      // Total da venda = soma dos itens líquidos + frete.
+      // IMPORTANTE (Bling):
+      // - Em FATURAMENTO: enviamos `valor` já líquido (com desconto) e NÃO enviamos `desconto`.
+      //   Motivo: Bling arredonda desconto por unidade e pode gerar diferenças de centavos, quebrando validação de parcelas.
+      // - Em outros fluxos: mantemos comportamento antigo (preço cheio + desconto %).
       console.log(`  - SKU: ${skuRecebido}`);
       console.log(`  - Quantidade solicitada: ${quantidade}`);
 
@@ -2092,15 +2085,15 @@ serve(async (req) => {
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
         // Normalizar para 2 casas antes do envio para evitar floats (ex: 79.9)
-        valor: Number(precoLista.toFixed(2)), // Preço de lista (cheio)
+        valor: Number(precoUnitarioLiquido.toFixed(2)),
         // VÍNCULO OBRIGATÓRIO com o produto cadastrado
         produto: {
           id: blingProdutoId,
         },
       };
 
-      if (descontoPercentualItem > 0) {
-        // CORREÇÃO: Enviar desconto como inteiro (já arredondado acima)
+      // Só enviar `desconto` quando NÃO for faturamento.
+      if (!isFaturamentoPedido && descontoPercentualItem > 0) {
         itemBling.desconto = descontoPercentualItem;
       }
 
