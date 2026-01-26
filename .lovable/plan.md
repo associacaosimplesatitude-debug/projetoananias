@@ -1,113 +1,71 @@
 
-## Plano: Corrigir Sincronização de Links DANFE no Painel de Comissões
 
-### Problema Identificado
+## Plano: Corrigir Conta do Daniel e Bug de Criação de Usuários EBD
 
-Após análise detalhada do código e dos dados:
+### Resumo do Problema
 
-1. **22 parcelas liberadas** possuem `bling_order_id` mas estão sem `link_danfe`
-2. A maioria são pedidos de origem `mercadopago` 
-3. Os botões de sincronização existem no painel, mas a edge function `sync-nf-danfe-batch` não está buscando corretamente as NF-e dessas parcelas
+1. **Daniel perdeu acesso** porque sua conta de autenticação foi sobrescrita/excluída
+2. **Dois clientes EBD** (Israel e Glivando) tiveram seus `superintendente_user_id` apontando para profiles com email de Daniel
+3. **Bug na função `create-ebd-user`** está reutilizando profiles existentes ao invés de criar novos
 
-### Causa Raiz
+### Ações de Correção
 
-A edge function `sync-nf-danfe-batch` filtra apenas parcelas com `bling_order_id` OU parcelas que tenham um `shopify_pedido` vinculado. Porém, para pedidos Mercado Pago, as parcelas:
-- Têm `bling_order_id` diretamente (funcionaria ✓)
-- **Não têm `shopify_pedido_id`** (não é um problema)
+#### Parte 1: Restaurar Conta do Daniel
 
-O problema real é que a NF-e no Bling pode estar:
-1. Ainda não gerada (situação != 6)
-2. Sem o campo `linkDanfe` disponível na resposta API
-3. O ID da NF-e não está sendo encontrado no objeto de retorno do pedido
+**Dados do vendedor:**
+- Email: `daniel.sousa@editoracentralgospel.com`  
+- Senha: `124578`
 
-### Solução Proposta
+**Passos:**
+1. Criar novo usuário no `auth.users` com o email e senha fornecidos
+2. Criar/atualizar profile vinculado ao novo auth ID
+3. Verificar se vendedor consegue logar
 
-#### 1. Melhorar a Edge Function `sync-nf-danfe-batch`
+---
 
-**Arquivo:** `supabase/functions/sync-nf-danfe-batch/index.ts`
+#### Parte 2: Corrigir Dados dos Clientes EBD
 
-Alterações:
-- Adicionar mais caminhos de busca para o ID da NF-e na resposta do Bling
-- Melhorar o fallback do `linkDanfe` verificando mais campos possíveis
-- Adicionar logs detalhados para entender por que as NF-e não estão sendo encontradas
-- Retornar detalhes dos erros específicos por pedido
+| Cliente | Email Superintendente | Situação Atual | Correção |
+|---------|----------------------|----------------|----------|
+| Vix Elevadores | israel@vixelevadores.com.br | `superintendente_user_id` aponta para profile de Daniel | Criar nova conta auth para Israel e atualizar |
+| Cliente Glivando | glivando201701@outlook.com | `superintendente_user_id` aponta para profile de Daniel | Criar nova conta auth para Glivando e atualizar |
 
-```typescript
-// Melhorar busca de nfeId - verificar mais caminhos
-let nfeId: number | null = null;
+---
 
-// 1. notasFiscais array (mais comum)
-if (orderData.notasFiscais?.length > 0) {
-  nfeId = orderData.notasFiscais[0]?.id;
-}
+#### Parte 3: Limpar Profiles Corrompidos
 
-// 2. notaFiscal objeto
-if (!nfeId && orderData.notaFiscal?.id) {
-  nfeId = orderData.notaFiscal.id;
-}
+Os profiles que foram sobrescritos com email de Daniel precisam ser corrigidos ou excluídos para evitar confusão futura.
 
-// 3. nfe objeto
-if (!nfeId && orderData.nfe?.id) {
-  nfeId = orderData.nfe.id;
-}
+---
 
-// 4. Buscar via endpoint de notas fiscais do pedido
-if (!nfeId) {
-  const nfesUrl = `https://www.bling.com.br/Api/v3/nfe?idPedidoVenda=${blingOrderId}`;
-  const nfesResult = await blingApiCall(nfesUrl, accessToken);
-  if (nfesResult?.data?.length > 0) {
-    nfeId = nfesResult.data[0]?.id;
-  }
-}
-```
+#### Parte 4: Corrigir Bug na Função `create-ebd-user`
 
-#### 2. Melhorar busca do Link DANFE
+**Arquivo:** `supabase/functions/create-ebd-user/index.ts`
 
-```typescript
-// Melhorar fallback de linkDanfe
-const linkDanfe = 
-  nfeData.linkDanfe || 
-  nfeData.link_danfe || 
-  nfeData.linkPDF ||
-  nfeData.xml?.danfe ||
-  nfeData.pdf ||
-  null;
-```
+**Problema identificado:** A função busca usuário por email no `auth.users`, mas quando o email não existe, ela cria um novo usuário. Porém, ao criar o profile, ela faz um `upsert` que pode sobrescrever profiles existentes se houver conflito de ID.
 
-#### 3. Adicionar endpoint alternativo de busca de NF-e
+**Correção:**
+- Ao criar novo usuário, garantir que o profile também seja novo (não upsert com ID de outro usuário)
+- Adicionar verificação se o email já está em uso em outro profile antes de prosseguir
+- Melhorar logs para identificar esses casos
 
-A API do Bling v3 permite buscar NF-e diretamente pelo ID do pedido de venda:
-```
-GET /nfe?idPedidoVenda={blingOrderId}
-```
+---
 
-Isso garante que mesmo se o campo `notasFiscais` estiver vazio no objeto do pedido, ainda podemos encontrar a NF-e.
+### Ordem de Execução
 
-#### 4. Logs de Auditoria
-
-Adicionar na resposta um array detalhado de erros:
-```typescript
-results.errors.push({ 
-  id: parcela.id, 
-  bling_order_id: blingOrderId,
-  error: nfeResult.error,
-  nfe_situacao: nfeResult.situacao  // Para debug
-});
-```
+1. **Imediato:** Criar conta de autenticação para Daniel com a senha `124578`
+2. **Corrigir clientes:** Criar contas separadas para Israel e Glivando
+3. **Limpar dados:** Remover profiles corrompidos
+4. **Prevenir futuro:** Atualizar função `create-ebd-user` para evitar reuso de profiles
 
 ### Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/sync-nf-danfe-batch/index.ts` | Adicionar busca alternativa de NF-e via endpoint `/nfe?idPedidoVenda=` |
+| `supabase/functions/create-ebd-user/index.ts` | Corrigir lógica de criação/atualização de profiles |
 
-### Resultado Esperado
+### Ações via SQL/Edge Function
 
-Após implementação:
-1. O botão "Sincronizar NF/DANFE" no painel irá sincronizar corretamente
-2. Pedidos Mercado Pago com NF-e autorizada terão o link DANFE visível
-3. Erros detalhados serão exibidos para pedidos cujas NF-e ainda não estão disponíveis (aguardando autorização)
+- Usar edge function `create-auth-user-direct` para criar conta do Daniel
+- Atualizar `ebd_clientes` para corrigir os `superintendente_user_id`
 
-### Alternativa: Sincronização Manual
-
-Para casos específicos onde a sincronização automática falha, o botão "Vincular" manual já existe no painel e permite associar manualmente o `bling_order_id` e o `link_danfe`.
