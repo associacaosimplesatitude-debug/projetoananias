@@ -5098,6 +5098,7 @@ export type Database = {
         Args: { start_date: string }
         Returns: string
       }
+      execute_readonly_query: { Args: { sql_query: string }; Returns: Json }
       get_auth_email: { Args: never; Returns: string }
       get_cliente_by_documento: { Args: { _documento: string }; Returns: Json }
       get_co_professor_ids: { Args: { p_user_id: string }; Returns: string[] }
