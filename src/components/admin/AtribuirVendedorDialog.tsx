@@ -100,11 +100,13 @@ export function AtribuirVendedorDialog({
                 <SelectValue placeholder="Selecione um vendedor" />
               </SelectTrigger>
               <SelectContent>
-                {vendedores.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.nome}
-                  </SelectItem>
-                ))}
+                {vendedores
+                  .filter((v) => v.id && v.id.trim() !== "")
+                  .map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.nome}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
