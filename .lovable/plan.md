@@ -1,39 +1,37 @@
 
-# Plano: Corrigir Parâmetro da Função SQL no Consultor de BI
 
-## Problema Identificado
-Na edge function `gemini-assistente-gestao`, a chamada RPC está usando o parâmetro errado:
-- **Atual (ERRADO):** `{ sql_query: query }`
-- **Correto:** `{ query_text: query }`
+# Plano: Atualizar Chave OpenAI e Forçar Redeploy
 
-A função do banco de dados `execute_readonly_query` espera um parâmetro chamado `query_text`, não `sql_query`.
+## Verificação do Código Atual
+Confirmei que o código já está correto:
+- **Linha 145:** `{ query_text: query }` - parâmetro correto
+- **Linha 392:** modelo `gpt-4o-mini` - conforme solicitado
+- **Linha 385:** endpoint OpenAI correto
 
-## Arquivo a Modificar
-`supabase/functions/gemini-assistente-gestao/index.ts`
+## Ações Necessárias
 
-## Alteração Necessária
+### 1. Atualizar Secret OPENAI_API_KEY
+Substituir a chave atual pela nova chave com permissões totais que você gerou.
 
-### Linha 145 - Corrigir nome do parâmetro
+### 2. Forçar Redeploy da Edge Function
+Adicionar um comentário com timestamp no código para garantir que o Supabase faça um deploy completamente novo, limpando qualquer cache:
+
 ```typescript
-// ANTES (linha 145)
-const { data, error } = await supabase.rpc('execute_readonly_query', { sql_query: query });
-
-// DEPOIS
-const { data, error } = await supabase.rpc('execute_readonly_query', { query_text: query });
+// Force redeploy: 2026-01-26T21:35:00Z - New API key with full permissions
 ```
 
-## Configuração Confirmada
-- **API Key:** OPENAI_API_KEY (já configurada nas Secrets)
-- **Modelo:** gpt-4o-mini (já configurado no código)
-- **Endpoint:** api.openai.com (já configurado no código)
+### 3. Verificação Pós-Deploy
+Após o deploy, testar chamando a função para verificar se o erro "Missing Scopes" persiste.
 
-## O que NÃO muda
-- Endpoint OpenAI permanece `https://api.openai.com/v1/chat/completions`
-- Modelo permanece `gpt-4o-mini`
-- Chave permanece `OPENAI_API_KEY`
-- Toda a lógica de tools, system prompt e processamento
+## Detalhamento Técnico
 
-## Após Implementação
-1. Deploy automático da edge function
-2. Teste com a pergunta: "Qual o valor do último pedido?"
-3. Resposta esperada em R$ (Reais) com dados reais do banco
+### Arquivo: supabase/functions/gemini-assistente-gestao/index.ts
+Adicionar comentário no topo do arquivo (após os imports) para forçar rebuild:
+
+```text
+Linha ~5: Adicionar comentário de versão/timestamp
+```
+
+## Resultado Esperado
+Com a nova chave que possui "All Permissions", a chamada à API OpenAI deve retornar sucesso e o assistente deve conseguir executar queries SQL e retornar dados formatados em português.
+
