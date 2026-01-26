@@ -341,6 +341,8 @@ async function processToolCalls(supabase: any, toolCalls: any[]): Promise<any[]>
 }
 
 serve(async (req) => {
+  console.log("[assistente-gestao] v2.1 - Request received");
+  
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -356,6 +358,8 @@ serve(async (req) => {
     }
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    console.log("[assistente-gestao] OPENAI_API_KEY exists:", !!OPENAI_API_KEY);
+    
     if (!OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY not configured");
       return new Response(
@@ -394,7 +398,7 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OpenAI API error: ${response.status}`, errorText);
+      console.error(`[OPENAI ERROR] Status: ${response.status}, Body: ${errorText}`);
       
       if (response.status === 429) {
         return new Response(
@@ -403,8 +407,15 @@ serve(async (req) => {
         );
       }
       
+      if (response.status === 401 || response.status === 403) {
+        return new Response(
+          JSON.stringify({ error: `Erro de autenticação OpenAI (${response.status}): ${errorText}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
       return new Response(
-        JSON.stringify({ error: "Erro ao processar sua pergunta" }),
+        JSON.stringify({ error: `Erro OpenAI (${response.status}): ${errorText}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
