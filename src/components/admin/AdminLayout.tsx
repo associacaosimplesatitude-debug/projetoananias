@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from "react-router-dom";
+import { AIAssistantChat } from "./AIAssistantChat";
 import { 
   LayoutDashboard, 
   Users, 
@@ -303,6 +304,9 @@ export function AdminLayout() {
           </main>
         </div>
       </div>
+      
+      {/* AI Assistant Chat */}
+      <AIAssistantChat />
     </SidebarProvider>
   );
 }

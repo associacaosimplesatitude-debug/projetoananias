@@ -248,3 +248,6 @@ verify_jwt = false
 
 [functions.mp-sync-orphan-order]
 verify_jwt = true
+
+[functions.gemini-assistente-gestao]
+verify_jwt = false
