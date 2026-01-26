@@ -1,71 +1,118 @@
 
+## Plano: Mostrar Desconto no Bling (Itens + Total)
 
-## Plano: Corrigir Conta do Daniel e Bug de Criação de Usuários EBD
+### Problema Atual
 
-### Resumo do Problema
+O pedido da **Igreja Batista Ibana Moura** está falhando com o erro:
+> "O somatório do valor das parcelas difere do total da venda"
 
-1. **Daniel perdeu acesso** porque sua conta de autenticação foi sobrescrita/excluída
-2. **Dois clientes EBD** (Israel e Glivando) tiveram seus `superintendente_user_id` apontando para profiles com email de Daniel
-3. **Bug na função `create-ebd-user`** está reutilizando profiles existentes ao invés de criar novos
+**Causa**: O Bling calcula internamente os valores aplicando desconto por item e arredonda de forma diferente do sistema, causando divergência de centavos entre o total calculado e a soma das parcelas.
 
-### Ações de Correção
+### Análise Técnica
 
-#### Parte 1: Restaurar Conta do Daniel
+O código atual em `bling-create-order/index.ts` já envia:
+- **Por item**: `valor` (preço cheio) + `desconto` (percentual %) - o Bling mostra na coluna "Desc (%)"
+- **Desconto total calculado**: Variável `descontoTotalVenda` existe, mas NÃO é enviada ao Bling
 
-**Dados do vendedor:**
-- Email: `daniel.sousa@editoracentralgospel.com`  
-- Senha: `124578`
+A API do Bling aceita um campo `desconto` no nível do pedido (não só nos itens), que pode ser:
+- Um **valor em reais** representando o desconto total da venda
+- Isso aparece na nota fiscal e no resumo do pedido
 
-**Passos:**
-1. Criar novo usuário no `auth.users` com o email e senha fornecidos
-2. Criar/atualizar profile vinculado ao novo auth ID
-3. Verificar se vendedor consegue logar
+### Solução Proposta
 
----
+**Estratégia híbrida** para mostrar desconto em todos os níveis SEM erro de parcelas:
 
-#### Parte 2: Corrigir Dados dos Clientes EBD
+1. **Nos itens**: Enviar preço JÁ COM desconto aplicado no campo `valor` (não enviar desconto % por item)
+2. **No pedido**: Enviar campo `desconto` com o valor TOTAL do desconto em reais
+3. **Nas parcelas**: Calcular usando o total líquido (após desconto)
 
-| Cliente | Email Superintendente | Situação Atual | Correção |
-|---------|----------------------|----------------|----------|
-| Vix Elevadores | israel@vixelevadores.com.br | `superintendente_user_id` aponta para profile de Daniel | Criar nova conta auth para Israel e atualizar |
-| Cliente Glivando | glivando201701@outlook.com | `superintendente_user_id` aponta para profile de Daniel | Criar nova conta auth para Glivando e atualizar |
-
----
-
-#### Parte 3: Limpar Profiles Corrompidos
-
-Os profiles que foram sobrescritos com email de Daniel precisam ser corrigidos ou excluídos para evitar confusão futura.
-
----
-
-#### Parte 4: Corrigir Bug na Função `create-ebd-user`
-
-**Arquivo:** `supabase/functions/create-ebd-user/index.ts`
-
-**Problema identificado:** A função busca usuário por email no `auth.users`, mas quando o email não existe, ela cria um novo usuário. Porém, ao criar o profile, ela faz um `upsert` que pode sobrescrever profiles existentes se houver conflito de ID.
-
-**Correção:**
-- Ao criar novo usuário, garantir que o profile também seja novo (não upsert com ID de outro usuário)
-- Adicionar verificação se o email já está em uso em outro profile antes de prosseguir
-- Melhorar logs para identificar esses casos
-
----
-
-### Ordem de Execução
-
-1. **Imediato:** Criar conta de autenticação para Daniel com a senha `124578`
-2. **Corrigir clientes:** Criar contas separadas para Israel e Glivando
-3. **Limpar dados:** Remover profiles corrompidos
-4. **Prevenir futuro:** Atualizar função `create-ebd-user` para evitar reuso de profiles
+Isso garante:
+- O desconto aparece no resumo do pedido Bling
+- Os valores das parcelas batem exatamente com o total
+- Não há recálculo interno do Bling que cause divergência
 
 ### Arquivos a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/create-ebd-user/index.ts` | Corrigir lógica de criação/atualização de profiles |
+#### 1. `supabase/functions/bling-create-order/index.ts`
 
-### Ações via SQL/Edge Function
+**Alteração nos itens (linha ~2082-2098):**
+```typescript
+// ANTES: Enviava preço cheio + desconto %
+const itemBling = {
+  codigo: skuRecebido,
+  descricao: item.descricao,
+  quantidade: quantidade,
+  valor: precoLista,         // Preço cheio
+  desconto: descontoPercentualItem,  // Bling recalcula
+  produto: { id: blingProdutoId },
+};
 
-- Usar edge function `create-auth-user-direct` para criar conta do Daniel
-- Atualizar `ebd_clientes` para corrigir os `superintendente_user_id`
+// DEPOIS: Enviar preço JÁ com desconto (valor líquido)
+const itemBling = {
+  codigo: skuRecebido,
+  descricao: item.descricao,
+  quantidade: quantidade,
+  valor: precoUnitBlingSimulado,  // Preço COM desconto
+  // Sem campo desconto por item
+  produto: { id: blingProdutoId },
+};
+```
 
+**Adicionar desconto no nível do pedido (linha ~2396):**
+```typescript
+const pedidoData = {
+  numero: numeroPedido,
+  data: new Date().toISOString().split('T')[0],
+  loja: lojaPayload,
+  contato: contatoPayload,
+  itens: itensBling,
+  naturezaOperacao: { id: naturezaOperacaoId },
+  // NOVO: Desconto total da venda em reais
+  desconto: {
+    valor: descontoTotalVenda,  // Ex: 119.90 (valor em R$)
+    unidade: 'REAL',            // Indica que é valor, não %
+  },
+  observacoes: observacoes,
+  parcelas,
+};
+```
+
+**Atualizar observações para incluir economia:**
+```typescript
+const observacoes = [
+  `Pedido EBD #${pedido_id}`,
+  `Economia total: R$ ${descontoTotalVenda.toFixed(2)}`,  // NOVO
+  // ... resto das observações
+].join(' | ');
+```
+
+### Como o Desconto Aparecerá no Bling
+
+Após a alteração:
+- **Resumo do Pedido**: Campo "Desconto" mostrará o valor total economizado
+- **Nota Fiscal**: O desconto será considerado no cálculo fiscal
+- **Parcelas**: Valores corretos sem divergência
+
+### Impacto
+
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Desconto por item | Visível na coluna Desc(%) | Não visível por item |
+| Desconto total | Não visível | Visível no resumo do pedido |
+| Erro de parcelas | Frequente | Eliminado |
+| Observações | Sem economia | Mostra "Economia: R$ X" |
+
+### Passos de Implementação
+
+1. Modificar montagem do `itemBling` para enviar `valor` líquido (sem campo `desconto`)
+2. Adicionar campo `desconto` no payload `pedidoData` com valor total em R$
+3. Incluir informação de economia nas observações
+4. Testar aprovação do pedido "Igreja Batista Ibana Moura"
+5. Verificar no Bling se o desconto aparece corretamente
+
+### Validação
+
+Após implementar, aprovar o pedido pendente e verificar:
+- Pedido criado sem erro de parcelas
+- Campo "Desconto" visível no resumo do pedido Bling
+- Observações mostram o valor economizado
