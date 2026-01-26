@@ -58,68 +58,8 @@ Você pode executar consultas SELECT nas seguintes tabelas:
 - "Qual vendedor tem mais propostas este mês?" → Use execute_sql com GROUP BY vendedor_email
 - "Verifique o estoque do produto X" → Use check_bling_stock`;
 
-// Tool definitions for the AI
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "execute_sql",
-      description: "Executa uma consulta SELECT no banco de dados PostgreSQL e retorna os resultados. Use apenas para consultas de leitura (SELECT). NUNCA responda com SQL, sempre execute esta ferramenta.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "A consulta SQL SELECT a ser executada. Apenas SELECT é permitido."
-          },
-          description: {
-            type: "string",
-            description: "Breve descrição do que a consulta busca"
-          }
-        },
-        required: ["query", "description"],
-        additionalProperties: false
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "check_bling_stock",
-      description: "Verifica o estoque de produtos no sistema Bling. Use quando precisar saber quantidade disponível de produtos.",
-      parameters: {
-        type: "object",
-        properties: {
-          produto_ids: {
-            type: "array",
-            items: { type: "number" },
-            description: "IDs dos produtos no Bling para verificar estoque"
-          }
-        },
-        required: ["produto_ids"],
-        additionalProperties: false
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "check_nfe_status",
-      description: "Verifica o status de uma Nota Fiscal Eletrônica (NF-e) no Bling. Use para consultar se uma NF foi emitida, autorizada ou se há problemas.",
-      parameters: {
-        type: "object",
-        properties: {
-          nfe_id: {
-            type: "number",
-            description: "ID da NF-e no Bling"
-          }
-        },
-        required: ["nfe_id"],
-        additionalProperties: false
-      }
-    }
-  }
-];
+// Note: Tool definitions are now inline in convertToGeminiFormat function
+// to use the Google Gemini API format instead of OpenAI format
 
 // Execute SQL query
 async function executeSql(supabase: any, query: string): Promise<string> {
@@ -329,24 +269,101 @@ async function checkNfeStatus(supabase: any, nfeId: number): Promise<string> {
   }
 }
 
-// Process tool calls from AI response
-async function processToolCalls(supabase: any, toolCalls: any[]): Promise<any[]> {
+// Note: processToolCalls was replaced by processGeminiToolCalls for Google Gemini API format
+
+// Convert OpenAI-style messages to Google Gemini format
+function convertToGeminiFormat(messages: any[], systemPrompt: string) {
+  const contents: any[] = [];
+  
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      contents.push({
+        role: "user",
+        parts: [{ text: msg.content }]
+      });
+    } else if (msg.role === "assistant") {
+      contents.push({
+        role: "model",
+        parts: [{ text: msg.content }]
+      });
+    }
+  }
+  
+  return {
+    system_instruction: {
+      parts: [{ text: systemPrompt }]
+    },
+    contents,
+    tools: [{
+      function_declarations: [
+        {
+          name: "execute_sql",
+          description: "Executa uma consulta SELECT no banco de dados PostgreSQL e retorna os resultados. Use apenas para consultas de leitura (SELECT). NUNCA responda com SQL, sempre execute esta ferramenta.",
+          parameters: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "A consulta SQL SELECT a ser executada. Apenas SELECT é permitido."
+              },
+              description: {
+                type: "string",
+                description: "Breve descrição do que a consulta busca"
+              }
+            },
+            required: ["query", "description"]
+          }
+        },
+        {
+          name: "check_bling_stock",
+          description: "Verifica o estoque de produtos no sistema Bling. Use quando precisar saber quantidade disponível de produtos.",
+          parameters: {
+            type: "object",
+            properties: {
+              produto_ids: {
+                type: "array",
+                items: { type: "number" },
+                description: "IDs dos produtos no Bling para verificar estoque"
+              }
+            },
+            required: ["produto_ids"]
+          }
+        },
+        {
+          name: "check_nfe_status",
+          description: "Verifica o status de uma Nota Fiscal Eletrônica (NF-e) no Bling. Use para consultar se uma NF foi emitida, autorizada ou se há problemas.",
+          parameters: {
+            type: "object",
+            properties: {
+              nfe_id: {
+                type: "number",
+                description: "ID da NF-e no Bling"
+              }
+            },
+            required: ["nfe_id"]
+          }
+        }
+      ]
+    }],
+    tool_config: {
+      function_calling_config: {
+        mode: "AUTO"
+      }
+    },
+    generation_config: {
+      temperature: 0.7,
+      maxOutputTokens: 2048
+    }
+  };
+}
+
+// Process Gemini tool calls
+async function processGeminiToolCalls(supabase: any, functionCalls: any[]): Promise<any[]> {
   const results = [];
   
-  for (const toolCall of toolCalls) {
-    const functionName = toolCall.function.name;
-    let args;
-    
-    try {
-      args = JSON.parse(toolCall.function.arguments);
-    } catch {
-      results.push({
-        tool_call_id: toolCall.id,
-        role: "tool",
-        content: "Erro: Argumentos inválidos"
-      });
-      continue;
-    }
+  for (const fc of functionCalls) {
+    const functionName = fc.name;
+    const args = fc.args || {};
 
     console.log(`[Tool] Executing ${functionName} with args:`, args);
 
@@ -369,9 +386,10 @@ async function processToolCalls(supabase: any, toolCalls: any[]): Promise<any[]>
     console.log(`[Tool] ${functionName} result:`, result.substring(0, 500));
 
     results.push({
-      tool_call_id: toolCall.id,
-      role: "tool",
-      content: result
+      functionResponse: {
+        name: functionName,
+        response: { result }
+      }
     });
   }
 
@@ -393,9 +411,9 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      console.error("GEMINI_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -407,41 +425,31 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log(`[gemini-assistente] Processing ${messages.length} messages with tool calling`);
+    console.log(`[gemini-assistente] Processing ${messages.length} messages with Google Gemini API`);
+
+    // Build initial request body
+    let requestBody = convertToGeminiFormat(messages, SYSTEM_PROMPT);
 
     // First API call - may request tool use
-    let response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...messages,
-        ],
-        tools: tools,
-        tool_choice: "auto",
-      }),
-    });
+    let response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`AI gateway error: ${response.status}`, errorText);
+      console.error(`Google Gemini API error: ${response.status}`, errorText);
       
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Limite de requisições atingido. Tente novamente em alguns segundos." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos de IA esgotados. Entre em contato com o administrador." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
@@ -452,52 +460,72 @@ serve(async (req) => {
     }
 
     let responseData = await response.json();
-    let assistantMessage = responseData.choices?.[0]?.message;
+    let candidate = responseData.candidates?.[0];
+    let content = candidate?.content;
 
-    // Check if the AI wants to use tools
+    // Check if the AI wants to use tools (function calls)
     let iterations = 0;
     const maxIterations = 5;
     
-    while (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0 && iterations < maxIterations) {
-      console.log(`[gemini-assistente] Processing ${assistantMessage.tool_calls.length} tool calls (iteration ${iterations + 1})`);
+    while (content?.parts && iterations < maxIterations) {
+      // Check for function calls in the response
+      const functionCalls = content.parts.filter((part: any) => part.functionCall);
+      
+      if (functionCalls.length === 0) {
+        break; // No function calls, we're done
+      }
+
+      console.log(`[gemini-assistente] Processing ${functionCalls.length} function calls (iteration ${iterations + 1})`);
       
       // Execute the tools
-      const toolResults = await processToolCalls(supabase, assistantMessage.tool_calls);
+      const toolResults = await processGeminiToolCalls(
+        supabase, 
+        functionCalls.map((p: any) => p.functionCall)
+      );
       
-      // Build updated messages array with tool results
-      const updatedMessages = [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...messages,
-        assistantMessage,
-        ...toolResults
-      ];
-
-      // Call the AI again with tool results
-      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: updatedMessages,
-          tools: tools,
-          tool_choice: "auto",
-        }),
+      // Add the model's response and tool results to contents
+      requestBody.contents.push({
+        role: "model",
+        parts: content.parts
+      });
+      
+      requestBody.contents.push({
+        role: "user",
+        parts: toolResults
       });
 
+      // Call the API again with tool results
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
       if (!response.ok) {
+        console.error(`Google Gemini API error on tool response: ${response.status}`);
         break;
       }
 
       responseData = await response.json();
-      assistantMessage = responseData.choices?.[0]?.message;
+      candidate = responseData.candidates?.[0];
+      content = candidate?.content;
       iterations++;
     }
 
-    // Return the final response
-    const finalContent = assistantMessage?.content || "Desculpe, não consegui processar sua solicitação.";
+    // Extract final text response
+    let finalContent = "Desculpe, não consegui processar sua solicitação.";
+    
+    if (content?.parts) {
+      const textParts = content.parts.filter((part: any) => part.text);
+      if (textParts.length > 0) {
+        finalContent = textParts.map((p: any) => p.text).join("\n");
+      }
+    }
 
     console.log("[gemini-assistente] Final response ready");
 
