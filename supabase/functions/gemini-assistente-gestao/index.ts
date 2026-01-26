@@ -142,7 +142,7 @@ async function executeSql(supabase: any, query: string): Promise<string> {
   }
 
   try {
-    const { data, error } = await supabase.rpc('execute_readonly_query', { sql_query: query });
+    const { data, error } = await supabase.rpc('execute_readonly_query', { query_text: query });
     
     if (error) {
       console.log("[SQL] RPC error:", error.message);
