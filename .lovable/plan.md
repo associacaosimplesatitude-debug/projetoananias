@@ -1,118 +1,78 @@
 
-## Plano: Mostrar Desconto no Bling (Itens + Total)
 
-### Problema Atual
+## Plano: Mover Consultor de BI para /admin/ebd (Admin Only)
 
-O pedido da **Igreja Batista Ibana Moura** está falhando com o erro:
-> "O somatório do valor das parcelas difere do total da venda"
+### Situação Atual
 
-**Causa**: O Bling calcula internamente os valores aplicando desconto por item e arredonda de forma diferente do sistema, causando divergência de centavos entre o total calculado e a soma das parcelas.
+O componente **Consultor de BI** (`AIAssistantChat`) está atualmente no `AdminLayout.tsx` (linha 309), fazendo com que apareça em **todas as páginas administrativas**:
+- `/admin` (Dashboard)
+- `/admin/ebd` (Admin EBD)  
+- `/admin/clients` (Clientes)
+- Todas as outras rotas admin...
 
-### Análise Técnica
+### O Que Será Alterado
 
-O código atual em `bling-create-order/index.ts` já envia:
-- **Por item**: `valor` (preço cheio) + `desconto` (percentual %) - o Bling mostra na coluna "Desc (%)"
-- **Desconto total calculado**: Variável `descontoTotalVenda` existe, mas NÃO é enviada ao Bling
+Mover o Consultor de BI para aparecer **apenas** na página `/admin/ebd` e **somente** para usuários com role `admin` (Administrador Geral).
 
-A API do Bling aceita um campo `desconto` no nível do pedido (não só nos itens), que pode ser:
-- Um **valor em reais** representando o desconto total da venda
-- Isso aparece na nota fiscal e no resumo do pedido
-
-### Solução Proposta
-
-**Estratégia híbrida** para mostrar desconto em todos os níveis SEM erro de parcelas:
-
-1. **Nos itens**: Enviar preço JÁ COM desconto aplicado no campo `valor` (não enviar desconto % por item)
-2. **No pedido**: Enviar campo `desconto` com o valor TOTAL do desconto em reais
-3. **Nas parcelas**: Calcular usando o total líquido (após desconto)
-
-Isso garante:
-- O desconto aparece no resumo do pedido Bling
-- Os valores das parcelas batem exatamente com o total
-- Não há recálculo interno do Bling que cause divergência
+Usuários com roles `gerente_ebd` ou `financeiro` que acessam `/admin/ebd` **não verão** o assistente.
 
 ### Arquivos a Modificar
 
-#### 1. `supabase/functions/bling-create-order/index.ts`
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/admin/AdminLayout.tsx` | Remover import e renderização do AIAssistantChat |
+| `src/pages/admin/AdminEBD.tsx` | Adicionar AIAssistantChat com verificação de role === 'admin' |
 
-**Alteração nos itens (linha ~2082-2098):**
-```typescript
-// ANTES: Enviava preço cheio + desconto %
-const itemBling = {
-  codigo: skuRecebido,
-  descricao: item.descricao,
-  quantidade: quantidade,
-  valor: precoLista,         // Preço cheio
-  desconto: descontoPercentualItem,  // Bling recalcula
-  produto: { id: blingProdutoId },
-};
+### Detalhes da Implementação
 
-// DEPOIS: Enviar preço JÁ com desconto (valor líquido)
-const itemBling = {
-  codigo: skuRecebido,
-  descricao: item.descricao,
-  quantidade: quantidade,
-  valor: precoUnitBlingSimulado,  // Preço COM desconto
-  // Sem campo desconto por item
-  produto: { id: blingProdutoId },
-};
+#### 1. AdminLayout.tsx
+- **Remover** linha 2: import do AIAssistantChat
+- **Remover** linhas 308-309: renderização do componente
+
+#### 2. AdminEBD.tsx
+- **Adicionar** import do AIAssistantChat
+- **Adicionar** verificação `const isAdmin = role === 'admin'`
+- **Renderizar** o componente condicionalmente: `{isAdmin && <AIAssistantChat />}`
+
+### Fluxo de Verificação de Acesso
+
+```text
+Usuario acessa /admin/ebd
+        |
+        v
+   Qual é o role?
+        |
+  +-----+-----+-----+
+  |           |     |
+admin    gerente  financeiro
+  |        _ebd      |
+  v           |      |
+[VE CHAT]     v      v
+         [NAO VE] [NAO VE]
 ```
 
-**Adicionar desconto no nível do pedido (linha ~2396):**
+### Segurança
+
+A verificação é feita através do hook `useAuth()` que busca o role do usuário na tabela `user_roles`:
+
 ```typescript
-const pedidoData = {
-  numero: numeroPedido,
-  data: new Date().toISOString().split('T')[0],
-  loja: lojaPayload,
-  contato: contatoPayload,
-  itens: itensBling,
-  naturezaOperacao: { id: naturezaOperacaoId },
-  // NOVO: Desconto total da venda em reais
-  desconto: {
-    valor: descontoTotalVenda,  // Ex: 119.90 (valor em R$)
-    unidade: 'REAL',            // Indica que é valor, não %
-  },
-  observacoes: observacoes,
-  parcelas,
-};
+const { role } = useAuth();
+const isAdmin = role === 'admin';
+
+// Apenas admin vê o assistente
+{isAdmin && <AIAssistantChat />}
 ```
 
-**Atualizar observações para incluir economia:**
-```typescript
-const observacoes = [
-  `Pedido EBD #${pedido_id}`,
-  `Economia total: R$ ${descontoTotalVenda.toFixed(2)}`,  // NOVO
-  // ... resto das observações
-].join(' | ');
-```
+Esta verificação é segura porque:
+- O role vem do banco de dados (tabela `user_roles`)
+- Não pode ser manipulado pelo cliente
+- Segue o padrão já utilizado no projeto
 
-### Como o Desconto Aparecerá no Bling
+### Resultado Final
 
-Após a alteração:
-- **Resumo do Pedido**: Campo "Desconto" mostrará o valor total economizado
-- **Nota Fiscal**: O desconto será considerado no cálculo fiscal
-- **Parcelas**: Valores corretos sem divergência
+| Página | Usuário Admin | Gerente EBD | Financeiro |
+|--------|--------------|-------------|------------|
+| /admin | Não vê chat | N/A | N/A |
+| /admin/ebd | **Vê chat** | Não vê | Não vê |
+| /admin/clients | Não vê | N/A | N/A |
 
-### Impacto
-
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Desconto por item | Visível na coluna Desc(%) | Não visível por item |
-| Desconto total | Não visível | Visível no resumo do pedido |
-| Erro de parcelas | Frequente | Eliminado |
-| Observações | Sem economia | Mostra "Economia: R$ X" |
-
-### Passos de Implementação
-
-1. Modificar montagem do `itemBling` para enviar `valor` líquido (sem campo `desconto`)
-2. Adicionar campo `desconto` no payload `pedidoData` com valor total em R$
-3. Incluir informação de economia nas observações
-4. Testar aprovação do pedido "Igreja Batista Ibana Moura"
-5. Verificar no Bling se o desconto aparece corretamente
-
-### Validação
-
-Após implementar, aprovar o pedido pendente e verificar:
-- Pedido criado sem erro de parcelas
-- Campo "Desconto" visível no resumo do pedido Bling
-- Observações mostram o valor economizado
