@@ -59,6 +59,7 @@ import {
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { AdminPedidosTab } from "@/components/admin/AdminPedidosTab";
 import { ImportLeadsDialog } from "@/components/admin/ImportLeadsDialog";
+import { AIAssistantChat } from "@/components/admin/AIAssistantChat";
 import { LeadScoringKPIs } from "@/components/leads/LeadScoringKPIs";
 import { SalesChannelCards } from "@/components/admin/SalesChannelCards";
 import { ClientsSummaryCards } from "@/components/admin/ClientsSummaryCards";
@@ -2988,6 +2989,9 @@ export default function AdminEBD() {
           </DialogContent>
         </Dialog>
       </main>
+      
+      {/* Consultor de BI - apenas para admin */}
+      {role === 'admin' && <AIAssistantChat />}
     </div>
   );
 }
