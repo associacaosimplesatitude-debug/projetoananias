@@ -2032,69 +2032,52 @@ serve(async (req) => {
         );
       }
 
-      // Calcular desconto percentual do item (arredondado para inteiro)
-      // Este valor será enviado ao Bling para exibição na coluna "Desc (%)"
-      let descontoPercentualItem = 0;
-      if (precoLista > precoComDesconto && precoLista > 0) {
-        descontoPercentualItem = Math.round(((precoLista - precoComDesconto) / precoLista) * 100);
-      }
-
-      // ESTRATÉGIA PARA MOSTRAR DESCONTO NO BLING SEM ERRO DE PARCELAS:
-      // 1. Enviamos preço de lista (cheio) no campo "valor"
-      // 2. Enviamos desconto % no campo "desconto"
-      // 3. Para calcular parcelas, SIMULAMOS exatamente como o Bling calcula:
-      //    - O Bling arredonda o preço unitário líquido para 2 casas ANTES de multiplicar pela quantidade
-      //    - precoUnitBling = ROUND(precoLista * (1 - desconto/100), 2)
-      //    - totalItemBling = precoUnitBling * quantidade
+      // NOVA ESTRATÉGIA: Evitar erros de arredondamento do Bling
+      // Em vez de enviar preço cheio + desconto %, enviamos PREÇO JÁ COM DESCONTO
+      // O desconto total será exibido no nível do pedido (não por item)
       
-      // Simular cálculo do Bling: arredonda por unidade primeiro
-      const precoUnitBlingSimulado = descontoPercentualItem > 0
-        ? Math.round((precoLista * (1 - descontoPercentualItem / 100)) * 100) / 100
-        : Math.round(precoLista * 100) / 100;
+      // Calcular preço unitário com desconto aplicado (2 casas decimais)
+      const precoUnitarioLiquido = Math.round(precoComDesconto * 100) / 100;
       
-      // Total do item como o Bling vai calcular
-      const totalItemBlingSimulado = Math.round((precoUnitBlingSimulado * quantidade) * 100) / 100;
+      // Total do item (preço líquido * quantidade)
+      const totalItemLiquido = Math.round((precoUnitarioLiquido * quantidade) * 100) / 100;
       
-      // Totais brutos para logs
+      // Totais brutos para cálculo do desconto total da venda
       const totalItemBruto = Math.round((precoLista * quantidade) * 100) / 100;
-      const descontoTotalItem = Math.max(0, Math.round((totalItemBruto - totalItemBlingSimulado) * 100) / 100);
+      const descontoTotalItem = Math.max(0, Math.round((totalItemBruto - totalItemLiquido) * 100) / 100);
 
-      // Acumular totais usando a simulação do Bling (fonte de verdade para parcelas)
-      totalBrutoBling += totalItemBlingSimulado;
-      totalBrutoBlingMetodoB += totalItemBlingSimulado;
+      // Acumular totais usando o preço líquido (fonte de verdade para parcelas)
+      totalBrutoBling += totalItemLiquido;
+      totalBrutoBlingMetodoB += totalItemLiquido;
 
-      // Acumular desconto total (para exibição/log)
+      // Acumular desconto total (para exibição no nível do pedido)
       descontoTotalVenda += descontoTotalItem;
 
       console.log(`Item: ${item.descricao}`);
       console.log(`  - SKU recebido: ${skuRecebido}`);
       console.log(`  - bling_produto_id: ${blingProdutoId}`);
       console.log(`  - bling_produto_codigo: ${blingProdutoCodigo || 'N/A'}`);
-      console.log(`  - Preço Lista (enviado ao Bling): R$ ${precoLista.toFixed(2)}`);
-      console.log(`  - Desconto % (enviado ao Bling): ${descontoPercentualItem}%`);
-      console.log(`  - Preço Unit. Líquido (como Bling calcula): R$ ${precoUnitBlingSimulado.toFixed(2)}`);
-      console.log(`  - Total Item (como Bling calcula): R$ ${totalItemBlingSimulado.toFixed(2)}`);
+      console.log(`  - Preço Lista (original): R$ ${precoLista.toFixed(2)}`);
+      console.log(`  - Preço Líquido (enviado ao Bling): R$ ${precoUnitarioLiquido.toFixed(2)}`);
+      console.log(`  - Total Item Líquido: R$ ${totalItemLiquido.toFixed(2)}`);
       console.log(`  - Desconto Total do Item: R$ ${descontoTotalItem.toFixed(2)}`);
       console.log(`  - Quantidade: ${quantidade}`);
 
-      // IMPORTANTE: Enviamos preço de lista + desconto % para o Bling MOSTRAR o desconto aplicado
-      // Mas calculamos parcelas usando a simulação exata do cálculo interno do Bling
+      // NOVA ESTRATÉGIA: Enviar preço JÁ COM DESCONTO aplicado
+      // Isso evita que o Bling recalcule e cause divergência de centavos
+      // O desconto será mostrado no nível do pedido (campo desconto.valor)
       const itemBling: any = {
         codigo: skuRecebido,
         descricao: item.descricao,
         unidade: item.unidade || 'UN',
         quantidade: quantidade,
-        // PREÇO DE LISTA (cheio) - Bling vai mostrar na coluna "Preço lista"
-        valor: Number(precoLista.toFixed(2)),
+        // PREÇO JÁ COM DESCONTO APLICADO - evita recálculo interno do Bling
+        valor: Number(precoUnitarioLiquido.toFixed(2)),
         produto: {
           id: blingProdutoId,
         },
       };
-
-      // SEMPRE enviar desconto quando existir (para exibição no Bling)
-      if (descontoPercentualItem > 0) {
-        itemBling.desconto = descontoPercentualItem;
-      }
+      // NÃO enviar campo 'desconto' por item - evita erro de arredondamento
 
       itensBling.push(itemBling);
     }
@@ -2160,18 +2143,24 @@ serve(async (req) => {
     console.log(`Desconto Total: R$ ${descontoTotalVenda.toFixed(2)}`);
     console.log(`Transportador: ${freteInfo.nome} - ${freteInfo.servico}`);
 
-    // Montar observações detalhadas
-    const observacoes = [
+    // Montar observações detalhadas (incluindo economia para visibilidade)
+    const observacoesBase = [
       `Pedido EBD #${pedido_id}`,
       `Forma de Pagamento: ${formaPagamentoDescricao}`,
       `Transportador: ${freteInfo.nome}`,
       `Serviço: ${freteInfo.servico}`,
       `Valor Produtos: R$ ${valorProdutosNum.toFixed(2)}`,
-      `Desconto Total: R$ ${descontoTotalVenda.toFixed(2)}`,
       `Valor Frete: R$ ${valorFreteNum.toFixed(2)}`,
       `Valor Total: R$ ${valorTotalCorreto.toFixed(2)}`,
-      `Gerado em: ${new Date().toISOString()}`,
-    ].join(' | ');
+    ];
+    
+    // Adicionar economia se houver desconto
+    if (descontoTotalVenda > 0) {
+      observacoesBase.push(`💰 ECONOMIA: R$ ${descontoTotalVenda.toFixed(2)}`);
+    }
+    
+    observacoesBase.push(`Gerado em: ${new Date().toISOString()}`);
+    const observacoes = observacoesBase.join(' | ');
 
     // Gerar parcelas baseado na forma de pagamento
     let parcelas: any[] = [];
@@ -2422,6 +2411,17 @@ serve(async (req) => {
       ...(vendedorIdBling ? { vendedor: { id: vendedorIdBling } } : {}),
     };
     
+    // ✅ NOVO: Adicionar desconto TOTAL no nível do pedido (em R$)
+    // Isso mostra o desconto no resumo do pedido Bling SEM causar erro de parcelas
+    // Como os itens já estão com preço líquido, este desconto é apenas informativo/visual
+    if (descontoTotalVenda > 0) {
+      pedidoData.desconto = {
+        valor: Number(descontoTotalVenda.toFixed(2)),
+        unidade: 'REAL', // Indica que é valor em R$, não percentual
+      };
+      console.log(`[BLING] ✅ Desconto total adicionado ao pedido: R$ ${descontoTotalVenda.toFixed(2)}`);
+    }
+    
     // LOG do payload completo para debug
     console.log('[BLING] Payload do pedido (estrutura chave):', {
       numero: pedidoData.numero,
@@ -2430,6 +2430,7 @@ serve(async (req) => {
       naturezaOperacao: pedidoData.naturezaOperacao,
       contatoId: pedidoData.contato?.id,
       totalItens: pedidoData.itens?.length,
+      desconto: pedidoData.desconto,
     });
 
     // LOGS obrigatórios antes do POST
@@ -2438,11 +2439,6 @@ serve(async (req) => {
     console.log(`[PAYLOAD_CHECK] contato.numeroDocumentoLen=${String(pedidoData?.contato?.numeroDocumento || '').replace(/\D/g,'').length}`);
     console.log(`[PAYLOAD_CHECK] pedido.contato.id=${pedidoData.contato.id} transporte.etiqueta.numero=${enderecoNumeroRef}`);
     console.log(`[PAYLOAD_CHECK] payload.loja.id=${pedidoData.loja.id} payload.loja.unidadeNegocio.id=${pedidoData.loja.unidadeNegocio?.id || 'N/A'} itens[0].deposito.id=${pedidoData.itens[0]?.deposito?.id}`);
-
-    // IMPORTANTE: Já aplicamos desconto por item via `itens[].desconto`.
-    // Enviar também `pedido.desconto` faz o Bling aplicar desconto em duplicidade,
-    // causando erro de validação nas parcelas.
-    // Portanto, não enviar desconto total no nível do pedido.
 
 
     // Adicionar transporte com etiqueta (endereço de entrega) - ESTRUTURA CORRETA API v3
