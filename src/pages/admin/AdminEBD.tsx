@@ -2528,14 +2528,14 @@ export default function AdminEBD() {
                     <div className="space-y-2">
                       <Label>Gerente Responsável</Label>
                       <Select 
-                        value={formData.gerente_id || ''} 
-                        onValueChange={(value) => setFormData({ ...formData, gerente_id: value || '' })}
+                        value={formData.gerente_id || '_none'} 
+                        onValueChange={(value) => setFormData({ ...formData, gerente_id: value === '_none' ? '' : value })}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Sem gerente (vendedor direto)" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Sem gerente</SelectItem>
+                          <SelectItem value="_none">Sem gerente</SelectItem>
                           {vendedores?.filter(v => v.is_gerente && v.id !== editingVendedor?.id).map(g => (
                             <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>
                           ))}
