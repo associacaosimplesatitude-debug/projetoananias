@@ -60,50 +60,59 @@ Você pode executar consultas SELECT nas seguintes tabelas:
 
 const tools = [
   {
-    name: "execute_sql",
-    description: "Executa uma consulta SELECT no banco de dados PostgreSQL e retorna os resultados. Use apenas para consultas de leitura (SELECT). NUNCA responda com SQL, sempre execute esta ferramenta.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "A consulta SQL SELECT a ser executada. Apenas SELECT é permitido."
+    type: "function",
+    function: {
+      name: "execute_sql",
+      description: "Executa uma consulta SELECT no banco de dados PostgreSQL e retorna os resultados. Use apenas para consultas de leitura (SELECT). NUNCA responda com SQL, sempre execute esta ferramenta.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "A consulta SQL SELECT a ser executada. Apenas SELECT é permitido."
+          },
+          description: {
+            type: "string",
+            description: "Breve descrição do que a consulta busca"
+          }
         },
-        description: {
-          type: "string",
-          description: "Breve descrição do que a consulta busca"
-        }
-      },
-      required: ["query", "description"]
+        required: ["query", "description"]
+      }
     }
   },
   {
-    name: "check_bling_stock",
-    description: "Verifica o estoque de produtos no sistema Bling. Use quando precisar saber quantidade disponível de produtos.",
-    parameters: {
-      type: "object",
-      properties: {
-        produto_ids: {
-          type: "array",
-          items: { type: "number" },
-          description: "IDs dos produtos no Bling para verificar estoque"
-        }
-      },
-      required: ["produto_ids"]
+    type: "function",
+    function: {
+      name: "check_bling_stock",
+      description: "Verifica o estoque de produtos no sistema Bling. Use quando precisar saber quantidade disponível de produtos.",
+      parameters: {
+        type: "object",
+        properties: {
+          produto_ids: {
+            type: "array",
+            items: { type: "number" },
+            description: "IDs dos produtos no Bling para verificar estoque"
+          }
+        },
+        required: ["produto_ids"]
+      }
     }
   },
   {
-    name: "check_nfe_status",
-    description: "Verifica o status de uma Nota Fiscal Eletrônica (NF-e) no Bling. Use para consultar se uma NF foi emitida, autorizada ou se há problemas.",
-    parameters: {
-      type: "object",
-      properties: {
-        nfe_id: {
-          type: "number",
-          description: "ID da NF-e no Bling"
-        }
-      },
-      required: ["nfe_id"]
+    type: "function",
+    function: {
+      name: "check_nfe_status",
+      description: "Verifica o status de uma Nota Fiscal Eletrônica (NF-e) no Bling. Use para consultar se uma NF foi emitida, autorizada ou se há problemas.",
+      parameters: {
+        type: "object",
+        properties: {
+          nfe_id: {
+            type: "number",
+            description: "ID da NF-e no Bling"
+          }
+        },
+        required: ["nfe_id"]
+      }
     }
   }
 ];
@@ -292,8 +301,8 @@ async function processToolCalls(supabase: any, toolCalls: any[]): Promise<any[]>
   
   for (let i = 0; i < toolCalls.length; i++) {
     const toolCall = toolCalls[i];
-    const functionName = toolCall.name;
-    const args = toolCall.args || {};
+    const functionName = toolCall.function.name;
+    const args = JSON.parse(toolCall.function.arguments || "{}");
 
     console.log(`[Tool] Executing ${functionName} with args:`, args);
 
@@ -316,13 +325,12 @@ async function processToolCalls(supabase: any, toolCalls: any[]): Promise<any[]>
     console.log(`[Tool] ${functionName} result:`, result.substring(0, 500));
 
     results.push({
-      functionResponse: {
-        name: functionName,
-        response: { result }
-      }
+      tool_call_id: toolCall.id,
+      role: "tool",
+      content: result
     });
 
-    // Add 1 second delay between tool calls to avoid rate limits on free tier
+    // Add 1 second delay between tool calls to avoid rate limits
     if (i < toolCalls.length - 1) {
       console.log("[Tool] Waiting 1s before next tool call...");
       await delay(1000);
@@ -330,22 +338,6 @@ async function processToolCalls(supabase: any, toolCalls: any[]): Promise<any[]>
   }
 
   return results;
-}
-
-// Convert messages to Gemini format
-function toGeminiFormat(messages: any[]): any[] {
-  const contents = [];
-  
-  for (const msg of messages) {
-    if (msg.role === "system") continue; // System prompt handled separately
-    
-    contents.push({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }]
-    });
-  }
-  
-  return contents;
 }
 
 serve(async (req) => {
@@ -363,11 +355,11 @@ serve(async (req) => {
       );
     }
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
-      console.error("GEMINI_API_KEY not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY not configured");
       return new Response(
-        JSON.stringify({ error: "GEMINI_API_KEY não configurada" }),
+        JSON.stringify({ error: "OPENAI_API_KEY não configurada" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -377,29 +369,32 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log(`[assistente-gestao] Processing ${messages.length} messages with Google Gemini API`);
+    console.log(`[assistente-gestao] Processing ${messages.length} messages with OpenAI ChatGPT`);
 
-    // Build Gemini request
-    const geminiContents = toGeminiFormat(messages);
+    // Build OpenAI messages array with system prompt
+    const openaiMessages: any[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...messages
+    ];
 
     // First API call - may request tool use
-    let response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: geminiContents,
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          tools: [{ functionDeclarations: tools }],
-          toolConfig: { functionCallingConfig: { mode: "AUTO" } }
-        }),
-      }
-    );
+    let response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: openaiMessages,
+        tools: tools,
+        tool_choice: "auto"
+      }),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Gemini API error: ${response.status}`, errorText);
+      console.error(`OpenAI API error: ${response.status}`, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -415,20 +410,16 @@ serve(async (req) => {
     }
 
     let responseData = await response.json();
-    let candidate = responseData.candidates?.[0];
-    let parts = candidate?.content?.parts || [];
+    let assistantMessage = responseData.choices?.[0]?.message;
 
     // Process tool calls in a loop
     let iterations = 0;
     const maxIterations = 5;
     
-    while (iterations < maxIterations) {
-      // Check if there are function calls
-      const functionCalls = parts.filter((p: any) => p.functionCall);
+    while (iterations < maxIterations && assistantMessage?.tool_calls) {
+      const toolCalls = assistantMessage.tool_calls;
       
-      if (functionCalls.length === 0) break;
-      
-      console.log(`[assistente-gestao] Processing ${functionCalls.length} tool calls (iteration ${iterations + 1})`);
+      console.log(`[assistente-gestao] Processing ${toolCalls.length} tool calls (iteration ${iterations + 1})`);
       
       // Add 1 second delay before processing tools to respect rate limits
       if (iterations > 0) {
@@ -437,59 +428,49 @@ serve(async (req) => {
       }
       
       // Execute the tools
-      const toolResults = await processToolCalls(
-        supabase, 
-        functionCalls.map((p: any) => p.functionCall)
-      );
+      const toolResults = await processToolCalls(supabase, toolCalls);
       
-      // Add model response and tool results to conversation
-      geminiContents.push({
-        role: "model",
-        parts: parts
-      });
-      
-      geminiContents.push({
-        role: "user",
-        parts: toolResults
-      });
+      // Add assistant message and tool results to conversation
+      openaiMessages.push(assistantMessage);
+      openaiMessages.push(...toolResults);
 
       // Call the API again with tool results
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: geminiContents,
-            systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-            tools: [{ functionDeclarations: tools }],
-            toolConfig: { functionCallingConfig: { mode: "AUTO" } }
-          }),
-        }
-      );
+      response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: openaiMessages,
+          tools: tools,
+          tool_choice: "auto"
+        }),
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`Gemini API error on tool response: ${response.status}`, errorText);
+        console.error(`OpenAI API error on tool response: ${response.status}`, errorText);
         
         if (response.status === 429) {
           // Wait longer and retry once
           console.log("[assistente-gestao] Rate limited, waiting 2s and retrying...");
           await delay(2000);
           
-          response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contents: geminiContents,
-                systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-                tools: [{ functionDeclarations: tools }],
-                toolConfig: { functionCallingConfig: { mode: "AUTO" } }
-              }),
-            }
-          );
+          response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${OPENAI_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: openaiMessages,
+              tools: tools,
+              tool_choice: "auto"
+            }),
+          });
           
           if (!response.ok) {
             return new Response(
@@ -503,14 +484,12 @@ serve(async (req) => {
       }
 
       responseData = await response.json();
-      candidate = responseData.candidates?.[0];
-      parts = candidate?.content?.parts || [];
+      assistantMessage = responseData.choices?.[0]?.message;
       iterations++;
     }
 
     // Extract final text response
-    const textParts = parts.filter((p: any) => p.text);
-    const finalContent = textParts.map((p: any) => p.text).join("") || "Desculpe, não consegui processar sua solicitação.";
+    const finalContent = assistantMessage?.content || "Desculpe, não consegui processar sua solicitação.";
 
     console.log("[assistente-gestao] Final response ready, length:", finalContent.length);
 
