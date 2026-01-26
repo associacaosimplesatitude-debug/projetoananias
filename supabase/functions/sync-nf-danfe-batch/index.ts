@@ -92,8 +92,10 @@ async function blingApiCall(
 async function fetchNfeForOrder(
   blingOrderId: number,
   accessToken: string
-): Promise<{ found: boolean; nfeNumero?: string; linkDanfe?: string; error?: string }> {
+): Promise<{ found: boolean; nfeNumero?: string; linkDanfe?: string; error?: string; situacao?: number }> {
   try {
+    console.log(`[fetchNfeForOrder] Buscando NF-e para pedido ${blingOrderId}`);
+    
     // Step 1: Get order details
     const orderUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${blingOrderId}`;
     const orderResult = await blingApiCall(orderUrl, accessToken);
@@ -107,26 +109,41 @@ async function fetchNfeForOrder(
       return { found: false, error: 'Dados do pedido vazios' };
     }
 
-    // Step 2: Extract NFe ID from order
+    // Step 2: Extract NFe ID from order - multiple fallback paths
     let nfeId: number | null = null;
     
-    // Try notasFiscais array
+    // Path 1: notasFiscais array (most common)
     if (orderData.notasFiscais && Array.isArray(orderData.notasFiscais) && orderData.notasFiscais.length > 0) {
       nfeId = orderData.notasFiscais[0]?.id || null;
+      if (nfeId) console.log(`[fetchNfeForOrder] NF-e ID encontrado via notasFiscais: ${nfeId}`);
     }
     
-    // Try notaFiscal object
+    // Path 2: notaFiscal object
     if (!nfeId && orderData.notaFiscal?.id) {
       nfeId = orderData.notaFiscal.id;
+      console.log(`[fetchNfeForOrder] NF-e ID encontrado via notaFiscal: ${nfeId}`);
     }
     
-    // Try nfe object
+    // Path 3: nfe object
     if (!nfeId && orderData.nfe?.id) {
       nfeId = orderData.nfe.id;
+      console.log(`[fetchNfeForOrder] NF-e ID encontrado via nfe: ${nfeId}`);
+    }
+
+    // Path 4: Alternative endpoint - search NF-e by order ID
+    if (!nfeId) {
+      console.log(`[fetchNfeForOrder] Buscando NF-e via endpoint alternativo /nfe?idPedidoVenda=${blingOrderId}`);
+      const nfesUrl = `https://www.bling.com.br/Api/v3/nfe?idPedidoVenda=${blingOrderId}`;
+      const nfesResult = await blingApiCall(nfesUrl, accessToken);
+      
+      if (nfesResult?.data && Array.isArray(nfesResult.data) && nfesResult.data.length > 0) {
+        nfeId = nfesResult.data[0]?.id || null;
+        if (nfeId) console.log(`[fetchNfeForOrder] NF-e ID encontrado via endpoint alternativo: ${nfeId}`);
+      }
     }
 
     if (!nfeId) {
-      return { found: false, error: 'NF-e não encontrada no pedido' };
+      return { found: false, error: 'NF-e não encontrada no pedido (todos os caminhos verificados)' };
     }
 
     // Step 3: Get NFe details
@@ -134,7 +151,7 @@ async function fetchNfeForOrder(
     const nfeResult = await blingApiCall(nfeUrl, accessToken);
 
     if (nfeResult.notFound) {
-      return { found: false, error: 'NF-e não encontrada' };
+      return { found: false, error: `NF-e ${nfeId} não encontrada` };
     }
 
     const nfeData = nfeResult?.data;
@@ -145,19 +162,29 @@ async function fetchNfeForOrder(
     // Check if authorized (situacaoId === 6)
     const situacaoId = nfeData.situacao?.id || nfeData.situacao;
     if (situacaoId !== 6) {
-      return { found: false, error: `NF-e não autorizada (situação: ${situacaoId})` };
+      return { found: false, error: `NF-e não autorizada (situação: ${situacaoId})`, situacao: situacaoId };
     }
 
-    // Extract DANFE link
-    const linkDanfe = nfeData.linkDanfe || nfeData.link_danfe || nfeData.xml?.danfe || null;
+    // Extract DANFE link - multiple fallback paths
+    const linkDanfe = 
+      nfeData.linkDanfe || 
+      nfeData.link_danfe || 
+      nfeData.linkPDF ||
+      nfeData.xml?.danfe ||
+      nfeData.pdf ||
+      null;
+    
     const nfeNumero = nfeData.numero?.toString() || null;
 
     if (!linkDanfe) {
-      return { found: false, error: 'Link DANFE não disponível' };
+      console.log(`[fetchNfeForOrder] NF-e ${nfeId} autorizada mas sem linkDanfe disponível. Campos: ${JSON.stringify(Object.keys(nfeData))}`);
+      return { found: false, error: 'Link DANFE não disponível na NF-e autorizada', situacao: situacaoId };
     }
 
-    return { found: true, nfeNumero, linkDanfe };
+    console.log(`[fetchNfeForOrder] ✓ NF-e ${nfeNumero} encontrada com DANFE link`);
+    return { found: true, nfeNumero, linkDanfe, situacao: situacaoId };
   } catch (error) {
+    console.error(`[fetchNfeForOrder] Erro:`, error);
     return { found: false, error: error instanceof Error ? error.message : 'Erro desconhecido' };
   }
 }
@@ -255,7 +282,7 @@ Deno.serve(async (req) => {
       success: 0,
       failed: 0,
       skipped: 0,
-      errors: [] as { id: string; error: string }[],
+      errors: [] as { id: string; bling_order_id: number | null; error: string; situacao?: number }[],
     };
 
     // Process each parcela
@@ -283,14 +310,19 @@ Deno.serve(async (req) => {
 
         if (updateError) {
           results.failed++;
-          results.errors.push({ id: parcela.id, error: `Update failed: ${updateError.message}` });
+          results.errors.push({ id: parcela.id, bling_order_id: blingOrderId, error: `Update failed: ${updateError.message}` });
         } else {
           results.success++;
           console.log(`[sync-nf-danfe-batch] ✓ Updated parcela ${parcela.id} with NF ${nfeResult.nfeNumero}`);
         }
       } else {
         results.failed++;
-        results.errors.push({ id: parcela.id, error: nfeResult.error || 'NF não encontrada' });
+        results.errors.push({ 
+          id: parcela.id, 
+          bling_order_id: blingOrderId,
+          error: nfeResult.error || 'NF não encontrada',
+          situacao: nfeResult.situacao
+        });
       }
 
       // Rate limit: 300ms between calls
