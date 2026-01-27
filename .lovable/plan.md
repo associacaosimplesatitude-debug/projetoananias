@@ -1,103 +1,143 @@
 
-# Plano: Corrigir Numeração de NF-e para Pagamento na Loja (Penha)
+# Plano: Corrigir Geração de NF-e para Loja Penha (PDV)
 
-## Diagnóstico Completo
+## Diagnóstico dos Logs
 
-### Por que o Faturamento funciona?
-O fluxo de **Faturamento B2B** (`aprovar-faturamento` → `bling-create-order`) funciona corretamente porque:
-1. Usa **um único token Bling** (da tabela `bling_config` - RJ)
-2. Apenas muda o **`loja.id`** no payload para `205891152` (Polo Penha)
-3. A NF-e é gerada pelo próprio Bling no momento da venda, usando a série correta da loja
+A análise dos logs do pedido "Bruna Soares" revelou **dois problemas críticos**:
 
-### Por que "Pagar na Loja" está errado?
-O fluxo de **Pagar na Loja** (`bling-generate-nfe`) falha porque:
-1. Tenta usar uma **tabela separada** `bling_config_penha` (linhas 331-381)
-2. Esta tabela está **vazia** (não há OAuth configurado)
-3. Como `bling_config_penha` está vazia, a função retorna erro ou usa RJ como fallback
-4. A NF-e é gerada com a conta RJ, usando série errada (030xxx)
+### Problema 1: Rate Limit 429
+```
+⚠️ Erro ao buscar página 1 (status: 429)
+```
+A API do Bling retornou **Too Many Requests** ao buscar NF-es da série 15. Como a busca falhou, o sistema definiu `numero = 1` (primeira NF-e da série).
 
-### Solução
-Modificar `bling-generate-nfe` para usar a **mesma lógica do faturamento**:
-- Usar sempre o token de `bling_config` (RJ)
-- Ao detectar pedido da Loja Penha, usar a **série e natureza específicas** (já configuradas)
-- NÃO tentar buscar `bling_config_penha` (remover essa lógica)
+### Problema 2: Bling IGNORA o Campo `serie` do Payload
+| Enviado no Payload | Resposta do Bling |
+|--------------------|-------------------|
+| `"serie": 15` | `"serie": "1"` |
+
+O Bling **ignorou** a série 15 enviada e usou série 1. Isso acontece porque a **Natureza de Operação** (`id: 15108893128`) provavelmente está configurada internamente no Bling para usar a série padrão da loja (série 1).
+
+### Resultado
+- NF-e criada com série 1, número 026991 (sequência da série 1 da Penha)
+- Deveria ser série 15, número 019xxx
 
 ---
 
-## Alterações Necessárias
+## Causa Raiz
+
+A API do Bling v3 tem um comportamento onde:
+1. Se a Natureza de Operação estiver configurada com uma série específica, ela sobrescreve o campo `serie` do payload
+2. O campo `serie` no payload é tratado apenas como "sugestão" quando a Natureza tem configuração própria
+
+### Verificação Necessária no Bling
+Na conta Bling, verificar a configuração de:
+- **Natureza de Operação "PENHA - Venda de mercadoria - PF"** (ID: 15108893128)
+- Campo "Série padrão" dentro dessa natureza
+
+Se a série padrão estiver como 1, precisa mudar para 15.
+
+---
+
+## Solução Proposta
+
+### Opção A: Corrigir no Bling (Recomendado)
+1. Acessar o Bling → Cadastros → Naturezas de Operação
+2. Editar "PENHA - Venda de mercadoria - PF" (ID 15108893128)
+3. Configurar **Série padrão = 15**
+4. Salvar
+
+Isso fará o Bling usar série 15 automaticamente quando essa natureza for usada.
+
+### Opção B: Ajuste no Código (Fallback)
+Se não for possível alterar no Bling, adicionar retry com delay para evitar erro 429 e usar a série configurada na loja:
+
+1. Adicionar tratamento de rate limit (429) com delay e retry
+2. Garantir que o payload envie a série correta
+
+---
+
+## Alterações no Código (Para Rate Limit)
 
 ### Arquivo: `supabase/functions/bling-generate-nfe/index.ts`
 
-#### Mudança 1: Remover lógica de `bling_config_penha` (linhas 324-388)
-Substituir todo o bloco de seleção de config por uso direto de `bling_config`:
+Modificar a função `getLastNfeNumber` para tratar erro 429 com retry:
 
-**Antes (problemático):**
 ```javascript
-if (isLojaPenha) {
-  tableName = 'bling_config_penha';
-  // ... busca config separada
+// Se receber 429 (Rate Limit), aguardar 2s e tentar novamente
+if (!resp.ok) {
+  if (resp.status === 429) {
+    console.log(`[BLING-NFE] ⚠️ Rate limit (429) - aguardando 2s antes de retry...`);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Decrementar página para tentar novamente
+    continue;
+  }
+  console.log(`[BLING-NFE] ⚠️ Erro ao buscar página ${pagina} (status: ${resp.status})`);
+  break;
 }
 ```
 
-**Depois (corrigido):**
+### Adicionar limite de retries para evitar loop infinito
 ```javascript
-// SEMPRE usar bling_config (RJ) - é uma única conta com múltiplas filiais
-const tableName = 'bling_config';
-blingConfig = blingConfigRJ;
-accessToken = accessTokenRJ;
-console.log(`[BLING-NFE] Usando token UNIFICADO (mesma conta Bling para todas as filiais)`);
+let retryCount = 0;
+const MAX_RETRIES_429 = 3;
+// ...
+if (resp.status === 429 && retryCount < MAX_RETRIES_429) {
+  retryCount++;
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  continue;
+}
 ```
-
-#### Mudança 2: Manter lógica de série e natureza por filial
-A lógica atual de usar série e natureza específicas para Penha (linhas 446-600+) **permanece**:
-- `SERIE_PENHA_PJ = 1` (para CNPJ)
-- `SERIE_PENHA_PF = 15` (para CPF)
-- `NATUREZA_PENHA_PF_ID` e `NATUREZA_PENHA_PJ_ID`
-
-#### Mudança 3: Verificar que a loja já está no pedido
-O pedido já tem `loja.id = 205891152` (Penha) porque foi criado pelo `bling-create-order` corretamente. A NF-e deve herdar essa loja.
 
 ---
 
-## Fluxo Corrigido
+## Resumo das Ações
 
+| Ação | Tipo | Prioridade |
+|------|------|------------|
+| Verificar série padrão na Natureza de Operação Penha no Bling | Configuração Bling | ALTA |
+| Se série = 1, alterar para 15 | Configuração Bling | ALTA |
+| Adicionar retry para erro 429 no código | Código | MÉDIA |
+
+---
+
+## Detalhes Técnicos
+
+### IDs Relevantes
+- Natureza PF Penha: `15108893128`
+- Natureza PJ Penha: `15108893188`
+- Loja Penha ID: `205891152`
+- Série esperada PF: `15`
+- Série esperada PJ: `1`
+
+### Fluxo Atual
 ```text
-1. Recebe bling_order_id (pedido criado pelo bling-create-order)
-2. Busca config do bling_config (RJ) - TOKEN ÚNICO
-3. Busca pedido no Bling via API
-4. Detecta loja.id do pedido:
-   - Se loja.id === 205891152 (Penha):
-     - Usa série específica (1 para PJ, 15 para PF)
-     - Usa natureza específica (PENHA - Venda)
-   - Se outra loja:
-     - Usa série padrão RJ
-5. Monta payload NF-e com série/natureza corretas
-6. Cria NF-e via POST /nfe (mesmo token funciona para todas as filiais)
-7. NF-e sai com numeração correta da filial
+1. Detecta Loja Penha (ID 205891152) ✓
+2. Define série 15 para PF ✓
+3. Define natureza 15108893128 ✓
+4. Busca último número série 15 → ERRO 429 → numero = 1 ✗
+5. Envia payload com serie=15
+6. Bling ignora e usa serie=1 (da natureza) ✗
+7. NF-e criada com série 1, numero 026991 ✗
+```
+
+### Fluxo Corrigido
+```text
+1. Detecta Loja Penha (ID 205891152) ✓
+2. Define série 15 para PF ✓
+3. Define natureza 15108893128 (configurada com série 15 no Bling) ✓
+4. Busca último número série 15 → Retry se 429 → encontra 019xxx ✓
+5. Envia payload com serie=15
+6. Bling usa série 15 (da natureza corrigida) ✓
+7. NF-e criada com série 15, numero 019xxx ✓
 ```
 
 ---
 
-## Resultado Esperado
+## Próximos Passos
 
-| Cenário | Loja | Série | Numeração |
-|---------|------|-------|-----------|
-| Faturamento B2B (Penha) | POLO PENHA (205891152) | 1 | 019xxx ✓ |
-| Pagar na Loja (Penha) | POLO PENHA (205891152) | 1 | 019xxx ✓ |
-| Faturamento B2B (RJ) | FATURADOS (205797806) | 1 | 030xxx ✓ |
-| Pagamento Online (RJ) | FATURADOS (205797806) | 1 | 030xxx ✓ |
+1. **VOCÊ precisa verificar no Bling** a configuração da Natureza "PENHA - Venda de mercadoria - PF" (ID 15108893128) e confirmar qual série está configurada
+2. Se a série estiver como 1, alterar para 15
+3. Após ajuste no Bling, implementarei o retry para erro 429 no código
 
----
-
-## Resumo Técnico
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/bling-generate-nfe/index.ts` | Remover bloco que tenta usar `bling_config_penha` (linhas 331-388). Usar sempre `bling_config` como fonte de token. Manter lógica de série/natureza por filial. |
-
-O token do Bling é único para toda a conta. O que diferencia as filiais é:
-1. O `loja.id` no payload do pedido (já correto)
-2. A `serie` da NF-e (a ser corrigido)
-3. A `naturezaOperacao.id` da NF-e (já implementado)
-
-A correção remove a dependência de uma configuração OAuth separada que nunca existirá, usando a mesma arquitetura que já funciona no fluxo de faturamento.
+**Me confirme qual série está configurada na Natureza de Operação PF da Penha no Bling.**
