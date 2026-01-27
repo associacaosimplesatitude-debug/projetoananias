@@ -1,74 +1,153 @@
 
-## Diagnóstico (o que está acontecendo de verdade)
-Os logs da função mostram repetidamente:
+# Plano: Validação de CPF com Aviso Claro + Correção do Cadastro
 
-- `[SQL] RPC error: Could not find the function public.execute_readonly_query(query_text) in the schema cache`
+## Resumo do Problema
+O cliente "Izaias de Moura Silva" (ID: `6e36c58a-d13f-4382-8c57-ad92e19d0510`) está com CPF inválido:
+- **CPF atual:** `10492388000` (dígitos verificadores errados: `-00`)
+- **CPF corrigido:** `10492388008` (dígitos verificadores corretos: `-08`)
 
-Isso indica que **a chamada RPC está sendo feita com um parâmetro nomeado incorreto**.
-
-No seu banco, a função existente está definida como:
-- `public.execute_readonly_query(sql_query text)`
-
-Mas no código da Edge Function você está chamando assim:
-- `supabase.rpc('execute_readonly_query', { query_text: query })`
-
-Como o Supabase RPC usa **parâmetros nomeados**, ele procura uma assinatura compatível com `query_text` e não encontra — por isso o erro de “schema cache”. Resultado: o “execute_sql” falha, e o assistente responde algo genérico (“dificuldades técnicas”), ou pode estourar erro dependendo do fluxo.
-
-## Objetivo
-Fazer o assistente conseguir executar consultas (ex.: “QUANTO VENDI HOJE”) chamando corretamente a RPC `execute_readonly_query`.
+O formulário de cadastro não valida matematicamente o CPF, permitindo que documentos inválidos sejam salvos.
 
 ---
 
-## Mudanças planejadas (código)
-### 1) Ajustar a chamada RPC para usar o nome certo do parâmetro
-No arquivo:
-- `supabase/functions/gemini-assistente-gestao/index.ts`
+## Mudanças Planejadas
 
-Atualizar a linha dentro de `executeSql()` de:
-- `supabase.rpc('execute_readonly_query', { query_text: query })`
+### 1. Adicionar Funções de Validação de CPF/CNPJ
+**Arquivo:** `src/components/vendedor/CadastrarClienteDialog.tsx`
 
-para:
-- `supabase.rpc('execute_readonly_query', { sql_query: query })`
+Adicionar as funções `validateCPF` e `validateCNPJ` (que já existem em `CheckoutShopifyMP.tsx`) no início do arquivo:
 
-Isso alinha o código com a assinatura real do banco (`sql_query`).
+```typescript
+// Validação CPF (algoritmo oficial)
+const validateCPF = (cpf: string): boolean => {
+  const cleanCPF = cpf.replace(/\D/g, '');
+  if (cleanCPF.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(cleanCPF[i]) * (10 - i);
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(cleanCPF[i]) * (11 - i);
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF[10])) return false;
+  return true;
+};
 
-### 2) Melhorar a mensagem de erro retornada ao modelo (opcional, mas recomendado)
-Ainda em `executeSql()`, manter o log, mas também retornar uma mensagem mais orientada para “tente novamente” quando ocorrer falha de RPC, para evitar respostas genéricas.
+// Validação CNPJ (algoritmo oficial)
+const validateCNPJ = (cnpj: string): boolean => {
+  const cleanCNPJ = cnpj.replace(/\D/g, '');
+  if (cleanCNPJ.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false;
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += parseInt(cleanCNPJ[i]) * weights1[i];
+  let remainder = sum % 11;
+  const digit1 = remainder < 2 ? 0 : 11 - remainder;
+  if (digit1 !== parseInt(cleanCNPJ[12])) return false;
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  sum = 0;
+  for (let i = 0; i < 13; i++) sum += parseInt(cleanCNPJ[i]) * weights2[i];
+  remainder = sum % 11;
+  const digit2 = remainder < 2 ? 0 : 11 - remainder;
+  if (digit2 !== parseInt(cleanCNPJ[13])) return false;
+  return true;
+};
+```
+
+### 2. Adicionar Validação no Submit do Formulário
+**Arquivo:** `src/components/vendedor/CadastrarClienteDialog.tsx`
+**Local:** Dentro da função `handleSubmit`, após a validação de email (linha ~441)
+
+```typescript
+// Validar CPF/CNPJ matematicamente
+const documentoLimpo = formData.documento.replace(/\D/g, "");
+if (formData.possui_cnpj) {
+  if (!validateCNPJ(documentoLimpo)) {
+    toast.error("CNPJ inválido! Verifique os dígitos e tente novamente.");
+    return;
+  }
+} else {
+  if (!validateCPF(documentoLimpo)) {
+    toast.error("CPF inválido! Verifique os dígitos e tente novamente.");
+    return;
+  }
+}
+```
+
+### 3. Adicionar Estado para Erro de Documento em Tempo Real
+**Arquivo:** `src/components/vendedor/CadastrarClienteDialog.tsx`
+
+Adicionar estado para mostrar erro enquanto o usuário digita:
+
+```typescript
+const [documentoError, setDocumentoError] = useState<string | null>(null);
+```
+
+Atualizar `handleDocumentoChange` para validar em tempo real:
+
+```typescript
+const handleDocumentoChange = (value: string) => {
+  const formatted = formData.possui_cnpj ? formatCNPJ(value) : formatCPF(value);
+  setFormData({ ...formData, documento: formatted });
+  
+  // Validação em tempo real
+  const limpo = formatted.replace(/\D/g, "");
+  if (formData.possui_cnpj && limpo.length === 14) {
+    setDocumentoError(validateCNPJ(limpo) ? null : "CNPJ inválido");
+  } else if (!formData.possui_cnpj && limpo.length === 11) {
+    setDocumentoError(validateCPF(limpo) ? null : "CPF inválido");
+  } else {
+    setDocumentoError(null);
+  }
+  
+  // Reset Bling status when document changes
+  if (formatted !== documentoJaBuscado) {
+    setBlingClienteEncontrado(false);
+    setBlingClienteId(null);
+  }
+};
+```
+
+### 4. Exibir Alerta Visual no Campo de Documento
+**Arquivo:** `src/components/vendedor/CadastrarClienteDialog.tsx`
+
+Adicionar indicador visual de erro abaixo do campo de documento:
+
+```tsx
+{documentoError && (
+  <Alert variant="destructive" className="py-2">
+    <AlertTriangle className="h-4 w-4" />
+    <AlertDescription className="text-sm font-medium">
+      {documentoError}! Verifique os dígitos verificadores.
+    </AlertDescription>
+  </Alert>
+)}
+```
+
+### 5. Corrigir o CPF do Cliente no Banco de Dados
+**Ação:** Executar UPDATE no banco para corrigir o CPF
+
+```sql
+UPDATE ebd_clientes 
+SET cpf = '10492388008' 
+WHERE id = '6e36c58a-d13f-4382-8c57-ad92e19d0510';
+```
 
 ---
 
-## Validação (testes)
-### 3) Testar a Edge Function diretamente (sem depender do UI)
-Após a alteração do código, vou:
-- chamar a função via ferramenta de teste (request POST) enviando `messages` com:
-  - `"QUANTO VENDI HOJE"`
+## Resumo dos Arquivos Modificados
 
-Confirmar que:
-- não aparece mais o erro “Could not find the function … (query_text)”
-- o modelo consegue acionar `execute_sql`
-- a resposta final vem com o valor total do dia (formatado)
-
-### 4) Testar no /admin/ebd com o chat
-Repetir a pergunta:
-- “QUANTO VENDI HOJE”
-
-Confirmar que agora:
-- ele consulta o banco
-- responde em linguagem natural com total e data
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/vendedor/CadastrarClienteDialog.tsx` | Adicionar validação CPF/CNPJ com feedback visual |
+| Banco de dados (`ebd_clientes`) | Corrigir CPF do cliente específico |
 
 ---
 
-## Possíveis próximos bloqueios (já deixo mapeado)
-Se depois dessa correção o valor vier “0” ou “Nenhum resultado”, não será mais erro técnico — será:
-1) **filtro de data/timezone** (ex.: “hoje” no UTC vs Brasil)
-2) **tabela/status correto para “vendas”** (ex.: faturadas vs pagas vs propostas)
-3) **dados realmente inexistentes no período**
-
-Se ocorrer, o próximo passo será ajustar a query que o assistente tende a montar (ex.: usar `CURRENT_DATE` no timezone correto, ou filtrar por status “Atendido/Faturado” / “PAGO”).
-
----
-
-## Entregáveis
-- Correção no parâmetro do RPC (`sql_query`)
-- Redeploy da função
-- Teste via chamada direta + teste no chat do /admin/ebd
+## Resultado Esperado
+1. O formulário de cadastro exibirá **"CPF inválido!"** ou **"CNPJ inválido!"** em tempo real quando os dígitos verificadores estiverem errados
+2. O botão de salvar será bloqueado com mensagem de erro clara se o documento for inválido
+3. O cliente "Izaias de Moura Silva" terá o CPF corrigido e poderá fazer pagamentos PIX normalmente
