@@ -1,119 +1,103 @@
 
-# Plano: Corrigir Numeração de NF-e para Loja Penha
+# Plano: Corrigir Numeração de NF-e para Pagamento na Loja (Penha)
 
-## Diagnóstico
+## Diagnóstico Completo
 
-O problema está na função `bling-generate-nfe` que **sempre** usa a configuração do Bling da Matriz RJ (`bling_config`) para gerar NF-e, mesmo quando o pedido é da Loja Penha.
+### Por que o Faturamento funciona?
+O fluxo de **Faturamento B2B** (`aprovar-faturamento` → `bling-create-order`) funciona corretamente porque:
+1. Usa **um único token Bling** (da tabela `bling_config` - RJ)
+2. Apenas muda o **`loja.id`** no payload para `205891152` (Polo Penha)
+3. A NF-e é gerada pelo próprio Bling no momento da venda, usando a série correta da loja
 
-### Situação Atual
-| Loja | Configuração Bling | Série NF-e | Numeração |
-|------|-------------------|------------|-----------|
-| Matriz RJ | `bling_config` | 1 | 030xxx |
-| Polo Penha | `bling_config_penha` | 1 | 019xxx |
+### Por que "Pagar na Loja" está errado?
+O fluxo de **Pagar na Loja** (`bling-generate-nfe`) falha porque:
+1. Tenta usar uma **tabela separada** `bling_config_penha` (linhas 331-381)
+2. Esta tabela está **vazia** (não há OAuth configurado)
+3. Como `bling_config_penha` está vazia, a função retorna erro ou usa RJ como fallback
+4. A NF-e é gerada com a conta RJ, usando série errada (030xxx)
 
-### Problema
-A função detecta corretamente que o pedido é da Loja Penha (`isLojaPenha = true`), mas continua usando o token da Matriz RJ para gerar a NF-e. Como a série 1 da Matriz RJ está em outro numerador (030xxx), a nota fica errada.
-
-### Código Problemático (linha 249-256)
-```javascript
-// Usar integração RJ (todas as vendas presenciais usam bling_config RJ)
-const tableName = 'bling_config';  // ❌ SEMPRE usa RJ
-```
+### Solução
+Modificar `bling-generate-nfe` para usar a **mesma lógica do faturamento**:
+- Usar sempre o token de `bling_config` (RJ)
+- Ao detectar pedido da Loja Penha, usar a **série e natureza específicas** (já configuradas)
+- NÃO tentar buscar `bling_config_penha` (remover essa lógica)
 
 ---
 
-## Solução
+## Alterações Necessárias
 
-### Passo 1: Verificar Primeiro o Pedido no Bling
+### Arquivo: `supabase/functions/bling-generate-nfe/index.ts`
 
-Antes de selecionar qual configuração usar, precisamos buscar o pedido para saber se é da Loja Penha. Isso requer uma pequena reestruturação do fluxo:
+#### Mudança 1: Remover lógica de `bling_config_penha` (linhas 324-388)
+Substituir todo o bloco de seleção de config por uso direto de `bling_config`:
 
-1. Usar `bling_config` (Matriz) para buscar informações do pedido
-2. Verificar se `pedido.loja.id === LOJA_PENHA_ID`
-3. Se for Penha, trocar para `bling_config_penha` antes de gerar a NF-e
-
-### Passo 2: Corrigir a Função `bling-generate-nfe`
-
-Modificar a lógica para:
-
+**Antes (problemático):**
 ```javascript
-// PASSO 0: Buscar pedido para detectar loja
-// (primeiro com config RJ para leitura)
-...
-const isLojaPenha = pedido?.loja?.id === LOJA_PENHA_ID;
-
-// PASSO 0.5: Se for Penha, trocar para config da Penha
-let tableName = 'bling_config';
 if (isLojaPenha) {
   tableName = 'bling_config_penha';
-  console.log('[BLING-NFE] ✓ Detectado pedido PENHA - usando bling_config_penha');
+  // ... busca config separada
 }
-
-// Buscar config apropriada
-const { data: blingConfig } = await supabase
-  .from(tableName)
-  .select('*')
-  .single();
 ```
 
-### Passo 3: Garantir que `bling_config_penha` está configurada
-
-A tabela `bling_config_penha` está vazia! Precisa ser preenchida através do callback de OAuth:
-
+**Depois (corrigido):**
+```javascript
+// SEMPRE usar bling_config (RJ) - é uma única conta com múltiplas filiais
+const tableName = 'bling_config';
+blingConfig = blingConfigRJ;
+accessToken = accessTokenRJ;
+console.log(`[BLING-NFE] Usando token UNIFICADO (mesma conta Bling para todas as filiais)`);
 ```
-URL de Callback: /functions/v1/bling-callback-penha
-```
 
-Já existem secrets configuradas:
-- `BLING_CLIENT_ID_PENHA` ✓
-- `BLING_CLIENT_SECRET_PENHA` ✓
+#### Mudança 2: Manter lógica de série e natureza por filial
+A lógica atual de usar série e natureza específicas para Penha (linhas 446-600+) **permanece**:
+- `SERIE_PENHA_PJ = 1` (para CNPJ)
+- `SERIE_PENHA_PF = 15` (para CPF)
+- `NATUREZA_PENHA_PF_ID` e `NATUREZA_PENHA_PJ_ID`
+
+#### Mudança 3: Verificar que a loja já está no pedido
+O pedido já tem `loja.id = 205891152` (Penha) porque foi criado pelo `bling-create-order` corretamente. A NF-e deve herdar essa loja.
 
 ---
-
-## Resumo das Alterações
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/bling-generate-nfe/index.ts` | Detectar loja do pedido ANTES de selecionar config, e usar `bling_config_penha` quando for Loja Penha |
 
 ## Fluxo Corrigido
 
 ```text
-1. Recebe bling_order_id
-2. Busca pedido usando config RJ (para leitura)
-3. Detecta se pedido.loja.id === LOJA_PENHA_ID
-4. Se sim: usa bling_config_penha para gerar NF-e
-5. Se não: usa bling_config (RJ) normalmente
-6. Gera NF-e com numeração correta da respectiva conta
-```
-
-## Resultado Esperado
-
-- Pedidos da Matriz RJ: NF-e com numeração 030xxx (série 1 da conta RJ)
-- Pedidos da Loja Penha: NF-e com numeração 019xxx (série 1 da conta Penha)
-
-## Pré-requisito
-
-Antes de testar, é necessário verificar se `bling_config_penha` tem tokens válidos. Se estiver vazia, será necessário fazer a autenticação OAuth pelo endpoint:
-```
-/functions/v1/bling-callback-penha
+1. Recebe bling_order_id (pedido criado pelo bling-create-order)
+2. Busca config do bling_config (RJ) - TOKEN ÚNICO
+3. Busca pedido no Bling via API
+4. Detecta loja.id do pedido:
+   - Se loja.id === 205891152 (Penha):
+     - Usa série específica (1 para PJ, 15 para PF)
+     - Usa natureza específica (PENHA - Venda)
+   - Se outra loja:
+     - Usa série padrão RJ
+5. Monta payload NF-e com série/natureza corretas
+6. Cria NF-e via POST /nfe (mesmo token funciona para todas as filiais)
+7. NF-e sai com numeração correta da filial
 ```
 
 ---
 
-## Detalhes Técnicos da Implementação
+## Resultado Esperado
 
-### Estrutura da Correção
+| Cenário | Loja | Série | Numeração |
+|---------|------|-------|-----------|
+| Faturamento B2B (Penha) | POLO PENHA (205891152) | 1 | 019xxx ✓ |
+| Pagar na Loja (Penha) | POLO PENHA (205891152) | 1 | 019xxx ✓ |
+| Faturamento B2B (RJ) | FATURADOS (205797806) | 1 | 030xxx ✓ |
+| Pagamento Online (RJ) | FATURADOS (205797806) | 1 | 030xxx ✓ |
 
-A correção principal envolve mover a detecção de loja para **antes** da seleção de configuração do Bling:
+---
 
-1. Fazer uma consulta inicial ao pedido usando config padrão (RJ)
-2. Verificar se é pedido Penha
-3. Trocar para config Penha se necessário
-4. Prosseguir com a geração da NF-e
+## Resumo Técnico
 
-### Tratamento de Erro
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/bling-generate-nfe/index.ts` | Remover bloco que tenta usar `bling_config_penha` (linhas 331-388). Usar sempre `bling_config` como fonte de token. Manter lógica de série/natureza por filial. |
 
-Se `bling_config_penha` estiver vazia ou com token expirado, o sistema deve:
-1. Logar aviso claro
-2. Retornar erro amigável: "Configuração do Bling para Loja Penha não encontrada. Por favor, reconecte o Bling da Penha."
+O token do Bling é único para toda a conta. O que diferencia as filiais é:
+1. O `loja.id` no payload do pedido (já correto)
+2. A `serie` da NF-e (a ser corrigido)
+3. A `naturezaOperacao.id` da NF-e (já implementado)
+
+A correção remove a dependência de uma configuração OAuth separada que nunca existirá, usando a mesma arquitetura que já funciona no fluxo de faturamento.
