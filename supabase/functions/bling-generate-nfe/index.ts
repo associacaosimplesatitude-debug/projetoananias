@@ -141,6 +141,7 @@ function extractDanfeUrl(nfeDetail: any): string | null {
 
 // ========== FUNÇÃO PARA BUSCAR ÚLTIMO NÚMERO NF-e POR SÉRIE (ESCUDO DE AUTO-NUMERAÇÃO) ==========
 // VERSÃO MELHORADA: Varre até 50 páginas (5000 NF-es) para garantir encontrar o maior número
+// CORRIGIDO: Implementa retry com delay para erro 429 (Rate Limit)
 async function getLastNfeNumber(
   accessToken: string, 
   serie: number,
@@ -148,6 +149,9 @@ async function getLastNfeNumber(
 ): Promise<number | null> {
   console.log(`[BLING-NFE] ========== BUSCANDO ÚLTIMO NÚMERO SÉRIE ${serie} ==========`);
   console.log(`[BLING-NFE] Filtro: ${apenasAutorizadas ? 'APENAS AUTORIZADAS (situação 6)' : 'TODAS AS SITUAÇÕES'}`);
+  
+  const MAX_RETRIES_429 = 3; // Máximo de retries por página para erro 429
+  const DELAY_MS_429 = 2000; // 2 segundos de delay entre retries
   
   try {
     let maxNumber = 0;
@@ -166,15 +170,36 @@ async function getLastNfeNumber(
         console.log(`[BLING-NFE] Consultando página ${pagina}...`);
       }
       
-      const resp = await fetch(searchUrl, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-        },
-      });
+      // Implementação de retry para erro 429 (Rate Limit)
+      let retryCount = 0;
+      let resp: Response | null = null;
       
-      if (!resp.ok) {
-        console.log(`[BLING-NFE] ⚠️ Erro ao buscar página ${pagina} (status: ${resp.status})`);
+      while (retryCount <= MAX_RETRIES_429) {
+        resp = await fetch(searchUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json',
+          },
+        });
+        
+        if (resp.status === 429) {
+          retryCount++;
+          if (retryCount <= MAX_RETRIES_429) {
+            console.log(`[BLING-NFE] ⚠️ Rate limit (429) na página ${pagina} - aguardando ${DELAY_MS_429}ms antes de retry ${retryCount}/${MAX_RETRIES_429}...`);
+            await new Promise(resolve => setTimeout(resolve, DELAY_MS_429));
+            continue;
+          } else {
+            console.log(`[BLING-NFE] ✗ Rate limit (429) persistente na página ${pagina} após ${MAX_RETRIES_429} retries`);
+            break;
+          }
+        }
+        
+        // Se não for 429, sai do loop de retry
+        break;
+      }
+      
+      if (!resp || !resp.ok) {
+        console.log(`[BLING-NFE] ⚠️ Erro ao buscar página ${pagina} (status: ${resp?.status || 'null'})`);
         break;
       }
       
