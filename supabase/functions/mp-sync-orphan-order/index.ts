@@ -120,15 +120,28 @@ serve(async (req) => {
       estado: pedido.endereco_estado || '',
     };
 
-    // 4. Converter itens do JSON para formato Bling
+    // 4. Converter itens do JSON para formato Bling (com desconto aplicado)
     const items = pedido.items || [];
-    const itensBling = items.map((item: any) => ({
-      codigo: item.sku || item.variantId || '0',
-      descricao: item.title || 'Produto Shopify',
-      unidade: 'UN',
-      quantidade: item.quantity || 1,
-      valor: Number(parseFloat(item.price || '0').toFixed(2)),
-    }));
+    const itensBling = items.map((item: any) => {
+      const precoCheio = Number(parseFloat(item.price || '0').toFixed(2));
+      const descontoPercentual = Number(item.descontoItem || 0);
+      
+      // Calcular preço líquido com desconto
+      const precoLiquido = descontoPercentual > 0 
+        ? Math.round(precoCheio * (1 - descontoPercentual / 100) * 100) / 100
+        : precoCheio;
+
+      console.log(`Item ${item.sku}: preço cheio=${precoCheio}, desconto=${descontoPercentual}%, líquido=${precoLiquido}`);
+
+      return {
+        codigo: item.sku || item.variantId || '0',
+        descricao: item.title || 'Produto Shopify',
+        unidade: 'UN',
+        quantidade: item.quantity || 1,
+        preco_cheio: precoCheio,
+        valor: precoLiquido,
+      };
+    });
 
     console.log('Itens para Bling:', itensBling.length, 'itens');
 
