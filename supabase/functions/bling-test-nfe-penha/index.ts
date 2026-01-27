@@ -10,7 +10,7 @@ const corsHeaders = {
 // CONSTANTES PARA NF-e DA PENHA
 // ============================================================================
 const LOJA_PENHA_ID = 205891152; // ID da loja POLO PENHA no Bling
-const SERIE_PENHA = 1; // Série 1 para notas da Penha
+const SERIE_PENHA = 1; // Série 1 para TODAS as vendas da Penha (PF e PJ)
 
 // Naturezas de operação específicas da Penha
 const NATUREZA_PENHA_PF_ID = 15108893128; // PENHA - Venda mercadoria PF

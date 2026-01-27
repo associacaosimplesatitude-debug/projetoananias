@@ -7,10 +7,10 @@ const corsHeaders = {
 };
 
 // ========== CONFIGURAÇÃO FISCAL LOJA PENHA ==========
-// Série fiscal diferenciada para a loja Penha (por tipo de pessoa)
+// CORRIGIDO: Série 1 para TODOS os casos da Penha (PF e PJ)
+// Conforme configuração Bling: CNPJ 03.147.650/0003-14 | Série 001 | Próximo: 19142
 const LOJA_PENHA_ID = 205891152;
-const SERIE_PENHA_PJ = 1;   // Série 1 para Pessoa Jurídica (CNPJ)
-const SERIE_PENHA_PF = 15;  // Série 15 para Pessoa Física (CPF)
+const SERIE_PENHA = 1;  // Série 1 para TODAS as vendas da Penha (PF e PJ)
 
 // Natureza de Operação específicas para Penha
 const NATUREZA_PENHA_PF_ID = 15108893128; // "PENHA - Venda de mercadoria - PF"
@@ -542,16 +542,15 @@ serve(async (req) => {
 
     // ========== CONFIGURAÇÃO FISCAL ESPECÍFICA PARA PENHA ==========
     if (isLojaPenha) {
-      // SÉRIE: Depende do tipo de pessoa
-      // PJ (CNPJ) = Série 1, PF (CPF) = Série 15
-      const seriePenha = tipoPessoa === 'J' ? SERIE_PENHA_PJ : SERIE_PENHA_PF;
-      nfePayload.serie = seriePenha;
+      // SÉRIE: Série 1 para TODAS as vendas da Penha (PF e PJ)
+      // Conforme configuração Bling: CNPJ 03.147.650/0003-14 | Série 001 | Próximo: 19142
+      nfePayload.serie = SERIE_PENHA;
       
-      // NATUREZA DE OPERAÇÃO: Usar natureza específica da Penha
+      // NATUREZA DE OPERAÇÃO: Usar natureza específica da Penha (depende do tipo pessoa)
       const naturezaIdPenha = tipoPessoa === 'J' ? NATUREZA_PENHA_PJ_ID : NATUREZA_PENHA_PF_ID;
       nfePayload.naturezaOperacao = { id: naturezaIdPenha };
       
-      console.log(`[BLING-NFE] ✓ PENHA DETECTADA: Serie=${seriePenha}, Natureza=${naturezaIdPenha} (${tipoPessoa === 'J' ? 'PJ' : 'PF'})`);
+      console.log(`[BLING-NFE] ✓ PENHA DETECTADA: Serie=${SERIE_PENHA}, Natureza=${naturezaIdPenha} (${tipoPessoa === 'J' ? 'PJ' : 'PF'})`);
     } else {
       // Para outras lojas, usar natureza do pedido se disponível
       if (pedido.naturezaOperacao?.id) {
@@ -579,7 +578,7 @@ serve(async (req) => {
         lojaDescricao: pedido.loja.descricao,
         unidadeNegocioId: pedido.loja?.unidadeNegocio?.id,
         isLojaPenha: isLojaPenha,
-        serieUsada: isLojaPenha ? (tipoPessoa === 'J' ? SERIE_PENHA_PJ : SERIE_PENHA_PF) : 'padrão',
+        serieUsada: isLojaPenha ? SERIE_PENHA : 'padrão',
       });
     }
 
