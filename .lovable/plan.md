@@ -1,75 +1,110 @@
 
-# Plano: Corrigir Pedido Sem Bling - Igreja Ministério Cristão da Família
 
-## Diagnóstico Completo
+# Plano: Corrigir Pedido no Bling com Desconto + Forma de Pagamento PIX
 
-### Dados do Pedido
-| Campo | Valor |
-|-------|-------|
-| ID Pedido MP | c2739317-ac53-440d-a32f-1bcbc062c952 |
-| ID Proposta | 3b3baa45-2843-4fdc-b513-4df6c1216284 |
-| Cliente | Igreja Ministério Cristão da Família |
-| CNPJ | 08.509.987/0001-86 |
-| Vendedora | Elaine Ribeiro |
-| Valor Total | R$ 1.119,04 |
-| Status | PAGO (approved) |
-| Payment ID MP | 143597662750 |
-| Data Pagamento | 26/01/2026 às 19:05 |
-| **Bling Order ID** | **NULL** (problema!) |
+## Problema Identificado
 
-### Itens do Pedido
-- 130x Revista EBD N67 Maturidade Cristã ALUNO (SKU: 31683) - R$ 11,49 c/ 30% desc
-- 7x Revista EBD N67 Maturidade Cristã PROFESSOR (SKU: 31684) - R$ 14,99 c/ 30% desc
+O pedido foi criado no Bling com valor incorreto (R$ 1.598,63 ao invés de R$ 1.119,04) porque:
 
-### Causa do Problema
-O webhook do Mercado Pago atualizou o status para PAGO, mas a chamada para criar o pedido no Bling falhou. Não há logs disponíveis do horário exato (26/01 às 19:05) para identificar o erro específico.
+1. **Sem desconto**: A função `mp-sync-orphan-order` envia os itens com preço cheio (R$ 11,49 e R$ 14,99) sem calcular o preço com desconto de 30%
+2. **Forma de pagamento errada**: Não está mapeando corretamente para "PIX"
+
+### Dados Corretos do Pedido
+
+| Item | Qtd | Preço Cheio | Desconto | Preço Líquido | Total |
+|------|-----|-------------|----------|---------------|-------|
+| ALUNO (31683) | 130 | R$ 11,49 | 30% | R$ 8,04 | R$ 1.045,20 |
+| PROFESSOR (31684) | 7 | R$ 14,99 | 30% | R$ 10,49 | R$ 73,43 |
+| **Total** | | | | | **R$ 1.118,63** |
+
+O valor total no banco é R$ 1.119,04 (arredondamentos diferentes).
 
 ---
 
-## Solução Proposta
+## Solução em Duas Partes
 
-### Passo 1: Criar Pedido Manualmente no Bling
-Chamar a edge function `bling-create-order` com os dados do pedido para criar o pedido no Bling retroativamente.
+### Parte 1: Corrigir a Edge Function `mp-sync-orphan-order`
 
-### Passo 2: Atualizar as Tabelas
-Após criar o pedido no Bling:
-1. Atualizar `ebd_shopify_pedidos_mercadopago.bling_order_id`
-2. Atualizar `vendedor_propostas.bling_order_id`
-3. Atualizar `vendedor_propostas_parcelas.bling_order_id`
+Modificar a conversão de itens para:
+1. Calcular preço líquido (com desconto) para cada item
+2. Enviar `preco_cheio` e `valor` corretamente
+3. Garantir que forma de pagamento PIX seja reconhecida
 
-### Passo 3: Adicionar Fallback no Código (Prevenção)
-Criar um mecanismo para detectar pedidos PAGOS sem `bling_order_id` e reprocessá-los automaticamente.
+**Código Atual (linha 124-131):**
+```javascript
+const itensBling = items.map((item: any) => ({
+  codigo: item.sku || item.variantId || '0',
+  descricao: item.title || 'Produto Shopify',
+  unidade: 'UN',
+  quantidade: item.quantity || 1,
+  valor: Number(parseFloat(item.price || '0').toFixed(2)),
+}));
+```
 
----
+**Código Corrigido:**
+```javascript
+const itensBling = items.map((item: any) => {
+  const precoCheio = Number(parseFloat(item.price || '0').toFixed(2));
+  const descontoPercentual = Number(item.descontoItem || 0);
+  
+  // Calcular preço líquido com desconto
+  const precoLiquido = descontoPercentual > 0 
+    ? Math.round(precoCheio * (1 - descontoPercentual / 100) * 100) / 100
+    : precoCheio;
 
-## Ação Imediata (Correção Manual)
+  return {
+    codigo: item.sku || item.variantId || '0',
+    descricao: item.title || 'Produto Shopify',
+    unidade: 'UN',
+    quantidade: item.quantity || 1,
+    preco_cheio: precoCheio,  // Preço de tabela (sem desconto)
+    valor: precoLiquido,       // Preço com desconto aplicado
+  };
+});
+```
 
-Vou executar a criação do pedido no Bling chamando a edge function com os dados corretos do pedido:
+### Parte 2: Recriar o Pedido no Bling
+
+Após corrigir a edge function, vou chamá-la novamente para criar o pedido corretamente:
 
 ```text
 Cliente: Igreja Ministério Cristão da Família
 CNPJ: 08509987000186
-Endereço Entrega: Rua Hansenclever Santana, 115 - Santo Antônio - Manaus/AM - 69029140
+Endereço: Rua Hansenclever Santana, 115 - Santo Antônio - Manaus/AM - 69029140
 Frete: Retirada (R$ 0,00)
-Itens:
-  - 130x SKU 31683 @ R$ 11,49 (30% desc)
-  - 7x SKU 31684 @ R$ 14,99 (30% desc)
+Forma de Pagamento: PIX (Mercado Pago)
+
+Itens (com 30% desconto):
+  - 130x SKU 31683 @ R$ 8,04 (preço líquido)
+  - 7x SKU 31684 @ R$ 10,49 (preço líquido)
+
 Total: R$ 1.119,04
-Forma: PIX (Mercado Pago)
 ```
 
 ---
 
-## Resumo das Alterações
+## Sequência de Execução
 
-| Local | Ação |
-|-------|------|
-| Edge Function `bling-create-order` | Chamar manualmente com dados do pedido |
-| Tabela `ebd_shopify_pedidos_mercadopago` | Atualizar `bling_order_id` |
-| Tabela `vendedor_propostas` | Atualizar `bling_order_id` |
-| Tabela `vendedor_propostas_parcelas` | Atualizar `bling_order_id` |
+1. **Limpar dados antigos**: Resetar `bling_order_id` na tabela `ebd_shopify_pedidos_mercadopago`
+2. **Atualizar a Edge Function**: Corrigir cálculo de desconto
+3. **Deploy da Edge Function**: Aguardar deploy automático
+4. **Recriar o Pedido**: Chamar `mp-sync-orphan-order` novamente
+
+---
+
+## Arquivos Modificados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/mp-sync-orphan-order/index.ts` | Corrigir cálculo de desconto nos itens |
+| Tabela `ebd_shopify_pedidos_mercadopago` | Limpar `bling_order_id` para permitir recriação |
+
+---
 
 ## Resultado Esperado
-1. Pedido será criado no Bling com número de rastreamento
-2. NF-e poderá ser emitida normalmente
-3. Comissão da vendedora Elaine será vinculada ao pedido Bling
+
+1. Pedido criado no Bling com valor correto: R$ 1.119,04
+2. Desconto de 30% visível nas observações
+3. Forma de pagamento: PIX
+4. NF-e poderá ser emitida corretamente
+
