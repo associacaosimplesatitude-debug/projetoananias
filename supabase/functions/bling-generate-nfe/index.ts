@@ -246,40 +246,151 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Usar integração RJ (todas as vendas presenciais usam bling_config RJ)
-    const tableName = 'bling_config';
-    console.log(`[BLING-NFE] Usando configuração: ${tableName}`);
+    // =======================================================================
+    // PASSO 0A: BUSCAR PEDIDO PRIMEIRO (com config RJ) PARA DETECTAR LOJA
+    // =======================================================================
+    console.log(`[BLING-NFE] PASSO 0A: Buscando config inicial RJ para detectar loja do pedido...`);
     
-    const { data: blingConfig, error: configError } = await supabase
-      .from(tableName)
+    // Buscar config RJ para leitura inicial
+    const { data: blingConfigRJ, error: configErrorRJ } = await supabase
+      .from('bling_config')
       .select('*')
-      .single();
+      .maybeSingle();
 
-    if (configError || !blingConfig) {
-      console.error('[BLING-NFE] Erro ao buscar config:', configError);
+    if (configErrorRJ || !blingConfigRJ) {
+      console.error('[BLING-NFE] Erro ao buscar config RJ:', configErrorRJ);
       return new Response(
-        JSON.stringify({ success: false, error: 'Configuração do Bling não encontrada', stage: 'config' }),
+        JSON.stringify({ success: false, error: 'Configuração do Bling RJ não encontrada', stage: 'config' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    let accessToken = blingConfig.access_token;
+    let accessTokenRJ = blingConfigRJ.access_token;
 
-    // Verificar se token expirou
-    if (isTokenExpired(blingConfig.token_expires_at)) {
-      accessToken = await refreshBlingToken(
+    // Verificar se token RJ expirou
+    if (isTokenExpired(blingConfigRJ.token_expires_at)) {
+      accessTokenRJ = await refreshBlingToken(
         supabase, 
-        blingConfig, 
-        tableName,
-        blingConfig.client_id!,
-        blingConfig.client_secret!
+        blingConfigRJ, 
+        'bling_config',
+        blingConfigRJ.client_id!,
+        blingConfigRJ.client_secret!
       );
     }
 
+    // Buscar pedido para detectar loja
+    console.log(`[BLING-NFE] PASSO 0A: Verificando pedido ${orderId} para detectar loja...`);
+
+    const checkPedidoUrlDetect = `https://api.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
+    const checkPedidoRespDetect = await fetch(checkPedidoUrlDetect, {
+      headers: {
+        'Authorization': `Bearer ${accessTokenRJ}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!checkPedidoRespDetect.ok) {
+      const checkError = await checkPedidoRespDetect.json().catch(() => ({}));
+      const errorMsg = extractFiscalError(checkError) || 'Pedido não encontrado';
+      console.log(`[BLING-NFE] ✗ Pedido não encontrado (${checkPedidoRespDetect.status}): ${errorMsg}`);
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          stage: 'check_order',
+          bling_status: checkPedidoRespDetect.status,
+          fiscal_error: `Pedido #${orderId} não encontrado no Bling. Aguarde alguns segundos e tente novamente.`,
+          raw: checkError,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const pedidoDataDetect = await checkPedidoRespDetect.json();
+    const pedidoDetect = pedidoDataDetect?.data;
+    
+    // Detectar se pedido é da Loja Penha
+    const isLojaPenha = pedidoDetect?.loja?.id === LOJA_PENHA_ID || 
+                        pedidoDetect?.loja?.descricao?.toLowerCase().includes('penha');
+    
+    console.log(`[BLING-NFE] ╔══════════════════════════════════════════════════════════════╗`);
+    console.log(`[BLING-NFE] ║   DETECÇÃO DE LOJA PARA GERAÇÃO DE NF-e                      ║`);
+    console.log(`[BLING-NFE] ╠══════════════════════════════════════════════════════════════╣`);
+    console.log(`[BLING-NFE] ║ Loja ID: ${pedidoDetect?.loja?.id}`);
+    console.log(`[BLING-NFE] ║ Loja Descrição: ${pedidoDetect?.loja?.descricao}`);
+    console.log(`[BLING-NFE] ║ É Loja Penha: ${isLojaPenha ? '✓ SIM' : '✗ NÃO'}`);
+    console.log(`[BLING-NFE] ╚══════════════════════════════════════════════════════════════╝`);
+
     // =======================================================================
-    // PASSO 0: VERIFICAR SE O PEDIDO EXISTE NO BLING
+    // PASSO 0B: SELECIONAR CONFIGURAÇÃO CORRETA BASEADA NA LOJA
     // =======================================================================
-    console.log(`[BLING-NFE] PASSO 0: Verificando pedido ${orderId}...`);
+    let tableName: string;
+    let blingConfig: any;
+    let accessToken: string;
+    
+    if (isLojaPenha) {
+      // Pedido da Penha: usar bling_config_penha
+      tableName = 'bling_config_penha';
+      console.log(`[BLING-NFE] ✓ Usando configuração PENHA: ${tableName}`);
+      
+      const { data: blingConfigPenha, error: configErrorPenha } = await supabase
+        .from('bling_config_penha')
+        .select('*')
+        .maybeSingle();
+
+      if (configErrorPenha || !blingConfigPenha || !blingConfigPenha.access_token) {
+        console.error('[BLING-NFE] ❌ Configuração Bling PENHA não encontrada ou incompleta:', configErrorPenha);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Configuração do Bling para Loja Penha não encontrada ou não autenticada. Por favor, reconecte o Bling da Penha através do painel de administração.', 
+            stage: 'config_penha',
+            action_required: 'Autenticar Bling Penha via OAuth'
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      blingConfig = blingConfigPenha;
+      accessToken = blingConfigPenha.access_token;
+
+      // Verificar se token Penha expirou
+      if (isTokenExpired(blingConfigPenha.token_expires_at)) {
+        const clientIdPenha = Deno.env.get('BLING_CLIENT_ID_PENHA');
+        const clientSecretPenha = Deno.env.get('BLING_CLIENT_SECRET_PENHA');
+        
+        if (!clientIdPenha || !clientSecretPenha) {
+          console.error('[BLING-NFE] ❌ Secrets BLING_CLIENT_ID_PENHA ou BLING_CLIENT_SECRET_PENHA não configurados');
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Credenciais do Bling Penha não configuradas. Verifique os secrets.', 
+              stage: 'config_penha_secrets'
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        accessToken = await refreshBlingToken(
+          supabase, 
+          blingConfigPenha, 
+          'bling_config_penha',
+          clientIdPenha,
+          clientSecretPenha
+        );
+      }
+    } else {
+      // Pedido RJ ou outra loja: usar bling_config (RJ)
+      tableName = 'bling_config';
+      blingConfig = blingConfigRJ;
+      accessToken = accessTokenRJ;
+      console.log(`[BLING-NFE] Usando configuração MATRIZ RJ: ${tableName}`);
+    }
+
+    // =======================================================================
+    // PASSO 0C: VERIFICAR PEDIDO NOVAMENTE COM TOKEN CORRETO (redundante mas seguro)
+    // =======================================================================
+    console.log(`[BLING-NFE] PASSO 0C: Verificando pedido ${orderId} com token ${isLojaPenha ? 'PENHA' : 'RJ'}...`);
 
     const checkPedidoUrl = `https://api.bling.com.br/Api/v3/pedidos/vendas/${orderId}`;
     const checkPedidoResp = await fetch(checkPedidoUrl, {
@@ -292,14 +403,14 @@ serve(async (req) => {
     if (!checkPedidoResp.ok) {
       const checkError = await checkPedidoResp.json().catch(() => ({}));
       const errorMsg = extractFiscalError(checkError) || 'Pedido não encontrado';
-      console.log(`[BLING-NFE] ✗ Pedido não encontrado (${checkPedidoResp.status}): ${errorMsg}`);
+      console.log(`[BLING-NFE] ✗ Pedido não encontrado com token ${isLojaPenha ? 'PENHA' : 'RJ'} (${checkPedidoResp.status}): ${errorMsg}`);
 
       return new Response(
         JSON.stringify({
           success: false,
           stage: 'check_order',
           bling_status: checkPedidoResp.status,
-          fiscal_error: `Pedido #${orderId} não encontrado no Bling. Aguarde alguns segundos e tente novamente.`,
+          fiscal_error: `Pedido #${orderId} não encontrado no Bling (${isLojaPenha ? 'Penha' : 'RJ'}). Aguarde alguns segundos e tente novamente.`,
           raw: checkError,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -308,9 +419,6 @@ serve(async (req) => {
 
     const pedidoData = await checkPedidoResp.json();
     let pedido = pedidoData?.data;
-    // Detectar se pedido é da Loja Penha
-    const isLojaPenha = pedido?.loja?.id === LOJA_PENHA_ID || 
-                        pedido?.loja?.descricao?.toLowerCase().includes('penha');
     
     console.log(`[BLING-NFE] ✓ Pedido encontrado: #${pedido?.numero}`, {
       contatoId: pedido?.contato?.id,
@@ -322,6 +430,7 @@ serve(async (req) => {
       lojaDescricao: pedido?.loja?.descricao,
       unidadeNegocioId: pedido?.loja?.unidadeNegocio?.id,
       isLojaPenha: isLojaPenha,
+      configUsada: tableName,
     });
 
     // =======================================================================
