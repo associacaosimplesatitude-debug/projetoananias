@@ -1,110 +1,119 @@
 
+# Plano: Corrigir Numeração de NF-e para Loja Penha
 
-# Plano: Corrigir Pedido no Bling com Desconto + Forma de Pagamento PIX
+## Diagnóstico
 
-## Problema Identificado
+O problema está na função `bling-generate-nfe` que **sempre** usa a configuração do Bling da Matriz RJ (`bling_config`) para gerar NF-e, mesmo quando o pedido é da Loja Penha.
 
-O pedido foi criado no Bling com valor incorreto (R$ 1.598,63 ao invés de R$ 1.119,04) porque:
+### Situação Atual
+| Loja | Configuração Bling | Série NF-e | Numeração |
+|------|-------------------|------------|-----------|
+| Matriz RJ | `bling_config` | 1 | 030xxx |
+| Polo Penha | `bling_config_penha` | 1 | 019xxx |
 
-1. **Sem desconto**: A função `mp-sync-orphan-order` envia os itens com preço cheio (R$ 11,49 e R$ 14,99) sem calcular o preço com desconto de 30%
-2. **Forma de pagamento errada**: Não está mapeando corretamente para "PIX"
+### Problema
+A função detecta corretamente que o pedido é da Loja Penha (`isLojaPenha = true`), mas continua usando o token da Matriz RJ para gerar a NF-e. Como a série 1 da Matriz RJ está em outro numerador (030xxx), a nota fica errada.
 
-### Dados Corretos do Pedido
-
-| Item | Qtd | Preço Cheio | Desconto | Preço Líquido | Total |
-|------|-----|-------------|----------|---------------|-------|
-| ALUNO (31683) | 130 | R$ 11,49 | 30% | R$ 8,04 | R$ 1.045,20 |
-| PROFESSOR (31684) | 7 | R$ 14,99 | 30% | R$ 10,49 | R$ 73,43 |
-| **Total** | | | | | **R$ 1.118,63** |
-
-O valor total no banco é R$ 1.119,04 (arredondamentos diferentes).
-
----
-
-## Solução em Duas Partes
-
-### Parte 1: Corrigir a Edge Function `mp-sync-orphan-order`
-
-Modificar a conversão de itens para:
-1. Calcular preço líquido (com desconto) para cada item
-2. Enviar `preco_cheio` e `valor` corretamente
-3. Garantir que forma de pagamento PIX seja reconhecida
-
-**Código Atual (linha 124-131):**
+### Código Problemático (linha 249-256)
 ```javascript
-const itensBling = items.map((item: any) => ({
-  codigo: item.sku || item.variantId || '0',
-  descricao: item.title || 'Produto Shopify',
-  unidade: 'UN',
-  quantidade: item.quantity || 1,
-  valor: Number(parseFloat(item.price || '0').toFixed(2)),
-}));
+// Usar integração RJ (todas as vendas presenciais usam bling_config RJ)
+const tableName = 'bling_config';  // ❌ SEMPRE usa RJ
 ```
 
-**Código Corrigido:**
+---
+
+## Solução
+
+### Passo 1: Verificar Primeiro o Pedido no Bling
+
+Antes de selecionar qual configuração usar, precisamos buscar o pedido para saber se é da Loja Penha. Isso requer uma pequena reestruturação do fluxo:
+
+1. Usar `bling_config` (Matriz) para buscar informações do pedido
+2. Verificar se `pedido.loja.id === LOJA_PENHA_ID`
+3. Se for Penha, trocar para `bling_config_penha` antes de gerar a NF-e
+
+### Passo 2: Corrigir a Função `bling-generate-nfe`
+
+Modificar a lógica para:
+
 ```javascript
-const itensBling = items.map((item: any) => {
-  const precoCheio = Number(parseFloat(item.price || '0').toFixed(2));
-  const descontoPercentual = Number(item.descontoItem || 0);
-  
-  // Calcular preço líquido com desconto
-  const precoLiquido = descontoPercentual > 0 
-    ? Math.round(precoCheio * (1 - descontoPercentual / 100) * 100) / 100
-    : precoCheio;
+// PASSO 0: Buscar pedido para detectar loja
+// (primeiro com config RJ para leitura)
+...
+const isLojaPenha = pedido?.loja?.id === LOJA_PENHA_ID;
 
-  return {
-    codigo: item.sku || item.variantId || '0',
-    descricao: item.title || 'Produto Shopify',
-    unidade: 'UN',
-    quantidade: item.quantity || 1,
-    preco_cheio: precoCheio,  // Preço de tabela (sem desconto)
-    valor: precoLiquido,       // Preço com desconto aplicado
-  };
-});
+// PASSO 0.5: Se for Penha, trocar para config da Penha
+let tableName = 'bling_config';
+if (isLojaPenha) {
+  tableName = 'bling_config_penha';
+  console.log('[BLING-NFE] ✓ Detectado pedido PENHA - usando bling_config_penha');
+}
+
+// Buscar config apropriada
+const { data: blingConfig } = await supabase
+  .from(tableName)
+  .select('*')
+  .single();
 ```
 
-### Parte 2: Recriar o Pedido no Bling
+### Passo 3: Garantir que `bling_config_penha` está configurada
 
-Após corrigir a edge function, vou chamá-la novamente para criar o pedido corretamente:
+A tabela `bling_config_penha` está vazia! Precisa ser preenchida através do callback de OAuth:
 
-```text
-Cliente: Igreja Ministério Cristão da Família
-CNPJ: 08509987000186
-Endereço: Rua Hansenclever Santana, 115 - Santo Antônio - Manaus/AM - 69029140
-Frete: Retirada (R$ 0,00)
-Forma de Pagamento: PIX (Mercado Pago)
-
-Itens (com 30% desconto):
-  - 130x SKU 31683 @ R$ 8,04 (preço líquido)
-  - 7x SKU 31684 @ R$ 10,49 (preço líquido)
-
-Total: R$ 1.119,04
 ```
+URL de Callback: /functions/v1/bling-callback-penha
+```
+
+Já existem secrets configuradas:
+- `BLING_CLIENT_ID_PENHA` ✓
+- `BLING_CLIENT_SECRET_PENHA` ✓
 
 ---
 
-## Sequência de Execução
-
-1. **Limpar dados antigos**: Resetar `bling_order_id` na tabela `ebd_shopify_pedidos_mercadopago`
-2. **Atualizar a Edge Function**: Corrigir cálculo de desconto
-3. **Deploy da Edge Function**: Aguardar deploy automático
-4. **Recriar o Pedido**: Chamar `mp-sync-orphan-order` novamente
-
----
-
-## Arquivos Modificados
+## Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/mp-sync-orphan-order/index.ts` | Corrigir cálculo de desconto nos itens |
-| Tabela `ebd_shopify_pedidos_mercadopago` | Limpar `bling_order_id` para permitir recriação |
+| `supabase/functions/bling-generate-nfe/index.ts` | Detectar loja do pedido ANTES de selecionar config, e usar `bling_config_penha` quando for Loja Penha |
 
----
+## Fluxo Corrigido
+
+```text
+1. Recebe bling_order_id
+2. Busca pedido usando config RJ (para leitura)
+3. Detecta se pedido.loja.id === LOJA_PENHA_ID
+4. Se sim: usa bling_config_penha para gerar NF-e
+5. Se não: usa bling_config (RJ) normalmente
+6. Gera NF-e com numeração correta da respectiva conta
+```
 
 ## Resultado Esperado
 
-1. Pedido criado no Bling com valor correto: R$ 1.119,04
-2. Desconto de 30% visível nas observações
-3. Forma de pagamento: PIX
-4. NF-e poderá ser emitida corretamente
+- Pedidos da Matriz RJ: NF-e com numeração 030xxx (série 1 da conta RJ)
+- Pedidos da Loja Penha: NF-e com numeração 019xxx (série 1 da conta Penha)
 
+## Pré-requisito
+
+Antes de testar, é necessário verificar se `bling_config_penha` tem tokens válidos. Se estiver vazia, será necessário fazer a autenticação OAuth pelo endpoint:
+```
+/functions/v1/bling-callback-penha
+```
+
+---
+
+## Detalhes Técnicos da Implementação
+
+### Estrutura da Correção
+
+A correção principal envolve mover a detecção de loja para **antes** da seleção de configuração do Bling:
+
+1. Fazer uma consulta inicial ao pedido usando config padrão (RJ)
+2. Verificar se é pedido Penha
+3. Trocar para config Penha se necessário
+4. Prosseguir com a geração da NF-e
+
+### Tratamento de Erro
+
+Se `bling_config_penha` estiver vazia ou com token expirado, o sistema deve:
+1. Logar aviso claro
+2. Retornar erro amigável: "Configuração do Bling para Loja Penha não encontrada. Por favor, reconecte o Bling da Penha."
