@@ -30,6 +30,7 @@ interface NotaEmitida {
   status_nfe: string | null;
   nfe_id: number | null;
   valor_total?: number;
+  source: 'balcao' | 'shopify';
 }
 
 export default function VendedorNotasEmitidas() {
@@ -37,36 +38,42 @@ export default function VendedorNotasEmitidas() {
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const { data: notas, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["notas-emitidas-balcao", vendedor?.id],
+    queryKey: ["notas-emitidas-vendedor", vendedor?.id],
     queryFn: async () => {
       if (!vendedor?.id) return [];
       
-      // Buscar de vendas_balcao - vendas feitas no PDV/balcão
-      // Inclui vendas com NF-e gerada E vendas em processamento (para mostrar status)
-      const { data, error } = await supabase
+      // Buscar de vendas_balcao (PDV/Pagar na Loja)
+      const { data: vendasBalcao, error: errorBalcao } = await supabase
         .from("vendas_balcao")
         .select(`
-          id,
-          bling_order_id,
-          cliente_nome,
-          cliente_cpf,
-          cliente_telefone,
-          valor_total,
-          nota_fiscal_numero,
-          nota_fiscal_chave,
-          nota_fiscal_url,
-          nfe_id,
-          status_nfe,
-          created_at
+          id, bling_order_id, cliente_nome, cliente_cpf,
+          cliente_telefone, valor_total, nota_fiscal_numero,
+          nota_fiscal_chave, nota_fiscal_url, nfe_id, status_nfe, created_at
         `)
         .eq("vendedor_id", vendedor.id)
         .not("bling_order_id", "is", null)
         .order("created_at", { ascending: false })
-        .limit(100);
+        .limit(50);
 
-      if (error) throw error;
+      if (errorBalcao) throw errorBalcao;
 
-      return data?.map(venda => ({
+      // Buscar de ebd_shopify_pedidos (Pedidos Shopify com NF-e)
+      const { data: pedidosShopify, error: errorShopify } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select(`
+          id, bling_order_id, customer_name, customer_phone,
+          valor_total, nota_fiscal_numero, nota_fiscal_chave,
+          nota_fiscal_url, nfe_id, status_nfe, created_at
+        `)
+        .eq("vendedor_id", vendedor.id)
+        .not("bling_order_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (errorShopify) throw errorShopify;
+
+      // Mapear vendas_balcao para formato padrão
+      const notasBalcao = vendasBalcao?.map(venda => ({
         id: venda.id,
         order_number: venda.bling_order_id?.toString() || venda.id.slice(0, 8),
         customer_name: venda.cliente_nome || "Cliente",
@@ -78,7 +85,41 @@ export default function VendedorNotasEmitidas() {
         status_nfe: venda.status_nfe,
         nfe_id: venda.nfe_id,
         valor_total: venda.valor_total,
-      })) as NotaEmitida[];
+        source: 'balcao' as const,
+      })) || [];
+
+      // Mapear ebd_shopify_pedidos para formato padrão
+      const notasShopify = pedidosShopify?.map(pedido => ({
+        id: pedido.id,
+        order_number: pedido.bling_order_id?.toString() || pedido.id.slice(0, 8),
+        customer_name: pedido.customer_name || "Cliente",
+        customer_phone: pedido.customer_phone,
+        order_date: pedido.created_at,
+        nota_fiscal_numero: pedido.nota_fiscal_numero,
+        nota_fiscal_chave: pedido.nota_fiscal_chave,
+        nota_fiscal_url: pedido.nota_fiscal_url,
+        status_nfe: pedido.status_nfe,
+        nfe_id: pedido.nfe_id,
+        valor_total: pedido.valor_total || 0,
+        source: 'shopify' as const,
+      })) || [];
+
+      // Combinar, remover duplicatas (mesmo bling_order_id), ordenar por data
+      const allNotas = [...notasBalcao, ...notasShopify];
+      const uniqueNotas = allNotas.reduce((acc, nota) => {
+        const existing = acc.find(n => n.order_number === nota.order_number);
+        if (!existing) {
+          acc.push(nota);
+        } else if (nota.nota_fiscal_numero && !existing.nota_fiscal_numero) {
+          const index = acc.indexOf(existing);
+          acc[index] = nota;
+        }
+        return acc;
+      }, [] as typeof allNotas);
+
+      return uniqueNotas.sort((a, b) => 
+        new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
+      );
     },
     enabled: !!vendedor?.id,
   });
@@ -160,7 +201,7 @@ export default function VendedorNotasEmitidas() {
         if (!nota.nfe_id) continue;
 
         const { data, error } = await supabase.functions.invoke('bling-check-nfe-status', {
-          body: { nfe_id: nota.nfe_id, venda_id: nota.id }
+          body: { nfe_id: nota.nfe_id, venda_id: nota.id, source: nota.source }
         });
 
         if (!error && data?.updated) {
