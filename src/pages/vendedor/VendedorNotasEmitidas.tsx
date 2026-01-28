@@ -183,8 +183,9 @@ export default function VendedorNotasEmitidas() {
 
   // Verificar status das NF-es em processamento no Bling
   const handleCheckNfeStatus = async () => {
+    // Incluir notas que têm nfe_id OU order_number (bling_order_id)
     const notasProcessando = notas?.filter(
-      n => n.nfe_id && ['PROCESSANDO', 'ENVIADA', 'CRIADA'].includes(n.status_nfe || '')
+      n => (n.nfe_id || n.order_number) && ['PROCESSANDO', 'ENVIADA', 'CRIADA'].includes(n.status_nfe || '')
     );
 
     if (!notasProcessando || notasProcessando.length === 0) {
@@ -198,14 +199,44 @@ export default function VendedorNotasEmitidas() {
 
     try {
       for (const nota of notasProcessando) {
-        if (!nota.nfe_id) continue;
+        // Se tem nfe_id, usar bling-check-nfe-status (fluxo original)
+        if (nota.nfe_id) {
+          const { data, error } = await supabase.functions.invoke('bling-check-nfe-status', {
+            body: { nfe_id: nota.nfe_id, venda_id: nota.id, source: nota.source }
+          });
 
-        const { data, error } = await supabase.functions.invoke('bling-check-nfe-status', {
-          body: { nfe_id: nota.nfe_id, venda_id: nota.id, source: nota.source }
-        });
+          if (!error && data?.updated) {
+            atualizadas++;
+          }
+        } 
+        // Se não tem nfe_id mas tem order_number (bling_order_id), buscar pelo pedido
+        else if (nota.order_number) {
+          const blingOrderId = parseInt(nota.order_number);
+          if (isNaN(blingOrderId)) continue;
 
-        if (!error && data?.updated) {
-          atualizadas++;
+          const { data, error } = await supabase.functions.invoke('bling-get-nfe-by-order-id', {
+            body: { blingOrderId }
+          });
+
+          if (!error && data?.found && data?.linkDanfe) {
+            // Atualizar o registro com os dados encontrados
+            const updateTable = nota.source === 'shopify' ? 'ebd_shopify_pedidos' : 'vendas_balcao';
+            
+            const { error: updateError } = await supabase
+              .from(updateTable)
+              .update({
+                nota_fiscal_numero: data.nfeNumero,
+                nota_fiscal_url: data.linkDanfe,
+                nota_fiscal_chave: data.chave,
+                nfe_id: data.nfeId,
+                status_nfe: 'AUTORIZADA',
+              })
+              .eq('id', nota.id);
+
+            if (!updateError) {
+              atualizadas++;
+            }
+          }
         }
       }
 
