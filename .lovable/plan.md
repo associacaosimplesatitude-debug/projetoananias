@@ -1,158 +1,118 @@
 
-# Correção: Exibir Notas Emitidas de Ambas as Tabelas
+# Correção: NF-es 019146 e 019147 Não Aparecem em "Notas Emitidas"
 
-## Problema Identificado
+## Diagnóstico
 
-A página "Notas Emitidas" (`VendedorNotasEmitidas.tsx`) busca notas fiscais **apenas** da tabela `vendas_balcao`, mas muitos pedidos do vendedor (especialmente os criados via fluxo Shopify) estão na tabela `ebd_shopify_pedidos`.
+### Problema Identificado
 
-### Fluxo Atual
+As NF-es **019146** e **019147** foram geradas com sucesso no Bling, mas os registros correspondentes **nunca foram inseridos** na tabela `vendas_balcao`. Isso ocorre porque:
+
+1. O teste foi feito via **impersonation** (Elielson acessando como Gloria)
+2. O código frontend tenta inserir em `vendas_balcao` com `vendedor_id` da Gloria
+3. A RLS policy de INSERT verifica: `email do usuário autenticado = email do vendedor`
+4. Como Elielson não é vendedor, a RLS policy **bloqueia silenciosamente** o insert
+
+### Fluxo do Problema
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│                      FLUXO DE PEDIDOS                            │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   PDV Direto ─────────► vendas_balcao ◄─── Aparece na lista      │
-│                                                                  │
-│   Shopify/Faturamento ─► ebd_shopify_pedidos ◄── NÃO aparece     │
-│                                                                  │
-│   Pagar na Loja ──┬───► vendas_balcao (insert) ─► Deveria        │
-│                   │                               aparecer       │
-│                   └───► Mas insert pode falhar silenciosamente   │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    FLUXO ATUAL (COM BUG)                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   Elielson (admin) ──► Impersona Gloria ──► useVendedor()       │
+│                                              retorna Gloria OK  │
+│                                                                 │
+│   Cria pedido Bling ✓                                           │
+│   Gera NF-e (019146, 019147) ✓                                  │
+│                                                                 │
+│   INSERT vendas_balcao (vendedor_id = Gloria)                   │
+│        │                                                        │
+│        ▼                                                        │
+│   RLS Policy verifica: get_auth_email() = ?                     │
+│        │                                                        │
+│        ▼                                                        │
+│   elielson@... ≠ glorinha21carreiro@gmail.com ❌                 │
+│        │                                                        │
+│        ▼                                                        │
+│   INSERT BLOQUEADO (silenciosamente)                            │
+│                                                                 │
+│   Notas Emitidas: vazio                                         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-### Por que as NF-es 019146 e 019147 não aparecem?
-
-1. Os pedidos de teste foram criados no fluxo "Pagar na Loja" via Shopify
-2. O código tenta inserir em `vendas_balcao` mas pode ter falhado
-3. A NF-e é gerada no Bling com sucesso (019146, 019147)
-4. Quando a NF-e tenta salvar no banco, não encontra registro com o `bling_order_id`
-5. A página busca só de `vendas_balcao`, então notas não aparecem
 
 ---
 
-## Solução
+## Soluções Propostas
 
-Modificar `VendedorNotasEmitidas.tsx` para buscar notas de **AMBAS** as tabelas e combinar os resultados.
+### Opção 1: Mover o Insert para a Edge Function (RECOMENDADO)
 
-### Alterações no arquivo `src/pages/vendedor/VendedorNotasEmitidas.tsx`
+Em vez de inserir `vendas_balcao` no frontend (que está sujeito a RLS), mover o insert para a edge function `bling-create-order` que usa o service role key e não tem restrições de RLS.
 
-**1. Modificar a query para buscar de ambas as tabelas:**
+| Prós | Contras |
+|------|---------|
+| Garantia de que o registro será criado | Requer alterar edge function |
+| Não depende de RLS | - |
+| Funciona com impersonation | - |
 
-```typescript
-const { data: notas, isLoading, refetch, isRefetching } = useQuery({
-  queryKey: ["notas-emitidas-vendedor", vendedor?.id],
-  queryFn: async () => {
-    if (!vendedor?.id) return [];
-    
-    // Buscar de vendas_balcao (PDV/Pagar na Loja)
-    const { data: vendasBalcao, error: errorBalcao } = await supabase
-      .from("vendas_balcao")
-      .select(`
-        id, bling_order_id, cliente_nome, cliente_cpf,
-        cliente_telefone, valor_total, nota_fiscal_numero,
-        nota_fiscal_chave, nota_fiscal_url, nfe_id, status_nfe, created_at
-      `)
-      .eq("vendedor_id", vendedor.id)
-      .not("bling_order_id", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(50);
+### Opção 2: Ajustar RLS para Permitir Admins/Gerentes
 
-    if (errorBalcao) throw errorBalcao;
+Adicionar uma condição na RLS policy de INSERT para permitir que admins e gerentes insiram em nome de vendedores.
 
-    // Buscar de ebd_shopify_pedidos (Pedidos Shopify com NF-e)
-    const { data: pedidosShopify, error: errorShopify } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select(`
-        id, bling_order_id, customer_name, customer_phone,
-        total_price, nota_fiscal_numero, nota_fiscal_chave,
-        nota_fiscal_url, nfe_id, status_nfe, created_at
-      `)
-      .eq("vendedor_id", vendedor.id)
-      .not("bling_order_id", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(50);
+| Prós | Contras |
+|------|---------|
+| Solução simples no banco | Pode abrir brechas de segurança |
+| Menos código | - |
 
-    if (errorShopify) throw errorShopify;
+---
 
-    // Mapear vendas_balcao para formato padrão
-    const notasBalcao = vendasBalcao?.map(venda => ({
-      id: venda.id,
-      order_number: venda.bling_order_id?.toString() || venda.id.slice(0, 8),
-      customer_name: venda.cliente_nome || "Cliente",
-      customer_phone: venda.cliente_telefone,
-      order_date: venda.created_at,
-      nota_fiscal_numero: venda.nota_fiscal_numero,
-      nota_fiscal_chave: venda.nota_fiscal_chave,
-      nota_fiscal_url: venda.nota_fiscal_url,
-      status_nfe: venda.status_nfe,
-      nfe_id: venda.nfe_id,
-      valor_total: venda.valor_total,
-      source: 'balcao' as const,
-    })) || [];
+## Implementação (Opção 1 - Recomendada)
 
-    // Mapear ebd_shopify_pedidos para formato padrão
-    const notasShopify = pedidosShopify?.map(pedido => ({
-      id: pedido.id,
-      order_number: pedido.bling_order_id?.toString() || pedido.id.slice(0, 8),
-      customer_name: pedido.customer_name || "Cliente",
-      customer_phone: pedido.customer_phone,
-      order_date: pedido.created_at,
-      nota_fiscal_numero: pedido.nota_fiscal_numero,
-      nota_fiscal_chave: pedido.nota_fiscal_chave,
-      nota_fiscal_url: pedido.nota_fiscal_url,
-      status_nfe: pedido.status_nfe,
-      nfe_id: pedido.nfe_id,
-      valor_total: parseFloat(pedido.total_price || '0'),
-      source: 'shopify' as const,
-    })) || [];
+### Alterações no arquivo `supabase/functions/bling-create-order/index.ts`
 
-    // Combinar, remover duplicatas (mesmo bling_order_id), ordenar por data
-    const allNotas = [...notasBalcao, ...notasShopify];
-    const uniqueNotas = allNotas.reduce((acc, nota) => {
-      const existing = acc.find(n => n.order_number === nota.order_number);
-      if (!existing) {
-        acc.push(nota);
-      } else if (nota.nota_fiscal_numero && !existing.nota_fiscal_numero) {
-        // Substituir se a nova tem NF-e e a existente não
-        const index = acc.indexOf(existing);
-        acc[index] = nota;
-      }
-      return acc;
-    }, [] as typeof allNotas);
+Após criar o pedido no Bling com sucesso e antes de retornar a resposta, inserir o registro em `vendas_balcao` usando o cliente Supabase com service role.
 
-    return uniqueNotas.sort((a, b) => 
-      new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
-    );
-  },
-  enabled: !!vendedor?.id,
-});
-```
-
-**2. Atualizar a interface `NotaEmitida` para incluir source:**
+**Novo código a adicionar (após linha ~900 onde o pedido é criado):**
 
 ```typescript
-interface NotaEmitida {
-  id: string;
-  order_number: string;
-  customer_name: string;
-  customer_phone: string | null;
-  order_date: string;
-  nota_fiscal_numero: string | null;
-  nota_fiscal_chave: string | null;
-  nota_fiscal_url: string | null;
-  status_nfe: string | null;
-  nfe_id: number | null;
-  valor_total?: number;
-  source: 'balcao' | 'shopify';
+// Para fluxo "Pagar na Loja", inserir em vendas_balcao usando service role
+if (isPagamentoLoja && blingOrderId && vendedorId) {
+  const supabaseAdmin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
+
+  await supabaseAdmin.from('vendas_balcao').insert({
+    vendedor_id: vendedorId,
+    polo: depositoOrigem === 'local' ? 'penha' : (depositoOrigem === 'matriz' ? 'matriz' : 'pernambuco'),
+    bling_order_id: blingOrderId,
+    cliente_nome: cliente.nome,
+    cliente_cpf: cliente.cpf_cnpj,
+    cliente_telefone: cliente.telefone,
+    valor_total: valorTotal,
+    forma_pagamento: formaPagamentoLoja || 'pix',
+    status: 'finalizada',
+    status_nfe: 'CRIADA',
+  });
 }
 ```
 
-**3. Atualizar a função `handleCheckNfeStatus` para atualizar ambas as tabelas:**
+### Remover Insert do Frontend
 
-A função já chama a edge function `bling-check-nfe-status` que atualiza o banco. Ela precisa passar o `source` para saber qual tabela atualizar.
+No arquivo `src/pages/shopify/ShopifyPedidos.tsx`, remover o bloco de insert em `vendas_balcao` (linhas 1577-1597), pois agora será feito pela edge function.
+
+---
+
+## Correção Imediata para NF-es 019146 e 019147
+
+Como essas NF-es já foram geradas mas os registros não existem, será necessário inserir manualmente os dados para que apareçam na lista.
+
+**Dados a inserir:**
+
+| NF-e | Bling Order ID | Cliente | Tipo |
+|------|----------------|---------|------|
+| 019146 | 24939744400 | Igreja Assembleia de Deus Balsamo de Gileade | CNPJ |
+| 019147 | 24939829731 | Bruna Soares silva | CPF |
 
 ---
 
@@ -160,14 +120,16 @@ A função já chama a edge function `bling-check-nfe-status` que atualiza o ban
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/vendedor/VendedorNotasEmitidas.tsx` | Buscar de ambas tabelas e combinar resultados |
+| `supabase/functions/bling-create-order/index.ts` | Adicionar insert em vendas_balcao para fluxo "Pagar na Loja" |
+| `src/pages/shopify/ShopifyPedidos.tsx` | Remover insert redundante do frontend |
+| Banco de dados | Inserir registros manuais das NF-es 019146 e 019147 |
 
 ---
 
 ## Resultado Esperado
 
-Após a correção:
-- Notas de pedidos feitos via PDV (vendas_balcao) aparecem
-- Notas de pedidos feitos via Shopify (ebd_shopify_pedidos) também aparecem  
-- Lista mostra TODAS as notas do vendedor, independente da origem
-- Notas 019146 e 019147 (testes de hoje) aparecerão na lista
+Após a implementação:
+- Registros em `vendas_balcao` serão criados pela edge function (sem restrição RLS)
+- Impersonation funcionará corretamente para criar pedidos "Pagar na Loja"
+- NF-es 019146 e 019147 aparecerão na lista após inserção manual
+- Futuros pedidos via "Pagar na Loja" serão salvos corretamente
