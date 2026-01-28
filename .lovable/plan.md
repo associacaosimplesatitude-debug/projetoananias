@@ -1,135 +1,148 @@
 
-# Correção: NF-es 019146 e 019147 Não Aparecem em "Notas Emitidas"
+# Atualização do Consultor de BI - Estrutura de Dados de Vendas
 
-## Diagnóstico
+## Problema Identificado
 
-### Problema Identificado
+O Consultor de BI não consegue responder perguntas sobre vendas de vendedores porque seu conhecimento de banco de dados está **incompleto e desatualizado**. Ele não conhece todas as tabelas onde vendas são armazenadas.
 
-As NF-es **019146** e **019147** foram geradas com sucesso no Bling, mas os registros correspondentes **nunca foram inseridos** na tabela `vendas_balcao`. Isso ocorre porque:
+## Estrutura Real de Vendas do Sistema
 
-1. O teste foi feito via **impersonation** (Elielson acessando como Gloria)
-2. O código frontend tenta inserir em `vendas_balcao` com `vendedor_id` da Gloria
-3. A RLS policy de INSERT verifica: `email do usuário autenticado = email do vendedor`
-4. Como Elielson não é vendedor, a RLS policy **bloqueia silenciosamente** o insert
-
-### Fluxo do Problema
+O sistema armazena vendas em **4 tabelas diferentes**, dependendo do canal de venda:
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    FLUXO ATUAL (COM BUG)                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Elielson (admin) ──► Impersona Gloria ──► useVendedor()       │
-│                                              retorna Gloria OK  │
-│                                                                 │
-│   Cria pedido Bling ✓                                           │
-│   Gera NF-e (019146, 019147) ✓                                  │
-│                                                                 │
-│   INSERT vendas_balcao (vendedor_id = Gloria)                   │
-│        │                                                        │
-│        ▼                                                        │
-│   RLS Policy verifica: get_auth_email() = ?                     │
-│        │                                                        │
-│        ▼                                                        │
-│   elielson@... ≠ glorinha21carreiro@gmail.com ❌                 │
-│        │                                                        │
-│        ▼                                                        │
-│   INSERT BLOQUEADO (silenciosamente)                            │
-│                                                                 │
-│   Notas Emitidas: vazio                                         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    FONTES DE VENDAS POR VENDEDOR                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. vendedor_propostas          →  Pedidos B2B (Faturamento 30/60/90)  │
+│      - Identificador: vendedor_id ou vendedor_email                     │
+│      - Status concluído: FATURADO, PAGO                                 │
+│      - 315 registros, 64 faturados                                      │
+│                                                                         │
+│   2. ebd_shopify_pedidos         →  Pedidos Shopify (Loja Online)       │
+│      - Identificador: vendedor_id                                       │
+│      - Status concluído: paid, Faturado                                 │
+│      - 1.496 registros, 1.383 pagos                                     │
+│                                                                         │
+│   3. ebd_shopify_pedidos_mercadopago →  Pagamentos Digitais (PIX/Cartão)│
+│      - Identificador: vendedor_id ou vendedor_email                     │
+│      - Status concluído: PAGO                                           │
+│      - 167 registros, 46 pagos                                          │
+│                                                                         │
+│   4. vendas_balcao               →  PDV / Pagar na Loja (Penha)         │
+│      - Identificador: vendedor_id                                       │
+│      - Status concluído: finalizada                                     │
+│      - 50 registros                                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+## Exemplo de Consulta Correta
 
-## Soluções Propostas
+Para responder "Quais as vendas da Gloria Carreiro?":
 
-### Opção 1: Mover o Insert para a Edge Function (RECOMENDADO)
+```sql
+-- Precisa consultar TODAS as 4 tabelas e somar
+SELECT 'Propostas B2B' as fonte, COUNT(*) as qtd, SUM(valor_total) as valor
+FROM vendedor_propostas 
+WHERE vendedor_email = 'glorinha21carreiro@gmail.com' AND status IN ('FATURADO', 'PAGO')
 
-Em vez de inserir `vendas_balcao` no frontend (que está sujeito a RLS), mover o insert para a edge function `bling-create-order` que usa o service role key e não tem restrições de RLS.
+UNION ALL
 
-| Prós | Contras |
-|------|---------|
-| Garantia de que o registro será criado | Requer alterar edge function |
-| Não depende de RLS | - |
-| Funciona com impersonation | - |
+SELECT 'Shopify', COUNT(*), SUM(valor_total)
+FROM ebd_shopify_pedidos esp
+JOIN vendedores v ON esp.vendedor_id = v.id
+WHERE v.email = 'glorinha21carreiro@gmail.com' AND esp.status_pagamento = 'paid'
 
-### Opção 2: Ajustar RLS para Permitir Admins/Gerentes
+UNION ALL
 
-Adicionar uma condição na RLS policy de INSERT para permitir que admins e gerentes insiram em nome de vendedores.
+SELECT 'Mercado Pago', COUNT(*), SUM(valor_total)
+FROM ebd_shopify_pedidos_mercadopago
+WHERE vendedor_email = 'glorinha21carreiro@gmail.com' AND status = 'PAGO'
 
-| Prós | Contras |
-|------|---------|
-| Solução simples no banco | Pode abrir brechas de segurança |
-| Menos código | - |
+UNION ALL
 
----
+SELECT 'PDV/Balcão', COUNT(*), SUM(valor_total)
+FROM vendas_balcao vb
+JOIN vendedores v ON vb.vendedor_id = v.id
+WHERE v.email = 'glorinha21carreiro@gmail.com' AND vb.status = 'finalizada'
+```
 
-## Implementação (Opção 1 - Recomendada)
+## Alterações Necessárias
 
-### Alterações no arquivo `supabase/functions/bling-create-order/index.ts`
+### Arquivo: `supabase/functions/gemini-assistente-gestao/index.ts`
 
-Após criar o pedido no Bling com sucesso e antes de retornar a resposta, inserir o registro em `vendas_balcao` usando o cliente Supabase com service role.
+Atualizar o `SYSTEM_PROMPT` para incluir:
 
-**Novo código a adicionar (após linha ~900 onde o pedido é criado):**
+1. **Documentação completa das 4 tabelas de vendas**
+2. **Campos corretos da tabela `vendedores`** (status = 'ativo', não is_active)
+3. **Status que indicam venda concluída em cada tabela**
+4. **Orientação para JOIN** quando buscar por email em vez de vendedor_id
+5. **Exemplos de queries para vendas totais**
+
+### Novo SYSTEM_PROMPT (principais adições)
 
 ```typescript
-// Para fluxo "Pagar na Loja", inserir em vendas_balcao usando service role
-if (isPagamentoLoja && blingOrderId && vendedorId) {
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  );
+const SYSTEM_PROMPT = `Você é o Consultor de BI da Editora Central Gospel...
 
-  await supabaseAdmin.from('vendas_balcao').insert({
-    vendedor_id: vendedorId,
-    polo: depositoOrigem === 'local' ? 'penha' : (depositoOrigem === 'matriz' ? 'matriz' : 'pernambuco'),
-    bling_order_id: blingOrderId,
-    cliente_nome: cliente.nome,
-    cliente_cpf: cliente.cpf_cnpj,
-    cliente_telefone: cliente.telefone,
-    valor_total: valorTotal,
-    forma_pagamento: formaPagamentoLoja || 'pix',
-    status: 'finalizada',
-    status_nfe: 'CRIADA',
-  });
-}
+## IMPORTANTE: Fontes de Vendas
+
+Para consultar vendas de um vendedor, você DEVE consultar TODAS estas tabelas:
+
+### 1. vendedor_propostas (Pedidos B2B/Faturamento)
+- Campos: id, vendedor_id, vendedor_email, vendedor_nome, cliente_id, cliente_nome, 
+          valor_total, status, bling_status_id, bling_order_id, created_at
+- Status de venda concluída: 'FATURADO', 'PAGO'
+- Identificar vendedor por: vendedor_id ou vendedor_email
+
+### 2. ebd_shopify_pedidos (Pedidos Shopify/Online)
+- Campos: id, shopify_order_id, vendedor_id, cliente_id, valor_total, valor_para_meta,
+          status_pagamento, customer_name, customer_email, created_at, 
+          bling_order_id, nota_fiscal_numero, nota_fiscal_url
+- Status de venda concluída: 'paid', 'Faturado'
+- Identificar vendedor por: vendedor_id (fazer JOIN com vendedores para filtrar por email)
+
+### 3. ebd_shopify_pedidos_mercadopago (Pagamentos Digitais PIX/Cartão)
+- Campos: id, vendedor_id, vendedor_email, vendedor_nome, cliente_id, cliente_nome,
+          valor_total, status, payment_status, payment_method, mercadopago_payment_id, created_at
+- Status de venda concluída: 'PAGO'
+- Identificar vendedor por: vendedor_id ou vendedor_email
+
+### 4. vendas_balcao (PDV / Pagar na Loja)
+- Campos: id, vendedor_id, polo, cliente_nome, cliente_cpf, valor_total, 
+          forma_pagamento, status, bling_order_id, nota_fiscal_numero, created_at
+- Status de venda concluída: 'finalizada'
+- Identificar vendedor por: vendedor_id (fazer JOIN com vendedores para filtrar por email)
+
+### 5. vendedores (Cadastro de Vendedores)
+- Campos: id, nome, email, email_bling, status, tipo_perfil, is_gerente, gerente_id, 
+          comissao_percentual, meta_mensal_valor
+- Filtro para ativos: status = 'ativo'
+
+## Como Buscar Vendas Totais de um Vendedor
+
+Para responder perguntas como "Vendas do vendedor X", faça queries em TODAS as 4 tabelas:
+
+1. Primeiro busque o vendedor_id pelo nome ou email na tabela vendedores
+2. Depois consulte cada tabela de vendas usando vendedor_id ou vendedor_email
+3. Some os resultados para ter o total
+
+Exemplo para buscar vendedor:
+SELECT id, nome, email FROM vendedores WHERE nome ILIKE '%gloria%' OR email ILIKE '%gloria%'
+`;
 ```
-
-### Remover Insert do Frontend
-
-No arquivo `src/pages/shopify/ShopifyPedidos.tsx`, remover o bloco de insert em `vendas_balcao` (linhas 1577-1597), pois agora será feito pela edge function.
-
----
-
-## Correção Imediata para NF-es 019146 e 019147
-
-Como essas NF-es já foram geradas mas os registros não existem, será necessário inserir manualmente os dados para que apareçam na lista.
-
-**Dados a inserir:**
-
-| NF-e | Bling Order ID | Cliente | Tipo |
-|------|----------------|---------|------|
-| 019146 | 24939744400 | Igreja Assembleia de Deus Balsamo de Gileade | CNPJ |
-| 019147 | 24939829731 | Bruna Soares silva | CPF |
-
----
 
 ## Resumo das Alterações
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/bling-create-order/index.ts` | Adicionar insert em vendas_balcao para fluxo "Pagar na Loja" |
-| `src/pages/shopify/ShopifyPedidos.tsx` | Remover insert redundante do frontend |
-| Banco de dados | Inserir registros manuais das NF-es 019146 e 019147 |
-
----
+| `supabase/functions/gemini-assistente-gestao/index.ts` | Atualizar SYSTEM_PROMPT com documentação completa das 4 tabelas de vendas, campos corretos, status, e exemplos de queries |
 
 ## Resultado Esperado
 
-Após a implementação:
-- Registros em `vendas_balcao` serão criados pela edge function (sem restrição RLS)
-- Impersonation funcionará corretamente para criar pedidos "Pagar na Loja"
-- NF-es 019146 e 019147 aparecerão na lista após inserção manual
-- Futuros pedidos via "Pagar na Loja" serão salvos corretamente
+Após a atualização, o Consultor de BI conseguirá:
+- ✅ Responder corretamente "Quais as vendas do vendedor X?"
+- ✅ Consultar todas as fontes de vendas (B2B, Shopify, Mercado Pago, PDV)
+- ✅ Identificar vendedores por nome, email ou ID
+- ✅ Saber os status que indicam venda concluída em cada tabela
+- ✅ Fazer JOINs quando necessário para cruzar dados
