@@ -2816,56 +2816,39 @@ serve(async (req) => {
     // ✅ INSERIR EM vendas_balcao PARA FLUXO "PAGAR NA LOJA"
     // Usa service role para evitar bloqueio por RLS durante impersonation
     // ═══════════════════════════════════════════════════════════════
-    if (isPagamentoLoja && createdOrderId && vendedor_email) {
+    if (isPagamentoLoja && createdOrderId && vendedor_id) {
       console.log(`[BLING] Inserindo registro em vendas_balcao para fluxo Pagar na Loja...`);
       
-      // Buscar vendedor_id pelo email
-      let vendedorIdForBalcao: string | null = null;
-      try {
-        const { data: vendedorData } = await supabase
-          .from('vendedores')
-          .select('id')
-          .eq('email', vendedor_email)
-          .single();
-        vendedorIdForBalcao = vendedorData?.id || null;
-      } catch (e) {
-        console.warn('[BLING] ⚠️ Não foi possível buscar vendedor pelo email:', e);
-      }
+      // Mapear depósito para polo
+      const poloMap: Record<string, string> = {
+        'local': 'penha',
+        'matriz': 'matriz',
+        'pernambuco': 'pernambuco'
+      };
       
-      if (vendedorIdForBalcao) {
-        // Mapear depósito para polo
-        const poloMap: Record<string, string> = {
-          'local': 'penha',
-          'matriz': 'matriz',
-          'pernambuco': 'pernambuco'
-        };
-        
-        try {
-          const { error: vendaBalcaoError } = await supabase
-            .from('vendas_balcao')
-            .insert({
-              vendedor_id: vendedorIdForBalcao,
-              polo: poloMap[deposito_origem || 'local'] || 'penha',
-              bling_order_id: createdOrderId,
-              cliente_nome: cliente?.nome || cliente?.razaoSocial || 'Cliente',
-              cliente_cpf: cliente?.numeroDocumento || null,
-              cliente_telefone: cliente?.telefone || cliente?.celular || null,
-              valor_total: valor_total || 0,
-              forma_pagamento: forma_pagamento_loja || 'pix',
-              status: 'finalizada',
-              status_nfe: 'CRIADA',
-            });
+      try {
+        const { error: vendaBalcaoError } = await supabase
+          .from('vendas_balcao')
+          .insert({
+            vendedor_id: vendedor_id,
+            polo: poloMap[deposito_origem || 'local'] || 'penha',
+            bling_order_id: createdOrderId,
+            cliente_nome: cliente?.nome || cliente?.razaoSocial || 'Cliente',
+            cliente_cpf: cliente?.numeroDocumento || null,
+            cliente_telefone: cliente?.telefone || cliente?.celular || null,
+            valor_total: valor_total || 0,
+            forma_pagamento: forma_pagamento_loja || 'pix',
+            status: 'finalizada',
+            status_nfe: 'CRIADA',
+          });
 
-          if (vendaBalcaoError) {
-            console.warn('[BLING] ⚠️ Erro ao inserir em vendas_balcao:', vendaBalcaoError);
-          } else {
-            console.log(`[BLING] ✅ Registro inserido em vendas_balcao para bling_order_id: ${createdOrderId}`);
-          }
-        } catch (vendaBalcaoErr) {
-          console.warn('[BLING] ⚠️ Erro inesperado ao inserir em vendas_balcao:', vendaBalcaoErr);
+        if (vendaBalcaoError) {
+          console.warn('[BLING] ⚠️ Erro ao inserir em vendas_balcao:', vendaBalcaoError);
+        } else {
+          console.log(`[BLING] ✅ Registro inserido em vendas_balcao para bling_order_id: ${createdOrderId}`);
         }
-      } else {
-        console.warn(`[BLING] ⚠️ Vendedor não encontrado pelo email ${vendedor_email}, não foi possível inserir em vendas_balcao`);
+      } catch (vendaBalcaoErr) {
+        console.warn('[BLING] ⚠️ Erro inesperado ao inserir em vendas_balcao:', vendaBalcaoErr);
       }
     }
 
