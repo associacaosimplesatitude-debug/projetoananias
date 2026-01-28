@@ -1,118 +1,106 @@
 
-# Correção: NF-es 019146 e 019147 Não Aparecem em "Notas Emitidas"
 
-## Diagnóstico
+# Correção: Buscar NF-e pelo Bling Order ID (Quando nfe_id é NULL)
 
-### Problema Identificado
+## Problema Identificado
 
-As NF-es **019146** e **019147** foram geradas com sucesso no Bling, mas os registros correspondentes **nunca foram inseridos** na tabela `vendas_balcao`. Isso ocorre porque:
+Os registros das NF-es 019146 e 019147 foram inseridos manualmente com os seguintes campos:
+- `bling_order_id`: ✅ Preenchido (24939744400 e 24939829731)
+- `nfe_id`: ❌ NULL  
+- `nota_fiscal_numero`: ❌ NULL
+- `nota_fiscal_url`: ❌ NULL
+- `status_nfe`: 'CRIADA'
 
-1. O teste foi feito via **impersonation** (Elielson acessando como Gloria)
-2. O código frontend tenta inserir em `vendas_balcao` com `vendedor_id` da Gloria
-3. A RLS policy de INSERT verifica: `email do usuário autenticado = email do vendedor`
-4. Como Elielson não é vendedor, a RLS policy **bloqueia silenciosamente** o insert
-
-### Fluxo do Problema
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    FLUXO ATUAL (COM BUG)                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Elielson (admin) ──► Impersona Gloria ──► useVendedor()       │
-│                                              retorna Gloria OK  │
-│                                                                 │
-│   Cria pedido Bling ✓                                           │
-│   Gera NF-e (019146, 019147) ✓                                  │
-│                                                                 │
-│   INSERT vendas_balcao (vendedor_id = Gloria)                   │
-│        │                                                        │
-│        ▼                                                        │
-│   RLS Policy verifica: get_auth_email() = ?                     │
-│        │                                                        │
-│        ▼                                                        │
-│   elielson@... ≠ glorinha21carreiro@gmail.com ❌                 │
-│        │                                                        │
-│        ▼                                                        │
-│   INSERT BLOQUEADO (silenciosamente)                            │
-│                                                                 │
-│   Notas Emitidas: vazio                                         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Soluções Propostas
-
-### Opção 1: Mover o Insert para a Edge Function (RECOMENDADO)
-
-Em vez de inserir `vendas_balcao` no frontend (que está sujeito a RLS), mover o insert para a edge function `bling-create-order` que usa o service role key e não tem restrições de RLS.
-
-| Prós | Contras |
-|------|---------|
-| Garantia de que o registro será criado | Requer alterar edge function |
-| Não depende de RLS | - |
-| Funciona com impersonation | - |
-
-### Opção 2: Ajustar RLS para Permitir Admins/Gerentes
-
-Adicionar uma condição na RLS policy de INSERT para permitir que admins e gerentes insiram em nome de vendedores.
-
-| Prós | Contras |
-|------|---------|
-| Solução simples no banco | Pode abrir brechas de segurança |
-| Menos código | - |
-
----
-
-## Implementação (Opção 1 - Recomendada)
-
-### Alterações no arquivo `supabase/functions/bling-create-order/index.ts`
-
-Após criar o pedido no Bling com sucesso e antes de retornar a resposta, inserir o registro em `vendas_balcao` usando o cliente Supabase com service role.
-
-**Novo código a adicionar (após linha ~900 onde o pedido é criado):**
+A função `handleCheckNfeStatus` na página "Notas Emitidas" faz o seguinte filtro:
 
 ```typescript
-// Para fluxo "Pagar na Loja", inserir em vendas_balcao usando service role
-if (isPagamentoLoja && blingOrderId && vendedorId) {
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  );
-
-  await supabaseAdmin.from('vendas_balcao').insert({
-    vendedor_id: vendedorId,
-    polo: depositoOrigem === 'local' ? 'penha' : (depositoOrigem === 'matriz' ? 'matriz' : 'pernambuco'),
-    bling_order_id: blingOrderId,
-    cliente_nome: cliente.nome,
-    cliente_cpf: cliente.cpf_cnpj,
-    cliente_telefone: cliente.telefone,
-    valor_total: valorTotal,
-    forma_pagamento: formaPagamentoLoja || 'pix',
-    status: 'finalizada',
-    status_nfe: 'CRIADA',
-  });
-}
+const notasProcessando = notas?.filter(
+  n => n.nfe_id && ['PROCESSANDO', 'ENVIADA', 'CRIADA'].includes(n.status_nfe || '')
+);
 ```
 
-### Remover Insert do Frontend
-
-No arquivo `src/pages/shopify/ShopifyPedidos.tsx`, remover o bloco de insert em `vendas_balcao` (linhas 1577-1597), pois agora será feito pela edge function.
+**Problema**: Como `nfe_id` é NULL, as notas são **ignoradas** e nunca atualizadas!
 
 ---
 
-## Correção Imediata para NF-es 019146 e 019147
+## Solução
 
-Como essas NF-es já foram geradas mas os registros não existem, será necessário inserir manualmente os dados para que apareçam na lista.
+Modificar a função `handleCheckNfeStatus` para:
+1. Se a nota tiver `nfe_id` → usar `bling-check-nfe-status` (atual)
+2. Se a nota não tiver `nfe_id` mas tiver `bling_order_id` → usar `bling-get-nfe-by-order-id` para buscar os dados
 
-**Dados a inserir:**
+### Alterações no arquivo `src/pages/vendedor/VendedorNotasEmitidas.tsx`
 
-| NF-e | Bling Order ID | Cliente | Tipo |
-|------|----------------|---------|------|
-| 019146 | 24939744400 | Igreja Assembleia de Deus Balsamo de Gileade | CNPJ |
-| 019147 | 24939829731 | Bruna Soares silva | CPF |
+```typescript
+const handleCheckNfeStatus = async () => {
+  // Incluir notas que têm nfe_id OU bling_order_id
+  const notasProcessando = notas?.filter(n => 
+    (n.nfe_id || n.order_number) && 
+    ['PROCESSANDO', 'ENVIADA', 'CRIADA'].includes(n.status_nfe || '')
+  );
+
+  if (!notasProcessando || notasProcessando.length === 0) {
+    toast.info("Nenhuma nota em processamento para verificar");
+    refetch();
+    return;
+  }
+
+  setIsCheckingStatus(true);
+  let atualizadas = 0;
+
+  try {
+    for (const nota of notasProcessando) {
+      // Se tem nfe_id, usar bling-check-nfe-status
+      if (nota.nfe_id) {
+        const { data, error } = await supabase.functions.invoke('bling-check-nfe-status', {
+          body: { nfe_id: nota.nfe_id, venda_id: nota.id, source: nota.source }
+        });
+
+        if (!error && data?.updated) {
+          atualizadas++;
+        }
+      } 
+      // Se não tem nfe_id, buscar pelo bling_order_id
+      else if (nota.order_number) {
+        const { data, error } = await supabase.functions.invoke('bling-get-nfe-by-order-id', {
+          body: { blingOrderId: parseInt(nota.order_number) }
+        });
+
+        if (!error && data?.found && data?.linkDanfe) {
+          // Atualizar o registro com os dados encontrados
+          const updateTable = nota.source === 'shopify' ? 'ebd_shopify_pedidos' : 'vendas_balcao';
+          
+          await supabase
+            .from(updateTable)
+            .update({
+              nota_fiscal_numero: data.nfeNumero,
+              nota_fiscal_url: data.linkDanfe,
+              nota_fiscal_chave: data.chave,
+              nfe_id: data.nfeId,
+              status_nfe: 'AUTORIZADA',
+            })
+            .eq('id', nota.id);
+
+          atualizadas++;
+        }
+      }
+    }
+
+    if (atualizadas > 0) {
+      toast.success(`${atualizadas} nota(s) atualizada(s)`);
+    } else {
+      toast.info("Notas ainda em processamento no Bling");
+    }
+    
+    refetch();
+  } catch (error: any) {
+    console.error("Erro ao verificar status:", error);
+    toast.error("Erro ao verificar status das notas");
+  } finally {
+    setIsCheckingStatus(false);
+  }
+};
+```
 
 ---
 
@@ -120,16 +108,17 @@ Como essas NF-es já foram geradas mas os registros não existem, será necessá
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/bling-create-order/index.ts` | Adicionar insert em vendas_balcao para fluxo "Pagar na Loja" |
-| `src/pages/shopify/ShopifyPedidos.tsx` | Remover insert redundante do frontend |
-| Banco de dados | Inserir registros manuais das NF-es 019146 e 019147 |
+| `src/pages/vendedor/VendedorNotasEmitidas.tsx` | Modificar `handleCheckNfeStatus` para buscar NF-e por `bling_order_id` quando `nfe_id` for NULL |
 
 ---
 
 ## Resultado Esperado
 
-Após a implementação:
-- Registros em `vendas_balcao` serão criados pela edge function (sem restrição RLS)
-- Impersonation funcionará corretamente para criar pedidos "Pagar na Loja"
-- NF-es 019146 e 019147 aparecerão na lista após inserção manual
-- Futuros pedidos via "Pagar na Loja" serão salvos corretamente
+Após a correção:
+1. Clicar em "Atualizar" na página Notas Emitidas
+2. O sistema detecta que as notas 019146 e 019147 não têm `nfe_id`
+3. Usa `bling-get-nfe-by-order-id` com o `bling_order_id` (24939744400 e 24939829731)
+4. Busca os dados da NF-e diretamente no Bling
+5. Atualiza os registros com `nota_fiscal_numero`, `nota_fiscal_url` e `nfe_id`
+6. Status muda para "Autorizada" e botão DANFE fica disponível
+
