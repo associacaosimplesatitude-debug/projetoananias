@@ -734,7 +734,7 @@ serve(async (req) => {
         
         // ESTRATÉGIA: Incremento Local - buscar UMA vez, depois só incrementar
         console.log(`[BLING-NFE] 🔍 Buscando maior número em TODAS as situações (busca única)...`);
-        let baseNumber: number = await getLastNfeNumber(accessToken, serieAtual, false) || 0;
+        let baseNumber: number = await getLastNfeNumber(accessToken, serieAtual, false, isLojaPenha) || 0;
         
         if (baseNumber === 0) {
           baseNumber = (nfePayload.numero || 1) - 1;
