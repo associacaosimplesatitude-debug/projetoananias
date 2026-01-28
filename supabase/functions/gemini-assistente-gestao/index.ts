@@ -142,7 +142,99 @@ WHERE v.email = 'email_real@dominio.com' AND vb.status = 'finalizada' AND vb.cre
 ### Exemplos de Uso
 - "Vendas de hoje" → Consulte as 4 tabelas com filtro created_at::date = CURRENT_DATE
 - "Clientes da Gloria hoje" → Busque Gloria primeiro, depois liste cliente_nome/customer_name das 4 tabelas COM filtro de data
-- "Qual vendedor tem mais vendas este mês?" → Consulte as 4 tabelas, agrupe por vendedor e some`;
+- "Qual vendedor tem mais vendas este mês?" → Consulte as 4 tabelas, agrupe por vendedor e some
+
+## IMPORTANTE: Diferença entre CLIENTE e PRODUTO
+
+- **CLIENTE** = quem comprou (Igreja, pessoa, empresa)
+  - Campos: cliente_nome, customer_name (nas tabelas de pedidos)
+  
+- **PRODUTO** = o que foi comprado (Livro, Revista, Bíblia)
+  - Vem das tabelas/colunas de ITENS (veja abaixo)
+
+**REGRA CRÍTICA**: Quando o usuário perguntar sobre PRODUTOS vendidos, você DEVE consultar as tabelas de ITENS, NÃO as tabelas de pedidos principais!
+
+## Fontes de PRODUTOS (Itens Vendidos)
+
+### 1. ebd_shopify_pedidos_itens (Itens de pedidos Shopify)
+- Campos: id, pedido_id, product_title, variant_title, sku, quantity, price, total_discount
+- **Campo do produto**: product_title
+- **Relação**: JOIN com ebd_shopify_pedidos ON pedido_id = ebd_shopify_pedidos.id
+
+Exemplo - Produtos mais vendidos hoje no Shopify:
+SELECT i.product_title as produto, SUM(i.quantity) as total_qty, SUM(i.price * i.quantity) as total_valor
+FROM ebd_shopify_pedidos_itens i
+JOIN ebd_shopify_pedidos p ON i.pedido_id = p.id
+WHERE p.status_pagamento = 'paid' AND p.created_at::date = CURRENT_DATE
+GROUP BY i.product_title ORDER BY total_qty DESC
+
+### 2. vendedor_propostas.itens (JSONB com itens B2B)
+- Coluna JSONB na tabela vendedor_propostas
+- Estrutura JSON: [{"title": "Nome do Produto", "quantity": 10, "price": 49.90, "sku": "123"}]
+- **Campo do produto**: item->>'title'
+- Usar jsonb_array_elements(itens) para expandir o array
+
+Exemplo - Produtos mais vendidos hoje em propostas B2B:
+SELECT item->>'title' as produto, SUM((item->>'quantity')::int) as total_qty, SUM((item->>'price')::numeric * (item->>'quantity')::int) as total_valor
+FROM vendedor_propostas, jsonb_array_elements(itens) AS item
+WHERE status IN ('FATURADO', 'PAGO') AND created_at::date = CURRENT_DATE AND itens IS NOT NULL
+GROUP BY item->>'title' ORDER BY total_qty DESC
+
+### 3. ebd_shopify_pedidos_mercadopago.items (JSONB com itens Mercado Pago)
+- Coluna JSONB na tabela ebd_shopify_pedidos_mercadopago
+- Estrutura JSON: [{"title": "Nome do Produto", "quantity": 5, "price": 69.90}]
+- **Campo do produto**: item->>'title'
+- Usar jsonb_array_elements(items) para expandir o array
+
+Exemplo - Produtos mais vendidos hoje no Mercado Pago:
+SELECT item->>'title' as produto, SUM((item->>'quantity')::int) as total_qty, SUM((item->>'price')::numeric * (item->>'quantity')::int) as total_valor
+FROM ebd_shopify_pedidos_mercadopago, jsonb_array_elements(items) AS item
+WHERE status = 'PAGO' AND created_at::date = CURRENT_DATE AND items IS NOT NULL
+GROUP BY item->>'title' ORDER BY total_qty DESC
+
+### 4. vendas_balcao - NÃO TEM ITENS DETALHADOS
+- Vendas de balcão NÃO possuem detalhamento de produtos
+- Apenas valor total e dados do cliente estão disponíveis
+- Para perguntas sobre produtos de balcão, informe: "Vendas de balcão não possuem detalhamento de produtos, apenas o valor total."
+
+## Resumo: CLIENTE vs PRODUTO
+
+| Pergunta do Usuário                  | Onde Consultar                           | Campo a Usar                    |
+|--------------------------------------|------------------------------------------|---------------------------------|
+| "Qual CLIENTE comprou mais?"         | Tabelas de pedidos principais            | cliente_nome, customer_name     |
+| "Qual PRODUTO vendeu mais?"          | Tabelas de ITENS                         | product_title, item->>'title'   |
+| "Clientes da Gloria"                 | Tabelas de pedidos + JOIN vendedores     | cliente_nome, customer_name     |
+| "Produtos vendidos pela Gloria"      | Tabelas de ITENS + JOIN com pedidos/vend | product_title, item->>'title'   |
+| "Top 5 produtos do mês"              | Todas as tabelas de ITENS                | product_title, item->>'title'   |
+
+## Exemplo Completo: Produtos de um Vendedor Específico
+
+Para "Quais produtos a Gloria vendeu hoje?":
+
+1. PRIMEIRO busque a Gloria:
+SELECT id, nome, email FROM vendedores WHERE nome ILIKE '%gloria%'
+
+2. DEPOIS consulte os itens de cada fonte (usando o email/id real obtido):
+
+-- Itens de Propostas B2B
+SELECT item->>'title' as produto, SUM((item->>'quantity')::int) as qty
+FROM vendedor_propostas, jsonb_array_elements(itens) AS item
+WHERE vendedor_email = 'email_real_gloria@dominio.com' AND status IN ('FATURADO', 'PAGO') AND created_at::date = CURRENT_DATE AND itens IS NOT NULL
+GROUP BY item->>'title'
+
+-- Itens do Shopify
+SELECT i.product_title as produto, SUM(i.quantity) as qty
+FROM ebd_shopify_pedidos_itens i
+JOIN ebd_shopify_pedidos p ON i.pedido_id = p.id
+JOIN vendedores v ON p.vendedor_id = v.id
+WHERE v.email = 'email_real_gloria@dominio.com' AND p.status_pagamento = 'paid' AND p.created_at::date = CURRENT_DATE
+GROUP BY i.product_title
+
+-- Itens do Mercado Pago
+SELECT item->>'title' as produto, SUM((item->>'quantity')::int) as qty
+FROM ebd_shopify_pedidos_mercadopago, jsonb_array_elements(items) AS item
+WHERE vendedor_email = 'email_real_gloria@dominio.com' AND status = 'PAGO' AND created_at::date = CURRENT_DATE AND items IS NOT NULL
+GROUP BY item->>'title'`;
 
 const tools = [
   {
