@@ -139,25 +139,28 @@ function extractDanfeUrl(nfeDetail: any): string | null {
   return nfeDetail.linkDanfe || nfeDetail.link || nfeDetail.linkPdf || null;
 }
 
-// ========== FUNÇÃO PARA BUSCAR ÚLTIMO NÚMERO NF-e POR SÉRIE (ESCUDO DE AUTO-NUMERAÇÃO) ==========
-// VERSÃO MELHORADA: Varre até 50 páginas (5000 NF-es) para garantir encontrar o maior número
+// ========== FUNÇÃO PARA BUSCAR ÚLTIMO NÚMERO NF-e POR SÉRIE E FAIXA (ESCUDO DE AUTO-NUMERAÇÃO) ==========
+// VERSÃO CORRIGIDA: Filtra por faixa de numeração para separar Penha (019xxx) de RJ (030xxx)
 // CORRIGIDO: Implementa retry com delay para erro 429 (Rate Limit)
 async function getLastNfeNumber(
   accessToken: string, 
   serie: number,
-  apenasAutorizadas: boolean = false
+  apenasAutorizadas: boolean = false,
+  filtrarFaixaPenha: boolean = false // NOVO: Se true, busca apenas faixa 019xxx
 ): Promise<number | null> {
   console.log(`[BLING-NFE] ========== BUSCANDO ÚLTIMO NÚMERO SÉRIE ${serie} ==========`);
   console.log(`[BLING-NFE] Filtro: ${apenasAutorizadas ? 'APENAS AUTORIZADAS (situação 6)' : 'TODAS AS SITUAÇÕES'}`);
+  console.log(`[BLING-NFE] Faixa: ${filtrarFaixaPenha ? 'PENHA (019xxx - números < 30000)' : 'TODAS'}`);
   
-  const MAX_RETRIES_429 = 3; // Máximo de retries por página para erro 429
-  const DELAY_MS_429 = 2000; // 2 segundos de delay entre retries
+  const MAX_RETRIES_429 = 3;
+  const DELAY_MS_429 = 2000;
   
   try {
     let maxNumber = 0;
     let pagina = 1;
-    const maxPaginas = 50; // AUMENTADO: 50 páginas = até 5000 NF-es
+    const maxPaginas = 50;
     let totalNfesAnalisadas = 0;
+    let nfesNaFaixaCorreta = 0;
     
     while (pagina <= maxPaginas) {
       let searchUrl = `https://api.bling.com.br/Api/v3/nfe?serie=${serie}&pagina=${pagina}&limite=100`;
@@ -165,12 +168,10 @@ async function getLastNfeNumber(
         searchUrl += '&situacao=6';
       }
       
-      // Log apenas a cada 10 páginas para não poluir
       if (pagina === 1 || pagina % 10 === 0) {
         console.log(`[BLING-NFE] Consultando página ${pagina}...`);
       }
       
-      // Implementação de retry para erro 429 (Rate Limit)
       let retryCount = 0;
       let resp: Response | null = null;
       
@@ -194,7 +195,6 @@ async function getLastNfeNumber(
           }
         }
         
-        // Se não for 429, sai do loop de retry
         break;
       }
       
@@ -212,6 +212,16 @@ async function getLastNfeNumber(
       
       for (const nfe of nfes) {
         const num = Number(nfe.numero) || 0;
+        
+        // FILTRO POR FAIXA: Penha usa 019xxx (números < 30000), RJ usa 030xxx (números >= 30000)
+        if (filtrarFaixaPenha) {
+          // Para Penha: considerar apenas números < 30000 (faixa 001xxx até 029xxx)
+          if (num >= 30000) {
+            continue; // Ignorar notas da faixa RJ
+          }
+          nfesNaFaixaCorreta++;
+        }
+        
         if (num > maxNumber) {
           maxNumber = num;
         }
@@ -228,6 +238,9 @@ async function getLastNfeNumber(
     
     console.log(`[BLING-NFE] ========== RESULTADO SÉRIE ${serie} ==========`);
     console.log(`[BLING-NFE] NF-es analisadas: ${totalNfesAnalisadas} | Páginas: ${pagina}`);
+    if (filtrarFaixaPenha) {
+      console.log(`[BLING-NFE] NF-es na faixa Penha (< 30000): ${nfesNaFaixaCorreta}`);
+    }
     console.log(`[BLING-NFE] MAIOR NÚMERO ENCONTRADO: ${maxNumber > 0 ? maxNumber : 'NENHUM'}`);
     console.log(`[BLING-NFE] ================================================`);
     
@@ -583,33 +596,39 @@ serve(async (req) => {
     }
 
     // ========== ESCUDO DE AUTO-NUMERAÇÃO (CONSULTA AUTORIZADAS) ==========
-    // Antes de cada emissão, consulta o Bling para ver o último número AUTORIZADO.
-    // Isso impede erros de "Nota com este número já existe" mesmo com emissões manuais.
+    // CORRIGIDO: Para Penha, filtrar apenas faixa 019xxx (números < 30000)
+    // Isso evita usar a sequência 030xxx que pertence à Matriz RJ
     const serieParaUsar = nfePayload.serie || 15;
     console.log(`[BLING-NFE] ╔══════════════════════════════════════════════════════════════╗`);
     console.log(`[BLING-NFE] ║          ESCUDO DE AUTO-NUMERAÇÃO ATIVADO                    ║`);
     console.log(`[BLING-NFE] ╠══════════════════════════════════════════════════════════════╣`);
     console.log(`[BLING-NFE] ║ Série a usar: ${serieParaUsar}`);
+    console.log(`[BLING-NFE] ║ É Loja Penha: ${isLojaPenha ? 'SIM (filtrar faixa 019xxx)' : 'NÃO'}`);
     
     // PASSO 1: Buscar último número AUTORIZADO (situação 6) - prioridade
-    console.log(`[BLING-NFE] ║ 🔍 Buscando última NF-e AUTORIZADA na série ${serieParaUsar}...`);
-    let lastNumberPreCalc = await getLastNfeNumber(accessToken, serieParaUsar, true); // true = apenas autorizadas
+    // Para Penha: filtrar apenas números < 30000 (faixa 019xxx)
+    console.log(`[BLING-NFE] ║ 🔍 Buscando última NF-e AUTORIZADA na série ${serieParaUsar}${isLojaPenha ? ' (faixa < 30000)' : ''}...`);
+    let lastNumberPreCalc = await getLastNfeNumber(accessToken, serieParaUsar, true, isLojaPenha);
     
     // PASSO 2: Se não encontrar autorizadas, buscar TODAS (pode ter em digitação, rejeitadas, etc.)
     if (!lastNumberPreCalc) {
       console.log(`[BLING-NFE] ║ ⚠️ Nenhuma NF-e autorizada encontrada. Buscando em TODOS os status...`);
-      lastNumberPreCalc = await getLastNfeNumber(accessToken, serieParaUsar, false); // false = todas
+      lastNumberPreCalc = await getLastNfeNumber(accessToken, serieParaUsar, false, isLojaPenha);
     }
     
-    // PASSO 3: Calcular próximo número com margem de segurança (+2)
+    // PASSO 3: Calcular próximo número
+    // Para Penha: usar margem +1 pois a numeração é sequencial na faixa 019xxx
+    const margem = isLojaPenha ? 1 : 2;
     if (lastNumberPreCalc) {
-      const nextNumberPreCalc = lastNumberPreCalc + 2; // +2 para margem de segurança
+      const nextNumberPreCalc = lastNumberPreCalc + margem;
       console.log(`[BLING-NFE] ║ ✓ ÚLTIMO NÚMERO ENCONTRADO: ${lastNumberPreCalc}`);
-      console.log(`[BLING-NFE] ║ ✓ PRÓXIMO NÚMERO (margem +2): ${nextNumberPreCalc}`);
+      console.log(`[BLING-NFE] ║ ✓ PRÓXIMO NÚMERO (margem +${margem}): ${nextNumberPreCalc}`);
       nfePayload.numero = nextNumberPreCalc;
     } else {
-      console.log(`[BLING-NFE] ║ ⚠️ Nenhuma NF-e encontrada na série. Iniciando em 1.`);
-      nfePayload.numero = 1;
+      // Para Penha sem histórico, iniciar em 19001 (faixa correta)
+      const numeroInicial = isLojaPenha ? 19001 : 1;
+      console.log(`[BLING-NFE] ║ ⚠️ Nenhuma NF-e encontrada na faixa. Iniciando em ${numeroInicial}.`);
+      nfePayload.numero = numeroInicial;
     }
     console.log(`[BLING-NFE] ╚══════════════════════════════════════════════════════════════╝`);
 
