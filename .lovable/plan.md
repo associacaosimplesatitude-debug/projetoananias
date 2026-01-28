@@ -1,133 +1,163 @@
 
+# Correção do Consultor de BI - Informações de PRODUTOS
 
-# Correção do Consultor de BI - Informações Completas de Clientes
+## Problema Identificado
 
-## Problemas Identificados
-
-O Consultor de BI consegue **contar vendas** mas **não consegue** buscar informações dos clientes porque:
+O Consultor de BI confunde **CLIENTE** com **PRODUTO**. Quando perguntamos "qual produto foi mais vendido", ele retorna o nome do cliente (Igreja, pessoa) em vez do produto real (Livro, Revista, Bíblia).
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│                    PROBLEMAS NO SYSTEM_PROMPT                            │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  1. STATUS CASE-SENSITIVE                                                │
-│     Prompt diz: status = 'ativo'                                         │
-│     Banco tem:  status = 'Ativo'  ← Não encontra vendedores!             │
-│                                                                          │
-│  2. EMAIL FICTÍCIO                                                       │
-│     AI cria: elaine@email.com (inventado)                                │
-│     Deveria: elaine.ribeiro@editoracentralgospel.com (real)              │
-│     Causa: Não busca vendedor primeiro, chuta email                      │
-│                                                                          │
-│  3. PONTO E VÍRGULA NAS QUERIES                                          │
-│     AI gera: SELECT ... WHERE status = 'PAGO';                           │
-│     RPC erro: syntax error at or near ";"                                │
-│                                                                          │
-│  4. PERDE FILTRO DE DATA                                                 │
-│     Pergunta 1: "vendas de hoje" → filtra CURRENT_DATE ✓                 │
-│     Pergunta 2: "clientes da Gloria" → SEM filtro de data ✗              │
-│     Resultado: Busca em todo histórico, não encontra nada                │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PROBLEMA: CLIENTE ≠ PRODUTO                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   PERGUNTA: "Qual produto mais vendido hoje?"                           │
+│                                                                         │
+│   RESPOSTA ERRADA (atual):                                              │
+│   - "IGREJA BATISTA SEMEAR" ← Isso é CLIENTE, não produto!              │
+│   - "Jorge Luis" ← Isso é CLIENTE, não produto!                         │
+│                                                                         │
+│   RESPOSTA CORRETA (esperada):                                          │
+│   - "Livro Silas Malafaia Em Foco" ← Isso sim é PRODUTO!                │
+│   - "Bíblia Mulher Vitoriosa Branca" ← Isso sim é PRODUTO!              │
+│                                                                         │
+│   CAUSA: O SYSTEM_PROMPT não documenta as tabelas de ITENS              │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Solução
+## Estrutura Real de PRODUTOS no Banco
 
-Atualizar o `SYSTEM_PROMPT` em `supabase/functions/gemini-assistente-gestao/index.ts` com:
+Os produtos vendidos estão armazenados em locais diferentes para cada tipo de venda:
 
-### 1. Corrigir Status Case-Sensitive
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    FONTES DE PRODUTOS POR TABELA                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   1. ebd_shopify_pedidos (Shopify Online)                               │
+│      → Produtos em TABELA SEPARADA: ebd_shopify_pedidos_itens           │
+│      → Campos: product_title, quantity, price, sku                      │
+│      → JOIN: pedido_id = ebd_shopify_pedidos.id                         │
+│                                                                         │
+│   2. vendedor_propostas (B2B / Faturamento)                             │
+│      → Produtos em COLUNA JSONB: itens                                  │
+│      → Estrutura: [{"title": "...", "quantity": N, "price": X}]         │
+│      → Acessar: itens->>'title', (itens->>'quantity')::int              │
+│                                                                         │
+│   3. ebd_shopify_pedidos_mercadopago (Pagamentos Digitais)              │
+│      → Produtos em COLUNA JSONB: items                                  │
+│      → Estrutura: [{"title": "...", "quantity": N, "price": X}]         │
+│      → Acessar: items->>'title', (items->>'quantity')::int              │
+│                                                                         │
+│   4. vendas_balcao (PDV / Pagar na Loja)                                │
+│      → NÃO TEM ITENS DETALHADOS                                         │
+│      → Apenas valor total, sem detalhe de produtos                      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## Exemplo de Query Correta para "Produto Mais Vendido Hoje"
 
 ```sql
--- ERRADO (no prompt atual)
-WHERE status = 'ativo'
+-- Produtos do Shopify (tabela separada)
+SELECT i.product_title, SUM(i.quantity) as total_qty
+FROM ebd_shopify_pedidos_itens i
+JOIN ebd_shopify_pedidos p ON i.pedido_id = p.id
+WHERE p.status_pagamento = 'paid' AND p.created_at::date = CURRENT_DATE
+GROUP BY i.product_title ORDER BY total_qty DESC LIMIT 5
 
--- CORRETO (usar ILIKE ou valor correto)
-WHERE status ILIKE 'ativo'
--- OU
-WHERE LOWER(status) = 'ativo'
+-- Produtos das Propostas B2B (JSONB)
+SELECT 
+  item->>'title' as produto,
+  SUM((item->>'quantity')::int) as total_qty
+FROM vendedor_propostas, jsonb_array_elements(itens) AS item
+WHERE status IN ('FATURADO', 'PAGO') AND created_at::date = CURRENT_DATE
+GROUP BY item->>'title' ORDER BY total_qty DESC LIMIT 5
+
+-- Produtos do Mercado Pago (JSONB)
+SELECT 
+  item->>'title' as produto,
+  SUM((item->>'quantity')::int) as total_qty
+FROM ebd_shopify_pedidos_mercadopago, jsonb_array_elements(items) AS item
+WHERE status = 'PAGO' AND created_at::date = CURRENT_DATE
+GROUP BY item->>'title' ORDER BY total_qty DESC LIMIT 5
 ```
 
-### 2. Instruir a SEMPRE Buscar Vendedor Primeiro
-
-Adicionar regra obrigatória:
-
-```
-## REGRA CRÍTICA: Buscar Vendedor Primeiro
-
-Quando o usuário perguntar sobre um vendedor específico:
-1. PRIMEIRO busque o vendedor na tabela vendedores pelo nome
-2. OBTENHA o email e id reais
-3. SÓ DEPOIS use esses dados nas queries de vendas
-
-Exemplo CORRETO:
--- Passo 1: Buscar vendedor
-SELECT id, nome, email FROM vendedores WHERE nome ILIKE '%elaine%'
--- Resultado: id=abc, email=elaine.ribeiro@editoracentralgospel.com
-
--- Passo 2: Usar email REAL nas queries
-SELECT cliente_nome FROM vendedor_propostas WHERE vendedor_email = 'elaine.ribeiro@editoracentralgospel.com'
-
-NUNCA invente emails como 'elaine@email.com' ou 'gloria@exemplo.com'
-```
-
-### 3. Proibir Ponto e Vírgula
-
-Adicionar regra:
-
-```
-## NUNCA Use Ponto e Vírgula
-
-As queries NÃO devem terminar com ponto e vírgula (;)
-O RPC execute_readonly_query não aceita queries com ;
-
-ERRADO:  SELECT * FROM vendedores WHERE nome = 'Gloria';
-CORRETO: SELECT * FROM vendedores WHERE nome = 'Gloria'
-```
-
-### 4. Manter Contexto de Data Entre Perguntas
-
-Adicionar instruções:
-
-```
-## Manter Contexto Temporal
-
-Se o usuário perguntou sobre "vendas de HOJE" e depois pergunta sobre clientes:
-- MANTENHA o filtro de data nas queries subsequentes
-- Use created_at::date = CURRENT_DATE para vendas de hoje
-- Use created_at >= CURRENT_DATE - INTERVAL '7 days' para última semana
-
-Exemplo de conversa:
-User: "vendas de hoje" → filtrar CURRENT_DATE
-User: "clientes da Gloria" → MANTER filtro CURRENT_DATE
-```
-
-### 5. Documentar Campos de Cliente por Tabela
-
-Adicionar seção específica:
-
-```
-## Campos de Cliente em Cada Tabela
-
-Para buscar NOME DO CLIENTE em cada tabela:
-
-| Tabela                         | Campo do Cliente  | Outros campos úteis           |
-|-------------------------------|-------------------|-------------------------------|
-| vendedor_propostas            | cliente_nome      | cliente_id, cliente_cnpj      |
-| ebd_shopify_pedidos           | customer_name     | customer_email, customer_phone|
-| ebd_shopify_pedidos_mercadopago| cliente_nome     | cliente_id                    |
-| vendas_balcao                 | cliente_nome      | cliente_cpf, cliente_telefone |
-```
-
----
-
-## Alterações no Arquivo
+## Alterações Necessárias
 
 ### Arquivo: `supabase/functions/gemini-assistente-gestao/index.ts`
 
-Atualizar o `SYSTEM_PROMPT` (linhas 11-110) para incluir todas as correções acima.
+Adicionar ao SYSTEM_PROMPT uma nova seção sobre **PRODUTOS**:
 
----
+### Nova Seção a Adicionar
+
+```markdown
+## IMPORTANTE: Diferença entre CLIENTE e PRODUTO
+
+- **CLIENTE** = quem comprou (Igreja, pessoa, empresa)
+  - Campos: cliente_nome, customer_name
+  
+- **PRODUTO** = o que foi comprado (Livro, Revista, Bíblia)
+  - Vem das tabelas de ITENS (veja abaixo)
+
+Quando o usuário perguntar sobre PRODUTOS vendidos, você deve consultar as tabelas de ITENS, não as tabelas de pedidos!
+
+## Fontes de PRODUTOS (Itens Vendidos)
+
+### 1. ebd_shopify_pedidos_itens (Itens de pedidos Shopify)
+- Campos: id, pedido_id, product_title, variant_title, sku, quantity, price, total_discount
+- **Campo do produto**: product_title
+- JOIN com ebd_shopify_pedidos: WHERE i.pedido_id = p.id
+
+Exemplo - Produtos mais vendidos hoje no Shopify:
+SELECT i.product_title, SUM(i.quantity) as total_qty, SUM(i.price * i.quantity) as total_valor
+FROM ebd_shopify_pedidos_itens i
+JOIN ebd_shopify_pedidos p ON i.pedido_id = p.id
+WHERE p.status_pagamento = 'paid' AND p.created_at::date = CURRENT_DATE
+GROUP BY i.product_title ORDER BY total_qty DESC
+
+### 2. vendedor_propostas.itens (JSONB com itens B2B)
+- Estrutura JSON: [{"title": "Nome do Produto", "quantity": 10, "price": 49.90, "sku": "123"}]
+- **Campo do produto**: itens->>'title'
+- Usar jsonb_array_elements() para expandir o array
+
+Exemplo - Produtos mais vendidos hoje em propostas B2B:
+SELECT item->>'title' as produto, SUM((item->>'quantity')::int) as total_qty
+FROM vendedor_propostas, jsonb_array_elements(itens) AS item
+WHERE status IN ('FATURADO', 'PAGO') AND created_at::date = CURRENT_DATE AND itens IS NOT NULL
+GROUP BY item->>'title' ORDER BY total_qty DESC
+
+### 3. ebd_shopify_pedidos_mercadopago.items (JSONB com itens MP)
+- Estrutura JSON: [{"title": "Nome do Produto", "quantity": 5, "price": 69.90}]
+- **Campo do produto**: items->>'title'
+- Usar jsonb_array_elements() para expandir o array
+
+Exemplo - Produtos mais vendidos hoje no Mercado Pago:
+SELECT item->>'title' as produto, SUM((item->>'quantity')::int) as total_qty
+FROM ebd_shopify_pedidos_mercadopago, jsonb_array_elements(items) AS item
+WHERE status = 'PAGO' AND created_at::date = CURRENT_DATE AND items IS NOT NULL
+GROUP BY item->>'title' ORDER BY total_qty DESC
+
+### 4. vendas_balcao - NÃO TEM ITENS
+- Vendas de balcão não possuem detalhamento de produtos
+- Apenas valor total e dados do cliente
+- Para perguntas sobre produtos de balcão, informe que não há detalhamento disponível
+
+## Resumo: CLIENTE vs PRODUTO
+
+| Pergunta do Usuário | Tabela a Consultar | Campo a Usar |
+|--------------------|-------------------|--------------|
+| "Qual CLIENTE comprou mais?" | Tabelas de pedidos | cliente_nome, customer_name |
+| "Qual PRODUTO vendeu mais?" | Tabelas de ITENS | product_title, item->>'title' |
+| "Clientes da Gloria" | Tabelas de pedidos | cliente_nome, customer_name |
+| "Produtos vendidos pela Gloria" | Tabelas de ITENS + JOIN | product_title, item->>'title' |
+```
+
+## Resumo das Alterações
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/gemini-assistente-gestao/index.ts` | Adicionar seção sobre PRODUTOS no SYSTEM_PROMPT, documentando as 3 fontes de itens e exemplos de queries para buscar produtos vendidos |
 
 ## Resultado Esperado
 
@@ -135,13 +165,12 @@ Após as correções:
 
 | Pergunta | Comportamento Atual | Comportamento Esperado |
 |----------|--------------------|-----------------------|
-| "Vendas de hoje" | Conta corretamente | Conta corretamente ✓ |
-| "Clientes da Gloria hoje" | "Nenhum encontrado" | Lista: Bruna Soares silva, Igreja Assembleia de Deus |
-| "Cliente da Elaine hoje" | "Nenhum encontrado" | IGREJA BATISTA SEMEAR |
+| "Produto mais vendido hoje" | "IGREJA BATISTA SEMEAR" (cliente) | "Livro Silas Malafaia Em Foco" (produto) |
+| "Top 5 produtos do mês" | Retorna clientes | Retorna produtos reais |
+| "Quais produtos a Gloria vendeu?" | Não encontra | Lista produtos com quantity |
 
 O Consultor de BI passará a:
-- Buscar vendedor pelo nome PRIMEIRO para obter email real
-- Manter filtros de data consistentes entre perguntas
-- Evitar erros de sintaxe (sem ponto e vírgula)
-- Encontrar vendedores corretamente (status case-insensitive)
-
+- Diferenciar entre pergunta sobre CLIENTE e sobre PRODUTO
+- Consultar tabelas de ITENS quando perguntarem sobre produtos
+- Usar jsonb_array_elements() para extrair itens de colunas JSONB
+- Informar quando não há detalhamento (vendas_balcao)
