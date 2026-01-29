@@ -1,15 +1,17 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil } from "lucide-react";
+import { Plus, Search, Pencil, ExternalLink } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AutorDialog } from "@/components/royalties/AutorDialog";
 
 export default function RoyaltiesAutores() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedAutor, setSelectedAutor] = useState<any>(null);
@@ -98,8 +100,16 @@ export default function RoyaltiesAutores() {
               </TableHeader>
               <TableBody>
                 {autores.map((autor) => (
-                  <TableRow key={autor.id}>
-                    <TableCell className="font-medium">{autor.nome_completo}</TableCell>
+                  <TableRow key={autor.id} className="group">
+                    <TableCell>
+                      <button
+                        onClick={() => navigate(`/royalties/autores/${autor.id}`)}
+                        className="font-medium text-primary hover:underline flex items-center gap-1"
+                      >
+                        {autor.nome_completo}
+                        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    </TableCell>
                     <TableCell>{autor.email}</TableCell>
                     <TableCell>{autor.cpf_cnpj || "-"}</TableCell>
                     <TableCell>

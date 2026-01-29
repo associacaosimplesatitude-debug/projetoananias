@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { FileText, Download, BarChart3, TrendingUp, Filter, FileSpreadsheet } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { FileText, Download, BarChart3, TrendingUp, Filter, FileSpreadsheet, History } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
@@ -130,11 +132,69 @@ export default function RoyaltiesRelatorios() {
 
   const totais = calcularTotais();
 
+  // Query para logs de auditoria
+  const [auditTabela, setAuditTabela] = useState<string>("todas");
+  const [auditAcao, setAuditAcao] = useState<string>("todas");
+
+  const { data: auditLogs = [], isLoading: loadingAudit } = useQuery({
+    queryKey: ["royalties-audit-logs", auditTabela, auditAcao, dataInicio, dataFim],
+    queryFn: async () => {
+      let query = supabase
+        .from("royalties_audit_logs")
+        .select("*")
+        .gte("created_at", dataInicio)
+        .lte("created_at", dataFim + "T23:59:59")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (auditTabela !== "todas") {
+        query = query.eq("tabela", auditTabela);
+      }
+      if (auditAcao !== "todas") {
+        query = query.eq("acao", auditAcao);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const relatorioTipos = [
     { value: "vendas", label: "Relatório de Vendas", icon: BarChart3 },
     { value: "comissoes", label: "Relatório de Comissões", icon: TrendingUp },
     { value: "pagamentos", label: "Relatório de Pagamentos", icon: FileText },
   ];
+
+  const getAcaoBadge = (acao: string) => {
+    switch (acao) {
+      case "INSERT":
+        return <Badge className="bg-green-100 text-green-800">Criação</Badge>;
+      case "UPDATE":
+        return <Badge className="bg-blue-100 text-blue-800">Atualização</Badge>;
+      case "DELETE":
+        return <Badge className="bg-red-100 text-red-800">Exclusão</Badge>;
+      default:
+        return <Badge variant="secondary">{acao}</Badge>;
+    }
+  };
+
+  const getTabelaLabel = (tabela: string) => {
+    switch (tabela) {
+      case "royalties_autores":
+        return "Autores";
+      case "royalties_livros":
+        return "Livros";
+      case "royalties_comissoes":
+        return "Comissões";
+      case "royalties_vendas":
+        return "Vendas";
+      case "royalties_pagamentos":
+        return "Pagamentos";
+      default:
+        return tabela;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -403,6 +463,98 @@ export default function RoyaltiesRelatorios() {
                         </span>
                       </TableCell>
                     )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Logs de Auditoria */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Logs de Auditoria
+          </CardTitle>
+          <CardDescription>
+            Histórico de alterações no sistema de royalties
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 mb-4">
+            <div className="space-y-2">
+              <Label>Tabela</Label>
+              <Select value={auditTabela} onValueChange={setAuditTabela}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas</SelectItem>
+                  <SelectItem value="royalties_autores">Autores</SelectItem>
+                  <SelectItem value="royalties_livros">Livros</SelectItem>
+                  <SelectItem value="royalties_comissoes">Comissões</SelectItem>
+                  <SelectItem value="royalties_vendas">Vendas</SelectItem>
+                  <SelectItem value="royalties_pagamentos">Pagamentos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Ação</Label>
+              <Select value={auditAcao} onValueChange={setAuditAcao}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas</SelectItem>
+                  <SelectItem value="INSERT">Criação</SelectItem>
+                  <SelectItem value="UPDATE">Atualização</SelectItem>
+                  <SelectItem value="DELETE">Exclusão</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {loadingAudit ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : auditLogs.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhum registro de auditoria encontrado para o período selecionado.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data/Hora</TableHead>
+                  <TableHead>Tabela</TableHead>
+                  <TableHead>Ação</TableHead>
+                  <TableHead>Registro ID</TableHead>
+                  <TableHead>Detalhes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {auditLogs.map((log: any) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-sm">
+                      {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{getTabelaLabel(log.tabela)}</Badge>
+                    </TableCell>
+                    <TableCell>{getAcaoBadge(log.acao)}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {log.registro_id?.substring(0, 8)}...
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                      {log.acao === "DELETE" 
+                        ? JSON.stringify(log.dados_antigos)?.substring(0, 50) + "..."
+                        : log.acao === "INSERT"
+                        ? JSON.stringify(log.dados_novos)?.substring(0, 50) + "..."
+                        : "Alteração de dados"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

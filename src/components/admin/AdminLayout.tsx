@@ -18,6 +18,7 @@ import {
   Settings,
   BarChart3,
   Video,
+  BookOpenText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -272,6 +273,14 @@ function AdminSidebar() {
                   <RouterNavLink to="/admin/tutoriais">
                     <Video className="h-4 w-4" />
                     <span>Tutoriais</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/royalties')}>
+                  <RouterNavLink to="/royalties">
+                    <BookOpenText className="h-4 w-4" />
+                    <span>Royalties</span>
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

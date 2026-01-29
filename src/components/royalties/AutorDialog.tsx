@@ -8,8 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, UserCheck, UserX, Loader2 } from "lucide-react";
+import { Search, UserCheck, UserX, Loader2, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { formatCPFCNPJ, getDocumentError } from "@/lib/royaltiesValidators";
 
 interface AutorDialogProps {
   open: boolean;
@@ -360,11 +361,25 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
 
             <div className="space-y-2">
               <Label htmlFor="cpf_cnpj">CPF/CNPJ</Label>
-              <Input
-                id="cpf_cnpj"
-                value={formData.cpf_cnpj}
-                onChange={(e) => setFormData({ ...formData, cpf_cnpj: e.target.value })}
-              />
+              <div className="space-y-1">
+                <Input
+                  id="cpf_cnpj"
+                  value={formData.cpf_cnpj}
+                  onChange={(e) => {
+                    const formatted = formatCPFCNPJ(e.target.value);
+                    setFormData({ ...formData, cpf_cnpj: formatted });
+                  }}
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  maxLength={18}
+                  className={getDocumentError(formData.cpf_cnpj) ? "border-destructive" : ""}
+                />
+                {getDocumentError(formData.cpf_cnpj) && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {getDocumentError(formData.cpf_cnpj)}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
