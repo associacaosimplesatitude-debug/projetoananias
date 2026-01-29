@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImageUpload } from "./ImageUpload";
+import { BlingProductSearch, BlingProduct } from "./BlingProductSearch";
 
 type PeriodoPagamento = "1_mes" | "3_meses" | "6_meses" | "1_ano";
 
@@ -23,6 +24,7 @@ interface LivroDialogProps {
     valor_capa: number;
     is_active: boolean | null;
     capa_url?: string | null;
+    bling_produto_id?: number | null;
   } | null;
 }
 
@@ -39,6 +41,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
     periodo_pagamento: "3_meses" as PeriodoPagamento,
     is_active: true,
     capa_url: "" as string | null,
+    bling_produto_id: null as number | null,
   });
 
   const { data: autores = [] } = useQuery({
@@ -73,6 +76,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
           periodo_pagamento: (comissao?.periodo_pagamento as PeriodoPagamento) || "3_meses",
           is_active: livro.is_active ?? true,
           capa_url: livro.capa_url || null,
+          bling_produto_id: livro.bling_produto_id || null,
         });
       } else {
         setFormData({
@@ -83,6 +87,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
           periodo_pagamento: "3_meses",
           is_active: true,
           capa_url: null,
+          bling_produto_id: null,
         });
       }
     };
@@ -103,6 +108,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
         valor_capa: parseFloat(formData.valor_capa) || 0,
         is_active: formData.is_active,
         capa_url: formData.capa_url || null,
+        bling_produto_id: formData.bling_produto_id || null,
       };
 
       let livroId = livro?.id;
@@ -181,6 +187,16 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
     "1_ano": "Anual",
   };
 
+  const handleBlingProductSelect = (product: BlingProduct) => {
+    setFormData({
+      ...formData,
+      titulo: product.nome,
+      valor_capa: product.preco.toString(),
+      capa_url: product.imagemURL || formData.capa_url,
+      bling_produto_id: product.id,
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -190,7 +206,15 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+          {/* Bling Product Search - only for new books */}
+          {!livro && (
+            <BlingProductSearch
+              onSelect={handleBlingProductSelect}
+              disabled={loading}
+            />
+          )}
+
           <div className="flex gap-4">
             <ImageUpload
               bucket="royalties-capas"

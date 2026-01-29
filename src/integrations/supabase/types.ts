@@ -4501,6 +4501,7 @@ export type Database = {
       royalties_livros: {
         Row: {
           autor_id: string
+          bling_produto_id: number | null
           capa_url: string | null
           created_at: string
           descricao: string | null
@@ -4512,6 +4513,7 @@ export type Database = {
         }
         Insert: {
           autor_id: string
+          bling_produto_id?: number | null
           capa_url?: string | null
           created_at?: string
           descricao?: string | null
@@ -4523,6 +4525,7 @@ export type Database = {
         }
         Update: {
           autor_id?: string
+          bling_produto_id?: number | null
           capa_url?: string | null
           created_at?: string
           descricao?: string | null

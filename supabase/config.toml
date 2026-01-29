@@ -251,3 +251,6 @@ verify_jwt = true
 
 [functions.gemini-assistente-gestao]
 verify_jwt = false
+
+[functions.bling-search-product]
+verify_jwt = true
