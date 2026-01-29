@@ -1,145 +1,158 @@
 
 
-# Correção Definitiva: PDV Balcão com Desconto e Integração Bling
+# Correção: PDV Balcão com Desconto Por Categoria do Cliente
 
-## Objetivo
-Corrigir o fluxo do PDV Balcão para aplicar automaticamente 30% de desconto e integrar com Bling, garantindo que todas as NF-es futuras sejam emitidas com o valor correto.
+## Problema Identificado
 
-## Modificações
+O PDV Balcão atual está aplicando um **desconto fixo de 30%** para todos os produtos:
+
+```typescript
+const DESCONTO_REPRESENTANTE = 0.30; // ERRADO - fixo 30%
+```
+
+Mas o correto é usar os **descontos por categoria cadastrados no card do cliente**, como mostrado nas imagens:
+- Cliente "IGREJA EVANGELICA MINISTERIO APOSTOLICO PALAVRA E UNÇAO": 30% em todas as categorias
+- Cliente "ADVEC SARACURUNA": 40% em todas as categorias
+
+## Como Funciona o Sistema de Descontos
+
+### Estrutura do Banco
+- Tabela: `ebd_descontos_categoria_representante`
+- Campos: `cliente_id`, `categoria`, `percentual_desconto`
+- Categorias: `revistas`, `biblias`, `livros`, `infantil`, `perfumes`, `outros`
+
+### Lógica Existente (já implementada)
+O sistema já possui toda a infraestrutura para calcular descontos por categoria:
+
+| Arquivo | Função |
+|---------|--------|
+| `useDescontosRepresentante.tsx` | Busca descontos por categoria do cliente |
+| `categoriasShopify.ts` | Categoriza produto pelo título |
+| `descontosCalculadora.ts` | Calcula desconto por categoria para produtos locais |
+
+## Modificações Necessárias
 
 ### Arquivo: `src/pages/vendedor/VendedorPDV.tsx`
 
-#### 1. Aplicar desconto de 30% automaticamente
+#### 1. Adicionar seleção de cliente cadastrado
 
-Alterar o cálculo de totais para incluir o desconto padrão de representante:
+Antes de adicionar produtos, o vendedor precisa **selecionar ou buscar um cliente cadastrado** para que o sistema saiba quais descontos aplicar.
 
 ```typescript
-const DESCONTO_REPRESENTANTE = 0.30; // 30%
-
-const subtotal = carrinho.reduce((acc, item) => 
-  acc + (item.produto.preco_cheio * item.quantidade), 0);
-
-const valorDesconto = subtotal * DESCONTO_REPRESENTANTE;
-const total = subtotal - valorDesconto;
+// Novo estado para cliente selecionado
+const [clienteSelecionado, setClienteSelecionado] = useState<ClienteEBD | null>(null);
 ```
 
-#### 2. Exibir preços com desconto no carrinho
+#### 2. Buscar descontos por categoria do cliente
 
-Mostrar preço original riscado e preço com desconto aplicado:
+Usar o hook existente `useDescontosRepresentante`:
+
+```typescript
+const { data: descontosPorCategoria } = useDescontosRepresentante(clienteSelecionado?.id || null);
+```
+
+#### 3. Calcular desconto por item baseado na categoria
+
+Usar a função `categorizarProduto` para determinar a categoria de cada produto:
+
+```typescript
+import { categorizarProduto } from "@/constants/categoriasShopify";
+
+// Para cada item no carrinho:
+const categoria = categorizarProduto(item.produto.titulo);
+const percentualDesconto = descontosPorCategoria?.[categoria] || 0;
+const precoComDesconto = item.produto.preco_cheio * (1 - percentualDesconto / 100);
+```
+
+#### 4. Exibir desconto específico por item
+
+Mostrar no carrinho o percentual de desconto de cada categoria:
 
 ```text
 +------------------------------------------+
 | Revista Adultos - Lição 1                |
-| R$ 45,00 → R$ 31,50 (30% off)            |
-| Qtd: [ - ] 2 [ + ]  Total: R$ 63,00      |
+| Categoria: Revistas EBD                  |
+| R$ 45,00 → R$ 31,50 (-30%)               |
++------------------------------------------+
+| Bíblia Sagrada NVI                       |
+| Categoria: Bíblias                       |
+| R$ 89,90 → R$ 53,94 (-40%)               |
 +------------------------------------------+
 ```
 
-#### 3. Integrar com edge function `bling-create-order`
+#### 5. Enviar descontos corretos ao Bling
 
-Substituir o TODO existente por uma chamada real à edge function:
+Cada item será enviado com seu percentual específico:
 
 ```typescript
-const finalizarVenda = useMutation({
-  mutationFn: async () => {
-    // 1. Salvar no banco vendas_balcao (já existe)
-    const { data: venda, error } = await supabase
-      .from("vendas_balcao")
-      .insert({
-        vendedor_id: vendedor.id,
-        polo: "penha",
-        cliente_nome: clienteNome,
-        cliente_cpf: clienteCpf || null,
-        cliente_telefone: clienteTelefone || null,
-        itens: itensComDesconto,
-        valor_subtotal: subtotal,
-        valor_desconto: valorDesconto, // NOVO: salvar desconto
-        valor_total: total,
-        forma_pagamento: formaPagamento,
-        status: "concluida",
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // 2. NOVO: Criar pedido no Bling
-    const blingResponse = await supabase.functions.invoke('bling-create-order', {
-      body: {
-        forma_pagamento: 'pagamento_loja',
-        forma_pagamento_loja: formaPagamento,
-        deposito_origem: 'local',
-        cliente_nome: clienteNome,
-        cliente_documento: clienteCpf,
-        itens: carrinho.map(item => ({
-          bling_produto_id: item.produto.bling_produto_id,
-          titulo: item.produto.titulo,
-          quantidade: item.quantidade,
-          preco_cheio: item.produto.preco_cheio,
-          valor: item.produto.preco_cheio * (1 - DESCONTO_REPRESENTANTE),
-          descontoItem: DESCONTO_REPRESENTANTE * 100, // 30
-        })),
-        valor_total: total,
-        observacoes: `PDV Balcão - ${formaPagamento.toUpperCase()}`,
-        venda_balcao_id: venda.id,
-      }
-    });
-
-    if (blingResponse.error) {
-      console.error("Erro Bling:", blingResponse.error);
-      // Não bloqueia a venda, apenas loga o erro
-    }
-
-    return venda;
-  },
-  // ...
-});
+itens: carrinho.map(item => {
+  const categoria = categorizarProduto(item.produto.titulo);
+  const descontoItem = descontosPorCategoria?.[categoria] || 0;
+  
+  return {
+    bling_produto_id: item.produto.bling_produto_id,
+    titulo: item.produto.titulo,
+    quantidade: item.quantidade,
+    preco_cheio: item.produto.preco_cheio,
+    valor: item.produto.preco_cheio * (1 - descontoItem / 100),
+    descontoItem: descontoItem, // 30% ou 40% conforme categoria
+  };
+}),
 ```
 
-#### 4. Atualizar exibição de totais
-
-Mostrar subtotal, desconto e total final:
-
-```text
-+------------------------------------------+
-| Subtotal:           R$ 760,78            |
-| Desconto (30%):    -R$ 228,23            |
-| ---------------------------------------- |
-| TOTAL:              R$ 532,55            |
-+------------------------------------------+
-```
-
-## Estrutura de Dados para o Bling
-
-Cada item será enviado com:
-
-| Campo | Valor | Uso no Bling |
-|-------|-------|--------------|
-| `preco_cheio` | 45.00 | Preço de tabela (referência) |
-| `valor` | 31.50 | Preço líquido após desconto |
-| `descontoItem` | 30 | Percentual de desconto |
-
-O desconto global será calculado automaticamente pela edge function e aplicado no nível do pedido Bling.
-
-## Fluxo Completo Após Correção
+## Fluxo Corrigido
 
 ```text
 1. Vendedora Gloria abre PDV Balcão
-2. Busca e adiciona produtos ao carrinho
-3. Sistema exibe preços com 30% de desconto AUTOMATICAMENTE
-4. Vendedora preenche dados do cliente
-5. Vendedora seleciona forma de pagamento (PIX/Cartão/Dinheiro)
-6. Clica em "Finalizar Venda"
-7. Sistema salva em vendas_balcao COM valor_desconto
-8. Sistema chama bling-create-order
-9. Bling cria pedido com desconto correto
-10. NF-e é emitida automaticamente com valor R$ 532,55
+2. BUSCA/SELECIONA o cliente "IGREJA EVANGELICA MINISTERIO APOSTOLICO..."
+3. Sistema carrega descontos cadastrados: 30% para todas as categorias
+4. Adiciona produtos ao carrinho
+5. Sistema categoriza cada produto e aplica desconto correspondente:
+   - "Revista Adultos" → categoria "revistas" → 30% off
+   - "Bíblia NVI" → categoria "biblias" → 30% off
+6. Finaliza venda
+7. Sistema envia ao Bling com descontos POR ITEM
+8. NF-e é emitida com valores corretos
+```
+
+## Caso de Uso: Cliente ADVEC SARACURUNA
+
+Se o cliente tiver 40% cadastrado:
+- Subtotal: R$ 760,78
+- Desconto (40%): -R$ 304,31
+- **Total: R$ 456,47**
+
+## Interface Proposta
+
+```text
++------------------------------------------+
+| PDV Balcão - Polo Penha                  |
++------------------------------------------+
+| 👤 Cliente: [Buscar cliente...]          |
+|    ADVEC SARACURUNA                      |
+|    Descontos: 40% todas categorias       |
++------------------------------------------+
+| 🛒 Carrinho                              |
+| +--------------------------------------+ |
+| | Revista Adultos                      | |
+| | Revistas EBD • -40%                  | |
+| | R$ 45,00 → R$ 27,00                  | |
+| +--------------------------------------+ |
+| | Bíblia NVI                           | |
+| | Bíblias • -40%                       | |
+| | R$ 89,90 → R$ 53,94                  | |
+| +--------------------------------------+ |
++------------------------------------------+
+| Subtotal:        R$ 134,90              |
+| Desconto (40%): -R$ 53,96               |
+| TOTAL:           R$ 80,94               |
++------------------------------------------+
 ```
 
 ## Resultado Esperado
 
-- Todas as NF-es futuras do PDV Balcão serão emitidas com o valor correto (com 30% de desconto)
-- O registro no banco terá `valor_desconto` preenchido para auditoria
-- O pedido Bling terá a estrutura correta para emissão de NF-e
-- A vendedora não precisa fazer nenhum cálculo manual
+- Cada cliente terá seu desconto específico por categoria aplicado
+- NF-es serão emitidas com valores corretos
+- Sistema flexível: clientes podem ter % diferentes por categoria
+- Compatível com clientes ADVEC (40%), Igrejas (30%), etc.
 
