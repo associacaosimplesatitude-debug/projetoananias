@@ -1,253 +1,143 @@
 
-# Plano: Sincronização de Vendas do Bling para Royalties
 
-## Resumo
+# Plano: Permitir Vincular Livro Existente ao Bling
 
-Integrar a página `/royalties/vendas` com o Bling ERP para importar automaticamente o histórico de vendas de livros cadastrados. O sistema irá buscar todos os pedidos de venda no Bling, filtrar os itens que correspondem aos livros cadastrados (via `bling_produto_id`), e calcular os royalties automaticamente.
+## Problema Identificado
+
+O livro "O Cativeiro Babilônico" foi cadastrado **manualmente** (sem usar a busca do Bling), por isso o campo `bling_produto_id` está vazio (`null`). A sincronização de vendas do Bling só funciona para livros que possuem este campo preenchido.
+
+Atualmente:
+- A busca do Bling só aparece ao **criar** um novo livro (`{!livro && ...}`)
+- Não há opção de vincular um livro existente ao produto do Bling
+
+## Solução
+
+Modificar o formulário de edição de livros para permitir buscar e vincular o produto do Bling mesmo em livros já cadastrados.
 
 ---
 
-## Fluxo de Uso
+## Alterações
 
-```text
-+-------------------------------------------------------------------+
-|                      VENDAS (Royalties)                           |
-+-------------------------------------------------------------------+
-|                                                                   |
-|  [🔄 Sincronizar com Bling]    [➕ Registrar Venda Manual]        |
-|                                                                   |
-|  ┌─────────────────────────────────────────────────────────────┐  |
-|  │ Cards de Resumo                                             │  |
-|  │ ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │  |
-|  │ │ Total Vendas│ │ Qtd. Livros │ │ Total Royalties a Pagar │ │  |
-|  │ │   R$ 15.450 │ │     342     │ │        R$ 1.545,00      │ │  |
-|  │ └─────────────┘ └─────────────┘ └─────────────────────────┘ │  |
-|  └─────────────────────────────────────────────────────────────┘  |
-|                                                                   |
-|  ┌─────────────────────────────────────────────────────────────┐  |
-|  │ Tabela de Vendas                                            │  |
-|  │ Data     | Livro           | Autor    | Qtd | Comissão      │  |
-|  │ 29/01/26 | O Cativeiro...  | João...  |  5  | R$ 11,22      │  |
-|  │ 28/01/26 | Jornada de Fé   | Maria... | 10  | R$ 45,00      │  |
-|  │ ...                                                         │  |
-|  └─────────────────────────────────────────────────────────────┘  |
-|                                                                   |
-+-------------------------------------------------------------------+
+### 1. Atualizar `LivroDialog.tsx`
+
+Remover a restrição que esconde a busca do Bling ao editar:
+
+**Antes:**
+```tsx
+{!livro && (
+  <BlingProductSearch
+    onSelect={handleBlingProductSelect}
+    disabled={loading}
+  />
+)}
 ```
 
----
-
-## Componentes
-
-### 1. Edge Function: `bling-sync-royalties-sales`
-
-Nova edge function para sincronizar vendas do Bling:
-
-**Endpoint:** `POST /functions/v1/bling-sync-royalties-sales`
-
-**Payload (opcional):**
-```json
-{
-  "days_back": 90,
-  "dry_run": false
-}
+**Depois:**
+```tsx
+<BlingProductSearch
+  onSelect={handleBlingProductSelect}
+  disabled={loading}
+  currentBlingId={formData.bling_produto_id}
+/>
 ```
 
-**Resposta:**
-```json
-{
-  "success": true,
-  "synced": 15,
-  "skipped": 5,
-  "errors": 0,
-  "summary": {
-    "total_quantidade": 150,
-    "total_valor_vendas": 3500.00,
-    "total_royalties": 350.00
-  }
-}
-```
+### 2. Melhorar `BlingProductSearch.tsx`
 
-**Lógica:**
-1. Buscar todos os livros cadastrados com `bling_produto_id` preenchido
-2. Buscar pedidos de venda no Bling (últimos N dias)
-3. Para cada pedido, buscar detalhes e extrair itens
-4. Filtrar itens que correspondem a livros cadastrados (comparar `codigo` com `bling_produto_id`)
-5. Agrupar vendas por livro + data
-6. Calcular comissão baseada no percentual do `royalties_comissoes`
-7. Inserir na tabela `royalties_vendas` (com upsert para evitar duplicatas)
+Adicionar indicador visual quando o livro já está vinculado ao Bling:
+
+- Mostrar o ID do produto Bling atual (se existir)
+- Permitir trocar o vínculo
+- Manter a funcionalidade de busca
+
+### 3. Exibir status de vinculação na lista de livros
+
+Na página de livros (`/royalties/livros`), adicionar um indicador visual mostrando se o livro está vinculado ao Bling ou não:
+
+- Badge verde: "Vinculado ao Bling"
+- Badge amarelo: "Sem vínculo" (não sincroniza vendas)
 
 ---
 
-### 2. Migração: Adicionar campo `bling_order_id` na royalties_vendas
+## Fluxo do Usuário
 
-Para evitar duplicatas ao sincronizar:
-
-```sql
-ALTER TABLE public.royalties_vendas 
-ADD COLUMN IF NOT EXISTS bling_order_id BIGINT DEFAULT NULL;
-
-ALTER TABLE public.royalties_vendas 
-ADD COLUMN IF NOT EXISTS bling_order_number TEXT DEFAULT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_royalties_vendas_bling_unique 
-ON public.royalties_vendas(bling_order_id, livro_id) 
-WHERE bling_order_id IS NOT NULL;
-```
+1. Acessar `/royalties/livros`
+2. Clicar no livro "O Cativeiro Babilônico" para editar
+3. Na seção "Importar do Bling", buscar por "33476" ou pelo título
+4. Selecionar o produto correto
+5. Salvar - o `bling_produto_id` será preenchido
+6. Ir para `/royalties/vendas` e clicar em "Sincronizar com Bling"
+7. As vendas serão importadas automaticamente
 
 ---
-
-### 3. Atualização: `Vendas.tsx`
-
-Modificar a página de vendas para incluir:
-
-1. **Botão "Sincronizar com Bling"** no cabeçalho
-2. **Cards de resumo** com totais:
-   - Total de vendas (R$)
-   - Quantidade de livros vendidos
-   - Total de royalties pendentes
-3. **Indicador de sincronização** (última sincronização, status)
-4. **Filtros** por período (últimos 7 dias, 30 dias, 90 dias, personalizado)
-
----
-
-### 4. Componente: `BlingSyncButton`
-
-Novo componente para o botão de sincronização:
-
-**Props:**
-```typescript
-interface BlingSyncButtonProps {
-  onSyncComplete: () => void;
-}
-```
-
-**Funcionalidades:**
-- Botão com ícone de refresh
-- Estado de loading durante sincronização
-- Toast com resultado da sincronização
-- Exibir quantidade de registros sincronizados
-
----
-
-## Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/bling-sync-royalties-sales/index.ts` | Edge function para sincronizar vendas do Bling |
-| `src/components/royalties/BlingSyncButton.tsx` | Componente do botão de sincronização |
-| `src/components/royalties/VendasSummaryCards.tsx` | Cards de resumo de vendas |
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/royalties/Vendas.tsx` | Integrar componentes e sincronização |
-| `supabase/config.toml` | Registrar nova edge function |
+| `src/components/royalties/LivroDialog.tsx` | Mostrar BlingProductSearch também ao editar |
+| `src/components/royalties/BlingProductSearch.tsx` | Adicionar prop para mostrar vínculo atual |
+| `src/pages/royalties/Livros.tsx` | Adicionar indicador de vínculo na tabela |
 
 ---
 
 ## Seção Técnica
 
-### Lógica de Mapeamento Bling → Royalties
+### Mudança no LivroDialog.tsx
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ BLING API                                                       │
-│ GET /pedidos/vendas?dataInicial=2026-01-01&limite=100          │
-│                                                                 │
-│ Resposta (lista):                                              │
-│ { data: [ { id: 123, ... }, { id: 456, ... } ] }               │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ GET /pedidos/vendas/{id} (para cada pedido)                    │
-│                                                                 │
-│ Resposta (detalhes):                                           │
-│ {                                                              │
-│   id: 123,                                                     │
-│   data: "2026-01-29",                                          │
-│   situacao: { id: 31, nome: "Atendido" },                      │
-│   itens: [                                                     │
-│     { codigo: "9876543", descricao: "Livro X", quantidade: 2, │
-│       valor: 45.90, produto: { id: 9876543 } }                 │
-│   ]                                                            │
-│ }                                                              │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ LÓGICA DE SINCRONIZAÇÃO                                        │
-│                                                                 │
-│ 1. Carregar livros com bling_produto_id preenchido             │
-│    Map<bling_produto_id, { livro_id, percentual }>             │
-│                                                                 │
-│ 2. Para cada item do pedido:                                   │
-│    - Verificar se item.codigo ou item.produto.id está no Map   │
-│    - Se sim, calcular royalty:                                 │
-│      valor_comissao = item.valor * item.quantidade * percentual │
-│                                                                 │
-│ 3. Upsert em royalties_vendas (ON CONFLICT bling_order_id,     │
-│    livro_id)                                                   │
-└─────────────────────────────────────────────────────────────────┘
+```typescript
+// Linha ~221-227 - Remover condicional !livro
+<BlingProductSearch
+  onSelect={handleBlingProductSelect}
+  disabled={loading}
+  currentBlingId={formData.bling_produto_id}
+/>
 ```
 
-### Rate Limiting
+### Nova prop no BlingProductSearch
 
-O Bling permite 3 requisições/segundo. A edge function implementará:
-- Delay de 350ms entre chamadas
-- Retry automático em caso de 429 (Too Many Requests)
-- Limite de 500 pedidos por sincronização
-
-### Filtros de Pedidos
-
-Apenas pedidos com status "Atendido" (id: 31 ou similar) serão considerados vendas efetivas. Pedidos cancelados ou pendentes serão ignorados.
-
-### Estrutura da Edge Function
-
-```text
-bling-sync-royalties-sales/
-└── index.ts
-    ├── corsHeaders
-    ├── refreshBlingToken() - Renovar token se expirado
-    ├── isTokenExpired() - Verificar expiração
-    ├── blingApiCall() - Chamada com retry/rate limit
-    ├── loadBooksWithBlingId() - Carregar livros do DB
-    ├── loadComissions() - Carregar percentuais
-    ├── syncOrders() - Loop principal
-    └── serve() - Handler
+```typescript
+interface BlingProductSearchProps {
+  onSelect: (product: BlingProduct) => void;
+  disabled?: boolean;
+  currentBlingId?: number | null; // NOVO: ID atual vinculado
+}
 ```
 
-### Campos Inseridos em royalties_vendas
+### Indicador visual no componente
 
-| Campo | Origem |
-|-------|--------|
-| `livro_id` | Mapeamento via bling_produto_id |
-| `quantidade` | item.quantidade |
-| `valor_unitario` | item.valor |
-| `valor_comissao_unitario` | calculado |
-| `valor_comissao_total` | calculado |
-| `data_venda` | pedido.data |
-| `bling_order_id` | pedido.id |
-| `bling_order_number` | pedido.numero |
+Se `currentBlingId` estiver preenchido, mostrar:
+```tsx
+{currentBlingId && (
+  <div className="text-xs text-green-600 flex items-center gap-1">
+    <Check className="h-3 w-3" />
+    Vinculado ao Bling (ID: {currentBlingId})
+  </div>
+)}
+```
+
+### Badge na lista de livros
+
+```tsx
+{livro.bling_produto_id ? (
+  <Badge variant="outline" className="bg-green-50 text-green-700">
+    <Link2 className="h-3 w-3 mr-1" />
+    Bling
+  </Badge>
+) : (
+  <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
+    <Unlink className="h-3 w-3 mr-1" />
+    Sem vínculo
+  </Badge>
+)}
+```
 
 ---
 
-## Sequência de Implementação
+## Resultado Esperado
 
-1. **Database:** Adicionar colunas `bling_order_id` e `bling_order_number` em `royalties_vendas`
-2. **Edge Function:** Criar `bling-sync-royalties-sales`
-3. **Componentes:** Criar `BlingSyncButton` e `VendasSummaryCards`
-4. **Integração:** Atualizar `Vendas.tsx` com novos componentes
-5. **Config:** Registrar função no `config.toml`
-6. **Testes:** Validar sincronização com dados reais
+Após as alterações:
+1. O usuário poderá editar o livro "O Cativeiro Babilônico"
+2. Buscar pelo SKU 33476 no Bling
+3. Vincular o produto
+4. As vendas futuras e passadas serão sincronizadas corretamente
 
----
-
-## Considerações
-
-- **Livros sem `bling_produto_id`:** Não serão sincronizados automaticamente. O usuário deve vincular os livros ao Bling no cadastro.
-- **Vendas manuais:** O botão "Registrar Venda" continua disponível para vendas fora do Bling.
-- **Duplicatas:** O índice único em `(bling_order_id, livro_id)` garante que cada item de pedido seja sincronizado apenas uma vez.
-- **Performance:** A primeira sincronização pode levar alguns minutos para processar histórico extenso.
