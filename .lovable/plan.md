@@ -1,93 +1,94 @@
 
-# Plano: Criar Usuário para Ronald Gustavo e Vincular ao Autor
+# Plano: Adicionar CRON Job Diário para Sincronização de Royalties
+
+## Objetivo
+Manter o botão de sincronização manual e adicionar um CRON job que executa automaticamente uma vez por dia.
+
+---
 
 ## Situação Atual
 
-| Item | Status | Detalhes |
-|------|--------|----------|
-| Autor "Ronald Gustavo" | ✅ Cadastrado | `id: b7afbdf2-a0fb-4c4c-b85c-b31f439c24b5` |
-| Email do autor | ✅ | `ronald@centralgospel.com.br` |
-| Livro "O Cativeiro Babilônico" | ✅ Vinculado | `autor_id` já aponta para Ronald |
-| Usuário no sistema | ❌ Não existe | Precisa criar |
-| Acesso ao Portal do Autor | ❌ Bloqueado | `user_id` está `null` |
+| Componente | Status |
+|------------|--------|
+| Edge Function `bling-sync-royalties-sales` | ✅ Existe e funciona |
+| Botão "Sincronizar Bling" | ✅ Existe na página de Vendas |
+| CRON Job automático | ❌ Não existe |
 
 ---
 
 ## Ações Necessárias
 
-### 1. Criar Usuário de Autenticação
+### 1. Criar CRON Job Diário
 
-Usar a edge function `create-auth-user-direct` para criar:
-- **Email**: `ronald@centralgospel.com.br`
-- **Senha**: Será definida (sugiro uma senha segura como `Ronald@2026!`)
-- **Nome**: `Ronald Gustavo`
+Adicionar um job que executa todos os dias as 6h da manha (horario de Brasilia):
 
-### 2. Vincular Usuário ao Autor
-
-Atualizar a tabela `royalties_autores`:
 ```sql
-UPDATE royalties_autores 
-SET user_id = '{novo_user_id}'
-WHERE id = 'b7afbdf2-a0fb-4c4c-b85c-b31f439c24b5';
+SELECT cron.schedule(
+  'royalties-sync-daily',
+  '0 9 * * *',  -- 9h UTC = 6h Brasilia
+  $$
+  SELECT net.http_post(
+    url := 'https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/bling-sync-royalties-sales',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer ..."}'::jsonb,
+    body := '{"days_back": 7, "max_nfes": 100}'::jsonb
+  ) AS request_id;
+  $$
+);
 ```
 
-### 3. Atribuir Role "autor"
+---
 
-Inserir na tabela `user_roles`:
-```sql
-INSERT INTO user_roles (user_id, role)
-VALUES ('{novo_user_id}', 'autor');
-```
+## Configuracao do CRON
+
+| Parametro | Valor | Motivo |
+|-----------|-------|--------|
+| Horario | 6h (Brasilia) | Antes do expediente |
+| Frequencia | Diaria | Atualiza dados para o dia |
+| `days_back` | 7 | Busca NFes dos ultimos 7 dias |
+| `max_nfes` | 100 | Processa ate 100 NFes por execucao |
 
 ---
 
 ## Resultado Esperado
 
-Após as alterações:
-- ✅ Ronald poderá fazer login com `ronald@centralgospel.com.br` + senha definida
-- ✅ Terá acesso ao **Portal do Autor** (`/autor`)
-- ✅ Verá seus livros, vendas e royalties
-- ✅ Poderá editar seu perfil (telefone, dados bancários)
+Apos a implementacao:
+- ✅ Botao manual continua funcionando normalmente
+- ✅ Dados sincronizados automaticamente todo dia as 6h
+- ✅ Painel Admin e Portal do Autor atualizados automaticamente
+- ✅ Menos dependencia de acao manual
 
 ---
 
-## Credenciais de Acesso
+## Secao Tecnica
 
-| Campo | Valor |
-|-------|-------|
-| Email | `ronald@centralgospel.com.br` |
-| Senha | `Ronald@2026!` (sugestão - pode alterar) |
-| URL de acesso | `/ebd-login` ou direto `/autor` |
+### SQL para criar o CRON Job
 
----
-
-## Seção Técnica
-
-### Chamada da Edge Function
-
-```typescript
-// create-auth-user-direct
-{
-  email: "ronald@centralgospel.com.br",
-  password: "Ronald@2026!",
-  full_name: "Ronald Gustavo"
-}
+```sql
+-- Criar CRON job para sincronizar royalties diariamente
+SELECT cron.schedule(
+  'royalties-bling-sync-daily',
+  '0 9 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/bling-sync-royalties-sales',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jY3lydmZudmpuZ2Z5ZnZnbnd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NjMzNzQsImV4cCI6MjA3OTAzOTM3NH0.X7KFK1yGyeD0wqHQXCCLDqh9YBixDXYl9qNzwY6LXCI"}'::jsonb,
+    body := '{"days_back": 7, "max_nfes": 100}'::jsonb
+  ) AS request_id;
+  $$
+);
 ```
 
-### Atualizações no Banco
+### Extensoes Necessarias
 
-1. **Update royalties_autores**: Vincular `user_id` retornado
-2. **Insert user_roles**: Adicionar role `autor` para o novo usuário
+As extensoes `pg_cron` e `pg_net` ja estao habilitadas no projeto (varios CRONs ja existem).
 
-### Fluxo de Execução
+### Lista de CRONs Existentes
 
-```text
-1. Chamar edge function create-auth-user-direct
-   → Retorna userId do novo usuário
+O projeto ja possui CRONs para:
+- `bling-sync-order-status-every-15min` (a cada 15 min)
+- `bling-sync-stock-hourly` (a cada hora)
+- `atualizar-comissao-status-diario` (6h diario)
+- `sync-marketplace-orders` (a cada 30 min)
+- E outros...
 
-2. UPDATE royalties_autores SET user_id = ? WHERE id = ?
-   → Vincula autor ao usuário
-
-3. INSERT INTO user_roles (user_id, role) VALUES (?, 'autor')
-   → Libera acesso ao portal
-```
+O novo CRON seguira o mesmo padrao.
