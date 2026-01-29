@@ -56,11 +56,29 @@ import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
 import { AlunoLayout } from "@/components/ebd/aluno/AlunoLayout";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { RoyaltiesAdminLayout } from "@/components/royalties/RoyaltiesAdminLayout";
+import { AutorLayout } from "@/components/royalties/AutorLayout";
+import { RoyaltiesProtectedRoute } from "@/components/royalties/RoyaltiesProtectedRoute";
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import NotFound from "./pages/NotFound";
 import DashboardRedirect from "./components/DashboardRedirect";
+
+// Royalties Pages
+import RoyaltiesDashboard from "./pages/royalties/Dashboard";
+import RoyaltiesAutores from "./pages/royalties/Autores";
+import RoyaltiesLivros from "./pages/royalties/Livros";
+import RoyaltiesVendas from "./pages/royalties/Vendas";
+import RoyaltiesPagamentos from "./pages/royalties/Pagamentos";
+import RoyaltiesRelatorios from "./pages/royalties/Relatorios";
+
+// Autor Pages
+import AutorDashboard from "./pages/autor/Dashboard";
+import AutorMeusLivros from "./pages/autor/MeusLivros";
+import AutorExtrato from "./pages/autor/Extrato";
+import AutorMeusPagamentos from "./pages/autor/MeusPagamentos";
+import AutorPerfil from "./pages/autor/Perfil";
 
 // EBD Pages
 import EBDIndex from "./pages/ebd/Index";
@@ -478,6 +496,39 @@ const App = () => (
                         <VendedorAtivacaoEBD />
                       </VendedorProtectedRoute>
                     } />
+                    
+                    {/* Royalties Admin Routes */}
+                    <Route
+                      path="/royalties"
+                      element={
+                        <RoyaltiesProtectedRoute requireAdmin>
+                          <RoyaltiesAdminLayout />
+                        </RoyaltiesProtectedRoute>
+                      }
+                    >
+                      <Route index element={<RoyaltiesDashboard />} />
+                      <Route path="autores" element={<RoyaltiesAutores />} />
+                      <Route path="livros" element={<RoyaltiesLivros />} />
+                      <Route path="vendas" element={<RoyaltiesVendas />} />
+                      <Route path="pagamentos" element={<RoyaltiesPagamentos />} />
+                      <Route path="relatorios" element={<RoyaltiesRelatorios />} />
+                    </Route>
+
+                    {/* Autor Routes */}
+                    <Route
+                      path="/autor"
+                      element={
+                        <RoyaltiesProtectedRoute requireAutor>
+                          <AutorLayout />
+                        </RoyaltiesProtectedRoute>
+                      }
+                    >
+                      <Route index element={<AutorDashboard />} />
+                      <Route path="livros" element={<AutorMeusLivros />} />
+                      <Route path="extrato" element={<AutorExtrato />} />
+                      <Route path="pagamentos" element={<AutorMeusPagamentos />} />
+                      <Route path="perfil" element={<AutorPerfil />} />
+                    </Route>
                     
                     <Route path="*" element={<NotFound />} />
                   </Routes>
