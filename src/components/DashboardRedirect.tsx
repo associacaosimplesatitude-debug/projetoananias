@@ -192,6 +192,18 @@ export default function DashboardRedirect() {
     return <Navigate to="/admin" replace />;
   }
 
+  // Gerente Royalties redirects to Royalties dashboard
+  if (role === 'gerente_royalties') {
+    console.log('DashboardRedirect - Redirecting gerente_royalties to /royalties');
+    return <Navigate to="/royalties" replace />;
+  }
+
+  // Autor redirects to Autor dashboard
+  if (role === 'autor') {
+    console.log('DashboardRedirect - Redirecting autor to /autor');
+    return <Navigate to="/autor" replace />;
+  }
+
   // Gerente EBD redirects to Admin EBD
   if (role === 'gerente_ebd') {
     console.log('DashboardRedirect - Redirecting gerente_ebd to /admin/ebd');
