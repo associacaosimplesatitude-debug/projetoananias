@@ -5,11 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Download, BarChart3, TrendingUp, Filter } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { FileText, Download, BarChart3, TrendingUp, Filter, FileSpreadsheet } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { exportToPDF, exportToExcel } from "@/utils/royaltiesExport";
 
 export default function RoyaltiesRelatorios() {
   const [tipoRelatorio, setTipoRelatorio] = useState<"vendas" | "comissoes" | "pagamentos">("vendas");
@@ -276,10 +278,38 @@ export default function RoyaltiesRelatorios() {
                 {dadosRelatorio.length} registros encontrados
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" disabled>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={dadosRelatorio.length === 0}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem 
+                  onClick={() => exportToPDF({ 
+                    tipoRelatorio, 
+                    dataInicio, 
+                    dataFim, 
+                    dados: dadosRelatorio 
+                  })}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Exportar PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => exportToExcel({ 
+                    tipoRelatorio, 
+                    dataInicio, 
+                    dataFim, 
+                    dados: dadosRelatorio 
+                  })}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Exportar Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardHeader>
         <CardContent>
