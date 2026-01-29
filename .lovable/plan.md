@@ -1,104 +1,294 @@
 
-Objetivo
-- Garantir que a NF-e gerada automaticamente herde o valor líquido do pedido (com desconto), mesmo quando o Bling ignora o campo de desconto global no payload do POST /nfe.
 
-Diagnóstico confirmado (com evidência)
-- Para o pedido/cliente “ADVEC SARACURUNA”, o backend gerou a NF-e com o payload contendo:
-  - itens[0].valor = 10
-  - desconto = { valor: 4, unidade: "REAL" }
-- Mesmo assim, você confirmou que o total da NF-e no Bling ficou “cheio” (10,00), indicando que o Bling está ignorando (ou não aplicando) esse campo “desconto” no endpoint de criação da NF-e para esse cenário.
+# Sistema de Gestão de Royalties para Editora
 
-Hipótese técnica mais provável
-- O endpoint de criação da NF-e do Bling (v3) não aplica desconto global via campo `desconto` (ou espera esse desconto em outro lugar/estrutura).
-- Como resultado, mesmo enviando `nfePayload.desconto`, a NF-e fica com total igual à soma dos itens.
+## Resumo do Projeto
 
-Estratégia de correção (robusta)
-- Manter a leitura do desconto do pedido (campo `pedido.desconto` e fallback totalProdutos - total) como já foi feito.
-- Trocar o modo de aplicação do desconto na NF-e para “valor líquido nos itens” quando detectarmos que o desconto global não está sendo aplicado:
-  1) Calcular o total bruto dos itens (somatório item.valor * qtd).
-  2) Calcular o total líquido esperado (preferência: `pedido.total` quando existir e for numérico; fallback: bruto - descontoGlobal).
-  3) Distribuir o desconto global proporcionalmente entre os itens e ajustar `itensNfe[].valor` (preço unitário) para que a soma final bata com o total líquido esperado.
-  4) Nessa modalidade, NÃO enviar `nfePayload.desconto` (para evitar risco de desconto em duplicidade caso o Bling passe a aplicar no futuro).
-  5) Garantir arredondamento em 2 casas decimais e “ajuste do último item” para eliminar diferença de centavos.
+Sistema web completo para gestão de royalties de uma editora, com dois painéis principais:
+- **Painel Administrativo**: Para a equipe da editora gerenciar autores, livros, vendas e pagamentos
+- **Painel do Autor**: Para autores acompanharem seus ganhos de forma transparente
 
-Validação automática (sem você precisar criar novo pedido)
-- Adicionar diagnóstico no próprio `bling-generate-nfe` após a criação da NF-e, lendo o detalhe da NF-e (GET /nfe/{id}) e registrando no log:
-  - totais do XML (quando houver) e/ou campos de totalização disponíveis no retorno (ex.: vProd, vDesc, vNF).
-- Se o diagnóstico indicar que o total da NF-e ficou igual ao total bruto (isto é, desconto não aplicado), o fluxo passa a:
-  - Cancelar/excluir a NF-e recém-criada se ela ainda estiver em rascunho (dependendo do que a API permitir; se não permitir, pelo menos retornar erro orientando a excluir manualmente a NF-e duplicada)
-  - Recriar imediatamente a NF-e usando o modo “itens líquidos” descrito acima
-  - Prosseguir com envio/polling normalmente
+## Arquitetura do Sistema
 
-Observações importantes (para não quebrar operações)
-- Evitar “duplo desconto”: nunca enviar simultaneamente itens líquidos + `nfePayload.desconto`.
-- Lidar com múltiplos itens: distribuição proporcional do desconto e ajuste final de centavos no último item.
-- Lidar com itens com quantidade > 1: aplicar desconto no total do item e recalcular valor unitário.
-- Lidar com casos sem `pedido.total`: usar (totalProdutos - desconto) como referência.
-- Manter logs claros com:
-  - totalBrutoItens
-  - descontoGlobalDetectado
-  - totalLiquidoEsperado
-  - totalLiquidoCalculadoPelosItens
-  - diferença final em centavos
+### Estrutura de Dados
 
-Arquivos a alterar
-- supabase/functions/bling-generate-nfe/index.ts
-  - Implementar:
-    - extração/diagnóstico de totais na NF-e retornada (XML e/ou campos do retorno)
-    - modo de geração “itens líquidos” com rateio do desconto
-    - fallback automático: se Bling ignorar desconto global, recriar NF-e com itens líquidos
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│                        BANCO DE DADOS                            │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────────┐    │
+│  │  autores    │     │   livros    │     │    comissoes    │    │
+│  │─────────────│     │─────────────│     │─────────────────│    │
+│  │ id          │◄────┤ autor_id    │     │ livro_id        │───►│
+│  │ user_id     │     │ titulo      │◄────┤ percentual      │    │
+│  │ nome        │     │ valor_capa  │     │ periodo_pgto    │    │
+│  │ cpf_cnpj    │     │ capa_url    │     └─────────────────┘    │
+│  │ endereco    │     └─────────────┘                            │
+│  │ dados_banco │                                                 │
+│  └─────────────┘     ┌─────────────┐     ┌─────────────────┐    │
+│                      │   vendas    │     │   pagamentos    │    │
+│                      │─────────────│     │─────────────────│    │
+│                      │ livro_id    │     │ autor_id        │    │
+│                      │ quantidade  │     │ valor_total     │    │
+│                      │ vlr_comissao│     │ data_prevista   │    │
+│                      │ data_venda  │     │ status          │    │
+│                      └─────────────┘     │ comprovante_url │    │
+│                                          └─────────────────┘    │
+│                                                                  │
+│  ┌─────────────────┐     ┌─────────────────────────────────┐    │
+│  │   user_roles    │     │          audit_logs             │    │
+│  │─────────────────│     │─────────────────────────────────│    │
+│  │ user_id         │     │ user_id, acao, tabela, dados    │    │
+│  │ role (enum)     │     │ created_at                      │    │
+│  └─────────────────┘     └─────────────────────────────────┘    │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-Sequência de implementação (passo a passo)
-1) Instrumentação de validação:
-   - Após criar a NF-e, chamar GET /nfe/{id} e extrair:
-     - do XML: vProd, vDesc, vNF (quando disponível)
-     - caso XML não exista, logar campos numéricos de totalização disponíveis no JSON.
-   - Logar “expected vs actual”:
-     - esperado: totalLiquidoEsperado (do pedido)
-     - atual: total da NF-e (do XML/JSON)
-2) Implementar cálculo do total líquido esperado:
-   - Preferir `pedido.total` quando numérico e > 0
-   - Caso contrário, usar (totalBrutoItens - descontoGlobal)
-3) Implementar “rateio de desconto”:
-   - Somar total bruto por item = valor * quantidade
-   - Para cada item:
-     - parte do desconto = descontoGlobal * (itemTotalBruto / totalBrutoItens)
-     - itemTotalLiquido = itemTotalBruto - parte do desconto
-     - valorUnitLiquido = round2(itemTotalLiquido / quantidade)
-   - Ajustar o último item para corrigir diferenças por arredondamento:
-     - diferença = totalLiquidoEsperado - somaLiquidaCalculada
-     - aplicar diferença no último item (unitário) respeitando 2 casas
-4) Montar nfePayload em modo “itens líquidos”:
-   - itens: usar os valores unitários líquidos
-   - remover `nfePayload.desconto`
-   - (opcional) adicionar observação/infocomplementar indicando “Desconto aplicado no valor unitário dos itens para refletir total líquido do pedido” (apenas se for útil operacionalmente)
-5) Fallback automático:
-   - Se a NF-e criada em modo normal (com desconto global) resultar em total cheio:
-     - tentar cancelar/excluir via API (se endpoint existir/funcionar em rascunho)
-     - recriar com itens líquidos
-6) Teste prático sem novo pedido (reprocessar caso existente):
-   - Rodar o `bling-generate-nfe` novamente para um pedido recente com desconto onde a NF-e saiu cheia
-   - Confirmar em log:
-     - Detecção do problema (total cheio)
-     - Recriação com itens líquidos
-     - Total final batendo com o pedido
-   - Você valida visualmente no Bling o total final da NF-e
+### Fluxo de Navegação
 
-Critérios de aceite
-- Para pedidos com desconto global (ex.: 10,00 bruto e desconto 4,00), a NF-e deve aparecer com total 6,00 no Bling.
-- Logs devem mostrar claramente:
-  - desconto detectado
-  - total líquido esperado
-  - total final da NF-e após criação
-  - quando acionou fallback “itens líquidos”
-- Não deve haver casos de “duplo desconto”.
+```text
+                    ┌─────────────────┐
+                    │   Login Page    │
+                    │  /auth/login    │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              ▼                             ▼
+     ┌────────────────┐            ┌────────────────┐
+     │  ADMIN PANEL   │            │  AUTHOR PANEL  │
+     │    /admin      │            │    /autor      │
+     └───────┬────────┘            └───────┬────────┘
+             │                             │
+    ┌────────┼────────┐           ┌────────┼────────┐
+    ▼        ▼        ▼           ▼        ▼        ▼
+Dashboard  CRUD    Vendas     Dashboard  Livros  Extrato
+ │Autores  Pagtos              │Ganhos   │Vendas  │Pgtos
+ │Livros                       │KPIs     │        │
+```
 
-Riscos e mitigação
-- Risco: não existir endpoint de cancelamento/exclusão de NF-e em rascunho pela API.
-  - Mitigação: retornar erro informando que a NF-e anterior precisa ser removida manualmente e não prosseguir com envio; em seguida, orientar reprocesso para recriar corretamente.
-- Risco: diferenças de centavos em múltiplos itens.
-  - Mitigação: ajuste do último item e logs de diferença.
+## Fases de Implementação
 
-Nota adicional (fora do escopo principal, mas apareceu nos logs do app)
-- Há erros 406/PGRST116 ao consultar “role” do usuário (user_roles retornando 0 linhas com `.single()`).
-- Isso não impacta a NF-e, mas pode gerar ruído/instabilidade em outras telas; podemos corrigir depois ajustando as queries para `.maybeSingle()` ou usando `.select(...).limit(1)` sem coerção.
+### Fase 1: Infraestrutura Base
+
+**Banco de Dados - Tabelas:**
+
+| Tabela | Colunas Principais | RLS |
+|--------|-------------------|-----|
+| `autores` | id, user_id, nome_completo, email, cpf_cnpj, endereco, dados_bancarios (JSONB) | Admin: full access; Autor: próprio registro |
+| `livros` | id, titulo, descricao, capa_url, valor_capa, autor_id | Admin: full; Autor: próprios livros |
+| `comissoes` | id, livro_id, percentual, periodo_pagamento (enum) | Admin: full |
+| `vendas` | id, livro_id, quantidade, valor_comissao_unitario, valor_comissao_total, data_venda | Admin: full; Autor: via livros |
+| `pagamentos` | id, autor_id, valor_total, data_prevista, data_efetivacao, status, comprovante_url | Admin: full; Autor: próprios |
+| `audit_logs` | id, user_id, acao, tabela, dados_antigos, dados_novos, created_at | Admin: read only |
+| `user_roles` | id, user_id, role (enum: 'admin', 'autor') | Via função has_role |
+
+**Autenticação:**
+- Login com email/senha usando Supabase Auth
+- Criação de conta de autor pelo admin
+- Recuperação de senha ("Esqueci minha senha")
+- Roles separadas em tabela `user_roles`
+
+**Estrutura de Pastas:**
+```
+src/
+├── components/
+│   ├── admin/           # Componentes do painel admin
+│   ├── autor/           # Componentes do painel autor
+│   └── ui/              # Componentes UI (shadcn)
+├── pages/
+│   ├── auth/            # Login, recuperar senha
+│   ├── admin/           # Páginas do admin
+│   └── autor/           # Páginas do autor
+├── hooks/
+│   ├── useAuth.tsx
+│   ├── useAutores.tsx
+│   ├── useLivros.tsx
+│   ├── useVendas.tsx
+│   └── usePagamentos.tsx
+└── lib/
+    ├── validators.ts    # Validação CPF/CNPJ
+    └── formatters.ts    # Formatação moeda/data
+```
+
+### Fase 2: Painel Administrativo
+
+**2.1 Dashboard Admin (`/admin`)**
+- KPIs: Total royalties a pagar (30, 60, 90 dias)
+- Gráfico de vendas mensais (últimos 12 meses)
+- Top 5 autores com maiores ganhos
+- Top 5 livros mais vendidos
+- Botões de ação rápida
+
+**2.2 Gestão de Autores (`/admin/autores`)**
+- Listagem com busca e paginação
+- Formulário de cadastro/edição:
+  - Validação matemática de CPF/CNPJ
+  - Dados bancários (banco, agência, conta, tipo)
+  - Geração automática de conta de acesso
+- Página de detalhes do autor com:
+  - Todos os seus livros
+  - Histórico de vendas
+  - Histórico de pagamentos
+
+**2.3 Gestão de Livros (`/admin/livros`)**
+- Listagem com miniaturas das capas
+- Formulário com:
+  - Upload de imagem (bucket `royalties-capas`)
+  - Seleção de autor
+  - Configuração de comissão (% e período)
+  - Preview do cálculo em tempo real
+
+**2.4 Registro de Vendas (`/admin/vendas`)**
+- Formulário simples: livro + quantidade + data
+- Cálculo automático da comissão
+- Listagem com filtros (período, livro, autor)
+
+**2.5 Gestão de Pagamentos (`/admin/pagamentos`)**
+- Lista de pagamentos pendentes agrupados por autor
+- Marcar como pago + upload de comprovante
+- Histórico completo com filtros
+
+### Fase 3: Painel do Autor
+
+**3.1 Dashboard (`/autor`)**
+- Saldo atual a receber
+- Gráfico de ganhos mensais
+- Livros vendidos no mês
+- Data do próximo pagamento
+
+**3.2 Meus Livros (`/autor/livros`)**
+- Galeria visual com capas
+- Detalhes: comissão, vendas, ganhos
+- Relatório de vendas por livro
+
+**3.3 Extrato (`/autor/extrato`)**
+- Histórico de vendas em tempo real
+- Filtros por livro e período
+- Exportação (opcional)
+
+**3.4 Meus Pagamentos (`/autor/pagamentos`)**
+- Histórico com status
+- Download de comprovantes
+
+**3.5 Meus Dados (`/autor/perfil`)**
+- Visualizar/editar dados cadastrais
+- Atualizar dados bancários (com confirmação de senha)
+
+### Fase 4: Funcionalidades Avançadas
+
+**4.1 Cálculo de Comissões**
+```
+Valor Comissão = Valor de Capa × (Percentual / 100) × Quantidade
+```
+
+**4.2 Agrupamento por Período**
+- Vendas agrupadas conforme período configurado (1, 3, 6, 12 meses)
+- Data de vencimento calculada automaticamente
+
+**4.3 Relatórios (Excel/PDF)**
+- Relatório de vendas
+- Relatório de comissões
+- Projeção de pagamentos futuros
+
+**4.4 Notificações (opcional)**
+- Email ao autor quando livro vendido
+- Email ao autor quando pagamento realizado
+- Alerta ao admin sobre vencimentos próximos
+
+**4.5 Auditoria**
+- Log de todas as alterações
+- Quem, quando, o quê foi alterado
+
+## Validações Implementadas
+
+| Campo | Validação |
+|-------|-----------|
+| CPF | Algoritmo de dígito verificador |
+| CNPJ | Algoritmo de dígito verificador |
+| Email | Formato válido + único no sistema |
+| Dados bancários | Banco, agência e conta obrigatórios |
+| Percentual comissão | Entre 0.01 e 100 |
+| Quantidade venda | Inteiro positivo |
+
+## Componentes UI (usando shadcn/ui)
+
+- **Formulários**: react-hook-form + zod
+- **Tabelas**: DataTable com paginação e busca
+- **Gráficos**: Recharts
+- **Upload**: Dropzone para imagens
+- **Modais**: Dialog para confirmações
+- **Toast**: Sonner para notificações
+
+## Segurança
+
+1. **Autenticação**: Supabase Auth com JWT
+2. **Autorização**: RLS policies por role
+3. **Função has_role**: Security definer para evitar recursão
+4. **Criptografia**: Dados sensíveis em JSONB (dados_bancarios)
+5. **Auditoria**: Trigger para log de alterações
+
+## Arquivos a Criar
+
+### Banco de Dados (Migrations)
+- `create_royalties_tables.sql` - Todas as tabelas
+- `create_royalties_rls.sql` - Políticas de segurança
+- `create_royalties_functions.sql` - Funções auxiliares
+- `create_royalties_triggers.sql` - Triggers de auditoria
+
+### Frontend
+
+**Páginas:**
+- `/auth/login` - Login
+- `/auth/recuperar-senha` - Recuperação de senha
+- `/admin` - Dashboard admin
+- `/admin/autores` - Gestão de autores
+- `/admin/autores/[id]` - Detalhes do autor
+- `/admin/livros` - Gestão de livros
+- `/admin/vendas` - Registro de vendas
+- `/admin/pagamentos` - Gestão de pagamentos
+- `/admin/relatorios` - Relatórios
+- `/autor` - Dashboard autor
+- `/autor/livros` - Meus livros
+- `/autor/extrato` - Extrato de vendas
+- `/autor/pagamentos` - Meus pagamentos
+- `/autor/perfil` - Meus dados
+
+**Componentes:**
+- `AdminLayout.tsx` - Layout do painel admin
+- `AutorLayout.tsx` - Layout do painel autor
+- `AutorForm.tsx` - Formulário de autor
+- `LivroForm.tsx` - Formulário de livro
+- `VendaForm.tsx` - Formulário de venda
+- `PagamentoDialog.tsx` - Modal de pagamento
+- `KPICard.tsx` - Card de KPI
+- `VendasChart.tsx` - Gráfico de vendas
+
+**Hooks:**
+- `useRoyaltiesAuth.tsx` - Autenticação específica
+- `useAutores.tsx` - CRUD autores
+- `useLivros.tsx` - CRUD livros
+- `useVendas.tsx` - Gestão de vendas
+- `usePagamentos.tsx` - Gestão de pagamentos
+- `useRelatorios.tsx` - Geração de relatórios
+
+## Estimativa de Implementação
+
+| Fase | Descrição | Complexidade |
+|------|-----------|--------------|
+| 1 | Infraestrutura (DB + Auth) | Alta |
+| 2 | Painel Admin completo | Alta |
+| 3 | Painel Autor | Média |
+| 4 | Funcionalidades avançadas | Média |
+
+## Observação Importante
+
+Como você escolheu **criar um novo projeto separado**, recomendo:
+
+1. Criar um novo projeto no Lovable
+2. Copiar este plano para o novo projeto
+3. Implementar fase por fase
+
+Isso mantém o sistema de Gestão EBD isolado e evita conflitos.
+
