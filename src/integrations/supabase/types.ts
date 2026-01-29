@@ -4385,6 +4385,267 @@ export type Database = {
           },
         ]
       }
+      royalties_audit_logs: {
+        Row: {
+          acao: string
+          created_at: string
+          dados_antigos: Json | null
+          dados_novos: Json | null
+          id: string
+          registro_id: string | null
+          tabela: string
+          user_id: string | null
+        }
+        Insert: {
+          acao: string
+          created_at?: string
+          dados_antigos?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          registro_id?: string | null
+          tabela: string
+          user_id?: string | null
+        }
+        Update: {
+          acao?: string
+          created_at?: string
+          dados_antigos?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          registro_id?: string | null
+          tabela?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      royalties_autores: {
+        Row: {
+          cpf_cnpj: string | null
+          created_at: string
+          dados_bancarios: Json | null
+          email: string
+          endereco: Json | null
+          id: string
+          is_active: boolean | null
+          nome_completo: string
+          telefone: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          cpf_cnpj?: string | null
+          created_at?: string
+          dados_bancarios?: Json | null
+          email: string
+          endereco?: Json | null
+          id?: string
+          is_active?: boolean | null
+          nome_completo: string
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          cpf_cnpj?: string | null
+          created_at?: string
+          dados_bancarios?: Json | null
+          email?: string
+          endereco?: Json | null
+          id?: string
+          is_active?: boolean | null
+          nome_completo?: string
+          telefone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      royalties_comissoes: {
+        Row: {
+          created_at: string
+          id: string
+          livro_id: string
+          percentual: number
+          periodo_pagamento:
+            | Database["public"]["Enums"]["royalties_periodo_pagamento"]
+            | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          livro_id: string
+          percentual?: number
+          periodo_pagamento?:
+            | Database["public"]["Enums"]["royalties_periodo_pagamento"]
+            | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          livro_id?: string
+          percentual?: number
+          periodo_pagamento?:
+            | Database["public"]["Enums"]["royalties_periodo_pagamento"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_comissoes_livro_id_fkey"
+            columns: ["livro_id"]
+            isOneToOne: true
+            referencedRelation: "royalties_livros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      royalties_livros: {
+        Row: {
+          autor_id: string
+          capa_url: string | null
+          created_at: string
+          descricao: string | null
+          id: string
+          is_active: boolean | null
+          titulo: string
+          updated_at: string
+          valor_capa: number
+        }
+        Insert: {
+          autor_id: string
+          capa_url?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          titulo: string
+          updated_at?: string
+          valor_capa?: number
+        }
+        Update: {
+          autor_id?: string
+          capa_url?: string | null
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          titulo?: string
+          updated_at?: string
+          valor_capa?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_livros_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_autores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      royalties_pagamentos: {
+        Row: {
+          autor_id: string
+          comprovante_url: string | null
+          created_at: string
+          data_efetivacao: string | null
+          data_prevista: string
+          id: string
+          observacoes: string | null
+          status:
+            | Database["public"]["Enums"]["royalties_pagamento_status"]
+            | null
+          updated_at: string
+          valor_total: number
+        }
+        Insert: {
+          autor_id: string
+          comprovante_url?: string | null
+          created_at?: string
+          data_efetivacao?: string | null
+          data_prevista: string
+          id?: string
+          observacoes?: string | null
+          status?:
+            | Database["public"]["Enums"]["royalties_pagamento_status"]
+            | null
+          updated_at?: string
+          valor_total: number
+        }
+        Update: {
+          autor_id?: string
+          comprovante_url?: string | null
+          created_at?: string
+          data_efetivacao?: string | null
+          data_prevista?: string
+          id?: string
+          observacoes?: string | null
+          status?:
+            | Database["public"]["Enums"]["royalties_pagamento_status"]
+            | null
+          updated_at?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_pagamentos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_autores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      royalties_vendas: {
+        Row: {
+          created_at: string
+          data_venda: string
+          id: string
+          livro_id: string
+          pagamento_id: string | null
+          quantidade: number
+          valor_comissao_total: number
+          valor_comissao_unitario: number
+          valor_unitario: number
+        }
+        Insert: {
+          created_at?: string
+          data_venda?: string
+          id?: string
+          livro_id: string
+          pagamento_id?: string | null
+          quantidade?: number
+          valor_comissao_total: number
+          valor_comissao_unitario: number
+          valor_unitario: number
+        }
+        Update: {
+          created_at?: string
+          data_venda?: string
+          id?: string
+          livro_id?: string
+          pagamento_id?: string | null
+          quantidade?: number
+          valor_comissao_total?: number
+          valor_comissao_unitario?: number
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_vendas_livro_id_fkey"
+            columns: ["livro_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_livros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "royalties_vendas_pagamento_id_fkey"
+            columns: ["pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_pagamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stage_info_texts: {
         Row: {
           created_at: string
@@ -5152,6 +5413,8 @@ export type Database = {
         | "gerente_ebd"
         | "financeiro"
         | "representante"
+        | "autor"
+        | "gerente_royalties"
       church_permission:
         | "view_financial"
         | "edit_financial"
@@ -5164,6 +5427,8 @@ export type Database = {
       desafio_status: "CONFIGURANDO" | "PRONTO" | "EM_ANDAMENTO" | "FINALIZADO"
       desafio_tipo_publico: "PROFESSORES" | "ALUNOS"
       ebd_role: "professor" | "superintendente"
+      royalties_pagamento_status: "pendente" | "pago" | "cancelado"
+      royalties_periodo_pagamento: "1_mes" | "3_meses" | "6_meses" | "1_ano"
       tutorial_perfil:
         | "VENDEDORES"
         | "GERENTES"
@@ -5307,6 +5572,8 @@ export const Constants = {
         "gerente_ebd",
         "financeiro",
         "representante",
+        "autor",
+        "gerente_royalties",
       ],
       church_permission: [
         "view_financial",
@@ -5321,6 +5588,8 @@ export const Constants = {
       desafio_status: ["CONFIGURANDO", "PRONTO", "EM_ANDAMENTO", "FINALIZADO"],
       desafio_tipo_publico: ["PROFESSORES", "ALUNOS"],
       ebd_role: ["professor", "superintendente"],
+      royalties_pagamento_status: ["pendente", "pago", "cancelado"],
+      royalties_periodo_pagamento: ["1_mes", "3_meses", "6_meses", "1_ano"],
       tutorial_perfil: [
         "VENDEDORES",
         "GERENTES",
