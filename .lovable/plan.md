@@ -1,118 +1,93 @@
 
+# Plano: Criar Usuário para Ronald Gustavo e Vincular ao Autor
 
-# Plano: Corrigir Cálculo de Royalties
+## Situação Atual
 
-## Problema Identificado
-
-O registro de vendas existente mostra valores zerados:
-- `valor_comissao_unitario`: R$ 0,00 (deveria ser R$ 1,12)
-- `valor_comissao_total`: R$ 0,00 (deveria ser R$ 6,74)
-- `valor_unitario`: R$ 49,90 (deveria usar R$ 22,45 - valor de capa)
-
-**Cálculo correto:**
-R$ 22,45 (valor capa) × 5% (comissão) × 6 (unidades) = **R$ 6,74**
-
-## Causas
-
-1. A Edge Function usa o valor da NFe (`item.valor = 49.90`) em vez do valor de capa
-2. O percentual de comissão pode estar vindo como string ou zero
+| Item | Status | Detalhes |
+|------|--------|----------|
+| Autor "Ronald Gustavo" | ✅ Cadastrado | `id: b7afbdf2-a0fb-4c4c-b85c-b31f439c24b5` |
+| Email do autor | ✅ | `ronald@centralgospel.com.br` |
+| Livro "O Cativeiro Babilônico" | ✅ Vinculado | `autor_id` já aponta para Ronald |
+| Usuário no sistema | ❌ Não existe | Precisa criar |
+| Acesso ao Portal do Autor | ❌ Bloqueado | `user_id` está `null` |
 
 ---
 
-## Correções Necessárias
+## Ações Necessárias
 
-### 1. Corrigir Edge Function (`bling-sync-royalties-sales`)
+### 1. Criar Usuário de Autenticação
 
-**Linha 253-255 - Usar valor de capa para royalties:**
+Usar a edge function `create-auth-user-direct` para criar:
+- **Email**: `ronald@centralgospel.com.br`
+- **Senha**: Será definida (sugiro uma senha segura como `Ronald@2026!`)
+- **Nome**: `Ronald Gustavo`
 
-```typescript
-// ANTES (errado):
-const valorUnitario = item.valor || item.valorUnidade || bookInfo.preco_capa;
-const valorComissaoUnitario = valorUnitario * (bookInfo.percentual_comissao / 100);
+### 2. Vincular Usuário ao Autor
 
-// DEPOIS (correto):
-const valorVenda = item.valor || item.valorUnidade || bookInfo.preco_capa;
-const valorParaRoyalties = bookInfo.preco_capa; // Sempre usar valor de capa
-const percentual = Number(bookInfo.percentual_comissao) || 0;
-const valorComissaoUnitario = valorParaRoyalties * (percentual / 100);
-```
-
-**Linha 139 - Garantir conversão numérica:**
-
-```typescript
-// ANTES:
-const percentual = book.royalties_comissoes?.[0]?.percentual || 0;
-
-// DEPOIS:
-const percentual = Number(book.royalties_comissoes?.[0]?.percentual) || 0;
-```
-
-### 2. Corrigir Registro Existente no Banco
-
-Atualizar a venda já importada com os valores corretos:
-
+Atualizar a tabela `royalties_autores`:
 ```sql
-UPDATE royalties_vendas 
-SET 
-  valor_unitario = 22.45,
-  valor_comissao_unitario = 1.1225,
-  valor_comissao_total = 6.74
-WHERE livro_id = 'b8563451-31ea-4335-ac5c-6c3605ed81a8'
-  AND bling_order_id = 24945872934;
+UPDATE royalties_autores 
+SET user_id = '{novo_user_id}'
+WHERE id = 'b7afbdf2-a0fb-4c4c-b85c-b31f439c24b5';
 ```
 
----
+### 3. Atribuir Role "autor"
 
-## Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/bling-sync-royalties-sales/index.ts` | Usar valor_capa para royalties + conversão numérica |
-
----
-
-## Seção Técnica
-
-### Lógica de Cálculo de Royalties
-
-A regra de negócio (já documentada em memória) é:
-```
-Valor Royalty = Valor de Capa × (% Comissão / 100) × Quantidade
-```
-
-Portanto:
-- R$ 22,45 × 0,05 × 6 = **R$ 6,74**
-
-### Mudanças no Código
-
-**Função `loadBooksWithBlingId` - garantir número:**
-```typescript
-const percentual = Number(book.royalties_comissoes?.[0]?.percentual) || 0;
-const precoCapa = Number(book.valor_capa) || 0;
-
-const mapping: BookMapping = {
-  livro_id: book.id,
-  bling_produto_id: book.bling_produto_id.toString(),
-  percentual_comissao: percentual,
-  preco_capa: precoCapa,
-};
-```
-
-**Função `syncNFeBatch` - usar valor capa:**
-```typescript
-const quantidade = item.quantidade || 1;
-// Usar SEMPRE o valor de capa para cálculo de royalties
-const valorUnitario = bookInfo.preco_capa;
-const valorComissaoUnitario = valorUnitario * (bookInfo.percentual_comissao / 100);
-const valorComissaoTotal = valorComissaoUnitario * quantidade;
+Inserir na tabela `user_roles`:
+```sql
+INSERT INTO user_roles (user_id, role)
+VALUES ('{novo_user_id}', 'autor');
 ```
 
 ---
 
 ## Resultado Esperado
 
-Após as correções:
-1. O card "Royalties a Pagar" mostrará **R$ 6,74**
-2. Futuras sincronizações calcularão corretamente
-3. O cálculo seguirá a regra: Valor Capa × % Comissão × Quantidade
+Após as alterações:
+- ✅ Ronald poderá fazer login com `ronald@centralgospel.com.br` + senha definida
+- ✅ Terá acesso ao **Portal do Autor** (`/autor`)
+- ✅ Verá seus livros, vendas e royalties
+- ✅ Poderá editar seu perfil (telefone, dados bancários)
 
+---
+
+## Credenciais de Acesso
+
+| Campo | Valor |
+|-------|-------|
+| Email | `ronald@centralgospel.com.br` |
+| Senha | `Ronald@2026!` (sugestão - pode alterar) |
+| URL de acesso | `/ebd-login` ou direto `/autor` |
+
+---
+
+## Seção Técnica
+
+### Chamada da Edge Function
+
+```typescript
+// create-auth-user-direct
+{
+  email: "ronald@centralgospel.com.br",
+  password: "Ronald@2026!",
+  full_name: "Ronald Gustavo"
+}
+```
+
+### Atualizações no Banco
+
+1. **Update royalties_autores**: Vincular `user_id` retornado
+2. **Insert user_roles**: Adicionar role `autor` para o novo usuário
+
+### Fluxo de Execução
+
+```text
+1. Chamar edge function create-auth-user-direct
+   → Retorna userId do novo usuário
+
+2. UPDATE royalties_autores SET user_id = ? WHERE id = ?
+   → Vincula autor ao usuário
+
+3. INSERT INTO user_roles (user_id, role) VALUES (?, 'autor')
+   → Libera acesso ao portal
+```
