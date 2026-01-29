@@ -254,3 +254,6 @@ verify_jwt = false
 
 [functions.bling-search-product]
 verify_jwt = true
+
+[functions.bling-sync-royalties-sales]
+verify_jwt = true
