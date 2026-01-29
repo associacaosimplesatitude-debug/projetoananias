@@ -1,143 +1,155 @@
 
 
-# Plano: Permitir Vincular Livro Existente ao Bling
+# Plano: Corrigir Sincronização de Vendas Bling para Royalties
 
-## Problema Identificado
+## Diagnóstico
 
-O livro "O Cativeiro Babilônico" foi cadastrado **manualmente** (sem usar a busca do Bling), por isso o campo `bling_produto_id` está vazio (`null`). A sincronização de vendas do Bling só funciona para livros que possuem este campo preenchido.
+Após investigação detalhada da API V3 do Bling:
 
-Atualmente:
-- A busca do Bling só aparece ao **criar** um novo livro (`{!livro && ...}`)
-- Não há opção de vincular um livro existente ao produto do Bling
+1. **Problema de timeout**: A função atual percorre cada pedido individualmente (buscar lista + buscar detalhes = 2 chamadas por pedido), o que causa timeout com volumes grandes
+2. **API do Bling não expõe "peças vendidas"**: O valor que aparece no Dashboard de Sugestão de Compras é calculado internamente pelo Bling usando movimentações de estoque
+3. **Livro cadastrado corretamente**: O livro "O Cativeiro Babilônico" tem `bling_produto_id: 16565106635` no banco de dados
 
-## Solução
+## Solução: Usar Notas Fiscais (NFe) ao invés de Pedidos
 
-Modificar o formulário de edição de livros para permitir buscar e vincular o produto do Bling mesmo em livros já cadastrados.
+As Notas Fiscais são mais confiáveis para royalties porque:
+- Representam vendas **efetivamente faturadas**
+- Possuem volume menor (menos chamadas API)
+- Contêm os itens vendidos com quantidades exatas
 
 ---
 
-## Alterações
+## Alterações Técnicas
 
-### 1. Atualizar `LivroDialog.tsx`
+### 1. Reescrever Edge Function: `bling-sync-royalties-sales`
 
-Remover a restrição que esconde a busca do Bling ao editar:
+**Mudança de abordagem:**
+- Buscar **Notas Fiscais (NFe)** em vez de Pedidos de Venda
+- Endpoint: `GET /nfe?dataEmissaoInicial={data}&limite=100`
+- Filtrar apenas notas com situação "Autorizada" (situacao = 3)
 
-**Antes:**
-```tsx
-{!livro && (
-  <BlingProductSearch
-    onSelect={handleBlingProductSelect}
-    disabled={loading}
-  />
-)}
+**Novo fluxo:**
+```text
+1. Buscar NFs autorizadas nos últimos N dias
+2. Para cada NF:
+   - Buscar detalhes da NF para obter itens
+   - Verificar se item.codigo ou item.id está no Map de livros
+   - Calcular royalties se for um livro cadastrado
+3. Inserir registros únicos no banco (evitar duplicatas por NF + livro)
 ```
 
-**Depois:**
-```tsx
-<BlingProductSearch
-  onSelect={handleBlingProductSelect}
-  disabled={loading}
-  currentBlingId={formData.bling_produto_id}
-/>
+**Otimizações:**
+- Processar em batches de 30 dias para evitar timeout
+- Adicionar parâmetro `batch_size` para controlar volume
+- Retornar progresso incremental
+
+### 2. Schema da resposta da API de NFe
+
+Campos relevantes da resposta do Bling:
+```json
+{
+  "data": [{
+    "id": 123456,
+    "numero": "000001234",
+    "dataEmissao": "2026-01-15",
+    "situacao": 3, // 3 = Autorizada
+    "itens": [{
+      "id": 789,
+      "codigo": "33476",
+      "descricao": "O Cativeiro Babilônico...",
+      "quantidade": 5,
+      "valor": 22.45
+    }]
+  }]
+}
 ```
 
-### 2. Melhorar `BlingProductSearch.tsx`
+### 3. Endpoint alternativo: Buscar NF por código do produto
 
-Adicionar indicador visual quando o livro já está vinculado ao Bling:
+Se a API permitir, filtrar diretamente:
+`GET /nfe?idsProdutos[]={bling_produto_id}&dataEmissaoInicial={data}`
 
-- Mostrar o ID do produto Bling atual (se existir)
-- Permitir trocar o vínculo
-- Manter a funcionalidade de busca
+Isso reduziria drasticamente o volume de dados processados.
 
-### 3. Exibir status de vinculação na lista de livros
+---
 
-Na página de livros (`/royalties/livros`), adicionar um indicador visual mostrando se o livro está vinculado ao Bling ou não:
+## Modificações nos Arquivos
 
-- Badge verde: "Vinculado ao Bling"
-- Badge amarelo: "Sem vínculo" (não sincroniza vendas)
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/bling-sync-royalties-sales/index.ts` | Reescrever para usar endpoint de NFe |
+| `src/components/royalties/BlingSyncButton.tsx` | Adicionar seletor de período (30/60/90/180 dias) |
+| `src/components/royalties/VendasSummaryCards.tsx` | Sem alterações |
+
+---
+
+## Nova Lógica da Edge Function
+
+### Estrutura do código
+
+```text
+bling-sync-royalties-sales/
+└── index.ts
+    ├── corsHeaders
+    ├── refreshBlingToken() - Renovar token
+    ├── blingApiCall() - Chamada com retry/rate limit
+    ├── loadBooksWithBlingId() - Carregar livros do DB
+    ├── fetchNFeList() - Buscar lista de NFs autorizadas
+    ├── fetchNFeDetails() - Buscar detalhes de uma NF
+    ├── syncNFeItems() - Processar itens das NFs
+    └── serve() - Handler principal
+```
+
+### Filtro de situação NFe
+
+| ID | Situação | Incluir |
+|----|----------|---------|
+| 1 | Pendente | Não |
+| 2 | Processando | Não |
+| 3 | **Autorizada** | **Sim** |
+| 4 | Cancelada | Não |
+| 5 | Denegada | Não |
+
+### Campos a inserir em `royalties_vendas`
+
+| Campo | Origem |
+|-------|--------|
+| `livro_id` | Mapeamento via bling_produto_id |
+| `quantidade` | item.quantidade |
+| `valor_unitario` | item.valor |
+| `valor_comissao_unitario` | calculado |
+| `valor_comissao_total` | calculado |
+| `data_venda` | nfe.dataEmissao |
+| `bling_order_id` | nfe.id (ID da NF) |
+| `bling_order_number` | nfe.numero |
 
 ---
 
 ## Fluxo do Usuário
 
-1. Acessar `/royalties/livros`
-2. Clicar no livro "O Cativeiro Babilônico" para editar
-3. Na seção "Importar do Bling", buscar por "33476" ou pelo título
-4. Selecionar o produto correto
-5. Salvar - o `bling_produto_id` será preenchido
-6. Ir para `/royalties/vendas` e clicar em "Sincronizar com Bling"
-7. As vendas serão importadas automaticamente
+1. Acessar `/royalties/vendas`
+2. Selecionar período (padrão: 90 dias)
+3. Clicar em "Sincronizar com Bling"
+4. Aguardar processamento (com feedback de progresso)
+5. Ver resumo: X notas processadas, Y livros encontrados, Z royalties calculados
+6. Verificar cards de resumo e tabela de vendas atualizados
 
 ---
 
-## Arquivos a Modificar
+## Cronograma de Implementação
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/royalties/LivroDialog.tsx` | Mostrar BlingProductSearch também ao editar |
-| `src/components/royalties/BlingProductSearch.tsx` | Adicionar prop para mostrar vínculo atual |
-| `src/pages/royalties/Livros.tsx` | Adicionar indicador de vínculo na tabela |
-
----
-
-## Seção Técnica
-
-### Mudança no LivroDialog.tsx
-
-```typescript
-// Linha ~221-227 - Remover condicional !livro
-<BlingProductSearch
-  onSelect={handleBlingProductSelect}
-  disabled={loading}
-  currentBlingId={formData.bling_produto_id}
-/>
-```
-
-### Nova prop no BlingProductSearch
-
-```typescript
-interface BlingProductSearchProps {
-  onSelect: (product: BlingProduct) => void;
-  disabled?: boolean;
-  currentBlingId?: number | null; // NOVO: ID atual vinculado
-}
-```
-
-### Indicador visual no componente
-
-Se `currentBlingId` estiver preenchido, mostrar:
-```tsx
-{currentBlingId && (
-  <div className="text-xs text-green-600 flex items-center gap-1">
-    <Check className="h-3 w-3" />
-    Vinculado ao Bling (ID: {currentBlingId})
-  </div>
-)}
-```
-
-### Badge na lista de livros
-
-```tsx
-{livro.bling_produto_id ? (
-  <Badge variant="outline" className="bg-green-50 text-green-700">
-    <Link2 className="h-3 w-3 mr-1" />
-    Bling
-  </Badge>
-) : (
-  <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
-    <Unlink className="h-3 w-3 mr-1" />
-    Sem vínculo
-  </Badge>
-)}
-```
+1. Atualizar edge function com nova lógica de NFe
+2. Adicionar seletor de período no botão de sincronização
+3. Testar com período pequeno (7 dias) primeiro
+4. Expandir para 30, 60, 90 dias
+5. Validar quantidade total (deve se aproximar de 1164 ao longo do tempo)
 
 ---
 
-## Resultado Esperado
+## Considerações Importantes
 
-Após as alterações:
-1. O usuário poderá editar o livro "O Cativeiro Babilônico"
-2. Buscar pelo SKU 33476 no Bling
-3. Vincular o produto
-4. As vendas futuras e passadas serão sincronizadas corretamente
+- **Período de dados**: O valor de 1164 peças é de 01/12/2025 a 29/01/2026 (60 dias). Precisamos sincronizar esse período específico
+- **Rate limiting**: A função respeitará o limite de 3 req/s do Bling
+- **Timeout**: Cada chamada da função processa um batch de 30 dias para evitar timeout de 26s
+- **Duplicatas**: O índice único `(bling_order_id, livro_id)` previne registros duplicados
 
