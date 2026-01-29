@@ -1,294 +1,340 @@
 
 
-# Sistema de Gestão de Royalties para Editora
+# Sistema de Gestão de Royalties - Implementação no Projeto Atual
 
-## Resumo do Projeto
+## Visão Geral
 
-Sistema web completo para gestão de royalties de uma editora, com dois painéis principais:
-- **Painel Administrativo**: Para a equipe da editora gerenciar autores, livros, vendas e pagamentos
-- **Painel do Autor**: Para autores acompanharem seus ganhos de forma transparente
+Implementar o módulo de Royalties dentro do projeto existente, usando a mesma estrutura de:
+- Layouts com Sidebar (como `AdminLayout`, `VendedorLayout`, `EBDLayout`)
+- Sistema de roles existente (`app_role` enum)
+- Padrões de hooks, componentes e autenticação já estabelecidos
 
-## Arquitetura do Sistema
+## Arquitetura Proposta
 
-### Estrutura de Dados
+### Estrutura de Rotas
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│                        BANCO DE DADOS                            │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────────┐    │
-│  │  autores    │     │   livros    │     │    comissoes    │    │
-│  │─────────────│     │─────────────│     │─────────────────│    │
-│  │ id          │◄────┤ autor_id    │     │ livro_id        │───►│
-│  │ user_id     │     │ titulo      │◄────┤ percentual      │    │
-│  │ nome        │     │ valor_capa  │     │ periodo_pgto    │    │
-│  │ cpf_cnpj    │     │ capa_url    │     └─────────────────┘    │
-│  │ endereco    │     └─────────────┘                            │
-│  │ dados_banco │                                                 │
-│  └─────────────┘     ┌─────────────┐     ┌─────────────────┐    │
-│                      │   vendas    │     │   pagamentos    │    │
-│                      │─────────────│     │─────────────────│    │
-│                      │ livro_id    │     │ autor_id        │    │
-│                      │ quantidade  │     │ valor_total     │    │
-│                      │ vlr_comissao│     │ data_prevista   │    │
-│                      │ data_venda  │     │ status          │    │
-│                      └─────────────┘     │ comprovante_url │    │
-│                                          └─────────────────┘    │
-│                                                                  │
-│  ┌─────────────────┐     ┌─────────────────────────────────┐    │
-│  │   user_roles    │     │          audit_logs             │    │
-│  │─────────────────│     │─────────────────────────────────│    │
-│  │ user_id         │     │ user_id, acao, tabela, dados    │    │
-│  │ role (enum)     │     │ created_at                      │    │
-│  └─────────────────┘     └─────────────────────────────────┘    │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+/royalties                     → Dashboard Admin (role: admin/gerente_royalties)
+/royalties/autores             → Gestão de Autores
+/royalties/autores/:id         → Detalhes do Autor
+/royalties/livros              → Gestão de Livros
+/royalties/vendas              → Registro de Vendas
+/royalties/pagamentos          → Gestão de Pagamentos
+/royalties/relatorios          → Relatórios
+
+/autor                         → Dashboard do Autor (role: autor)
+/autor/livros                  → Meus Livros
+/autor/extrato                 → Extrato de Vendas
+/autor/pagamentos              → Meus Pagamentos
+/autor/perfil                  → Meus Dados
 ```
 
-### Fluxo de Navegação
+### Banco de Dados (Novas Tabelas)
 
-```text
-                    ┌─────────────────┐
-                    │   Login Page    │
-                    │  /auth/login    │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              ▼                             ▼
-     ┌────────────────┐            ┌────────────────┐
-     │  ADMIN PANEL   │            │  AUTHOR PANEL  │
-     │    /admin      │            │    /autor      │
-     └───────┬────────┘            └───────┬────────┘
-             │                             │
-    ┌────────┼────────┐           ┌────────┼────────┐
-    ▼        ▼        ▼           ▼        ▼        ▼
-Dashboard  CRUD    Vendas     Dashboard  Livros  Extrato
- │Autores  Pagtos              │Ganhos   │Vendas  │Pgtos
- │Livros                       │KPIs     │        │
+| Tabela | Colunas Principais |
+|--------|-------------------|
+| `royalties_autores` | id, user_id, nome_completo, email, cpf_cnpj, endereco, dados_bancarios (JSONB), created_at, updated_at |
+| `royalties_livros` | id, titulo, descricao, capa_url, valor_capa, autor_id (FK), created_at, updated_at |
+| `royalties_comissoes` | id, livro_id (FK), percentual, periodo_pagamento (enum), created_at |
+| `royalties_vendas` | id, livro_id (FK), quantidade, valor_comissao_unitario, valor_comissao_total, data_venda, created_at |
+| `royalties_pagamentos` | id, autor_id (FK), valor_total, data_prevista, data_efetivacao, status (enum), comprovante_url, created_at, updated_at |
+| `royalties_audit_logs` | id, user_id, acao, tabela, dados_antigos, dados_novos, created_at |
+
+### Enums Necessários
+
+```sql
+-- Adicionar ao app_role existente
+ALTER TYPE public.app_role ADD VALUE 'autor';
+ALTER TYPE public.app_role ADD VALUE 'gerente_royalties';
+
+-- Novos enums
+CREATE TYPE public.royalties_periodo_pagamento AS ENUM ('1_mes', '3_meses', '6_meses', '1_ano');
+CREATE TYPE public.royalties_pagamento_status AS ENUM ('pendente', 'pago', 'cancelado');
+```
+
+### RLS Policies
+
+**Regras de Acesso:**
+- Admin/Gerente Royalties: acesso total a todas as tabelas
+- Autor: acesso apenas aos próprios dados (autores, livros, vendas, pagamentos)
+
+```sql
+-- Função helper
+CREATE FUNCTION public.has_royalties_access(_user_id uuid)
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = _user_id
+    AND role IN ('admin', 'gerente_royalties')
+  )
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- Autor pode ver apenas seu próprio registro
+CREATE POLICY "autor_own_data" ON public.royalties_autores
+  FOR SELECT USING (
+    user_id = auth.uid() OR has_royalties_access(auth.uid())
+  );
 ```
 
 ## Fases de Implementação
 
-### Fase 1: Infraestrutura Base
+### Fase 1: Infraestrutura (Database + Auth)
 
-**Banco de Dados - Tabelas:**
+**1.1 Migração do Banco de Dados:**
+- Criar todas as tabelas do módulo royalties
+- Adicionar novos valores ao enum `app_role`
+- Criar enums específicos do módulo
+- Configurar RLS policies
+- Criar storage bucket `royalties-capas`
 
-| Tabela | Colunas Principais | RLS |
-|--------|-------------------|-----|
-| `autores` | id, user_id, nome_completo, email, cpf_cnpj, endereco, dados_bancarios (JSONB) | Admin: full access; Autor: próprio registro |
-| `livros` | id, titulo, descricao, capa_url, valor_capa, autor_id | Admin: full; Autor: próprios livros |
-| `comissoes` | id, livro_id, percentual, periodo_pagamento (enum) | Admin: full |
-| `vendas` | id, livro_id, quantidade, valor_comissao_unitario, valor_comissao_total, data_venda | Admin: full; Autor: via livros |
-| `pagamentos` | id, autor_id, valor_total, data_prevista, data_efetivacao, status, comprovante_url | Admin: full; Autor: próprios |
-| `audit_logs` | id, user_id, acao, tabela, dados_antigos, dados_novos, created_at | Admin: read only |
-| `user_roles` | id, user_id, role (enum: 'admin', 'autor') | Via função has_role |
+**1.2 Funções Helper:**
+- `has_royalties_access(user_id)` - verifica se tem acesso admin
+- `is_royalties_autor(user_id)` - verifica se é autor
+- `get_autor_id_by_user(user_id)` - retorna o autor_id do usuário
 
-**Autenticação:**
-- Login com email/senha usando Supabase Auth
-- Criação de conta de autor pelo admin
-- Recuperação de senha ("Esqueci minha senha")
-- Roles separadas em tabela `user_roles`
+### Fase 2: Layouts e Navegação
 
-**Estrutura de Pastas:**
-```
-src/
-├── components/
-│   ├── admin/           # Componentes do painel admin
-│   ├── autor/           # Componentes do painel autor
-│   └── ui/              # Componentes UI (shadcn)
-├── pages/
-│   ├── auth/            # Login, recuperar senha
-│   ├── admin/           # Páginas do admin
-│   └── autor/           # Páginas do autor
-├── hooks/
-│   ├── useAuth.tsx
-│   ├── useAutores.tsx
-│   ├── useLivros.tsx
-│   ├── useVendas.tsx
-│   └── usePagamentos.tsx
-└── lib/
-    ├── validators.ts    # Validação CPF/CNPJ
-    └── formatters.ts    # Formatação moeda/data
-```
+**2.1 RoyaltiesAdminLayout:**
+- Sidebar com menu:
+  - Dashboard
+  - Autores
+  - Livros
+  - Vendas
+  - Pagamentos
+  - Relatórios
+- Header com UserProfileDropdown
 
-### Fase 2: Painel Administrativo
+**2.2 AutorLayout:**
+- Sidebar com menu:
+  - Dashboard
+  - Meus Livros
+  - Extrato
+  - Pagamentos
+  - Perfil
 
-**2.1 Dashboard Admin (`/admin`)**
-- KPIs: Total royalties a pagar (30, 60, 90 dias)
-- Gráfico de vendas mensais (últimos 12 meses)
-- Top 5 autores com maiores ganhos
-- Top 5 livros mais vendidos
+**2.3 Rotas no App.tsx:**
+- Adicionar grupo de rotas `/royalties/*` com RoyaltiesAdminLayout
+- Adicionar grupo de rotas `/autor/*` com AutorLayout
+- Proteger rotas com verificação de role
+
+### Fase 3: Painel Administrativo
+
+**3.1 Dashboard (`/royalties`):**
+- KPIs:
+  - Total de Royalties a Pagar (30, 60, 90 dias)
+  - Total de Autores Ativos
+  - Total de Livros Cadastrados
+  - Vendas do Mês
+- Gráfico de Vendas Mensais (últimos 12 meses)
+- Top 5 Autores com Maiores Ganhos
+- Top 5 Livros Mais Vendidos
 - Botões de ação rápida
 
-**2.2 Gestão de Autores (`/admin/autores`)**
-- Listagem com busca e paginação
-- Formulário de cadastro/edição:
-  - Validação matemática de CPF/CNPJ
-  - Dados bancários (banco, agência, conta, tipo)
-  - Geração automática de conta de acesso
-- Página de detalhes do autor com:
-  - Todos os seus livros
-  - Histórico de vendas
-  - Histórico de pagamentos
+**3.2 Gestão de Autores (`/royalties/autores`):**
+- Tabela com busca, filtros e paginação
+- Botão "Novo Autor" → Dialog com formulário
+- Formulário:
+  - Nome Completo, Email, CPF/CNPJ (com validação matemática)
+  - Endereço (CEP, Logradouro, Número, Bairro, Cidade, UF)
+  - Dados Bancários (Banco, Agência, Conta, Tipo)
+  - Checkbox "Criar conta de acesso" → gera user no Supabase Auth
+- Ao criar autor com conta: enviar email de boas-vindas
 
-**2.3 Gestão de Livros (`/admin/livros`)**
-- Listagem com miniaturas das capas
-- Formulário com:
-  - Upload de imagem (bucket `royalties-capas`)
-  - Seleção de autor
-  - Configuração de comissão (% e período)
-  - Preview do cálculo em tempo real
+**3.3 Detalhes do Autor (`/royalties/autores/:id`):**
+- Dados cadastrais
+- Lista de livros do autor
+- Histórico de vendas
+- Histórico de pagamentos
+- Resumo financeiro (total recebido, a receber)
 
-**2.4 Registro de Vendas (`/admin/vendas`)**
-- Formulário simples: livro + quantidade + data
-- Cálculo automático da comissão
-- Listagem com filtros (período, livro, autor)
+**3.4 Gestão de Livros (`/royalties/livros`):**
+- Galeria/Tabela com miniaturas das capas
+- Formulário:
+  - Título, Descrição
+  - Upload de Capa (dropzone → bucket `royalties-capas`)
+  - Seleção de Autor
+  - Valor de Capa
+  - Comissão: Percentual + Período
+  - Preview em tempo real: "Comissão por unidade: R$ X,XX"
 
-**2.5 Gestão de Pagamentos (`/admin/pagamentos`)**
+**3.5 Registro de Vendas (`/royalties/vendas`):**
+- Formulário simples:
+  - Seleção de Livro (combobox com busca)
+  - Quantidade
+  - Data da Venda
+- Cálculo automático exibido antes de salvar:
+  - "Valor unitário: R$ XX,XX"
+  - "Comissão unitária: R$ X,XX"
+  - "Total da comissão: R$ XX,XX"
+- Tabela de vendas com filtros (período, livro, autor)
+
+**3.6 Gestão de Pagamentos (`/royalties/pagamentos`):**
 - Lista de pagamentos pendentes agrupados por autor
-- Marcar como pago + upload de comprovante
-- Histórico completo com filtros
+- Botão "Registrar Pagamento" → Dialog:
+  - Seleção de vendas a incluir
+  - Valor total calculado
+  - Upload de comprovante (PDF)
+- Marcar como "Pago" com data e comprovante
+- Histórico com filtros
 
-### Fase 3: Painel do Autor
+**3.7 Relatórios (`/royalties/relatorios`):**
+- Relatório de Vendas (por período, livro, autor)
+- Relatório de Comissões
+- Projeção de Pagamentos Futuros
+- Exportar para Excel/PDF
 
-**3.1 Dashboard (`/autor`)**
-- Saldo atual a receber
-- Gráfico de ganhos mensais
-- Livros vendidos no mês
-- Data do próximo pagamento
+### Fase 4: Painel do Autor
 
-**3.2 Meus Livros (`/autor/livros`)**
+**4.1 Dashboard (`/autor`):**
+- Saldo Atual a Receber
+- Gráfico de Ganhos Mensais (12 meses)
+- Livros Vendidos no Mês
+- Próximo Pagamento (data e valor)
+- Atalhos rápidos
+
+**4.2 Meus Livros (`/autor/livros`):**
 - Galeria visual com capas
-- Detalhes: comissão, vendas, ganhos
-- Relatório de vendas por livro
+- Card por livro: título, comissão (%), vendas totais, ganhos totais
+- Clique → modal com relatório de vendas do livro
 
-**3.3 Extrato (`/autor/extrato`)**
-- Histórico de vendas em tempo real
+**4.3 Extrato (`/autor/extrato`):**
+- Tabela com todas as vendas
+- Colunas: Data, Livro, Quantidade, Valor Comissão
 - Filtros por livro e período
-- Exportação (opcional)
 
-**3.4 Meus Pagamentos (`/autor/pagamentos`)**
-- Histórico com status
-- Download de comprovantes
+**4.4 Meus Pagamentos (`/autor/pagamentos`):**
+- Histórico de pagamentos
+- Status (Pendente, Pago, Cancelado)
+- Botão para baixar comprovante
 
-**3.5 Meus Dados (`/autor/perfil`)**
+**4.5 Meus Dados (`/autor/perfil`):**
 - Visualizar/editar dados cadastrais
-- Atualizar dados bancários (com confirmação de senha)
+- Atualizar dados bancários (requer confirmação de senha)
+- Alterar senha
 
-### Fase 4: Funcionalidades Avançadas
+### Fase 5: Funcionalidades Avançadas
 
-**4.1 Cálculo de Comissões**
+**5.1 Cálculo de Comissões:**
 ```
 Valor Comissão = Valor de Capa × (Percentual / 100) × Quantidade
 ```
 
-**4.2 Agrupamento por Período**
-- Vendas agrupadas conforme período configurado (1, 3, 6, 12 meses)
-- Data de vencimento calculada automaticamente
+**5.2 Agrupamento por Período:**
+- Agrupar vendas conforme período configurado
+- Calcular data de vencimento automaticamente:
+  - 1 mês: fim do mês seguinte
+  - 3 meses: fim do trimestre seguinte
+  - 6 meses: fim do semestre seguinte
+  - 1 ano: fim do ano seguinte
 
-**4.3 Relatórios (Excel/PDF)**
-- Relatório de vendas
-- Relatório de comissões
-- Projeção de pagamentos futuros
+**5.3 Auditoria:**
+- Trigger para registrar todas as alterações em `royalties_audit_logs`
+- Log: user_id, ação, tabela, dados_antigos, dados_novos, timestamp
 
-**4.4 Notificações (opcional)**
-- Email ao autor quando livro vendido
-- Email ao autor quando pagamento realizado
-- Alerta ao admin sobre vencimentos próximos
-
-**4.5 Auditoria**
-- Log de todas as alterações
-- Quem, quando, o quê foi alterado
-
-## Validações Implementadas
-
-| Campo | Validação |
-|-------|-----------|
-| CPF | Algoritmo de dígito verificador |
-| CNPJ | Algoritmo de dígito verificador |
-| Email | Formato válido + único no sistema |
-| Dados bancários | Banco, agência e conta obrigatórios |
-| Percentual comissão | Entre 0.01 e 100 |
-| Quantidade venda | Inteiro positivo |
-
-## Componentes UI (usando shadcn/ui)
-
-- **Formulários**: react-hook-form + zod
-- **Tabelas**: DataTable com paginação e busca
-- **Gráficos**: Recharts
-- **Upload**: Dropzone para imagens
-- **Modais**: Dialog para confirmações
-- **Toast**: Sonner para notificações
-
-## Segurança
-
-1. **Autenticação**: Supabase Auth com JWT
-2. **Autorização**: RLS policies por role
-3. **Função has_role**: Security definer para evitar recursão
-4. **Criptografia**: Dados sensíveis em JSONB (dados_bancarios)
-5. **Auditoria**: Trigger para log de alterações
+**5.4 Validações:**
+- CPF: algoritmo de dígito verificador (reutilizar do projeto)
+- CNPJ: algoritmo de dígito verificador
+- Email: único por autor
+- Dados bancários: banco, agência e conta obrigatórios
 
 ## Arquivos a Criar
 
-### Banco de Dados (Migrations)
-- `create_royalties_tables.sql` - Todas as tabelas
-- `create_royalties_rls.sql` - Políticas de segurança
-- `create_royalties_functions.sql` - Funções auxiliares
-- `create_royalties_triggers.sql` - Triggers de auditoria
+### Database (via migration tool)
+- Tabelas, enums, policies, functions, triggers, storage bucket
 
-### Frontend
+### Layouts
+- `src/components/royalties/RoyaltiesAdminLayout.tsx`
+- `src/components/royalties/AutorLayout.tsx`
+- `src/components/royalties/RoyaltiesProtectedRoute.tsx`
 
-**Páginas:**
-- `/auth/login` - Login
-- `/auth/recuperar-senha` - Recuperação de senha
-- `/admin` - Dashboard admin
-- `/admin/autores` - Gestão de autores
-- `/admin/autores/[id]` - Detalhes do autor
-- `/admin/livros` - Gestão de livros
-- `/admin/vendas` - Registro de vendas
-- `/admin/pagamentos` - Gestão de pagamentos
-- `/admin/relatorios` - Relatórios
-- `/autor` - Dashboard autor
-- `/autor/livros` - Meus livros
-- `/autor/extrato` - Extrato de vendas
-- `/autor/pagamentos` - Meus pagamentos
-- `/autor/perfil` - Meus dados
+### Páginas Admin
+- `src/pages/royalties/Dashboard.tsx`
+- `src/pages/royalties/Autores.tsx`
+- `src/pages/royalties/AutorDetalhes.tsx`
+- `src/pages/royalties/Livros.tsx`
+- `src/pages/royalties/Vendas.tsx`
+- `src/pages/royalties/Pagamentos.tsx`
+- `src/pages/royalties/Relatorios.tsx`
 
-**Componentes:**
-- `AdminLayout.tsx` - Layout do painel admin
-- `AutorLayout.tsx` - Layout do painel autor
-- `AutorForm.tsx` - Formulário de autor
-- `LivroForm.tsx` - Formulário de livro
-- `VendaForm.tsx` - Formulário de venda
-- `PagamentoDialog.tsx` - Modal de pagamento
-- `KPICard.tsx` - Card de KPI
-- `VendasChart.tsx` - Gráfico de vendas
+### Páginas Autor
+- `src/pages/autor/Dashboard.tsx`
+- `src/pages/autor/MeusLivros.tsx`
+- `src/pages/autor/Extrato.tsx`
+- `src/pages/autor/MeusPagamentos.tsx`
+- `src/pages/autor/Perfil.tsx`
 
-**Hooks:**
-- `useRoyaltiesAuth.tsx` - Autenticação específica
-- `useAutores.tsx` - CRUD autores
-- `useLivros.tsx` - CRUD livros
-- `useVendas.tsx` - Gestão de vendas
-- `usePagamentos.tsx` - Gestão de pagamentos
-- `useRelatorios.tsx` - Geração de relatórios
+### Componentes
+- `src/components/royalties/AutorForm.tsx`
+- `src/components/royalties/LivroForm.tsx`
+- `src/components/royalties/VendaForm.tsx`
+- `src/components/royalties/PagamentoDialog.tsx`
+- `src/components/royalties/KPICard.tsx`
+- `src/components/royalties/VendasChart.tsx`
+- `src/components/royalties/TopAutoresCard.tsx`
+- `src/components/royalties/TopLivrosCard.tsx`
 
-## Estimativa de Implementação
+### Hooks
+- `src/hooks/useRoyaltiesAuth.tsx`
+- `src/hooks/useAutores.tsx`
+- `src/hooks/useLivros.tsx`
+- `src/hooks/useVendas.tsx`
+- `src/hooks/usePagamentos.tsx`
 
-| Fase | Descrição | Complexidade |
-|------|-----------|--------------|
-| 1 | Infraestrutura (DB + Auth) | Alta |
-| 2 | Painel Admin completo | Alta |
-| 3 | Painel Autor | Média |
-| 4 | Funcionalidades avançadas | Média |
+### Utilitários
+- `src/lib/royaltiesValidators.ts` (CPF/CNPJ, email)
+- `src/lib/royaltiesCalculations.ts` (cálculos de comissão)
 
-## Observação Importante
+## Detalhes Técnicos
 
-Como você escolheu **criar um novo projeto separado**, recomendo:
+### Validação de CPF/CNPJ
+Reutilizar a lógica existente em `CheckoutShopifyMP.tsx` e extrair para `royaltiesValidators.ts`:
 
-1. Criar um novo projeto no Lovable
-2. Copiar este plano para o novo projeto
-3. Implementar fase por fase
+```typescript
+// src/lib/royaltiesValidators.ts
+export const validateCPF = (cpf: string): boolean => { ... };
+export const validateCNPJ = (cnpj: string): boolean => { ... };
+export const validateCPFOrCNPJ = (value: string): boolean => { ... };
+```
 
-Isso mantém o sistema de Gestão EBD isolado e evita conflitos.
+### Edge Function (criar autor com conta)
+```typescript
+// supabase/functions/create-autor-user/index.ts
+// Criar usuário no Auth + registro em royalties_autores + role 'autor'
+```
+
+### Componentes UI (reutilizar do projeto)
+- Dialog, Form, Input, Select, Button (shadcn/ui)
+- DataTable com paginação
+- Recharts para gráficos
+- Dropzone para upload de imagens
+- Toast (Sonner) para notificações
+
+## Sequência de Implementação
+
+1. **Fase 1A**: Migração DB (tabelas, enums, policies)
+2. **Fase 1B**: Storage bucket + edge function para criar autor
+3. **Fase 2**: Layouts + rotas no App.tsx
+4. **Fase 3A**: Dashboard admin + Gestão de Autores
+5. **Fase 3B**: Gestão de Livros + Vendas
+6. **Fase 3C**: Gestão de Pagamentos + Relatórios
+7. **Fase 4**: Painel completo do Autor
+8. **Fase 5**: Auditoria e refinamentos
+
+## Integração com Projeto Existente
+
+### Menu Admin Geral
+Adicionar link "Royalties" no `AdminLayout.tsx`:
+```typescript
+{ to: "/royalties", icon: BookOpenText, label: "Royalties" }
+```
+
+### Redirecionamento por Role
+No `DashboardRedirect.tsx`, adicionar:
+```typescript
+if (role === 'autor') return <Navigate to="/autor" />;
+if (role === 'gerente_royalties') return <Navigate to="/royalties" />;
+```
+
+### Autenticação
+Reutilizar `useAuth` existente, apenas adicionar verificações de role específicas no `useRoyaltiesAuth`.
 
