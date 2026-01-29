@@ -136,13 +136,14 @@ async function loadBooksWithBlingId(supabase: any): Promise<Map<string, BookMapp
   for (const book of books || []) {
     if (!book.bling_produto_id) continue;
     
-    const percentual = book.royalties_comissoes?.[0]?.percentual || 0;
+    const percentual = Number(book.royalties_comissoes?.[0]?.percentual) || 0;
+    const precoCapa = Number(book.valor_capa) || 0;
     
     const mapping: BookMapping = {
       livro_id: book.id,
       bling_produto_id: book.bling_produto_id.toString(),
       percentual_comissao: percentual,
-      preco_capa: book.valor_capa || 0,
+      preco_capa: precoCapa,
     };
     
     // Map by bling_produto_id
@@ -250,7 +251,8 @@ async function syncNFeBatch(
 
         result.books_found++;
         const quantidade = item.quantidade || 1;
-        const valorUnitario = item.valor || item.valorUnidade || bookInfo.preco_capa;
+        // Sempre usar valor de capa para cálculo de royalties
+        const valorUnitario = bookInfo.preco_capa;
         const valorComissaoUnitario = valorUnitario * (bookInfo.percentual_comissao / 100);
         const valorComissaoTotal = valorComissaoUnitario * quantidade;
 
