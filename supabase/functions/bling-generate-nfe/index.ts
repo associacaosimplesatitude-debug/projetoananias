@@ -527,6 +527,21 @@ serve(async (req) => {
       );
     }
 
+    // ========== HERDAR DESCONTO GLOBAL DO PEDIDO ==========
+    // O pedido pode ter um desconto global que deve ser repassado para a NF-e
+    // Isso garante que o DANFE mostre o valor correto COM desconto
+    let descontoGlobalPedido: { valor: number; unidade: string } | null = null;
+    if (pedido.desconto) {
+      const valorDesconto = Number(pedido.desconto.valor || pedido.desconto || 0);
+      if (valorDesconto > 0) {
+        descontoGlobalPedido = {
+          valor: valorDesconto,
+          unidade: pedido.desconto.unidade || 'REAL',
+        };
+        console.log(`[BLING-NFE] ✓ Desconto do pedido detectado: R$ ${valorDesconto.toFixed(2)}`);
+      }
+    }
+
     const nfePayload: any = {
       tipo: 1, // 1 = Saída (venda)
       dataOperacao: hoje,
@@ -550,6 +565,13 @@ serve(async (req) => {
       // Vincular ao pedido de venda original
       idPedidoVenda: orderId,
     };
+
+    // ========== ADICIONAR DESCONTO GLOBAL NA NF-e ==========
+    // Herdar o desconto do pedido para que o DANFE mostre o valor correto
+    if (descontoGlobalPedido) {
+      nfePayload.desconto = descontoGlobalPedido;
+      console.log(`[BLING-NFE] ✓ Desconto adicionado à NF-e: R$ ${descontoGlobalPedido.valor.toFixed(2)}`);
+    }
 
     console.log(`[BLING-NFE] Contato completo:`, JSON.stringify(nfePayload.contato, null, 2));
 
