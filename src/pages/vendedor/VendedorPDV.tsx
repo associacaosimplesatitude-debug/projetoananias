@@ -266,10 +266,42 @@ export default function VendedorPDV() {
 
       if (error) throw error;
 
-      return data;
+      // [NOVO] Gerar NF-e automaticamente após criar pedido no Bling
+      let nfeResult: { nfe_numero?: string; status?: string } | null = null;
+      if (blingData?.bling_order_id) {
+        console.log(`[PDV] Gerando NF-e para pedido Bling ${blingData.bling_order_id}`);
+        
+        try {
+          const nfeResponse = await supabase.functions.invoke('bling-generate-nfe', {
+            body: { bling_order_id: blingData.bling_order_id }
+          });
+
+          if (nfeResponse.data?.nfe_id) {
+            console.log(`[PDV] NF-e gerada com sucesso: ${nfeResponse.data.nfe_numero}`);
+            nfeResult = { nfe_numero: nfeResponse.data.nfe_numero, status: 'autorizada' };
+          } else if (nfeResponse.data?.nfe_pendente) {
+            console.log(`[PDV] NF-e em processamento, será atualizada via polling`);
+            nfeResult = { status: 'processando' };
+          } else {
+            console.warn(`[PDV] Aviso ao gerar NF-e:`, nfeResponse.data?.fiscal_error || nfeResponse.error);
+            nfeResult = { status: 'erro' };
+          }
+        } catch (nfeError) {
+          console.error(`[PDV] Erro ao gerar NF-e:`, nfeError);
+          nfeResult = { status: 'erro' };
+        }
+      }
+
+      return { ...data, nfeResult };
     },
-    onSuccess: () => {
-      toast.success("Venda finalizada com sucesso! Pedido criado no Bling.");
+    onSuccess: (result) => {
+      if (result?.nfeResult?.nfe_numero) {
+        toast.success(`Venda finalizada! NF-e #${result.nfeResult.nfe_numero} emitida.`);
+      } else if (result?.nfeResult?.status === 'processando') {
+        toast.success("Venda finalizada! NF-e em processamento, verifique em Notas Emitidas.");
+      } else {
+        toast.success("Venda finalizada! Pedido criado no Bling.");
+      }
       setVendaFinalizada(true);
     },
     onError: (error: Error) => {
