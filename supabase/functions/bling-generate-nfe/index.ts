@@ -391,7 +391,16 @@ serve(async (req) => {
       unidadeNegocioId: pedido?.loja?.unidadeNegocio?.id,
       isLojaPenha: isLojaPenha,
       configUsada: tableName,
+      // DEBUG: Campos de desconto do pedido
+      desconto: pedido?.desconto,
+      total: pedido?.total,
+      totalProdutos: pedido?.totalProdutos,
     });
+    
+    // DEBUG: Log completo do campo desconto para diagnóstico
+    console.log(`[BLING-NFE] DEBUG: pedido.desconto =`, JSON.stringify(pedido?.desconto));
+    console.log(`[BLING-NFE] DEBUG: pedido.total =`, pedido?.total);
+    console.log(`[BLING-NFE] DEBUG: pedido.totalProdutos =`, pedido?.totalProdutos);
 
     // =======================================================================
     // PASSO 1: CRIAR NF-e via POST /nfe COM PAYLOAD COMPLETO
@@ -531,15 +540,48 @@ serve(async (req) => {
     // O pedido pode ter um desconto global que deve ser repassado para a NF-e
     // Isso garante que o DANFE mostre o valor correto COM desconto
     let descontoGlobalPedido: { valor: number; unidade: string } | null = null;
+    
+    // DEBUG: Log antes de verificar desconto
+    console.log(`[BLING-NFE] DEBUG: Verificando desconto do pedido...`);
+    console.log(`[BLING-NFE] DEBUG: typeof pedido.desconto =`, typeof pedido?.desconto);
+    console.log(`[BLING-NFE] DEBUG: pedido.desconto raw =`, JSON.stringify(pedido?.desconto));
+    
+    // MÉTODO 1: Tentar ler pedido.desconto (estrutura documentada)
     if (pedido.desconto) {
-      const valorDesconto = Number(pedido.desconto.valor || pedido.desconto || 0);
-      if (valorDesconto > 0) {
+      // O Bling pode retornar desconto como objeto {valor, unidade} ou como número simples
+      const valorDesconto = typeof pedido.desconto === 'object' 
+        ? Number(pedido.desconto.valor || 0)
+        : Number(pedido.desconto || 0);
+      
+      if (valorDesconto > 0.01) {
         descontoGlobalPedido = {
           valor: valorDesconto,
-          unidade: pedido.desconto.unidade || 'REAL',
+          unidade: pedido.desconto?.unidade || 'REAL',
         };
-        console.log(`[BLING-NFE] ✓ Desconto do pedido detectado: R$ ${valorDesconto.toFixed(2)}`);
+        console.log(`[BLING-NFE] ✓ Desconto do pedido detectado (MÉTODO 1): R$ ${valorDesconto.toFixed(2)}`);
       }
+    }
+    
+    // MÉTODO 2 (FALLBACK): Calcular desconto a partir de totalProdutos - total
+    // Se o Bling não retornar o campo desconto, calculamos matematicamente
+    if (!descontoGlobalPedido && pedido.totalProdutos && pedido.total) {
+      const totalProdutos = Number(pedido.totalProdutos);
+      const totalFinal = Number(pedido.total);
+      const descontoCalculado = totalProdutos - totalFinal;
+      
+      console.log(`[BLING-NFE] DEBUG: totalProdutos=${totalProdutos}, total=${totalFinal}, diferença=${descontoCalculado}`);
+      
+      if (descontoCalculado > 0.01) {
+        descontoGlobalPedido = {
+          valor: descontoCalculado,
+          unidade: 'REAL',
+        };
+        console.log(`[BLING-NFE] ✓ Desconto CALCULADO (MÉTODO 2 - FALLBACK): R$ ${descontoCalculado.toFixed(2)} (totalProdutos - total)`);
+      }
+    }
+    
+    if (!descontoGlobalPedido) {
+      console.log(`[BLING-NFE] ⚠ Nenhum desconto detectado no pedido`);
     }
 
     const nfePayload: any = {
