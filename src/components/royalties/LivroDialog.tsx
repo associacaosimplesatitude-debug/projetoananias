@@ -99,6 +99,17 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validação do autor
+    if (!formData.autor_id) {
+      toast({
+        title: "Erro de validação",
+        description: "Selecione um autor para o livro.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
 
     try {
