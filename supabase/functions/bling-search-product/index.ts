@@ -98,14 +98,45 @@ async function fetchProductDetails(accessToken: string, productId: number): Prom
   return json?.data ?? json;
 }
 
-// Search products in Bling
-async function searchProducts(accessToken: string, query: string): Promise<any[]> {
-  const encodedQuery = encodeURIComponent(query);
-  const url = `https://www.bling.com.br/Api/v3/produtos?nome=${encodedQuery}&limite=10`;
-  
-  console.log(`Buscando produtos no Bling: ${url}`);
+// Detect if query is a numeric code (SKU)
+function isNumericCode(query: string): boolean {
+  return /^\d+$/.test(query.trim());
+}
 
-  const resp = await fetch(url, {
+// Search products in Bling - supports both code (SKU) and name
+async function searchProducts(accessToken: string, query: string): Promise<any[]> {
+  const trimmedQuery = query.trim();
+  const encodedQuery = encodeURIComponent(trimmedQuery);
+  
+  // If query is numeric, search by code first
+  if (isNumericCode(trimmedQuery)) {
+    const urlByCodigo = `https://www.bling.com.br/Api/v3/produtos?codigo=${encodedQuery}&limite=10`;
+    console.log(`Buscando por codigo (SKU): ${urlByCodigo}`);
+    
+    const respCodigo = await fetch(urlByCodigo, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (respCodigo.ok) {
+      const json = await respCodigo.json();
+      const results = json?.data ?? [];
+      if (results.length > 0) {
+        console.log(`Encontrados ${results.length} produtos por codigo`);
+        return results;
+      }
+    }
+    console.log('Nenhum produto encontrado por codigo, tentando por nome...');
+  }
+  
+  // Search by name (default or fallback)
+  const urlByNome = `https://www.bling.com.br/Api/v3/produtos?nome=${encodedQuery}&limite=10`;
+  console.log(`Buscando por nome: ${urlByNome}`);
+
+  const resp = await fetch(urlByNome, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
