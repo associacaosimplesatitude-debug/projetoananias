@@ -68,6 +68,7 @@ import DashboardRedirect from "./components/DashboardRedirect";
 // Royalties Pages
 import RoyaltiesDashboard from "./pages/royalties/Dashboard";
 import RoyaltiesAutores from "./pages/royalties/Autores";
+import RoyaltiesAutorDetalhes from "./pages/royalties/AutorDetalhes";
 import RoyaltiesLivros from "./pages/royalties/Livros";
 import RoyaltiesVendas from "./pages/royalties/Vendas";
 import RoyaltiesPagamentos from "./pages/royalties/Pagamentos";
@@ -508,6 +509,7 @@ const App = () => (
                     >
                       <Route index element={<RoyaltiesDashboard />} />
                       <Route path="autores" element={<RoyaltiesAutores />} />
+                      <Route path="autores/:id" element={<RoyaltiesAutorDetalhes />} />
                       <Route path="livros" element={<RoyaltiesLivros />} />
                       <Route path="vendas" element={<RoyaltiesVendas />} />
                       <Route path="pagamentos" element={<RoyaltiesPagamentos />} />
