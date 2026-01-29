@@ -3,14 +3,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Download, Filter, TrendingUp, DollarSign, Clock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Download, Filter, TrendingUp, DollarSign, Clock, FileText, FileSpreadsheet } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoyaltiesAuth } from "@/hooks/useRoyaltiesAuth";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { exportToPDF, exportToExcel } from "@/utils/royaltiesExport";
 
 export default function AutorExtrato() {
   const { autorId } = useRoyaltiesAuth();
@@ -238,10 +239,58 @@ export default function AutorExtrato() {
       {/* Sales Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Histórico de Vendas</CardTitle>
-          <CardDescription>
-            {vendas.length} vendas encontradas
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Histórico de Vendas</CardTitle>
+              <CardDescription>
+                {vendas.length} vendas encontradas
+              </CardDescription>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={vendas.length === 0}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    const hoje = new Date();
+                    const dataInicio = periodoFiltro === "todos" 
+                      ? "2020-01-01" 
+                      : format(startOfMonth(subMonths(hoje, periodoFiltro === "mes_atual" ? 0 : periodoFiltro === "ultimo_mes" ? 1 : periodoFiltro === "3_meses" ? 2 : periodoFiltro === "6_meses" ? 5 : 11)), "yyyy-MM-dd");
+                    exportToPDF({ 
+                      tipoRelatorio: "comissoes", 
+                      dataInicio, 
+                      dataFim: format(hoje, "yyyy-MM-dd"), 
+                      dados: vendas 
+                    });
+                  }}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Exportar PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    const hoje = new Date();
+                    const dataInicio = periodoFiltro === "todos" 
+                      ? "2020-01-01" 
+                      : format(startOfMonth(subMonths(hoje, periodoFiltro === "mes_atual" ? 0 : periodoFiltro === "ultimo_mes" ? 1 : periodoFiltro === "3_meses" ? 2 : periodoFiltro === "6_meses" ? 5 : 11)), "yyyy-MM-dd");
+                    exportToExcel({ 
+                      tipoRelatorio: "comissoes", 
+                      dataInicio, 
+                      dataFim: format(hoje, "yyyy-MM-dd"), 
+                      dados: vendas 
+                    });
+                  }}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Exportar Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
