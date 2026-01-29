@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PagamentoDialog } from "@/components/royalties/PagamentoDialog";
+import { ComprovanteUpload } from "@/components/royalties/ComprovanteUpload";
 import { useToast } from "@/hooks/use-toast";
 
 export default function RoyaltiesPagamentos() {
@@ -90,6 +91,42 @@ export default function RoyaltiesPagamentos() {
     }
   };
 
+  const handleComprovanteUpload = async (pagamentoId: string, url: string) => {
+    try {
+      const { error } = await supabase
+        .from("royalties_pagamentos")
+        .update({ comprovante_url: url })
+        .eq("id", pagamentoId);
+
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["royalties-pagamentos"] });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar comprovante",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleComprovanteRemove = async (pagamentoId: string) => {
+    try {
+      const { error } = await supabase
+        .from("royalties_pagamentos")
+        .update({ comprovante_url: null })
+        .eq("id", pagamentoId);
+
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["royalties-pagamentos"] });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao remover comprovante",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -142,6 +179,7 @@ export default function RoyaltiesPagamentos() {
                   <TableHead>Data Efetivação</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Comprovante</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -166,6 +204,14 @@ export default function RoyaltiesPagamentos() {
                       <Badge variant={getStatusVariant(pagamento.status)}>
                         {getStatusLabel(pagamento.status)}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <ComprovanteUpload
+                        pagamentoId={pagamento.id}
+                        currentUrl={pagamento.comprovante_url}
+                        onUpload={(url) => handleComprovanteUpload(pagamento.id, url)}
+                        onRemove={() => handleComprovanteRemove(pagamento.id)}
+                      />
                     </TableCell>
                     <TableCell className="text-right">
                       {pagamento.status === "pendente" && (

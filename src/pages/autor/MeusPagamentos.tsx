@@ -1,13 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Download, DollarSign, Clock, CheckCircle, Calendar } from "lucide-react";
+import { DollarSign, Clock, CheckCircle, Calendar } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoyaltiesAuth } from "@/hooks/useRoyaltiesAuth";
 import { format, isPast, isFuture, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ComprovanteUpload } from "@/components/royalties/ComprovanteUpload";
 
 export default function AutorMeusPagamentos() {
   const { autorId } = useRoyaltiesAuth();
@@ -251,23 +251,12 @@ export default function AutorMeusPagamentos() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {pagamento.comprovante_url ? (
-                          <Button variant="ghost" size="sm" asChild>
-                            <a 
-                              href={pagamento.comprovante_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1"
-                            >
-                              <Download className="h-4 w-4" />
-                              <span className="sr-only md:not-sr-only md:inline">
-                                Baixar
-                              </span>
-                            </a>
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                        <ComprovanteUpload
+                          pagamentoId={pagamento.id}
+                          currentUrl={pagamento.comprovante_url}
+                          onUpload={() => {}}
+                          readOnly={true}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

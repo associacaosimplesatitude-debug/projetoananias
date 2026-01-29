@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ImageUpload } from "./ImageUpload";
 
 type PeriodoPagamento = "1_mes" | "3_meses" | "6_meses" | "1_ano";
 
@@ -21,6 +22,7 @@ interface LivroDialogProps {
     autor_id: string;
     valor_capa: number;
     is_active: boolean | null;
+    capa_url?: string | null;
   } | null;
 }
 
@@ -36,6 +38,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
     percentual_comissao: "",
     periodo_pagamento: "3_meses" as PeriodoPagamento,
     is_active: true,
+    capa_url: "" as string | null,
   });
 
   const { data: autores = [] } = useQuery({
@@ -69,6 +72,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
           percentual_comissao: comissao?.percentual?.toString() || "",
           periodo_pagamento: (comissao?.periodo_pagamento as PeriodoPagamento) || "3_meses",
           is_active: livro.is_active ?? true,
+          capa_url: livro.capa_url || null,
         });
       } else {
         setFormData({
@@ -78,6 +82,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
           percentual_comissao: "",
           periodo_pagamento: "3_meses",
           is_active: true,
+          capa_url: null,
         });
       }
     };
@@ -97,6 +102,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
         autor_id: formData.autor_id,
         valor_capa: parseFloat(formData.valor_capa) || 0,
         is_active: formData.is_active,
+        capa_url: formData.capa_url || null,
       };
 
       let livroId = livro?.id;
@@ -185,34 +191,46 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="titulo">Título *</Label>
-            <Input
-              id="titulo"
-              value={formData.titulo}
-              onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-              required
+          <div className="flex gap-4">
+            <ImageUpload
+              bucket="royalties-capas"
+              currentUrl={formData.capa_url}
+              onUpload={(url) => setFormData({ ...formData, capa_url: url })}
+              onRemove={() => setFormData({ ...formData, capa_url: null })}
+              label="Capa do Livro"
             />
-          </div>
+            
+            <div className="flex-1 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="titulo">Título *</Label>
+                <Input
+                  id="titulo"
+                  value={formData.titulo}
+                  onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                  required
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="autor_id">Autor *</Label>
-            <Select
-              value={formData.autor_id}
-              onValueChange={(value) => setFormData({ ...formData, autor_id: value })}
-              required
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o autor" />
-              </SelectTrigger>
-              <SelectContent>
-                {autores.map((autor) => (
-                  <SelectItem key={autor.id} value={autor.id}>
-                    {autor.nome_completo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <div className="space-y-2">
+                <Label htmlFor="autor_id">Autor *</Label>
+                <Select
+                  value={formData.autor_id}
+                  onValueChange={(value) => setFormData({ ...formData, autor_id: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o autor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {autores.map((autor) => (
+                      <SelectItem key={autor.id} value={autor.id}>
+                        {autor.nome_completo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
