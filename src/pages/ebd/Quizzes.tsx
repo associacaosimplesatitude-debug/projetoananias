@@ -1,21 +1,36 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEbdChurchId } from "@/hooks/useEbdChurchId";
-import { format, parseISO, isBefore, parse } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, Trophy, Clock, Users, CheckCircle, AlertCircle, Medal } from "lucide-react";
+import { Search, Plus, Trophy, Users, Medal, MoreVertical, Trash2 } from "lucide-react";
 import { CriarQuizAulaDialog } from "@/components/ebd/CriarQuizAulaDialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+
+type Quiz = {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  pontos_max: number | null;
+  is_active: boolean;
+  data_limite: string | null;
+  turma: { id: string; nome: string } | null;
+};
 
 export default function EBDQuizzes() {
   const { data: churchData } = useEbdChurchId();
   const churchId = churchData?.id;
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [criarDialogOpen, setCriarDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
 
   const { data: quizzes, isLoading } = useQuery({
     queryKey: ["quizzes-superintendente", churchId],
@@ -32,7 +47,7 @@ export default function EBDQuizzes() {
         .eq("is_active", true)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []) as Quiz[];
     },
     enabled: !!churchId,
   });
@@ -53,6 +68,36 @@ export default function EBDQuizzes() {
     },
     enabled: quizzes && quizzes.length > 0,
   });
+
+  const deleteQuizMutation = useMutation({
+    mutationFn: async (quizId: string) => {
+      const { error } = await supabase
+        .from("ebd_quizzes")
+        .delete()
+        .eq("id", quizId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quizzes-superintendente"] });
+      toast.success("Quiz excluído com sucesso!");
+      setDeleteDialogOpen(false);
+      setQuizToDelete(null);
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir quiz: " + error.message);
+    },
+  });
+
+  const handleDeleteClick = (quiz: Quiz) => {
+    setQuizToDelete(quiz);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (quizToDelete) {
+      deleteQuizMutation.mutate(quizToDelete.id);
+    }
+  };
 
   const filteredQuizzes = quizzes?.filter(q => q.titulo.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -80,8 +125,28 @@ export default function EBDQuizzes() {
             return (
               <Card key={quiz.id}>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">{quiz.titulo}</CardTitle>
-                  <CardDescription>{quiz.turma?.nome} • {quiz.data_limite ? format(parseISO(quiz.data_limite), "dd/MM") : ""}</CardDescription>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg truncate">{quiz.titulo}</CardTitle>
+                      <CardDescription>{quiz.turma?.nome} • {quiz.data_limite ? format(parseISO(quiz.data_limite), "dd/MM") : ""}</CardDescription>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteClick(quiz)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-2 text-sm"><Users className="h-4 w-4" />{respostas.length} responderam</div>
@@ -111,6 +176,29 @@ export default function EBDQuizzes() {
       )}
 
       <CriarQuizAulaDialog open={criarDialogOpen} onOpenChange={setCriarDialogOpen} />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Quiz</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o quiz "{quizToDelete?.titulo}"?
+              <br /><br />
+              Esta ação também removerá todas as respostas dos alunos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteQuizMutation.isPending}
+            >
+              {deleteQuizMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
