@@ -4600,6 +4600,8 @@ export type Database = {
       }
       royalties_vendas: {
         Row: {
+          bling_order_id: number | null
+          bling_order_number: string | null
           created_at: string
           data_venda: string
           id: string
@@ -4611,6 +4613,8 @@ export type Database = {
           valor_unitario: number
         }
         Insert: {
+          bling_order_id?: number | null
+          bling_order_number?: string | null
           created_at?: string
           data_venda?: string
           id?: string
@@ -4622,6 +4626,8 @@ export type Database = {
           valor_unitario: number
         }
         Update: {
+          bling_order_id?: number | null
+          bling_order_number?: string | null
           created_at?: string
           data_venda?: string
           id?: string

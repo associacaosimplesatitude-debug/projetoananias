@@ -5,15 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { VendaDialog } from "@/components/royalties/VendaDialog";
+import { BlingSyncButton } from "@/components/royalties/BlingSyncButton";
+import { VendasSummaryCards } from "@/components/royalties/VendasSummaryCards";
 
 export default function RoyaltiesVendas() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: vendas = [], isLoading } = useQuery({
     queryKey: ["royalties-vendas", search],
@@ -41,6 +44,10 @@ export default function RoyaltiesVendas() {
     }).format(value);
   };
 
+  const handleSyncComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ["royalties-vendas"] });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -50,11 +57,16 @@ export default function RoyaltiesVendas() {
             Registre e acompanhe as vendas de livros
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Registrar Venda
-        </Button>
+        <div className="flex gap-2">
+          <BlingSyncButton onSyncComplete={handleSyncComplete} />
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Registrar Venda
+          </Button>
+        </div>
       </div>
+
+      <VendasSummaryCards vendas={vendas} />
 
       <Card>
         <CardHeader>
