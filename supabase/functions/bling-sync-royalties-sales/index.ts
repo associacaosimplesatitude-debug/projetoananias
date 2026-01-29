@@ -118,6 +118,7 @@ async function loadBooksWithBlingId(supabase: any): Promise<Map<string, BookMapp
     .select(`
       id,
       bling_produto_id,
+      codigo_bling,
       valor_capa,
       royalties_comissoes (
         percentual
@@ -144,10 +145,17 @@ async function loadBooksWithBlingId(supabase: any): Promise<Map<string, BookMapp
       preco_capa: book.valor_capa || 0,
     };
     
+    // Map by bling_produto_id
     bookMap.set(book.bling_produto_id.toString(), mapping);
+    
+    // Also map by codigo_bling (SKU) - this is what NFe items use
+    if (book.codigo_bling) {
+      bookMap.set(book.codigo_bling, mapping);
+      console.log(`[DB] Mapped codigo_bling: ${book.codigo_bling} -> livro ${book.id}`);
+    }
   }
 
-  console.log(`[DB] Loaded ${bookMap.size} books with Bling IDs`);
+  console.log(`[DB] Loaded ${bookMap.size} book mappings`);
   return bookMap;
 }
 
@@ -157,8 +165,9 @@ async function syncNFeBatch(
   bookMap: Map<string, BookMapping>,
   dataInicial: string,
   dataFinal: string,
-  maxNfes: number
-): Promise<SyncResult> {
+  maxNfes: number,
+  skipNfes: number = 0
+): Promise<SyncResult & { total_nfes_available: number }> {
   const result: SyncResult = {
     synced: 0,
     skipped: 0,
@@ -174,22 +183,45 @@ async function syncNFeBatch(
 
   console.log(`[Sync] Fetching NFes from ${dataInicial} to ${dataFinal} (max: ${maxNfes})...`);
 
-  // Fetch NFe list
-  const endpoint = `/nfe?dataEmissaoInicial=${dataInicial}&dataEmissaoFinal=${dataFinal}&limite=100&pagina=1`;
-  const response = await blingApiCall(accessToken, endpoint);
-  const allNfes = response.data || [];
+  // Fetch all NFe pages
+  let allAuthorizedNfes: any[] = [];
+  let page = 1;
+  let hasMore = true;
   
-  // Filter authorized only (situacao = 6)
-  const nfes = allNfes.filter((nfe: any) => {
-    const sitValue = typeof nfe.situacao === 'object' ? nfe.situacao?.valor || nfe.situacao?.id : nfe.situacao;
-    return sitValue === 6;
-  });
+  while (hasMore && page <= 5) { // Max 5 pages = 500 NFes
+    const endpoint = `/nfe?dataEmissaoInicial=${dataInicial}&dataEmissaoFinal=${dataFinal}&limite=100&pagina=${page}`;
+    const response = await blingApiCall(accessToken, endpoint);
+    const nfes = response.data || [];
+    
+    if (nfes.length === 0) {
+      hasMore = false;
+      break;
+    }
+    
+    // Filter authorized only (situacao = 6)
+    const authorizedNfes = nfes.filter((nfe: any) => {
+      const sitValue = typeof nfe.situacao === 'object' ? nfe.situacao?.valor || nfe.situacao?.id : nfe.situacao;
+      return sitValue === 6;
+    });
+    
+    allAuthorizedNfes = allAuthorizedNfes.concat(authorizedNfes);
+    console.log(`[Bling] Page ${page}: ${authorizedNfes.length} authorized of ${nfes.length} total`);
+    
+    if (nfes.length < 100) {
+      hasMore = false;
+    }
+    page++;
+  }
   
-  console.log(`[Bling] ${nfes.length} NFes autorizadas de ${allNfes.length} total`);
+  console.log(`[Bling] Total: ${allAuthorizedNfes.length} NFes autorizadas`);
 
-  // Process only up to maxNfes to avoid timeout
-  const nfesToProcess = nfes.slice(0, maxNfes);
+  const totalAvailable = allAuthorizedNfes.length;
+
+  // Skip and limit NFes to process
+  const nfesToProcess = allAuthorizedNfes.slice(skipNfes, skipNfes + maxNfes);
   const processedItems: any[] = [];
+  
+  console.log(`[Sync] Processing NFes ${skipNfes} to ${skipNfes + nfesToProcess.length} of ${totalAvailable}`);
 
   for (const nfe of nfesToProcess) {
     result.nfes_processed++;
@@ -204,20 +236,10 @@ async function syncNFeBatch(
         continue;
       }
 
-      // Log first NFe items for debugging
-      if (result.nfes_processed <= 2) {
-        console.log(`[Debug] NFe ${nfe.id} itens: ${JSON.stringify(nfeData.itens.slice(0, 2))}`);
-      }
-
       // Process items
       for (const item of nfeData.itens) {
         const produtoId = item.produto?.id?.toString();
         const codigo = item.codigo || item.produto?.codigo;
-        
-        // Debug: log product IDs we're looking for
-        if (result.nfes_processed <= 2) {
-          console.log(`[Debug] Item: produtoId=${produtoId}, codigo=${codigo}, bookMap has ${bookMap.size} entries`);
-        }
         
         let bookInfo = produtoId ? bookMap.get(produtoId) : null;
         if (!bookInfo && codigo) {
@@ -290,7 +312,7 @@ async function syncNFeBatch(
   }
 
   console.log(`[Sync] Complete: ${result.nfes_processed} NFes, ${result.books_found} books found, ${result.errors} errors`);
-  return result;
+  return { ...result, total_nfes_available: totalAvailable };
 }
 
 Deno.serve(async (req) => {
@@ -305,17 +327,19 @@ Deno.serve(async (req) => {
     );
 
     let daysBack = 30;
-    let maxNfes = 30; // Process max 30 NFes per call to avoid timeout
+    let maxNfes = 30;
+    let skipNfes = 0;
     
     try {
       const body = await req.json();
       daysBack = body.days_back || 30;
       maxNfes = body.max_nfes || 30;
+      skipNfes = body.skip || 0;
     } catch {
       // Use defaults
     }
 
-    console.log(`[Start] Syncing NFes from last ${daysBack} days (max ${maxNfes} NFes)`);
+    console.log(`[Start] Syncing NFes from last ${daysBack} days (skip: ${skipNfes}, max: ${maxNfes})`);
 
     // Get Bling config
     const { data: configData, error: configError } = await supabase
@@ -358,7 +382,7 @@ Deno.serve(async (req) => {
     const dataFinalStr = dataFinal.toISOString().split("T")[0];
 
     // Sync batch
-    const result = await syncNFeBatch(supabase, accessToken, bookMap, dataInicialStr, dataFinalStr, maxNfes);
+    const result = await syncNFeBatch(supabase, accessToken, bookMap, dataInicialStr, dataFinalStr, maxNfes, skipNfes);
 
     return new Response(
       JSON.stringify({ success: true, ...result }),
