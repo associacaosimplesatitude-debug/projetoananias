@@ -218,13 +218,12 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-          {/* Bling Product Search - only for new books */}
-          {!livro && (
-            <BlingProductSearch
-              onSelect={handleBlingProductSelect}
-              disabled={loading}
-            />
-          )}
+          {/* Bling Product Search - for new and existing books */}
+          <BlingProductSearch
+            onSelect={handleBlingProductSelect}
+            disabled={loading}
+            currentBlingId={formData.bling_produto_id}
+          />
 
           <div className="flex gap-4">
             <ImageUpload

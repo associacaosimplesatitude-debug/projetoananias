@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil, BookOpen } from "lucide-react";
+import { Plus, Search, Pencil, BookOpen, Link2, Unlink } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { LivroDialog } from "@/components/royalties/LivroDialog";
@@ -134,9 +134,22 @@ export default function RoyaltiesLivros() {
                         : "-"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={livro.is_active ? "default" : "secondary"}>
-                        {livro.is_active ? "Ativo" : "Inativo"}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={livro.is_active ? "default" : "secondary"}>
+                          {livro.is_active ? "Ativo" : "Inativo"}
+                        </Badge>
+                        {livro.bling_produto_id ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            <Link2 className="h-3 w-3 mr-1" />
+                            Bling
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                            <Unlink className="h-3 w-3 mr-1" />
+                            Sem vínculo
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
