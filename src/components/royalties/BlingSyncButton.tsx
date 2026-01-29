@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface BlingSyncButtonProps {
   onSyncComplete: () => void;
@@ -13,6 +19,7 @@ interface SyncResult {
   synced: number;
   skipped: number;
   errors: number;
+  nfes_processed: number;
   summary: {
     total_quantidade: number;
     total_valor_vendas: number;
@@ -21,17 +28,26 @@ interface SyncResult {
   error?: string;
 }
 
+const PERIOD_OPTIONS = [
+  { days: 30, label: "30 dias" },
+  { days: 60, label: "60 dias" },
+  { days: 90, label: "90 dias" },
+  { days: 180, label: "180 dias" },
+];
+
 export function BlingSyncButton({ onSyncComplete }: BlingSyncButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [selectedDays, setSelectedDays] = useState(60);
 
-  const handleSync = async () => {
+  const handleSync = async (days: number) => {
     setLoading(true);
+    setSelectedDays(days);
     
     try {
       const { data, error } = await supabase.functions.invoke<SyncResult>(
         "bling-sync-royalties-sales",
         {
-          body: { days_back: 90, dry_run: false },
+          body: { days_back: days, dry_run: false },
         }
       );
 
@@ -40,7 +56,7 @@ export function BlingSyncButton({ onSyncComplete }: BlingSyncButtonProps) {
       if (data?.success) {
         toast({
           title: "Sincronização concluída",
-          description: `${data.synced} pedidos sincronizados, ${data.skipped} ignorados, ${data.errors} erros. Total: ${data.summary.total_quantidade} livros vendidos.`,
+          description: `${data.nfes_processed} notas fiscais processadas. ${data.summary.total_quantidade} livros vendidos encontrados.`,
         });
         onSyncComplete();
       } else {
@@ -59,13 +75,34 @@ export function BlingSyncButton({ onSyncComplete }: BlingSyncButtonProps) {
   };
 
   return (
-    <Button
-      variant="outline"
-      onClick={handleSync}
-      disabled={loading}
-    >
-      <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-      {loading ? "Sincronizando..." : "Sincronizar com Bling"}
-    </Button>
+    <div className="flex items-center gap-1">
+      <Button
+        variant="outline"
+        onClick={() => handleSync(selectedDays)}
+        disabled={loading}
+        className="rounded-r-none"
+      >
+        <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        {loading ? "Sincronizando..." : `Sincronizar (${selectedDays}d)`}
+      </Button>
+      
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" disabled={loading} className="rounded-l-none border-l-0">
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {PERIOD_OPTIONS.map((option) => (
+            <DropdownMenuItem
+              key={option.days}
+              onClick={() => handleSync(option.days)}
+            >
+              Últimos {option.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
