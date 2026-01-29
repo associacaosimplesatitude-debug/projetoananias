@@ -60,16 +60,24 @@ async function refreshBlingToken(supabase: any, config: BlingConfig): Promise<st
   const tokenData = await response.json();
   const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
-  // Update token in database
-  await supabase
+  // Update token in database (use the first config row)
+  const { data: configs } = await supabase
     .from("bling_config")
-    .update({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      token_expires_at: expiresAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", "default");
+    .select("id")
+    .limit(1)
+    .single();
+
+  if (configs?.id) {
+    await supabase
+      .from("bling_config")
+      .update({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", configs.id);
+  }
 
   console.log("[Bling] Token refreshed successfully");
   return tokenData.access_token;
@@ -123,7 +131,7 @@ async function loadBooksWithBlingId(supabase: any): Promise<Map<string, BookMapp
     .select(`
       id,
       bling_produto_id,
-      preco_capa,
+      valor_capa,
       royalties_comissoes (
         percentual
       )
@@ -147,12 +155,42 @@ async function loadBooksWithBlingId(supabase: any): Promise<Map<string, BookMapp
       livro_id: book.id,
       bling_produto_id: book.bling_produto_id,
       percentual_comissao: percentual,
-      preco_capa: book.preco_capa || 0,
+      preco_capa: book.valor_capa || 0,
     });
   }
 
   console.log(`[DB] Loaded ${bookMap.size} books with Bling IDs`);
   return bookMap;
+}
+
+// Status that should NOT be considered (canceled, returned, etc.)
+const EXCLUDED_STATUS_NAMES = ["cancelado", "devolvido", "estornado"];
+
+function isOrderCompleted(situacaoId: number, situacaoNome: string): boolean {
+  const nomeLC = (situacaoNome || "").toLowerCase();
+  
+  // Exclude canceled/returned orders
+  if (EXCLUDED_STATUS_NAMES.some(excluded => nomeLC.includes(excluded))) {
+    return false;
+  }
+  
+  // Include orders with completed-like statuses
+  // Status 6 = Em aberto (pular)
+  // Status 12 = Pagamento pendente (pular)
+  // Status 24 = Em andamento (pular, ainda não enviado)
+  // Status 56675/56676/57811 = Prováveis status de enviado/entregue
+  const completedIds = new Set([9, 31, 56675, 56676, 57811]);
+  const completedNames = ["atendido", "enviado", "entregue", "concluído", "finalizado", "faturado"];
+  
+  if (completedIds.has(situacaoId)) {
+    return true;
+  }
+  
+  if (completedNames.some(name => nomeLC.includes(name))) {
+    return true;
+  }
+  
+  return false;
 }
 
 async function syncOrders(
@@ -201,10 +239,10 @@ async function syncOrders(
 
     // Process each order
     for (const order of orders) {
-      // Only process completed orders (Atendido = 9, or check situacao.valor)
+      // Check if status is a valid "completed" status
       const situacaoId = order.situacao?.id || order.situacao?.valor;
-      const isCompleted = situacaoId === 9 || situacaoId === 31 || 
-                         order.situacao?.nome?.toLowerCase().includes("atendido");
+      const situacaoNome = order.situacao?.nome || "";
+      const isCompleted = isOrderCompleted(situacaoId, situacaoNome);
       
       if (!isCompleted) {
         console.log(`[Sync] Skipping order ${order.id} - status: ${order.situacao?.nome || situacaoId}`);
@@ -268,25 +306,45 @@ async function syncOrders(
     }
   }
 
-  // Insert/upsert records
+  // Insert records (checking for duplicates first)
   if (!dryRun && processedOrders.length > 0) {
-    console.log(`[DB] Upserting ${processedOrders.length} sales records...`);
+    console.log(`[DB] Processing ${processedOrders.length} sales records...`);
     
-    // Process in batches
-    const batchSize = 50;
-    for (let i = 0; i < processedOrders.length; i += batchSize) {
-      const batch = processedOrders.slice(i, i + batchSize);
-      
-      const { error } = await supabase
-        .from("royalties_vendas")
-        .upsert(batch, {
-          onConflict: "bling_order_id,livro_id",
-          ignoreDuplicates: false,
-        });
+    // Get existing bling_order_id + livro_id combinations to avoid duplicates
+    const existingKeys = new Set<string>();
+    const blingOrderIds = [...new Set(processedOrders.map(o => o.bling_order_id))];
+    
+    const { data: existingRecords } = await supabase
+      .from("royalties_vendas")
+      .select("bling_order_id, livro_id")
+      .in("bling_order_id", blingOrderIds);
+    
+    for (const record of existingRecords || []) {
+      existingKeys.add(`${record.bling_order_id}-${record.livro_id}`);
+    }
+    
+    // Filter out existing records
+    const newRecords = processedOrders.filter(order => {
+      const key = `${order.bling_order_id}-${order.livro_id}`;
+      return !existingKeys.has(key);
+    });
+    
+    console.log(`[DB] ${newRecords.length} new records to insert (${processedOrders.length - newRecords.length} already exist)`);
+    
+    if (newRecords.length > 0) {
+      // Process in batches
+      const batchSize = 50;
+      for (let i = 0; i < newRecords.length; i += batchSize) {
+        const batch = newRecords.slice(i, i + batchSize);
+        
+        const { error } = await supabase
+          .from("royalties_vendas")
+          .insert(batch);
 
-      if (error) {
-        console.error("[DB] Error upserting batch:", error);
-        result.errors += batch.length;
+        if (error) {
+          console.error("[DB] Error inserting batch:", error);
+          result.errors += batch.length;
+        }
       }
     }
   }
@@ -320,11 +378,11 @@ Deno.serve(async (req) => {
 
     console.log(`[Start] Syncing sales from last ${daysBack} days (dry_run: ${dryRun})`);
 
-    // Get Bling config
+    // Get Bling config (first row)
     const { data: configData, error: configError } = await supabase
       .from("bling_config")
       .select("*")
-      .eq("id", "default")
+      .limit(1)
       .single();
 
     if (configError || !configData) {
