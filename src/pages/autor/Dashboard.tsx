@@ -12,6 +12,21 @@ import { ptBR } from "date-fns/locale";
 export default function AutorDashboard() {
   const { autorId } = useRoyaltiesAuth();
 
+  // Fetch author name
+  const { data: autor } = useQuery({
+    queryKey: ["autor-nome", autorId],
+    queryFn: async () => {
+      if (!autorId) return null;
+      const { data } = await supabase
+        .from("royalties_autores")
+        .select("nome_completo")
+        .eq("id", autorId)
+        .single();
+      return data;
+    },
+    enabled: !!autorId,
+  });
+
   const { data: stats } = useQuery({
     queryKey: ["autor-stats", autorId],
     queryFn: async () => {
@@ -161,7 +176,9 @@ export default function AutorDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Meu Dashboard</h1>
+        <h1 className="text-3xl font-bold">
+          {autor?.nome_completo ? `Olá, ${autor.nome_completo}` : "Meu Dashboard"}
+        </h1>
         <p className="text-muted-foreground">
           Acompanhe suas vendas e royalties
         </p>
