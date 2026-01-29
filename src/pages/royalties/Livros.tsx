@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil } from "lucide-react";
+import { Plus, Search, Pencil, BookOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { LivroDialog } from "@/components/royalties/LivroDialog";
@@ -100,6 +100,7 @@ export default function RoyaltiesLivros() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-16">Capa</TableHead>
                   <TableHead>Título</TableHead>
                   <TableHead>Autor</TableHead>
                   <TableHead>Valor Capa</TableHead>
@@ -111,6 +112,19 @@ export default function RoyaltiesLivros() {
               <TableBody>
                 {livros.map((livro: any) => (
                   <TableRow key={livro.id}>
+                    <TableCell>
+                      {livro.capa_url ? (
+                        <img 
+                          src={livro.capa_url} 
+                          alt={livro.titulo}
+                          className="w-10 h-14 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="w-10 h-14 bg-muted rounded flex items-center justify-center">
+                          <BookOpen className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{livro.titulo}</TableCell>
                     <TableCell>{livro.royalties_autores?.nome_completo || "-"}</TableCell>
                     <TableCell>{formatCurrency(livro.valor_capa)}</TableCell>
