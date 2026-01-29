@@ -24,6 +24,8 @@ interface SyncResult {
   synced: number;
   skipped: number;
   errors: number;
+  nfes_processed: number;
+  books_found: number;
   summary: {
     total_quantidade: number;
     total_valor_vendas: number;
@@ -31,10 +33,9 @@ interface SyncResult {
   };
 }
 
-// Rate limiting: 350ms between calls (3 req/s limit)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function refreshBlingToken(supabase: any, config: BlingConfig): Promise<string> {
+async function refreshBlingToken(supabase: any, config: BlingConfig, configId: string): Promise<string> {
   console.log("[Bling] Refreshing access token...");
   
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
@@ -60,24 +61,15 @@ async function refreshBlingToken(supabase: any, config: BlingConfig): Promise<st
   const tokenData = await response.json();
   const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
-  // Update token in database (use the first config row)
-  const { data: configs } = await supabase
+  await supabase
     .from("bling_config")
-    .select("id")
-    .limit(1)
-    .single();
-
-  if (configs?.id) {
-    await supabase
-      .from("bling_config")
-      .update({
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        token_expires_at: expiresAt,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", configs.id);
-  }
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      token_expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", configId);
 
   console.log("[Bling] Token refreshed successfully");
   return tokenData.access_token;
@@ -86,17 +78,12 @@ async function refreshBlingToken(supabase: any, config: BlingConfig): Promise<st
 function isTokenExpired(expiresAt: string): boolean {
   const expirationDate = new Date(expiresAt);
   const now = new Date();
-  // Add 5 minute buffer
   return now >= new Date(expirationDate.getTime() - 5 * 60 * 1000);
 }
 
-async function blingApiCall(
-  accessToken: string,
-  endpoint: string,
-  retries = 3
-): Promise<any> {
+async function blingApiCall(accessToken: string, endpoint: string, retries = 3): Promise<any> {
   for (let attempt = 1; attempt <= retries; attempt++) {
-    await delay(350); // Rate limiting
+    await delay(400); // Slightly more conservative rate limiting
     
     const response = await fetch(`https://www.bling.com.br/Api/v3${endpoint}`, {
       headers: {
@@ -107,7 +94,7 @@ async function blingApiCall(
 
     if (response.status === 429) {
       console.log(`[Bling] Rate limited, attempt ${attempt}/${retries}, waiting...`);
-      await delay(2000 * attempt);
+      await delay(3000 * attempt);
       continue;
     }
 
@@ -148,62 +135,36 @@ async function loadBooksWithBlingId(supabase: any): Promise<Map<string, BookMapp
   for (const book of books || []) {
     if (!book.bling_produto_id) continue;
     
-    // Get the active commission percentage
     const percentual = book.royalties_comissoes?.[0]?.percentual || 0;
     
-    bookMap.set(book.bling_produto_id.toString(), {
+    const mapping: BookMapping = {
       livro_id: book.id,
-      bling_produto_id: book.bling_produto_id,
+      bling_produto_id: book.bling_produto_id.toString(),
       percentual_comissao: percentual,
       preco_capa: book.valor_capa || 0,
-    });
+    };
+    
+    bookMap.set(book.bling_produto_id.toString(), mapping);
   }
 
   console.log(`[DB] Loaded ${bookMap.size} books with Bling IDs`);
   return bookMap;
 }
 
-// Status that should NOT be considered (canceled, returned, etc.)
-const EXCLUDED_STATUS_NAMES = ["cancelado", "devolvido", "estornado"];
-
-function isOrderCompleted(situacaoId: number, situacaoNome: string): boolean {
-  const nomeLC = (situacaoNome || "").toLowerCase();
-  
-  // Exclude canceled/returned orders
-  if (EXCLUDED_STATUS_NAMES.some(excluded => nomeLC.includes(excluded))) {
-    return false;
-  }
-  
-  // Include orders with completed-like statuses
-  // Status 6 = Em aberto (pular)
-  // Status 12 = Pagamento pendente (pular)
-  // Status 24 = Em andamento (pular, ainda não enviado)
-  // Status 56675/56676/57811 = Prováveis status de enviado/entregue
-  const completedIds = new Set([9, 31, 56675, 56676, 57811]);
-  const completedNames = ["atendido", "enviado", "entregue", "concluído", "finalizado", "faturado"];
-  
-  if (completedIds.has(situacaoId)) {
-    return true;
-  }
-  
-  if (completedNames.some(name => nomeLC.includes(name))) {
-    return true;
-  }
-  
-  return false;
-}
-
-async function syncOrders(
+async function syncNFeBatch(
   supabase: any,
   accessToken: string,
   bookMap: Map<string, BookMapping>,
-  daysBack: number,
-  dryRun: boolean
+  dataInicial: string,
+  dataFinal: string,
+  maxNfes: number
 ): Promise<SyncResult> {
   const result: SyncResult = {
     synced: 0,
     skipped: 0,
     errors: 0,
+    nfes_processed: 0,
+    books_found: 0,
     summary: {
       total_quantidade: 0,
       total_valor_vendas: 0,
@@ -211,108 +172,97 @@ async function syncOrders(
     },
   };
 
-  // Calculate date range
-  const dataInicial = new Date();
-  dataInicial.setDate(dataInicial.getDate() - daysBack);
-  const dataInicialStr = dataInicial.toISOString().split("T")[0];
+  console.log(`[Sync] Fetching NFes from ${dataInicial} to ${dataFinal} (max: ${maxNfes})...`);
 
-  console.log(`[Sync] Fetching orders from ${dataInicialStr}...`);
+  // Fetch NFe list
+  const endpoint = `/nfe?dataEmissaoInicial=${dataInicial}&dataEmissaoFinal=${dataFinal}&limite=100&pagina=1`;
+  const response = await blingApiCall(accessToken, endpoint);
+  const allNfes = response.data || [];
+  
+  // Filter authorized only (situacao = 6)
+  const nfes = allNfes.filter((nfe: any) => {
+    const sitValue = typeof nfe.situacao === 'object' ? nfe.situacao?.valor || nfe.situacao?.id : nfe.situacao;
+    return sitValue === 6;
+  });
+  
+  console.log(`[Bling] ${nfes.length} NFes autorizadas de ${allNfes.length} total`);
 
-  // Fetch orders list with pagination
-  let page = 1;
-  let hasMore = true;
-  const processedOrders: any[] = [];
+  // Process only up to maxNfes to avoid timeout
+  const nfesToProcess = nfes.slice(0, maxNfes);
+  const processedItems: any[] = [];
 
-  while (hasMore && page <= 10) { // Max 10 pages = 1000 orders
-    const ordersResponse = await blingApiCall(
-      accessToken,
-      `/pedidos/vendas?dataInicial=${dataInicialStr}&limite=100&pagina=${page}`
-    );
+  for (const nfe of nfesToProcess) {
+    result.nfes_processed++;
 
-    const orders = ordersResponse.data || [];
-    console.log(`[Sync] Page ${page}: ${orders.length} orders`);
-
-    if (orders.length === 0) {
-      hasMore = false;
-      break;
-    }
-
-    // Process each order
-    for (const order of orders) {
-      // Check if status is a valid "completed" status
-      const situacaoId = order.situacao?.id || order.situacao?.valor;
-      const situacaoNome = order.situacao?.nome || "";
-      const isCompleted = isOrderCompleted(situacaoId, situacaoNome);
+    try {
+      // Fetch NFe details
+      const nfeDetails = await blingApiCall(accessToken, `/nfe/${nfe.id}`);
+      const nfeData = nfeDetails.data;
       
-      if (!isCompleted) {
-        console.log(`[Sync] Skipping order ${order.id} - status: ${order.situacao?.nome || situacaoId}`);
+      if (!nfeData?.itens || nfeData.itens.length === 0) {
         result.skipped++;
         continue;
       }
 
-      // Fetch order details to get items
-      try {
-        const orderDetails = await blingApiCall(accessToken, `/pedidos/vendas/${order.id}`);
-        const orderData = orderDetails.data;
-        
-        if (!orderData?.itens || orderData.itens.length === 0) {
-          console.log(`[Sync] Order ${order.id} has no items`);
-          result.skipped++;
-          continue;
-        }
-
-        // Process items
-        for (const item of orderData.itens) {
-          // Try to match by product ID or code
-          const productId = item.produto?.id?.toString() || item.codigo;
-          const bookInfo = bookMap.get(productId) || 
-                          bookMap.get(item.codigo);
-
-          if (!bookInfo) {
-            continue; // Not a tracked book
-          }
-
-          const quantidade = item.quantidade || 1;
-          const valorUnitario = item.valor || item.valorUnidade || bookInfo.preco_capa;
-          const valorComissaoUnitario = valorUnitario * (bookInfo.percentual_comissao / 100);
-          const valorComissaoTotal = valorComissaoUnitario * quantidade;
-
-          processedOrders.push({
-            livro_id: bookInfo.livro_id,
-            quantidade,
-            valor_unitario: valorUnitario,
-            valor_comissao_unitario: valorComissaoUnitario,
-            valor_comissao_total: valorComissaoTotal,
-            data_venda: orderData.data || new Date().toISOString().split("T")[0],
-            bling_order_id: orderData.id,
-            bling_order_number: orderData.numero?.toString() || null,
-          });
-
-          result.summary.total_quantidade += quantidade;
-          result.summary.total_valor_vendas += valorUnitario * quantidade;
-          result.summary.total_royalties += valorComissaoTotal;
-        }
-
-        result.synced++;
-      } catch (error) {
-        console.error(`[Sync] Error processing order ${order.id}:`, error);
-        result.errors++;
+      // Log first NFe items for debugging
+      if (result.nfes_processed <= 2) {
+        console.log(`[Debug] NFe ${nfe.id} itens: ${JSON.stringify(nfeData.itens.slice(0, 2))}`);
       }
-    }
 
-    page++;
-    if (orders.length < 100) {
-      hasMore = false;
+      // Process items
+      for (const item of nfeData.itens) {
+        const produtoId = item.produto?.id?.toString();
+        const codigo = item.codigo || item.produto?.codigo;
+        
+        // Debug: log product IDs we're looking for
+        if (result.nfes_processed <= 2) {
+          console.log(`[Debug] Item: produtoId=${produtoId}, codigo=${codigo}, bookMap has ${bookMap.size} entries`);
+        }
+        
+        let bookInfo = produtoId ? bookMap.get(produtoId) : null;
+        if (!bookInfo && codigo) {
+          bookInfo = bookMap.get(codigo);
+        }
+
+        if (!bookInfo) continue;
+
+        result.books_found++;
+        const quantidade = item.quantidade || 1;
+        const valorUnitario = item.valor || item.valorUnidade || bookInfo.preco_capa;
+        const valorComissaoUnitario = valorUnitario * (bookInfo.percentual_comissao / 100);
+        const valorComissaoTotal = valorComissaoUnitario * quantidade;
+
+        processedItems.push({
+          livro_id: bookInfo.livro_id,
+          quantidade,
+          valor_unitario: valorUnitario,
+          valor_comissao_unitario: valorComissaoUnitario,
+          valor_comissao_total: valorComissaoTotal,
+          data_venda: nfeData.dataEmissao?.split(" ")[0] || new Date().toISOString().split("T")[0],
+          bling_order_id: nfeData.id,
+          bling_order_number: nfeData.numero?.toString() || null,
+        });
+
+        result.summary.total_quantidade += quantidade;
+        result.summary.total_valor_vendas += valorUnitario * quantidade;
+        result.summary.total_royalties += valorComissaoTotal;
+        
+        console.log(`[Match] NFe ${nfe.id}: ${quantidade}x livro ${bookInfo.livro_id}`);
+      }
+
+      result.synced++;
+    } catch (error) {
+      console.error(`[Sync] Error processing NFe ${nfe.id}:`, error);
+      result.errors++;
     }
   }
 
-  // Insert records (checking for duplicates first)
-  if (!dryRun && processedOrders.length > 0) {
-    console.log(`[DB] Processing ${processedOrders.length} sales records...`);
+  // Insert new records
+  if (processedItems.length > 0) {
+    console.log(`[DB] Processing ${processedItems.length} sales records...`);
     
-    // Get existing bling_order_id + livro_id combinations to avoid duplicates
     const existingKeys = new Set<string>();
-    const blingOrderIds = [...new Set(processedOrders.map(o => o.bling_order_id))];
+    const blingOrderIds = [...new Set(processedItems.map(o => o.bling_order_id))];
     
     const { data: existingRecords } = await supabase
       .from("royalties_vendas")
@@ -323,33 +273,23 @@ async function syncOrders(
       existingKeys.add(`${record.bling_order_id}-${record.livro_id}`);
     }
     
-    // Filter out existing records
-    const newRecords = processedOrders.filter(order => {
-      const key = `${order.bling_order_id}-${order.livro_id}`;
+    const newRecords = processedItems.filter(item => {
+      const key = `${item.bling_order_id}-${item.livro_id}`;
       return !existingKeys.has(key);
     });
     
-    console.log(`[DB] ${newRecords.length} new records to insert (${processedOrders.length - newRecords.length} already exist)`);
+    console.log(`[DB] ${newRecords.length} new records (${processedItems.length - newRecords.length} already exist)`);
     
     if (newRecords.length > 0) {
-      // Process in batches
-      const batchSize = 50;
-      for (let i = 0; i < newRecords.length; i += batchSize) {
-        const batch = newRecords.slice(i, i + batchSize);
-        
-        const { error } = await supabase
-          .from("royalties_vendas")
-          .insert(batch);
-
-        if (error) {
-          console.error("[DB] Error inserting batch:", error);
-          result.errors += batch.length;
-        }
+      const { error } = await supabase.from("royalties_vendas").insert(newRecords);
+      if (error) {
+        console.error("[DB] Insert error:", error);
+        result.errors += newRecords.length;
       }
     }
   }
 
-  console.log(`[Sync] Complete: ${result.synced} orders synced, ${result.skipped} skipped, ${result.errors} errors`);
+  console.log(`[Sync] Complete: ${result.nfes_processed} NFes, ${result.books_found} books found, ${result.errors} errors`);
   return result;
 }
 
@@ -364,21 +304,20 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Parse request body
-    let daysBack = 90;
-    let dryRun = false;
+    let daysBack = 30;
+    let maxNfes = 30; // Process max 30 NFes per call to avoid timeout
     
     try {
       const body = await req.json();
-      daysBack = body.days_back || 90;
-      dryRun = body.dry_run || false;
+      daysBack = body.days_back || 30;
+      maxNfes = body.max_nfes || 30;
     } catch {
       // Use defaults
     }
 
-    console.log(`[Start] Syncing sales from last ${daysBack} days (dry_run: ${dryRun})`);
+    console.log(`[Start] Syncing NFes from last ${daysBack} days (max ${maxNfes} NFes)`);
 
-    // Get Bling config (first row)
+    // Get Bling config
     const { data: configData, error: configError } = await supabase
       .from("bling_config")
       .select("*")
@@ -386,7 +325,6 @@ Deno.serve(async (req) => {
       .single();
 
     if (configError || !configData) {
-      console.error("[Config] Error loading Bling config:", configError);
       return new Response(
         JSON.stringify({ error: "Bling not configured" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -398,24 +336,29 @@ Deno.serve(async (req) => {
     // Check/refresh token
     let accessToken = config.access_token;
     if (isTokenExpired(config.token_expires_at)) {
-      accessToken = await refreshBlingToken(supabase, config);
+      accessToken = await refreshBlingToken(supabase, config, configData.id);
     }
 
-    // Load books mapping
+    // Load books
     const bookMap = await loadBooksWithBlingId(supabase);
     
     if (bookMap.size === 0) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Nenhum livro cadastrado com bling_produto_id" 
-        }),
+        JSON.stringify({ success: false, error: "Nenhum livro com bling_produto_id" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Sync orders
-    const result = await syncOrders(supabase, accessToken, bookMap, daysBack, dryRun);
+    // Calculate date range
+    const dataFinal = new Date();
+    const dataInicial = new Date();
+    dataInicial.setDate(dataInicial.getDate() - daysBack);
+    
+    const dataInicialStr = dataInicial.toISOString().split("T")[0];
+    const dataFinalStr = dataFinal.toISOString().split("T")[0];
+
+    // Sync batch
+    const result = await syncNFeBatch(supabase, accessToken, bookMap, dataInicialStr, dataFinalStr, maxNfes);
 
     return new Response(
       JSON.stringify({ success: true, ...result }),
