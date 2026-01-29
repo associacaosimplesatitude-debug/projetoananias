@@ -4503,6 +4503,7 @@ export type Database = {
           autor_id: string
           bling_produto_id: number | null
           capa_url: string | null
+          codigo_bling: string | null
           created_at: string
           descricao: string | null
           id: string
@@ -4515,6 +4516,7 @@ export type Database = {
           autor_id: string
           bling_produto_id?: number | null
           capa_url?: string | null
+          codigo_bling?: string | null
           created_at?: string
           descricao?: string | null
           id?: string
@@ -4527,6 +4529,7 @@ export type Database = {
           autor_id?: string
           bling_produto_id?: number | null
           capa_url?: string | null
+          codigo_bling?: string | null
           created_at?: string
           descricao?: string | null
           id?: string
