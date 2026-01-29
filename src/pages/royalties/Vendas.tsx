@@ -9,14 +9,16 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { VendaDialog } from "@/components/royalties/VendaDialog";
 
 export default function RoyaltiesVendas() {
   const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: vendas = [], isLoading } = useQuery({
     queryKey: ["royalties-vendas", search],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("royalties_vendas")
         .select(`
           *,
@@ -27,7 +29,6 @@ export default function RoyaltiesVendas() {
         `)
         .order("data_venda", { ascending: false });
 
-      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -49,7 +50,7 @@ export default function RoyaltiesVendas() {
             Registre e acompanhe as vendas de livros
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Registrar Venda
         </Button>
@@ -123,6 +124,11 @@ export default function RoyaltiesVendas() {
           )}
         </CardContent>
       </Card>
+
+      <VendaDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </div>
   );
 }

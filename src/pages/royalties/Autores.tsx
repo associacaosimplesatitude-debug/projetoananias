@@ -4,14 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Eye } from "lucide-react";
+import { Plus, Search, Pencil } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { AutorDialog } from "@/components/royalties/AutorDialog";
 
 export default function RoyaltiesAutores() {
-  const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedAutor, setSelectedAutor] = useState<any>(null);
 
   const { data: autores = [], isLoading } = useQuery({
     queryKey: ["royalties-autores", search],
@@ -31,6 +32,16 @@ export default function RoyaltiesAutores() {
     },
   });
 
+  const handleEdit = (autor: any) => {
+    setSelectedAutor(autor);
+    setDialogOpen(true);
+  };
+
+  const handleNew = () => {
+    setSelectedAutor(null);
+    setDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -40,7 +51,7 @@ export default function RoyaltiesAutores() {
             Gerencie os autores cadastrados no sistema
           </p>
         </div>
-        <Button>
+        <Button onClick={handleNew}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Autor
         </Button>
@@ -100,9 +111,9 @@ export default function RoyaltiesAutores() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => navigate(`/royalties/autores/${autor.id}`)}
+                        onClick={() => handleEdit(autor)}
                       >
-                        <Eye className="h-4 w-4" />
+                        <Pencil className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -112,6 +123,12 @@ export default function RoyaltiesAutores() {
           )}
         </CardContent>
       </Card>
+
+      <AutorDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        autor={selectedAutor}
+      />
     </div>
   );
 }

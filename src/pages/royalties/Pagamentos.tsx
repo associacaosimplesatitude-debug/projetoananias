@@ -4,19 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Plus, Search, CheckCircle } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { PagamentoDialog } from "@/components/royalties/PagamentoDialog";
+import { useToast } from "@/hooks/use-toast";
 
 export default function RoyaltiesPagamentos() {
   const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: pagamentos = [], isLoading } = useQuery({
     queryKey: ["royalties-pagamentos", search],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("royalties_pagamentos")
         .select(`
           *,
@@ -24,7 +29,6 @@ export default function RoyaltiesPagamentos() {
         `)
         .order("data_prevista", { ascending: false });
 
-      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -37,7 +41,7 @@ export default function RoyaltiesPagamentos() {
     }).format(value);
   };
 
-  const getStatusVariant = (status: string) => {
+  const getStatusVariant = (status: string | null) => {
     switch (status) {
       case "pago":
         return "default";
@@ -50,7 +54,7 @@ export default function RoyaltiesPagamentos() {
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: string | null) => {
     switch (status) {
       case "pago":
         return "Pago";
@@ -59,7 +63,30 @@ export default function RoyaltiesPagamentos() {
       case "cancelado":
         return "Cancelado";
       default:
-        return status;
+        return status || "Pendente";
+    }
+  };
+
+  const handleMarcarPago = async (pagamentoId: string) => {
+    try {
+      const { error } = await supabase
+        .from("royalties_pagamentos")
+        .update({
+          status: "pago",
+          data_efetivacao: new Date().toISOString().split("T")[0],
+        })
+        .eq("id", pagamentoId);
+
+      if (error) throw error;
+
+      toast({ title: "Pagamento marcado como pago!" });
+      queryClient.invalidateQueries({ queryKey: ["royalties-pagamentos"] });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar pagamento",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -72,7 +99,7 @@ export default function RoyaltiesPagamentos() {
             Gerencie os pagamentos de royalties aos autores
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Pagamento
         </Button>
@@ -115,6 +142,7 @@ export default function RoyaltiesPagamentos() {
                   <TableHead>Data Efetivação</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -139,6 +167,18 @@ export default function RoyaltiesPagamentos() {
                         {getStatusLabel(pagamento.status)}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right">
+                      {pagamento.status === "pendente" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleMarcarPago(pagamento.id)}
+                          title="Marcar como pago"
+                        >
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -146,6 +186,11 @@ export default function RoyaltiesPagamentos() {
           )}
         </CardContent>
       </Card>
+
+      <PagamentoDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </div>
   );
 }

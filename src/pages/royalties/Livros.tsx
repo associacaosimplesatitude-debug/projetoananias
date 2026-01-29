@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Pencil } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { LivroDialog } from "@/components/royalties/LivroDialog";
 
 export default function RoyaltiesLivros() {
   const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedLivro, setSelectedLivro] = useState<any>(null);
 
   const { data: livros = [], isLoading } = useQuery({
     queryKey: ["royalties-livros", search],
@@ -40,6 +43,16 @@ export default function RoyaltiesLivros() {
     }).format(value);
   };
 
+  const handleEdit = (livro: any) => {
+    setSelectedLivro(livro);
+    setDialogOpen(true);
+  };
+
+  const handleNew = () => {
+    setSelectedLivro(null);
+    setDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -49,7 +62,7 @@ export default function RoyaltiesLivros() {
             Gerencie os livros e suas configurações de comissão
           </p>
         </div>
-        <Button>
+        <Button onClick={handleNew}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Livro
         </Button>
@@ -92,6 +105,7 @@ export default function RoyaltiesLivros() {
                   <TableHead>Valor Capa</TableHead>
                   <TableHead>Comissão</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -110,6 +124,15 @@ export default function RoyaltiesLivros() {
                         {livro.is_active ? "Ativo" : "Inativo"}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(livro)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -117,6 +140,12 @@ export default function RoyaltiesLivros() {
           )}
         </CardContent>
       </Card>
+
+      <LivroDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        livro={selectedLivro}
+      />
     </div>
   );
 }
