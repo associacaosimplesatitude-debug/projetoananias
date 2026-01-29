@@ -411,30 +411,148 @@ serve(async (req) => {
 
     const hoje = new Date().toISOString().split('T')[0]; // AAAA-MM-DD
 
-    // Mapear itens do pedido para itens da NF-e
-    // Inclui NCM e CFOP obrigatórios para transmissão SEFAZ
-    const itensNfe = (pedido.itens || []).map((item: any, idx: number) => {
-      const codigo = item.codigo || item.produto?.codigo || `ITEM-${idx + 1}`;
-      const descricao = item.descricao || item.produto?.descricao || item.produto?.nome || 'Produto';
+    // ========== HELPER: Arredondamento em 2 casas decimais ==========
+    const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+    // ========== DETECÇÃO DE DESCONTO GLOBAL DO PEDIDO ==========
+    // Ler desconto ANTES de montar os itens para poder aplicar rateio
+    let descontoGlobalPedido: number = 0;
+    
+    // MÉTODO 1: Tentar ler pedido.desconto (estrutura documentada)
+    if (pedido.desconto) {
+      const valorDesconto = typeof pedido.desconto === 'object' 
+        ? Number(pedido.desconto.valor || 0)
+        : Number(pedido.desconto || 0);
       
-      // NCM: usar do produto ou padrão para livros/revistas
-      const ncm = item.produto?.ncm || item.ncm || '49019900'; // 49019900 = Livros, brochuras, impressos
+      if (valorDesconto > 0.01) {
+        descontoGlobalPedido = valorDesconto;
+        console.log(`[BLING-NFE] ✓ Desconto detectado (MÉTODO 1 - campo desconto): R$ ${valorDesconto.toFixed(2)}`);
+      }
+    }
+    
+    // MÉTODO 2 (FALLBACK): Calcular desconto a partir de totalProdutos - total
+    if (descontoGlobalPedido < 0.01 && pedido.totalProdutos && pedido.total) {
+      const totalProdutos = Number(pedido.totalProdutos);
+      const totalFinal = Number(pedido.total);
+      const descontoCalculado = totalProdutos - totalFinal;
       
-      // CFOP: usar do produto ou padrão para venda dentro do estado
-      const cfop = item.produto?.cfop || item.cfop || '5102'; // 5102 = Venda mercadoria adquirida
+      console.log(`[BLING-NFE] DEBUG: totalProdutos=${totalProdutos}, total=${totalFinal}, diferença=${descontoCalculado}`);
       
-      console.log(`[BLING-NFE] Item ${idx + 1}: ${codigo} - ${descricao} (qtd: ${item.quantidade}, valor: ${item.valor}, NCM: ${ncm}, CFOP: ${cfop})`);
+      if (descontoCalculado > 0.01) {
+        descontoGlobalPedido = descontoCalculado;
+        console.log(`[BLING-NFE] ✓ Desconto CALCULADO (MÉTODO 2 - FALLBACK): R$ ${descontoCalculado.toFixed(2)}`);
+      }
+    }
+    
+    // Calcular total líquido esperado
+    const totalLiquidoEsperado = pedido.total && Number(pedido.total) > 0 
+      ? Number(pedido.total)
+      : (Number(pedido.totalProdutos || 0) - descontoGlobalPedido);
+    
+    console.log(`[BLING-NFE] ╔══════════════════════════════════════════════════════════════╗`);
+    console.log(`[BLING-NFE] ║          DIAGNÓSTICO DE DESCONTO DO PEDIDO                   ║`);
+    console.log(`[BLING-NFE] ╠══════════════════════════════════════════════════════════════╣`);
+    console.log(`[BLING-NFE] ║ Desconto Global Detectado: R$ ${descontoGlobalPedido.toFixed(2)}`);
+    console.log(`[BLING-NFE] ║ Total Bruto (totalProdutos): R$ ${Number(pedido.totalProdutos || 0).toFixed(2)}`);
+    console.log(`[BLING-NFE] ║ Total Líquido Esperado: R$ ${totalLiquidoEsperado.toFixed(2)}`);
+    console.log(`[BLING-NFE] ╚══════════════════════════════════════════════════════════════╝`);
+
+    // ========== MAPEAR ITENS COM RATEIO DE DESCONTO PROPORCIONAL ==========
+    // ESTRATÉGIA: Aplicar o desconto diretamente nos valores unitários dos itens
+    // Isso evita que o Bling ignore o campo "desconto" global na NF-e
+    
+    // Passo 1: Calcular total bruto dos itens
+    let totalBrutoItens = 0;
+    const itensBrutos = (pedido.itens || []).map((item: any, idx: number) => {
+      const valorUnit = Number(item.valor) || 0;
+      const qtd = Number(item.quantidade) || 1;
+      const totalItem = valorUnit * qtd;
+      totalBrutoItens += totalItem;
       
       return {
-        codigo: codigo,
-        descricao: descricao,
+        codigo: item.codigo || item.produto?.codigo || `ITEM-${idx + 1}`,
+        descricao: item.descricao || item.produto?.descricao || item.produto?.nome || 'Produto',
         unidade: item.unidade || 'UN',
-        quantidade: Number(item.quantidade) || 1,
-        valor: Number(item.valor) || 0,
+        quantidade: qtd,
+        valorOriginal: valorUnit,
+        totalOriginal: totalItem,
+        ncm: item.produto?.ncm || item.ncm || '49019900',
+        cfop: item.produto?.cfop || item.cfop || '5102',
+      };
+    });
+    
+    console.log(`[BLING-NFE] Total bruto dos itens calculado: R$ ${totalBrutoItens.toFixed(2)}`);
+    
+    // Passo 2: Aplicar rateio proporcional do desconto nos itens
+    let somaLiquidaCalculada = 0;
+    const itensComDesconto = itensBrutos.map((item: any, idx: number) => {
+      let valorUnitLiquido = item.valorOriginal;
+      
+      if (descontoGlobalPedido > 0.01 && totalBrutoItens > 0) {
+        // Calcular proporção deste item no total bruto
+        const proporcao = item.totalOriginal / totalBrutoItens;
+        // Desconto proporcional para este item (valor total, não unitário)
+        const descontoItem = descontoGlobalPedido * proporcao;
+        // Total líquido deste item
+        const totalLiquidoItem = item.totalOriginal - descontoItem;
+        // Valor unitário líquido (dividido pela quantidade)
+        valorUnitLiquido = round2(totalLiquidoItem / item.quantidade);
+      }
+      
+      const totalLiquidoCalculado = round2(valorUnitLiquido * item.quantidade);
+      somaLiquidaCalculada += totalLiquidoCalculado;
+      
+      return {
+        ...item,
+        valorLiquido: valorUnitLiquido,
+        totalLiquido: totalLiquidoCalculado,
+      };
+    });
+    
+    // Passo 3: Ajuste do último item para eliminar diferença de centavos
+    if (descontoGlobalPedido > 0.01 && itensComDesconto.length > 0) {
+      const diferenca = round2(totalLiquidoEsperado - somaLiquidaCalculada);
+      
+      if (Math.abs(diferenca) > 0.001 && Math.abs(diferenca) <= 0.10) {
+        const ultimoItem = itensComDesconto[itensComDesconto.length - 1];
+        // Ajustar o valor unitário do último item para compensar
+        const novoTotalUltimoItem = ultimoItem.totalLiquido + diferenca;
+        ultimoItem.valorLiquido = round2(novoTotalUltimoItem / ultimoItem.quantidade);
+        ultimoItem.totalLiquido = round2(ultimoItem.valorLiquido * ultimoItem.quantidade);
+        
+        // Recalcular soma
+        somaLiquidaCalculada = itensComDesconto.reduce((sum: number, i: any) => sum + i.totalLiquido, 0);
+        
+        console.log(`[BLING-NFE] ✓ Ajuste de centavos aplicado no último item: ${diferenca > 0 ? '+' : ''}R$ ${diferenca.toFixed(2)}`);
+      }
+      
+      console.log(`[BLING-NFE] ╔══════════════════════════════════════════════════════════════╗`);
+      console.log(`[BLING-NFE] ║          RATEIO DE DESCONTO NOS ITENS                        ║`);
+      console.log(`[BLING-NFE] ╠══════════════════════════════════════════════════════════════╣`);
+      console.log(`[BLING-NFE] ║ Total Bruto Itens: R$ ${totalBrutoItens.toFixed(2)}`);
+      console.log(`[BLING-NFE] ║ Desconto Aplicado: R$ ${descontoGlobalPedido.toFixed(2)}`);
+      console.log(`[BLING-NFE] ║ Total Líquido Esperado: R$ ${totalLiquidoEsperado.toFixed(2)}`);
+      console.log(`[BLING-NFE] ║ Total Líquido Calculado: R$ ${somaLiquidaCalculada.toFixed(2)}`);
+      console.log(`[BLING-NFE] ║ Diferença Final: R$ ${round2(totalLiquidoEsperado - somaLiquidaCalculada).toFixed(2)}`);
+      console.log(`[BLING-NFE] ╚══════════════════════════════════════════════════════════════╝`);
+    }
+    
+    // Passo 4: Montar itens da NF-e com valores líquidos
+    const itensNfe = itensComDesconto.map((item: any, idx: number) => {
+      const valorFinal = descontoGlobalPedido > 0.01 ? item.valorLiquido : item.valorOriginal;
+      
+      console.log(`[BLING-NFE] Item ${idx + 1}: ${item.codigo} - ${item.descricao} (qtd: ${item.quantidade}, valor: ${valorFinal.toFixed(2)}${descontoGlobalPedido > 0.01 ? ` [original: ${item.valorOriginal.toFixed(2)}]` : ''}, NCM: ${item.ncm}, CFOP: ${item.cfop})`);
+      
+      return {
+        codigo: item.codigo,
+        descricao: item.descricao,
+        unidade: item.unidade,
+        quantidade: item.quantidade,
+        valor: valorFinal, // Valor unitário líquido (já com desconto rateado)
         tipo: 'P', // Produto
         origem: 0, // Nacional
-        ncm: ncm,  // Código NCM obrigatório para SEFAZ
-        cfop: cfop, // CFOP obrigatório para SEFAZ
+        ncm: item.ncm,
+        cfop: item.cfop,
       };
     });
 
@@ -536,54 +654,18 @@ serve(async (req) => {
       );
     }
 
-    // ========== HERDAR DESCONTO GLOBAL DO PEDIDO ==========
-    // O pedido pode ter um desconto global que deve ser repassado para a NF-e
-    // Isso garante que o DANFE mostre o valor correto COM desconto
-    let descontoGlobalPedido: { valor: number; unidade: string } | null = null;
-    
-    // DEBUG: Log antes de verificar desconto
-    console.log(`[BLING-NFE] DEBUG: Verificando desconto do pedido...`);
-    console.log(`[BLING-NFE] DEBUG: typeof pedido.desconto =`, typeof pedido?.desconto);
-    console.log(`[BLING-NFE] DEBUG: pedido.desconto raw =`, JSON.stringify(pedido?.desconto));
-    
-    // MÉTODO 1: Tentar ler pedido.desconto (estrutura documentada)
-    if (pedido.desconto) {
-      // O Bling pode retornar desconto como objeto {valor, unidade} ou como número simples
-      const valorDesconto = typeof pedido.desconto === 'object' 
-        ? Number(pedido.desconto.valor || 0)
-        : Number(pedido.desconto || 0);
-      
-      if (valorDesconto > 0.01) {
-        descontoGlobalPedido = {
-          valor: valorDesconto,
-          unidade: pedido.desconto?.unidade || 'REAL',
-        };
-        console.log(`[BLING-NFE] ✓ Desconto do pedido detectado (MÉTODO 1): R$ ${valorDesconto.toFixed(2)}`);
-      }
-    }
-    
-    // MÉTODO 2 (FALLBACK): Calcular desconto a partir de totalProdutos - total
-    // Se o Bling não retornar o campo desconto, calculamos matematicamente
-    if (!descontoGlobalPedido && pedido.totalProdutos && pedido.total) {
-      const totalProdutos = Number(pedido.totalProdutos);
-      const totalFinal = Number(pedido.total);
-      const descontoCalculado = totalProdutos - totalFinal;
-      
-      console.log(`[BLING-NFE] DEBUG: totalProdutos=${totalProdutos}, total=${totalFinal}, diferença=${descontoCalculado}`);
-      
-      if (descontoCalculado > 0.01) {
-        descontoGlobalPedido = {
-          valor: descontoCalculado,
-          unidade: 'REAL',
-        };
-        console.log(`[BLING-NFE] ✓ Desconto CALCULADO (MÉTODO 2 - FALLBACK): R$ ${descontoCalculado.toFixed(2)} (totalProdutos - total)`);
-      }
-    }
-    
-    if (!descontoGlobalPedido) {
-      console.log(`[BLING-NFE] ⚠ Nenhum desconto detectado no pedido`);
+    // ========== NOTA: DESCONTO JÁ APLICADO NOS VALORES UNITÁRIOS DOS ITENS ==========
+    // O desconto global do pedido foi rateado proporcionalmente nos valores unitários
+    // dos itens (bloco acima). NÃO enviamos nfePayload.desconto para evitar que o 
+    // Bling ignore o campo (comportamento confirmado) ou aplique desconto duplicado.
+    // 
+    // Resultado: cada item.valor já está com o desconto embutido, então a soma dos
+    // itens no Bling = totalLiquidoEsperado (valor que deve aparecer no DANFE).
+    if (descontoGlobalPedido > 0.01) {
+      console.log(`[BLING-NFE] ✓ Desconto de R$ ${descontoGlobalPedido.toFixed(2)} aplicado nos valores unitários dos itens (não enviamos campo desconto global)`);
     }
 
+    // ========== MONTAR PAYLOAD COMPLETO DA NF-e ==========
     const nfePayload: any = {
       tipo: 1, // 1 = Saída (venda)
       dataOperacao: hoje,
@@ -603,17 +685,10 @@ serve(async (req) => {
           uf: uf,
         },
       },
-      itens: itensNfe,
+      itens: itensNfe, // Itens já com valores líquidos (desconto rateado)
       // Vincular ao pedido de venda original
       idPedidoVenda: orderId,
     };
-
-    // ========== ADICIONAR DESCONTO GLOBAL NA NF-e ==========
-    // Herdar o desconto do pedido para que o DANFE mostre o valor correto
-    if (descontoGlobalPedido) {
-      nfePayload.desconto = descontoGlobalPedido;
-      console.log(`[BLING-NFE] ✓ Desconto adicionado à NF-e: R$ ${descontoGlobalPedido.valor.toFixed(2)}`);
-    }
 
     console.log(`[BLING-NFE] Contato completo:`, JSON.stringify(nfePayload.contato, null, 2));
 
