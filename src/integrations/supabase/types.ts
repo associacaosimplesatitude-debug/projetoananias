@@ -5361,6 +5361,7 @@ export type Database = {
       }
       execute_readonly_query: { Args: { sql_query: string }; Returns: Json }
       get_auth_email: { Args: never; Returns: string }
+      get_autor_id_by_user: { Args: { _user_id: string }; Returns: string }
       get_cliente_by_documento: { Args: { _documento: string }; Returns: Json }
       get_co_professor_ids: { Args: { p_user_id: string }; Returns: string[] }
       get_student_turma_id: { Args: { _user_id: string }; Returns: string }
@@ -5389,6 +5390,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_royalties_access: { Args: { _user_id: string }; Returns: boolean }
       is_ebd_superintendent: {
         Args: { _church_id: string; _user_id: string }
         Returns: boolean
@@ -5398,6 +5400,7 @@ export type Database = {
         Args: { _church_id: string; _user_id: string }
         Returns: boolean
       }
+      is_royalties_autor: { Args: { _user_id: string }; Returns: boolean }
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
       transfer_cliente_vendedor: {
         Args: { _cliente_id: string; _source: string; _vendedor_id: string }
