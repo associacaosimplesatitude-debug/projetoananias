@@ -26,6 +26,9 @@ import {
   Loader2
 } from "lucide-react";
 
+// Desconto padrão de representante (30%)
+const DESCONTO_REPRESENTANTE = 0.30;
+
 interface Produto {
   id: string;
   titulo: string;
@@ -72,9 +75,10 @@ export default function VendedorPDV() {
     enabled: busca.length >= 2,
   });
 
-  // Calcular totais
+  // Calcular totais com desconto de 30%
   const subtotal = carrinho.reduce((acc, item) => acc + (item.produto.preco_cheio * item.quantidade), 0);
-  const total = subtotal; // Sem desconto por enquanto
+  const valorDesconto = subtotal * DESCONTO_REPRESENTANTE;
+  const total = subtotal - valorDesconto;
 
   // Adicionar produto ao carrinho
   const adicionarAoCarrinho = (produto: Produto) => {
@@ -117,14 +121,47 @@ export default function VendedorPDV() {
       if (carrinho.length === 0) throw new Error("Carrinho vazio");
       if (!clienteNome.trim()) throw new Error("Nome do cliente é obrigatório");
 
-      const itens = carrinho.map(item => ({
+      // Preparar itens com desconto aplicado
+      const itensComDesconto = carrinho.map(item => ({
         bling_produto_id: item.produto.bling_produto_id,
         titulo: item.produto.titulo,
         quantidade: item.quantidade,
         preco_unitario: item.produto.preco_cheio,
-        preco_total: item.produto.preco_cheio * item.quantidade,
+        preco_com_desconto: item.produto.preco_cheio * (1 - DESCONTO_REPRESENTANTE),
+        preco_total: item.produto.preco_cheio * item.quantidade * (1 - DESCONTO_REPRESENTANTE),
       }));
 
+      // Criar pedido no Bling primeiro (para obter bling_order_id)
+      const blingResponse = await supabase.functions.invoke('bling-create-order', {
+        body: {
+          forma_pagamento: 'pagamento_loja',
+          forma_pagamento_loja: formaPagamento,
+          deposito_origem: 'local',
+          cliente_nome: clienteNome.trim(),
+          cliente_documento: clienteCpf.trim() || null,
+          cliente_telefone: clienteTelefone.trim() || null,
+          itens: carrinho.map(item => ({
+            bling_produto_id: item.produto.bling_produto_id,
+            titulo: item.produto.titulo,
+            quantidade: item.quantidade,
+            preco_cheio: item.produto.preco_cheio,
+            valor: item.produto.preco_cheio * (1 - DESCONTO_REPRESENTANTE),
+            descontoItem: DESCONTO_REPRESENTANTE * 100, // 30%
+          })),
+          valor_total: total,
+          observacoes: `PDV Balcão Penha - ${formaPagamento.toUpperCase()}${observacoes.trim() ? ` | ${observacoes.trim()}` : ''}`,
+          vendedor_id: vendedor.id,
+        }
+      });
+
+      if (blingResponse.error) {
+        console.error("Erro ao criar pedido no Bling:", blingResponse.error);
+        throw new Error("Erro ao criar pedido no Bling. Tente novamente.");
+      }
+
+      const blingData = blingResponse.data;
+
+      // Salvar no banco vendas_balcao com referência ao Bling
       const { data, error } = await supabase
         .from("vendas_balcao")
         .insert({
@@ -133,26 +170,25 @@ export default function VendedorPDV() {
           cliente_nome: clienteNome.trim(),
           cliente_cpf: clienteCpf.trim() || null,
           cliente_telefone: clienteTelefone.trim() || null,
-          itens: itens,
+          itens: itensComDesconto,
           valor_subtotal: subtotal,
-          valor_desconto: 0,
+          valor_desconto: valorDesconto,
           valor_total: total,
           forma_pagamento: formaPagamento,
           status: "concluida",
           observacoes: observacoes.trim() || null,
+          bling_order_id: blingData?.bling_order_id || null,
+          bling_order_number: blingData?.bling_order_number || null,
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      // TODO: Integrar com Bling Penha para criar pedido
-      // await supabase.functions.invoke('bling-create-order-penha', { body: { venda_id: data.id } });
-
       return data;
     },
     onSuccess: () => {
-      toast.success("Venda finalizada com sucesso!");
+      toast.success("Venda finalizada com sucesso! Pedido criado no Bling.");
       setVendaFinalizada(true);
     },
     onError: (error: Error) => {
@@ -293,43 +329,56 @@ export default function VendedorPDV() {
               ) : (
                 <ScrollArea className="h-[200px]">
                   <div className="space-y-2">
-                    {carrinho.map(item => (
-                      <div key={item.produto.id} className="flex items-center justify-between p-2 border rounded-lg">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm line-clamp-1">{item.produto.titulo}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.produto.preco_cheio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} cada
-                          </p>
+                    {carrinho.map(item => {
+                      const precoComDesconto = item.produto.preco_cheio * (1 - DESCONTO_REPRESENTANTE);
+                      const totalItem = precoComDesconto * item.quantidade;
+                      return (
+                        <div key={item.produto.id} className="flex items-center justify-between p-2 border rounded-lg">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm line-clamp-1">{item.produto.titulo}</p>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground line-through">
+                                {item.produto.preco_cheio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                              <span className="text-green-600 font-medium">
+                                {precoComDesconto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0">-30%</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Subtotal: {totalItem.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              size="icon" 
+                              variant="outline" 
+                              className="h-6 w-6"
+                              onClick={() => atualizarQuantidade(item.produto.id, -1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-6 text-center font-medium">{item.quantidade}</span>
+                            <Button 
+                              size="icon" 
+                              variant="outline" 
+                              className="h-6 w-6"
+                              onClick={() => atualizarQuantidade(item.produto.id, 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-6 w-6 text-destructive"
+                              onClick={() => removerDoCarrinho(item.produto.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            size="icon" 
-                            variant="outline" 
-                            className="h-6 w-6"
-                            onClick={() => atualizarQuantidade(item.produto.id, -1)}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="w-6 text-center font-medium">{item.quantidade}</span>
-                          <Button 
-                            size="icon" 
-                            variant="outline" 
-                            className="h-6 w-6"
-                            onClick={() => atualizarQuantidade(item.produto.id, 1)}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
-                            className="h-6 w-6 text-destructive"
-                            onClick={() => removerDoCarrinho(item.produto.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               )}
@@ -337,10 +386,15 @@ export default function VendedorPDV() {
               <Separator className="my-4" />
 
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Subtotal</span>
-                  <span>{subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Subtotal (preço cheio)</span>
+                  <span className="line-through">{subtotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                 </div>
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Desconto (30%)</span>
+                  <span>-{valorDesconto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                </div>
+                <Separator />
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total</span>
                   <span>{total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
