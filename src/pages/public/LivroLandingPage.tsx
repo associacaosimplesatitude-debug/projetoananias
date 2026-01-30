@@ -5,6 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExternalLink, ShoppingCart, BookOpen, User } from "lucide-react";
 
+interface Livro {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  valor_capa: number;
+  capa_url: string | null;
+}
+
+interface Autor {
+  id: string;
+  nome_completo: string;
+}
+
 interface AffiliateLink {
   id: string;
   slug: string;
@@ -13,39 +26,33 @@ interface AffiliateLink {
   video_url: string | null;
   descricao_lp: string | null;
   comissao_percentual: number;
-  livro: {
-    id: string;
-    titulo: string;
-    subtitulo: string | null;
-    isbn: string | null;
-    valor_capa: number;
-    capa_url: string | null;
-    sinopse: string | null;
-  };
-  autor: {
-    id: string;
-    nome_completo: string;
-    bio: string | null;
-    foto_url: string | null;
-  };
+  livro_id: string;
+  autor_id: string;
+}
+
+interface PageData {
+  link: AffiliateLink;
+  livro: Livro;
+  autor: Autor;
 }
 
 export default function LivroLandingPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [affiliateLink, setAffiliateLink] = useState<AffiliateLink | null>(null);
+  const [pageData, setPageData] = useState<PageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (slug) {
-      loadAffiliateLink();
+      loadPageData();
       trackClick();
     }
   }, [slug]);
 
-  const loadAffiliateLink = async () => {
+  const loadPageData = async () => {
     try {
-      const { data, error } = await supabase
+      // Step 1: Fetch the affiliate link (without embed)
+      const { data: linkData, error: linkError } = await supabase
         .from("royalties_affiliate_links")
         .select(`
           id,
@@ -55,38 +62,63 @@ export default function LivroLandingPage() {
           video_url,
           descricao_lp,
           comissao_percentual,
-          livro:royalties_livros!livro_id (
-            id,
-            titulo,
-            subtitulo,
-            isbn,
-            valor_capa,
-            capa_url,
-            sinopse
-          ),
-          autor:royalties_autores!autor_id (
-            id,
-            nome_completo,
-            bio,
-            foto_url
-          )
+          livro_id,
+          autor_id
         `)
         .eq("slug", slug)
         .eq("is_active", true)
         .single();
 
-      if (error) throw error;
-      
-      // Transform nested objects
-      const transformedData = {
-        ...data,
-        livro: Array.isArray(data.livro) ? data.livro[0] : data.livro,
-        autor: Array.isArray(data.autor) ? data.autor[0] : data.autor,
-      } as AffiliateLink;
-      
-      setAffiliateLink(transformedData);
+      if (linkError) {
+        console.error("[LP] Erro ao buscar link de afiliado:", linkError.code, linkError.message);
+        throw linkError;
+      }
+
+      if (!linkData) {
+        console.error("[LP] Link não encontrado para slug:", slug);
+        throw new Error("Link não encontrado");
+      }
+
+      // Step 2: Fetch the book by livro_id
+      const { data: livroData, error: livroError } = await supabase
+        .from("royalties_livros")
+        .select(`
+          id,
+          titulo,
+          descricao,
+          valor_capa,
+          capa_url
+        `)
+        .eq("id", linkData.livro_id)
+        .single();
+
+      if (livroError) {
+        console.error("[LP] Erro ao buscar livro:", livroError.code, livroError.message);
+        throw livroError;
+      }
+
+      // Step 3: Fetch the author by autor_id
+      const { data: autorData, error: autorError } = await supabase
+        .from("royalties_autores")
+        .select(`
+          id,
+          nome_completo
+        `)
+        .eq("id", linkData.autor_id)
+        .single();
+
+      if (autorError) {
+        console.error("[LP] Erro ao buscar autor:", autorError.code, autorError.message);
+        throw autorError;
+      }
+
+      setPageData({
+        link: linkData,
+        livro: livroData,
+        autor: autorData,
+      });
     } catch (err: any) {
-      console.error("Error loading affiliate link:", err);
+      console.error("[LP] Erro geral ao carregar página:", err);
       setError("Livro não encontrado");
     } finally {
       setLoading(false);
@@ -103,18 +135,18 @@ export default function LivroLandingPage() {
         },
       });
     } catch (err) {
-      console.error("Error tracking click:", err);
+      console.error("[LP] Erro ao rastrear clique:", err);
     }
   };
 
   const handleBuyClick = () => {
-    if (!affiliateLink) return;
+    if (!pageData) return;
 
     // Build URL with UTM parameters for tracking
-    const url = new URL(affiliateLink.link_externo);
+    const url = new URL(pageData.link.link_externo);
     url.searchParams.set("utm_source", "autor");
     url.searchParams.set("utm_medium", "affiliate");
-    url.searchParams.set("utm_campaign", affiliateLink.codigo_afiliado);
+    url.searchParams.set("utm_campaign", pageData.link.codigo_afiliado);
 
     window.open(url.toString(), "_blank");
   };
@@ -144,7 +176,7 @@ export default function LivroLandingPage() {
     );
   }
 
-  if (error || !affiliateLink) {
+  if (error || !pageData) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white flex items-center justify-center">
         <div className="text-center">
@@ -156,8 +188,8 @@ export default function LivroLandingPage() {
     );
   }
 
-  const { livro, autor } = affiliateLink;
-  const videoId = extractYouTubeId(affiliateLink.video_url);
+  const { link, livro, autor } = pageData;
+  const videoId = extractYouTubeId(link.video_url);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
@@ -208,23 +240,12 @@ export default function LivroLandingPage() {
           <div className="space-y-6">
             <div>
               <h1 className="text-4xl font-bold text-foreground mb-2">{livro.titulo}</h1>
-              {livro.subtitulo && (
-                <p className="text-xl text-muted-foreground">{livro.subtitulo}</p>
-              )}
             </div>
 
             <div className="flex items-center gap-3">
-              {autor.foto_url ? (
-                <img
-                  src={autor.foto_url}
-                  alt={autor.nome_completo}
-                  className="h-12 w-12 rounded-full object-cover"
-                />
-              ) : (
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-6 w-6 text-primary" />
-                </div>
-              )}
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="h-6 w-6 text-primary" />
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground">Autor</p>
                 <p className="font-semibold">{autor.nome_completo}</p>
@@ -240,10 +261,6 @@ export default function LivroLandingPage() {
               Comprar Agora
               <ExternalLink className="h-4 w-4 ml-2" />
             </Button>
-
-            {livro.isbn && (
-              <p className="text-sm text-muted-foreground">ISBN: {livro.isbn}</p>
-            )}
           </div>
         </div>
       </section>
@@ -269,12 +286,12 @@ export default function LivroLandingPage() {
       )}
 
       {/* About Book Section */}
-      {(livro.sinopse || affiliateLink.descricao_lp) && (
+      {(livro.descricao || link.descricao_lp) && (
         <section className="container mx-auto px-4 py-12">
           <h2 className="text-2xl font-bold mb-6">Sobre o Livro</h2>
           <div className="prose prose-lg max-w-none">
             <p className="text-muted-foreground whitespace-pre-line">
-              {affiliateLink.descricao_lp || livro.sinopse}
+              {link.descricao_lp || livro.descricao}
             </p>
           </div>
         </section>
@@ -286,27 +303,15 @@ export default function LivroLandingPage() {
           <h2 className="text-2xl font-bold mb-8">Sobre o Autor</h2>
           <div className="flex flex-col md:flex-row gap-8 items-start">
             <div className="flex-shrink-0">
-              {autor.foto_url ? (
-                <img
-                  src={autor.foto_url}
-                  alt={autor.nome_completo}
-                  className="h-40 w-40 rounded-full object-cover shadow-lg"
-                />
-              ) : (
-                <div className="h-40 w-40 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-20 w-20 text-primary/50" />
-                </div>
-              )}
+              <div className="h-40 w-40 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="h-20 w-20 text-primary/50" />
+              </div>
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-semibold mb-4">{autor.nome_completo}</h3>
-              {autor.bio ? (
-                <p className="text-muted-foreground whitespace-pre-line">{autor.bio}</p>
-              ) : (
-                <p className="text-muted-foreground italic">
-                  Autor publicado pela Central Gospel.
-                </p>
-              )}
+              <p className="text-muted-foreground italic">
+                Autor publicado pela Central Gospel.
+              </p>
             </div>
           </div>
         </div>
