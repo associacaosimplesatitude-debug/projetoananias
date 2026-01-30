@@ -4609,6 +4609,7 @@ export type Database = {
           data_venda: string
           id: string
           livro_id: string
+          observacao: string | null
           pagamento_id: string | null
           quantidade: number
           valor_comissao_total: number
@@ -4622,6 +4623,7 @@ export type Database = {
           data_venda?: string
           id?: string
           livro_id: string
+          observacao?: string | null
           pagamento_id?: string | null
           quantidade?: number
           valor_comissao_total: number
@@ -4635,6 +4637,7 @@ export type Database = {
           data_venda?: string
           id?: string
           livro_id?: string
+          observacao?: string | null
           pagamento_id?: string | null
           quantidade?: number
           valor_comissao_total?: number

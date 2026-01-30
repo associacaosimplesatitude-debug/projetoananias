@@ -61,7 +61,7 @@ export default function RoyaltiesVendas() {
           <BlingSyncButton onSyncComplete={handleSyncComplete} />
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Registrar Venda
+            Venda Manual
           </Button>
         </div>
       </div>
@@ -125,9 +125,14 @@ export default function RoyaltiesVendas() {
                       {formatCurrency(venda.valor_comissao_total)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={venda.pagamento_id ? "default" : "secondary"}>
-                        {venda.pagamento_id ? "Pago" : "Pendente"}
-                      </Badge>
+                      <div className="flex gap-1">
+                        {!venda.bling_order_id && (
+                          <Badge variant="outline">Manual</Badge>
+                        )}
+                        <Badge variant={venda.pagamento_id ? "default" : "secondary"}>
+                          {venda.pagamento_id ? "Pago" : "Pendente"}
+                        </Badge>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
