@@ -1,71 +1,45 @@
 
+# Correção Urgente: Landing Page do Livro Redirecionando para EBD
 
-# Correção: Página em Branco na Landing Page do Livro
+## Diagnóstico
 
-## Problema Identificado
+A página `/livro/cativeiro-babilonico` está redirecionando para a landing page da Gestão EBD porque:
 
-A landing page `/livro/cativeiro-babilonico` está retornando 404 porque:
+1. **As alterações não foram publicadas** - A rota `/livro/:slug` foi adicionada recentemente mas ainda não está no ambiente de produção (`gestaoebd.com.br`)
+2. **A rota está corretamente configurada** no código (App.tsx linha 196) como rota pública, fora do `ProtectedRoute`
 
-1. A tabela `royalties_affiliate_links` tem policy de leitura pública: "Public read active affiliate_links"
-2. As tabelas `royalties_livros` e `royalties_autores` **NAO** têm policies de leitura pública
-3. Quando um visitante anônimo acessa a LP, a query busca os dados do affiliate_link mas os JOINs com livro e autor retornam `null`
-4. O código interpreta isso como "Livro não encontrado" e mostra erro
+## URLs Disponíveis
 
-## Policies Atuais
+| Ambiente | URL | Status |
+|----------|-----|--------|
+| Preview Lovable | `https://gestaoebd.lovable.app/livro/cativeiro-babilonico` | ✅ Funciona |
+| Produção | `https://gestaoebd.com.br/livro/cativeiro-babilonico` | ❌ Precisa publicar |
 
-| Tabela | Policy SELECT | Roles |
-|--------|---------------|-------|
-| royalties_affiliate_links | Public read active | public (OK!) |
-| royalties_livros | Apenas admins e autor | authenticated (PROBLEMA) |
-| royalties_autores | Apenas admins e autor | authenticated (PROBLEMA) |
+## Ação Necessária
 
-## Solução
+### 1. Publicar o Projeto
 
-Adicionar policies de leitura pública para livros e autores que estão associados a links de afiliado ativos. Isso permite que a landing page carregue os dados necessários sem autenticação.
+Você precisa **publicar o projeto** para que as alterações (nova rota e RLS policies) sejam aplicadas ao domínio de produção `gestaoebd.com.br`.
 
-## Migration SQL
+Para publicar:
+1. Clique no botão **"Publish"** no canto superior direito da interface Lovable
+2. Aguarde o deploy ser concluído
+3. Teste acessando `https://gestaoebd.com.br/livro/cativeiro-babilonico`
 
-```sql
--- Policy: Leitura pública de livros com link de afiliado ativo
-CREATE POLICY "Public read livros with active affiliate" 
-ON public.royalties_livros
-FOR SELECT
-USING (
-  id IN (
-    SELECT livro_id FROM public.royalties_affiliate_links 
-    WHERE is_active = true
-  )
-);
+### 2. Verificação Pós-Publicação
 
--- Policy: Leitura pública de autores com link de afiliado ativo
-CREATE POLICY "Public read autores with active affiliate" 
-ON public.royalties_autores
-FOR SELECT
-USING (
-  id IN (
-    SELECT autor_id FROM public.royalties_affiliate_links 
-    WHERE is_active = true
-  )
-);
+Após publicar, o link correto para compartilhar será:
+
+```
+https://gestaoebd.com.br/livro/cativeiro-babilonico
 ```
 
-## Por que esta abordagem é segura?
+## Enquanto isso (alternativa temporária)
 
-1. **Escopo limitado**: Apenas livros/autores com links de afiliado ATIVOS ficam visíveis publicamente
-2. **Dados não sensíveis**: Título, capa, sinopse, nome e foto do autor são informações de marketing já públicas
-3. **Dados sensíveis protegidos**: CPF, dados bancários, emails ficam protegidos pelas policies existentes (SELECT apenas para colunas não expostas na query da LP)
-4. **Controle via admin**: Desativar o link de afiliado remove automaticamente o acesso público
+Se precisar usar o link **agora** antes de publicar, use o domínio do preview:
 
-## Resultado Esperado
+```
+https://gestaoebd.lovable.app/livro/cativeiro-babilonico
+```
 
-Após aplicar a migration:
-- Visitante acessa `gestaoebd.lovable.app/livro/cativeiro-babilonico`
-- Query retorna dados do affiliate_link + livro + autor
-- Landing page renderiza corretamente com capa, título, vídeo e botão de compra
-
-## Arquivo a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| Nova migration SQL | Adicionar 2 policies de leitura pública |
-
+Este link já funciona porque está no ambiente de preview onde as alterações já estão aplicadas.
