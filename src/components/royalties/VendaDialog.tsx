@@ -23,7 +23,8 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
     livro_id: "",
     quantidade: "",
     valor_unitario: "",
-    data_venda: format(new Date(), "yyyy-MM-dd"),
+    data_inicio: format(new Date(), "yyyy-MM-dd"),
+    data_fim: format(new Date(), "yyyy-MM-dd"),
     observacao: "",
   });
 
@@ -64,7 +65,6 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
 
   const getComissaoPercentual = () => {
     if (!selectedLivro?.royalties_comissoes) return 0;
-    // royalties_comissoes is one-to-one, so it's an object not an array
     return selectedLivro.royalties_comissoes?.percentual || 0;
   };
 
@@ -93,14 +93,19 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
       const valorComissaoUnitario = calcularComissaoUnitaria();
       const valorComissaoTotal = calcularComissaoTotal();
 
+      // Formata o período na observação
+      const dataInicioFormatada = format(new Date(formData.data_inicio + "T00:00:00"), "dd/MM/yyyy");
+      const dataFimFormatada = format(new Date(formData.data_fim + "T00:00:00"), "dd/MM/yyyy");
+      const observacaoCompleta = `Período: ${dataInicioFormatada} a ${dataFimFormatada}${formData.observacao ? ` - ${formData.observacao}` : ""}`;
+
       const payload = {
         livro_id: formData.livro_id,
         quantidade,
         valor_unitario: valorUnitario,
         valor_comissao_unitario: valorComissaoUnitario,
         valor_comissao_total: valorComissaoTotal,
-        data_venda: formData.data_venda,
-        observacao: formData.observacao || null,
+        data_venda: formData.data_fim,
+        observacao: observacaoCompleta,
       };
 
       const { error } = await supabase
@@ -118,7 +123,8 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
         livro_id: "",
         quantidade: "",
         valor_unitario: "",
-        data_venda: format(new Date(), "yyyy-MM-dd"),
+        data_inicio: format(new Date(), "yyyy-MM-dd"),
+        data_fim: format(new Date(), "yyyy-MM-dd"),
         observacao: "",
       });
       setSelectedLivro(null);
@@ -173,14 +179,29 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="data_venda">Data da Venda *</Label>
-            <Input
-              id="data_venda"
-              type="date"
-              value={formData.data_venda}
-              onChange={(e) => setFormData({ ...formData, data_venda: e.target.value })}
-              required
-            />
+            <Label>Período das Vendas *</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="data_inicio" className="text-xs text-muted-foreground">De</Label>
+                <Input
+                  id="data_inicio"
+                  type="date"
+                  value={formData.data_inicio}
+                  onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="data_fim" className="text-xs text-muted-foreground">Até</Label>
+                <Input
+                  id="data_fim"
+                  type="date"
+                  value={formData.data_fim}
+                  onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

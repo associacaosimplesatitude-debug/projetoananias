@@ -4609,6 +4609,8 @@ export type Database = {
           data_venda: string
           id: string
           livro_id: string
+          nota_fiscal_numero: string | null
+          nota_fiscal_url: string | null
           observacao: string | null
           pagamento_id: string | null
           quantidade: number
@@ -4623,6 +4625,8 @@ export type Database = {
           data_venda?: string
           id?: string
           livro_id: string
+          nota_fiscal_numero?: string | null
+          nota_fiscal_url?: string | null
           observacao?: string | null
           pagamento_id?: string | null
           quantidade?: number
@@ -4637,6 +4641,8 @@ export type Database = {
           data_venda?: string
           id?: string
           livro_id?: string
+          nota_fiscal_numero?: string | null
+          nota_fiscal_url?: string | null
           observacao?: string | null
           pagamento_id?: string | null
           quantidade?: number
