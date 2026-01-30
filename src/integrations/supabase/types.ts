@@ -4559,11 +4559,13 @@ export type Database = {
       }
       royalties_autores: {
         Row: {
+          bio: string | null
           cpf_cnpj: string | null
           created_at: string
           dados_bancarios: Json | null
           email: string
           endereco: Json | null
+          foto_url: string | null
           id: string
           is_active: boolean | null
           nome_completo: string
@@ -4572,11 +4574,13 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          bio?: string | null
           cpf_cnpj?: string | null
           created_at?: string
           dados_bancarios?: Json | null
           email: string
           endereco?: Json | null
+          foto_url?: string | null
           id?: string
           is_active?: boolean | null
           nome_completo: string
@@ -4585,11 +4589,13 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          bio?: string | null
           cpf_cnpj?: string | null
           created_at?: string
           dados_bancarios?: Json | null
           email?: string
           endereco?: Json | null
+          foto_url?: string | null
           id?: string
           is_active?: boolean | null
           nome_completo?: string
@@ -4645,8 +4651,11 @@ export type Database = {
           codigo_bling: string | null
           created_at: string
           descricao: string | null
+          diferenciais: string[] | null
+          especificacoes: Json | null
           id: string
           is_active: boolean | null
+          subtitulo: string | null
           titulo: string
           updated_at: string
           valor_capa: number
@@ -4658,8 +4667,11 @@ export type Database = {
           codigo_bling?: string | null
           created_at?: string
           descricao?: string | null
+          diferenciais?: string[] | null
+          especificacoes?: Json | null
           id?: string
           is_active?: boolean | null
+          subtitulo?: string | null
           titulo: string
           updated_at?: string
           valor_capa?: number
@@ -4671,8 +4683,11 @@ export type Database = {
           codigo_bling?: string | null
           created_at?: string
           descricao?: string | null
+          diferenciais?: string[] | null
+          especificacoes?: Json | null
           id?: string
           is_active?: boolean | null
+          subtitulo?: string | null
           titulo?: string
           updated_at?: string
           valor_capa?: number
