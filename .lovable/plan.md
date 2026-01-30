@@ -1,157 +1,215 @@
 
-# Plano: Melhorar Registro de Vendas Manuais/Retroativas
+# Plano: Melhorias no Registro de Vendas Manuais e Historico
 
-## Situacao Atual
+## Resumo das Solicitacoes
 
-O sistema ja possui a funcionalidade de registro manual de vendas:
-
-| Funcionalidade | Status |
-|----------------|--------|
-| Botao "Registrar Venda" | ✅ Existe |
-| VendaDialog com formulario | ✅ Funciona |
-| Diferenciacao Bling vs Manual | ✅ Automatica (bling_order_id = NULL) |
-| Sincronizacao automatica (CRON) | ✅ Diaria as 6h |
-| Sincronizacao manual | ✅ Botao com opcoes de periodo |
-
-## Fluxo Atual
-
-```text
-+----------------------------------+
-|       PAGINA DE VENDAS          |
-+----------------------------------+
-|                                  |
-|  [Sincronizar Bling]  [+ Registrar Venda]
-|                                  |
-|  Sincronizacao automatica:       |
-|  - CRON diario as 6h BRT         |
-|  - Busca NFe autorizadas         |
-|  - Preenche bling_order_id       |
-|                                  |
-|  Registro manual:                |
-|  - Abre VendaDialog              |
-|  - bling_order_id fica NULL      |
-|  - Para vendas retroativas       |
-+----------------------------------+
-```
-
-## Melhorias Propostas
-
-Para facilitar o uso e deixar mais claro o proposito, vamos fazer pequenos ajustes:
-
-### 1. Alterar texto do botao
-
-De: "Registrar Venda"
-Para: "Venda Manual"
-
-### 2. Melhorar titulo do dialog
-
-De: "Registrar Venda"
-Para: "Registrar Venda Manual"
-Com subtitulo explicativo
-
-### 3. Adicionar campo de observacao
-
-Novo campo opcional para registrar notas sobre a venda retroativa (ex: "Referente a feira do livro 2024")
-
-### 4. Indicador visual na tabela
-
-Badge "Manual" para diferenciar vendas registradas manualmente das sincronizadas do Bling
+| # | Solicitacao | Situacao |
+|---|-------------|----------|
+| 1 | Trocar data unica por periodo (data inicial e final) | Novo |
+| 2 | Corrigir vendas com comissao R$ 0,00 | Bug a corrigir |
+| 3 | Adicionar coluna NF/DANFE com link no historico | Novo |
 
 ---
 
-## Alteracoes Necessarias
+## 1. Formulario com Periodo de Vendas
 
-### 1. Banco de Dados
+### Problema Atual
+O formulario usa uma unica "Data da Venda" que nao faz sentido para vendas retroativas em lote.
 
-Adicionar coluna opcional para observacoes:
+### Solucao
+Trocar por dois campos: "Periodo Inicial" e "Periodo Final" para indicar o intervalo das vendas.
 
+### Alteracao no Campo de Data
+
+De:
+```
+Data da Venda *
+[30/01/2026]
+```
+
+Para:
+```
+Periodo das Vendas *
+De: [01/01/2026]  Ate: [31/01/2026]
+```
+
+O sistema salvara a data final como `data_venda` e adicionara o periodo na observacao automaticamente.
+
+---
+
+## 2. Corrigir Vendas com Comissao R$ 0,00
+
+### Problema Identificado
+Duas vendas importadas automaticamente do Bling tem `valor_comissao_total = 0.00`:
+- ID: `db676c47-6d51-4339-a638-563cc052b59a` (criada em 30/01/2026)
+- ID: `b86867d5-916c-46b7-b241-858285357310` (criada em 30/01/2026)
+
+### Causa
+As vendas foram sincronizadas antes da comissao ou valor de capa serem configurados corretamente no cadastro do livro.
+
+### Solucao
+1. Criar uma migration SQL para recalcular as comissoes baseado no percentual atual (5%)
+2. O livro "O Cativeiro Babilonico" tem percentual de 5% e valor de capa R$ 22,45 corretamente configurados
+
+### Query de Correcao
+```sql
+UPDATE royalties_vendas rv
+SET 
+  valor_comissao_unitario = (rv.valor_unitario * rc.percentual / 100),
+  valor_comissao_total = (rv.valor_unitario * rc.percentual / 100) * rv.quantidade
+FROM royalties_comissoes rc
+WHERE rv.livro_id = rc.livro_id
+  AND rv.valor_comissao_total = 0;
+```
+
+Resultado esperado: 
+- 1 unidade x R$ 22,45 x 5% = R$ 1,12 por venda
+
+---
+
+## 3. Adicionar Coluna NF/DANFE no Historico
+
+### Situacao Atual
+A tabela `royalties_vendas` ja tem os campos `bling_order_id` e `bling_order_number`, mas nao tem campos para NF/DANFE.
+
+### Solucao
+
+#### Etapa 1: Adicionar campos no banco
 ```sql
 ALTER TABLE public.royalties_vendas 
-ADD COLUMN IF NOT EXISTS observacao TEXT DEFAULT NULL;
-
-COMMENT ON COLUMN public.royalties_vendas.observacao IS 'Observacoes sobre vendas manuais';
+ADD COLUMN IF NOT EXISTS nota_fiscal_numero TEXT DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS nota_fiscal_url TEXT DEFAULT NULL;
 ```
 
-### 2. VendaDialog.tsx
+#### Etapa 2: Atualizar a pagina de Vendas
+Adicionar coluna "NF" na tabela com:
+- Se tiver `nota_fiscal_url`: Link clicavel "NF XXXXX" com icone externo
+- Se tiver apenas `bling_order_id`: Mostrar "Aguardando"
+- Se for venda manual: Mostrar "-"
 
-- Alterar titulo para "Registrar Venda Manual"
-- Adicionar subtitulo explicativo
-- Adicionar campo de observacao
-- Adicionar indicador de origem (manual)
+### Design Visual (referencia da area de Comissoes)
 
-### 3. Vendas.tsx
-
-- Alterar texto do botao para "Venda Manual"
-- Adicionar badge "Manual" na coluna Status para vendas sem bling_order_id
-
----
-
-## Resultado Final
-
-A pagina de vendas tera:
-
-| Acao | Descricao |
-|------|-----------|
-| Sincronizar Bling | Importa NFe automaticamente (com bling_order_id) |
-| Venda Manual | Registra venda retroativa (sem bling_order_id) |
-
-Na tabela:
-- Vendas do Bling: Badge "Pendente" ou "Pago"
-- Vendas manuais: Badge "Manual" + "Pendente/Pago"
+```
++--------+------------------+--------+-----+----------+----------+
+| Data   | Livro            | Autor  | Qtd | Comissao | NF       |
++--------+------------------+--------+-----+----------+----------+
+| 27/01  | O Cativeiro...   | Ronald | 1   | R$ 1,12  | NF 030538 [→] |
+| 28/01  | O Cativeiro...   | Ronald | 6   | R$ 6,74  | NF 000356 [→] |
+| 28/01  | Venda Manual     | Ronald | 10  | R$ 11,23 | -            |
++--------+------------------+--------+-----+----------+----------+
+```
 
 ---
 
 ## Secao Tecnica
 
-### Arquivos a modificar
+### Arquivos a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/royalties/VendaDialog.tsx` | Titulo, subtitulo, campo observacao |
-| `src/pages/royalties/Vendas.tsx` | Texto botao, badge "Manual" |
-| Nova migracao SQL | Adicionar coluna `observacao` |
+| `src/components/royalties/VendaDialog.tsx` | Campos de periodo (data_inicio, data_fim) |
+| `src/pages/royalties/Vendas.tsx` | Coluna NF/DANFE com link externo |
+| Nova migracao SQL | Campos NF + correcao comissoes 0 |
 
 ### Migracao SQL
 
 ```sql
--- Adicionar campo de observacao para vendas manuais
+-- 1. Adicionar campos de nota fiscal
 ALTER TABLE public.royalties_vendas 
-ADD COLUMN IF NOT EXISTS observacao TEXT DEFAULT NULL;
+ADD COLUMN IF NOT EXISTS nota_fiscal_numero TEXT DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS nota_fiscal_url TEXT DEFAULT NULL;
 
-COMMENT ON COLUMN public.royalties_vendas.observacao 
-IS 'Observacoes sobre vendas manuais/retroativas';
+-- 2. Recalcular comissoes zeradas
+UPDATE royalties_vendas rv
+SET 
+  valor_comissao_unitario = (rv.valor_unitario * rc.percentual / 100),
+  valor_comissao_total = (rv.valor_unitario * rc.percentual / 100) * rv.quantidade
+FROM royalties_comissoes rc
+WHERE rv.livro_id = rc.livro_id
+  AND rv.valor_comissao_total = 0;
 ```
 
-### Alteracoes no VendaDialog
+### Alteracoes no VendaDialog.tsx
 
 ```typescript
-// Novo campo no formData
-observacao: "",
+// Estado do formulario - trocar data_venda por periodo
+const [formData, setFormData] = useState({
+  livro_id: "",
+  quantidade: "",
+  valor_unitario: "",
+  data_inicio: format(new Date(), "yyyy-MM-dd"),
+  data_fim: format(new Date(), "yyyy-MM-dd"),
+  observacao: "",
+});
 
-// Novo campo no formulario
-<div className="space-y-2">
-  <Label htmlFor="observacao">Observacao (opcional)</Label>
-  <Input
-    id="observacao"
-    placeholder="Ex: Referente a feira do livro 2024"
-    value={formData.observacao}
-    onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
-  />
-</div>
+// No submit - salvar data_fim como data_venda e adicionar periodo na obs
+const observacaoCompleta = `Periodo: ${format(new Date(formData.data_inicio), "dd/MM/yyyy")} a ${format(new Date(formData.data_fim), "dd/MM/yyyy")}${formData.observacao ? ` - ${formData.observacao}` : ""}`;
+
+const payload = {
+  ...
+  data_venda: formData.data_fim, // Data final do periodo
+  observacao: observacaoCompleta,
+};
 ```
 
-### Alteracoes na tabela de vendas
+### Alteracoes na Vendas.tsx
 
 ```typescript
-// Na coluna Status
+// Importar ExternalLink
+import { Plus, Search, ExternalLink } from "lucide-react";
+
+// Nova coluna no TableHeader
+<TableHead>NF</TableHead>
+
+// Nova celula no TableBody
 <TableCell>
-  <div className="flex gap-1">
-    {!venda.bling_order_id && (
-      <Badge variant="outline">Manual</Badge>
-    )}
-    <Badge variant={venda.pagamento_id ? "default" : "secondary"}>
-      {venda.pagamento_id ? "Pago" : "Pendente"}
-    </Badge>
-  </div>
+  {venda.nota_fiscal_url ? (
+    <a
+      href={venda.nota_fiscal_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+    >
+      NF {venda.nota_fiscal_numero || venda.bling_order_number || ""}
+      <ExternalLink className="h-3 w-3" />
+    </a>
+  ) : venda.bling_order_id ? (
+    <span className="text-xs text-amber-600">Aguardando</span>
+  ) : (
+    <span className="text-muted-foreground">-</span>
+  )}
 </TableCell>
 ```
+
+### Atualizacao da Edge Function de Sincronizacao
+
+Modificar `bling-sync-royalties-sales` para buscar e salvar dados da NF:
+- `nota_fiscal_numero`: Numero da NF-e
+- `nota_fiscal_url`: Link DANFE (linkPDF ou linkDanfe)
+
+---
+
+## Fluxo Final
+
+```
++------------------------------------------+
+|      REGISTRAR VENDA MANUAL              |
++------------------------------------------+
+| Livro: [Selecione...]                    |
+|                                          |
+| Periodo das Vendas:                      |
+| De: [01/01/2026]  Ate: [31/01/2026]     |
+|                                          |
+| Quantidade: [50]  Valor Unit: [22.45]   |
+|                                          |
+| Observacao: [Feira do Livro 2024]       |
+|                                          |
+| [Cancelar]  [Registrar Venda]           |
++------------------------------------------+
+```
+
+### Resultado Esperado
+
+1. Formulario com periodo (De/Ate) em vez de data unica
+2. Vendas com comissao corrigida de R$ 0,00 para R$ 1,12 cada
+3. Coluna NF clicavel no historico, abrindo DANFE em nova aba
