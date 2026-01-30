@@ -1,151 +1,157 @@
 
-# Plano: Adicionar Busca por SKU no Cadastro de Livros
+# Plano: Melhorar Registro de Vendas Manuais/Retroativas
 
-## Problema Identificado
+## Situacao Atual
 
-A busca de produtos no Bling atualmente usa apenas o parâmetro `nome`, ignorando o campo `codigo` (SKU). Por isso, ao buscar "33481", nenhum produto e encontrado.
+O sistema ja possui a funcionalidade de registro manual de vendas:
 
-| Busca atual | Resultado |
-|-------------|-----------|
-| `?nome=33481` | Nada encontrado |
-| Por nome "Biblia" | Funciona |
+| Funcionalidade | Status |
+|----------------|--------|
+| Botao "Registrar Venda" | ✅ Existe |
+| VendaDialog com formulario | ✅ Funciona |
+| Diferenciacao Bling vs Manual | ✅ Automatica (bling_order_id = NULL) |
+| Sincronizacao automatica (CRON) | ✅ Diaria as 6h |
+| Sincronizacao manual | ✅ Botao com opcoes de periodo |
 
----
+## Fluxo Atual
 
-## Solucao Proposta
+```text
++----------------------------------+
+|       PAGINA DE VENDAS          |
++----------------------------------+
+|                                  |
+|  [Sincronizar Bling]  [+ Registrar Venda]
+|                                  |
+|  Sincronizacao automatica:       |
+|  - CRON diario as 6h BRT         |
+|  - Busca NFe autorizadas         |
+|  - Preenche bling_order_id       |
+|                                  |
+|  Registro manual:                |
+|  - Abre VendaDialog              |
+|  - bling_order_id fica NULL      |
+|  - Para vendas retroativas       |
++----------------------------------+
+```
 
-Modificar a Edge Function para fazer busca em dois campos:
+## Melhorias Propostas
 
-1. Se o termo parece ser numerico → buscar por `codigo` (SKU)
-2. Caso contrario → buscar por `nome`
-3. Se nao encontrar por codigo, tentar por nome como fallback
+Para facilitar o uso e deixar mais claro o proposito, vamos fazer pequenos ajustes:
+
+### 1. Alterar texto do botao
+
+De: "Registrar Venda"
+Para: "Venda Manual"
+
+### 2. Melhorar titulo do dialog
+
+De: "Registrar Venda"
+Para: "Registrar Venda Manual"
+Com subtitulo explicativo
+
+### 3. Adicionar campo de observacao
+
+Novo campo opcional para registrar notas sobre a venda retroativa (ex: "Referente a feira do livro 2024")
+
+### 4. Indicador visual na tabela
+
+Badge "Manual" para diferenciar vendas registradas manualmente das sincronizadas do Bling
 
 ---
 
 ## Alteracoes Necessarias
 
-### 1. Edge Function `bling-search-product`
+### 1. Banco de Dados
 
-Atualizar a funcao `searchProducts` para:
+Adicionar coluna opcional para observacoes:
 
-```text
-1. Detectar se query e numerica (SKU) ou texto (nome)
-2. Se numerica → buscar por codigo primeiro
-3. Se nao encontrar → buscar por nome como fallback
-4. Se texto → buscar por nome normalmente
+```sql
+ALTER TABLE public.royalties_vendas 
+ADD COLUMN IF NOT EXISTS observacao TEXT DEFAULT NULL;
+
+COMMENT ON COLUMN public.royalties_vendas.observacao IS 'Observacoes sobre vendas manuais';
 ```
+
+### 2. VendaDialog.tsx
+
+- Alterar titulo para "Registrar Venda Manual"
+- Adicionar subtitulo explicativo
+- Adicionar campo de observacao
+- Adicionar indicador de origem (manual)
+
+### 3. Vendas.tsx
+
+- Alterar texto do botao para "Venda Manual"
+- Adicionar badge "Manual" na coluna Status para vendas sem bling_order_id
 
 ---
 
-## API do Bling - Parametros Disponiveis
+## Resultado Final
 
-Segundo a documentacao do Bling v3, os parametros de busca sao:
-- `nome` - Busca por nome do produto
-- `codigo` - Busca por codigo/SKU do produto
+A pagina de vendas tera:
 
----
+| Acao | Descricao |
+|------|-----------|
+| Sincronizar Bling | Importa NFe automaticamente (com bling_order_id) |
+| Venda Manual | Registra venda retroativa (sem bling_order_id) |
 
-## Logica de Busca Proposta
-
-```text
-query = "33481"
-  ↓
-[E numerico?] → SIM → Buscar por ?codigo=33481
-                       ↓
-                 [Encontrou?] → Retornar resultados
-                       ↓ NAO
-                 Buscar por ?nome=33481 (fallback)
-
-query = "Biblia Estudo"
-  ↓
-[E numerico?] → NAO → Buscar por ?nome=Biblia%20Estudo
-                       ↓
-                 Retornar resultados
-```
+Na tabela:
+- Vendas do Bling: Badge "Pendente" ou "Pago"
+- Vendas manuais: Badge "Manual" + "Pendente/Pago"
 
 ---
 
 ## Secao Tecnica
 
-### Arquivo a modificar
-
-`supabase/functions/bling-search-product/index.ts`
-
-### Alteracoes na funcao searchProducts
-
-```typescript
-// Funcao auxiliar para detectar se e codigo numerico
-function isNumericCode(query: string): boolean {
-  return /^\d+$/.test(query.trim());
-}
-
-// Buscar produtos - atualizada para suportar codigo
-async function searchProducts(accessToken: string, query: string): Promise<any[]> {
-  const trimmedQuery = query.trim();
-  const encodedQuery = encodeURIComponent(trimmedQuery);
-  
-  // Se parecer codigo numerico, buscar por codigo primeiro
-  if (isNumericCode(trimmedQuery)) {
-    const urlByCodigo = `https://www.bling.com.br/Api/v3/produtos?codigo=${encodedQuery}&limite=10`;
-    console.log(`Buscando por codigo: ${urlByCodigo}`);
-    
-    const respCodigo = await fetch(urlByCodigo, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-      },
-    });
-    
-    if (respCodigo.ok) {
-      const json = await respCodigo.json();
-      const results = json?.data ?? [];
-      if (results.length > 0) {
-        return results;
-      }
-    }
-  }
-  
-  // Buscar por nome (padrao ou fallback)
-  const urlByNome = `https://www.bling.com.br/Api/v3/produtos?nome=${encodedQuery}&limite=10`;
-  console.log(`Buscando por nome: ${urlByNome}`);
-  
-  const resp = await fetch(urlByNome, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
-
-  if (!resp.ok) {
-    console.error('Erro na busca de produtos:', resp.status);
-    return [];
-  }
-
-  const json = await resp.json();
-  return json?.data ?? [];
-}
-```
-
----
-
-## Resultado Esperado
-
-Apos a implementacao:
-
-| Busca | Comportamento |
-|-------|---------------|
-| "33481" | Busca por codigo primeiro → Encontra o produto |
-| "Biblia" | Busca por nome → Funciona normalmente |
-| "12345abc" | Busca por nome (nao e numerico puro) |
-
----
-
-## Arquivos Afetados
+### Arquivos a modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/bling-search-product/index.ts` | Adicionar busca por codigo |
+| `src/components/royalties/VendaDialog.tsx` | Titulo, subtitulo, campo observacao |
+| `src/pages/royalties/Vendas.tsx` | Texto botao, badge "Manual" |
+| Nova migracao SQL | Adicionar coluna `observacao` |
 
-Nenhuma alteracao no frontend necessaria - o componente ja mostra "Buscar por titulo ou codigo".
+### Migracao SQL
+
+```sql
+-- Adicionar campo de observacao para vendas manuais
+ALTER TABLE public.royalties_vendas 
+ADD COLUMN IF NOT EXISTS observacao TEXT DEFAULT NULL;
+
+COMMENT ON COLUMN public.royalties_vendas.observacao 
+IS 'Observacoes sobre vendas manuais/retroativas';
+```
+
+### Alteracoes no VendaDialog
+
+```typescript
+// Novo campo no formData
+observacao: "",
+
+// Novo campo no formulario
+<div className="space-y-2">
+  <Label htmlFor="observacao">Observacao (opcional)</Label>
+  <Input
+    id="observacao"
+    placeholder="Ex: Referente a feira do livro 2024"
+    value={formData.observacao}
+    onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
+  />
+</div>
+```
+
+### Alteracoes na tabela de vendas
+
+```typescript
+// Na coluna Status
+<TableCell>
+  <div className="flex gap-1">
+    {!venda.bling_order_id && (
+      <Badge variant="outline">Manual</Badge>
+    )}
+    <Badge variant={venda.pagamento_id ? "default" : "secondary"}>
+      {venda.pagamento_id ? "Pago" : "Pendente"}
+    </Badge>
+  </div>
+</TableCell>
+```
