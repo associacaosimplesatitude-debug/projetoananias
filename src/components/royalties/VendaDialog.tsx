@@ -24,6 +24,7 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
     quantidade: "",
     valor_unitario: "",
     data_venda: format(new Date(), "yyyy-MM-dd"),
+    observacao: "",
   });
 
   const [selectedLivro, setSelectedLivro] = useState<any>(null);
@@ -99,6 +100,7 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
         valor_comissao_unitario: valorComissaoUnitario,
         valor_comissao_total: valorComissaoTotal,
         data_venda: formData.data_venda,
+        observacao: formData.observacao || null,
       };
 
       const { error } = await supabase
@@ -117,6 +119,7 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
         quantidade: "",
         valor_unitario: "",
         data_venda: format(new Date(), "yyyy-MM-dd"),
+        observacao: "",
       });
       setSelectedLivro(null);
     } catch (error: any) {
@@ -142,7 +145,10 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Registrar Venda</DialogTitle>
+          <DialogTitle>Registrar Venda Manual</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Use para registrar vendas retroativas ou não sincronizadas do Bling
+          </p>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -202,6 +208,16 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
                 required
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="observacao">Observação (opcional)</Label>
+            <Input
+              id="observacao"
+              placeholder="Ex: Referente a feira do livro 2024"
+              value={formData.observacao}
+              onChange={(e) => setFormData({ ...formData, observacao: e.target.value })}
+            />
           </div>
 
           {selectedLivro && formData.quantidade && formData.valor_unitario && (
