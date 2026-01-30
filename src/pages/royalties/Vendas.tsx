@@ -4,14 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, ExternalLink } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search, ExternalLink, RefreshCw } from "lucide-react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { VendaDialog } from "@/components/royalties/VendaDialog";
 import { BlingSyncButton } from "@/components/royalties/BlingSyncButton";
 import { VendasSummaryCards } from "@/components/royalties/VendasSummaryCards";
+import { toast } from "sonner";
 
 export default function RoyaltiesVendas() {
   const [search, setSearch] = useState("");
@@ -48,6 +49,21 @@ export default function RoyaltiesVendas() {
     queryClient.invalidateQueries({ queryKey: ["royalties-vendas"] });
   };
 
+  const syncNfLinksMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-royalties-nfe-links");
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["royalties-vendas"] });
+      toast.success(data.message || "Links de NF atualizados com sucesso!");
+    },
+    onError: (error) => {
+      toast.error(`Erro ao sincronizar NFs: ${error.message}`);
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -58,6 +74,14 @@ export default function RoyaltiesVendas() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => syncNfLinksMutation.mutate()}
+            disabled={syncNfLinksMutation.isPending}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncNfLinksMutation.isPending ? "animate-spin" : ""}`} />
+            {syncNfLinksMutation.isPending ? "Atualizando..." : "Atualizar NFs"}
+          </Button>
           <BlingSyncButton onSyncComplete={handleSyncComplete} />
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
