@@ -1,81 +1,146 @@
 
-Objetivo: fazer a LP `/livro/cativeiro-babilonico` abrir em produção e preview, sem cair em “Livro não encontrado”.
+# Plano: Enriquecer a Landing Page do Livro "O Cativeiro Babilônico"
 
-## Diagnóstico (o que está acontecendo agora)
-1) O registro do link existe e está ativo:
-- `royalties_affiliate_links.slug = 'cativeiro-babilonico'` e `is_active = true` (confirmado)
-- Livro e autor também existem e estão ativos (confirmado)
+## Resumo do Problema
+A landing page atual está muito básica/vazia, mostrando apenas:
+- Título e capa do livro
+- Nome do autor (sem foto ou bio)
+- Preço genérico do banco de dados (não o correto de R$ 49,90)
+- Descrição simples (se existir no banco)
 
-2) As permissões (RLS) para leitura pública de **livro** e **autor** já existem e estão corretas (confirmado).
+Você forneceu um conteúdo **muito rico** que precisa ser exibido na página:
+- Descrição completa do livro
+- Biografia do autor (Pr. Ronald Gustavo)
+- Especificações técnicas (páginas, formato, ISBN, SKU, etc.)
+- Diferenciais do produto
+- Fotos profissionais da capa e do autor
 
-3) O problema mais provável é a **query com JOIN embutido** no frontend:
-```ts
-livro:royalties_livros!livro_id (...)
-autor:royalties_autores!autor_id (...)
+## Estratégia de Implementação
+
+### 1. Upload das Imagens para o Projeto
+Copiar as 3 imagens fornecidas para a pasta de assets:
+- `LATERAL.webp` → imagem principal da capa 3D
+- `FRENTE-E-VERSO-1.webp` → imagem alternativa (frente e verso)
+- `ronald.jpg` → foto do autor
+
+### 2. Redesenhar a Landing Page com Seções Ricas
+
+A nova estrutura terá:
+
+```text
++------------------------------------------+
+|  HEADER (Logo + Botão Comprar)           |
++------------------------------------------+
+|                                          |
+|  HERO: Capa 3D + Título + Subtítulo      |
+|  "Setenta Anos de Exílio, Fé e Esperança"|
+|  Preço: R$ 49,90 + Botão CTA             |
+|                                          |
++------------------------------------------+
+|                                          |
+|  SOBRE O LIVRO (descrição completa)      |
+|  - 2 parágrafos do conteúdo fornecido    |
+|                                          |
++------------------------------------------+
+|                                          |
+|  DIFERENCIAIS (cards ou bullets)         |
+|  • Estudo completo e acessível...        |
+|  • Conteúdo sólido para professores...   |
+|  • Contexto histórico, profético...      |
+|  • Excelente complemento para EBD...     |
+|  • Material ideal para aulas...          |
+|                                          |
++------------------------------------------+
+|                                          |
+|  SOBRE O AUTOR                           |
+|  [Foto do Pr. Ronald] + Bio completa     |
+|                                          |
++------------------------------------------+
+|                                          |
+|  ESPECIFICAÇÕES TÉCNICAS (tabela/grid)   |
+|  Páginas: 208 | Formato: 15,5x23cm       |
+|  ISBN: 978-65-5760-142-6 | SKU: 33476    |
+|                                          |
++------------------------------------------+
+|                                          |
+|  VÍDEO (se existir no link)              |
+|                                          |
++------------------------------------------+
+|                                          |
+|  CTA FINAL (banner verde)                |
+|  "Adquira seu exemplar agora!"           |
+|  Botão: Comprar por R$ 49,90             |
+|                                          |
++------------------------------------------+
+|  FOOTER                                  |
++------------------------------------------+
 ```
-Esse tipo de “embed” só funciona bem quando o banco tem **relacionamentos (Foreign Keys)** definidos.  
-Ao checar as constraints da tabela `royalties_affiliate_links`, não apareceu nenhuma FK/PK (confirmado).  
-Resultado típico: o backend de REST não consegue montar o relacionamento e retorna erro -> o catch do React seta “Livro não encontrado”.
 
-Em outras palavras: os dados existem, mas o “JOIN automático” não consegue acontecer porque faltam constraints.
+### 3. Abordagem Híbrida para os Dados
 
-## Estratégia de correção (rápida e robusta)
-Vamos fazer duas coisas, na ordem certa, para resolver “agora” e evitar voltar a quebrar:
+Para este livro específico, vamos:
+1. **Usar dados dinâmicos do banco** para: título, link de compra, vídeo (se tiver), código do afiliado
+2. **Usar o campo `descricao_lp`** do affiliate link para a descrição customizada (vamos atualizar no banco)
+3. **Adicionar campos extras no banco** para suportar especificações técnicas e bio do autor
 
-### A) Corrigir o frontend para não depender de embed (resolução imediata)
-Alterar `LivroLandingPage.tsx` para:
-1. Buscar apenas o link em `royalties_affiliate_links` (sem embed), retornando `livro_id` e `autor_id`.
-2. Em seguida, fazer 2 consultas simples:
-   - `royalties_livros` por `id = livro_id`
-   - `royalties_autores` por `id = autor_id`
-3. Montar o objeto final no frontend e renderizar.
+### 4. Alterações no Banco de Dados
 
-Benefícios:
-- Funciona mesmo se o banco estiver sem FK (e mesmo se o REST não suportar embed).
-- Fica mais previsível para debug.
-- Evita “falso 404” por erro de relacionamento.
+Criar novos campos para armazenar as informações extras:
 
-Melhoria extra (para evitar “apagão”):
-- Em vez de sempre mostrar “Livro não encontrado” para qualquer erro, vamos logar e mostrar uma mensagem amigável, mas com um “código de erro” no console (ex.: `PGRST...`) para diagnóstico rápido.
+**Tabela `royalties_livros`:**
+- `subtitulo` (text) - "Setenta Anos de Exílio, Fé e Esperança"
+- `especificacoes` (jsonb) - páginas, formato, ISBN, SKU, acabamento, categoria
+- `diferenciais` (text[]) - lista de diferenciais
 
-### B) Corrigir o banco adicionando as Foreign Keys (resolução definitiva)
-Criar uma migration com:
-- PK em `royalties_affiliate_links.id` (se ainda não existir)
-- FK `royalties_affiliate_links.livro_id -> royalties_livros.id`
-- FK `royalties_affiliate_links.autor_id -> royalties_autores.id`
-- (Opcional) índices em `slug`, `livro_id`, `autor_id` para performance
+**Tabela `royalties_autores`:**
+- `foto_url` (text) - URL da foto do autor
+- `bio` (text) - biografia completa
 
-Antes de aplicar, vamos:
-- validar se não há dados “órfãos” (links apontando para livro/autor inexistente). Pelo menos para este slug, está OK.
+### 5. Design Visual Aprimorado
 
-Benefícios:
-- Permite voltar a usar embed no futuro (se quisermos).
-- Garante integridade dos dados.
-- Evita inconsistências quando forem criados mais links.
+- Cores inspiradas na capa do livro (tons de bordô/marsala + dourado)
+- Tipografia elegante para combinar com o tema histórico/bíblico
+- Ícones decorativos (BookOpen, Star, Award, etc.)
+- Sombras e profundidade nas imagens
 
-## Como vou testar (end-to-end)
-1) Abrir a LP no **domínio publicado**: `https://gestaoebd.com.br/livro/cativeiro-babilonico`
-2) Abrir a LP no **preview** (domínio de preview do projeto)
-3) Verificar no Network:
-- 1 request para buscar o link por slug
-- 1 request para buscar o livro por id
-- 1 request para buscar o autor por id
-4) Confirmar render:
-- título, preço, autor, botão “Comprar Agora”, vídeo (se existir)
+## Arquivos que Serão Modificados
 
-## Entregáveis (o que vai mudar)
-- Frontend:
-  - `src/pages/public/LivroLandingPage.tsx` (trocar embed por 3 queries simples + logs melhores)
-- Banco (migration):
-  - Adicionar PK/FKs em `royalties_affiliate_links` (e índices se necessário)
+1. **Novo:** `src/assets/livros/cativeiro-babilonico-capa.webp`
+2. **Novo:** `src/assets/autores/ronald-gustavo.jpg`
+3. **Modificado:** `src/pages/public/LivroLandingPage.tsx` - layout totalmente redesenhado
+4. **Migration SQL:** adicionar campos `subtitulo`, `especificacoes`, `diferenciais` em livros + `foto_url`, `bio` em autores
 
-## Riscos e como vamos evitar
-- Risco: criar FK pode falhar se existir algum link com `livro_id/autor_id` inválido.
-  - Mitigação: rodar query de verificação antes da migration e corrigir dados órfãos (se existirem).
-- Risco: usuários ainda verem cache.
-  - Mitigação: após publicar, testar em janela anônima e, se necessário, hard refresh.
+## Detalhes Técnicos
 
-## Observação importante sobre urgência
-A parte A (frontend sem embed) resolve mesmo que a produção esteja em um estado “meio inconsistente” no banco.  
-A parte B deixa o banco correto para não voltar a quebrar quando vocês criarem novos links.
+### Estrutura do JSONB `especificacoes`:
+```json
+{
+  "paginas": 208,
+  "formato": "15,5 x 23 cm",
+  "acabamento": "Brochura (capa em papel supremo e miolo em pólen)",
+  "categoria": "Estudo Bíblico / Teologia",
+  "isbn": "978-65-5760-142-6",
+  "sku": "33476"
+}
+```
 
+### Componentes da Nova Landing Page:
+- `HeroSection` - capa 3D + título + subtítulo + preço + CTA
+- `AboutBookSection` - descrição completa
+- `DiferenciaisSection` - cards com ícones
+- `AboutAuthorSection` - foto + bio
+- `SpecsSection` - tabela de especificações
+- `VideoSection` - embed do YouTube (se existir)
+- `FinalCTASection` - banner verde final
+
+### RLS para novos campos:
+Os novos campos herdam as políticas RLS existentes, então não precisam de configuração adicional.
+
+## Resultado Esperado
+
+Uma landing page profissional e completa que:
+- Mostra todas as informações do livro de forma organizada
+- Tem design visual atraente e compatível com a identidade da Central Gospel
+- Funciona bem em desktop e mobile
+- Converte visitantes em compradores com múltiplos CTAs estratégicos
+- Pode ser reutilizada para outros livros (basta preencher os campos no banco)
