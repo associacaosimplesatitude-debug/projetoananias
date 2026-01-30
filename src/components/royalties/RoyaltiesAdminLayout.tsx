@@ -7,6 +7,7 @@ import {
   CreditCard, 
   FileText,
   BookOpenText,
+  Link2,
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
@@ -33,6 +34,7 @@ function RoyaltiesSidebar() {
     { to: "/royalties/livros", icon: BookOpen, label: "Livros" },
     { to: "/royalties/vendas", icon: ShoppingCart, label: "Vendas" },
     { to: "/royalties/pagamentos", icon: CreditCard, label: "Pagamentos" },
+    { to: "/royalties/afiliados", icon: Link2, label: "Afiliados" },
     { to: "/royalties/relatorios", icon: FileText, label: "Relatórios" },
   ];
 

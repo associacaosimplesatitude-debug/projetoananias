@@ -73,6 +73,7 @@ import RoyaltiesLivros from "./pages/royalties/Livros";
 import RoyaltiesVendas from "./pages/royalties/Vendas";
 import RoyaltiesPagamentos from "./pages/royalties/Pagamentos";
 import RoyaltiesRelatorios from "./pages/royalties/Relatorios";
+import RoyaltiesAfiliados from "./pages/royalties/Afiliados";
 
 // Autor Pages
 import AutorDashboard from "./pages/autor/Dashboard";
@@ -80,6 +81,10 @@ import AutorMeusLivros from "./pages/autor/MeusLivros";
 import AutorExtrato from "./pages/autor/Extrato";
 import AutorMeusPagamentos from "./pages/autor/MeusPagamentos";
 import AutorPerfil from "./pages/autor/Perfil";
+import AutorMeusAfiliados from "./pages/autor/MeusAfiliados";
+
+// Public Landing Pages
+import LivroLandingPage from "./pages/public/LivroLandingPage";
 
 // EBD Pages
 import EBDIndex from "./pages/ebd/Index";
@@ -188,6 +193,7 @@ const App = () => (
               <Route path="/proposta/:token" element={<PropostaDigital />} />
               <Route path="/ebd/checkout-shopify-mp" element={<EBDCheckoutShopifyMP />} />
               <Route path="/cadastro-aluno/:churchId" element={<CadastroAlunoPublico />} />
+              <Route path="/livro/:slug" element={<LivroLandingPage />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
             <Route
               path="/*"
@@ -513,6 +519,7 @@ const App = () => (
                       <Route path="livros" element={<RoyaltiesLivros />} />
                       <Route path="vendas" element={<RoyaltiesVendas />} />
                       <Route path="pagamentos" element={<RoyaltiesPagamentos />} />
+                      <Route path="afiliados" element={<RoyaltiesAfiliados />} />
                       <Route path="relatorios" element={<RoyaltiesRelatorios />} />
                     </Route>
 
@@ -529,6 +536,7 @@ const App = () => (
                       <Route path="livros" element={<AutorMeusLivros />} />
                       <Route path="extrato" element={<AutorExtrato />} />
                       <Route path="pagamentos" element={<AutorMeusPagamentos />} />
+                      <Route path="afiliados" element={<AutorMeusAfiliados />} />
                       <Route path="perfil" element={<AutorPerfil />} />
                     </Route>
                     
