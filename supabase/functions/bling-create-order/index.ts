@@ -2127,7 +2127,7 @@ serve(async (req) => {
       const tipoFreteMap: { [key: string]: { nome: string; servico: string } } = {
         'pac': { nome: 'Correios', servico: 'PAC' },
         'sedex': { nome: 'Correios', servico: 'SEDEX' },
-        'free': { nome: 'Frete Grátis', servico: 'FRETE GRATIS' },
+        'free': { nome: 'Correios', servico: 'PAC CONTRATO AG' },
         'retirada': { nome: 'Retirada na Matriz', servico: 'RETIRADA' },
       };
       freteInfo = tipoFreteMap[metodo_frete?.toLowerCase()] || { nome: 'Correios', servico: metodo_frete || 'A Combinar' };
@@ -2167,6 +2167,11 @@ serve(async (req) => {
     // Adicionar economia se houver desconto
     if (descontoTotalVenda > 0) {
       observacoesBase.push(`💰 ECONOMIA: R$ ${descontoTotalVenda.toFixed(2)}`);
+    }
+    
+    // Adicionar indicação de frete grátis nas observações
+    if (metodo_frete?.toLowerCase() === 'free') {
+      observacoesBase.push('🚚 FRETE GRÁTIS');
     }
     
     observacoesBase.push(`Gerado em: ${new Date().toISOString()}`);
