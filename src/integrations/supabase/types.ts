@@ -4385,6 +4385,145 @@ export type Database = {
           },
         ]
       }
+      royalties_affiliate_clicks: {
+        Row: {
+          affiliate_link_id: string
+          clicked_at: string
+          id: string
+          ip_hash: string | null
+          referrer: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          affiliate_link_id: string
+          clicked_at?: string
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          affiliate_link_id?: string
+          clicked_at?: string
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_affiliate_clicks_affiliate_link_id_fkey"
+            columns: ["affiliate_link_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_affiliate_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      royalties_affiliate_links: {
+        Row: {
+          autor_id: string
+          codigo_afiliado: string
+          comissao_percentual: number
+          created_at: string
+          descricao_lp: string | null
+          id: string
+          is_active: boolean | null
+          link_externo: string
+          livro_id: string
+          slug: string
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          autor_id: string
+          codigo_afiliado: string
+          comissao_percentual?: number
+          created_at?: string
+          descricao_lp?: string | null
+          id?: string
+          is_active?: boolean | null
+          link_externo: string
+          livro_id: string
+          slug: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          autor_id?: string
+          codigo_afiliado?: string
+          comissao_percentual?: number
+          created_at?: string
+          descricao_lp?: string | null
+          id?: string
+          is_active?: boolean | null
+          link_externo?: string
+          livro_id?: string
+          slug?: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_affiliate_links_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_autores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "royalties_affiliate_links_livro_id_fkey"
+            columns: ["livro_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_livros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      royalties_affiliate_sales: {
+        Row: {
+          affiliate_link_id: string
+          created_at: string
+          id: string
+          quantidade: number
+          shopify_order_id: string | null
+          shopify_order_number: string | null
+          status: string
+          valor_comissao: number
+          valor_venda: number
+        }
+        Insert: {
+          affiliate_link_id: string
+          created_at?: string
+          id?: string
+          quantidade?: number
+          shopify_order_id?: string | null
+          shopify_order_number?: string | null
+          status?: string
+          valor_comissao: number
+          valor_venda: number
+        }
+        Update: {
+          affiliate_link_id?: string
+          created_at?: string
+          id?: string
+          quantidade?: number
+          shopify_order_id?: string | null
+          shopify_order_number?: string | null
+          status?: string
+          valor_comissao?: number
+          valor_venda?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_affiliate_sales_affiliate_link_id_fkey"
+            columns: ["affiliate_link_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_affiliate_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       royalties_audit_logs: {
         Row: {
           acao: string
