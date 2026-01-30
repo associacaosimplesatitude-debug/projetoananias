@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, ExternalLink } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -105,6 +105,7 @@ export default function RoyaltiesVendas() {
                   <TableHead>Autor</TableHead>
                   <TableHead className="text-right">Qtd</TableHead>
                   <TableHead className="text-right">Comissão</TableHead>
+                  <TableHead>NF</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -123,6 +124,23 @@ export default function RoyaltiesVendas() {
                     <TableCell className="text-right">{venda.quantidade}</TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(venda.valor_comissao_total)}
+                    </TableCell>
+                    <TableCell>
+                      {venda.nota_fiscal_url ? (
+                        <a
+                          href={venda.nota_fiscal_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-primary hover:text-primary/80 hover:underline flex items-center gap-1"
+                        >
+                          NF {venda.nota_fiscal_numero || venda.bling_order_number || ""}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : venda.bling_order_id ? (
+                        <span className="text-xs text-amber-600">Aguardando</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">

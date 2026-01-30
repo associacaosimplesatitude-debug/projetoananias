@@ -265,6 +265,8 @@ async function syncNFeBatch(
           data_venda: nfeData.dataEmissao?.split(" ")[0] || new Date().toISOString().split("T")[0],
           bling_order_id: nfeData.id,
           bling_order_number: nfeData.numero?.toString() || null,
+          nota_fiscal_numero: nfeData.numero?.toString() || null,
+          nota_fiscal_url: nfeData.linkPDF || nfeData.linkDanfe || nfeData.link || null,
         });
 
         result.summary.total_quantidade += quantidade;
