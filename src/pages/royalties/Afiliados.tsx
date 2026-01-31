@@ -21,10 +21,12 @@ import {
   Copy,
   ExternalLink,
   Search,
+  Plus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { AffiliateLinkDialog } from "@/components/royalties/AffiliateLinkDialog";
 
 interface AffiliateStats {
   id: string;
@@ -44,6 +46,7 @@ interface AffiliateStats {
 
 export default function Afiliados() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: affiliateLinks, isLoading } = useQuery({
     queryKey: ["affiliate-links-stats"],
@@ -135,7 +138,13 @@ export default function Afiliados() {
             Gerencie os links de afiliados e acompanhe as métricas de conversão.
           </p>
         </div>
+        <Button onClick={() => setDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Afiliado
+        </Button>
       </div>
+
+      <AffiliateLinkDialog open={dialogOpen} onOpenChange={setDialogOpen} />
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">
