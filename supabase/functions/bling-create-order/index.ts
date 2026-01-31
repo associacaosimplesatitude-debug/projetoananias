@@ -2129,6 +2129,8 @@ serve(async (req) => {
         'sedex': { nome: 'Correios', servico: 'SEDEX' },
         'free': { nome: 'Correios', servico: 'PAC CONTRATO AG' },
         'retirada': { nome: 'Retirada na Matriz', servico: 'RETIRADA' },
+        'retirada_penha': { nome: 'Retirada Loja Penha', servico: 'RETIRADA_PENHA' },
+        'retirada_pe': { nome: 'Retirada Polo PE', servico: 'RETIRADA_PE' },
       };
       freteInfo = tipoFreteMap[metodo_frete?.toLowerCase()] || { nome: 'Correios', servico: metodo_frete || 'A Combinar' };
     }
