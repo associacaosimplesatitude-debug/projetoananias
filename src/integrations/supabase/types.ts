@@ -4643,6 +4643,60 @@ export type Database = {
           },
         ]
       }
+      royalties_contratos: {
+        Row: {
+          autor_id: string
+          created_at: string
+          data_inicio: string
+          data_termino: string
+          id: string
+          is_active: boolean | null
+          livro_id: string
+          pdf_url: string | null
+          termos_contrato: string | null
+          updated_at: string
+        }
+        Insert: {
+          autor_id: string
+          created_at?: string
+          data_inicio: string
+          data_termino: string
+          id?: string
+          is_active?: boolean | null
+          livro_id: string
+          pdf_url?: string | null
+          termos_contrato?: string | null
+          updated_at?: string
+        }
+        Update: {
+          autor_id?: string
+          created_at?: string
+          data_inicio?: string
+          data_termino?: string
+          id?: string
+          is_active?: boolean | null
+          livro_id?: string
+          pdf_url?: string | null
+          termos_contrato?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_contratos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_autores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "royalties_contratos_livro_id_fkey"
+            columns: ["livro_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_livros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       royalties_livros: {
         Row: {
           autor_id: string

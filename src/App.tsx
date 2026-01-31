@@ -74,6 +74,7 @@ import RoyaltiesVendas from "./pages/royalties/Vendas";
 import RoyaltiesPagamentos from "./pages/royalties/Pagamentos";
 import RoyaltiesRelatorios from "./pages/royalties/Relatorios";
 import RoyaltiesAfiliados from "./pages/royalties/Afiliados";
+import RoyaltiesContratos from "./pages/royalties/Contratos";
 
 // Autor Pages
 import AutorDashboard from "./pages/autor/Dashboard";
@@ -520,6 +521,7 @@ const App = () => (
                       <Route path="vendas" element={<RoyaltiesVendas />} />
                       <Route path="pagamentos" element={<RoyaltiesPagamentos />} />
                       <Route path="afiliados" element={<RoyaltiesAfiliados />} />
+                      <Route path="contratos" element={<RoyaltiesContratos />} />
                       <Route path="relatorios" element={<RoyaltiesRelatorios />} />
                     </Route>
 
