@@ -1563,7 +1563,9 @@ export default function ShopifyPedidos() {
                     valor_total: totalComDesconto,
                     valor_frete: 0,
                     desconto_percentual: descontoPercentual,
-                    metodo_frete: 'retirada_penha',
+                    metodo_frete: pagamentoData.depositoOrigem === 'local' ? 'retirada_penha' 
+                      : pagamentoData.depositoOrigem === 'matriz' ? 'retirada' 
+                      : 'retirada_pe',
                     forma_pagamento: 'pagamento_loja',
                     forma_pagamento_loja: pagamentoData.formaPagamento,
                     bandeira_cartao: pagamentoData.bandeiraCartao,
