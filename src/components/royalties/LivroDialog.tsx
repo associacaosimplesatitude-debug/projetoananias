@@ -268,7 +268,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="valor_capa">Valor de Capa (R$) *</Label>
+            <Label htmlFor="valor_capa">Valor Líquido (R$) *</Label>
             <Input
               id="valor_capa"
               type="number"
