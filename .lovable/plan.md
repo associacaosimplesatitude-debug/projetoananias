@@ -1,122 +1,136 @@
 
-# Plano: Corrigir Mapeamento de Forma de Envio na Loja Penha
+# Plano: Adicionar Botão para Criar Novo Link de Afiliado
 
-## Problema Identificado
-
-Quando você escolheu **"Retirada na Matriz"** na interface da Loja Penha, o sistema enviou `retirada_penha` para o Bling, resultando em:
-- **ID Serviço Logístico**: `retirada_penha` (não reconhecido pelo Bling)
-- **Observações**: Serviço `retirada_penha` 
-
-### Causa Raiz (2 partes):
-
-**1. Frontend (ShopifyPedidos.tsx linha 1566):**
-O código está **hardcoded** para sempre enviar `metodo_frete: 'retirada_penha'`:
-```typescript
-metodo_frete: 'retirada_penha',  // ← Sempre envia isso!
-```
-Não importa o que você escolheu na interface, sempre vai como `retirada_penha`.
-
-**2. Backend (bling-create-order/index.ts linhas 2127-2133):**
-O mapeamento `tipoFreteMap` não inclui `retirada_penha` nem `retirada_pe`:
-```typescript
-const tipoFreteMap = {
-  'pac': { nome: 'Correios', servico: 'PAC' },
-  'sedex': { nome: 'Correios', servico: 'SEDEX' },
-  'free': { nome: 'Correios', servico: 'PAC CONTRATO AG' },
-  'retirada': { nome: 'Retirada na Matriz', servico: 'RETIRADA' },
-  // ❌ Falta: 'retirada_penha' e 'retirada_pe'
-};
-```
-Como resultado, o fallback envia o valor literal `retirada_penha` como serviço logístico.
+## Objetivo
+Adicionar um botão "Novo Afiliado" na página `/royalties/afiliados` que abre um dialog para cadastrar novos links de afiliado com os campos: Autor, Livro, Comissão e Link da Landing Page.
 
 ---
 
-## Solução
+## Estrutura Atual da Tabela `royalties_affiliate_links`
 
-### Parte 1: Corrigir o Frontend (ShopifyPedidos.tsx)
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | uuid | Chave primária |
+| `autor_id` | uuid | FK para `royalties_autores` |
+| `livro_id` | uuid | FK para `royalties_livros` |
+| `codigo_afiliado` | string | Código único do afiliado |
+| `slug` | string | Slug único para URL |
+| `comissao_percentual` | number | Percentual de comissão (default: 30) |
+| `link_externo` | string | URL externa/landing page |
+| `is_active` | boolean | Status ativo |
 
-Atualmente a página de Pedidos da Loja Penha (ShopifyPedidos.tsx) não permite ao vendedor escolher a forma de entrega. O `metodo_frete` está fixo.
+---
 
-**Opção A (Recomendada):** Permitir escolha da forma de envio com base no depósito:
-- Se `deposito_origem === 'local'` (Penha) → `metodo_frete: 'retirada_penha'`
-- Se `deposito_origem === 'matriz'` → `metodo_frete: 'retirada'`
-- Se `deposito_origem === 'pernambuco'` → `metodo_frete: 'retirada_pe'`
+## Alterações
 
-**Opção B:** Adicionar o componente `FormaEnvioSection` ao fluxo de pagamento na loja.
+### 1. Criar Componente `AffiliateLinkDialog.tsx`
 
-### Parte 2: Corrigir o Backend (bling-create-order/index.ts)
+**Arquivo:** `src/components/royalties/AffiliateLinkDialog.tsx`
 
-Adicionar os novos valores ao mapeamento:
+Dialog com formulário contendo:
 
-```typescript
-const tipoFreteMap: { [key: string]: { nome: string; servico: string } } = {
-  'pac': { nome: 'Correios', servico: 'PAC' },
-  'sedex': { nome: 'Correios', servico: 'SEDEX' },
-  'free': { nome: 'Correios', servico: 'PAC CONTRATO AG' },
-  'retirada': { nome: 'Retirada na Matriz', servico: 'RETIRADA' },
-  'retirada_penha': { nome: 'Retirada Loja Penha', servico: 'RETIRADA_PENHA' },
-  'retirada_pe': { nome: 'Retirada Polo Pernambuco', servico: 'RETIRADA_PE' },
-};
+- **Select de Autor**: Lista autores ativos da tabela `royalties_autores`
+- **Select de Livro**: Lista livros ativos da tabela `royalties_livros` (filtrado pelo autor selecionado)
+- **Campo Comissão**: Input numérico com valor padrão 30%
+- **Campo Link Landing Page**: Input de URL para `link_externo`
+- **Geração automática**: `slug` e `codigo_afiliado` baseados no autor e livro selecionados
+
 ```
++------------------------------------------+
+|         Novo Link de Afiliado            |
++------------------------------------------+
+| Autor *                                  |
+| [Select - Lista de autores ativos]       |
+|                                          |
+| Livro *                                  |
+| [Select - Lista de livros do autor]      |
+|                                          |
+| Comissão (%) *                           |
+| [30___________________________]          |
+|                                          |
+| Link da Landing Page *                   |
+| [https://..._________________]           |
+|                                          |
+|              [Cancelar] [Cadastrar]      |
++------------------------------------------+
+```
+
+### 2. Atualizar Página `Afiliados.tsx`
+
+**Arquivo:** `src/pages/royalties/Afiliados.tsx`
+
+**Alterações:**
+1. Importar o novo componente `AffiliateLinkDialog`
+2. Adicionar estado `dialogOpen` para controlar o dialog
+3. Adicionar botão "Novo Afiliado" ao lado do título
+4. Renderizar o dialog
 
 ---
 
 ## Detalhes Técnicos
 
-### Arquivo 1: `src/pages/shopify/ShopifyPedidos.tsx`
+### AffiliateLinkDialog.tsx
 
-**Linha 1566 - DE:**
 ```typescript
-metodo_frete: 'retirada_penha',
-```
+// Campos do formulário
+interface FormData {
+  autor_id: string;
+  livro_id: string;
+  comissao_percentual: string;
+  link_externo: string;
+}
 
-**PARA (baseado no depósito selecionado):**
-```typescript
-metodo_frete: pagamentoData.depositoOrigem === 'local' ? 'retirada_penha' 
-            : pagamentoData.depositoOrigem === 'matriz' ? 'retirada' 
-            : 'retirada_pe',
-```
-
-### Arquivo 2: `supabase/functions/bling-create-order/index.ts`
-
-**Linhas 2127-2132 - DE:**
-```typescript
-const tipoFreteMap: { [key: string]: { nome: string; servico: string } } = {
-  'pac': { nome: 'Correios', servico: 'PAC' },
-  'sedex': { nome: 'Correios', servico: 'SEDEX' },
-  'free': { nome: 'Correios', servico: 'PAC CONTRATO AG' },
-  'retirada': { nome: 'Retirada na Matriz', servico: 'RETIRADA' },
+// Geração automática do slug e código
+const generateSlugAndCode = (autorNome: string, livroTitulo: string) => {
+  const baseSlug = `${livroTitulo}-${autorNome}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  
+  const codigo = `${autorNome.split(" ")[0].toUpperCase()}-${Date.now().toString(36)}`;
+  
+  return { slug: baseSlug, codigo_afiliado: codigo };
 };
 ```
 
-**PARA:**
+### Lógica de Filtro de Livros
+
+Quando o autor for selecionado, filtrar a lista de livros para mostrar apenas os livros daquele autor.
+
+### Inserção no Banco
+
 ```typescript
-const tipoFreteMap: { [key: string]: { nome: string; servico: string } } = {
-  'pac': { nome: 'Correios', servico: 'PAC' },
-  'sedex': { nome: 'Correios', servico: 'SEDEX' },
-  'free': { nome: 'Correios', servico: 'PAC CONTRATO AG' },
-  'retirada': { nome: 'Retirada na Matriz', servico: 'RETIRADA' },
-  'retirada_penha': { nome: 'Retirada Loja Penha', servico: 'RETIRADA_PENHA' },
-  'retirada_pe': { nome: 'Retirada Polo PE', servico: 'RETIRADA_PE' },
+const payload = {
+  autor_id: formData.autor_id,
+  livro_id: formData.livro_id,
+  comissao_percentual: parseFloat(formData.comissao_percentual),
+  link_externo: formData.link_externo.trim(),
+  slug: generatedSlug,
+  codigo_afiliado: generatedCodigo,
+  is_active: true,
 };
+
+await supabase.from("royalties_affiliate_links").insert(payload);
 ```
+
+---
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Ação |
+|---------|------|
+| `src/components/royalties/AffiliateLinkDialog.tsx` | **Criar** |
+| `src/pages/royalties/Afiliados.tsx` | **Modificar** |
 
 ---
 
 ## Resultado Esperado
 
-| Depósito Origem | metodo_frete enviado | Serviço no Bling |
-|-----------------|---------------------|------------------|
-| local (Penha)   | `retirada_penha`    | `RETIRADA_PENHA` |
-| matriz          | `retirada`          | `RETIRADA`       |
-| pernambuco      | `retirada_pe`       | `RETIRADA_PE`    |
-
-A escolha do vendedor (Matriz, Penha ou PE) será respeitada e aparecerá corretamente no Bling.
-
----
-
-## Impacto
-
-- **Pedidos novos**: Aparecerão com o serviço logístico correto
-- **Pedidos antigos**: Permanecem como estão (sem correção retroativa)
-- **Roteamento de estoque**: Já funciona corretamente (linhas 1537-1582 do backend)
+1. Botão "Novo Afiliado" visível no topo da página de afiliados
+2. Ao clicar, abre um dialog com formulário
+3. Selects de autor e livro preenchidos dinamicamente
+4. Campo de comissão com valor padrão 30%
+5. Ao salvar, o link é criado e aparece na lista
+6. Slug e código do afiliado gerados automaticamente
