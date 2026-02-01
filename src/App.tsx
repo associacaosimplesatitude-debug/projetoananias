@@ -75,6 +75,7 @@ import RoyaltiesPagamentos from "./pages/royalties/Pagamentos";
 import RoyaltiesRelatorios from "./pages/royalties/Relatorios";
 import RoyaltiesAfiliados from "./pages/royalties/Afiliados";
 import RoyaltiesContratos from "./pages/royalties/Contratos";
+import RoyaltiesResgates from "./pages/royalties/Resgates";
 
 // Autor Pages
 import AutorDashboard from "./pages/autor/Dashboard";
@@ -83,6 +84,8 @@ import AutorExtrato from "./pages/autor/Extrato";
 import AutorMeusPagamentos from "./pages/autor/MeusPagamentos";
 import AutorPerfil from "./pages/autor/Perfil";
 import AutorMeusAfiliados from "./pages/autor/MeusAfiliados";
+import AutorLoja from "./pages/autor/Loja";
+import AutorMeusResgates from "./pages/autor/MeusResgates";
 
 // Public Landing Pages
 import LivroLandingPage from "./pages/public/LivroLandingPage";
@@ -520,6 +523,7 @@ const App = () => (
                       <Route path="livros" element={<RoyaltiesLivros />} />
                       <Route path="vendas" element={<RoyaltiesVendas />} />
                       <Route path="pagamentos" element={<RoyaltiesPagamentos />} />
+                      <Route path="resgates" element={<RoyaltiesResgates />} />
                       <Route path="afiliados" element={<RoyaltiesAfiliados />} />
                       <Route path="contratos" element={<RoyaltiesContratos />} />
                       <Route path="relatorios" element={<RoyaltiesRelatorios />} />
@@ -538,6 +542,8 @@ const App = () => (
                       <Route path="livros" element={<AutorMeusLivros />} />
                       <Route path="extrato" element={<AutorExtrato />} />
                       <Route path="pagamentos" element={<AutorMeusPagamentos />} />
+                      <Route path="loja" element={<AutorLoja />} />
+                      <Route path="resgates" element={<AutorMeusResgates />} />
                       <Route path="afiliados" element={<AutorMeusAfiliados />} />
                       <Route path="perfil" element={<AutorPerfil />} />
                     </Route>

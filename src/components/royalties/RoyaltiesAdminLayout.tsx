@@ -9,6 +9,7 @@ import {
   BookOpenText,
   Link2,
   ScrollText,
+  Package,
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
@@ -35,6 +36,7 @@ function RoyaltiesSidebar() {
     { to: "/royalties/livros", icon: BookOpen, label: "Livros" },
     { to: "/royalties/vendas", icon: ShoppingCart, label: "Vendas" },
     { to: "/royalties/pagamentos", icon: CreditCard, label: "Pagamentos" },
+    { to: "/royalties/resgates", icon: Package, label: "Resgates" },
     { to: "/royalties/afiliados", icon: Link2, label: "Afiliados" },
     { to: "/royalties/contratos", icon: ScrollText, label: "Contratos" },
     { to: "/royalties/relatorios", icon: FileText, label: "Relatórios" },

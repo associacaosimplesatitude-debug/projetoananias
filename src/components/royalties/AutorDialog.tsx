@@ -11,6 +11,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Search, UserCheck, UserX, Loader2, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCPFCNPJ, getDocumentError } from "@/lib/royaltiesValidators";
+import { AutorDescontosSection } from "./AutorDescontosSection";
+import { Separator } from "@/components/ui/separator";
 
 interface AutorDialogProps {
   open: boolean;
@@ -25,6 +27,7 @@ interface AutorDialogProps {
     dados_bancarios: any | null;
     is_active: boolean;
     user_id: string | null;
+    desconto_livros_proprios?: number | null;
   } | null;
 }
 
@@ -55,6 +58,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
     pix: "",
     is_active: true,
     user_id: null as string | null,
+    desconto_livros_proprios: 0,
   });
 
   useEffect(() => {
@@ -72,6 +76,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         pix: autor.dados_bancarios?.pix || "",
         is_active: autor.is_active ?? true,
         user_id: autor.user_id || null,
+        desconto_livros_proprios: autor.desconto_livros_proprios || 0,
       });
       setUserSearchEmail(autor.email || "");
       
@@ -95,6 +100,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         pix: "",
         is_active: true,
         user_id: null,
+        desconto_livros_proprios: 0,
       });
       setUserSearchEmail("");
       setFoundUser(null);
@@ -212,6 +218,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         dados_bancarios,
         is_active: formData.is_active,
         user_id: formData.user_id,
+        desconto_livros_proprios: formData.desconto_livros_proprios,
       };
 
       if (autor?.id) {
@@ -466,6 +473,15 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
             />
             <Label htmlFor="is_active">Autor ativo</Label>
           </div>
+
+          <Separator className="my-4" />
+
+          {/* Seção de Descontos */}
+          <AutorDescontosSection
+            autorId={autor?.id || null}
+            descontoLivrosProprios={formData.desconto_livros_proprios}
+            onDescontoLivrosPropriosChange={(val) => setFormData({ ...formData, desconto_livros_proprios: val })}
+          />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

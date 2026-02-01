@@ -7,6 +7,8 @@ import {
   User,
   Pen,
   Link2,
+  ShoppingCart,
+  Package,
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
@@ -32,6 +34,8 @@ function AutorSidebar() {
     { to: "/autor/livros", icon: BookOpen, label: "Meus Livros" },
     { to: "/autor/extrato", icon: FileText, label: "Extrato" },
     { to: "/autor/pagamentos", icon: CreditCard, label: "Pagamentos" },
+    { to: "/autor/loja", icon: ShoppingCart, label: "Loja" },
+    { to: "/autor/resgates", icon: Package, label: "Meus Resgates" },
     { to: "/autor/afiliados", icon: Link2, label: "Meus Links" },
     { to: "/autor/perfil", icon: User, label: "Meus Dados" },
   ];

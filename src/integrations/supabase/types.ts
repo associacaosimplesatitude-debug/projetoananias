@@ -4563,6 +4563,7 @@ export type Database = {
           cpf_cnpj: string | null
           created_at: string
           dados_bancarios: Json | null
+          desconto_livros_proprios: number | null
           email: string
           endereco: Json | null
           foto_url: string | null
@@ -4578,6 +4579,7 @@ export type Database = {
           cpf_cnpj?: string | null
           created_at?: string
           dados_bancarios?: Json | null
+          desconto_livros_proprios?: number | null
           email: string
           endereco?: Json | null
           foto_url?: string | null
@@ -4593,6 +4595,7 @@ export type Database = {
           cpf_cnpj?: string | null
           created_at?: string
           dados_bancarios?: Json | null
+          desconto_livros_proprios?: number | null
           email?: string
           endereco?: Json | null
           foto_url?: string | null
@@ -4693,6 +4696,41 @@ export type Database = {
             columns: ["livro_id"]
             isOneToOne: false
             referencedRelation: "royalties_livros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      royalties_descontos_categoria_autor: {
+        Row: {
+          autor_id: string
+          categoria: string
+          created_at: string
+          id: string
+          percentual_desconto: number
+          updated_at: string
+        }
+        Insert: {
+          autor_id: string
+          categoria: string
+          created_at?: string
+          id?: string
+          percentual_desconto: number
+          updated_at?: string
+        }
+        Update: {
+          autor_id?: string
+          categoria?: string
+          created_at?: string
+          id?: string
+          percentual_desconto?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_descontos_categoria_autor_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_autores"
             referencedColumns: ["id"]
           },
         ]
@@ -4802,6 +4840,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "royalties_pagamentos_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_autores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      royalties_resgates: {
+        Row: {
+          autor_id: string
+          created_at: string
+          data_solicitacao: string
+          endereco_entrega: Json | null
+          id: string
+          itens: Json
+          observacoes: string | null
+          status: string
+          updated_at: string
+          valor_total: number
+        }
+        Insert: {
+          autor_id: string
+          created_at?: string
+          data_solicitacao?: string
+          endereco_entrega?: Json | null
+          id?: string
+          itens: Json
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+          valor_total: number
+        }
+        Update: {
+          autor_id?: string
+          created_at?: string
+          data_solicitacao?: string
+          endereco_entrega?: Json | null
+          id?: string
+          itens?: Json
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_resgates_autor_id_fkey"
             columns: ["autor_id"]
             isOneToOne: false
             referencedRelation: "royalties_autores"
