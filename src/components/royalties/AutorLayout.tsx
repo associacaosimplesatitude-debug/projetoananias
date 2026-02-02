@@ -9,6 +9,7 @@ import {
   Link2,
   ShoppingCart,
   Package,
+  ScrollText,
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
@@ -32,6 +33,7 @@ function AutorSidebar() {
   const menuItems = [
     { to: "/autor", icon: LayoutDashboard, label: "Dashboard", end: true },
     { to: "/autor/livros", icon: BookOpen, label: "Meus Livros" },
+    { to: "/autor/contrato", icon: ScrollText, label: "Contrato" },
     { to: "/autor/extrato", icon: FileText, label: "Extrato" },
     { to: "/autor/pagamentos", icon: CreditCard, label: "Pagamentos" },
     { to: "/autor/loja", icon: ShoppingCart, label: "Loja" },

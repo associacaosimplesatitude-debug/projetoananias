@@ -80,6 +80,7 @@ import RoyaltiesResgates from "./pages/royalties/Resgates";
 // Autor Pages
 import AutorDashboard from "./pages/autor/Dashboard";
 import AutorMeusLivros from "./pages/autor/MeusLivros";
+import AutorContratos from "./pages/autor/Contratos";
 import AutorExtrato from "./pages/autor/Extrato";
 import AutorMeusPagamentos from "./pages/autor/MeusPagamentos";
 import AutorPerfil from "./pages/autor/Perfil";
@@ -540,6 +541,7 @@ const App = () => (
                     >
                       <Route index element={<AutorDashboard />} />
                       <Route path="livros" element={<AutorMeusLivros />} />
+                      <Route path="contrato" element={<AutorContratos />} />
                       <Route path="extrato" element={<AutorExtrato />} />
                       <Route path="pagamentos" element={<AutorMeusPagamentos />} />
                       <Route path="loja" element={<AutorLoja />} />
