@@ -25,8 +25,8 @@ export function useRoyaltiesAuth() {
 
     setLoading(true);
     try {
-      // Check if user has admin or gerente_royalties role
-      const adminAccess = role === 'admin' || role === 'gerente_royalties';
+      // Check if user has admin, gerente_royalties or financeiro role
+      const adminAccess = role === 'admin' || role === 'gerente_royalties' || role === 'financeiro';
       setHasRoyaltiesAccess(adminAccess);
 
       // Check if user is an autor

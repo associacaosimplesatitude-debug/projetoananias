@@ -25,6 +25,7 @@ import {
   Globe,
   ArrowRightLeft,
   Wallet,
+  BookMarked,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -244,6 +245,14 @@ function AdminSidebar() {
                     <RouterNavLink to="/admin/ebd/comissoes">
                       <Wallet className="h-4 w-4" />
                       <span>Gestão de Comissões</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/royalties')}>
+                    <RouterNavLink to="/royalties">
+                      <BookMarked className="h-4 w-4" />
+                      <span>Royalties</span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
