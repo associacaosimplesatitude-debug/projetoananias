@@ -1,74 +1,101 @@
 
-# Plano: Corrigir Erro no Botão "Recalcular Comissões"
+# Plano: Adicionar Botão de Exclusão para Autores e Livros
 
-## Problema Identificado
+## Resumo
+Adicionar botões de exclusão nas listas de Autores e Livros, com confirmação antes de excluir. A exclusão removerá todos os dados relacionados (vendas, comissões, pagamentos, contratos, etc.).
 
-A função SQL `recalcular_royalties_pendentes()` está falhando com o erro:
+## Análise das Dependências
 
-```
-column "updated_at" of relation "royalties_vendas" does not exist
-```
+Ao excluir um **Autor**, serão removidos automaticamente (CASCADE):
+- Todos os livros do autor
+- Comissões de cada livro
+- Vendas de cada livro
+- Pagamentos realizados
+- Contratos
+- Links de afiliado e cliques/vendas de afiliado
+- Descontos por categoria
 
-A tabela `royalties_vendas` possui as seguintes colunas (sem `updated_at`):
-- id, livro_id, quantidade, valor_unitario, valor_comissao_unitario, valor_comissao_total
-- data_venda, pagamento_id, created_at, bling_order_id, bling_order_number
-- observacao, nota_fiscal_numero, nota_fiscal_url
+Ao excluir um **Livro**, serão removidos automaticamente (CASCADE):
+- Comissões configuradas
+- Todas as vendas do livro
+- Contratos relacionados
+- Links de afiliado do livro
 
-Há também um warning menor de DOM nesting (`<p>` dentro de `<p>`) no dialog.
+## Alterações Necessárias
 
-## Solução
-
-### 1. Corrigir Função SQL (Migration)
-Recriar a função `recalcular_royalties_pendentes()` removendo a linha `updated_at = now()`:
+### 1. Migration SQL - Ajustar Constraint
+A tabela `royalties_resgates` tem uma constraint que pode causar problemas. Vou alterar para CASCADE:
 
 ```sql
-CREATE OR REPLACE FUNCTION recalcular_royalties_pendentes()
-RETURNS TABLE (
-  vendas_atualizadas INTEGER,
-  total_antes NUMERIC,
-  total_depois NUMERIC
-) AS $$
-DECLARE
-  v_antes NUMERIC;
-  v_depois NUMERIC;
-  v_count INTEGER;
-BEGIN
-  SELECT COALESCE(SUM(valor_comissao_total), 0) INTO v_antes
-  FROM royalties_vendas WHERE pagamento_id IS NULL;
-  
-  UPDATE royalties_vendas rv
-  SET 
-    valor_unitario = rl.valor_capa,
-    valor_comissao_unitario = ROUND((rl.valor_capa * (COALESCE(rc.percentual, 0) / 100))::numeric, 2),
-    valor_comissao_total = ROUND((rl.valor_capa * rv.quantidade * (COALESCE(rc.percentual, 0) / 100))::numeric, 2)
-  FROM royalties_livros rl
-  LEFT JOIN royalties_comissoes rc ON rl.id = rc.livro_id
-  WHERE rv.livro_id = rl.id
-    AND rv.pagamento_id IS NULL;
-  
-  GET DIAGNOSTICS v_count = ROW_COUNT;
-  
-  SELECT COALESCE(SUM(valor_comissao_total), 0) INTO v_depois
-  FROM royalties_vendas WHERE pagamento_id IS NULL;
-  
-  RETURN QUERY SELECT v_count, v_antes, v_depois;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+ALTER TABLE royalties_resgates
+DROP CONSTRAINT royalties_resgates_autor_id_fkey;
+
+ALTER TABLE royalties_resgates
+ADD CONSTRAINT royalties_resgates_autor_id_fkey
+FOREIGN KEY (autor_id) REFERENCES royalties_autores(id)
+ON DELETE CASCADE;
 ```
 
-### 2. Corrigir DOM Nesting no Componente
-Trocar os `<p>` dentro de `AlertDialogDescription` por `<span>` com `display: block` para evitar o warning de DOM nesting.
+### 2. Arquivo: `src/pages/royalties/Autores.tsx`
+- Adicionar ícone `Trash2` aos imports
+- Adicionar estado para controlar dialog de exclusão
+- Adicionar componente `AlertDialog` para confirmação
+- Adicionar função `handleDelete` que executa a exclusão
+- Adicionar botão de exclusão ao lado do botão de edição
 
-## Alterações
+### 3. Arquivo: `src/pages/royalties/Livros.tsx`
+- Adicionar ícone `Trash2` aos imports
+- Adicionar estado para controlar dialog de exclusão
+- Adicionar componente `AlertDialog` para confirmação
+- Adicionar função `handleDelete` que executa a exclusão
+- Adicionar botão de exclusão ao lado do botão de edição
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/migrations/xxx.sql` | Recriar função SQL sem `updated_at` |
-| `src/components/royalties/RecalcularComissoesButton.tsx` | Trocar `<p>` por `<span className="block">` |
+## Interface Visual
+
+Na coluna "Ações" de cada tabela, haverá dois botões:
+- 📝 Editar (existente)
+- 🗑️ Excluir (novo - vermelho)
+
+Ao clicar em excluir, aparecerá um diálogo de confirmação com:
+- Título: "Excluir [Autor/Livro]?"
+- Descrição explicando que todos os dados serão excluídos
+- Botões: "Cancelar" e "Excluir" (vermelho)
 
 ## Resultado Esperado
 
-- O botão "Recalcular Comissões" funcionará corretamente
-- Walter Brunelli: R$ 49.387,65 → R$ 22.225,06
-- Royalties a Pagar será atualizado automaticamente
-- Sem warnings no console
+- Usuário poderá excluir autores e livros diretamente da lista
+- Confirmação obrigatória antes da exclusão
+- Todos os dados relacionados serão removidos automaticamente
+- Lista atualizada automaticamente após exclusão
+
+---
+
+## Seção Técnica
+
+### Arquivos a Modificar
+
+| Arquivo | Alterações |
+|---------|------------|
+| `supabase/migrations/xxx.sql` | Ajustar constraint de `royalties_resgates` |
+| `src/pages/royalties/Autores.tsx` | Adicionar botão e lógica de exclusão |
+| `src/pages/royalties/Livros.tsx` | Adicionar botão e lógica de exclusão |
+
+### Queries de Exclusão
+
+```typescript
+// Excluir autor
+await supabase.from("royalties_autores").delete().eq("id", autorId);
+
+// Excluir livro
+await supabase.from("royalties_livros").delete().eq("id", livroId);
+```
+
+### Invalidação de Cache
+
+Após exclusão, invalidar queries:
+- `royalties-autores`
+- `royalties-livros`
+- `royalties-vendas`
+- `royalties-top-autores`
+- `royalties-top-livros`
+- `royalties-total-a-pagar`
