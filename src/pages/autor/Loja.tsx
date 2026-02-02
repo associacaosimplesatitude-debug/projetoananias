@@ -249,11 +249,38 @@ export default function AutorLoja() {
     setCarrinho((prev) => prev.filter((i) => i.variant_id !== variantId));
   };
 
+  const totalOriginal = carrinho.reduce(
+    (acc, i) => acc + i.preco_original * i.quantidade,
+    0
+  );
   const totalCarrinho = carrinho.reduce(
     (acc, i) => acc + i.preco_final * i.quantidade,
     0
   );
+  const totalDesconto = totalOriginal - totalCarrinho;
   const totalItens = carrinho.reduce((acc, i) => acc + i.quantidade, 0);
+
+  // Calcular desconto médio por categoria
+  const descontoPorCategoria = useMemo(() => {
+    const categorias: Record<string, { total: number; desconto: number; nome: string }> = {};
+    carrinho.forEach((item) => {
+      const key = item.is_proprio_livro ? "proprio" : item.categoria;
+      const nome = item.is_proprio_livro ? "Seu Livro" : getNomeCategoria(item.categoria);
+      if (!categorias[key]) {
+        categorias[key] = { total: 0, desconto: 0, nome };
+      }
+      categorias[key].total += item.preco_original * item.quantidade;
+      categorias[key].desconto += (item.preco_original - item.preco_final) * item.quantidade;
+    });
+    return Object.entries(categorias)
+      .filter(([_, v]) => v.desconto > 0)
+      .map(([key, v]) => ({
+        categoria: key,
+        nome: v.nome,
+        desconto: v.desconto,
+        percentual: Math.round((v.desconto / v.total) * 100),
+      }));
+  }, [carrinho]);
 
   const criarResgateMutation = useMutation({
     mutationFn: async () => {
@@ -371,9 +398,14 @@ export default function AutorLoja() {
                           {formatCurrency(item.preco_final)}
                         </span>
                       </div>
-                      {item.is_proprio_livro && (
-                        <Badge variant="outline" className="text-xs mt-1">
-                          Seu Livro
+                      {item.desconto_aplicado > 0 && (
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs mt-1 text-green-600 border-green-300"
+                        >
+                          {item.is_proprio_livro 
+                            ? "Seu Livro" 
+                            : `${getNomeCategoria(item.categoria)} – ${item.desconto_aplicado}%`}
                         </Badge>
                       )}
                       <div className="flex items-center gap-2 mt-2">
@@ -413,10 +445,55 @@ export default function AutorLoja() {
 
             {carrinho.length > 0 && (
               <div className="border-t pt-4 space-y-4">
+                {/* Seção de Descontos por Categoria */}
+                {descontoPorCategoria.length > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+                        <Tag className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-green-800">Desconto por Categoria</p>
+                        <p className="text-xs text-green-600">
+                          Desconto especial por categoria (~{Math.round(totalDesconto / totalOriginal * 100)}% médio)
+                        </p>
+                      </div>
+                      <span className="font-bold text-green-700">
+                        -{formatCurrency(totalDesconto)}
+                      </span>
+                    </div>
+                    <Separator className="bg-green-200" />
+                    {descontoPorCategoria.map((cat) => (
+                      <div key={cat.categoria} className="flex justify-between text-sm pl-10">
+                        <span className="text-green-700 truncate max-w-[200px]">
+                          {cat.nome}
+                        </span>
+                        <span className="text-green-600 font-medium whitespace-nowrap">
+                          {cat.nome} – {cat.percentual}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Totais */}
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Total do Carrinho</span>
-                    <span className="font-semibold">{formatCurrency(totalCarrinho)}</span>
+                  {totalDesconto > 0 && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Subtotal</span>
+                      <span className="line-through">{formatCurrency(totalOriginal)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-baseline">
+                    <span className="font-medium">Total</span>
+                    <div className="text-right">
+                      {totalDesconto > 0 && (
+                        <span className="text-xs text-muted-foreground line-through mr-2">
+                          {formatCurrency(totalOriginal)}
+                        </span>
+                      )}
+                      <span className="text-xl font-bold">{formatCurrency(totalCarrinho)}</span>
+                    </div>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Saldo Disponível</span>
