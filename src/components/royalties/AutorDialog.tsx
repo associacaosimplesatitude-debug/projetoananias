@@ -436,6 +436,9 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
               <KeyRound className="h-4 w-4" />
               Acesso ao Portal do Autor
             </h4>
+            <p className="text-sm text-muted-foreground mb-3">
+              Defina uma senha para que o autor possa acessar o portal. O email de acesso será o mesmo cadastrado acima.
+            </p>
             
             {foundUser ? (
               <div className="flex items-center justify-between p-3 bg-background rounded-md border">
@@ -455,33 +458,10 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
               </div>
             ) : (
               <div className="space-y-3">
-                {/* Search existing user */}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Buscar usuário existente por email..."
-                    value={userSearchEmail}
-                    onChange={(e) => setUserSearchEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), searchUserByEmail())}
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={searchUserByEmail}
-                    disabled={searchingUser}
-                  >
-                    {searchingUser ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Search className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-
-                <div className="text-center text-sm text-muted-foreground">ou</div>
 
                 {/* Create new user with password */}
                 <div className="space-y-2">
-                  <Label htmlFor="senha">Criar conta com senha</Label>
+                  <Label htmlFor="senha">Senha de Acesso</Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Input
