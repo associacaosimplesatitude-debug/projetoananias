@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, UserCheck, UserX, Loader2, AlertCircle } from "lucide-react";
+import { Search, UserCheck, UserX, Loader2, AlertCircle, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCPFCNPJ, getDocumentError } from "@/lib/royaltiesValidators";
 import { AutorDescontosSection } from "./AutorDescontosSection";
@@ -44,6 +44,8 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
   const [searchingUser, setSearchingUser] = useState(false);
   const [foundUser, setFoundUser] = useState<UserSearchResult | null>(null);
   const [userSearchEmail, setUserSearchEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
   
   const [formData, setFormData] = useState({
     nome_completo: "",
@@ -59,6 +61,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
     is_active: true,
     user_id: null as string | null,
     desconto_livros_proprios: 0,
+    senha: "",
   });
 
   useEffect(() => {
@@ -77,6 +80,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         is_active: autor.is_active ?? true,
         user_id: autor.user_id || null,
         desconto_livros_proprios: autor.desconto_livros_proprios || 0,
+        senha: "",
       });
       setUserSearchEmail(autor.email || "");
       
@@ -101,6 +105,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         is_active: true,
         user_id: null,
         desconto_livros_proprios: 0,
+        senha: "",
       });
       setUserSearchEmail("");
       setFoundUser(null);
@@ -167,15 +172,14 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
           email: data.email || "",
           full_name: data.full_name,
         });
-        setFormData({ ...formData, user_id: data.id });
+        setFormData({ ...formData, user_id: data.id, senha: "" });
         toast({ title: "Usuário encontrado!" });
       } else {
         setFoundUser(null);
         setFormData({ ...formData, user_id: null });
         toast({
           title: "Usuário não encontrado",
-          description: "Nenhum usuário com este email foi encontrado.",
-          variant: "destructive",
+          description: "Nenhum usuário com este email foi encontrado. Você pode criar um novo informando a senha.",
         });
       }
     } catch (error: any) {
@@ -196,11 +200,77 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
     toast({ title: "Vínculo removido" });
   };
 
+  const createUserAccount = async () => {
+    if (!formData.email.trim()) {
+      toast({
+        title: "Email obrigatório",
+        description: "Informe o email do autor.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.senha || formData.senha.length < 6) {
+      toast({
+        title: "Senha inválida",
+        description: "A senha deve ter pelo menos 6 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingUser(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      const response = await supabase.functions.invoke('create-autor-user', {
+        body: {
+          email: formData.email.trim().toLowerCase(),
+          password: formData.senha,
+          fullName: formData.nome_completo.trim(),
+        },
+      });
+
+      if (response.error) throw response.error;
+      if (response.data?.error) throw new Error(response.data.error);
+
+      const userId = response.data.userId;
+      
+      setFoundUser({
+        id: userId,
+        email: formData.email.trim().toLowerCase(),
+        full_name: formData.nome_completo.trim(),
+      });
+      setFormData({ ...formData, user_id: userId, senha: "" });
+      
+      toast({ 
+        title: "Conta criada com sucesso!", 
+        description: "O autor já pode acessar o portal com o email e senha informados." 
+      });
+    } catch (error: any) {
+      console.error("Erro ao criar conta:", error);
+      toast({
+        title: "Erro ao criar conta",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // If password is provided and no user linked yet, create user first
+      if (formData.senha && formData.senha.length >= 6 && !formData.user_id) {
+        await createUserAccount();
+        // If createUserAccount was successful, formData.user_id will be set
+        // but we need to get the updated value
+      }
+
       const dados_bancarios = {
         banco: formData.banco,
         agencia: formData.agencia,
@@ -283,6 +353,8 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
     }
   };
 
+  const isEditing = !!autor?.id;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -293,57 +365,6 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* User Link Section */}
-          <div className="border rounded-lg p-4 bg-muted/30">
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              {foundUser ? (
-                <UserCheck className="h-4 w-4 text-green-600" />
-              ) : (
-                <UserX className="h-4 w-4 text-muted-foreground" />
-              )}
-              Vincular a Usuário (Acesso ao Portal)
-            </h4>
-            
-            {foundUser ? (
-              <div className="flex items-center justify-between p-3 bg-background rounded-md border">
-                <div>
-                  <p className="font-medium">{foundUser.full_name || "Sem nome"}</p>
-                  <p className="text-sm text-muted-foreground">{foundUser.email}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="default" className="bg-green-600">Vinculado</Badge>
-                  <Button type="button" variant="outline" size="sm" onClick={unlinkUser}>
-                    Desvincular
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Digite o email do usuário..."
-                  value={userSearchEmail}
-                  onChange={(e) => setUserSearchEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), searchUserByEmail())}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={searchUserByEmail}
-                  disabled={searchingUser}
-                >
-                  {searchingUser ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground mt-2">
-              Vincule este autor a um usuário existente para que ele tenha acesso ao portal de autores.
-            </p>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="nome_completo">Nome Completo *</Label>
@@ -407,6 +428,99 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
               onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
               rows={2}
             />
+          </div>
+
+          {/* User Access Section */}
+          <div className="border rounded-lg p-4 bg-muted/30">
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              Acesso ao Portal do Autor
+            </h4>
+            
+            {foundUser ? (
+              <div className="flex items-center justify-between p-3 bg-background rounded-md border">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-green-600" />
+                    <p className="font-medium">{foundUser.full_name || "Sem nome"}</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{foundUser.email}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="default" className="bg-green-600">Conta Ativa</Badge>
+                  <Button type="button" variant="outline" size="sm" onClick={unlinkUser}>
+                    Desvincular
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Search existing user */}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Buscar usuário existente por email..."
+                    value={userSearchEmail}
+                    onChange={(e) => setUserSearchEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), searchUserByEmail())}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={searchUserByEmail}
+                    disabled={searchingUser}
+                  >
+                    {searchingUser ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                <div className="text-center text-sm text-muted-foreground">ou</div>
+
+                {/* Create new user with password */}
+                <div className="space-y-2">
+                  <Label htmlFor="senha">Criar conta com senha</Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        id="senha"
+                        type={showPassword ? "text" : "password"}
+                        value={formData.senha}
+                        onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                        placeholder="Mínimo 6 caracteres"
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={createUserAccount}
+                      disabled={creatingUser || !formData.senha || formData.senha.length < 6 || !formData.email}
+                    >
+                      {creatingUser ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Criar Conta"
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ao informar uma senha, uma conta será criada automaticamente para o autor acessar o portal.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="border-t pt-4">
