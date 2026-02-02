@@ -260,3 +260,6 @@ verify_jwt = true
 
 [functions.aprovar-resgate]
 verify_jwt = true
+
+[functions.bling-count-sku-sales]
+verify_jwt = true
