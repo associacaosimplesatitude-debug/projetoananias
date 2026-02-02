@@ -1,99 +1,56 @@
 
+# Plano: Atualizar Dashboard Automaticamente Após Edição de Livro
 
-# Plano: Menu Royalties no Financeiro e Novo Usuario
+## Problema Identificado
 
-## Resumo
+Quando você edita o valor de um livro (como "Teologia para Pentecostais"), o Dashboard não atualiza automaticamente porque o sistema atual só invalida a lista de livros, mas não os dados exibidos no Dashboard.
 
-Adicionar acesso ao modulo de Royalties para usuarios com role `financeiro` e criar um novo usuario para o setor juridico.
+## Solução
 
----
+Adicionar invalidação de todas as queries relevantes do Dashboard quando um livro é salvo ou atualizado.
 
-## 1. Adicionar Royalties no Menu do Financeiro
+## Alteração Necessária
 
-### Arquivo: `src/components/admin/AdminEBDLayout.tsx`
+**Arquivo:** `src/components/royalties/LivroDialog.tsx`
 
-Adicionar nova secao "Royalties" no sidebar, visivel apenas para roles `financeiro` e `admin`:
-
-```text
-[Financeiro]
-├── Aprovacao Faturamento
-├── Gestao de Comissoes
-└── Royalties (NOVO) → link para /royalties
-```
-
-O link direcionara para `/royalties` onde o financeiro tera acesso completo ao painel de royalties.
-
----
-
-## 2. Liberar Acesso do Financeiro ao Modulo Royalties
-
-### Arquivo: `src/hooks/useRoyaltiesAuth.tsx`
-
-Atualmente o acesso admin ao Royalties e concedido apenas para:
-- `admin`
-- `gerente_royalties`
-
-Precisamos adicionar `financeiro` a lista:
+**Linha 180** - Após o toast de sucesso, adicionar invalidação de múltiplas queries:
 
 ```typescript
-// Antes
-const adminAccess = role === 'admin' || role === 'gerente_royalties';
-
-// Depois  
-const adminAccess = role === 'admin' || role === 'gerente_royalties' || role === 'financeiro';
+toast({ title: livro ? "Livro atualizado com sucesso!" : "Livro cadastrado com sucesso!" });
+queryClient.invalidateQueries({ queryKey: ["royalties-livros"] });
+// Invalidar queries do Dashboard para atualização imediata
+queryClient.invalidateQueries({ queryKey: ["royalties-livros-count"] });
+queryClient.invalidateQueries({ queryKey: ["royalties-total-a-pagar"] });
+queryClient.invalidateQueries({ queryKey: ["royalties-top-livros"] });
+queryClient.invalidateQueries({ queryKey: ["royalties-vendas-mensal"] });
+queryClient.invalidateQueries({ queryKey: ["royalties-top-autores"] });
+onOpenChange(false);
 ```
 
----
+## Resultado Esperado
 
-## 3. Atualizar ConditionalNavigation
-
-### Arquivo: `src/components/layout/ConditionalNavigation.tsx`
-
-Garantir que a navegacao principal seja ocultada quando o financeiro acessar rotas de royalties (ja funciona para admin/gerente).
-
----
-
-## 4. Criar Usuario Financeiro
-
-Usar a edge function `create-auth-user-direct` para criar:
-
-| Campo | Valor |
-|-------|-------|
-| Email | juridico@centralgospel.com.br |
-| Senha | 124578 |
-| Nome | Juridico |
-| Role | financeiro |
-
-Apos criar o usuario via edge function, sera necessario inserir o role na tabela `user_roles`.
+Após salvar qualquer alteração em um livro, o Dashboard será automaticamente recarregado com os dados atualizados, incluindo:
+- Contador de livros cadastrados
+- Royalties a pagar
+- Top 5 livros mais vendidos
+- Gráficos de vendas mensais
+- Top 5 autores
 
 ---
 
-## Arquivos a Modificar
+## Seção Técnica
 
-| Arquivo | Acao |
-|---------|------|
-| `src/hooks/useRoyaltiesAuth.tsx` | Adicionar `financeiro` ao check de acesso |
-| `src/components/admin/AdminEBDLayout.tsx` | Adicionar menu Royalties na secao Financeiro |
-| `src/components/layout/ConditionalNavigation.tsx` | Verificar navegacao (pode ja estar ok) |
-| Banco de dados | Criar usuario + atribuir role financeiro |
+### Query Keys Invalidadas
 
----
+| Query Key | Componente Afetado | Dado Exibido |
+|-----------|-------------------|--------------|
+| `royalties-livros` | Lista de Livros | Tabela de livros |
+| `royalties-livros-count` | Dashboard KPI | Contador "Livros Cadastrados" |
+| `royalties-total-a-pagar` | Dashboard KPI | Valor "Royalties a Pagar" |
+| `royalties-top-livros` | Dashboard Charts/Table | Top 5 livros vendidos |
+| `royalties-vendas-mensal` | Dashboard Chart | Gráfico de vendas por mês |
+| `royalties-top-autores` | Dashboard Table | Top 5 autores |
 
-## Fluxo do Financeiro Apos Implementacao
+### Padrão Utilizado
 
-```text
-Login com juridico@centralgospel.com.br
-        ↓
-Redirect para /admin/ebd/aprovacao-faturamento
-        ↓
-Sidebar mostra:
-├── Aprovacao Faturamento
-├── Gestao de Comissoes  
-└── Royalties ← NOVO
-        ↓
-Clique em Royalties
-        ↓
-Acesso a /royalties com todas funcionalidades
-(Dashboard, Autores, Livros, Vendas, Pagamentos, Resgates, etc)
-```
-
+Esta abordagem segue o padrão recomendado do React Query para garantir consistência entre mutações e visualizações de dados, forçando um refetch imediato após alterações no banco de dados.
