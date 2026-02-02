@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRoyaltiesAuth } from "@/hooks/useRoyaltiesAuth";
-import { User, Mail, Phone, MapPin, Building2, CreditCard, Save, Loader2 } from "lucide-react";
+import { User, Mail, Phone, MapPin, CreditCard, Save, Loader2 } from "lucide-react";
 
 export default function AutorPerfil() {
   const { autorId } = useRoyaltiesAuth();
@@ -36,10 +36,6 @@ export default function AutorPerfil() {
   const [formData, setFormData] = useState({
     telefone: "",
     endereco: "",
-    banco: "",
-    agencia: "",
-    conta: "",
-    tipo_conta: "corrente",
     pix: "",
   });
 
@@ -50,10 +46,6 @@ export default function AutorPerfil() {
       setFormData({
         telefone: autor.telefone || "",
         endereco: typeof autor.endereco === 'string' ? autor.endereco : "",
-        banco: dadosBancarios.banco || "",
-        agencia: dadosBancarios.agencia || "",
-        conta: dadosBancarios.conta || "",
-        tipo_conta: dadosBancarios.tipo_conta || "corrente",
         pix: dadosBancarios.pix || "",
       });
     }
@@ -66,17 +58,13 @@ export default function AutorPerfil() {
       setFormData({
         telefone: autor.telefone || "",
         endereco: typeof autor.endereco === 'string' ? autor.endereco : "",
-        banco: dadosBancarios.banco || "",
-        agencia: dadosBancarios.agencia || "",
-        conta: dadosBancarios.conta || "",
-        tipo_conta: dadosBancarios.tipo_conta || "corrente",
         pix: dadosBancarios.pix || "",
       });
     }
   };
 
   // Effect to sync form with data
-  if (autor && !formData.banco && autor.dados_bancarios) {
+  if (autor && !formData.pix && autor.dados_bancarios) {
     handleAutorChange();
   }
 
@@ -86,10 +74,6 @@ export default function AutorPerfil() {
     setSaving(true);
     try {
       const dados_bancarios = {
-        banco: formData.banco,
-        agencia: formData.agencia,
-        conta: formData.conta,
-        tipo_conta: formData.tipo_conta,
         pix: formData.pix,
       };
 
@@ -235,54 +219,14 @@ export default function AutorPerfil() {
             Conta para recebimento de royalties
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                Banco
-              </Label>
-              <Input
-                value={formData.banco}
-                onChange={(e) => setFormData({ ...formData, banco: e.target.value })}
-                placeholder="Ex: 001 - Banco do Brasil"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Agência</Label>
-              <Input
-                value={formData.agencia}
-                onChange={(e) => setFormData({ ...formData, agencia: e.target.value })}
-                placeholder="0000"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Conta</Label>
-              <Input
-                value={formData.conta}
-                onChange={(e) => setFormData({ ...formData, conta: e.target.value })}
-                placeholder="00000-0"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de Conta</Label>
-              <select
-                value={formData.tipo_conta}
-                onChange={(e) => setFormData({ ...formData, tipo_conta: e.target.value })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="corrente">Conta Corrente</option>
-                <option value="poupanca">Conta Poupança</option>
-              </select>
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Chave PIX</Label>
-              <Input
-                value={formData.pix}
-                onChange={(e) => setFormData({ ...formData, pix: e.target.value })}
-                placeholder="CPF, CNPJ, Email, Telefone ou Chave Aleatória"
-              />
-            </div>
+        <CardContent>
+          <div className="space-y-2">
+            <Label>Chave PIX</Label>
+            <Input
+              value={formData.pix}
+              onChange={(e) => setFormData({ ...formData, pix: e.target.value })}
+              placeholder="CPF, CNPJ, Email, Telefone ou Chave Aleatória"
+            />
           </div>
         </CardContent>
       </Card>
