@@ -178,6 +178,12 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
 
       toast({ title: livro ? "Livro atualizado com sucesso!" : "Livro cadastrado com sucesso!" });
       queryClient.invalidateQueries({ queryKey: ["royalties-livros"] });
+      // Invalidar queries do Dashboard para atualização imediata
+      queryClient.invalidateQueries({ queryKey: ["royalties-livros-count"] });
+      queryClient.invalidateQueries({ queryKey: ["royalties-total-a-pagar"] });
+      queryClient.invalidateQueries({ queryKey: ["royalties-top-livros"] });
+      queryClient.invalidateQueries({ queryKey: ["royalties-vendas-mensal"] });
+      queryClient.invalidateQueries({ queryKey: ["royalties-top-autores"] });
       onOpenChange(false);
     } catch (error: any) {
       console.error("Erro ao salvar livro:", error);
