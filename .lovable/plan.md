@@ -1,101 +1,83 @@
 
-# Plano: Adicionar Botão de Exclusão para Autores e Livros
+# Consulta: Vendas do SKU 33012 no Bling (01/01/2026 - 02/02/2026)
 
-## Resumo
-Adicionar botões de exclusão nas listas de Autores e Livros, com confirmação antes de excluir. A exclusão removerá todos os dados relacionados (vendas, comissões, pagamentos, contratos, etc.).
+## Situação Atual
 
-## Análise das Dependências
+1. **Produto encontrado no Bling:**
+   - SKU: 33012
+   - Nome: TEOLOGIA PARA PENTECOSTAIS
+   - ID Bling: 15845908742
+   - Preço: R$ 399,90
+   - Estoque atual: 1997 unidades
 
-Ao excluir um **Autor**, serão removidos automaticamente (CASCADE):
-- Todos os livros do autor
-- Comissões de cada livro
-- Vendas de cada livro
-- Pagamentos realizados
-- Contratos
-- Links de afiliado e cliques/vendas de afiliado
-- Descontos por categoria
+2. **Problema identificado:**
+   O livro **não está cadastrado** na tabela `royalties_livros`, por isso a sincronização de royalties não consegue rastreá-lo. Apenas 2 livros estão mapeados no sistema de royalties.
 
-Ao excluir um **Livro**, serão removidos automaticamente (CASCADE):
-- Comissões configuradas
-- Todas as vendas do livro
-- Contratos relacionados
-- Links de afiliado do livro
+## Solução Proposta
 
-## Alterações Necessárias
+Criar uma Edge Function `bling-count-sku-sales` que:
+1. Consulta todas as NF-e autorizadas no período (01/01/2026 até 02/02/2026)
+2. Busca os detalhes de cada NF-e
+3. Filtra apenas os itens com SKU = 33012
+4. Retorna a quantidade total vendida
 
-### 1. Migration SQL - Ajustar Constraint
-A tabela `royalties_resgates` tem uma constraint que pode causar problemas. Vou alterar para CASCADE:
+### Arquivos a Criar
 
-```sql
-ALTER TABLE royalties_resgates
-DROP CONSTRAINT royalties_resgates_autor_id_fkey;
+| Arquivo | Descrição |
+|---------|-----------|
+| `supabase/functions/bling-count-sku-sales/index.ts` | Edge Function para contar vendas por SKU |
 
-ALTER TABLE royalties_resgates
-ADD CONSTRAINT royalties_resgates_autor_id_fkey
-FOREIGN KEY (autor_id) REFERENCES royalties_autores(id)
-ON DELETE CASCADE;
+### Lógica da Edge Function
+
+```typescript
+// Parâmetros de entrada:
+{
+  "sku": "33012",
+  "data_inicial": "2026-01-01",
+  "data_final": "2026-02-02"
+}
+
+// Resultado esperado:
+{
+  "success": true,
+  "sku": "33012",
+  "produto_nome": "TEOLOGIA PARA PENTECOSTAIS",
+  "periodo": { "de": "2026-01-01", "ate": "2026-02-02" },
+  "total_quantidade": X,
+  "total_notas": Y,
+  "detalhes": [
+    { "nfe_numero": "123", "data": "2026-01-15", "quantidade": 2 },
+    ...
+  ]
+}
 ```
-
-### 2. Arquivo: `src/pages/royalties/Autores.tsx`
-- Adicionar ícone `Trash2` aos imports
-- Adicionar estado para controlar dialog de exclusão
-- Adicionar componente `AlertDialog` para confirmação
-- Adicionar função `handleDelete` que executa a exclusão
-- Adicionar botão de exclusão ao lado do botão de edição
-
-### 3. Arquivo: `src/pages/royalties/Livros.tsx`
-- Adicionar ícone `Trash2` aos imports
-- Adicionar estado para controlar dialog de exclusão
-- Adicionar componente `AlertDialog` para confirmação
-- Adicionar função `handleDelete` que executa a exclusão
-- Adicionar botão de exclusão ao lado do botão de edição
-
-## Interface Visual
-
-Na coluna "Ações" de cada tabela, haverá dois botões:
-- 📝 Editar (existente)
-- 🗑️ Excluir (novo - vermelho)
-
-Ao clicar em excluir, aparecerá um diálogo de confirmação com:
-- Título: "Excluir [Autor/Livro]?"
-- Descrição explicando que todos os dados serão excluídos
-- Botões: "Cancelar" e "Excluir" (vermelho)
-
-## Resultado Esperado
-
-- Usuário poderá excluir autores e livros diretamente da lista
-- Confirmação obrigatória antes da exclusão
-- Todos os dados relacionados serão removidos automaticamente
-- Lista atualizada automaticamente após exclusão
-
----
 
 ## Seção Técnica
 
-### Arquivos a Modificar
+A Edge Function irá:
 
-| Arquivo | Alterações |
-|---------|------------|
-| `supabase/migrations/xxx.sql` | Ajustar constraint de `royalties_resgates` |
-| `src/pages/royalties/Autores.tsx` | Adicionar botão e lógica de exclusão |
-| `src/pages/royalties/Livros.tsx` | Adicionar botão e lógica de exclusão |
+1. Buscar configuração do Bling e validar token
+2. Fazer paginação das NF-e autorizadas (status = 6) no período
+3. Para cada NF-e, buscar detalhes dos itens
+4. Filtrar itens cujo `codigo` == SKU informado
+5. Somar quantidades e retornar resumo
 
-### Queries de Exclusão
+### Rate Limiting
+- 400ms entre chamadas (Bling permite ~3 req/s)
+- Retry automático em caso de erro 429
 
-```typescript
-// Excluir autor
-await supabase.from("royalties_autores").delete().eq("id", autorId);
-
-// Excluir livro
-await supabase.from("royalties_livros").delete().eq("id", livroId);
+### Endpoint da API Bling
+```
+GET /nfe?dataEmissaoInicial=YYYY-MM-DD&dataEmissaoFinal=YYYY-MM-DD&limite=100&pagina=X
+GET /nfe/{id} (detalhes)
 ```
 
-### Invalidação de Cache
+## Resultado Esperado
 
-Após exclusão, invalidar queries:
-- `royalties-autores`
-- `royalties-livros`
-- `royalties-vendas`
-- `royalties-top-autores`
-- `royalties-top-livros`
-- `royalties-total-a-pagar`
+Após a implementação, você poderá executar:
+```
+POST /bling-count-sku-sales
+{ "sku": "33012", "data_inicial": "2026-01-01", "data_final": "2026-02-02" }
+```
+
+E obter o número exato de unidades vendidas do "Teologia para Pentecostais" no período solicitado.
