@@ -5722,6 +5722,14 @@ export type Database = {
       }
       is_royalties_autor: { Args: { _user_id: string }; Returns: boolean }
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
+      recalcular_royalties_pendentes: {
+        Args: never
+        Returns: {
+          total_antes: number
+          total_depois: number
+          vendas_atualizadas: number
+        }[]
+      }
       transfer_cliente_vendedor: {
         Args: { _cliente_id: string; _source: string; _vendedor_id: string }
         Returns: undefined
