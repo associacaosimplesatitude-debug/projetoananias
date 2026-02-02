@@ -104,8 +104,8 @@ export function AffiliateLinkDialog({ open, onOpenChange }: AffiliateLinkDialogP
   };
 
   const handleSubmit = async () => {
-    if (!formData.autor_id || !formData.livro_id || !formData.link_externo.trim()) {
-      toast.error("Preencha todos os campos obrigatórios.");
+    if (!formData.autor_id || !formData.livro_id) {
+      toast.error("Preencha autor e livro.");
       return;
     }
 
@@ -135,7 +135,7 @@ export function AffiliateLinkDialog({ open, onOpenChange }: AffiliateLinkDialogP
         autor_id: formData.autor_id,
         livro_id: formData.livro_id,
         comissao_percentual: comissao,
-        link_externo: formData.link_externo.trim(),
+        link_externo: formData.link_externo.trim() || null,
         slug,
         codigo_afiliado,
         is_active: true,
@@ -234,7 +234,7 @@ export function AffiliateLinkDialog({ open, onOpenChange }: AffiliateLinkDialogP
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="link">Link da Landing Page *</Label>
+            <Label htmlFor="link">Link da Landing Page</Label>
             <Input
               id="link"
               type="url"
@@ -245,8 +245,11 @@ export function AffiliateLinkDialog({ open, onOpenChange }: AffiliateLinkDialogP
                   link_externo: e.target.value,
                 }))
               }
-              placeholder="https://..."
+              placeholder="https://... (opcional)"
             />
+            <p className="text-xs text-muted-foreground">
+              Pode ser adicionado posteriormente
+            </p>
           </div>
         </div>
 
