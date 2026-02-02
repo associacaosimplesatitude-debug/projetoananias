@@ -4850,6 +4850,8 @@ export type Database = {
       royalties_resgates: {
         Row: {
           autor_id: string
+          bling_order_id: string | null
+          bling_order_number: string | null
           created_at: string
           data_solicitacao: string
           endereco_entrega: Json | null
@@ -4862,6 +4864,8 @@ export type Database = {
         }
         Insert: {
           autor_id: string
+          bling_order_id?: string | null
+          bling_order_number?: string | null
           created_at?: string
           data_solicitacao?: string
           endereco_entrega?: Json | null
@@ -4874,6 +4878,8 @@ export type Database = {
         }
         Update: {
           autor_id?: string
+          bling_order_id?: string | null
+          bling_order_number?: string | null
           created_at?: string
           data_solicitacao?: string
           endereco_entrega?: Json | null

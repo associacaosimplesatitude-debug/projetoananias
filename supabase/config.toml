@@ -257,3 +257,6 @@ verify_jwt = true
 
 [functions.bling-sync-royalties-sales]
 verify_jwt = true
+
+[functions.aprovar-resgate]
+verify_jwt = true
