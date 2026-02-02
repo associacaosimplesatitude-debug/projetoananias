@@ -4,15 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Pencil, BookOpen, Link2, Unlink } from "lucide-react";
+import { Plus, Search, Pencil, BookOpen, Link2, Unlink, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { LivroDialog } from "@/components/royalties/LivroDialog";
 
 export default function RoyaltiesLivros() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedLivro, setSelectedLivro] = useState<any>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [livroToDelete, setLivroToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: livros = [], isLoading } = useQuery({
     queryKey: ["royalties-livros", search],
@@ -51,6 +58,37 @@ export default function RoyaltiesLivros() {
   const handleNew = () => {
     setSelectedLivro(null);
     setDialogOpen(true);
+  };
+
+  const handleDeleteClick = (livro: any) => {
+    setLivroToDelete(livro);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!livroToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("royalties_livros")
+        .delete()
+        .eq("id", livroToDelete.id);
+
+      if (error) throw error;
+
+      toast.success("Livro excluído com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["royalties-livros"] });
+      queryClient.invalidateQueries({ queryKey: ["royalties-vendas"] });
+      queryClient.invalidateQueries({ queryKey: ["royalties-top-livros"] });
+      queryClient.invalidateQueries({ queryKey: ["royalties-total-a-pagar"] });
+    } catch (error: any) {
+      toast.error("Erro ao excluir livro: " + error.message);
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setLivroToDelete(null);
+    }
   };
 
   return (
@@ -152,13 +190,23 @@ export default function RoyaltiesLivros() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(livro)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(livro)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteClick(livro)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -173,6 +221,35 @@ export default function RoyaltiesLivros() {
         onOpenChange={setDialogOpen}
         livro={selectedLivro}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir livro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block">
+                Você está prestes a excluir <strong>{livroToDelete?.titulo}</strong>.
+              </span>
+              <span className="block mt-2 text-destructive font-medium">
+                Atenção: Todos os dados relacionados serão excluídos permanentemente, incluindo vendas, comissões e contratos.
+              </span>
+              <span className="block mt-2">
+                Esta ação não pode ser desfeita.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
