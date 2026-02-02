@@ -48,6 +48,7 @@ interface ResgateItem {
   quantidade: number;
   valor_unitario: number;
   desconto_aplicado: number;
+  sku?: string;
 }
 
 interface Resgate {
@@ -59,6 +60,8 @@ interface Resgate {
   itens: ResgateItem[];
   endereco_entrega: any;
   observacoes: string | null;
+  bling_order_id: string | null;
+  bling_order_number: string | null;
   created_at: string;
   autor: {
     nome_completo: string;
@@ -120,6 +123,44 @@ export default function Resgates() {
     },
   });
 
+  // Mutation para aprovar resgate e criar pedido no Bling
+  const aprovarResgateMutation = useMutation({
+    mutationFn: async ({ id, obs }: { id: string; obs?: string }) => {
+      // Primeiro salvar observações se houver
+      if (obs) {
+        const { error: obsError } = await supabase
+          .from("royalties_resgates")
+          .update({ observacoes: obs })
+          .eq("id", id);
+        
+        if (obsError) {
+          console.warn("Erro ao salvar observações:", obsError);
+        }
+      }
+
+      // Chamar edge function para aprovar e criar pedido no Bling
+      const { data, error } = await supabase.functions.invoke('aprovar-resgate', {
+        body: { resgate_id: id }
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao aprovar resgate');
+
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["royalties-resgates"] });
+      toast.success("Resgate aprovado!", {
+        description: `Pedido Bling: ${data.bling_order_number}`
+      });
+      setDialogOpen(false);
+      setSelectedResgate(null);
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao aprovar resgate", { description: error.message });
+    },
+  });
+
   const filteredResgates = resgates?.filter((r) => {
     const matchesSearch = r.autor?.nome_completo?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "todos" || r.status === statusFilter;
@@ -144,6 +185,14 @@ export default function Resgates() {
     updateStatusMutation.mutate({ 
       id: selectedResgate.id, 
       status: novoStatus, 
+      obs: observacoes 
+    });
+  };
+
+  const handleAprovarResgate = () => {
+    if (!selectedResgate) return;
+    aprovarResgateMutation.mutate({ 
+      id: selectedResgate.id, 
       obs: observacoes 
     });
   };
@@ -258,6 +307,7 @@ export default function Resgates() {
                   <TableHead>Itens</TableHead>
                   <TableHead>Valor Total</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Pedido Bling</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -287,6 +337,15 @@ export default function Resgates() {
                           <Icon className="h-3 w-3" />
                           {config?.label}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {resgate.bling_order_number ? (
+                          <span className="font-mono text-sm text-blue-600">
+                            #{resgate.bling_order_number}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -378,6 +437,16 @@ export default function Resgates() {
                 />
               </div>
 
+              {/* Pedido Bling */}
+              {selectedResgate.bling_order_number && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-medium mb-2 text-blue-800">Pedido Bling</h4>
+                  <p className="text-blue-700 font-mono text-lg">
+                    #{selectedResgate.bling_order_number}
+                  </p>
+                </div>
+              )}
+
               {/* Status Actions */}
               <div>
                 <h4 className="font-medium mb-3">Alterar Status</h4>
@@ -385,17 +454,21 @@ export default function Resgates() {
                   {selectedResgate.status === "pendente" && (
                     <>
                       <Button 
-                        onClick={() => handleStatusChange("aprovado")}
-                        disabled={updateStatusMutation.isPending}
+                        onClick={handleAprovarResgate}
+                        disabled={aprovarResgateMutation.isPending || updateStatusMutation.isPending}
                         className="gap-2"
                       >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Aprovar
+                        {aprovarResgateMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        {aprovarResgateMutation.isPending ? "Processando..." : "Aprovar e Criar Pedido Bling"}
                       </Button>
                       <Button 
                         variant="destructive"
                         onClick={() => handleStatusChange("cancelado")}
-                        disabled={updateStatusMutation.isPending}
+                        disabled={aprovarResgateMutation.isPending || updateStatusMutation.isPending}
                         className="gap-2"
                       >
                         <XCircle className="h-4 w-4" />
@@ -404,18 +477,26 @@ export default function Resgates() {
                     </>
                   )}
                   {selectedResgate.status === "aprovado" && (
-                    <Button 
-                      onClick={() => handleStatusChange("enviado")}
-                      disabled={updateStatusMutation.isPending}
-                      className="gap-2"
-                    >
-                      <Truck className="h-4 w-4" />
-                      Marcar como Enviado
-                    </Button>
+                    <>
+                      <Button 
+                        onClick={() => handleStatusChange("enviado")}
+                        disabled={updateStatusMutation.isPending}
+                        className="gap-2"
+                      >
+                        <Truck className="h-4 w-4" />
+                        Marcar como Enviado
+                      </Button>
+                      {selectedResgate.bling_order_number && (
+                        <p className="text-sm text-muted-foreground self-center">
+                          Pedido Bling: #{selectedResgate.bling_order_number}
+                        </p>
+                      )}
+                    </>
                   )}
                   {(selectedResgate.status === "enviado" || selectedResgate.status === "cancelado") && (
                     <p className="text-sm text-muted-foreground">
                       Este resgate já foi {selectedResgate.status === "enviado" ? "enviado" : "cancelado"}.
+                      {selectedResgate.bling_order_number && ` (Pedido Bling: #${selectedResgate.bling_order_number})`}
                     </p>
                   )}
                 </div>

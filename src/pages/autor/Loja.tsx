@@ -49,6 +49,7 @@ interface CarrinhoItem {
   quantidade: number;
   categoria: CategoriaShopifyId;
   is_proprio_livro: boolean;
+  sku: string | null; // SKU para integração com Bling
 }
 
 interface AutorDescontos {
@@ -227,6 +228,7 @@ export default function AutorLoja() {
           quantidade: 1,
           categoria,
           is_proprio_livro: isProprio,
+          sku: variant.sku, // SKU do Shopify para integração com Bling
         },
       ];
     });
@@ -288,6 +290,7 @@ export default function AutorLoja() {
       if (carrinho.length === 0) throw new Error("Carrinho vazio");
       if (totalCarrinho > saldo) throw new Error("Saldo insuficiente");
 
+      // Incluir SKU de cada item para integração com Bling
       const itens = carrinho.map((i) => ({
         produto_id: i.produto_id,
         variant_id: i.variant_id,
@@ -297,6 +300,7 @@ export default function AutorLoja() {
         desconto_aplicado: i.desconto_aplicado,
         categoria: i.categoria,
         is_proprio_livro: i.is_proprio_livro,
+        sku: i.sku, // SKU para integração com Bling
       }));
 
       const { error } = await supabase.from("royalties_resgates").insert({
