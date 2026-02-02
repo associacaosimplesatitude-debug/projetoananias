@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RecalcularComissoesButton } from "@/components/royalties/RecalcularComissoesButton";
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#0088FE"];
 
@@ -207,11 +208,14 @@ export default function RoyaltiesDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard de Royalties</h1>
-        <p className="text-muted-foreground">
-          Visão geral do sistema de gestão de royalties
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard de Royalties</h1>
+          <p className="text-muted-foreground">
+            Visão geral do sistema de gestão de royalties
+          </p>
+        </div>
+        <RecalcularComissoesButton />
       </div>
 
       {/* KPI Cards */}

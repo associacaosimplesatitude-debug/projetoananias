@@ -12,6 +12,7 @@ import { ptBR } from "date-fns/locale";
 import { VendaDialog } from "@/components/royalties/VendaDialog";
 import { BlingSyncButton } from "@/components/royalties/BlingSyncButton";
 import { VendasSummaryCards } from "@/components/royalties/VendasSummaryCards";
+import { RecalcularComissoesButton } from "@/components/royalties/RecalcularComissoesButton";
 import { toast } from "sonner";
 
 export default function RoyaltiesVendas() {
@@ -73,7 +74,8 @@ export default function RoyaltiesVendas() {
             Registre e acompanhe as vendas de livros
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <RecalcularComissoesButton />
           <Button
             variant="outline"
             onClick={() => syncNfLinksMutation.mutate()}
