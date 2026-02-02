@@ -1,56 +1,121 @@
 
-# Plano: Atualizar Dashboard Automaticamente Após Edição de Livro
+# Plano: Correção do Cálculo de Royalties
 
 ## Problema Identificado
 
-Quando você edita o valor de um livro (como "Teologia para Pentecostais"), o Dashboard não atualiza automaticamente porque o sistema atual só invalida a lista de livros, mas não os dados exibidos no Dashboard.
+A venda do livro "Teologia para Pentecostais" foi cadastrada com o valor errado:
 
-## Solução
+| Campo | Valor Atual (Errado) | Valor Correto |
+|-------|---------------------|---------------|
+| `valor_unitario` | R$ 399,90 | R$ 179,96 |
+| `valor_comissao_unitario` | R$ 39,99 | R$ 17,996 |
+| `valor_comissao_total` | R$ 49.387,65 | R$ 22.225,06 |
 
-Adicionar invalidação de todas as queries relevantes do Dashboard quando um livro é salvo ou atualizado.
+**Causa raiz:** A venda foi registrada manualmente (sem Bling) usando o preço de venda ao invés do "Valor Líquido" (valor_capa) que é a base de cálculo dos royalties.
 
-## Alteração Necessária
+## Solução em 2 Partes
 
-**Arquivo:** `src/components/royalties/LivroDialog.tsx`
+### Parte 1: Correção Imediata (SQL)
+Executar uma correção no banco para recalcular as comissões de todas as vendas pendentes baseando-se no `valor_capa` atual do livro:
 
-**Linha 180** - Após o toast de sucesso, adicionar invalidação de múltiplas queries:
-
-```typescript
-toast({ title: livro ? "Livro atualizado com sucesso!" : "Livro cadastrado com sucesso!" });
-queryClient.invalidateQueries({ queryKey: ["royalties-livros"] });
-// Invalidar queries do Dashboard para atualização imediata
-queryClient.invalidateQueries({ queryKey: ["royalties-livros-count"] });
-queryClient.invalidateQueries({ queryKey: ["royalties-total-a-pagar"] });
-queryClient.invalidateQueries({ queryKey: ["royalties-top-livros"] });
-queryClient.invalidateQueries({ queryKey: ["royalties-vendas-mensal"] });
-queryClient.invalidateQueries({ queryKey: ["royalties-top-autores"] });
-onOpenChange(false);
+```sql
+UPDATE royalties_vendas rv
+SET 
+  valor_unitario = rl.valor_capa,
+  valor_comissao_unitario = ROUND((rl.valor_capa * (rc.percentual / 100))::numeric, 2),
+  valor_comissao_total = ROUND((rl.valor_capa * rv.quantidade * (rc.percentual / 100))::numeric, 2)
+FROM royalties_livros rl
+LEFT JOIN royalties_comissoes rc ON rl.id = rc.livro_id
+WHERE rv.livro_id = rl.id
+  AND rv.pagamento_id IS NULL;
 ```
+
+### Parte 2: Funcionalidade de Recálculo (Frontend)
+Adicionar um botão "Recalcular Comissões" no Dashboard/Vendas que permita ao admin recalcular comissões de vendas pendentes quando necessário.
+
+## Alterações Necessárias
+
+### 1. Migration SQL - Função de Recálculo
+Criar uma função RPC no banco para recalcular comissões:
+
+```sql
+CREATE OR REPLACE FUNCTION recalcular_royalties_pendentes()
+RETURNS TABLE (
+  vendas_atualizadas INTEGER,
+  total_antes NUMERIC,
+  total_depois NUMERIC
+) AS $$
+DECLARE
+  v_antes NUMERIC;
+  v_depois NUMERIC;
+  v_count INTEGER;
+BEGIN
+  -- Valor antes
+  SELECT COALESCE(SUM(valor_comissao_total), 0) INTO v_antes
+  FROM royalties_vendas WHERE pagamento_id IS NULL;
+  
+  -- Recalcular
+  UPDATE royalties_vendas rv
+  SET 
+    valor_unitario = rl.valor_capa,
+    valor_comissao_unitario = ROUND((rl.valor_capa * (rc.percentual / 100))::numeric, 2),
+    valor_comissao_total = ROUND((rl.valor_capa * rv.quantidade * (rc.percentual / 100))::numeric, 2)
+  FROM royalties_livros rl
+  LEFT JOIN royalties_comissoes rc ON rl.id = rc.livro_id
+  WHERE rv.livro_id = rl.id
+    AND rv.pagamento_id IS NULL;
+  
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  
+  -- Valor depois
+  SELECT COALESCE(SUM(valor_comissao_total), 0) INTO v_depois
+  FROM royalties_vendas WHERE pagamento_id IS NULL;
+  
+  RETURN QUERY SELECT v_count, v_antes, v_depois;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### 2. Arquivo: `src/pages/royalties/Dashboard.tsx`
+Adicionar botão "Recalcular Comissões" no cabeçalho com:
+- Confirmação antes de executar
+- Chamada à função RPC `recalcular_royalties_pendentes`
+- Exibição do resultado (vendas atualizadas, valor antes/depois)
+- Invalidação automática das queries do Dashboard
+
+### 3. Arquivo: `src/pages/royalties/Vendas.tsx`
+Adicionar o mesmo botão na página de vendas para consistência.
 
 ## Resultado Esperado
 
-Após salvar qualquer alteração em um livro, o Dashboard será automaticamente recarregado com os dados atualizados, incluindo:
-- Contador de livros cadastrados
-- Royalties a pagar
-- Top 5 livros mais vendidos
-- Gráficos de vendas mensais
-- Top 5 autores
+Após executar o recálculo:
+- **Walter Brunelli:** R$ 49.387,65 → R$ 22.225,06
+- **Royalties a Pagar:** R$ 51.332,94 → ~R$ 24.170,35
+- Vendas futuras sincronizadas do Bling continuarão usando o valor correto (já implementado)
+- Vendas manuais também usarão o valor_capa do livro
 
 ---
 
 ## Seção Técnica
 
-### Query Keys Invalidadas
+### Arquivos Modificados
 
-| Query Key | Componente Afetado | Dado Exibido |
-|-----------|-------------------|--------------|
-| `royalties-livros` | Lista de Livros | Tabela de livros |
-| `royalties-livros-count` | Dashboard KPI | Contador "Livros Cadastrados" |
-| `royalties-total-a-pagar` | Dashboard KPI | Valor "Royalties a Pagar" |
-| `royalties-top-livros` | Dashboard Charts/Table | Top 5 livros vendidos |
-| `royalties-vendas-mensal` | Dashboard Chart | Gráfico de vendas por mês |
-| `royalties-top-autores` | Dashboard Table | Top 5 autores |
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/migrations/xxx.sql` | Criar função `recalcular_royalties_pendentes()` |
+| `src/pages/royalties/Dashboard.tsx` | Adicionar botão e lógica de recálculo |
+| `src/pages/royalties/Vendas.tsx` | Adicionar botão de recálculo |
+| `src/components/royalties/VendaDialog.tsx` | Garantir que vendas manuais usem valor_capa |
 
-### Padrão Utilizado
+### Fluxo do Recálculo
 
-Esta abordagem segue o padrão recomendado do React Query para garantir consistência entre mutações e visualizações de dados, forçando um refetch imediato após alterações no banco de dados.
+```
+[Botão Recalcular] → [Dialog Confirmação] → [RPC recalcular_royalties_pendentes] 
+  → [Toast com resultado] → [Invalidar queries] → [Dashboard atualizado]
+```
+
+### Regra de Negócio Garantida
+
+- Royalties = Valor Líquido (valor_capa) × Quantidade × Percentual
+- Vendas já pagas (com pagamento_id) não são afetadas
+- Apenas vendas pendentes são recalculadas
