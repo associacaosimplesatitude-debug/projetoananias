@@ -75,14 +75,16 @@ export function RecalcularComissoesButton() {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Recalcular Comissões Pendentes</AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
-            <p>
-              Esta ação irá recalcular <strong>todas</strong> as comissões de vendas pendentes
-              (não pagas) usando o <strong>Valor Líquido</strong> atual de cada livro.
-            </p>
-            <p className="text-amber-600">
-              ⚠️ Vendas já pagas não serão afetadas.
-            </p>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              <span className="block">
+                Esta ação irá recalcular <strong>todas</strong> as comissões de vendas pendentes
+                (não pagas) usando o <strong>Valor Líquido</strong> atual de cada livro.
+              </span>
+              <span className="block text-amber-600">
+                ⚠️ Vendas já pagas não serão afetadas.
+              </span>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
