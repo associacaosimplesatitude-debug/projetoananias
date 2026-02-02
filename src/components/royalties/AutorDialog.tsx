@@ -53,10 +53,6 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
     cpf_cnpj: "",
     telefone: "",
     endereco: "",
-    banco: "",
-    agencia: "",
-    conta: "",
-    tipo_conta: "corrente",
     pix: "",
     is_active: true,
     user_id: null as string | null,
@@ -72,10 +68,6 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         cpf_cnpj: autor.cpf_cnpj || "",
         telefone: autor.telefone || "",
         endereco: typeof autor.endereco === 'string' ? autor.endereco : "",
-        banco: autor.dados_bancarios?.banco || "",
-        agencia: autor.dados_bancarios?.agencia || "",
-        conta: autor.dados_bancarios?.conta || "",
-        tipo_conta: autor.dados_bancarios?.tipo_conta || "corrente",
         pix: autor.dados_bancarios?.pix || "",
         is_active: autor.is_active ?? true,
         user_id: autor.user_id || null,
@@ -97,10 +89,6 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         cpf_cnpj: "",
         telefone: "",
         endereco: "",
-        banco: "",
-        agencia: "",
-        conta: "",
-        tipo_conta: "corrente",
         pix: "",
         is_active: true,
         user_id: null,
@@ -272,10 +260,6 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
       }
 
       const dados_bancarios = {
-        banco: formData.banco,
-        agencia: formData.agencia,
-        conta: formData.conta,
-        tipo_conta: formData.tipo_conta,
         pix: formData.pix,
       };
 
@@ -505,57 +489,14 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
 
           <div className="border-t pt-4">
             <h4 className="font-medium mb-3">Dados Bancários</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="banco">Banco</Label>
-                <Input
-                  id="banco"
-                  value={formData.banco}
-                  onChange={(e) => setFormData({ ...formData, banco: e.target.value })}
-                  placeholder="Ex: 001 - Banco do Brasil"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="agencia">Agência</Label>
-                <Input
-                  id="agencia"
-                  value={formData.agencia}
-                  onChange={(e) => setFormData({ ...formData, agencia: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="conta">Conta</Label>
-                <Input
-                  id="conta"
-                  value={formData.conta}
-                  onChange={(e) => setFormData({ ...formData, conta: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tipo_conta">Tipo de Conta</Label>
-                <select
-                  id="tipo_conta"
-                  value={formData.tipo_conta}
-                  onChange={(e) => setFormData({ ...formData, tipo_conta: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="corrente">Conta Corrente</option>
-                  <option value="poupanca">Conta Poupança</option>
-                </select>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="pix">Chave PIX</Label>
-                <Input
-                  id="pix"
-                  value={formData.pix}
-                  onChange={(e) => setFormData({ ...formData, pix: e.target.value })}
-                  placeholder="CPF, CNPJ, Email, Telefone ou Chave Aleatória"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="pix">Chave PIX</Label>
+              <Input
+                id="pix"
+                value={formData.pix}
+                onChange={(e) => setFormData({ ...formData, pix: e.target.value })}
+                placeholder="CPF, CNPJ, Email, Telefone ou Chave Aleatória"
+              />
             </div>
           </div>
 
