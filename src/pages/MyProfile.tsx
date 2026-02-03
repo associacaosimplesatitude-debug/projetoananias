@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -6,11 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Upload, Loader2, Lock } from 'lucide-react';
+import { Upload, Loader2, Lock, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function MyProfile() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -181,9 +183,35 @@ export default function MyProfile() {
     return email?.[0]?.toUpperCase() || 'U';
   };
 
+  const getDashboardUrl = () => {
+    switch (role) {
+      case 'admin':
+        return '/admin';
+      case 'gerente_ebd':
+        return '/admin/ebd';
+      case 'financeiro':
+        return '/admin/ebd/aprovacao-faturamento';
+      case 'tesoureiro':
+      case 'secretario':
+        return '/dashboard';
+      case 'client':
+        return '/ebd/dashboard';
+      default:
+        return '/';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-2xl mx-auto space-y-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate(getDashboardUrl())}
+          className="mb-4 gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar ao Dashboard
+        </Button>
         <h1 className="text-3xl font-bold text-foreground">Meu Perfil</h1>
 
         <Card>
