@@ -288,11 +288,13 @@ export function SalesChannelCards({
     };
   }, [channelTotals]);
 
-  // Calcula o total geral somando todos os canais
+  // Calcula o total geral somando todos os canais individuais (não usar valorIgrejas que é agregado)
   const totalGeral = useMemo(() => {
     const valorTotal = 
       periodMetrics.valorOnline + 
-      periodMetrics.valorIgrejas + 
+      periodMetrics.valorIgrejasCNPJ +    // Igreja CNPJ individual
+      periodMetrics.valorIgrejasCPF +      // Igreja CPF individual
+      periodMetrics.valorLojistas +        // Lojistas individual
       periodMetrics.valorPessoaFisica +
       marketplaceData.amazon.valor + 
       marketplaceData.shopee.valor + 
@@ -304,7 +306,9 @@ export function SalesChannelCards({
     
     const qtdTotal = 
       periodMetrics.qtdOnline + 
-      periodMetrics.qtdIgrejas + 
+      periodMetrics.qtdIgrejasCNPJ +       // Igreja CNPJ individual
+      periodMetrics.qtdIgrejasCPF +         // Igreja CPF individual
+      periodMetrics.qtdLojistas +           // Lojistas individual
       periodMetrics.qtdPessoaFisica +
       marketplaceData.amazon.qtd + 
       marketplaceData.shopee.qtd + 
