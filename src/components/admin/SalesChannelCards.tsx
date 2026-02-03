@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Card,
   CardContent,
@@ -20,15 +22,11 @@ import {
   Briefcase,
   Building2,
   UserCheck,
-  FileText,
-  Percent,
-  Clock,
   CalendarIcon,
+  Loader2,
 } from "lucide-react";
 import {
   subDays,
-  parseISO,
-  isWithinInterval,
   format,
   startOfMonth,
   endOfMonth,
@@ -40,40 +38,8 @@ import { ptBR } from "date-fns/locale";
 
 type DateFilter = "all" | "today" | "last_7_days" | "last_month" | "custom";
 
-interface MarketplacePedido {
-  id: string;
-  marketplace: string;
-  order_date: string | null;
-  valor_total: number;
-  created_at: string;
-}
-
-interface PropostaFaturada {
-  id: string;
-  vendedor_id: string | null;
-  valor_total: number;
-  valor_frete: number;
-  created_at: string;
-  cliente: { tipo_cliente: string | null } | null;
-}
-
 interface SalesChannelCardsProps {
-  dashboardKPIs: {
-    totalPedidosOnline: number;
-    valorPedidosOnline: number;
-    pedidosOnlinePagos: number;
-    totalPedidosIgrejas: number;
-    valorPedidosIgrejas: number;
-    pedidosIgrejasPagos: number;
-    propostasPendentes: number;
-    pedidosFaturados: number;
-    valorFaturados: number;
-    totalPedidosPagos: number;
-    valorTotalPago: number;
-    recorrentesIgrejas: number;
-    recorrentesCG: number;
-    totalRecorrentes: number;
-  };
+  dashboardKPIs: any;
   totalEbdClients: number;
   totalAlunos: number | undefined;
   totalTurmas: number | undefined;
@@ -82,8 +48,8 @@ interface SalesChannelCardsProps {
   vendedorStats: any[];
   propostasDigitaisAbertas: number;
   pedidosBlingPendentes: number;
-  marketplacePedidos?: MarketplacePedido[];
-  propostasFaturadas?: PropostaFaturada[];
+  marketplacePedidos?: any[];
+  propostasFaturadas?: any[];
 }
 
 const formatCurrency = (value: number) =>
@@ -135,42 +101,43 @@ export function SalesChannelCards({
   marketplacePedidos = [],
   propostasFaturadas = [],
 }: SalesChannelCardsProps) {
-  // Estado local para filtro interno do card (mesma lógica das páginas de marketplace)
   const [dateFilter, setDateFilter] = useState<DateFilter>("today");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
   });
 
+  // Calcula o range de datas baseado no filtro selecionado
   const cardDateRange = useMemo(() => {
     const now = new Date();
     switch (dateFilter) {
       case "today": {
         const start = startOfDay(now);
         const end = endOfDay(now);
-        return { start, end, endInclusive: end };
+        return { start, end };
       }
       case "last_7_days": {
-        const start = subDays(now, 7);
-        return { start, end: now, endInclusive: now };
+        const start = subDays(startOfDay(now), 7);
+        return { start, end: now };
       }
       case "last_month": {
         const lastMonth = subMonths(now, 1);
         const start = startOfMonth(lastMonth);
         const end = endOfMonth(lastMonth);
-        return { start, end, endInclusive: end };
+        return { start, end };
       }
       case "custom": {
         if (!customDateRange.from) {
-          return { start: new Date(0), end: now, endInclusive: now };
+          return { start: new Date(0), end: now };
         }
-        const start = customDateRange.from;
-        const end = customDateRange.to || customDateRange.from;
-        const endInclusive = new Date(end.getTime() + 86400000 - 1);
-        return { start, end, endInclusive };
+        const start = startOfDay(customDateRange.from);
+        const end = customDateRange.to 
+          ? endOfDay(customDateRange.to) 
+          : endOfDay(customDateRange.from);
+        return { start, end };
       }
       default:
-        return { start: new Date(0), end: now, endInclusive: now };
+        return { start: new Date(0), end: now };
     }
   }, [dateFilter, customDateRange]);
 
@@ -196,245 +163,126 @@ export function SalesChannelCards({
     }
   }, [dateFilter, customDateRange]);
 
+  // Query RPC para buscar totais agregados diretamente no banco
+  // Evita o limite de 1000 registros do Supabase
+  const { data: channelTotals, isLoading: isLoadingTotals } = useQuery({
+    queryKey: ['sales-channel-totals', dateFilter, customDateRange.from?.toISOString(), customDateRange.to?.toISOString()],
+    queryFn: async () => {
+      const { start, end } = cardDateRange;
+      
+      // Para o filtro "all", passamos datas muito amplas
+      const startDate = dateFilter === "all" ? new Date('2020-01-01').toISOString() : start.toISOString();
+      const endDate = dateFilter === "all" ? new Date('2030-12-31').toISOString() : end.toISOString();
+      
+      const { data, error } = await supabase.rpc('get_sales_channel_totals', {
+        p_start_date: startDate,
+        p_end_date: endDate
+      });
+      
+      if (error) {
+        console.error('Erro ao buscar totais de vendas:', error);
+        throw error;
+      }
+      
+      return data as {
+        ecommerce: { valor: number; qtd: number };
+        igreja_cnpj: { valor: number; qtd: number };
+        igreja_cpf: { valor: number; qtd: number };
+        lojistas: { valor: number; qtd: number };
+        igrejas_total: { valor: number; qtd: number };
+        amazon: { valor: number; qtd: number };
+        shopee: { valor: number; qtd: number };
+        mercado_livre: { valor: number; qtd: number };
+        advecs: { valor: number; qtd: number };
+        atacado: { valor: number; qtd: number };
+        propostas_advecs: { valor: number; qtd: number };
+        propostas_revendedores: { valor: number; qtd: number };
+        propostas_representantes: { valor: number; qtd: number };
+      };
+    },
+    staleTime: 30000, // Cache por 30 segundos
+  });
+
+  // Calcula métricas baseadas nos dados do RPC
   const periodMetrics = useMemo(() => {
-    const { start, endInclusive } = cardDateRange;
-
-    const filterByRange = (orders: any[]) =>
-      orders.filter((o) => {
-        const dateField = o.order_date || o.created_at;
-        if (!dateField) return false;
-        const orderDate = parseISO(dateField);
-        return isWithinInterval(orderDate, { start, end: endInclusive });
-      });
-
-    const paidShopifyOrders = shopifyOrders.filter(
-      (o) => o.status_pagamento === "Pago" || o.status_pagamento === "paid" || o.status_pagamento === "Faturado"
-    );
-    const paidShopifyCGOrders = shopifyCGOrders.filter(
-      (o) => o.status_pagamento === "paid" || o.status_pagamento === "Pago" || o.status_pagamento === "Faturado"
-    );
-
-    // Separar pedidos de igrejas por tipo_cliente (normalizado para maiúsculas)
-    const igrejasCNPJOrders = paidShopifyOrders.filter((o) => {
-      const tipoCliente = (o.cliente?.tipo_cliente || '').toUpperCase();
-      return tipoCliente.includes('IGREJA') && tipoCliente.includes('CNPJ');
-    });
-    const igrejasCPFOrders = paidShopifyOrders.filter((o) => {
-      const tipoCliente = (o.cliente?.tipo_cliente || '').toUpperCase();
-      return tipoCliente.includes('IGREJA') && tipoCliente.includes('CPF');
-    });
-    const lojistasOrders = paidShopifyOrders.filter((o) => {
-      const tipoCliente = (o.cliente?.tipo_cliente || '').toUpperCase();
-      return tipoCliente.includes('LOJISTA');
-    });
-
-    const igrejasCNPJFiltered = filterByRange(igrejasCNPJOrders);
-    const valorIgrejasCNPJ = igrejasCNPJFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-    
-    const igrejasCPFFiltered = filterByRange(igrejasCPFOrders);
-    const valorIgrejasCPF = igrejasCPFFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-    
-    const lojistasFiltered = filterByRange(lojistasOrders);
-    const valorLojistas = lojistasFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-
-    const igrejasFiltered = filterByRange(paidShopifyOrders);
-    const valorIgrejas = igrejasFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-
-    const onlineFiltered = filterByRange(paidShopifyCGOrders);
-    const valorOnline = onlineFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-
-    // Filtrar pedidos de marketplace pelo período (mesma lógica)
-    const filterMarketplaceByRange = (orders: MarketplacePedido[]) =>
-      orders.filter((p) => {
-        if (!p.order_date) return false;
-        const d = new Date(p.order_date);
-        if (Number.isNaN(d.getTime())) return false;
-        return isWithinInterval(d, { start, end: endInclusive });
-      });
-
-    const marketplaceFiltered = filterMarketplaceByRange(marketplacePedidos);
-    const valorMarketplace = marketplaceFiltered.reduce((sum, o) => sum + Number(o.valor_total || 0), 0);
-
-    // Filtrar propostas faturadas pelo período
-    const propostasFiltered = propostasFaturadas.filter((p) => {
-      if (!p.created_at) return false;
-      const d = new Date(p.created_at);
-      if (Number.isNaN(d.getTime())) return false;
-      return isWithinInterval(d, { start, end: endInclusive });
-    });
-    const valorPropostas = propostasFiltered.reduce((sum, p) => sum + (Number(p.valor_total || 0) - Number(p.valor_frete || 0)), 0);
-
-    // Total Geral = Igrejas + Online + Marketplaces + Propostas Faturadas
-    const valorTotal = valorIgrejas + valorOnline + valorMarketplace + valorPropostas;
-    const qtdTotal = igrejasFiltered.length + onlineFiltered.length + marketplaceFiltered.length + propostasFiltered.length;
-
-    const comissao = vendedorStats.reduce((sum, v) => {
-      const vendedorOrders = filterByRange(shopifyOrders.filter((o) => o.vendedor_id === v.id));
-      const valorVendedor = vendedorOrders.reduce(
-        (s, o) => s + Number(o.valor_para_meta || o.valor_total || 0),
-        0
-      );
-      return sum + valorVendedor * (v.comissao_percentual / 100);
-    }, 0);
+    if (!channelTotals) {
+      return {
+        qtdOnline: 0,
+        valorOnline: 0,
+        qtdIgrejas: 0,
+        valorIgrejas: 0,
+        qtdIgrejasCNPJ: 0,
+        valorIgrejasCNPJ: 0,
+        qtdIgrejasCPF: 0,
+        valorIgrejasCPF: 0,
+        qtdLojistas: 0,
+        valorLojistas: 0,
+      };
+    }
 
     return {
-      qtdOnline: onlineFiltered.length,
-      valorOnline,
-      qtdIgrejas: igrejasFiltered.length,
-      valorIgrejas,
-      qtdIgrejasCNPJ: igrejasCNPJFiltered.length,
-      valorIgrejasCNPJ,
-      qtdIgrejasCPF: igrejasCPFFiltered.length,
-      valorIgrejasCPF,
-      qtdLojistas: lojistasFiltered.length,
-      valorLojistas,
-      valorTotal,
-      qtdTotal,
-      comissao,
+      qtdOnline: channelTotals.ecommerce?.qtd || 0,
+      valorOnline: Number(channelTotals.ecommerce?.valor) || 0,
+      qtdIgrejas: channelTotals.igrejas_total?.qtd || 0,
+      valorIgrejas: Number(channelTotals.igrejas_total?.valor) || 0,
+      qtdIgrejasCNPJ: channelTotals.igreja_cnpj?.qtd || 0,
+      valorIgrejasCNPJ: Number(channelTotals.igreja_cnpj?.valor) || 0,
+      qtdIgrejasCPF: channelTotals.igreja_cpf?.qtd || 0,
+      valorIgrejasCPF: Number(channelTotals.igreja_cpf?.valor) || 0,
+      qtdLojistas: channelTotals.lojistas?.qtd || 0,
+      valorLojistas: Number(channelTotals.lojistas?.valor) || 0,
     };
-  }, [shopifyOrders, shopifyCGOrders, vendedorStats, cardDateRange, marketplacePedidos, propostasFaturadas]);
+  }, [channelTotals]);
 
-  // Marketplace: replicar exatamente a lógica das páginas (p.order_date + date-fns)
+  // Dados dos marketplaces baseados no RPC
   const marketplaceData = useMemo(() => {
-    const now = new Date();
+    if (!channelTotals) {
+      return {
+        amazon: { valor: 0, qtd: 0 },
+        shopee: { valor: 0, qtd: 0 },
+        mercadoLivre: { valor: 0, qtd: 0 },
+        advecs: { valor: 0, qtd: 0 },
+        revendedores: { valor: 0, qtd: 0 },
+        atacado: { valor: 0, qtd: 0 },
+        representantes: { valor: 0, qtd: 0 },
+      };
+    }
 
-    const filterMarketplaceByPeriod = (orders: MarketplacePedido[]) => {
-      switch (dateFilter) {
-        case "today": {
-          const todayStr = format(now, "yyyy-MM-dd");
-          return orders.filter((p) => {
-            if (!p.order_date) return false;
-            const orderDateStr = p.order_date.substring(0, 10);
-            return orderDateStr === todayStr;
-          });
-        }
-        case "last_7_days": {
-          const sevenDaysAgo = subDays(now, 7);
-          return orders.filter((p) => {
-            if (!p.order_date) return false;
-            const d = new Date(p.order_date);
-            return !Number.isNaN(d.getTime()) && d >= sevenDaysAgo;
-          });
-        }
-        case "last_month": {
-          const lastMonth = subMonths(now, 1);
-          const start = startOfMonth(lastMonth);
-          const end = endOfMonth(lastMonth);
-          return orders.filter((p) => {
-            if (!p.order_date) return false;
-            const d = new Date(p.order_date);
-            return !Number.isNaN(d.getTime()) && isWithinInterval(d, { start, end });
-          });
-        }
-        case "custom": {
-          if (!customDateRange.from) return orders;
-          const start = customDateRange.from;
-          const end = customDateRange.to || customDateRange.from;
-          return orders.filter((p) => {
-            if (!p.order_date) return false;
-            const d = new Date(p.order_date);
-            if (Number.isNaN(d.getTime())) return false;
-            return isWithinInterval(d, { start, end: new Date(end.getTime() + 86400000 - 1) });
-          });
-        }
-        default:
-          return orders;
-      }
-    };
-
-    // Filtrar propostas faturadas pelo período
-    const filterPropostasByPeriod = (propostas: PropostaFaturada[]) => {
-      switch (dateFilter) {
-        case "today": {
-          const todayStr = format(now, "yyyy-MM-dd");
-          return propostas.filter((p) => {
-            if (!p.created_at) return false;
-            const dateStr = p.created_at.substring(0, 10);
-            return dateStr === todayStr;
-          });
-        }
-        case "last_7_days": {
-          const sevenDaysAgo = subDays(now, 7);
-          return propostas.filter((p) => {
-            if (!p.created_at) return false;
-            const d = new Date(p.created_at);
-            return !Number.isNaN(d.getTime()) && d >= sevenDaysAgo;
-          });
-        }
-        case "last_month": {
-          const lastMonth = subMonths(now, 1);
-          const start = startOfMonth(lastMonth);
-          const end = endOfMonth(lastMonth);
-          return propostas.filter((p) => {
-            if (!p.created_at) return false;
-            const d = new Date(p.created_at);
-            return !Number.isNaN(d.getTime()) && isWithinInterval(d, { start, end });
-          });
-        }
-        case "custom": {
-          if (!customDateRange.from) return propostas;
-          const start = customDateRange.from;
-          const end = customDateRange.to || customDateRange.from;
-          return propostas.filter((p) => {
-            if (!p.created_at) return false;
-            const d = new Date(p.created_at);
-            if (Number.isNaN(d.getTime())) return false;
-            return isWithinInterval(d, { start, end: new Date(end.getTime() + 86400000 - 1) });
-          });
-        }
-        default:
-          return propostas;
-      }
-    };
-
-    const amazonOrders = filterMarketplaceByPeriod(
-      marketplacePedidos.filter((p) => p.marketplace === "AMAZON")
-    );
-    const shopeeOrders = filterMarketplaceByPeriod(
-      marketplacePedidos.filter((p) => p.marketplace === "SHOPEE")
-    );
-    const mlOrders = filterMarketplaceByPeriod(
-      marketplacePedidos.filter((p) => p.marketplace === "MERCADO_LIVRE")
-    );
-    const advecsOrders = filterMarketplaceByPeriod(
-      marketplacePedidos.filter((p) => p.marketplace === "ADVECS")
-    );
-    const atacadoOrders = filterMarketplaceByPeriod(
-      marketplacePedidos.filter((p) => p.marketplace === "ATACADO")
-    );
-
-    // Propostas faturadas filtradas por período - tipo_cliente "Igreja" vai para ADVECS
-    const propostasFiltered = filterPropostasByPeriod(propostasFaturadas);
-    const propostasAdvecs = propostasFiltered.filter(p => p.cliente?.tipo_cliente === "Igreja");
-    const propostasRevendedores = propostasFiltered.filter(p => p.cliente?.tipo_cliente === "Revendedor");
-    const propostasRepresentantes = propostasFiltered.filter(p => p.cliente?.tipo_cliente === "Representante");
-
-    // Calcular valores das propostas (valor_total - valor_frete)
-    const valorPropostasAdvecs = propostasAdvecs.reduce((s, p) => s + (Number(p.valor_total) - Number(p.valor_frete)), 0);
-    const valorPropostasRevendedores = propostasRevendedores.reduce((s, p) => s + (Number(p.valor_total) - Number(p.valor_frete)), 0);
-    const valorPropostasRepresentantes = propostasRepresentantes.reduce((s, p) => s + (Number(p.valor_total) - Number(p.valor_frete)), 0);
-
-    const amazonData = { valor: amazonOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: amazonOrders.length };
-    const shopeeData = { valor: shopeeOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: shopeeOrders.length };
-    const mercadoLivreData = { valor: mlOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: mlOrders.length };
-    const advecsData = { 
-      valor: advecsOrders.reduce((s, o) => s + Number(o.valor_total), 0) + valorPropostasAdvecs, 
-      qtd: advecsOrders.length + propostasAdvecs.length 
-    };
-    const revendedoresData = { valor: valorPropostasRevendedores, qtd: propostasRevendedores.length };
-    const atacadoData = { valor: atacadoOrders.reduce((s, o) => s + Number(o.valor_total), 0), qtd: atacadoOrders.length };
-    const representantesData = { valor: valorPropostasRepresentantes, qtd: propostasRepresentantes.length };
+    // ADVECS = pedidos marketplace ADVECS + propostas tipo Igreja
+    const advecsValor = Number(channelTotals.advecs?.valor || 0) + Number(channelTotals.propostas_advecs?.valor || 0);
+    const advecsQtd = (channelTotals.advecs?.qtd || 0) + (channelTotals.propostas_advecs?.qtd || 0);
 
     return {
-      amazon: amazonData,
-      shopee: shopeeData,
-      mercadoLivre: mercadoLivreData,
-      advecs: advecsData,
-      revendedores: revendedoresData,
-      atacado: atacadoData,
-      representantes: representantesData,
+      amazon: { 
+        valor: Number(channelTotals.amazon?.valor) || 0, 
+        qtd: channelTotals.amazon?.qtd || 0 
+      },
+      shopee: { 
+        valor: Number(channelTotals.shopee?.valor) || 0, 
+        qtd: channelTotals.shopee?.qtd || 0 
+      },
+      mercadoLivre: { 
+        valor: Number(channelTotals.mercado_livre?.valor) || 0, 
+        qtd: channelTotals.mercado_livre?.qtd || 0 
+      },
+      advecs: { 
+        valor: advecsValor, 
+        qtd: advecsQtd 
+      },
+      revendedores: { 
+        valor: Number(channelTotals.propostas_revendedores?.valor) || 0, 
+        qtd: channelTotals.propostas_revendedores?.qtd || 0 
+      },
+      atacado: { 
+        valor: Number(channelTotals.atacado?.valor) || 0, 
+        qtd: channelTotals.atacado?.qtd || 0 
+      },
+      representantes: { 
+        valor: Number(channelTotals.propostas_representantes?.valor) || 0, 
+        qtd: channelTotals.propostas_representantes?.qtd || 0 
+      },
     };
-  }, [marketplacePedidos, propostasFaturadas, dateFilter, customDateRange]);
+  }, [channelTotals]);
 
   // Calcula o total geral somando todos os canais
   const totalGeral = useMemo(() => {
@@ -472,12 +320,13 @@ export function SalesChannelCards({
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-primary" />
                 Resumo de Vendas
+                {isLoadingTotals && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </CardTitle>
               <CardDescription>Métricas consolidadas de todos os canais de venda</CardDescription>
             </div>
           </div>
           
-          {/* Botões de filtro de período (igual às páginas de marketplace) */}
+          {/* Botões de filtro de período */}
           <div className="flex flex-wrap items-center gap-2">
             {[
               { value: "today", label: "Hoje" },
@@ -644,7 +493,6 @@ export function SalesChannelCards({
             bgClass="bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-950 dark:to-emerald-900"
           />
         </div>
-
       </CardContent>
     </Card>
   );
