@@ -301,8 +301,35 @@ serve(async (req) => {
       });
     }
 
+    // CORREÇÃO: Buscar pedidos existentes para preservar vendedor_id e cliente_id atribuídos manualmente
+    const shopifyOrderIds = allOrders.map(o => o.id);
+    const { data: existingOrders } = await supabase
+      .from("ebd_shopify_pedidos")
+      .select("shopify_order_id, vendedor_id, cliente_id")
+      .in("shopify_order_id", shopifyOrderIds);
+
+    // Criar mapa de pedidos existentes para lookup rápido
+    const existingOrdersMap = new Map<number, { vendedor_id: string | null; cliente_id: string | null }>();
+    if (existingOrders) {
+      for (const existingOrder of existingOrders) {
+        existingOrdersMap.set(existingOrder.shopify_order_id, {
+          vendedor_id: existingOrder.vendedor_id,
+          cliente_id: existingOrder.cliente_id
+        });
+      }
+    }
+    console.log("Existing orders with assignments found:", existingOrdersMap.size);
+
     const rows = allOrders.map((order) => {
       const extracted = extractOrderData(order);
+
+      // Verificar se já existe no banco com atribuição manual
+      const existing = existingOrdersMap.get(order.id);
+      
+      // PRIORIDADE: Manter vendedor_id/cliente_id existente no banco se já foi atribuído
+      // Isso evita que a sincronização sobrescreva atribuições manuais
+      const finalVendedorId = existing?.vendedor_id || extracted.vendedorId;
+      const finalClienteId = existing?.cliente_id || extracted.clienteId;
 
       const valorFrete = order.shipping_lines && order.shipping_lines.length > 0 ? parseFloat(order.shipping_lines[0].price) : 0;
       const valorTotal = parseFloat(order.total_price);
@@ -315,8 +342,8 @@ serve(async (req) => {
       return {
         shopify_order_id: order.id,
         order_number: order.name,
-        vendedor_id: extracted.vendedorId,
-        cliente_id: extracted.clienteId,
+        vendedor_id: finalVendedorId,
+        cliente_id: finalClienteId,
         status_pagamento: order.financial_status,
         valor_total: valorTotal,
         valor_frete: valorFrete,
