@@ -143,6 +143,8 @@ export default function PedidosOnline() {
   const [hasAutoSynced, setHasAutoSynced] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(30);
 
   const syncOrdersMutation = useMutation({
     mutationFn: async () => {
@@ -338,6 +340,18 @@ export default function PedidosOnline() {
         p.cliente?.nome_igreja?.toLowerCase().includes(term)
     );
   }, [filteredByDate, searchTerm]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredPedidos.length / itemsPerPage);
+  const paginatedPedidos = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredPedidos.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredPedidos, currentPage, itemsPerPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateFilter, customDateRange, itemsPerPage]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -624,7 +638,7 @@ export default function PedidosOnline() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPedidos.map((pedido) => (
+                  {paginatedPedidos.map((pedido) => (
                     <TableRow key={pedido.id} className="cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedPedido(pedido); setDetailDialogOpen(true); }}>
                       <TableCell className="font-medium">
                         #{pedido.order_number}
@@ -683,6 +697,65 @@ export default function PedidosOnline() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {filteredPedidos.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Itens por página:</span>
+                <Select value={String(itemsPerPage)} onValueChange={(v) => setItemsPerPage(Number(v))}>
+                  <SelectTrigger className="w-[80px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground ml-2">
+                  Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredPedidos.length)} de {filteredPedidos.length}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  Primeira
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </Button>
+                <span className="text-sm px-2">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Próxima
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  Última
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
