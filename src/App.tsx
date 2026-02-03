@@ -51,6 +51,7 @@ import GestaoComissoes from "./pages/admin/GestaoComissoes";
 import LeadsLandingPage from "./pages/admin/LeadsLandingPage";
 import AdminEBDClientes from "./pages/admin/AdminEBDClientes";
 import TransferRequests from "./pages/admin/TransferRequests";
+import EBDSystemUsers from "./pages/admin/EBDSystemUsers";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
@@ -454,6 +455,7 @@ const App = () => (
                       <Route path="tutoriais" element={<Tutoriais />} />
                       <Route path="shopify" element={<ShopifyIntegration />} />
                       <Route path="conteudo-biblico" element={<AdminEBDConteudoBiblico />} />
+                      <Route path="usuarios" element={<EBDSystemUsers />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
