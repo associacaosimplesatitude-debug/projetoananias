@@ -1,90 +1,109 @@
 
 
-# Plano: Corrigir Dashboard Admin EBD - Dados Não Aparecem nos Cards
+# Plano: Corrigir Soma do Total Geral do Dashboard
 
-## Problemas Identificados
+## Problema Identificado
 
-Após análise detalhada do banco de dados, encontrei as seguintes causas:
+O Total Geral está mostrando **R$ 25.284,21** quando deveria ser aproximadamente **R$ 17.152,97**.
 
-| Problema | Impacto | Solução |
-|----------|---------|---------|
-| Pedidos Mercado Pago não incluídos | 62+ vendas não contabilizadas | Adicionar tabela `ebd_shopify_pedidos_mercadopago` na função RPC |
-| 1.331 pedidos sem cliente vinculado | Não classificados por tipo | Usar lógica alternativa ou criar card "Não Classificado" |
-| Pessoa Física sem card próprio | ~90 clientes não visíveis | Criar card "Pessoa Física" |
-| ADVECS/Revendedores/Lojistas com tipo diferente | Alguns tipos não casam exatamente | Melhorar LIKE para pegar variações |
-| Propostas com tipos diferentes | Não somam corretamente | Ajustar filtros de tipo |
+### Causa Raiz
+O frontend está usando `periodMetrics.valorIgrejas` (que vem de `igrejas_total`) na soma do Total Geral. Porém, `igrejas_total` já é a soma de:
+- Igreja CNPJ
+- Igreja CPF  
+- Lojistas
 
-## Dados Verificados no Banco
+Mas os cards individuais de Igreja CNPJ, Igreja CPF e Lojistas **não estão sendo somados** no Total. Em vez disso, o valor agregado `igrejas_total` está sendo usado, o que gera:
 
-Exemplo concreto que você mencionou:
-- **IGREJA DO EVANGELHO QUADRANGULAR** (tipo_cliente: IGREJA CNPJ)
-- Pedido #MPCB51125F de R$ 268,23 via Mercado Pago
-- Criado em 02/02/2026 17:44 (horário Brasil)
-- **Este pedido está na tabela `ebd_shopify_pedidos_mercadopago`, que NÃO está na função RPC atual**
+| O que está somando | Valor |
+|-------------------|-------|
+| E-commerce | R$ 2.641,53 |
+| **Igrejas Total (ERRO)** | R$ 17.002,15 |
+| Shopee | R$ 61,80 |
+| Mercado Livre | R$ 89,02 |
+| ADVECS | R$ 4.787,82 |
+| Revendedores | R$ 701,89 |
+| **TOTAL ERRADO** | **R$ 25.284,21** |
 
-## Solução Proposta
+### O Correto Deveria Ser
 
-### 1. Atualizar Função RPC `get_sales_channel_totals`
+| O que deve somar | Valor |
+|-----------------|-------|
+| E-commerce | R$ 2.641,53 |
+| Igreja CNPJ | R$ 6.999,84 |
+| Igreja CPF | R$ 0,00 |
+| Lojistas | R$ 1.871,07 |
+| Pessoa Física | R$ 0,00 |
+| Amazon | R$ 0,00 |
+| Shopee | R$ 61,80 |
+| Mercado Livre | R$ 89,02 |
+| ADVECS | R$ 4.787,82 |
+| Revendedores | R$ 701,89 |
+| Atacado | R$ 0,00 |
+| Representantes | R$ 0,00 |
+| **TOTAL CORRETO** | **R$ 17.152,97** |
 
-Modificar para incluir:
+## Solução
 
-- Tabela **ebd_shopify_pedidos_mercadopago** (pedidos Mercado Pago pagos)
-- Card **Pessoa Física** separado
-- Melhorar lógica de classificação por tipo (LIKE mais flexível)
-- Distribuir pedidos Mercado Pago nos cards corretos (Igreja CNPJ, CPF, Lojistas, etc.)
+### Arquivo: `src/components/admin/SalesChannelCards.tsx`
 
-### 2. Estrutura Atualizada dos Canais
+Modificar o cálculo de `totalGeral` para somar os valores individuais em vez do agregado:
 
-```text
-+------------------+------------------------+
-| Card             | Fonte de Dados         |
-+------------------+------------------------+
-| E-commerce       | ebd_shopify_pedidos_cg |
-| Igreja CNPJ      | ebd_shopify_pedidos + ebd_shopify_pedidos_mercadopago (tipo_cliente LIKE '%IGREJA%CNPJ%') |
-| Igreja CPF       | ebd_shopify_pedidos + ebd_shopify_pedidos_mercadopago (tipo_cliente LIKE '%IGREJA%CPF%') |
-| Lojistas         | ebd_shopify_pedidos + ebd_shopify_pedidos_mercadopago (tipo_cliente LIKE '%LOJISTA%') |
-| Pessoa Física    | ebd_shopify_pedidos + ebd_shopify_pedidos_mercadopago (tipo_cliente LIKE '%PESSOA%' OU '%FISICA%') |
-| ADVECS           | bling_marketplace + ebd_shopify_pedidos + ebd_shopify_pedidos_mercadopago (tipo_cliente LIKE '%ADVEC%') |
-| Revendedores     | ebd_shopify_pedidos + ebd_shopify_pedidos_mercadopago + propostas (tipo_cliente LIKE '%REVENDEDOR%') |
-| Representantes   | ebd_shopify_pedidos + ebd_shopify_pedidos_mercadopago + propostas (tipo_cliente LIKE '%REPRESENTANTE%') |
-| Amazon           | bling_marketplace_pedidos (marketplace = 'AMAZON') |
-| Shopee           | bling_marketplace_pedidos (marketplace = 'SHOPEE') |
-| Mercado Livre    | bling_marketplace_pedidos (marketplace = 'MERCADO_LIVRE') |
-| Atacado          | bling_marketplace_pedidos (marketplace = 'ATACADO') |
-| TOTAL GERAL      | Soma de todos os canais |
-+------------------+------------------------+
+**Antes (ERRADO):**
+```typescript
+const valorTotal = 
+  periodMetrics.valorOnline + 
+  periodMetrics.valorIgrejas +  // <-- ERRADO: igrejas_total duplica
+  periodMetrics.valorPessoaFisica +
+  ...
 ```
 
-### 3. Atualizar Frontend
-
-Adicionar novo card "Pessoa Física" no componente `SalesChannelCards.tsx`.
+**Depois (CORRETO):**
+```typescript
+const valorTotal = 
+  periodMetrics.valorOnline + 
+  periodMetrics.valorIgrejasCNPJ +    // Igreja CNPJ individual
+  periodMetrics.valorIgrejasCPF +      // Igreja CPF individual
+  periodMetrics.valorLojistas +        // Lojistas individual
+  periodMetrics.valorPessoaFisica +
+  ...
+```
 
 ---
 
 ## Seção Técnica
 
-### Arquivos a Modificar
+### Linha a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| Nova Migração SQL | Atualizar função `get_sales_channel_totals` |
-| `src/components/admin/SalesChannelCards.tsx` | Adicionar card Pessoa Física e consumir novos dados do RPC |
+Arquivo `src/components/admin/SalesChannelCards.tsx`, linhas 292-318:
 
-### SQL da Nova Função RPC
+Alterar de:
+```typescript
+const totalGeral = useMemo(() => {
+  const valorTotal = 
+    periodMetrics.valorOnline + 
+    periodMetrics.valorIgrejas +           // <-- REMOVER
+    periodMetrics.valorPessoaFisica +
+    ...
+```
 
-A função será atualizada para:
+Para:
+```typescript
+const totalGeral = useMemo(() => {
+  const valorTotal = 
+    periodMetrics.valorOnline + 
+    periodMetrics.valorIgrejasCNPJ +       // <-- ADICIONAR
+    periodMetrics.valorIgrejasCPF +        // <-- ADICIONAR
+    periodMetrics.valorLojistas +          // <-- ADICIONAR
+    periodMetrics.valorPessoaFisica +
+    ...
+```
 
-1. **Incluir `ebd_shopify_pedidos_mercadopago`** nos cálculos de cada tipo de cliente
-2. **Criar entrada `pessoa_fisica`** agregando pedidos onde `tipo_cliente` contém "PESSOA" ou "FISICA"
-3. **Melhorar filtros LIKE** para capturar variações de nomenclatura
-4. **Somar propostas nos canais corretos** de acordo com o tipo_cliente
+A mesma mudança deve ser feita para `qtdTotal`.
 
 ### Resultado Esperado
 
-Após a implementação, o pedido de R$ 268,23 da IGREJA DO EVANGELHO QUADRANGULAR aparecerá no card **Igreja CNPJ**, pois:
-- Está na tabela `ebd_shopify_pedidos_mercadopago`
-- O cliente tem `tipo_cliente = 'IGREJA CNPJ'`
-- O pedido tem `payment_status = 'approved'` e `status = 'PAGO'`
-
-Todos os demais pedidos Mercado Pago também serão classificados corretamente nos seus respectivos cards.
+Após a correção:
+- Total Geral mostrará aproximadamente R$ 17.152,97 para 02/02
+- Os valores individuais continuarão aparecendo corretamente em cada card
+- Não haverá mais duplicação de valores na soma
 
