@@ -1,165 +1,113 @@
 
-# Plano: Adicionar Gestão de Usuários do Sistema para Gerente EBD
+# Plano: Corrigir Listagem de Gerentes e Financeiros
 
-## Objetivo
+## Problema Identificado
 
-Criar uma funcionalidade no perfil do Gerente EBD (como `consultorti@editoracentralgospel.com`) para cadastrar usuários do sistema com os seguintes perfis:
+O usuário **CEO ELBA** (`ceo@elba.com.br`) foi criado com sucesso e está no banco de dados com role `gerente_ebd`, mas não aparece na listagem porque a query está falhando.
 
-| Tipo | Descrição | Acesso |
-|------|-----------|--------|
-| **Gerente EBD** | Visualiza tudo no Admin EBD | Todas as funcionalidades do painel EBD |
-| **Vendedor** | Cadastra clientes, propostas, pedidos | Portal do Vendedor |
-| **Financeiro** | Acesso restrito a financeiro | Aprovação de faturamento, comissões |
-
-## Solução Proposta
-
-### 1. Nova Página: Gestão de Usuários do Sistema
-
-Criar uma página em `/admin/ebd/usuarios` acessível apenas para usuários com role `gerente_ebd` que permite:
-
-- Listar usuários existentes (Gerentes, Vendedores, Financeiros)
-- Criar novos usuários com formulário simples
-- Editar role e resetar senha
-- Excluir usuários
-
-### 2. Interface do Formulário de Cadastro
-
-O formulário terá os campos:
-- **Nome Completo** (obrigatório)
-- **Email** (obrigatório, único)
-- **Senha** (obrigatório, mínimo 6 caracteres)
-- **Tipo de Perfil** (dropdown):
-  - Gerente EBD - acesso total ao Admin EBD
-  - Vendedor - acesso ao portal de vendas
-  - Financeiro - acesso às aprovações financeiras
-
-### 3. Lógica de Criação
-
-Para cada tipo de perfil:
-
-| Perfil | Ação |
-|--------|------|
-| **Gerente EBD** | Chama `create-admin-user` com role `gerente_ebd` |
-| **Financeiro** | Chama `create-admin-user` com role `financeiro` |
-| **Vendedor** | Chama `create-vendedor` (lógica existente) |
-
-### 4. Menu Lateral
-
-Adicionar novo item "Usuários do Sistema" no menu lateral do Admin EBD, visível apenas para `gerente_ebd`:
-
+**Erro no Console:**
 ```
-📊 Painel Principal
-├── Dashboard
-├── Propostas
-├── ...
-└── 👤 Usuários do Sistema (NOVO - só gerente_ebd)
+Could not find a relationship between 'user_roles' and 'user_id' in the schema cache
 ```
+
+### Causa Raiz
+
+A query atual tenta fazer um embedded join usando sintaxe de relacionamento:
+```typescript
+.select(`
+  user_id,
+  role,
+  created_at,
+  profiles:user_id (email, full_name)  // ← Relacionamento não existe
+`)
+```
+
+Mas não existe um foreign key relationship definido entre `user_roles.user_id` e `profiles.id` no schema do Supabase, então o PostgREST não consegue resolver o join.
+
+### Dados no Banco (confirmado)
+
+O usuário está corretamente salvo:
+
+| user_id | role | email | full_name |
+|---------|------|-------|-----------|
+| ae6f65da-... | gerente_ebd | ceo@elba.com.br | CEO ELBA |
+
+Mas a query falha e retorna vazio.
+
+## Solução
+
+Modificar a query para fazer **duas consultas separadas**:
+1. Buscar os dados de `user_roles`
+2. Buscar os dados de `profiles` correspondentes
+
+Ou fazer uma consulta direta à tabela profiles com os user_ids obtidos.
 
 ---
 
 ## Seção Técnica
 
-### Arquivos a Criar
+### Arquivo a Modificar
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/pages/admin/EBDSystemUsers.tsx` | Nova página de gestão de usuários |
+`src/pages/admin/EBDSystemUsers.tsx`
 
-### Arquivos a Modificar
+### Alteração na Query (linhas 102-113)
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/admin/AdminEBDLayout.tsx` | Adicionar item de menu "Usuários do Sistema" |
-| `src/App.tsx` | Adicionar rota `/admin/ebd/usuarios` |
-
-### Estrutura do Componente EBDSystemUsers.tsx
-
+**Antes (FALHA):**
 ```typescript
-// Estados
-- users: lista de usuários (gerentes, vendedores, financeiros)
-- createDialogOpen: controle do modal de criação
-- formData: { nome, email, senha, tipoPerfil }
-- loading states
-
-// Queries
-- fetchUsers: busca profiles + user_roles + vendedores
-- createMutation: 
-  - Se tipoPerfil === 'vendedor' → invoke('create-vendedor')
-  - Senão → invoke('create-admin-user')
-
-// UI
-- Tabela com: Nome, Email, Tipo, Data, Ações
-- Dialog de criação com formulário
-- Dialog de edição de role
-- Confirmação de exclusão
+const { data: roleUsers, error: roleError } = await supabase
+  .from("user_roles")
+  .select(`
+    user_id,
+    role,
+    created_at,
+    profiles:user_id (
+      email,
+      full_name
+    )
+  `)
+  .in("role", ["gerente_ebd", "financeiro"]);
 ```
 
-### Alteração no AdminEBDLayout.tsx
-
-Adicionar no menu, visível apenas para `isGerenteEbd`:
-
+**Depois (FUNCIONA):**
 ```typescript
-{isGerenteEbd && (
-  <SidebarMenuItem>
-    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/usuarios')}>
-      <RouterNavLink to="/admin/ebd/usuarios">
-        <UserPlus className="h-4 w-4" />
-        <span>Usuários do Sistema</span>
-      </RouterNavLink>
-    </SidebarMenuButton>
-  </SidebarMenuItem>
-)}
+// 1. Buscar roles
+const { data: roleUsers, error: roleError } = await supabase
+  .from("user_roles")
+  .select("user_id, role")
+  .in("role", ["gerente_ebd", "financeiro"]);
+
+if (roleError) {
+  console.error("Error fetching role users:", roleError);
+} else if (roleUsers && roleUsers.length > 0) {
+  // 2. Buscar profiles correspondentes
+  const userIds = roleUsers.map(r => r.user_id);
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, created_at")
+    .in("id", userIds);
+
+  if (!profilesError && profiles) {
+    // 3. Combinar os dados
+    roleUsers.forEach(ru => {
+      const profile = profiles.find(p => p.id === ru.user_id);
+      if (profile) {
+        systemUsers.push({
+          id: ru.user_id,
+          email: profile.email || "",
+          fullName: profile.full_name || profile.email || "",
+          role: ru.role as UserProfile,
+          createdAt: profile.created_at,
+        });
+      }
+    });
+  }
+}
 ```
-
-### Alteração no App.tsx
-
-Adicionar rota protegida:
-
-```typescript
-<Route 
-  path="/admin/ebd/usuarios" 
-  element={
-    <ProtectedRoute requireAdmin allowGerenteEbd>
-      <AdminEBDLayout>
-        <EBDSystemUsers />
-      </AdminEBDLayout>
-    </ProtectedRoute>
-  } 
-/>
-```
-
-### Fluxo de Criação de Usuário
-
-```text
-Gerente EBD clica em "Novo Usuário"
-         │
-         ▼
-Preenche formulário (nome, email, senha, tipo)
-         │
-         ▼
-Submete formulário
-         │
-         ├─► Se tipo = "vendedor"
-         │       └─► invoke('create-vendedor', { email, password, nome, tipo_perfil: 'vendedor' })
-         │
-         ├─► Se tipo = "gerente_ebd"  
-         │       └─► invoke('create-admin-user', { email, password, fullName, role: 'gerente_ebd' })
-         │
-         └─► Se tipo = "financeiro"
-                 └─► invoke('create-admin-user', { email, password, fullName, role: 'financeiro' })
-```
-
-### Segurança
-
-- A Edge Function `create-admin-user` já existe e aceita roles válidos
-- A Edge Function `create-vendedor` já valida se quem chama é admin ou gerente_ebd
-- RLS policies existentes protegem as tabelas `user_roles`, `profiles`, `vendedores`
-- Acesso à página protegido por `ProtectedRoute` com `allowGerenteEbd`
 
 ### Resultado Esperado
 
-Após implementação:
-- Gerente EBD terá acesso a `/admin/ebd/usuarios`
-- Poderá criar novos Gerentes, Vendedores e usuários Financeiros
-- Usuários criados terão acesso imediato às suas áreas
-- Lista unificada mostrará todos os tipos de usuários do sistema EBD
+Após a correção:
+- **CEO ELBA** (`ceo@elba.com.br`) aparecerá na listagem com perfil "Gerente EBD"
+- Todos os 11 usuários com roles (gerentes e financeiros) aparecerão
+- O contador de "Gerentes EBD" mostrará o número correto (atualmente 5)
+- O contador de "Financeiros" mostrará o número correto (atualmente 6)
