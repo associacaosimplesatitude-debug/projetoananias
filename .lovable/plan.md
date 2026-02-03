@@ -1,57 +1,81 @@
 
 
-# Plano: Reestruturar Menu do Admin EBD
+# Ajustes na Página Atribuir Clientes
 
 ## Resumo das Alterações
 
-| Ação | Item Atual | Novo Estado |
-|------|------------|-------------|
-| Renomear | "Pedidos Igrejas" | "Atribuir Clientes" |
-| Ocultar | "Clientes para Atribuir" | Removido do menu |
+| # | Alteração | Local |
+|---|-----------|-------|
+| 1 | Mudar texto do subtítulo | Linha 403 |
+| 2 | Filtrar pedidos de Dezembro/2025 até hoje | Query principal (linhas 268-279) |
+
+---
 
 ## Arquivo a Modificar
 
-**`src/components/admin/AdminEBDLayout.tsx`**
+**`src/pages/shopify/PedidosOnline.tsx`**
 
-### Alteração 1: Renomear "Pedidos Igrejas"
+### Alteração 1: Atualizar Texto do Subtítulo
 
-Na seção "Operacional" (linha 267-296), o item "Pedidos Igrejas" será renomeado para "Atribuir Clientes".
+**Linha 403**
 
-**Antes:**
+De:
 ```tsx
-<span>Pedidos Igrejas</span>
+<p className="text-muted-foreground">Pedidos pagos finalizados via Shopify</p>
 ```
 
-**Depois:**
+Para:
 ```tsx
-<span>Atribuir Clientes</span>
+<p className="text-muted-foreground">Pedidos pagos finalizados via E-commerce</p>
 ```
 
-### Alteração 2: Remover "Clientes para Atribuir"
+---
 
-O item de menu "Clientes para Atribuir" (linhas 278-292) será completamente removido da seção Operacional.
+### Alteração 2: Filtrar Pedidos a partir de Dezembro de 2025
 
-Isso significa que a seção "Operacional" ficará apenas com o item "Atribuir Clientes" (antigo "Pedidos Igrejas").
+Adicionar filtro na query do Supabase para trazer apenas pedidos com `order_date` ou `created_at` >= `2025-12-01`.
+
+**Linhas 268-279** (query principal)
+
+De:
+```tsx
+const { data, error } = await supabase
+  .from("ebd_shopify_pedidos")
+  .select(`...`)
+  .neq("status_pagamento", "Faturado")
+  .is("vendedor_id", null)
+  .order("created_at", { ascending: false });
+```
+
+Para:
+```tsx
+const { data, error } = await supabase
+  .from("ebd_shopify_pedidos")
+  .select(`...`)
+  .neq("status_pagamento", "Faturado")
+  .is("vendedor_id", null)
+  .gte("created_at", "2025-12-01T00:00:00.000Z")
+  .order("created_at", { ascending: false });
+```
+
+---
 
 ## Resultado Esperado
 
-Menu "Operacional" antes:
-- Pedidos Igrejas
-- Clientes para Atribuir (com badge de contagem)
+1. **Subtítulo** mostrará "Pedidos pagos finalizados via E-commerce" em vez de "via Shopify"
 
-Menu "Operacional" depois:
-- Atribuir Clientes
+2. **Listagem** exibirá apenas pedidos a partir de 01/12/2025 até a data atual, ignorando pedidos anteriores
 
 ---
 
 ## Seção Técnica
 
-### Linhas afetadas no arquivo `AdminEBDLayout.tsx`
+### Por que usar `gte` na query?
 
-| Linha | Ação |
-|-------|------|
-| 274 | Trocar texto "Pedidos Igrejas" por "Atribuir Clientes" |
-| 278-292 | Remover bloco do SidebarMenuItem "Clientes para Atribuir" |
+Adicionar o filtro `.gte("created_at", "2025-12-01T00:00:00.000Z")` diretamente na query do Supabase é mais eficiente que filtrar no frontend, pois:
+- Reduz a quantidade de dados transferidos
+- Melhora a performance para grandes volumes de pedidos
+- Garante que a paginação funcione corretamente
 
-A query `countSemVendedor` (linhas 71-96) pode ser mantida caso seja utilizada em outro lugar, mas se não for mais necessária, também pode ser removida para otimização.
+O campo `created_at` é utilizado como referência principal já que `order_date` pode ser nulo em alguns casos.
 
