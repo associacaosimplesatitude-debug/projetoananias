@@ -135,6 +135,8 @@ export default function PedidosOnline() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [atribuicaoFilter, setAtribuicaoFilter] = useState<"all" | "atribuido" | "nao_atribuido">("nao_atribuido");
+  const [vendedorFilter, setVendedorFilter] = useState<string>("all");
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -262,11 +264,25 @@ export default function PedidosOnline() {
     };
   }, [queryClient]);
 
+  // Query para buscar lista de vendedores para filtro
+  const { data: vendedoresFilter = [] } = useQuery({
+    queryKey: ["vendedores-ativos-filter"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendedores")
+        .select("id, nome")
+        .eq("status", "Ativo")
+        .order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: pedidos, isLoading } = useQuery({
     queryKey: ["ebd-shopify-pedidos-online"],
     queryFn: async () => {
-      // "Pedidos Online" = pedidos pagos (Shopify), não faturados e SEM vendedor atribuído
-      // Quando gerente atribui vendedor, o pedido sai dessa lista
+      // "Pedidos Online" = pedidos pagos (Shopify), não faturados
+      // Removemos o filtro fixo de vendedor_id IS NULL para permitir filtros dinâmicos
       const { data, error } = await supabase
         .from("ebd_shopify_pedidos")
         .select(
@@ -277,7 +293,6 @@ export default function PedidosOnline() {
         `
         )
         .neq("status_pagamento", "Faturado")
-        .is("vendedor_id", null)
         .gte("created_at", "2025-12-01T00:00:00.000Z")
         .order("created_at", { ascending: false });
 
@@ -327,19 +342,40 @@ export default function PedidosOnline() {
     }
   }, [pedidos, dateFilter, customDateRange]);
 
+  // Filter by atribuição (vendedor assigned or not)
+  const filteredByAtribuicao = useMemo(() => {
+    if (!filteredByDate) return [];
+    
+    let result = filteredByDate;
+    
+    // Filtro por atribuição
+    if (atribuicaoFilter === "atribuido") {
+      result = result.filter((p) => p.vendedor_id !== null);
+    } else if (atribuicaoFilter === "nao_atribuido") {
+      result = result.filter((p) => p.vendedor_id === null);
+    }
+    
+    // Filtro por vendedor específico
+    if (vendedorFilter !== "all") {
+      result = result.filter((p) => p.vendedor_id === vendedorFilter);
+    }
+    
+    return result;
+  }, [filteredByDate, atribuicaoFilter, vendedorFilter]);
+
   // Filter by search term
   const filteredPedidos = useMemo(() => {
-    if (!searchTerm) return filteredByDate;
+    if (!searchTerm) return filteredByAtribuicao;
 
     const term = searchTerm.toLowerCase();
-    return filteredByDate.filter(
+    return filteredByAtribuicao.filter(
       (p) =>
         p.order_number?.toLowerCase().includes(term) ||
         p.customer_name?.toLowerCase().includes(term) ||
         p.customer_email?.toLowerCase().includes(term) ||
         p.cliente?.nome_igreja?.toLowerCase().includes(term)
     );
-  }, [filteredByDate, searchTerm]);
+  }, [filteredByAtribuicao, searchTerm]);
 
   // Pagination
   const totalPages = Math.ceil(filteredPedidos.length / itemsPerPage);
@@ -351,7 +387,7 @@ export default function PedidosOnline() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, dateFilter, customDateRange, itemsPerPage]);
+  }, [searchTerm, dateFilter, customDateRange, itemsPerPage, atribuicaoFilter, vendedorFilter]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -541,7 +577,7 @@ export default function PedidosOnline() {
             </div>
 
             <Select value={dateFilter} onValueChange={(v) => handleDateFilterChange(v as DateFilter)}>
-              <SelectTrigger className="w-full md:w-[200px]">
+              <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Filtrar por data" />
               </SelectTrigger>
               <SelectContent>
@@ -549,6 +585,33 @@ export default function PedidosOnline() {
                 <SelectItem value="last_7_days">Últimos 7 Dias</SelectItem>
                 <SelectItem value="last_month">Mês Anterior</SelectItem>
                 <SelectItem value="custom">Período Customizado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Filtro por Atribuição */}
+            <Select value={atribuicaoFilter} onValueChange={(v) => setAtribuicaoFilter(v as "all" | "atribuido" | "nao_atribuido")}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Atribuição" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="atribuido">Atribuídos</SelectItem>
+                <SelectItem value="nao_atribuido">Não Atribuídos</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Filtro por Vendedor */}
+            <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Vendedor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Vendedores</SelectItem>
+                {vendedoresFilter.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.nome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 

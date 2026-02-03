@@ -524,9 +524,10 @@ export function PedidoOnlineDetailDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Order Info */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+        <ScrollArea className="max-h-[60vh] pr-4">
+          <div className="space-y-4">
+            {/* Order Info */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Data do Pedido</p>
               <p className="font-medium">
@@ -765,7 +766,8 @@ export function PedidoOnlineDetailDialog({
               </div>
             </div>
           )}
-        </div>
+          </div>
+        </ScrollArea>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
