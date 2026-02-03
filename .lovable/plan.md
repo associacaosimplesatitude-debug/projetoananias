@@ -1,156 +1,121 @@
 
-# Plano: Corrigir Atribuição de Vendedor e Adicionar Filtros
+
+# Plano: Corrigir Sincronização para Preservar Vendedor Atribuído Manualmente
 
 ## Problema Identificado
 
-O vendedor **está sendo salvo corretamente**, mas o pedido **desaparece da lista** porque a query atual só mostra pedidos sem vendedor atribuído (`.is("vendedor_id", null)`). Isso dá a impressão de que "não está fixando".
+Quando você atribui um vendedor manualmente, a sincronização automática (que roda ao abrir a página) sobrescreve o `vendedor_id` porque:
 
-## Soluções a Implementar
+1. A edge function `ebd-shopify-sync-orders` faz um **upsert completo** de todos os dados
+2. O `vendedor_id` extraído do Shopify (geralmente `null`) substitui o valor que você atribuiu no sistema
+3. Isso faz com que o cliente "volte" para a lista de não atribuídos
 
-### 1. Corrigir a Lógica da Query para Mostrar Todos os Pedidos
+### Fluxo Atual (Problemático)
+```
+1. Você atribui vendedor ao pedido → vendedor_id = "abc123"
+2. Sincronização automática roda ao abrir página
+3. Shopify retorna pedido com vendedor_id = null (ou outro valor)
+4. Upsert sobrescreve → vendedor_id = null
+5. Cliente volta para a lista de "não atribuídos"
+```
 
-Remover o filtro fixo `.is("vendedor_id", null)` e usar filtros dinâmicos controlados pelo usuário.
+## Solução
 
-### 2. Adicionar Filtros na Interface
+Modificar a edge function `ebd-shopify-sync-orders` para **verificar se o pedido já existe no banco com vendedor_id** antes de fazer o upsert. Se já tiver vendedor atribuído, manter o existente.
 
-| Filtro | Opções |
-|--------|--------|
-| Status Atribuição | Todos, Atribuídos, Não Atribuídos |
-| Vendedor | Todos os vendedores ativos |
-
-### 3. Adicionar Barra de Rolagem no Modal
-
-Envolver o conteúdo do dialog em um `ScrollArea` com altura máxima para permitir rolagem quando o conteúdo é extenso.
+### Fluxo Corrigido
+```
+1. Você atribui vendedor ao pedido → vendedor_id = "abc123"
+2. Sincronização automática roda ao abrir página
+3. Edge function verifica: "esse pedido já tem vendedor_id?"
+4. Se SIM → mantém o vendedor_id existente
+5. Se NÃO → usa o vendedor_id do Shopify (ou null)
+6. Cliente permanece atribuído
+```
 
 ---
 
 ## Seção Técnica
 
-### Arquivos a Modificar
+### Arquivo a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/shopify/PedidosOnline.tsx` | Adicionar filtros e modificar query |
-| `src/components/admin/PedidoOnlineDetailDialog.tsx` | Adicionar ScrollArea no conteúdo |
+`supabase/functions/ebd-shopify-sync-orders/index.ts`
 
-### Alterações em PedidosOnline.tsx
+### Alterações (linhas 295-343)
 
-**1. Adicionar novos estados para filtros:**
+**Antes:**
 ```typescript
-const [atribuicaoFilter, setAtribuicaoFilter] = useState<"all" | "atribuido" | "nao_atribuido">("nao_atribuido");
-const [vendedorFilter, setVendedorFilter] = useState<string>("all");
-```
-
-**2. Adicionar query para buscar lista de vendedores:**
-```typescript
-const { data: vendedores = [] } = useQuery({
-  queryKey: ["vendedores-ativos-filter"],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("vendedores")
-      .select("id, nome")
-      .eq("status", "Ativo")
-      .order("nome");
-    if (error) throw error;
-    return data;
-  },
+const rows = allOrders.map((order) => {
+  const extracted = extractOrderData(order);
+  // ... monta objeto com vendedor_id extraído do Shopify
+  return {
+    vendedor_id: extracted.vendedorId,
+    // ... outros campos
+  };
 });
+
+const { error } = await supabase
+  .from("ebd_shopify_pedidos")
+  .upsert(rows, { onConflict: "shopify_order_id", ignoreDuplicates: false });
 ```
 
-**3. Modificar a query principal para remover filtro fixo:**
+**Depois:**
 ```typescript
-const { data: pedidos, isLoading } = useQuery({
-  queryKey: ["ebd-shopify-pedidos-online"],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select(`
-        *,
-        cliente:ebd_clientes(nome_igreja, tipo_cliente),
-        vendedor:vendedores(nome)
-      `)
-      .neq("status_pagamento", "Faturado")
-      .gte("created_at", "2025-12-01T00:00:00.000Z")
-      .order("created_at", { ascending: false });
-    
-    if (error) throw error;
-    return (data as ShopifyPedido[]).filter((p) => isPaidStatus(p.status_pagamento));
-  },
+// 1. Buscar pedidos existentes com vendedor_id atribuído
+const shopifyOrderIds = allOrders.map(o => o.id);
+const { data: existingOrders } = await supabase
+  .from("ebd_shopify_pedidos")
+  .select("shopify_order_id, vendedor_id, cliente_id")
+  .in("shopify_order_id", shopifyOrderIds);
+
+// Criar mapa de pedidos existentes
+const existingOrdersMap = new Map<number, { vendedor_id: string | null; cliente_id: string | null }>();
+if (existingOrders) {
+  for (const order of existingOrders) {
+    existingOrdersMap.set(order.shopify_order_id, {
+      vendedor_id: order.vendedor_id,
+      cliente_id: order.cliente_id
+    });
+  }
+}
+
+const rows = allOrders.map((order) => {
+  const extracted = extractOrderData(order);
+  
+  // Verificar se já existe no banco
+  const existing = existingOrdersMap.get(order.id);
+  
+  // PRIORIDADE: Manter vendedor_id existente no banco se já foi atribuído
+  const finalVendedorId = existing?.vendedor_id || extracted.vendedorId;
+  const finalClienteId = existing?.cliente_id || extracted.clienteId;
+  
+  return {
+    shopify_order_id: order.id,
+    vendedor_id: finalVendedorId,
+    cliente_id: finalClienteId,
+    // ... outros campos
+  };
 });
+
+const { error } = await supabase
+  .from("ebd_shopify_pedidos")
+  .upsert(rows, { onConflict: "shopify_order_id", ignoreDuplicates: false });
 ```
 
-**4. Adicionar filtro client-side por atribuição e vendedor:**
-```typescript
-const filteredByAtribuicao = useMemo(() => {
-  if (!filteredByDate) return [];
-  
-  let result = filteredByDate;
-  
-  // Filtro por atribuição
-  if (atribuicaoFilter === "atribuido") {
-    result = result.filter((p) => p.vendedor_id !== null);
-  } else if (atribuicaoFilter === "nao_atribuido") {
-    result = result.filter((p) => p.vendedor_id === null);
-  }
-  
-  // Filtro por vendedor específico
-  if (vendedorFilter !== "all") {
-    result = result.filter((p) => p.vendedor_id === vendedorFilter);
-  }
-  
-  return result;
-}, [filteredByDate, atribuicaoFilter, vendedorFilter]);
-```
+### Lógica de Prioridade
 
-**5. Adicionar campos de filtro na UI:**
-```typescript
-{/* Filtro por Atribuição */}
-<Select value={atribuicaoFilter} onValueChange={(v) => setAtribuicaoFilter(v as any)}>
-  <SelectTrigger className="w-full md:w-[180px]">
-    <SelectValue placeholder="Atribuição" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">Todos</SelectItem>
-    <SelectItem value="atribuido">Atribuídos</SelectItem>
-    <SelectItem value="nao_atribuido">Não Atribuídos</SelectItem>
-  </SelectContent>
-</Select>
-
-{/* Filtro por Vendedor */}
-<Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-  <SelectTrigger className="w-full md:w-[200px]">
-    <SelectValue placeholder="Vendedor" />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="all">Todos Vendedores</SelectItem>
-    {vendedores.map((v) => (
-      <SelectItem key={v.id} value={v.id}>
-        {v.nome}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-```
-
-### Alterações em PedidoOnlineDetailDialog.tsx
-
-**1. Envolver o conteúdo em ScrollArea:**
-```typescript
-// Antes da linha 527 (início do conteúdo)
-<ScrollArea className="max-h-[60vh] overflow-y-auto pr-4">
-  <div className="space-y-4">
-    {/* ... todo o conteúdo existente ... */}
-  </div>
-</ScrollArea>
-```
-
-**2. O import do ScrollArea já existe na linha 26.**
+| Cenário | vendedor_id no DB | vendedor_id no Shopify | Resultado |
+|---------|-------------------|------------------------|-----------|
+| Atribuído manualmente | "abc123" | null | "abc123" (mantém) |
+| Atribuído manualmente | "abc123" | "xyz789" | "abc123" (mantém) |
+| Novo pedido sem atribuição | null | null | null |
+| Novo pedido com tag Shopify | null | "xyz789" | "xyz789" |
 
 ### Resultado Esperado
 
-Após a implementação:
-- Quando um vendedor é atribuído, o pedido permanece visível (se filtro "Todos" estiver selecionado)
-- O usuário pode filtrar por pedidos atribuídos ou não atribuídos
-- O usuário pode filtrar por vendedor específico
-- O modal terá barra de rolagem quando o conteúdo exceder 60% da altura da tela
-- O filtro padrão será "Não Atribuídos" para manter o comportamento esperado
+Após a correção:
+- Vendedores atribuídos manualmente **nunca** serão sobrescritos pela sincronização
+- Novos pedidos continuarão herdando vendedor das tags/atributos do Shopify
+- O problema de duplicação/retorno de clientes será resolvido
+- O contador de "Clientes para Atribuir" permanecerá estável
+
