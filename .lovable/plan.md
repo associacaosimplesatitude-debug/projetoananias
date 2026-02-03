@@ -1,46 +1,34 @@
 
-# Plano: Corrigir Listagem de Gerentes e Financeiros
+# Plano: Adicionar Botão "Voltar ao Dashboard" na Página de Perfil
 
-## Problema Identificado
+## Problema
 
-O usuário **CEO ELBA** (`ceo@elba.com.br`) foi criado com sucesso e está no banco de dados com role `gerente_ebd`, mas não aparece na listagem porque a query está falhando.
-
-**Erro no Console:**
-```
-Could not find a relationship between 'user_roles' and 'user_id' in the schema cache
-```
-
-### Causa Raiz
-
-A query atual tenta fazer um embedded join usando sintaxe de relacionamento:
-```typescript
-.select(`
-  user_id,
-  role,
-  created_at,
-  profiles:user_id (email, full_name)  // ← Relacionamento não existe
-`)
-```
-
-Mas não existe um foreign key relationship definido entre `user_roles.user_id` e `profiles.id` no schema do Supabase, então o PostgREST não consegue resolver o join.
-
-### Dados no Banco (confirmado)
-
-O usuário está corretamente salvo:
-
-| user_id | role | email | full_name |
-|---------|------|-------|-----------|
-| ae6f65da-... | gerente_ebd | ceo@elba.com.br | CEO ELBA |
-
-Mas a query falha e retorna vazio.
+Quando o usuário acessa a página `/my-profile` para editar suas informações, não existe um botão para retornar ao dashboard. Isso dificulta a navegação do usuário.
 
 ## Solução
 
-Modificar a query para fazer **duas consultas separadas**:
-1. Buscar os dados de `user_roles`
-2. Buscar os dados de `profiles` correspondentes
+Adicionar um botão "Voltar ao Dashboard" no topo da página de perfil que redireciona o usuário para o dashboard correspondente ao seu perfil (role).
 
-Ou fazer uma consulta direta à tabela profiles com os user_ids obtidos.
+### Redirecionamento por Perfil
+
+| Perfil | Dashboard |
+|--------|-----------|
+| admin | `/admin` |
+| gerente_ebd | `/admin/ebd` |
+| financeiro | `/admin/ebd/aprovacao-faturamento` |
+| client (superintendente) | `/ebd/dashboard` |
+| tesoureiro / secretario | `/dashboard` |
+| Padrão | `/` |
+
+### Interface Visual
+
+O botão será posicionado acima do título "Meu Perfil", alinhado à esquerda, com um ícone de seta para a esquerda:
+
+```
+← Voltar ao Dashboard
+
+Meu Perfil
+```
 
 ---
 
@@ -48,66 +36,60 @@ Ou fazer uma consulta direta à tabela profiles com os user_ids obtidos.
 
 ### Arquivo a Modificar
 
-`src/pages/admin/EBDSystemUsers.tsx`
+`src/pages/MyProfile.tsx`
 
-### Alteração na Query (linhas 102-113)
+### Alterações
 
-**Antes (FALHA):**
+1. **Importar** o hook `useNavigate` do react-router-dom
+2. **Importar** o ícone `ArrowLeft` do lucide-react
+3. **Usar** o hook `useAuth` para obter o `role` do usuário
+4. **Criar função** `getDashboardUrl()` que retorna a URL correta baseada no role
+5. **Adicionar botão** antes do título "Meu Perfil"
+
+### Código a Adicionar
+
 ```typescript
-const { data: roleUsers, error: roleError } = await supabase
-  .from("user_roles")
-  .select(`
-    user_id,
-    role,
-    created_at,
-    profiles:user_id (
-      email,
-      full_name
-    )
-  `)
-  .in("role", ["gerente_ebd", "financeiro"]);
-```
+// Adicionar imports
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 
-**Depois (FUNCIONA):**
-```typescript
-// 1. Buscar roles
-const { data: roleUsers, error: roleError } = await supabase
-  .from("user_roles")
-  .select("user_id, role")
-  .in("role", ["gerente_ebd", "financeiro"]);
+// Dentro do componente
+const { user, role } = useAuth();  // Adicionar role
+const navigate = useNavigate();
 
-if (roleError) {
-  console.error("Error fetching role users:", roleError);
-} else if (roleUsers && roleUsers.length > 0) {
-  // 2. Buscar profiles correspondentes
-  const userIds = roleUsers.map(r => r.user_id);
-  const { data: profiles, error: profilesError } = await supabase
-    .from("profiles")
-    .select("id, email, full_name, created_at")
-    .in("id", userIds);
-
-  if (!profilesError && profiles) {
-    // 3. Combinar os dados
-    roleUsers.forEach(ru => {
-      const profile = profiles.find(p => p.id === ru.user_id);
-      if (profile) {
-        systemUsers.push({
-          id: ru.user_id,
-          email: profile.email || "",
-          fullName: profile.full_name || profile.email || "",
-          role: ru.role as UserProfile,
-          createdAt: profile.created_at,
-        });
-      }
-    });
+// Função para determinar URL do dashboard
+const getDashboardUrl = () => {
+  switch (role) {
+    case 'admin':
+      return '/admin';
+    case 'gerente_ebd':
+      return '/admin/ebd';
+    case 'financeiro':
+      return '/admin/ebd/aprovacao-faturamento';
+    case 'tesoureiro':
+    case 'secretario':
+      return '/dashboard';
+    case 'client':
+      return '/ebd/dashboard';
+    default:
+      return '/';
   }
-}
+};
+
+// Antes do título "Meu Perfil"
+<Button 
+  variant="ghost" 
+  onClick={() => navigate(getDashboardUrl())}
+  className="mb-4 gap-2"
+>
+  <ArrowLeft className="h-4 w-4" />
+  Voltar ao Dashboard
+</Button>
 ```
 
-### Resultado Esperado
+### Resultado
 
-Após a correção:
-- **CEO ELBA** (`ceo@elba.com.br`) aparecerá na listagem com perfil "Gerente EBD"
-- Todos os 11 usuários com roles (gerentes e financeiros) aparecerão
-- O contador de "Gerentes EBD" mostrará o número correto (atualmente 5)
-- O contador de "Financeiros" mostrará o número correto (atualmente 6)
+Após a implementação:
+- O botão aparecerá no topo da página de perfil
+- Ao clicar, o usuário será redirecionado para seu dashboard apropriado
+- O texto e ícone seguem o padrão visual já existente no sistema
