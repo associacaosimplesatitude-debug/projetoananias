@@ -217,6 +217,8 @@ export function SalesChannelCards({
         valorIgrejasCPF: 0,
         qtdLojistas: 0,
         valorLojistas: 0,
+        qtdPessoaFisica: 0,
+        valorPessoaFisica: 0,
       };
     }
 
@@ -231,6 +233,8 @@ export function SalesChannelCards({
       valorIgrejasCPF: Number(channelTotals.igreja_cpf?.valor) || 0,
       qtdLojistas: channelTotals.lojistas?.qtd || 0,
       valorLojistas: Number(channelTotals.lojistas?.valor) || 0,
+      qtdPessoaFisica: (channelTotals as any).pessoa_fisica?.qtd || 0,
+      valorPessoaFisica: Number((channelTotals as any).pessoa_fisica?.valor) || 0,
     };
   }, [channelTotals]);
 
@@ -289,6 +293,7 @@ export function SalesChannelCards({
     const valorTotal = 
       periodMetrics.valorOnline + 
       periodMetrics.valorIgrejas + 
+      periodMetrics.valorPessoaFisica +
       marketplaceData.amazon.valor + 
       marketplaceData.shopee.valor + 
       marketplaceData.mercadoLivre.valor + 
@@ -300,6 +305,7 @@ export function SalesChannelCards({
     const qtdTotal = 
       periodMetrics.qtdOnline + 
       periodMetrics.qtdIgrejas + 
+      periodMetrics.qtdPessoaFisica +
       marketplaceData.amazon.qtd + 
       marketplaceData.shopee.qtd + 
       marketplaceData.mercadoLivre.qtd + 
@@ -412,6 +418,17 @@ export function SalesChannelCards({
             borderColorClass="border-lime-200 dark:border-lime-800"
             bgClass="bg-gradient-to-br from-lime-50 to-lime-100 dark:from-lime-950 dark:to-lime-900"
           />
+
+          <StandardCard
+            icon={<Users className="h-4 w-4 text-pink-600" />}
+            title="Pessoa Física"
+            value={formatCurrency(periodMetrics.valorPessoaFisica)}
+            periodLabel={`${periodMetrics.qtdPessoaFisica} pedidos`}
+            colorClass="text-pink-700 dark:text-pink-300"
+            borderColorClass="border-pink-200 dark:border-pink-800"
+            bgClass="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
+          />
+
 
           <StandardCard
             icon={<Package className="h-4 w-4 text-orange-600" />}
