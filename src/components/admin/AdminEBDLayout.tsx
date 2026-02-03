@@ -268,25 +268,10 @@ function AdminSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/pedidos-igrejas')}>
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/pedidos-igrejas')}>
                     <RouterNavLink to="/admin/ebd/pedidos-igrejas">
                       <ShoppingBag className="h-4 w-4" />
-                      <span>Pedidos Igrejas</span>
-                    </RouterNavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/pedidos-online')}>
-                    <RouterNavLink to="/admin/ebd/pedidos-online">
-                      <UserPlus className="h-4 w-4" />
-                      <span className="flex items-center gap-2">
-                        Clientes para Atribuir
-                        {countSemVendedor > 0 && (
-                          <Badge variant="destructive" className="text-xs px-1.5 py-0.5 min-w-[20px] h-5">
-                            {countSemVendedor}
-                          </Badge>
-                        )}
-                      </span>
+                      <span>Atribuir Clientes</span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
