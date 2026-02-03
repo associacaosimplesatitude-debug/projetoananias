@@ -276,6 +276,7 @@ export default function PedidosOnline() {
         )
         .neq("status_pagamento", "Faturado")
         .is("vendedor_id", null)
+        .gte("created_at", "2025-12-01T00:00:00.000Z")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -400,7 +401,7 @@ export default function PedidosOnline() {
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Pedidos Online</h1>
-          <p className="text-muted-foreground">Pedidos pagos finalizados via Shopify</p>
+          <p className="text-muted-foreground">Pedidos pagos finalizados via E-commerce</p>
         </div>
 
         {canAccessAdminEBD && (
