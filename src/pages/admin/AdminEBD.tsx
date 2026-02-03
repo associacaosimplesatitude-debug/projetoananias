@@ -340,6 +340,19 @@ export default function AdminEBD() {
     },
   });
 
+  // Fetch Mercado Pago orders for vendor ranking
+  const { data: mercadoPagoOrders = [] } = useQuery({
+    queryKey: ["admin-mercadopago-orders"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ebd_shopify_pedidos_mercadopago")
+        .select("id, vendedor_id, valor_total, created_at, payment_status")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: vendedores, isLoading: vendedoresLoading } = useQuery({
     queryKey: ['vendedores'],
     queryFn: async () => {
@@ -1647,6 +1660,7 @@ export default function AdminEBD() {
             shopifyOrders={shopifyOrders}
             blingOrders={marketplacePedidos}
             propostasFaturadas={propostasFaturadasMeta}
+            mercadoPagoOrders={mercadoPagoOrders}
           />
 
           {/* Church Progress Cards - Aulas Restantes */}

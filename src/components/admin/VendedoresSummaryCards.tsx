@@ -56,11 +56,20 @@ interface PropostaFaturada {
   } | null;
 }
 
+interface MercadoPagoOrder {
+  id: string;
+  vendedor_id: string | null;
+  valor_total: number | null;
+  created_at: string | null;
+  payment_status: string | null;
+}
+
 interface VendedoresSummaryCardsProps {
   vendedores: Vendedor[];
   shopifyOrders: any[];
   blingOrders: any[];
   propostasFaturadas?: PropostaFaturada[];
+  mercadoPagoOrders?: MercadoPagoOrder[];
 }
 
 interface StandardCardProps {
@@ -107,7 +116,7 @@ const normalizeEmail = (email: string | null | undefined): string => {
 const isPaidStatus = (status: string | null | undefined): boolean => {
   if (!status) return false;
   const s = status.toLowerCase();
-  return s === "paid" || s === "pago" || s === "aprovado" || s === "approved";
+  return s === "paid" || s === "pago" || s === "aprovado" || s === "approved" || s === "faturado";
 };
 
 export function VendedoresSummaryCards({
@@ -115,6 +124,7 @@ export function VendedoresSummaryCards({
   shopifyOrders,
   blingOrders,
   propostasFaturadas = [],
+  mercadoPagoOrders = [],
 }: VendedoresSummaryCardsProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>("month");
   const [customDateRange, setCustomDateRange] = useState<{
@@ -394,6 +404,21 @@ export function VendedoresSummaryCards({
       }
     });
 
+    // Process Mercado Pago orders
+    mercadoPagoOrders.forEach(order => {
+      if (!order.vendedor_id || order.payment_status !== 'approved') return;
+      
+      const orderDate = order.created_at ? parseISO(order.created_at) : null;
+      if (!orderDate) return;
+
+      const vendedorData = vendedorSales.get(order.vendedor_id);
+      if (!vendedorData) return;
+
+      if (isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end })) {
+        vendedorData.vendas += Number(order.valor_total || 0);
+      }
+    });
+
     // Convert to array and calculate metrics
     const ranking = Array.from(vendedorSales.values()).map(data => {
       const meta = data.vendedor.meta_mensal_valor || 0;
@@ -416,7 +441,7 @@ export function VendedoresSummaryCards({
 
     // Sort by vendas descending
     return ranking.sort((a, b) => b.vendas - a.vendas);
-  }, [vendedores, shopifyOrders, propostasFaturadas, dateRange, dateFilter]);
+  }, [vendedores, shopifyOrders, propostasFaturadas, mercadoPagoOrders, dateRange, dateFilter]);
 
   const getRankIcon = (index: number) => {
     if (index === 0) return <Trophy className="h-5 w-5 text-yellow-500" />;
