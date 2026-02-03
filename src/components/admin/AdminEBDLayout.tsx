@@ -374,6 +374,16 @@ function AdminSidebar() {
                     </SidebarMenuItem>
                   </>
                 )}
+                {(isGerenteEbd || isAdmin) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/usuarios')}>
+                      <RouterNavLink to="/admin/ebd/usuarios">
+                        <UserPlus className="h-4 w-4" />
+                        <span>Usuários do Sistema</span>
+                      </RouterNavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/admin/ebd/gestao-tutoriais')}>
                     <RouterNavLink to="/admin/ebd/gestao-tutoriais">
