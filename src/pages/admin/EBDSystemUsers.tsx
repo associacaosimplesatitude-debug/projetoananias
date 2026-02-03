@@ -98,34 +98,38 @@ export default function EBDSystemUsers() {
     queryFn: async () => {
       const systemUsers: SystemUser[] = [];
 
-      // Fetch gerentes and financeiros from user_roles + profiles
+      // Fetch gerentes and financeiros from user_roles
       const { data: roleUsers, error: roleError } = await supabase
         .from("user_roles")
-        .select(`
-          user_id,
-          role,
-          created_at,
-          profiles:user_id (
-            email,
-            full_name
-          )
-        `)
+        .select("user_id, role")
         .in("role", ["gerente_ebd", "financeiro"]);
 
       if (roleError) {
         console.error("Error fetching role users:", roleError);
-      } else {
-        roleUsers?.forEach((ru: any) => {
-          if (ru.profiles) {
-            systemUsers.push({
-              id: ru.user_id,
-              email: ru.profiles.email || "",
-              fullName: ru.profiles.full_name || ru.profiles.email || "",
-              role: ru.role as UserProfile,
-              createdAt: ru.created_at,
-            });
-          }
-        });
+      } else if (roleUsers && roleUsers.length > 0) {
+        // Fetch profiles for these users
+        const userIds = roleUsers.map(r => r.user_id);
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, email, full_name, created_at")
+          .in("id", userIds);
+
+        if (profilesError) {
+          console.error("Error fetching profiles:", profilesError);
+        } else if (profiles) {
+          roleUsers.forEach((ru) => {
+            const profile = profiles.find(p => p.id === ru.user_id);
+            if (profile) {
+              systemUsers.push({
+                id: ru.user_id,
+                email: profile.email || "",
+                fullName: profile.full_name || profile.email || "",
+                role: ru.role as UserProfile,
+                createdAt: profile.created_at,
+              });
+            }
+          });
+        }
       }
 
       // Fetch vendedores
