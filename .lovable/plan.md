@@ -1,188 +1,79 @@
 
-# Plano: Sistema Completo de Emails Transacionais para Royalties
+# Plano: Atualizar Templates de Email com Logo Central Gospel
 
-## Visão Geral
+## Objetivo
 
-Implementar um sistema de emails transacionais personalizado para autores, com templates editáveis no painel administrativo, usando o **Resend** (plano gratuito - 3.000 emails/mes).
+Substituir o texto "Projeto Ananias" pelo logo da **Central Gospel Editora** em todos os 6 templates de email do sistema de royalties.
 
-## O que sera criado
+## O que sera alterado
 
-| Item | Descricao |
-|------|-----------|
-| 2 tabelas no banco | Templates e logs de envio |
-| 1 edge function | `send-royalties-email` |
-| 1 nova pagina | `/royalties/emails` |
-| 4 componentes | Editor, preview, envio manual, historico |
-| 6 templates padrao | Acesso, venda, pagamento, relatorio, afiliado venda, afiliado link |
+| Template | Alteracao |
+|----------|-----------|
+| `autor_acesso` | Remover "Projeto Ananias", adicionar logo |
+| `royalty_venda` | Remover "Projeto Ananias", adicionar logo |
+| `pagamento_realizado` | Remover "Projeto Ananias", adicionar logo |
+| `relatorio_mensal` | Remover "Projeto Ananias", adicionar logo |
+| `afiliado_venda` | Remover "Projeto Ananias", adicionar logo |
+| `afiliado_link` | Remover "Projeto Ananias", adicionar logo |
 
-## Templates de Email
+## Mudancas no HTML
 
-| Codigo | Nome | Gatilho | Variaveis |
-|--------|------|---------|-----------|
-| `autor_acesso` | Dados de Acesso | Manual | `{nome}`, `{email}`, `{senha_temporaria}`, `{link_login}` |
-| `royalty_venda` | Aviso de Venda | Automatico | `{nome}`, `{livro}`, `{quantidade}`, `{valor_venda}`, `{valor_royalty}`, `{data}` |
-| `pagamento_realizado` | Pagamento Confirmado | Automatico | `{nome}`, `{valor}`, `{data}`, `{comprovante_url}` |
-| `relatorio_mensal` | Relatorio Mensal | Manual | `{nome}`, `{mes}`, `{total_vendas}`, `{total_royalties}`, `{resumo_livros}` |
-| `afiliado_venda` | Venda via Afiliado | Automatico | `{nome}`, `{livro}`, `{comprador}`, `{valor_venda}`, `{valor_comissao}` |
-| `afiliado_link` | Link de Afiliado | Manual | `{nome}`, `{livro}`, `{link_afiliado}`, `{codigo}` |
+**Antes (header atual):**
+```html
+<div class="header">
+  <h1>Projeto Ananias</h1>
+</div>
+```
 
-## Interface do Admin
+**Depois (com logo):**
+```html
+<div class="header">
+  <img src="https://gestaoebd.lovable.app/logos/logo-central-gospel.png" 
+       alt="Central Gospel Editora" 
+       style="max-width:250px;height:auto">
+</div>
+```
 
-A pagina `/royalties/emails` tera:
+**Footer - Antes:**
+```html
+<div class="footer">
+  <p>Projeto Ananias - Sistema de Royalties</p>
+</div>
+```
 
-- **Lista de templates** com status ativo/inativo
-- **Editor visual** com campos de assunto e corpo HTML
-- **Preview** com dados de exemplo antes de enviar
-- **Envio manual** selecionando autor e template
-- **Historico** de todos os emails enviados
+**Footer - Depois:**
+```html
+<div class="footer">
+  <p>Central Gospel Editora - Sistema de Royalties</p>
+</div>
+```
+
+## Acoes
+
+1. Copiar o logo horizontal da Central Gospel para a pasta publica (caso necessario usar a versao horizontal)
+2. Atualizar os 6 templates no banco de dados via SQL
 
 ---
 
 ## Secao Tecnica
 
-### 1. Criar Tabelas no Banco
+### Imagem do Logo
 
-**Tabela `royalties_email_templates`:**
+O projeto ja possui o logo em `public/logos/logo-central-gospel.png`. Vou copiar a versao horizontal enviada (`horizontal-2.png`) para o projeto e usa-la nos emails, pois ficara melhor no header.
 
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | UUID | Chave primaria |
-| codigo | TEXT | Identificador unico (ex: `royalty_venda`) |
-| nome | TEXT | Nome exibido no admin |
-| descricao | TEXT | Descricao do template |
-| assunto | TEXT | Assunto do email (com variaveis) |
-| corpo_html | TEXT | Corpo HTML editavel |
-| variaveis | JSONB | Lista de variaveis disponiveis |
-| is_active | BOOLEAN | Ativo/inativo |
-| created_at | TIMESTAMPTZ | Data de criacao |
-| updated_at | TIMESTAMPTZ | Data de atualizacao |
+**Novo arquivo:** `public/logos/logo-central-gospel-horizontal.png`
 
-**Tabela `royalties_email_logs`:**
+**URL publica:** `https://gestaoebd.lovable.app/logos/logo-central-gospel-horizontal.png`
 
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | UUID | Chave primaria |
-| template_id | UUID | FK para template |
-| autor_id | UUID | FK para autor |
-| destinatario | TEXT | Email do destinatario |
-| assunto | TEXT | Assunto enviado |
-| status | TEXT | enviado, erro, entregue |
-| erro | TEXT | Mensagem de erro (se houver) |
-| dados_enviados | JSONB | Dados usados na personalizacao |
-| created_at | TIMESTAMPTZ | Data de envio |
+### SQL de Atualizacao
 
-**RLS Policies:**
-- Apenas admins podem gerenciar templates
-- Apenas admins podem ver logs
+Sera executado um UPDATE para cada template substituindo:
 
-### 2. Edge Function `send-royalties-email`
+1. `<h1>Projeto Ananias</h1>` por tag `<img>` com o logo
+2. `Projeto Ananias - Sistema de Royalties` por `Central Gospel Editora`
 
-```text
-Fluxo da funcao:
-1. Recebe: autorId, templateCode, dados
-2. Busca template ativo do banco
-3. Busca dados do autor (nome, email)
-4. Substitui variaveis {nome}, {livro}, etc.
-5. Envia via Resend
-6. Registra log no banco
-7. Retorna sucesso ou erro
-```
+### Compatibilidade de Email
 
-**Arquivo:** `supabase/functions/send-royalties-email/index.ts`
-
-### 3. Novos Arquivos Frontend
-
-| Arquivo | Descricao |
-|---------|-----------|
-| `src/pages/royalties/Emails.tsx` | Pagina principal com abas |
-| `src/components/royalties/EmailTemplateDialog.tsx` | Modal de edicao de template |
-| `src/components/royalties/EmailPreviewModal.tsx` | Preview do email |
-| `src/components/royalties/SendEmailDialog.tsx` | Modal de envio manual |
-| `src/components/royalties/EmailLogsTable.tsx` | Tabela de historico |
-
-### 4. Modificacoes em Arquivos Existentes
-
-**`src/components/royalties/RoyaltiesAdminLayout.tsx`:**
-- Adicionar item de menu "Emails" com icone `Mail`
-
-**`src/App.tsx`:**
-- Adicionar rota `/royalties/emails`
-- Import do componente `RoyaltiesEmails`
-
-### 5. Estrutura da Pagina de Emails
-
-```text
-/royalties/emails
-|
-+-- Tabs
-|   |-- Templates (lista editavel)
-|   |-- Enviar Email (envio manual)
-|   +-- Historico (logs de envio)
-|
-+-- Templates Tab
-|   |-- Tabela com codigo, nome, status
-|   |-- Botao editar -> abre modal
-|   |-- Modal com:
-|       |-- Campo assunto
-|       |-- Editor corpo HTML (textarea)
-|       |-- Lista de variaveis disponiveis
-|       +-- Botao preview
-|
-+-- Enviar Tab
-|   |-- Selecionar autor
-|   |-- Selecionar template
-|   |-- Preencher variaveis
-|   +-- Botao enviar
-|
-+-- Historico Tab
-    |-- Tabela com data, autor, template, status
-    +-- Filtros por data e status
-```
-
-### 6. Exemplo de Template HTML Padrao
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: 'Segoe UI', sans-serif; background: #f3f4f6; }
-    .container { max-width: 600px; margin: 0 auto; background: #fff; }
-    .header { background: linear-gradient(135deg, #1a2d40, #2d4a5e); 
-              padding: 30px; text-align: center; }
-    .header h1 { color: #fff; margin: 0; }
-    .content { padding: 30px; }
-    .footer { background: #1a2d40; color: #fff; padding: 20px; 
-              text-align: center; font-size: 14px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Projeto Ananias</h1>
-    </div>
-    <div class="content">
-      <h2>Ola, {nome}!</h2>
-      <p>Voce vendeu {quantidade} unidade(s) de <strong>{livro}</strong>.</p>
-      <p><strong>Valor da venda:</strong> {valor_venda}</p>
-      <p><strong>Seu royalty:</strong> {valor_royalty}</p>
-      <p>Data: {data}</p>
-    </div>
-    <div class="footer">
-      <p>Projeto Ananias - Sistema de Royalties</p>
-    </div>
-  </div>
-</body>
-</html>
-```
-
-## Resultado Esperado
-
-Apos a implementacao:
-
-- 6 templates de email prontos e editaveis
-- Personalizacao automatica com dados do autor e livro
-- Historico completo de todos os emails enviados
-- Envio manual de qualquer template para qualquer autor
-- Custo ZERO no plano gratuito do Resend (ate 3.000 emails/mes)
-- Interface intuitiva no painel de royalties
+- Usar `<img>` com atributos inline para compatibilidade com clientes de email
+- Usar URL absoluta (https://gestaoebd.lovable.app/...) para que a imagem carregue corretamente
+- Manter estilos inline para compatibilidade maxima
