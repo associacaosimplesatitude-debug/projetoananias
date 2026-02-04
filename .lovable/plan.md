@@ -1,79 +1,45 @@
 
-# Plano: Atualizar Templates de Email com Logo Central Gospel
+# Plano: Remover Fundo Azul do Header dos Emails
 
 ## Objetivo
 
-Substituir o texto "Projeto Ananias" pelo logo da **Central Gospel Editora** em todos os 6 templates de email do sistema de royalties.
+Remover o fundo azul escuro do header em todos os 6 templates de email, deixando o logo da Central Gospel sobre fundo branco.
 
 ## O que sera alterado
 
-| Template | Alteracao |
-|----------|-----------|
-| `autor_acesso` | Remover "Projeto Ananias", adicionar logo |
-| `royalty_venda` | Remover "Projeto Ananias", adicionar logo |
-| `pagamento_realizado` | Remover "Projeto Ananias", adicionar logo |
-| `relatorio_mensal` | Remover "Projeto Ananias", adicionar logo |
-| `afiliado_venda` | Remover "Projeto Ananias", adicionar logo |
-| `afiliado_link` | Remover "Projeto Ananias", adicionar logo |
+O CSS do header em todos os templates sera modificado:
 
-## Mudancas no HTML
-
-**Antes (header atual):**
-```html
-<div class="header">
-  <h1>Projeto Ananias</h1>
-</div>
+**Antes:**
+```css
+.header{background:linear-gradient(135deg,#1a2d40,#2d4a5e);padding:30px;text-align:center}
 ```
 
-**Depois (com logo):**
-```html
-<div class="header">
-  <img src="https://gestaoebd.lovable.app/logos/logo-central-gospel.png" 
-       alt="Central Gospel Editora" 
-       style="max-width:250px;height:auto">
-</div>
+**Depois:**
+```css
+.header{background:#ffffff;padding:30px;text-align:center}
 ```
 
-**Footer - Antes:**
-```html
-<div class="footer">
-  <p>Projeto Ananias - Sistema de Royalties</p>
-</div>
-```
+## Templates afetados
 
-**Footer - Depois:**
-```html
-<div class="footer">
-  <p>Central Gospel Editora - Sistema de Royalties</p>
-</div>
-```
+| Template | Status |
+|----------|--------|
+| `autor_acesso` | Remover fundo azul |
+| `royalty_venda` | Remover fundo azul |
+| `pagamento_realizado` | Remover fundo azul |
+| `relatorio_mensal` | Remover fundo azul |
+| `afiliado_venda` | Remover fundo azul |
+| `afiliado_link` | Remover fundo azul |
 
-## Acoes
+## Resultado visual
 
-1. Copiar o logo horizontal da Central Gospel para a pasta publica (caso necessario usar a versao horizontal)
-2. Atualizar os 6 templates no banco de dados via SQL
+O header passara a ter fundo branco, mantendo o logo da Central Gospel Editora visivel e limpo, sem o degradê azul escuro.
 
 ---
 
 ## Secao Tecnica
 
-### Imagem do Logo
+Sera executado um UPDATE via SQL em todos os 6 templates, substituindo:
 
-O projeto ja possui o logo em `public/logos/logo-central-gospel.png`. Vou copiar a versao horizontal enviada (`horizontal-2.png`) para o projeto e usa-la nos emails, pois ficara melhor no header.
+- `background:linear-gradient(135deg,#1a2d40,#2d4a5e)` por `background:#ffffff`
 
-**Novo arquivo:** `public/logos/logo-central-gospel-horizontal.png`
-
-**URL publica:** `https://gestaoebd.lovable.app/logos/logo-central-gospel-horizontal.png`
-
-### SQL de Atualizacao
-
-Sera executado um UPDATE para cada template substituindo:
-
-1. `<h1>Projeto Ananias</h1>` por tag `<img>` com o logo
-2. `Projeto Ananias - Sistema de Royalties` por `Central Gospel Editora`
-
-### Compatibilidade de Email
-
-- Usar `<img>` com atributos inline para compatibilidade com clientes de email
-- Usar URL absoluta (https://gestaoebd.lovable.app/...) para que a imagem carregue corretamente
-- Manter estilos inline para compatibilidade maxima
+O footer tambem possui `background:#1a2d40` - se desejar remover tambem, me avise. Por enquanto, apenas o header sera alterado conforme solicitado.
