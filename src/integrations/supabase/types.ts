@@ -4735,6 +4735,96 @@ export type Database = {
           },
         ]
       }
+      royalties_email_logs: {
+        Row: {
+          assunto: string
+          autor_id: string | null
+          created_at: string | null
+          dados_enviados: Json | null
+          destinatario: string
+          erro: string | null
+          id: string
+          status: string | null
+          template_id: string | null
+        }
+        Insert: {
+          assunto: string
+          autor_id?: string | null
+          created_at?: string | null
+          dados_enviados?: Json | null
+          destinatario: string
+          erro?: string | null
+          id?: string
+          status?: string | null
+          template_id?: string | null
+        }
+        Update: {
+          assunto?: string
+          autor_id?: string | null
+          created_at?: string | null
+          dados_enviados?: Json | null
+          destinatario?: string
+          erro?: string | null
+          id?: string
+          status?: string | null
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "royalties_email_logs_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_autores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "royalties_email_logs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "royalties_email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      royalties_email_templates: {
+        Row: {
+          assunto: string
+          codigo: string
+          corpo_html: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          is_active: boolean | null
+          nome: string
+          updated_at: string | null
+          variaveis: Json | null
+        }
+        Insert: {
+          assunto: string
+          codigo: string
+          corpo_html: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          nome: string
+          updated_at?: string | null
+          variaveis?: Json | null
+        }
+        Update: {
+          assunto?: string
+          codigo?: string
+          corpo_html?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          nome?: string
+          updated_at?: string | null
+          variaveis?: Json | null
+        }
+        Relationships: []
+      }
       royalties_livros: {
         Row: {
           autor_id: string
