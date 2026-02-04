@@ -1,121 +1,188 @@
 
+# Plano: Sistema Completo de Emails Transacionais para Royalties
 
-# Plano: Corrigir Sincronização para Preservar Vendedor Atribuído Manualmente
+## Visão Geral
 
-## Problema Identificado
+Implementar um sistema de emails transacionais personalizado para autores, com templates editáveis no painel administrativo, usando o **Resend** (plano gratuito - 3.000 emails/mes).
 
-Quando você atribui um vendedor manualmente, a sincronização automática (que roda ao abrir a página) sobrescreve o `vendedor_id` porque:
+## O que sera criado
 
-1. A edge function `ebd-shopify-sync-orders` faz um **upsert completo** de todos os dados
-2. O `vendedor_id` extraído do Shopify (geralmente `null`) substitui o valor que você atribuiu no sistema
-3. Isso faz com que o cliente "volte" para a lista de não atribuídos
+| Item | Descricao |
+|------|-----------|
+| 2 tabelas no banco | Templates e logs de envio |
+| 1 edge function | `send-royalties-email` |
+| 1 nova pagina | `/royalties/emails` |
+| 4 componentes | Editor, preview, envio manual, historico |
+| 6 templates padrao | Acesso, venda, pagamento, relatorio, afiliado venda, afiliado link |
 
-### Fluxo Atual (Problemático)
-```
-1. Você atribui vendedor ao pedido → vendedor_id = "abc123"
-2. Sincronização automática roda ao abrir página
-3. Shopify retorna pedido com vendedor_id = null (ou outro valor)
-4. Upsert sobrescreve → vendedor_id = null
-5. Cliente volta para a lista de "não atribuídos"
-```
+## Templates de Email
 
-## Solução
+| Codigo | Nome | Gatilho | Variaveis |
+|--------|------|---------|-----------|
+| `autor_acesso` | Dados de Acesso | Manual | `{nome}`, `{email}`, `{senha_temporaria}`, `{link_login}` |
+| `royalty_venda` | Aviso de Venda | Automatico | `{nome}`, `{livro}`, `{quantidade}`, `{valor_venda}`, `{valor_royalty}`, `{data}` |
+| `pagamento_realizado` | Pagamento Confirmado | Automatico | `{nome}`, `{valor}`, `{data}`, `{comprovante_url}` |
+| `relatorio_mensal` | Relatorio Mensal | Manual | `{nome}`, `{mes}`, `{total_vendas}`, `{total_royalties}`, `{resumo_livros}` |
+| `afiliado_venda` | Venda via Afiliado | Automatico | `{nome}`, `{livro}`, `{comprador}`, `{valor_venda}`, `{valor_comissao}` |
+| `afiliado_link` | Link de Afiliado | Manual | `{nome}`, `{livro}`, `{link_afiliado}`, `{codigo}` |
 
-Modificar a edge function `ebd-shopify-sync-orders` para **verificar se o pedido já existe no banco com vendedor_id** antes de fazer o upsert. Se já tiver vendedor atribuído, manter o existente.
+## Interface do Admin
 
-### Fluxo Corrigido
-```
-1. Você atribui vendedor ao pedido → vendedor_id = "abc123"
-2. Sincronização automática roda ao abrir página
-3. Edge function verifica: "esse pedido já tem vendedor_id?"
-4. Se SIM → mantém o vendedor_id existente
-5. Se NÃO → usa o vendedor_id do Shopify (ou null)
-6. Cliente permanece atribuído
-```
+A pagina `/royalties/emails` tera:
+
+- **Lista de templates** com status ativo/inativo
+- **Editor visual** com campos de assunto e corpo HTML
+- **Preview** com dados de exemplo antes de enviar
+- **Envio manual** selecionando autor e template
+- **Historico** de todos os emails enviados
 
 ---
 
-## Seção Técnica
+## Secao Tecnica
 
-### Arquivo a Modificar
+### 1. Criar Tabelas no Banco
 
-`supabase/functions/ebd-shopify-sync-orders/index.ts`
+**Tabela `royalties_email_templates`:**
 
-### Alterações (linhas 295-343)
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| id | UUID | Chave primaria |
+| codigo | TEXT | Identificador unico (ex: `royalty_venda`) |
+| nome | TEXT | Nome exibido no admin |
+| descricao | TEXT | Descricao do template |
+| assunto | TEXT | Assunto do email (com variaveis) |
+| corpo_html | TEXT | Corpo HTML editavel |
+| variaveis | JSONB | Lista de variaveis disponiveis |
+| is_active | BOOLEAN | Ativo/inativo |
+| created_at | TIMESTAMPTZ | Data de criacao |
+| updated_at | TIMESTAMPTZ | Data de atualizacao |
 
-**Antes:**
-```typescript
-const rows = allOrders.map((order) => {
-  const extracted = extractOrderData(order);
-  // ... monta objeto com vendedor_id extraído do Shopify
-  return {
-    vendedor_id: extracted.vendedorId,
-    // ... outros campos
-  };
-});
+**Tabela `royalties_email_logs`:**
 
-const { error } = await supabase
-  .from("ebd_shopify_pedidos")
-  .upsert(rows, { onConflict: "shopify_order_id", ignoreDuplicates: false });
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| id | UUID | Chave primaria |
+| template_id | UUID | FK para template |
+| autor_id | UUID | FK para autor |
+| destinatario | TEXT | Email do destinatario |
+| assunto | TEXT | Assunto enviado |
+| status | TEXT | enviado, erro, entregue |
+| erro | TEXT | Mensagem de erro (se houver) |
+| dados_enviados | JSONB | Dados usados na personalizacao |
+| created_at | TIMESTAMPTZ | Data de envio |
+
+**RLS Policies:**
+- Apenas admins podem gerenciar templates
+- Apenas admins podem ver logs
+
+### 2. Edge Function `send-royalties-email`
+
+```text
+Fluxo da funcao:
+1. Recebe: autorId, templateCode, dados
+2. Busca template ativo do banco
+3. Busca dados do autor (nome, email)
+4. Substitui variaveis {nome}, {livro}, etc.
+5. Envia via Resend
+6. Registra log no banco
+7. Retorna sucesso ou erro
 ```
 
-**Depois:**
-```typescript
-// 1. Buscar pedidos existentes com vendedor_id atribuído
-const shopifyOrderIds = allOrders.map(o => o.id);
-const { data: existingOrders } = await supabase
-  .from("ebd_shopify_pedidos")
-  .select("shopify_order_id, vendedor_id, cliente_id")
-  .in("shopify_order_id", shopifyOrderIds);
+**Arquivo:** `supabase/functions/send-royalties-email/index.ts`
 
-// Criar mapa de pedidos existentes
-const existingOrdersMap = new Map<number, { vendedor_id: string | null; cliente_id: string | null }>();
-if (existingOrders) {
-  for (const order of existingOrders) {
-    existingOrdersMap.set(order.shopify_order_id, {
-      vendedor_id: order.vendedor_id,
-      cliente_id: order.cliente_id
-    });
-  }
-}
+### 3. Novos Arquivos Frontend
 
-const rows = allOrders.map((order) => {
-  const extracted = extractOrderData(order);
-  
-  // Verificar se já existe no banco
-  const existing = existingOrdersMap.get(order.id);
-  
-  // PRIORIDADE: Manter vendedor_id existente no banco se já foi atribuído
-  const finalVendedorId = existing?.vendedor_id || extracted.vendedorId;
-  const finalClienteId = existing?.cliente_id || extracted.clienteId;
-  
-  return {
-    shopify_order_id: order.id,
-    vendedor_id: finalVendedorId,
-    cliente_id: finalClienteId,
-    // ... outros campos
-  };
-});
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/pages/royalties/Emails.tsx` | Pagina principal com abas |
+| `src/components/royalties/EmailTemplateDialog.tsx` | Modal de edicao de template |
+| `src/components/royalties/EmailPreviewModal.tsx` | Preview do email |
+| `src/components/royalties/SendEmailDialog.tsx` | Modal de envio manual |
+| `src/components/royalties/EmailLogsTable.tsx` | Tabela de historico |
 
-const { error } = await supabase
-  .from("ebd_shopify_pedidos")
-  .upsert(rows, { onConflict: "shopify_order_id", ignoreDuplicates: false });
+### 4. Modificacoes em Arquivos Existentes
+
+**`src/components/royalties/RoyaltiesAdminLayout.tsx`:**
+- Adicionar item de menu "Emails" com icone `Mail`
+
+**`src/App.tsx`:**
+- Adicionar rota `/royalties/emails`
+- Import do componente `RoyaltiesEmails`
+
+### 5. Estrutura da Pagina de Emails
+
+```text
+/royalties/emails
+|
++-- Tabs
+|   |-- Templates (lista editavel)
+|   |-- Enviar Email (envio manual)
+|   +-- Historico (logs de envio)
+|
++-- Templates Tab
+|   |-- Tabela com codigo, nome, status
+|   |-- Botao editar -> abre modal
+|   |-- Modal com:
+|       |-- Campo assunto
+|       |-- Editor corpo HTML (textarea)
+|       |-- Lista de variaveis disponiveis
+|       +-- Botao preview
+|
++-- Enviar Tab
+|   |-- Selecionar autor
+|   |-- Selecionar template
+|   |-- Preencher variaveis
+|   +-- Botao enviar
+|
++-- Historico Tab
+    |-- Tabela com data, autor, template, status
+    +-- Filtros por data e status
 ```
 
-### Lógica de Prioridade
+### 6. Exemplo de Template HTML Padrao
 
-| Cenário | vendedor_id no DB | vendedor_id no Shopify | Resultado |
-|---------|-------------------|------------------------|-----------|
-| Atribuído manualmente | "abc123" | null | "abc123" (mantém) |
-| Atribuído manualmente | "abc123" | "xyz789" | "abc123" (mantém) |
-| Novo pedido sem atribuição | null | null | null |
-| Novo pedido com tag Shopify | null | "xyz789" | "xyz789" |
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #f3f4f6; }
+    .container { max-width: 600px; margin: 0 auto; background: #fff; }
+    .header { background: linear-gradient(135deg, #1a2d40, #2d4a5e); 
+              padding: 30px; text-align: center; }
+    .header h1 { color: #fff; margin: 0; }
+    .content { padding: 30px; }
+    .footer { background: #1a2d40; color: #fff; padding: 20px; 
+              text-align: center; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Projeto Ananias</h1>
+    </div>
+    <div class="content">
+      <h2>Ola, {nome}!</h2>
+      <p>Voce vendeu {quantidade} unidade(s) de <strong>{livro}</strong>.</p>
+      <p><strong>Valor da venda:</strong> {valor_venda}</p>
+      <p><strong>Seu royalty:</strong> {valor_royalty}</p>
+      <p>Data: {data}</p>
+    </div>
+    <div class="footer">
+      <p>Projeto Ananias - Sistema de Royalties</p>
+    </div>
+  </div>
+</body>
+</html>
+```
 
-### Resultado Esperado
+## Resultado Esperado
 
-Após a correção:
-- Vendedores atribuídos manualmente **nunca** serão sobrescritos pela sincronização
-- Novos pedidos continuarão herdando vendedor das tags/atributos do Shopify
-- O problema de duplicação/retorno de clientes será resolvido
-- O contador de "Clientes para Atribuir" permanecerá estável
+Apos a implementacao:
 
+- 6 templates de email prontos e editaveis
+- Personalizacao automatica com dados do autor e livro
+- Historico completo de todos os emails enviados
+- Envio manual de qualquer template para qualquer autor
+- Custo ZERO no plano gratuito do Resend (ate 3.000 emails/mes)
+- Interface intuitiva no painel de royalties
