@@ -40,6 +40,7 @@ import screenshotAdminAprovacao from "@/assets/apresentacao/screenshot-admin-apr
 import screenshotAdminComissoes from "@/assets/apresentacao/screenshot-admin-comissoes.png";
 import screenshotAdminAtribuicao from "@/assets/apresentacao/screenshot-admin-atribuicao.png";
 import screenshotAdminClientes from "@/assets/apresentacao/screenshot-admin-clientes.png";
+import screenshotAdminLeads from "@/assets/apresentacao/screenshot-admin-leads.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -560,7 +561,8 @@ const gerenteFeatures = [
       "Leads de Landing Page"
     ],
     benefits: ["Recuperação de inativos", "Priorização inteligente"],
-    screenName: "Leads de Reativação"
+    screenName: "Leads de Reativação",
+    screenshotUrl: screenshotAdminLeads
   },
   {
     icon: <Settings className="h-5 w-5" />,
