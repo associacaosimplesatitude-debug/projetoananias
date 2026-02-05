@@ -10,6 +10,7 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 // Importar screenshots
 import screenshotDashboard from "@/assets/apresentacao/screenshot-dashboard.png";
 import screenshotAlunos from "@/assets/apresentacao/screenshot-alunos.png";
+import screenshotProfessores from "@/assets/apresentacao/screenshot-professores.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -129,7 +130,8 @@ const superintendenteFeatures = [
       "Histórico de aulas ministradas"
     ],
     benefits: ["Gestão da equipe", "Escalas facilitadas", "Reconhecimento"],
-    screenName: "Lista de Professores"
+    screenName: "Lista de Professores",
+    screenshotUrl: screenshotProfessores
   },
   {
     icon: <BookOpen className="h-5 w-5" />,
