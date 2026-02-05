@@ -41,6 +41,7 @@ import screenshotAdminComissoes from "@/assets/apresentacao/screenshot-admin-com
 import screenshotAdminAtribuicao from "@/assets/apresentacao/screenshot-admin-atribuicao.png";
 import screenshotAdminClientes from "@/assets/apresentacao/screenshot-admin-clientes.png";
 import screenshotAdminLeads from "@/assets/apresentacao/screenshot-admin-leads.png";
+import screenshotAdminVendedores from "@/assets/apresentacao/screenshot-admin-vendedores.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -575,7 +576,8 @@ const gerenteFeatures = [
       "Visualizar como vendedor"
     ],
     benefits: ["Gestão completa", "Flexibilidade", "Hierarquia"],
-    screenName: "Gestão de Vendedores"
+    screenName: "Gestão de Vendedores",
+    screenshotUrl: screenshotAdminVendedores
   },
   {
     icon: <ClipboardList className="h-5 w-5" />,
