@@ -39,6 +39,7 @@ import screenshotAdminPedidos from "@/assets/apresentacao/screenshot-admin-pedid
 import screenshotAdminAprovacao from "@/assets/apresentacao/screenshot-admin-aprovacao.png";
 import screenshotAdminComissoes from "@/assets/apresentacao/screenshot-admin-comissoes.png";
 import screenshotAdminAtribuicao from "@/assets/apresentacao/screenshot-admin-atribuicao.png";
+import screenshotAdminClientes from "@/assets/apresentacao/screenshot-admin-clientes.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -546,7 +547,8 @@ const gerenteFeatures = [
       "Visualização de progresso de revistas"
     ],
     benefits: ["Gestão centralizada", "Identificação de oportunidades"],
-    screenName: "Clientes EBD"
+    screenName: "Clientes EBD",
+    screenshotUrl: screenshotAdminClientes
   },
   {
     icon: <Target className="h-5 w-5" />,
