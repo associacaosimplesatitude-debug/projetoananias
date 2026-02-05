@@ -23,6 +23,7 @@ import screenshotPedidos from "@/assets/apresentacao/screenshot-pedidos.png";
 import screenshotVendedorDashboard from "@/assets/apresentacao/screenshot-vendedor-dashboard.png";
 import screenshotVendedorClientes from "@/assets/apresentacao/screenshot-vendedor-clientes.png";
 import screenshotVendedorPdv from "@/assets/apresentacao/screenshot-vendedor-pdv.png";
+import screenshotVendedorPosVenda from "@/assets/apresentacao/screenshot-vendedor-pos-venda.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -319,7 +320,8 @@ const vendedorFeatures = [
       "Ativação do cliente no sistema EBD"
     ],
     benefits: ["Conversão de compradores", "Onboarding estruturado", "Retenção"],
-    screenName: "Pós-Venda E-commerce"
+    screenName: "Pós-Venda E-commerce",
+    screenshotUrl: screenshotVendedorPosVenda
   },
   {
     icon: <Target className="h-5 w-5" />,
