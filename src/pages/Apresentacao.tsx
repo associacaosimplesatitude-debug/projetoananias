@@ -35,6 +35,7 @@ import screenshotVendedorOrcamento from "@/assets/apresentacao/screenshot-vended
 import screenshotVendedorTutoriais from "@/assets/apresentacao/screenshot-vendedor-tutoriais.png";
 import screenshotAdminDashboard from "@/assets/apresentacao/screenshot-admin-dashboard.png";
 import screenshotAdminPropostas from "@/assets/apresentacao/screenshot-admin-propostas.png";
+import screenshotAdminPedidos from "@/assets/apresentacao/screenshot-admin-pedidos.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -492,7 +493,8 @@ const gerenteFeatures = [
       "Marketplaces: Amazon, Shopee, Mercado Livre"
     ],
     benefits: ["Visão segmentada", "Canais performáticos"],
-    screenName: "Pedidos por Canal"
+    screenName: "Pedidos por Canal",
+    screenshotUrl: screenshotAdminPedidos
   },
   {
     icon: <CreditCard className="h-5 w-5" />,
