@@ -32,6 +32,7 @@ import screenshotVendedorNotas from "@/assets/apresentacao/screenshot-vendedor-n
 import screenshotVendedorPedidos from "@/assets/apresentacao/screenshot-vendedor-pedidos.png";
 import screenshotVendedorParcelas from "@/assets/apresentacao/screenshot-vendedor-parcelas.png";
 import screenshotVendedorOrcamento from "@/assets/apresentacao/screenshot-vendedor-orcamento.png";
+import screenshotVendedorTutoriais from "@/assets/apresentacao/screenshot-vendedor-tutoriais.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -445,7 +446,8 @@ const vendedorFeatures = [
       "Reprodução direta na plataforma"
     ],
     benefits: ["Capacitação contínua", "Autonomia"],
-    screenName: "Tutoriais"
+    screenName: "Tutoriais",
+    screenshotUrl: screenshotVendedorTutoriais
   }
 ];
 
