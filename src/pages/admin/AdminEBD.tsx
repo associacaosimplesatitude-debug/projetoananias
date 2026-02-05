@@ -221,6 +221,7 @@ export default function AdminEBD() {
     tipo_perfil: 'vendedor' as 'vendedor' | 'representante',
     gerente_id: '' as string,
     is_gerente: false,
+    trabalha_penha: false,
   });
 
   // Clientes EBD filter states
@@ -1176,6 +1177,7 @@ export default function AdminEBD() {
           status: data.status,
           meta_mensal_valor: data.meta_mensal_valor,
           tipo_perfil: data.tipo_perfil,
+          polo: data.trabalha_penha ? 'penha' : null,
         },
       });
       if (error) throw error;
@@ -1219,6 +1221,7 @@ export default function AdminEBD() {
           tipo_perfil: data.tipo_perfil,
           gerente_id: data.gerente_id || null,
           is_gerente: data.is_gerente || false,
+          polo: data.trabalha_penha ? 'penha' : null,
         })
         .eq('id', id);
       if (error) throw error;
@@ -1480,7 +1483,7 @@ export default function AdminEBD() {
   };
 
   const resetForm = () => {
-    setFormData({ nome: '', email: '', senha: '', foto_url: '', comissao_percentual: 5, status: 'Ativo', meta_mensal_valor: 0, tipo_perfil: 'vendedor', gerente_id: '', is_gerente: false });
+    setFormData({ nome: '', email: '', senha: '', foto_url: '', comissao_percentual: 5, status: 'Ativo', meta_mensal_valor: 0, tipo_perfil: 'vendedor', gerente_id: '', is_gerente: false, trabalha_penha: false });
     setEditingVendedor(null);
     setShowPassword(false);
   };
@@ -1498,6 +1501,7 @@ export default function AdminEBD() {
       tipo_perfil: vendedor.tipo_perfil || 'vendedor',
       gerente_id: vendedor.gerente_id || '',
       is_gerente: vendedor.is_gerente || false,
+      trabalha_penha: vendedor.polo === 'penha',
     });
     setDialogOpen(true);
   };
@@ -2573,6 +2577,21 @@ export default function AdminEBD() {
                     <div>
                       <Label htmlFor="is_gerente" className="cursor-pointer font-medium">É Gerente</Label>
                       <p className="text-xs text-muted-foreground">Gerentes recebem comissão sobre vendas da equipe</p>
+                    </div>
+                  </div>
+
+                  {/* Checkbox Trabalha na Penha */}
+                  <div className="flex items-center space-x-2 p-3 rounded-lg border bg-muted/30">
+                    <input 
+                      type="checkbox" 
+                      id="trabalha_penha"
+                      checked={formData.trabalha_penha} 
+                      onChange={(e) => setFormData({ ...formData, trabalha_penha: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <div>
+                      <Label htmlFor="trabalha_penha" className="cursor-pointer font-medium">Trabalha na Loja Penha</Label>
+                      <p className="text-xs text-muted-foreground">Acesso ao PDV Balcão e opção "Pagar na Loja"</p>
                     </div>
                   </div>
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
