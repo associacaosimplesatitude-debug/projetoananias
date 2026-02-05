@@ -30,6 +30,7 @@ import screenshotVendedorProximas from "@/assets/apresentacao/screenshot-vendedo
 import screenshotVendedorRisco from "@/assets/apresentacao/screenshot-vendedor-risco.png";
 import screenshotVendedorNotas from "@/assets/apresentacao/screenshot-vendedor-notas.png";
 import screenshotVendedorPedidos from "@/assets/apresentacao/screenshot-vendedor-pedidos.png";
+import screenshotVendedorParcelas from "@/assets/apresentacao/screenshot-vendedor-parcelas.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -418,7 +419,8 @@ const vendedorFeatures = [
       "Detalhamento por cliente"
     ],
     benefits: ["Previsibilidade", "Controle financeiro pessoal"],
-    screenName: "Minhas Parcelas"
+    screenName: "Minhas Parcelas",
+    screenshotUrl: screenshotVendedorParcelas
   },
   {
     icon: <Calculator className="h-5 w-5" />,
