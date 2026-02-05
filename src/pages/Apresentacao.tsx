@@ -34,6 +34,7 @@ import screenshotVendedorParcelas from "@/assets/apresentacao/screenshot-vendedo
 import screenshotVendedorOrcamento from "@/assets/apresentacao/screenshot-vendedor-orcamento.png";
 import screenshotVendedorTutoriais from "@/assets/apresentacao/screenshot-vendedor-tutoriais.png";
 import screenshotAdminDashboard from "@/assets/apresentacao/screenshot-admin-dashboard.png";
+import screenshotAdminPropostas from "@/assets/apresentacao/screenshot-admin-propostas.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -478,7 +479,8 @@ const gerenteFeatures = [
       "Histórico completo"
     ],
     benefits: ["Rastreabilidade", "Gestão centralizada"],
-    screenName: "Propostas Digitais"
+    screenName: "Propostas Digitais",
+    screenshotUrl: screenshotAdminPropostas
   },
   {
     icon: <Package className="h-5 w-5" />,
