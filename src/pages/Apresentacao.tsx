@@ -20,6 +20,7 @@ import screenshotQuizzes from "@/assets/apresentacao/screenshot-quizzes.png";
 import screenshotDesafio from "@/assets/apresentacao/screenshot-desafio.png";
 import screenshotCatalogo from "@/assets/apresentacao/screenshot-catalogo.png";
 import screenshotPedidos from "@/assets/apresentacao/screenshot-pedidos.png";
+import screenshotVendedorDashboard from "@/assets/apresentacao/screenshot-vendedor-dashboard.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -275,7 +276,8 @@ const vendedorFeatures = [
       "Segmentação da carteira"
     ],
     benefits: ["Visão completa", "Priorização de ações", "Meta em tempo real"],
-    screenName: "Dashboard Vendedor"
+    screenName: "Dashboard Vendedor",
+    screenshotUrl: screenshotVendedorDashboard
   },
   {
     icon: <Users className="h-5 w-5" />,
