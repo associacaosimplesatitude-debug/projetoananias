@@ -43,6 +43,7 @@ import screenshotAdminClientes from "@/assets/apresentacao/screenshot-admin-clie
 import screenshotAdminLeads from "@/assets/apresentacao/screenshot-admin-leads.png";
 import screenshotAdminVendedores from "@/assets/apresentacao/screenshot-admin-vendedores.png";
 import screenshotAdminTransferencias from "@/assets/apresentacao/screenshot-admin-transferencias.png";
+import screenshotAdminCatalogo from "@/assets/apresentacao/screenshot-admin-catalogo.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -601,7 +602,8 @@ const gerenteFeatures = [
       "Integração Shopify"
     ],
     benefits: ["Gestão do portfólio", "Sincronização automática"],
-    screenName: "Catálogo Admin"
+    screenName: "Catálogo Admin",
+    screenshotUrl: screenshotAdminCatalogo
   },
   {
     icon: <Video className="h-5 w-5" />,
