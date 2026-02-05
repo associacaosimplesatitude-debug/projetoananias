@@ -175,6 +175,7 @@ import LandingEBD from "./pages/LandingEBD";
 import Tutoriais from "./pages/Tutoriais";
 import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
 import Apresentacao from "./pages/Apresentacao";
+import ApresentacaoScreenshots from "./pages/admin/ApresentacaoScreenshots";
 
 // Public Pages
 import PropostaDigital from "./pages/PropostaDigital";
@@ -426,6 +427,7 @@ const App = () => (
                       <Route path="bling" element={<BlingIntegration />} />
                       <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
                       <Route path="tutoriais" element={<GestaoTutoriais />} />
+                      <Route path="apresentacao" element={<ApresentacaoScreenshots />} />
                     </Route>
                     <Route
                       path="/admin/ebd"
