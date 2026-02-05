@@ -1,79 +1,81 @@
 
-# Plano: Dar Acesso "Pagar na Loja" ao Vendedor Antonio
 
-## Contexto
-A vendedora Gloria (`glorinha21carreiro@gmail.com`) trabalha na Loja Penha e possui acesso especial ao modal "Pagar na Loja", que permite:
-- Venda presencial com PIX, Dinheiro ou Maquininha
-- Acesso ao menu "PDV Balcao" no painel do vendedor
+# Plano: Adicionar Checkbox "Trabalha na Penha" no Formulário de Vendedores
 
-O vendedor Antonio (`antonio.goulart@editoracentralgospel.com`) também trabalhara na Loja Penha e precisa do mesmo acesso.
-
-## Abordagem Escolhida
-Adicionar um campo `polo` na tabela `vendedores` para identificar vendedores de loja/polo de forma escalavel. Isso evita verificacoes hardcoded e facilita adicionar novos vendedores de loja no futuro.
+## Objetivo
+Simplificar a definição de acesso à Loja Penha com um checkbox simples, ao invés de um Select com múltiplas opções.
 
 ---
 
-## Etapas de Implementacao
+## Implementação
 
-### 1. Adicionar campo `polo` na tabela `vendedores`
-Criar uma migracao para adicionar o campo `polo` (TEXT, nullable) que indica em qual polo/loja o vendedor trabalha.
+### 1. Atualizar o estado do formulário em AdminEBD.tsx
 
-```sql
--- Adicionar campo polo na tabela vendedores
-ALTER TABLE public.vendedores ADD COLUMN polo TEXT NULL;
+Adicionar `trabalha_penha: false` no estado inicial do formulário:
 
--- Atualizar vendedores da Loja Penha
-UPDATE public.vendedores 
-SET polo = 'penha' 
-WHERE email IN ('glorinha21carreiro@gmail.com', 'antonio.goulart@editoracentralgospel.com');
-```
-
-### 2. Atualizar VendedorLayout.tsx
-Alterar a verificacao de `isPolo` para usar o novo campo:
-
-**De:**
 ```typescript
-const isPolo = vendedor?.email === 'glorinha21carreiro@gmail.com';
+const [formData, setFormData] = useState({
+  // ... campos existentes
+  trabalha_penha: false,  // NOVO - checkbox simples
+});
 ```
 
-**Para:**
+### 2. Atualizar resetForm e handleEdit
+
+- `resetForm`: adicionar `trabalha_penha: false`
+- `handleEdit`: carregar `trabalha_penha: vendedor.polo === 'penha'`
+
+### 3. Adicionar Checkbox no formulário
+
+Após o checkbox "É Gerente", adicionar:
+
 ```typescript
-const isPolo = !!vendedor?.polo;
+<div className="flex items-center space-x-2">
+  <Checkbox
+    id="trabalha_penha"
+    checked={formData.trabalha_penha}
+    onCheckedChange={(checked) => 
+      setFormData({ ...formData, trabalha_penha: !!checked })
+    }
+  />
+  <Label htmlFor="trabalha_penha" className="cursor-pointer">
+    Trabalha na Loja Penha
+  </Label>
+</div>
+<p className="text-xs text-muted-foreground">
+  Vendedores da Penha têm acesso ao PDV Balcão e opção "Pagar na Loja"
+</p>
 ```
 
-### 3. Atualizar ShopifyPedidos.tsx
-Alterar a prop `showPagarNaLoja` para usar o novo campo:
+### 4. Converter checkbox para campo polo no envio
 
-**De:**
+Ao criar/atualizar vendedor, converter o boolean para o valor do polo:
+
 ```typescript
-showPagarNaLoja={vendedor?.email?.toLowerCase().includes('glorinha') || false}
+polo: formData.trabalha_penha ? 'penha' : null
 ```
 
-**Para:**
-```typescript
-showPagarNaLoja={!!vendedor?.polo}
-```
+### 5. Atualizar Edge Function create-vendedor
 
-### 4. Atualizar tipos TypeScript
-O hook `useVendedor` ja retorna todos os campos da tabela vendedores, entao o campo `polo` estara disponivel automaticamente apos a migracao (o Supabase regenera os tipos).
+Adicionar `polo` na criação do vendedor (já previsto no plano anterior).
 
 ---
 
 ## Arquivos a Modificar
-1. `supabase/migrations/[nova].sql` - Adicionar campo e dados
-2. `src/components/vendedor/VendedorLayout.tsx` - Linha 73
-3. `src/pages/shopify/ShopifyPedidos.tsx` - Linha 1523
+
+1. **`src/pages/admin/AdminEBD.tsx`**
+   - Estado inicial: adicionar `trabalha_penha: false`
+   - `resetForm`: adicionar `trabalha_penha: false`
+   - `handleEdit`: converter `polo === 'penha'` para boolean
+   - Formulário: adicionar Checkbox
+   - Envio: converter boolean para `polo`
+
+2. **`supabase/functions/create-vendedor/index.ts`**
+   - Adicionar `polo` nos parâmetros e no insert
 
 ---
 
-## Secao Tecnica
+## Resultado
 
-### Estrutura do Campo `polo`
-- Tipo: TEXT (nullable)
-- Valores possiveis: `penha`, `pernambuco`, `matriz`, ou NULL (vendedor externo)
-- Vendedores com polo nao-nulo terao acesso a funcionalidades de loja
+Um checkbox simples "Trabalha na Loja Penha" que, quando marcado, dá ao vendedor o mesmo acesso que Gloria e Antonio possuem (PDV Balcão e pagamento na loja).
 
-### Impacto
-- Nenhuma alteracao em RLS (campo informativo)
-- A edge function `bling-create-order` ja possui o Antonio no mapeamento de IDs
-- O modal "Pagar na Loja" ja mostra a label "Loja Penha" corretamente
