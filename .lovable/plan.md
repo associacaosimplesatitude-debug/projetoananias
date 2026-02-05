@@ -1,73 +1,79 @@
 
-# Plano: Corrigir Validação de Duplicidade para CPF
+# Plano: Dar Acesso "Pagar na Loja" ao Vendedor Antonio
 
-## Problema
+## Contexto
+A vendedora Gloria (`glorinha21carreiro@gmail.com`) trabalha na Loja Penha e possui acesso especial ao modal "Pagar na Loja", que permite:
+- Venda presencial com PIX, Dinheiro ou Maquininha
+- Acesso ao menu "PDV Balcao" no painel do vendedor
 
-O sistema de detecção de clientes duplicados funciona corretamente para CNPJ, mas não para CPF. Quando um vendedor tenta cadastrar um cliente com CPF já existente de outro vendedor, o sistema deveria:
+O vendedor Antonio (`antonio.goulart@editoracentralgospel.com`) também trabalhara na Loja Penha e precisa do mesmo acesso.
 
-1. Bloquear o cadastro
-2. Mostrar mensagem informando que o cliente pertence a outro vendedor  
-3. Oferecer opção de solicitar transferência ao gerente
-
-Isso funciona para CNPJ porque existe um índice único, mas não funciona para CPF porque esse índice não existe.
-
-## Causa Raiz
-
-- Existe: `ebd_clientes_cnpj_unique_not_null` (índice único para CNPJ)
-- Não existe: índice único equivalente para CPF
-
-O código atual depende do erro de banco `23505` (violação de unicidade) para acionar o fluxo de "cliente já pertence a outro vendedor". Sem o índice único em CPF, esse erro nunca ocorre.
-
-## Solução
-
-Criar um índice único parcial para CPF, igual ao que já existe para CNPJ.
-
-## O que será alterado
-
-| Componente | Alteração |
-|------------|-----------|
-| Banco de dados | Criar índice único `ebd_clientes_cpf_unique_not_null` |
-
-## Resultado esperado
-
-Após a correção, quando um vendedor tentar cadastrar um cliente com CPF já existente:
-1. O banco retornará erro `23505`
-2. O sistema buscará o cliente existente  
-3. Exibirá o alerta com o nome do vendedor atual
-4. Permitirá solicitar transferência ao gerente
-
-O fluxo será idêntico ao que já funciona para CNPJ.
+## Abordagem Escolhida
+Adicionar um campo `polo` na tabela `vendedores` para identificar vendedores de loja/polo de forma escalavel. Isso evita verificacoes hardcoded e facilita adicionar novos vendedores de loja no futuro.
 
 ---
 
-## Seção Técnica
+## Etapas de Implementacao
 
-**SQL a ser executado:**
-
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS ebd_clientes_cpf_unique_not_null 
-ON public.ebd_clientes (cpf) 
-WHERE (cpf IS NOT NULL);
-```
-
-**Nota sobre dados duplicados:**
-
-Antes de criar o índice, os 4 cadastros duplicados da cliente VANIA FERNANDES CALIXTO ACCIOLY (CPF 754.359.777-20) precisam ser removidos, pois a criação do índice falhará se existirem duplicatas. Serão mantidos apenas os registros originais.
-
-**Limpeza necessária:**
+### 1. Adicionar campo `polo` na tabela `vendedores`
+Criar uma migracao para adicionar o campo `polo` (TEXT, nullable) que indica em qual polo/loja o vendedor trabalha.
 
 ```sql
--- Remover duplicatas, mantendo apenas o registro mais antigo de cada CPF
-DELETE FROM ebd_clientes 
-WHERE id IN (
-  SELECT id FROM (
-    SELECT id, ROW_NUMBER() OVER (
-      PARTITION BY cpf 
-      ORDER BY created_at ASC
-    ) as rn 
-    FROM ebd_clientes 
-    WHERE cpf IS NOT NULL
-  ) sub 
-  WHERE rn > 1
-);
+-- Adicionar campo polo na tabela vendedores
+ALTER TABLE public.vendedores ADD COLUMN polo TEXT NULL;
+
+-- Atualizar vendedores da Loja Penha
+UPDATE public.vendedores 
+SET polo = 'penha' 
+WHERE email IN ('glorinha21carreiro@gmail.com', 'antonio.goulart@editoracentralgospel.com');
 ```
+
+### 2. Atualizar VendedorLayout.tsx
+Alterar a verificacao de `isPolo` para usar o novo campo:
+
+**De:**
+```typescript
+const isPolo = vendedor?.email === 'glorinha21carreiro@gmail.com';
+```
+
+**Para:**
+```typescript
+const isPolo = !!vendedor?.polo;
+```
+
+### 3. Atualizar ShopifyPedidos.tsx
+Alterar a prop `showPagarNaLoja` para usar o novo campo:
+
+**De:**
+```typescript
+showPagarNaLoja={vendedor?.email?.toLowerCase().includes('glorinha') || false}
+```
+
+**Para:**
+```typescript
+showPagarNaLoja={!!vendedor?.polo}
+```
+
+### 4. Atualizar tipos TypeScript
+O hook `useVendedor` ja retorna todos os campos da tabela vendedores, entao o campo `polo` estara disponivel automaticamente apos a migracao (o Supabase regenera os tipos).
+
+---
+
+## Arquivos a Modificar
+1. `supabase/migrations/[nova].sql` - Adicionar campo e dados
+2. `src/components/vendedor/VendedorLayout.tsx` - Linha 73
+3. `src/pages/shopify/ShopifyPedidos.tsx` - Linha 1523
+
+---
+
+## Secao Tecnica
+
+### Estrutura do Campo `polo`
+- Tipo: TEXT (nullable)
+- Valores possiveis: `penha`, `pernambuco`, `matriz`, ou NULL (vendedor externo)
+- Vendedores com polo nao-nulo terao acesso a funcionalidades de loja
+
+### Impacto
+- Nenhuma alteracao em RLS (campo informativo)
+- A edge function `bling-create-order` ja possui o Antonio no mapeamento de IDs
+- O modal "Pagar na Loja" ja mostra a label "Loja Penha" corretamente
