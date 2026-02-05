@@ -25,6 +25,7 @@ import screenshotVendedorClientes from "@/assets/apresentacao/screenshot-vendedo
 import screenshotVendedorPdv from "@/assets/apresentacao/screenshot-vendedor-pdv.png";
 import screenshotVendedorPosVenda from "@/assets/apresentacao/screenshot-vendedor-pos-venda.png";
 import screenshotVendedorLeads from "@/assets/apresentacao/screenshot-vendedor-leads.png";
+import screenshotVendedorAtivacao from "@/assets/apresentacao/screenshot-vendedor-ativacao.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -347,7 +348,8 @@ const vendedorFeatures = [
       "Senha temporária visível"
     ],
     benefits: ["Ninguém sem acesso", "Processo simplificado"],
-    screenName: "Ativação Pendente"
+    screenName: "Ativação Pendente",
+    screenshotUrl: screenshotVendedorAtivacao
   },
   {
     icon: <TrendingUp className="h-5 w-5" />,
