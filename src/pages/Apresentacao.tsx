@@ -18,6 +18,7 @@ import screenshotLancamento from "@/assets/apresentacao/screenshot-lancamento.pn
 import screenshotFrequencia from "@/assets/apresentacao/screenshot-frequencia.png";
 import screenshotQuizzes from "@/assets/apresentacao/screenshot-quizzes.png";
 import screenshotDesafio from "@/assets/apresentacao/screenshot-desafio.png";
+import screenshotCatalogo from "@/assets/apresentacao/screenshot-catalogo.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -241,7 +242,8 @@ const superintendenteFeatures = [
       "Adicionar ao carrinho"
     ],
     benefits: ["Acesso fácil", "Compra autônoma", "Catálogo atualizado"],
-    screenName: "Catálogo de Produtos"
+    screenName: "Catálogo de Produtos",
+    screenshotUrl: screenshotCatalogo
   },
   {
     icon: <Package className="h-5 w-5" />,
