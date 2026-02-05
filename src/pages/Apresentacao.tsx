@@ -37,6 +37,7 @@ import screenshotAdminDashboard from "@/assets/apresentacao/screenshot-admin-das
 import screenshotAdminPropostas from "@/assets/apresentacao/screenshot-admin-propostas.png";
 import screenshotAdminPedidos from "@/assets/apresentacao/screenshot-admin-pedidos.png";
 import screenshotAdminAprovacao from "@/assets/apresentacao/screenshot-admin-aprovacao.png";
+import screenshotAdminComissoes from "@/assets/apresentacao/screenshot-admin-comissoes.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -519,7 +520,8 @@ const gerenteFeatures = [
       "Detalhamento por operação"
     ],
     benefits: ["Controle preciso", "Transparência", "Gestão hierárquica"],
-    screenName: "Gestão de Comissões"
+    screenName: "Gestão de Comissões",
+    screenshotUrl: screenshotAdminComissoes
   },
   {
     icon: <UserPlus className="h-5 w-5" />,
