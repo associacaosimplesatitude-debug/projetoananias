@@ -59,7 +59,8 @@ serve(async (req) => {
       meta_mensal_valor,
       tipo_perfil = 'vendedor',
       gerente_id = null,
-      is_gerente = false
+      is_gerente = false,
+      polo = null
     } = await req.json();
 
     if (!email || !password || !nome) {
@@ -119,7 +120,7 @@ serve(async (req) => {
       authUserId = authData.user.id;
     }
 
-    // Create vendedor with tipo_perfil, gerente_id, is_gerente
+    // Create vendedor with tipo_perfil, gerente_id, is_gerente, polo
     const { data: vendedorData, error: vendedorError } = await supabaseAdmin
       .from('vendedores')
       .insert({
@@ -132,6 +133,7 @@ serve(async (req) => {
         tipo_perfil: tipo_perfil,
         gerente_id: gerente_id || null,
         is_gerente: is_gerente || false,
+        polo: polo || null,
       })
       .select()
       .single();
