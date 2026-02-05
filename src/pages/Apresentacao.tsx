@@ -13,6 +13,7 @@ import screenshotAlunos from "@/assets/apresentacao/screenshot-alunos.png";
 import screenshotProfessores from "@/assets/apresentacao/screenshot-professores.png";
 import screenshotTurmas from "@/assets/apresentacao/screenshot-turmas.png";
 import screenshotRevistas from "@/assets/apresentacao/screenshot-revistas.png";
+import screenshotEscala from "@/assets/apresentacao/screenshot-escala.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -171,7 +172,8 @@ const superintendenteFeatures = [
       "Substituições"
     ],
     benefits: ["Organização antecipada", "Transparência", "Cobertura garantida"],
-    screenName: "Escala de Professores"
+    screenName: "Escala de Professores",
+    screenshotUrl: screenshotEscala
   },
   {
     icon: <ClipboardList className="h-5 w-5" />,
