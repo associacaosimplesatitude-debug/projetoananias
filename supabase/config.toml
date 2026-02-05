@@ -263,3 +263,6 @@ verify_jwt = true
 
 [functions.bling-count-sku-sales]
 verify_jwt = true
+
+[functions.apresentacao-ai-assistant]
+verify_jwt = false
