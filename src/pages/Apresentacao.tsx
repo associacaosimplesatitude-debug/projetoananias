@@ -42,6 +42,7 @@ import screenshotAdminAtribuicao from "@/assets/apresentacao/screenshot-admin-at
 import screenshotAdminClientes from "@/assets/apresentacao/screenshot-admin-clientes.png";
 import screenshotAdminLeads from "@/assets/apresentacao/screenshot-admin-leads.png";
 import screenshotAdminVendedores from "@/assets/apresentacao/screenshot-admin-vendedores.png";
+import screenshotAdminTransferencias from "@/assets/apresentacao/screenshot-admin-transferencias.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -588,7 +589,8 @@ const gerenteFeatures = [
       "Histórico completo"
     ],
     benefits: ["Processo organizado", "Auditoria"],
-    screenName: "Transferências de Clientes"
+    screenName: "Transferências de Clientes",
+    screenshotUrl: screenshotAdminTransferencias
   },
   {
     icon: <BookOpen className="h-5 w-5" />,
