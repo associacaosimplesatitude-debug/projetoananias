@@ -22,6 +22,7 @@ import screenshotCatalogo from "@/assets/apresentacao/screenshot-catalogo.png";
 import screenshotPedidos from "@/assets/apresentacao/screenshot-pedidos.png";
 import screenshotVendedorDashboard from "@/assets/apresentacao/screenshot-vendedor-dashboard.png";
 import screenshotVendedorClientes from "@/assets/apresentacao/screenshot-vendedor-clientes.png";
+import screenshotVendedorPdv from "@/assets/apresentacao/screenshot-vendedor-pdv.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -305,7 +306,8 @@ const vendedorFeatures = [
       "Aplicação automática de descontos"
     ],
     benefits: ["Vendas rápidas", "Integração com estoque", "Desconto automático"],
-    screenName: "PDV Balcão"
+    screenName: "PDV Balcão",
+    screenshotUrl: screenshotVendedorPdv
   },
   {
     icon: <UserCheck className="h-5 w-5" />,
