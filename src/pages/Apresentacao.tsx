@@ -24,6 +24,7 @@ import screenshotVendedorDashboard from "@/assets/apresentacao/screenshot-vended
 import screenshotVendedorClientes from "@/assets/apresentacao/screenshot-vendedor-clientes.png";
 import screenshotVendedorPdv from "@/assets/apresentacao/screenshot-vendedor-pdv.png";
 import screenshotVendedorPosVenda from "@/assets/apresentacao/screenshot-vendedor-pos-venda.png";
+import screenshotVendedorLeads from "@/assets/apresentacao/screenshot-vendedor-leads.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -333,7 +334,8 @@ const vendedorFeatures = [
       "Motivo de perda/cancelamento"
     ],
     benefits: ["Gestão visual do funil", "Conversão", "Histórico"],
-    screenName: "Kanban de Leads"
+    screenName: "Kanban de Leads",
+    screenshotUrl: screenshotVendedorLeads
   },
   {
     icon: <UserPlus className="h-5 w-5" />,
