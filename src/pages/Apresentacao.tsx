@@ -636,7 +636,7 @@ export default function Apresentacao() {
                 Voltar
               </Button>
               <div>
-                <h1 className="text-xl font-bold">Sistema EBD - Guia Completo</h1>
+                <h1 className="text-xl font-bold">Apresentação Sistema EBD - Central Gospel</h1>
                 <p className="text-sm text-muted-foreground">
                   Todas as ferramentas para gestão, vendas e acompanhamento
                 </p>
