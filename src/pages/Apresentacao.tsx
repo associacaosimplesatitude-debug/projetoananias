@@ -640,7 +640,7 @@ export default function Apresentacao() {
             </TabsTrigger>
             <TabsTrigger value="gerente" className="text-xs sm:text-sm">
               <Settings className="h-4 w-4 mr-1.5 hidden sm:inline" />
-              Gerente EBD
+              Administração
             </TabsTrigger>
           </TabsList>
 
@@ -683,7 +683,7 @@ export default function Apresentacao() {
           {/* Seção Gerente */}
           <TabsContent value="gerente" className="space-y-6">
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold mb-2">Painel do Gerente EBD (Admin)</h2>
+              <h2 className="text-2xl font-bold mb-2">Painel Administrativo</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
                 Visão gerencial completa: dashboard de vendas, gestão de equipe, comissões, 
                 aprovações e controle de todo o negócio.
