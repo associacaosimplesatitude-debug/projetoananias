@@ -44,6 +44,7 @@ import screenshotAdminLeads from "@/assets/apresentacao/screenshot-admin-leads.p
 import screenshotAdminVendedores from "@/assets/apresentacao/screenshot-admin-vendedores.png";
 import screenshotAdminTransferencias from "@/assets/apresentacao/screenshot-admin-transferencias.png";
 import screenshotAdminCatalogo from "@/assets/apresentacao/screenshot-admin-catalogo.png";
+import screenshotAdminTutoriais from "@/assets/apresentacao/screenshot-admin-tutoriais.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -614,7 +615,8 @@ const gerenteFeatures = [
       "Acesso para vendedores e clientes"
     ],
     benefits: ["Treinamento escalável", "Suporte em vídeo"],
-    screenName: "Gestão de Tutoriais"
+    screenName: "Gestão de Tutoriais",
+    screenshotUrl: screenshotAdminTutoriais
   }
 ];
 
