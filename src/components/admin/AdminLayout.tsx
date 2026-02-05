@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from "react-router-dom";
-import { 
+import {
   LayoutDashboard, 
   Users, 
   Building, 
@@ -19,6 +19,7 @@ import {
   BarChart3,
   Video,
   BookOpenText,
+  Presentation,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -281,6 +282,14 @@ function AdminSidebar() {
                   <RouterNavLink to="/royalties">
                     <BookOpenText className="h-4 w-4" />
                     <span>Royalties</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/apresentacao')}>
+                  <RouterNavLink to="/admin/apresentacao">
+                    <Presentation className="h-4 w-4" />
+                    <span>Apresentação</span>
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -142,6 +142,33 @@ export type Database = {
         }
         Relationships: []
       }
+      apresentacao_screenshots: {
+        Row: {
+          created_at: string
+          feature_key: string
+          id: string
+          screenshot_url: string
+          section: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          feature_key: string
+          id?: string
+          screenshot_url: string
+          section: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          feature_key?: string
+          id?: string
+          screenshot_url?: string
+          section?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       assinaturas: {
         Row: {
           cliente_id: string
