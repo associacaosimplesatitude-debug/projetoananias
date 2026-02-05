@@ -15,6 +15,7 @@ import screenshotTurmas from "@/assets/apresentacao/screenshot-turmas.png";
 import screenshotRevistas from "@/assets/apresentacao/screenshot-revistas.png";
 import screenshotEscala from "@/assets/apresentacao/screenshot-escala.png";
 import screenshotLancamento from "@/assets/apresentacao/screenshot-lancamento.png";
+import screenshotFrequencia from "@/assets/apresentacao/screenshot-frequencia.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -199,7 +200,8 @@ const superintendenteFeatures = [
       "Exportação de dados"
     ],
     benefits: ["Análise de engajamento", "Identificação de ausentes", "Ações de reativação"],
-    screenName: "Relatórios de Frequência"
+    screenName: "Relatórios de Frequência",
+    screenshotUrl: screenshotFrequencia
   },
   {
     icon: <Gamepad2 className="h-5 w-5" />,
