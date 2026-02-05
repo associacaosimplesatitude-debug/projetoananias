@@ -27,6 +27,7 @@ import screenshotVendedorPosVenda from "@/assets/apresentacao/screenshot-vendedo
 import screenshotVendedorLeads from "@/assets/apresentacao/screenshot-vendedor-leads.png";
 import screenshotVendedorAtivacao from "@/assets/apresentacao/screenshot-vendedor-ativacao.png";
 import screenshotVendedorProximas from "@/assets/apresentacao/screenshot-vendedor-proximas.png";
+import screenshotVendedorRisco from "@/assets/apresentacao/screenshot-vendedor-risco.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -375,7 +376,8 @@ const vendedorFeatures = [
       "Mensagem de reativação sugerida"
     ],
     benefits: ["Prevenção de churn", "Identificação precoce"],
-    screenName: "Clientes em Risco"
+    screenName: "Clientes em Risco",
+    screenshotUrl: screenshotVendedorRisco
   },
   {
     icon: <FileText className="h-5 w-5" />,
