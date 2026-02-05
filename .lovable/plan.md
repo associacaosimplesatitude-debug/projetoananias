@@ -1,41 +1,44 @@
 
-
-# Correção: Edge Function bling-search-client não deployada
+# Correção: Edge Function calculate-shipping não deployada
 
 ## Diagnóstico do Problema
 
-A busca de cliente no Bling não está funcionando porque a Edge Function `bling-search-client` **não está deployada** no ambiente de produção.
+O cálculo de frete automático está falhando porque a Edge Function `calculate-shipping` **não está deployada** no servidor.
 
-### Evidências encontradas:
-- **Console do navegador**: `FunctionsFetchError: Failed to send a request to the Edge Function`
-- **Teste direto**: Retorna 404 - "Requested function was not found"
-- **Logs da função**: Nenhum log encontrado (confirma que não está ativa)
+### Evidências:
+- Teste direto da função retorna **404 - "Requested function was not found"**
+- Não há logs registrados para esta função (confirma que não está ativa)
+- Os secrets `CORREIOS_USER` e `CORREIOS_PASSWORD` estão configurados corretamente
 
 ### Causa raiz:
-Os deploys estão falhando com "Bundle generation timed out" - um problema temporário de infraestrutura.
+A função existe no código fonte (`supabase/functions/calculate-shipping/index.ts`) mas nunca foi deployada ou o deploy expirou/falhou.
 
 ## Solução Proposta
 
-### 1. Forçar redeploy da função
-Adicionar um comentário insignificante no código para forçar nova detecção de mudança e tentar deploy:
+### Fazer deploy da Edge Function
+
+Adicionar um comentário no início do arquivo para forçar detecção de mudança e triggerar o deploy:
 
 ```typescript
-// supabase/functions/bling-search-client/index.ts
-// Linha 1: Adicionar comentário com timestamp
-// v2 - redeploy fix 2026-02-05
+// supabase/functions/calculate-shipping/index.ts
+// v2 - deploy fix 2026-02-05
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 ```
 
-### 2. Verificar após deploy
-- Testar chamada direta à edge function
-- Confirmar que busca de cliente funciona no painel do vendedor
-
-## Arquivos a modificar
+### Arquivo a modificar
 
 | Arquivo | Ação |
 |---------|------|
-| `supabase/functions/bling-search-client/index.ts` | Adicionar comentário para forçar redeploy |
+| `supabase/functions/calculate-shipping/index.ts` | Adicionar comentário para forçar deploy |
 
-## Observação técnica
-Se o timeout persistir, pode ser necessário aguardar alguns minutos para que a infraestrutura se estabilize, pois o erro "Bundle generation timed out" indica problema temporário no serviço de deploy.
+## Verificação pós-deploy
 
+Após o deploy, testar a função com:
+- CEP: 21810020 (Rio de Janeiro)
+- Items com quantidade de produtos
+
+A função deve retornar os valores de PAC e SEDEX calculados por região.
+
+## Observação
+
+O código da função está correto - utiliza uma tabela de preços por região baseada no CEP e calcula o frete considerando o peso total dos itens.
