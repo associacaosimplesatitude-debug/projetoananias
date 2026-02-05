@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 
+// Importar screenshots
+import screenshotDashboard from "@/assets/apresentacao/screenshot-dashboard.png";
+
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
   <div className="mt-4 border-2 border-dashed border-muted-foreground/30 rounded-lg overflow-hidden">
@@ -21,6 +24,19 @@ const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
   </div>
 );
 
+// Componente para exibir Screenshot real
+const ScreenshotImage = ({ src, screenName }: { src: string; screenName: string }) => (
+  <div className="mt-4 border border-border rounded-lg overflow-hidden shadow-sm">
+    <AspectRatio ratio={16 / 9}>
+      <img 
+        src={src} 
+        alt={screenName} 
+        className="w-full h-full object-cover object-top"
+      />
+    </AspectRatio>
+  </div>
+);
+
 // Card de Funcionalidade
 interface FeatureCardProps {
   icon: React.ReactNode;
@@ -28,9 +44,10 @@ interface FeatureCardProps {
   features: string[];
   benefits: string[];
   screenName: string;
+  screenshotUrl?: string;
 }
 
-const FeatureCard = ({ icon, title, features, benefits, screenName }: FeatureCardProps) => (
+const FeatureCard = ({ icon, title, features, benefits, screenName, screenshotUrl }: FeatureCardProps) => (
   <Card className="h-full">
     <CardHeader className="pb-3">
       <div className="flex items-center gap-3">
@@ -64,7 +81,11 @@ const FeatureCard = ({ icon, title, features, benefits, screenName }: FeatureCar
         </div>
       </div>
       
-      <ScreenshotPlaceholder screenName={screenName} />
+      {screenshotUrl ? (
+        <ScreenshotImage src={screenshotUrl} screenName={screenName} />
+      ) : (
+        <ScreenshotPlaceholder screenName={screenName} />
+      )}
     </CardContent>
   </Card>
 );
@@ -81,7 +102,8 @@ const superintendenteFeatures = [
       "Cards de resumo da EBD"
     ],
     benefits: ["Visão completa", "Dados em tempo real", "Tomada de decisão"],
-    screenName: "Dashboard EBD"
+    screenName: "Dashboard EBD",
+    screenshotUrl: screenshotDashboard
   },
   {
     icon: <Users className="h-5 w-5" />,
