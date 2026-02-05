@@ -16,6 +16,7 @@ import screenshotRevistas from "@/assets/apresentacao/screenshot-revistas.png";
 import screenshotEscala from "@/assets/apresentacao/screenshot-escala.png";
 import screenshotLancamento from "@/assets/apresentacao/screenshot-lancamento.png";
 import screenshotFrequencia from "@/assets/apresentacao/screenshot-frequencia.png";
+import screenshotQuizzes from "@/assets/apresentacao/screenshot-quizzes.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -213,7 +214,8 @@ const superintendenteFeatures = [
       "Resultados em tempo real"
     ],
     benefits: ["Gamificação", "Avaliação", "Engajamento"],
-    screenName: "Quizzes EBD"
+    screenName: "Quizzes EBD",
+    screenshotUrl: screenshotQuizzes
   },
   {
     icon: <Trophy className="h-5 w-5" />,
