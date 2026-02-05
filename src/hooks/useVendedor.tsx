@@ -15,6 +15,7 @@ interface Vendedor {
   tipo_perfil: TipoPerfil;
   status: string;
   foto_url: string | null;
+  polo: string | null;
 }
 
 export function useVendedor() {

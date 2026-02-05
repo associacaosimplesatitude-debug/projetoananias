@@ -69,8 +69,8 @@ export function VendedorLayout() {
   const { vendedor, tipoPerfil, isRepresentante, isLoading, isImpersonating } = useVendedor();
   const { stopImpersonation } = useImpersonation();
   
-  // Verificar se é vendedor de polo (Glorinha - Polo Penha)
-  const isPolo = vendedor?.email === 'glorinha21carreiro@gmail.com';
+  // Verificar se é vendedor de polo (campo polo na tabela vendedores)
+  const isPolo = !!vendedor?.polo;
   
   const isActive = (path: string) => {
     if (path === "/vendedor") {

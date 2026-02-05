@@ -5712,6 +5712,7 @@ export type Database = {
           is_gerente: boolean | null
           meta_mensal_valor: number
           nome: string
+          polo: string | null
           status: string
           tipo_perfil: string
           updated_at: string
@@ -5727,6 +5728,7 @@ export type Database = {
           is_gerente?: boolean | null
           meta_mensal_valor?: number
           nome: string
+          polo?: string | null
           status?: string
           tipo_perfil?: string
           updated_at?: string
@@ -5742,6 +5744,7 @@ export type Database = {
           is_gerente?: boolean | null
           meta_mensal_valor?: number
           nome?: string
+          polo?: string | null
           status?: string
           tipo_perfil?: string
           updated_at?: string

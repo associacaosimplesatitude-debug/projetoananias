@@ -1520,7 +1520,7 @@ export default function ShopifyPedidos() {
             onSelectFaturamento={handleSelectFaturamento}
             onSelectPagamentoPadrao={handleSelectPagamentoPadrao}
             canUseFreteManual={canUseFreteManual}
-            showPagarNaLoja={vendedor?.email?.toLowerCase().includes('glorinha') || false}
+            showPagarNaLoja={!!vendedor?.polo}
             onSelectPagamentoLoja={async (pagamentoData: PagamentoLojaData) => {
               if (!selectedCliente) return;
               setShowFaturamentoDialog(false);
