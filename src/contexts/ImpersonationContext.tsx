@@ -11,6 +11,7 @@ interface ImpersonatedVendedor {
   tipo_perfil: 'vendedor' | 'representante';
   status: string;
   foto_url: string | null;
+  polo: string | null;
 }
 
 interface ImpersonationContextType {

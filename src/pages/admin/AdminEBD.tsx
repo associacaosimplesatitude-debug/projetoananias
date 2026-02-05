@@ -117,6 +117,7 @@ interface Vendedor {
   tipo_perfil: 'vendedor' | 'representante';
   gerente_id: string | null;
   is_gerente: boolean;
+  polo: string | null;
 }
 
 interface Church {
@@ -2633,6 +2634,7 @@ export default function AdminEBD() {
                         tipo_perfil: vendedor.tipo_perfil,
                         status: vendedor.status,
                         foto_url: vendedor.foto_url,
+                        polo: vendedor.polo || null,
                       })}
                       title="Acessar o painel como este vendedor"
                     >
