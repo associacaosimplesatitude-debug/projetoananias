@@ -12,6 +12,7 @@ import screenshotDashboard from "@/assets/apresentacao/screenshot-dashboard.png"
 import screenshotAlunos from "@/assets/apresentacao/screenshot-alunos.png";
 import screenshotProfessores from "@/assets/apresentacao/screenshot-professores.png";
 import screenshotTurmas from "@/assets/apresentacao/screenshot-turmas.png";
+import screenshotRevistas from "@/assets/apresentacao/screenshot-revistas.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -157,7 +158,8 @@ const superintendenteFeatures = [
       "Controle de conteúdo liberado"
     ],
     benefits: ["Controle do material", "Sincronização", "Acompanhamento"],
-    screenName: "Ativação de Revistas"
+    screenName: "Ativação de Revistas",
+    screenshotUrl: screenshotRevistas
   },
   {
     icon: <Calendar className="h-5 w-5" />,
