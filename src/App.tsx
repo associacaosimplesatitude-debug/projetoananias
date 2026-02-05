@@ -174,6 +174,7 @@ import EBDLogin from "./pages/EBDLogin";
 import LandingEBD from "./pages/LandingEBD";
 import Tutoriais from "./pages/Tutoriais";
 import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
+import Apresentacao from "./pages/Apresentacao";
 
 // Public Pages
 import PropostaDigital from "./pages/PropostaDigital";
@@ -197,6 +198,7 @@ const App = () => (
               } />
               <Route path="/login/ebd" element={<EBDLogin />} />
               <Route path="/gestao-ebd" element={<LandingEBD />} />
+              <Route path="/apresentacao" element={<Apresentacao />} />
               <Route path="/proposta/:token" element={<PropostaDigital />} />
               <Route path="/ebd/checkout-shopify-mp" element={<EBDCheckoutShopifyMP />} />
               <Route path="/cadastro-aluno/:churchId" element={<CadastroAlunoPublico />} />
