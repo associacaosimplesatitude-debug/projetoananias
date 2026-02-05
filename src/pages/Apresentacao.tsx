@@ -36,6 +36,7 @@ import screenshotVendedorTutoriais from "@/assets/apresentacao/screenshot-vended
 import screenshotAdminDashboard from "@/assets/apresentacao/screenshot-admin-dashboard.png";
 import screenshotAdminPropostas from "@/assets/apresentacao/screenshot-admin-propostas.png";
 import screenshotAdminPedidos from "@/assets/apresentacao/screenshot-admin-pedidos.png";
+import screenshotAdminAprovacao from "@/assets/apresentacao/screenshot-admin-aprovacao.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -505,7 +506,8 @@ const gerenteFeatures = [
       "Aprovação/Rejeição"
     ],
     benefits: ["Controle financeiro", "Redução de inadimplência"],
-    screenName: "Aprovação de Faturamento"
+    screenName: "Aprovação de Faturamento",
+    screenshotUrl: screenshotAdminAprovacao
   },
   {
     icon: <Award className="h-5 w-5" />,
