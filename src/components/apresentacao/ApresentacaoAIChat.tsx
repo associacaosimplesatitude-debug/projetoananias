@@ -16,7 +16,7 @@ export function ApresentacaoAIChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Olá! 👋 Sou o assistente virtual do **Sistema EBD**. Estou aqui para ajudar você a conhecer todas as funcionalidades e benefícios do nosso sistema.\n\nPosso explicar sobre os painéis do **Superintendente**, **Vendedor** ou **Administrativo**. O que gostaria de saber?",
+      content: "Olá! Pastor Silas Filho 👋 Sou o assistente virtual do **Sistema EBD**. Estou aqui para lhe apresentar todas as funcionalidades e benefícios do nosso sistema.\n\nPosso explicar sobre os painéis do **Superintendente**, **Vendedor** ou **Administrativo**. O que gostaria de saber?",
     },
   ]);
   const [input, setInput] = useState("");
