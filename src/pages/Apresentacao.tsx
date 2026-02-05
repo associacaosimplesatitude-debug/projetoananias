@@ -11,6 +11,7 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 import screenshotDashboard from "@/assets/apresentacao/screenshot-dashboard.png";
 import screenshotAlunos from "@/assets/apresentacao/screenshot-alunos.png";
 import screenshotProfessores from "@/assets/apresentacao/screenshot-professores.png";
+import screenshotTurmas from "@/assets/apresentacao/screenshot-turmas.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -143,7 +144,8 @@ const superintendenteFeatures = [
       "Capacidade máxima"
     ],
     benefits: ["Organização pedagógica", "Distribuição equilibrada", "Planejamento"],
-    screenName: "Gestão de Turmas"
+    screenName: "Gestão de Turmas",
+    screenshotUrl: screenshotTurmas
   },
   {
     icon: <BookMarked className="h-5 w-5" />,
