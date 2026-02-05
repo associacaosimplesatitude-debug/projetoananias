@@ -9,6 +9,7 @@ import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 // Importar screenshots
 import screenshotDashboard from "@/assets/apresentacao/screenshot-dashboard.png";
+import screenshotAlunos from "@/assets/apresentacao/screenshot-alunos.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -115,7 +116,8 @@ const superintendenteFeatures = [
       "Dados de contato e responsáveis"
     ],
     benefits: ["Gestão centralizada", "Rastreabilidade", "Comunicação facilitada"],
-    screenName: "Lista de Alunos"
+    screenName: "Lista de Alunos",
+    screenshotUrl: screenshotAlunos
   },
   {
     icon: <GraduationCap className="h-5 w-5" />,
