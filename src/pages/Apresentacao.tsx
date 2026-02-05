@@ -19,6 +19,7 @@ import screenshotFrequencia from "@/assets/apresentacao/screenshot-frequencia.pn
 import screenshotQuizzes from "@/assets/apresentacao/screenshot-quizzes.png";
 import screenshotDesafio from "@/assets/apresentacao/screenshot-desafio.png";
 import screenshotCatalogo from "@/assets/apresentacao/screenshot-catalogo.png";
+import screenshotPedidos from "@/assets/apresentacao/screenshot-pedidos.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -255,7 +256,8 @@ const superintendenteFeatures = [
       "Rastreamento"
     ],
     benefits: ["Acompanhamento", "Transparência", "Histórico completo"],
-    screenName: "Meus Pedidos"
+    screenName: "Meus Pedidos",
+    screenshotUrl: screenshotPedidos
   }
 ];
 
