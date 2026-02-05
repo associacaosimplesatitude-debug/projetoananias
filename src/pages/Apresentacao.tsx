@@ -31,6 +31,7 @@ import screenshotVendedorRisco from "@/assets/apresentacao/screenshot-vendedor-r
 import screenshotVendedorNotas from "@/assets/apresentacao/screenshot-vendedor-notas.png";
 import screenshotVendedorPedidos from "@/assets/apresentacao/screenshot-vendedor-pedidos.png";
 import screenshotVendedorParcelas from "@/assets/apresentacao/screenshot-vendedor-parcelas.png";
+import screenshotVendedorOrcamento from "@/assets/apresentacao/screenshot-vendedor-orcamento.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -433,7 +434,8 @@ const vendedorFeatures = [
       "Conversão em proposta"
     ],
     benefits: ["Precisão no frete", "Agilidade", "Histórico"],
-    screenName: "Calculadora de Frete"
+    screenName: "Calculadora de Frete",
+    screenshotUrl: screenshotVendedorOrcamento
   },
   {
     icon: <Video className="h-5 w-5" />,
