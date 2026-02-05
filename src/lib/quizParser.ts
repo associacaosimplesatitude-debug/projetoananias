@@ -16,8 +16,35 @@ export interface ParsedQuiz {
   perguntas: ParsedQuestion[];
 }
 
+/**
+ * Pré-processa o texto para normalizar formatos inline
+ * Adiciona quebras de linha antes de padrões conhecidos
+ */
+function preprocessText(text: string): string {
+  let processed = text;
+  
+  // Adicionar quebra de linha antes de opções A), B), C), D)
+  // Usar lookbehind negativo para não quebrar se já estiver no início da linha
+  processed = processed.replace(/\s+([ABCD]\))/g, '\n$1');
+  
+  // Adicionar quebra de linha antes de "Resposta Certa:" ou "Resposta certa:"
+  processed = processed.replace(/\s+(Resposta\s*[Cc]erta:)/gi, '\n$1');
+  
+  // Adicionar quebra de linha antes de números de pergunta (1., 2., etc.)
+  // Mas não quebrar datas ou números no meio de frases
+  processed = processed.replace(/\s+(\d{1,2})\.\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/g, '\n$1. ');
+  
+  // Separar título de "Nível:" se estiverem na mesma linha
+  processed = processed.replace(/(Questionário:[^|]+?)\s*(Nível:)/gi, '$1\n$2');
+  
+  return processed;
+}
+
 export function parseQuizText(text: string): ParsedQuiz {
-  const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
+  // Pré-processar o texto para normalizar formatos inline
+  const normalizedText = preprocessText(text);
+  
+  const lines = normalizedText.trim().split('\n').map(l => l.trim()).filter(l => l);
   
   let titulo = '';
   let nivel = 'Médio';
@@ -28,7 +55,14 @@ export function parseQuizText(text: string): ParsedQuiz {
   // Extrair título (linha que começa com "Questionário:")
   const tituloLine = lines.find(l => l.toLowerCase().startsWith('questionário:'));
   if (tituloLine) {
-    titulo = tituloLine.replace(/^questionário:\s*/i, '').trim();
+    // Remover "Questionário:" e qualquer coisa após "Nível:" se existir
+    let tituloTemp = tituloLine.replace(/^questionário:\s*/i, '').trim();
+    // Se tiver "Nível:" na mesma linha, pegar só o título antes
+    const nivelIndex = tituloTemp.toLowerCase().indexOf('nível:');
+    if (nivelIndex > 0) {
+      tituloTemp = tituloTemp.substring(0, nivelIndex).trim();
+    }
+    titulo = tituloTemp;
   }
   
   // Extrair nível e contexto (linha com "Nível:" e "Contexto:")
