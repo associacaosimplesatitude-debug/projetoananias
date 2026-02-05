@@ -17,6 +17,7 @@ import screenshotEscala from "@/assets/apresentacao/screenshot-escala.png";
 import screenshotLancamento from "@/assets/apresentacao/screenshot-lancamento.png";
 import screenshotFrequencia from "@/assets/apresentacao/screenshot-frequencia.png";
 import screenshotQuizzes from "@/assets/apresentacao/screenshot-quizzes.png";
+import screenshotDesafio from "@/assets/apresentacao/screenshot-desafio.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -227,7 +228,8 @@ const superintendenteFeatures = [
       "Ranking entre participantes"
     ],
     benefits: ["Incentivo à leitura", "Competição saudável", "Formação de hábito"],
-    screenName: "Desafio Bíblico"
+    screenName: "Desafio Bíblico",
+    screenshotUrl: screenshotDesafio
   },
   {
     icon: <ShoppingCart className="h-5 w-5" />,
