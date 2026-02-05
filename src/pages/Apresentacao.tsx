@@ -14,6 +14,7 @@ import screenshotProfessores from "@/assets/apresentacao/screenshot-professores.
 import screenshotTurmas from "@/assets/apresentacao/screenshot-turmas.png";
 import screenshotRevistas from "@/assets/apresentacao/screenshot-revistas.png";
 import screenshotEscala from "@/assets/apresentacao/screenshot-escala.png";
+import screenshotLancamento from "@/assets/apresentacao/screenshot-lancamento.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -185,7 +186,8 @@ const superintendenteFeatures = [
       "Observações por aula"
     ],
     benefits: ["Flexibilidade", "Correção de lançamentos", "Ausências justificadas"],
-    screenName: "Lançamento de Presença"
+    screenName: "Lançamento de Presença",
+    screenshotUrl: screenshotLancamento
   },
   {
     icon: <BarChart3 className="h-5 w-5" />,
