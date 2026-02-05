@@ -1,56 +1,127 @@
 
-# Plano: Adicionar Screenshots na Aba Superintendente
+# Plano: Menu de Administracao de Apresentacao no Painel Admin Geral
 
 ## Objetivo
-Substituir os 12 placeholders da aba "Superintendente" pelas imagens reais enviadas pelo usuario.
+Criar uma pagina administrativa no painel Admin Geral onde voce podera fazer upload de screenshots para cada card da pagina de apresentacao, salvando as imagens no banco de dados (URLs) para carregamento dinamico.
 
-## Mapeamento das Imagens
+---
 
-| Imagem | Funcionalidade | Nome do Arquivo |
-|--------|----------------|-----------------|
-| Imagem 1 | Dashboard EBD | screenshot-dashboard.png |
-| Imagem 2 | Alunos | screenshot-alunos.png |
-| Imagem 3 | Professores | screenshot-professores.png |
-| Imagem 4 | Turmas | screenshot-turmas.png |
-| Imagem 5 | Ativar Revistas | screenshot-revistas.png |
-| Imagem 6 | Escala | screenshot-escala.png |
-| Imagem 7 | Lancamento Manual | screenshot-lancamento.png |
-| Imagem 8 | Frequencia | screenshot-frequencia.png |
-| Imagem 9 | Quizzes | screenshot-quizzes.png |
-| Imagem 10 | Desafio Biblico | screenshot-desafio.png |
-| Imagem 11 | Catalogo | screenshot-catalogo.png (falta enviar) |
-| Imagem 12 | Meus Pedidos | screenshot-pedidos.png (falta enviar) |
+## Arquitetura
 
-**Nota:** Observei que as imagens 11 (Catalogo) e 12 (Meus Pedidos) nao foram enviadas ainda. Vou adicionar as 10 imagens disponiveis e manter placeholder para as faltantes.
+### Banco de Dados
+Criar tabela `apresentacao_screenshots` para armazenar as URLs das imagens:
+
+```text
++-----------------------------+
+| apresentacao_screenshots    |
++-----------------------------+
+| id (uuid, PK)               |
+| section (text)              |  -> "superintendente", "vendedor", "admin"
+| feature_key (text)          |  -> identificador unico do card
+| screenshot_url (text)       |  -> URL da imagem no storage
+| created_at (timestamp)      |
+| updated_at (timestamp)      |
++-----------------------------+
+```
+
+### Storage
+Criar bucket `apresentacao-screenshots` para armazenar as imagens uploadadas.
 
 ---
 
 ## Implementacao
 
-### Passo 1: Copiar imagens para o projeto
-Copiar todas as imagens enviadas para `src/assets/apresentacao/`
+### Passo 1: Criar Bucket de Storage
+- Criar bucket `apresentacao-screenshots` com acesso publico para leitura
 
-### Passo 2: Atualizar componente FeatureCard
-Modificar o componente para aceitar uma propriedade `screenshotUrl` opcional que, quando presente, exibe a imagem real em vez do placeholder.
+### Passo 2: Criar Tabela no Banco
+- Criar tabela `apresentacao_screenshots`
+- Criar RLS policies para admin poder gerenciar
+- Criar policy de leitura publica para a pagina de apresentacao
 
-### Passo 3: Atualizar array superintendenteFeatures
-Adicionar a URL da imagem correspondente a cada item do array.
+### Passo 3: Criar Pagina de Admin
+Criar `src/pages/admin/ApresentacaoScreenshots.tsx`:
+- Interface com 3 abas: Superintendente, Vendedor, Admin
+- Lista de cards com preview da imagem atual ou placeholder
+- Botao de upload em cada card
+- Funcao de remover imagem
+- Salvamento automatico no banco
+
+### Passo 4: Adicionar Menu no AdminLayout
+Adicionar link "Apresentacao" na secao "Configuracoes" do sidebar em `AdminLayout.tsx`
+
+### Passo 5: Adicionar Rota
+Adicionar rota `/admin/apresentacao` no `App.tsx`
+
+### Passo 6: Atualizar Pagina de Apresentacao
+Modificar `Apresentacao.tsx` para:
+- Buscar screenshots do banco de dados via query
+- Usar URL do banco quando disponivel
+- Fallback para placeholder quando nao houver imagem
 
 ---
 
-## Arquivos Modificados
+## Fluxo de Uso
 
-1. **Criar pasta e copiar imagens**
-   - `src/assets/apresentacao/` (nova pasta)
-   - 10 arquivos de imagem
+```text
+1. Admin acessa /admin/apresentacao
+2. Seleciona aba (Superintendente/Vendedor/Admin)
+3. Clica no botao de upload no card desejado
+4. Seleciona imagem do computador
+5. Imagem e enviada para o storage
+6. URL e salva na tabela apresentacao_screenshots
+7. Pagina /apresentacao carrega automaticamente a nova imagem
+```
 
-2. **src/pages/Apresentacao.tsx**
-   - Importar as imagens
-   - Modificar `FeatureCardProps` para incluir `screenshotUrl?: string`
-   - Atualizar `FeatureCard` para exibir imagem quando disponivel
-   - Atualizar `superintendenteFeatures` com as URLs das imagens
+---
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Acao |
+|---------|------|
+| Migration SQL | Criar tabela e bucket |
+| `src/pages/admin/ApresentacaoScreenshots.tsx` | Criar pagina de admin |
+| `src/components/admin/AdminLayout.tsx` | Adicionar menu |
+| `src/App.tsx` | Adicionar rota |
+| `src/pages/Apresentacao.tsx` | Buscar imagens do banco |
+
+---
+
+## Detalhes Tecnicos
+
+### Hook de Upload
+```typescript
+// Upload para storage
+const uploadScreenshot = async (file: File, section: string, featureKey: string) => {
+  const filePath = `${section}/${featureKey}-${Date.now()}.${file.name.split('.').pop()}`;
+  const { data, error } = await supabase.storage
+    .from('apresentacao-screenshots')
+    .upload(filePath, file, { upsert: true });
+  
+  // Salvar URL na tabela
+  const publicUrl = supabase.storage.from('apresentacao-screenshots').getPublicUrl(filePath);
+  await supabase.from('apresentacao_screenshots')
+    .upsert({ section, feature_key: featureKey, screenshot_url: publicUrl.data.publicUrl });
+};
+```
+
+### Query na Apresentacao
+```typescript
+const { data: screenshots } = useQuery({
+  queryKey: ['apresentacao-screenshots'],
+  queryFn: async () => {
+    const { data } = await supabase.from('apresentacao_screenshots').select('*');
+    return data;
+  }
+});
+```
 
 ---
 
 ## Resultado Esperado
-A aba "Painel do Superintendente" exibira screenshots reais do sistema, tornando a apresentacao muito mais profissional e ilustrativa das funcionalidades.
+- Menu "Apresentacao" disponivel no Admin Geral
+- Interface visual para upload de screenshots por card
+- Imagens salvas no storage e referenciadas no banco
+- Pagina de apresentacao carregando imagens dinamicamente
+- Sem necessidade de mexer no codigo para atualizar screenshots
+
