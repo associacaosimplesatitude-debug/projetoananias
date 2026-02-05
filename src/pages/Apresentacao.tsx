@@ -21,6 +21,7 @@ import screenshotDesafio from "@/assets/apresentacao/screenshot-desafio.png";
 import screenshotCatalogo from "@/assets/apresentacao/screenshot-catalogo.png";
 import screenshotPedidos from "@/assets/apresentacao/screenshot-pedidos.png";
 import screenshotVendedorDashboard from "@/assets/apresentacao/screenshot-vendedor-dashboard.png";
+import screenshotVendedorClientes from "@/assets/apresentacao/screenshot-vendedor-clientes.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -290,7 +291,8 @@ const vendedorFeatures = [
       "Lançamento manual de revista"
     ],
     benefits: ["Gestão completa", "Acesso rápido", "Personalização"],
-    screenName: "Lista de Clientes"
+    screenName: "Lista de Clientes",
+    screenshotUrl: screenshotVendedorClientes
   },
   {
     icon: <Store className="h-5 w-5" />,
