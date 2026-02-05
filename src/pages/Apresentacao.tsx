@@ -29,6 +29,7 @@ import screenshotVendedorAtivacao from "@/assets/apresentacao/screenshot-vendedo
 import screenshotVendedorProximas from "@/assets/apresentacao/screenshot-vendedor-proximas.png";
 import screenshotVendedorRisco from "@/assets/apresentacao/screenshot-vendedor-risco.png";
 import screenshotVendedorNotas from "@/assets/apresentacao/screenshot-vendedor-notas.png";
+import screenshotVendedorPedidos from "@/assets/apresentacao/screenshot-vendedor-pedidos.png";
 
 // Componente de Placeholder para Screenshot
 const ScreenshotPlaceholder = ({ screenName }: { screenName: string }) => (
@@ -404,7 +405,8 @@ const vendedorFeatures = [
       "Status (Pendente, Aceita, Faturado, Pago)"
     ],
     benefits: ["Fluxo digital", "Proposta profissional", "Tempo real"],
-    screenName: "Gestão de Pedidos"
+    screenName: "Gestão de Pedidos",
+    screenshotUrl: screenshotVendedorPedidos
   },
   {
     icon: <CreditCard className="h-5 w-5" />,
