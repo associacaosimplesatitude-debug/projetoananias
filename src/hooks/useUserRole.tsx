@@ -27,10 +27,10 @@ export function useUserRole() {
         .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        console.error('Erro ao carregar role:', error);
+        console.warn('Role não encontrada:', error.message);
         setRole(null);
       } else {
         setRole(data?.role as AppRole || null);
