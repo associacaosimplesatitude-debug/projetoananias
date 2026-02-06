@@ -1,4 +1,4 @@
-// v1.1.0 - Consolidação Bling - 2026-02-06
+// v1.2.0 - Consolidação Bling - 2026-02-06
 // Núcleo unificado para todas as operações Bling:
 // - CREATE_ORDER (ex bling-create-order)
 // - GENERATE_NFE (ex bling-generate-nfe)
@@ -6,6 +6,7 @@
 // - SYNC_ORDER_STATUS (ex bling-sync-order-status)
 // 
 // v1.1.0 - Adicionado handleCreateOrder_Customer (Fase 1)
+// v1.2.0 - CORREÇÃO DE SEGURANÇA: Removido fallback de Service Role para Authorization
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -666,6 +667,22 @@ async function handleSyncOrderStatus(payload: any, supabase: any): Promise<Respo
 async function handleCreateOrder(payload: any, supabase: any, authHeader: string | null): Promise<Response> {
   console.log('[API-BLING] CREATE_ORDER iniciado');
   
+  // CORREÇÃO DE SEGURANÇA: Bloquear execução sem Authorization
+  if (!authHeader) {
+    console.error('[API-BLING] [AUTH] Missing Authorization header for CREATE_ORDER');
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized: missing Authorization header',
+        fase: 'auth'
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+  
   try {
     // Fase 1: Validar e resolver cliente usando handleCreateOrder_Customer
     const { accessToken } = await getBlingConfig(supabase);
@@ -715,8 +732,8 @@ async function handleCreateOrder(payload: any, supabase: any, authHeader: string
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const functionUrl = `${supabaseUrl}/functions/v1/bling-create-order`;
     
-    // CORREÇÃO: Usar o Authorization original do request, não ANON_KEY
-    const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
+    // CORREÇÃO DE SEGURANÇA: Usar APENAS o Authorization original do request (SEM fallback para Service Role)
+    const authorizationHeader = authHeader;
     
     const response = await fetch(functionUrl, {
       method: 'POST',
@@ -773,12 +790,28 @@ async function handleCreateOrder(payload: any, supabase: any, authHeader: string
 async function handleGenerateNfe(payload: any, supabase: any, authHeader: string | null): Promise<Response> {
   console.log('[API-BLING] GENERATE_NFE iniciado - delegando para bling-generate-nfe');
   
+  // CORREÇÃO DE SEGURANÇA: Bloquear execução sem Authorization
+  if (!authHeader) {
+    console.error('[API-BLING] [AUTH] Missing Authorization header for GENERATE_NFE');
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Unauthorized: missing Authorization header',
+        fase: 'auth'
+      }),
+      {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+  
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const functionUrl = `${supabaseUrl}/functions/v1/bling-generate-nfe`;
     
-    // CORREÇÃO: Usar o Authorization original do request, não ANON_KEY
-    const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
+    // CORREÇÃO DE SEGURANÇA: Usar APENAS o Authorization original do request (SEM fallback para Service Role)
+    const authorizationHeader = authHeader;
     
     const response = await fetch(functionUrl, {
       method: 'POST',
