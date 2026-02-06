@@ -1,0 +1,187 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/functions/**'
+  workflow_dispatch:
+
+env:
+  SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+jobs:
+  deploy-critical-functions:
+    name: Deploy Critical Edge Functions
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        run: |
+          supabase link --project-ref $SUPABASE_PROJECT_REF
+
+      - name: Deploy critical functions
+        run: |
+          echo "🚀 Iniciando deploy das Edge Functions críticas..."
+          
+          CRITICAL_FUNCTIONS=(
+            "api-bling"
+            "mp-checkout-init"
+            "calculate-shipping"
+            "mp-create-order-and-pay"
+            "mercadopago-webhook"
+            "create-mercadopago-payment"
+            "aprovar-faturamento"
+            "bling-generate-nfe"
+            "shopify-storefront-products"
+            "ebd-shopify-order-webhook"
+          )
+          
+          FAILED=()
+          SUCCESS=()
+          
+          for fn in "${CRITICAL_FUNCTIONS[@]}"; do
+            echo ""
+            echo "📦 Deployando: $fn"
+            echo "----------------------------------------"
+            
+            if supabase functions deploy "$fn" --project-ref $SUPABASE_PROJECT_REF; then
+              echo "✅ $fn - Deploy OK"
+              SUCCESS+=("$fn")
+            else
+              echo "❌ $fn - Deploy FALHOU"
+              FAILED+=("$fn")
+            fi
+          done
+          
+          echo ""
+          echo "========================================="
+          echo "📊 RESUMO DO DEPLOY"
+          echo "========================================="
+          echo "✅ Sucesso: ${#SUCCESS[@]} funções"
+          for fn in "${SUCCESS[@]}"; do echo "   - $fn"; done
+          echo ""
+          
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo "❌ FALHAS: ${#FAILED[@]} funções"
+            for fn in "${FAILED[@]}"; do echo "   - $fn"; done
+            echo ""
+            echo "🔴 WORKFLOW FALHOU - Corrija os erros acima"
+            exit 1
+          fi
+          
+          echo "🎉 Todas as funções críticas deployadas com sucesso!"
+
+  healthcheck:
+    name: Healthcheck Edge Functions
+    runs-on: ubuntu-latest
+    needs: deploy-critical-functions
+    
+    steps:
+      - name: Wait for propagation
+        run: sleep 10
+
+      - name: Healthcheck - OPTIONS requests
+        run: |
+          echo "🔍 Verificando disponibilidade via OPTIONS..."
+          
+          BASE_URL="https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1"
+          
+          CRITICAL_FUNCTIONS=(
+            "api-bling"
+            "mp-checkout-init"
+            "calculate-shipping"
+            "mp-create-order-and-pay"
+            "mercadopago-webhook"
+            "create-mercadopago-payment"
+            "aprovar-faturamento"
+            "bling-generate-nfe"
+            "shopify-storefront-products"
+            "ebd-shopify-order-webhook"
+          )
+          
+          ALL_OK=true
+          
+          for fn in "${CRITICAL_FUNCTIONS[@]}"; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X OPTIONS \
+              -H "Origin: https://gestaoebd.com.br" \
+              -H "Access-Control-Request-Method: POST" \
+              "$BASE_URL/$fn")
+            
+            if [ "$STATUS" == "200" ]; then
+              echo "✅ $fn: OPTIONS → $STATUS"
+            elif [ "$STATUS" == "404" ]; then
+              echo "❌ $fn: OPTIONS → 404 NOT_FOUND - FUNÇÃO NÃO DEPLOYADA!"
+              ALL_OK=false
+            else
+              echo "⚠️ $fn: OPTIONS → $STATUS (esperado 200)"
+            fi
+          done
+          
+          if [ "$ALL_OK" = false ]; then
+            echo ""
+            echo "🔴 HEALTHCHECK FALHOU - Algumas funções retornaram 404!"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ Todas as funções responderam ao OPTIONS"
+
+      - name: Healthcheck - POST requests (verify not 404)
+        run: |
+          echo "🔍 Verificando POST (aceita 200/400/401, rejeita 404)..."
+          
+          BASE_URL="https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1"
+          
+          CRITICAL_FUNCTIONS=(
+            "api-bling"
+            "mp-checkout-init"
+            "calculate-shipping"
+            "mp-create-order-and-pay"
+            "mercadopago-webhook"
+            "create-mercadopago-payment"
+            "aprovar-faturamento"
+            "bling-generate-nfe"
+            "shopify-storefront-products"
+            "ebd-shopify-order-webhook"
+          )
+          
+          ALL_OK=true
+          
+          for fn in "${CRITICAL_FUNCTIONS[@]}"; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -H "Origin: https://gestaoebd.com.br" \
+              -d '{}' \
+              "$BASE_URL/$fn")
+            
+            if [ "$STATUS" == "404" ]; then
+              echo "❌ $fn: POST → 404 NOT_FOUND - FUNÇÃO NÃO EXISTE!"
+              ALL_OK=false
+            elif [ "$STATUS" == "200" ] || [ "$STATUS" == "400" ] || [ "$STATUS" == "401" ] || [ "$STATUS" == "403" ]; then
+              echo "✅ $fn: POST → $STATUS (função ativa)"
+            else
+              echo "⚠️ $fn: POST → $STATUS (inesperado, mas não é 404)"
+            fi
+          done
+          
+          if [ "$ALL_OK" = false ]; then
+            echo ""
+            echo "🔴 HEALTHCHECK FALHOU - Algumas funções retornaram 404!"
+            exit 1
+          fi
+          
+          echo ""
+          echo "🎉 Healthcheck completo - Todas as funções estão ativas!"
