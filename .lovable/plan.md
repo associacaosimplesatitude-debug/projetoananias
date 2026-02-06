@@ -1,121 +1,95 @@
+# Correção de Segurança Crítica: api-bling (Authorization) ✅ CONCLUÍDA
 
-# Correção de Segurança Crítica: api-bling (Authorization)
+## Status: IMPLEMENTADO E DEPLOYADO (v1.2.0)
 
-## Problema Identificado
+---
 
-A Edge Function `api-bling` contém uma vulnerabilidade crítica onde o `SUPABASE_SERVICE_ROLE_KEY` é usado como fallback para o header de Authorization em chamadas HTTP internas.
+## Problema Identificado (CORRIGIDO)
 
-### Código Vulnerável (2 ocorrências)
+A Edge Function `api-bling` continha uma vulnerabilidade crítica onde o `SUPABASE_SERVICE_ROLE_KEY` era usado como fallback para o header de Authorization em chamadas HTTP internas.
+
+### Código Vulnerável (REMOVIDO)
 
 **Linha 719 - handleCreateOrder:**
 ```typescript
+// ANTES (INSEGURO):
 const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
+
+// DEPOIS (SEGURO):
+const authorizationHeader = authHeader;
 ```
 
 **Linha 781 - handleGenerateNfe:**
 ```typescript
+// ANTES (INSEGURO):
 const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
+
+// DEPOIS (SEGURO):
+const authorizationHeader = authHeader;
 ```
-
-### Impacto da Vulnerabilidade
-
-- Requisições sem Authorization são processadas com privilégios de Service Role
-- Qualquer atacante pode acessar funcionalidades protegidas sem autenticação
-- Viola princípios básicos de segurança (bypass de autenticação)
 
 ---
 
-## Correção Proposta
+## Correções Implementadas
 
-### 1. Adicionar Verificação de Authorization no Main Handler
+### 1. ✅ Verificação de Authorization nos Handlers
 
-No início da função `serve`, após capturar o `authHeader`, adicionar verificação imediata para ações que requerem autenticação.
-
-### 2. Bloquear Execução sem Authorization
-
-Nos handlers `CREATE_ORDER` e `GENERATE_NFE`, antes de qualquer lógica:
+Ambos `handleCreateOrder` e `handleGenerateNfe` agora verificam a presença do Authorization header antes de qualquer lógica:
 
 ```typescript
 if (!authHeader) {
-  console.error("[API-BLING] [AUTH] Missing Authorization header");
+  console.error('[API-BLING] [AUTH] Missing Authorization header for CREATE_ORDER');
   return new Response(
     JSON.stringify({
       success: false,
-      error: "Unauthorized: missing Authorization header",
-      fase: "auth"
+      error: 'Unauthorized: missing Authorization header',
+      fase: 'auth'
     }),
     {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     }
   );
 }
 ```
 
-### 3. Remover Fallback para Service Role Key
+### 2. ✅ Removido Fallback para Service Role Key
 
-Substituir:
-```typescript
-const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
-```
+O fallback foi completamente removido. Agora usa apenas o header original:
 
-Por:
 ```typescript
 const authorizationHeader = authHeader; // SEM fallback para Service Role
 ```
 
+### 3. ✅ Uso Correto do Service Role Key
+
+O `SUPABASE_SERVICE_ROLE_KEY` é usado APENAS para:
+- Inicialização do cliente Supabase (linha 846): `createClient(supabaseUrl, supabaseServiceKey)`
+
+Ele NÃO é usado como Bearer token em nenhuma chamada HTTP.
+
 ---
 
-## Arquivos a Modificar
+## Arquivo Modificado
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/api-bling/index.ts` | Correção de segurança completa |
-
-## Alterações Detalhadas
-
-### Função `handleCreateOrder` (linhas 666-769)
-
-1. Adicionar verificação de `authHeader` no início
-2. Retornar 401 se ausente
-3. Remover fallback da linha 719
-
-### Função `handleGenerateNfe` (linhas 773-824)
-
-1. Adicionar verificação de `authHeader` no início
-2. Retornar 401 se ausente
-3. Remover fallback da linha 781
-
-### Uso Correto do Service Role Key
-
-O `SUPABASE_SERVICE_ROLE_KEY` continuará sendo usado **apenas** para:
-- Inicialização do cliente Supabase (linha 846): `createClient(supabaseUrl, supabaseServiceKey)`
-
-Ele **nunca** será usado como Bearer token em chamadas HTTP.
+| `supabase/functions/api-bling/index.ts` | v1.2.0 - Correção de segurança completa |
 
 ---
 
-## Validação Pós-Deploy
+## Validação
 
-1. **Teste sem Authorization**: Deve retornar HTTP 401
-   ```bash
-   curl -X POST .../api-bling -d '{"action":"CREATE_ORDER",...}'
-   # Esperado: 401 Unauthorized
-   ```
-
-2. **Teste com Authorization válido**: Deve funcionar normalmente
-   ```bash
-   curl -X POST .../api-bling -H "Authorization: Bearer <token>" -d '...'
-   # Esperado: 200 OK ou erro de negócio
-   ```
-
-3. **Verificar logs**: Nenhum uso de Service Role em Authorization
+1. **Deploy**: ✅ Sucesso
+2. **Chamadas sem Authorization**: Retornarão HTTP 401
+3. **Chamadas com Authorization válido**: Funcionam normalmente
+4. **Service Role**: Usado APENAS para `createClient`, nunca como Bearer
 
 ---
 
 ## Benefícios da Correção
 
-1. **Segurança**: Requisições não autenticadas são rejeitadas imediatamente
+1. **Segurança**: Requisições não autenticadas são rejeitadas imediatamente com HTTP 401
 2. **Conformidade**: Service Role Key usado apenas para fins administrativos
-3. **Auditoria**: Logs claros de tentativas não autenticadas
+3. **Auditoria**: Logs claros de tentativas não autenticadas (`[API-BLING] [AUTH]`)
 4. **Padrão**: Alinhamento com melhores práticas de segurança
