@@ -1,9 +1,11 @@
-// v1.0.0 - Consolidação Bling - 2026-02-06
+// v1.1.0 - Consolidação Bling - 2026-02-06
 // Núcleo unificado para todas as operações Bling:
 // - CREATE_ORDER (ex bling-create-order)
 // - GENERATE_NFE (ex bling-generate-nfe)
 // - CHECK_STOCK (ex bling-check-stock)
 // - SYNC_ORDER_STATUS (ex bling-sync-order-status)
+// 
+// v1.1.0 - Adicionado handleCreateOrder_Customer (Fase 1)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -14,6 +16,58 @@ const corsHeaders = {
 };
 
 // ========== HELPERS COMPARTILHADOS ==========
+
+// Validação de CPF (checksum)
+function isValidCPF(cpf: string): boolean {
+  const v = String(cpf || '').replace(/\D/g, '');
+  if (v.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(v)) return false;
+
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(v[i]) * (10 - i);
+  let d1 = (sum * 10) % 11;
+  if (d1 === 10) d1 = 0;
+  if (d1 !== Number(v[9])) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(v[i]) * (11 - i);
+  let d2 = (sum * 10) % 11;
+  if (d2 === 10) d2 = 0;
+  if (d2 !== Number(v[10])) return false;
+
+  return true;
+}
+
+// Validação de CNPJ (checksum)
+function isValidCNPJ(cnpj: string): boolean {
+  const v = String(cnpj || '').replace(/\D/g, '');
+  if (v.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(v)) return false;
+
+  const calc = (baseLen: number) => {
+    const weights = baseLen === 12
+      ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+      : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    let sum = 0;
+    for (let i = 0; i < baseLen; i++) sum += Number(v[i]) * weights[i];
+    const mod = sum % 11;
+    return mod < 2 ? 0 : 11 - mod;
+  };
+
+  const d1 = calc(12);
+  const d2 = calc(13);
+  return d1 === Number(v[12]) && d2 === Number(v[13]);
+}
+
+// Normalizar documento (remover não numéricos)
+function normalizeDocument(doc: string | null | undefined): string {
+  return String(doc || '').replace(/\D/g, '');
+}
+
+// Delay para respeitar rate limit do Bling
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Função para renovar o token do Bling
 async function refreshBlingToken(supabase: any, config: any, tableName: string, clientId: string, clientSecret: string): Promise<string> {
@@ -130,6 +184,195 @@ async function getBlingConfig(supabase: any): Promise<{ config: any; accessToken
   }
 
   return { config, accessToken, tableName };
+}
+
+// ========== HANDLER: CREATE_ORDER CUSTOMER (Fase 1) ==========
+// Valida, normaliza e resolve o cliente no Bling sem depender das funções antigas
+
+interface CustomerValidationResult {
+  bling_cliente_id: number | null;
+  needs_create: boolean;
+  cliente_normalizado: {
+    nome: string;
+    documento: string;
+    tipo_pessoa: 'F' | 'J';
+    email: string;
+    telefone: string;
+  };
+  error?: string;
+}
+
+async function handleCreateOrder_Customer(
+  payload: any, 
+  supabase: any, 
+  accessToken: string
+): Promise<CustomerValidationResult> {
+  console.log('[API-BLING] [CUSTOMER] Iniciando validação e resolução de cliente...');
+  
+  const cliente = payload.cliente || payload;
+  
+  // 1) VALIDAÇÃO: nome obrigatório
+  const nome = (
+    cliente.nome_igreja || 
+    cliente.nome || 
+    (cliente.nome && cliente.sobrenome ? `${cliente.nome} ${cliente.sobrenome}` : '')
+  ).trim();
+  
+  if (!nome) {
+    console.error('[API-BLING] [CUSTOMER] ERRO: Nome do cliente não fornecido');
+    return {
+      bling_cliente_id: null,
+      needs_create: false,
+      cliente_normalizado: { nome: '', documento: '', tipo_pessoa: 'F', email: '', telefone: '' },
+      error: 'Nome do cliente é obrigatório'
+    };
+  }
+  console.log(`[API-BLING] [CUSTOMER] Nome: "${nome}"`);
+  
+  // 2) VALIDAÇÃO E NORMALIZAÇÃO: documento (CPF/CNPJ)
+  const rawDoc = cliente.documento || cliente.cpf_cnpj || cliente.cpfCnpj || cliente.numeroDocumento || cliente.cpf || cliente.cnpj || '';
+  const documento = normalizeDocument(rawDoc);
+  
+  if (!documento) {
+    console.error('[API-BLING] [CUSTOMER] ERRO: Documento (CPF/CNPJ) não fornecido');
+    return {
+      bling_cliente_id: null,
+      needs_create: false,
+      cliente_normalizado: { nome, documento: '', tipo_pessoa: 'F', email: '', telefone: '' },
+      error: 'CPF ou CNPJ é obrigatório'
+    };
+  }
+  
+  // Determinar tipo de pessoa e validar checksum
+  let tipo_pessoa: 'F' | 'J' = 'F';
+  let docValido = false;
+  
+  if (documento.length === 11) {
+    tipo_pessoa = 'F';
+    docValido = isValidCPF(documento);
+    console.log(`[API-BLING] [CUSTOMER] Documento CPF detectado, válido: ${docValido}`);
+  } else if (documento.length === 14) {
+    tipo_pessoa = 'J';
+    docValido = isValidCNPJ(documento);
+    console.log(`[API-BLING] [CUSTOMER] Documento CNPJ detectado, válido: ${docValido}`);
+  } else {
+    console.error(`[API-BLING] [CUSTOMER] ERRO: Documento com tamanho inválido: ${documento.length} dígitos`);
+    return {
+      bling_cliente_id: null,
+      needs_create: false,
+      cliente_normalizado: { nome, documento, tipo_pessoa, email: '', telefone: '' },
+      error: `Documento deve ter 11 (CPF) ou 14 (CNPJ) dígitos. Recebido: ${documento.length}`
+    };
+  }
+  
+  if (!docValido) {
+    const tipoDoc = tipo_pessoa === 'F' ? 'CPF' : 'CNPJ';
+    console.error(`[API-BLING] [CUSTOMER] ERRO: ${tipoDoc} inválido (checksum falhou)`);
+    return {
+      bling_cliente_id: null,
+      needs_create: false,
+      cliente_normalizado: { nome, documento, tipo_pessoa, email: '', telefone: '' },
+      error: `${tipoDoc} inválido. Verifique os dígitos.`
+    };
+  }
+  
+  // 3) VALIDAÇÃO: pelo menos um contato (email ou telefone)
+  const email = (cliente.email || cliente.email_superintendente || '').trim().toLowerCase();
+  const telefone = normalizeDocument(cliente.telefone || cliente.celular || cliente.whatsapp || '');
+  
+  if (!email && !telefone) {
+    console.error('[API-BLING] [CUSTOMER] ERRO: Nenhum contato fornecido (email ou telefone)');
+    return {
+      bling_cliente_id: null,
+      needs_create: false,
+      cliente_normalizado: { nome, documento, tipo_pessoa, email, telefone },
+      error: 'É obrigatório informar email ou telefone'
+    };
+  }
+  console.log(`[API-BLING] [CUSTOMER] Contato: email="${email || '(vazio)'}" telefone="${telefone || '(vazio)'}"`);
+  
+  const cliente_normalizado = { nome, documento, tipo_pessoa, email, telefone };
+  
+  // 4) Se bling_cliente_id já existe e é > 0, retornar direto
+  const existingBlingId = Number(cliente.bling_cliente_id || cliente.blingClienteId || 0);
+  if (existingBlingId > 0) {
+    console.log(`[API-BLING] [CUSTOMER] Cliente já possui bling_cliente_id: ${existingBlingId}`);
+    return {
+      bling_cliente_id: existingBlingId,
+      needs_create: false,
+      cliente_normalizado
+    };
+  }
+  
+  // 5) RESOLUÇÃO: Buscar cliente no Bling por documento (CPF/CNPJ)
+  console.log(`[API-BLING] [CUSTOMER] Buscando cliente no Bling por documento: ${documento.slice(0, 3)}***${documento.slice(-2)}`);
+  
+  await delay(350); // Rate limit
+  
+  const searchByDocUrl = `https://www.bling.com.br/Api/v3/contatos?numeroDocumento=${documento}`;
+  const searchByDocResp = await fetch(searchByDocUrl, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json',
+    },
+  });
+  
+  const searchByDocResult = await searchByDocResp.json();
+  
+  if (searchByDocResp.ok && searchByDocResult.data && searchByDocResult.data.length > 0) {
+    const contatoEncontrado = searchByDocResult.data[0];
+    console.log(`[API-BLING] [CUSTOMER] Cliente encontrado por documento: ID=${contatoEncontrado.id}, Nome="${contatoEncontrado.nome}"`);
+    return {
+      bling_cliente_id: Number(contatoEncontrado.id),
+      needs_create: false,
+      cliente_normalizado
+    };
+  }
+  
+  console.log('[API-BLING] [CUSTOMER] Cliente não encontrado por documento, tentando por email...');
+  
+  // 6) FALLBACK: Buscar por email se documento não encontrou
+  if (email) {
+    await delay(350);
+    
+    const searchByEmailUrl = `https://www.bling.com.br/Api/v3/contatos?pesquisa=${encodeURIComponent(email)}`;
+    const searchByEmailResp = await fetch(searchByEmailUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+    
+    const searchByEmailResult = await searchByEmailResp.json();
+    
+    if (searchByEmailResp.ok && searchByEmailResult.data && searchByEmailResult.data.length > 0) {
+      // Procurar match exato de email ou documento
+      const matchExato = searchByEmailResult.data.find((c: any) => {
+        const emailMatch = (c.email || '').toLowerCase().trim() === email;
+        const docMatch = normalizeDocument(c.numeroDocumento) === documento;
+        return emailMatch || docMatch;
+      });
+      
+      if (matchExato) {
+        console.log(`[API-BLING] [CUSTOMER] Cliente encontrado por email: ID=${matchExato.id}, Nome="${matchExato.nome}"`);
+        return {
+          bling_cliente_id: Number(matchExato.id),
+          needs_create: false,
+          cliente_normalizado
+        };
+      }
+    }
+    
+    console.log('[API-BLING] [CUSTOMER] Cliente não encontrado por email');
+  }
+  
+  // 7) Cliente não encontrado - precisa criar
+  console.log('[API-BLING] [CUSTOMER] Cliente não encontrado no Bling. Marcando para criação.');
+  return {
+    bling_cliente_id: null,
+    needs_create: true,
+    cliente_normalizado
+  };
 }
 
 // ========== HANDLER: CHECK_STOCK ==========
@@ -418,28 +661,93 @@ async function handleSyncOrderStatus(payload: any, supabase: any): Promise<Respo
   }
 }
 
-// ========== HANDLER: CREATE_ORDER (STUB - Chama função original) ==========
-// NOTA: A lógica completa de bling-create-order tem ~2850 linhas.
-// Para manter a função consolidada gerenciável, delegamos para a função original por enquanto.
-// Em uma fase futura, toda a lógica pode ser embarcada aqui.
-async function handleCreateOrder(payload: any, supabase: any): Promise<Response> {
-  console.log('[API-BLING] CREATE_ORDER iniciado - delegando para bling-create-order');
+// ========== HANDLER: CREATE_ORDER (Com validação de cliente integrada) ==========
+// Fase 1: Valida/resolve cliente localmente, depois delega para função original
+async function handleCreateOrder(payload: any, supabase: any, authHeader: string | null): Promise<Response> {
+  console.log('[API-BLING] CREATE_ORDER iniciado');
   
   try {
-    // Chamar a função original diretamente via HTTP
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // Fase 1: Validar e resolver cliente usando handleCreateOrder_Customer
+    const { accessToken } = await getBlingConfig(supabase);
     
-    const response = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
+    console.log('[API-BLING] [CREATE_ORDER] Fase 1: Validando cliente...');
+    const customerResult = await handleCreateOrder_Customer(payload, supabase, accessToken);
+    
+    if (customerResult.error) {
+      console.error('[API-BLING] [CREATE_ORDER] Erro na validação de cliente:', customerResult.error);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: customerResult.error,
+          fase: 'validacao_cliente'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('[API-BLING] [CREATE_ORDER] Cliente validado:', {
+      bling_cliente_id: customerResult.bling_cliente_id,
+      needs_create: customerResult.needs_create,
+      nome: customerResult.cliente_normalizado.nome,
+      tipo_pessoa: customerResult.cliente_normalizado.tipo_pessoa
+    });
+    
+    // Enriquecer payload com dados do cliente normalizado
+    const enrichedPayload = {
+      ...payload,
+      cliente: {
+        ...payload.cliente,
+        bling_cliente_id: customerResult.bling_cliente_id,
+        nome: customerResult.cliente_normalizado.nome,
+        documento: customerResult.cliente_normalizado.documento,
+        cpf_cnpj: customerResult.cliente_normalizado.documento,
+        tipoPessoa: customerResult.cliente_normalizado.tipo_pessoa,
+        email: customerResult.cliente_normalizado.email || payload.cliente?.email,
+        telefone: customerResult.cliente_normalizado.telefone || payload.cliente?.telefone,
+        _needs_create_in_bling: customerResult.needs_create,
+        _validated_by_api_bling: true
+      }
+    };
+    
+    // Fase 2: Delegar para função original (fallback)
+    console.log('[API-BLING] [CREATE_ORDER] Fase 2: Delegando para bling-create-order...');
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const functionUrl = `${supabaseUrl}/functions/v1/bling-create-order`;
+    
+    // CORREÇÃO: Usar o Authorization original do request, não ANON_KEY
+    const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
+    
+    const response = await fetch(functionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Authorization': authorizationHeader,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(enrichedPayload),
     });
 
+    // CORREÇÃO: Tratar 404 como "função antiga não deployada"
+    if (response.status === 404) {
+      console.error('[API-BLING] [CREATE_ORDER] Fallback indisponível: bling-create-order retornou 404');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Fallback indisponível: função bling-create-order não deployada. Por favor, contate o suporte.',
+          fase: 'fallback_indisponivel',
+          cliente_validado: customerResult.cliente_normalizado
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const data = await response.json();
+    
+    // Se sucesso, incluir info do cliente validado no retorno
+    if (response.ok && data.success !== false) {
+      data._cliente_validado_por_api_bling = true;
+      data._bling_cliente_id_encontrado = customerResult.bling_cliente_id;
+    }
     
     return new Response(
       JSON.stringify(data),
@@ -453,29 +761,46 @@ async function handleCreateOrder(payload: any, supabase: any): Promise<Response>
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error instanceof Error ? error.message : 'Erro ao criar pedido' 
+        error: error instanceof Error ? error.message : 'Erro ao criar pedido',
+        fase: 'erro_interno'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 }
 
-// ========== HANDLER: GENERATE_NFE (STUB - Chama função original) ==========
-async function handleGenerateNfe(payload: any, supabase: any): Promise<Response> {
+// ========== HANDLER: GENERATE_NFE (Com Authorization passado corretamente) ==========
+async function handleGenerateNfe(payload: any, supabase: any, authHeader: string | null): Promise<Response> {
   console.log('[API-BLING] GENERATE_NFE iniciado - delegando para bling-generate-nfe');
   
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const functionUrl = `${supabaseUrl}/functions/v1/bling-generate-nfe`;
     
-    const response = await fetch(`${supabaseUrl}/functions/v1/bling-generate-nfe`, {
+    // CORREÇÃO: Usar o Authorization original do request, não ANON_KEY
+    const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
+    
+    const response = await fetch(functionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Authorization': authorizationHeader,
       },
       body: JSON.stringify(payload),
     });
+
+    // CORREÇÃO: Tratar 404 como "função antiga não deployada"
+    if (response.status === 404) {
+      console.error('[API-BLING] [GENERATE_NFE] Fallback indisponível: bling-generate-nfe retornou 404');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Fallback indisponível: função bling-generate-nfe não deployada. Por favor, contate o suporte.',
+          fase: 'fallback_indisponivel'
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const data = await response.json();
     
@@ -491,7 +816,8 @@ async function handleGenerateNfe(payload: any, supabase: any): Promise<Response>
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error instanceof Error ? error.message : 'Erro ao gerar NF-e' 
+        error: error instanceof Error ? error.message : 'Erro ao gerar NF-e',
+        fase: 'erro_interno'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -506,6 +832,9 @@ serve(async (req) => {
   }
 
   try {
+    // Capturar Authorization header original para repassar aos fallbacks
+    const authHeader = req.headers.get('Authorization');
+    
     const body = await req.json();
     const { action, payload } = body;
 
@@ -525,10 +854,10 @@ serve(async (req) => {
         return await handleSyncOrderStatus(payload || body, supabase);
       
       case 'CREATE_ORDER':
-        return await handleCreateOrder(payload || body, supabase);
+        return await handleCreateOrder(payload || body, supabase, authHeader);
       
       case 'GENERATE_NFE':
-        return await handleGenerateNfe(payload || body, supabase);
+        return await handleGenerateNfe(payload || body, supabase, authHeader);
       
       default:
         console.error(`[API-BLING] Ação inválida: ${action}`);
