@@ -1,95 +1,124 @@
-# Correção de Segurança Crítica: api-bling (Authorization) ✅ CONCLUÍDA
 
-## Status: IMPLEMENTADO E DEPLOYADO (v1.2.0)
 
----
+# Deploy + Correção CORS: mp-checkout-init
 
-## Problema Identificado (CORRIGIDO)
+## Problema Atual
 
-A Edge Function `api-bling` continha uma vulnerabilidade crítica onde o `SUPABASE_SERVICE_ROLE_KEY` era usado como fallback para o header de Authorization em chamadas HTTP internas.
+A função `mp-checkout-init` está com dois problemas:
 
-### Código Vulnerável (REMOVIDO)
+1. **404 NOT_FOUND** - A função não está deployada no Supabase
+2. **CORS Bloqueado** - Quando deployada, o navegador bloqueia por configuração CORS inadequada
 
-**Linha 719 - handleCreateOrder:**
-```typescript
-// ANTES (INSEGURO):
-const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
-
-// DEPOIS (SEGURO):
-const authorizationHeader = authHeader;
-```
-
-**Linha 781 - handleGenerateNfe:**
-```typescript
-// ANTES (INSEGURO):
-const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
-
-// DEPOIS (SEGURO):
-const authorizationHeader = authHeader;
-```
+### Sintomas no Checkout
+- Produtos: 0 itens
+- Valor: R$ 0,00
+- Dados do cliente: vazios
+- Erro no console: `FunctionsFetchError`, status 406, CORS blocked
 
 ---
 
-## Correções Implementadas
+## Solução em Pacote Único
 
-### 1. ✅ Verificação de Authorization nos Handlers
+### 1. Correção do CORS no Código
 
-Ambos `handleCreateOrder` e `handleGenerateNfe` agora verificam a presença do Authorization header antes de qualquer lógica:
+**Arquivo:** `supabase/functions/mp-checkout-init/index.ts`
+
+**Mudanças:**
 
 ```typescript
-if (!authHeader) {
-  console.error('[API-BLING] [AUTH] Missing Authorization header for CREATE_ORDER');
-  return new Response(
-    JSON.stringify({
-      success: false,
-      error: 'Unauthorized: missing Authorization header',
-      fase: 'auth'
-    }),
-    {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    }
-  );
+// ANTES (problemático)
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// DEPOIS (correto)
+const ALLOWED_ORIGINS = [
+  'https://gestaoebd.com.br',
+  'https://www.gestaoebd.com.br',
+  'http://localhost:5173',
+];
+
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) 
+    ? origin 
+    : ALLOWED_ORIGINS[0];
+  
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Max-Age': '86400',
+  };
 }
 ```
 
-### 2. ✅ Removido Fallback para Service Role Key
-
-O fallback foi completamente removido. Agora usa apenas o header original:
+**Handler OPTIONS:**
 
 ```typescript
-const authorizationHeader = authHeader; // SEM fallback para Service Role
+if (req.method === 'OPTIONS') {
+  const origin = req.headers.get('Origin');
+  return new Response('ok', { 
+    status: 200, 
+    headers: getCorsHeaders(origin) 
+  });
+}
 ```
 
-### 3. ✅ Uso Correto do Service Role Key
+**Todas as respostas com CORS:**
 
-O `SUPABASE_SERVICE_ROLE_KEY` é usado APENAS para:
-- Inicialização do cliente Supabase (linha 846): `createClient(supabaseUrl, supabaseServiceKey)`
+Garantir que TODA resposta (200, 400, 404, 500) inclua os headers CORS:
 
-Ele NÃO é usado como Bearer token em nenhuma chamada HTTP.
+```typescript
+const origin = req.headers.get('Origin');
+const corsHeaders = getCorsHeaders(origin);
 
----
+// Em cada return:
+return new Response(JSON.stringify({...}), {
+  status: XXX,
+  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+});
+```
 
-## Arquivo Modificado
+### 2. Deploy da Função
 
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/api-bling/index.ts` | v1.2.0 - Correção de segurança completa |
-
----
-
-## Validação
-
-1. **Deploy**: ✅ Sucesso
-2. **Chamadas sem Authorization**: Retornarão HTTP 401
-3. **Chamadas com Authorization válido**: Funcionam normalmente
-4. **Service Role**: Usado APENAS para `createClient`, nunca como Bearer
+Após a correção do código, fazer deploy manual imediato.
 
 ---
 
-## Benefícios da Correção
+## Implementação Detalhada
 
-1. **Segurança**: Requisições não autenticadas são rejeitadas imediatamente com HTTP 401
-2. **Conformidade**: Service Role Key usado apenas para fins administrativos
-3. **Auditoria**: Logs claros de tentativas não autenticadas (`[API-BLING] [AUTH]`)
-4. **Padrão**: Alinhamento com melhores práticas de segurança
+| Linha | Mudança |
+|-------|---------|
+| 5-8 | Substituir `corsHeaders` estático por `ALLOWED_ORIGINS` array + função `getCorsHeaders()` |
+| 10-12 | Capturar origin no início: `const origin = req.headers.get('Origin')` |
+| 11-13 | OPTIONS retorna `'ok'` com status 200 (não mais `null`) |
+| 36-39 | Erro 400 usa `getCorsHeaders(origin)` |
+| 59-62 | Erro 404 usa `getCorsHeaders(origin)` |
+| 147-150 | Sucesso 200 usa `getCorsHeaders(origin)` |
+| 153-156 | Erro 500 usa `getCorsHeaders(origin)` |
+
+---
+
+## Validação Pós-Deploy
+
+| Teste | Esperado |
+|-------|----------|
+| `OPTIONS /mp-checkout-init` | **200 OK** com headers CORS |
+| `POST /mp-checkout-init` sem body | **400 Bad Request** (não CORS blocked) |
+| `POST /mp-checkout-init` com proposta válida | **200 OK** com dados |
+| Checkout no navegador | Produtos e cliente carregam |
+
+---
+
+## Resultado Esperado
+
+**DevTools Network:**
+- OPTIONS → 200 ✅
+- POST → 200/400/401 (nunca bloqueado por CORS) ✅
+
+**Checkout:**
+- Produtos da proposta aparecem ✅
+- Dados do cliente preenchidos ✅
+- Valor total correto ✅
+
