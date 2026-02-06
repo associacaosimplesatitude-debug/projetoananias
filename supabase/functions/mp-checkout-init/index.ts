@@ -1,15 +1,33 @@
-// v2 - deploy fix 2026-02-05
+// v3 - CORS fix 2026-02-06
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const ALLOWED_ORIGINS = [
+  'https://gestaoebd.com.br',
+  'https://www.gestaoebd.com.br',
+  'http://localhost:5173',
+];
+
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) 
+    ? origin 
+    : ALLOWED_ORIGINS[0];
+  
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Max-Age': '86400',
+  };
+}
 
 serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
+  // Handle CORS preflight - return 200 immediately
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -25,7 +43,6 @@ serve(async (req) => {
 
     const ambiente = tokenPrefix === 'TEST-' ? 'sandbox' : 'production';
 
-    // Logar só o prefixo do token (sem vazar segredo)
     console.log('[mp-checkout-init] MP ambiente:', { ambiente, token_prefix: tokenPrefix });
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
