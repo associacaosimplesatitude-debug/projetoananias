@@ -1,163 +1,182 @@
 
-# Auditoria Completa: Edge Functions - Status de Deploy
+# Consolidação das Edge Functions Bling: Criação do Núcleo `api-bling`
 
-## Resumo Executivo
+## Contexto
 
-Testei todas as **91 Edge Functions** do projeto. O resultado mostra que a maioria está **sem deploy** (404).
+O projeto atingiu o limite de estabilidade com **92 Edge Functions**, resultando em erros 404 constantes por falha de deploy. A consolidação é necessária para garantir estabilidade e manutenibilidade.
 
-## Status por Categoria
+## Análise das Funções a Consolidar
 
-### ✅ FUNÇÕES ATIVAS (Funcionando)
+### Funções Bling a Migrar
 
-| Função | Status | Resposta |
-|--------|--------|----------|
-| `aprovar-faturamento` | ✅ Ativo | Valida parâmetros corretamente |
-| `calculate-shipping` | ✅ Ativo | Valida CEP obrigatório |
-| `bling-create-order` | ✅ Ativo | Processa pedidos |
-| `mercadopago-webhook` | ✅ Ativo | Webhook funcionando |
-| `mp-sync-pending-payments` | ✅ Ativo | Sync funcionando |
-| `send-order-email` | ✅ Ativo | Envia emails |
-| `send-welcome-email` | ✅ Ativo | Envia emails |
+| Função Original | Linhas de Código | Chamadas no Front-end |
+|-----------------|------------------|-----------------------|
+| `bling-create-order` | ~2851 linhas | 8 arquivos |
+| `bling-generate-nfe` | ~1455 linhas | 2 arquivos |
+| `bling-check-stock` | ~250 linhas | 1 arquivo |
+| `bling-sync-order-status` | ~321 linhas | Não chamado diretamente (cron) |
 
-### ❌ FUNÇÕES SEM DEPLOY (404) - 84 funções
+### Arquivos do Front-end que Precisam Refatoração
 
-#### Lote 1: Sincronização de Pedidos (CRÍTICO)
-- `ebd-shopify-sync-orders` - Sincronização de pedidos Shopify
-- `ebd-shopify-backfill-items` - Backfill de itens
-- `cg-shopify-sync-orders` - Sync Central Gospel
-- `ebd-shopify-order-create` - Webhook de criação
-- `ebd-shopify-order-webhook` - Webhook de pedidos
-- `ebd-shopify-sync-order-items` - Sync de itens
-- `mp-checkout-init` - Inicialização checkout MP
+| Arquivo | Função Chamada |
+|---------|----------------|
+| `src/pages/ebd/CheckoutBling.tsx` | `bling-create-order` |
+| `src/pages/admin/Orders.tsx` | `bling-create-order` |
+| `src/pages/vendedor/VendedorPedidosPage.tsx` | `bling-create-order` |
+| `src/pages/vendedor/VendedorPDV.tsx` | `bling-create-order`, `bling-generate-nfe` |
+| `src/pages/shopify/ShopifyPedidos.tsx` | `bling-create-order` |
+| `src/pages/ebd/Checkout.tsx` | `bling-create-order`, `bling-check-stock` |
+| `src/pages/admin/AdminEBDPropostasPage.tsx` | `bling-create-order` |
+| `src/components/shopify/VendaConcluidaDialog.tsx` | `bling-generate-nfe` |
 
-#### Lote 2: Integração Bling (CRÍTICO)
-- `bling-sync-order-status` - Status de pedidos
-- `bling-sync-shopify-orders` - Sync Shopify-Bling
-- `bling-generate-nfe` - Geração de NF-e
-- `bling-check-nfe-status` - Status de NF-e
-- `bling-get-order-details` - Detalhes de pedidos
-- `bling-advec-total` - Totais ADVEC
-- `bling-backfill-documents` - Backfill documentos
-- `bling-callback` / `bling-callback-pe` / `bling-callback-penha`
-- `bling-check-stock` - Verificação de estoque
-- `bling-count-sku-sales` - Contagem de vendas
-- `bling-find-order-id` - Busca de pedidos
-- `bling-get-nfe-by-order-id` - NF-e por pedido
-- `bling-import-nfe-penha` - Import NF-e Penha
-- `bling-link-orders` - Link de pedidos
-- `bling-list-empresas` - Lista empresas
-- `bling-list-my-orders` - Lista pedidos
-- `bling-refresh-token` - Refresh token OAuth
-- `bling-search-client` - Busca clientes
-- `bling-search-product` - Busca produtos
-- `bling-sync-marketplace-orders` - Sync marketplaces
-- `bling-sync-products` - Sync produtos
-- `bling-sync-royalties-sales` - Sync royalties
-- `bling-test-nfe-penha` - Teste NF-e
-- `bling-update-order` - Atualização de pedidos
+---
 
-#### Lote 3: Comissões e NF-e
-- `sync-comissoes-nfe` - Sync comissões NF
-- `sync-nf-danfe-batch` - Sync DANFE
-- `sync-comissoes-completo` - Sync completo
-- `sync-comissoes-faturado` - Sync faturados
-- `sync-royalties-nfe-links` - Links royalties
-- `backfill-comissoes-hierarquicas` - Backfill hierárquicas
-- `backfill-parcelas` - Backfill parcelas
-- `backfill-bling-order-ids` - Backfill IDs Bling
-- `update-comissao-status` - Atualização status
-- `update-parcelas-status` - Atualização parcelas
-- `fix-comissoes-shopify-link` - Fix links
+## Plano de Implementação
 
-#### Lote 4: Resgates e Aprovações
-- `aprovar-resgate` - Aprovação de resgates
+### Tarefa 1: Criar o Núcleo `api-bling`
 
-#### Lote 5: Criação de Usuários
-- `create-admin-user` - Admin
-- `create-aluno-public` - Aluno público
-- `create-aluno-user` - Aluno
-- `create-auth-user-direct` - Auth direto
-- `create-autor-user` - Autor
-- `create-ebd-user` - Usuário EBD
-- `create-mercadopago-payment` - Pagamento MP
-- `create-professor-user` - Professor
-- `delete-user` - Deletar usuário
-- `update-user-password` - Atualizar senha
-- `update-user-password-by-email` - Senha por email
+Criar uma nova Edge Function `supabase/functions/api-bling/index.ts` que centraliza as 4 lógicas usando um padrão de roteamento `switch(action)`.
 
-#### Lote 6: Webhooks e Emails
-- `ebd-brevo-webhook` - Webhook Brevo
-- `ebd-brevo-webhook-public` - Webhook público
-- `ebd-brevo-webhook-teste` - Webhook teste
-- `send-royalties-email` - Email royalties
+**Estrutura proposta:**
 
-#### Lote 7: Mercado Pago
-- `mp-backfill-comissoes` - Backfill comissões
-- `mp-sync-orphan-order` - Sync órfãos
-- `mp-sync-payment-status` - Sync status
-
-#### Lote 8: EBD e Onboarding
-- `ebd-backfill-pos-venda` - Backfill pós-venda
-- `ebd-create-lead-accounts` - Criar leads
-- `ebd-instant-signup` - Cadastro instantâneo
-- `ebd-link-orphan-shopify-orders` - Link órfãos
-- `ebd-send-activation-batch` - Batch ativação
-- `ebd-test-email-open` - Teste abertura
-
-#### Lote 9: Shopify
-- `shopify-debug-order-structure` - Debug
-- `shopify-orders-webhook` - Webhook
-- `shopify-register-webhook` - Registro
-- `shopify-sync-order-status` - Sync status
-- `shopify-storefront-products` (precisa recheck)
-- `shopify-storefront-checkout` (precisa recheck)
-
-#### Lote 10: Importações
-- `import-atacado-csv` - CSV atacado
-- `import-mercadolivre-csv` - CSV ML
-- `import-shopee-csv` - CSV Shopee
-
-#### Lote 11: Outros
-- `apresentacao-ai-assistant` - Assistente IA
-- `fetch-bible-verse` - Versículos
-- `gemini-assistente-gestao` - Gemini
-- `generate-recurring-bills` - Contas recorrentes
-- `track-affiliate-click` - Tracking
-- `process-transparent-payment` - Pagamento transparente
-
-## Solução Proposta
-
-### Deploy em lotes organizados por prioridade:
-
-**Prioridade 1 - Core Business (16 funções)**
-Sincronização, checkout, aprovações
-
-**Prioridade 2 - Integração Bling (20 funções)**
-Todas as funções de integração com Bling
-
-**Prioridade 3 - Usuários e Auth (11 funções)**
-Criação e gerenciamento de usuários
-
-**Prioridade 4 - Comissões e NF (11 funções)**
-Sincronização de comissões e notas fiscais
-
-**Prioridade 5 - Webhooks e Outros (26 funções)**
-Webhooks, importações, utilitários
-
-### Modificação necessária em cada arquivo:
-
-Adicionar comentário de versão no início:
 ```typescript
-// v2 - deploy fix 2026-02-06
+// v1.0.0 - Consolidação Bling
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-```
-
-E atualizar imports de `esm.sh` para `npm:`:
-```typescript
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+// Imports compartilhados (CORS, helpers, etc)
+const corsHeaders = { ... };
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const { action, payload } = await req.json();
+
+  switch (action) {
+    case 'CREATE_ORDER':
+      return handleCreateOrder(payload);
+    case 'GENERATE_NFE':
+      return handleGenerateNfe(payload);
+    case 'CHECK_STOCK':
+      return handleCheckStock(payload);
+    case 'SYNC_ORDER_STATUS':
+      return handleSyncOrderStatus(payload);
+    default:
+      return new Response(
+        JSON.stringify({ error: 'Ação inválida' }),
+        { status: 400, headers: corsHeaders }
+      );
+  }
+});
 ```
 
-## Estimativa
+**Código compartilhado a extrair:**
+- `refreshBlingToken()` - renovação de token OAuth
+- `isTokenExpired()` - verificação de expiração
+- `corsHeaders` - headers CORS padrão
+- Helpers fiscais (`extractFiscalError`, `resolveNaturezaOperacaoId`, etc.)
 
-- Total de funções para deploy: **84**
-- Tempo estimado: Deploy em 5 lotes
+### Tarefa 2: Refatorar Chamadas no Front-end
+
+Atualizar todos os componentes para usar o novo formato de payload:
+
+**Antes:**
+```typescript
+await supabase.functions.invoke('bling-create-order', {
+  body: { cliente, itens, forma_pagamento }
+});
+```
+
+**Depois:**
+```typescript
+await supabase.functions.invoke('api-bling', {
+  body: {
+    action: 'CREATE_ORDER',
+    payload: { cliente, itens, forma_pagamento }
+  }
+});
+```
+
+| Arquivo | Mudança |
+|---------|---------|
+| `CheckoutBling.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
+| `Orders.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
+| `VendedorPedidosPage.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
+| `VendedorPDV.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
+| `VendedorPDV.tsx` | `bling-generate-nfe` → `api-bling` + `action: 'GENERATE_NFE'` |
+| `ShopifyPedidos.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
+| `Checkout.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
+| `Checkout.tsx` | `bling-check-stock` → `api-bling` + `action: 'CHECK_STOCK'` |
+| `AdminEBDPropostasPage.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
+| `VendaConcluidaDialog.tsx` | `bling-generate-nfe` → `api-bling` + `action: 'GENERATE_NFE'` |
+
+### Tarefa 3: Verificação
+
+1. Deploy automático da nova função `api-bling`
+2. Teste via `supabase.functions.invoke` para verificar status 200
+3. **As funções antigas NÃO serão deletadas** - apenas desativadas no front-end
+
+---
+
+## Detalhes Técnicos
+
+### Estrutura da Nova Função
+
+```
+supabase/functions/api-bling/
+└── index.ts  (~4800 linhas consolidadas)
+```
+
+### Mapeamento de Ações
+
+| Action | Função Original | Payload Esperado |
+|--------|-----------------|------------------|
+| `CREATE_ORDER` | `bling-create-order` | `{ cliente, itens, forma_pagamento, ... }` |
+| `GENERATE_NFE` | `bling-generate-nfe` | `{ bling_order_id }` |
+| `CHECK_STOCK` | `bling-check-stock` | `{ produtos }` |
+| `SYNC_ORDER_STATUS` | `bling-sync-order-status` | `{ limit?, force? }` |
+
+### Código Compartilhado (Helpers)
+
+Os seguintes helpers serão definidos uma única vez no arquivo consolidado:
+
+1. **refreshBlingToken()** - Renovação de token OAuth do Bling
+2. **isTokenExpired()** - Verificação de expiração de token
+3. **loadAllSituacoes()** - Cache de situações de pedido
+4. **loadAllFormasPagamento()** - Cache de formas de pagamento
+5. **resolveNaturezaOperacaoId()** - Resolução de natureza de operação
+6. **extractFiscalError()** - Extração de erros fiscais
+7. **getLastNfeNumber()** - Busca último número de NF-e
+
+---
+
+## Arquivos a Criar/Modificar
+
+### Novos Arquivos
+| Arquivo | Descrição |
+|---------|-----------|
+| `supabase/functions/api-bling/index.ts` | Nova função consolidada |
+
+### Arquivos a Modificar (Front-end)
+| Arquivo | Mudança |
+|---------|---------|
+| `src/pages/ebd/CheckoutBling.tsx` | Atualizar chamada |
+| `src/pages/admin/Orders.tsx` | Atualizar chamadas |
+| `src/pages/vendedor/VendedorPedidosPage.tsx` | Atualizar chamada |
+| `src/pages/vendedor/VendedorPDV.tsx` | Atualizar 2 chamadas |
+| `src/pages/shopify/ShopifyPedidos.tsx` | Atualizar chamada |
+| `src/pages/ebd/Checkout.tsx` | Atualizar 2 chamadas |
+| `src/pages/admin/AdminEBDPropostasPage.tsx` | Atualizar chamada |
+| `src/components/shopify/VendaConcluidaDialog.tsx` | Atualizar chamada |
+
+---
+
+## Benefícios Esperados
+
+1. **Redução de 4 funções para 1** - Menos funções para deployar
+2. **Código compartilhado** - Helpers como `refreshBlingToken` definidos uma única vez
+3. **Estabilidade** - Menos chance de 404 por falha de deploy
+4. **Manutenibilidade** - Lógica Bling centralizada em um único lugar
+5. **Consistência** - Padrão de chamada unificado no front-end
