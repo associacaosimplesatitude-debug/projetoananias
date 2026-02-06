@@ -1,182 +1,121 @@
 
-# Consolidação das Edge Functions Bling: Criação do Núcleo `api-bling`
+# Correção de Segurança Crítica: api-bling (Authorization)
 
-## Contexto
+## Problema Identificado
 
-O projeto atingiu o limite de estabilidade com **92 Edge Functions**, resultando em erros 404 constantes por falha de deploy. A consolidação é necessária para garantir estabilidade e manutenibilidade.
+A Edge Function `api-bling` contém uma vulnerabilidade crítica onde o `SUPABASE_SERVICE_ROLE_KEY` é usado como fallback para o header de Authorization em chamadas HTTP internas.
 
-## Análise das Funções a Consolidar
+### Código Vulnerável (2 ocorrências)
 
-### Funções Bling a Migrar
+**Linha 719 - handleCreateOrder:**
+```typescript
+const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
+```
 
-| Função Original | Linhas de Código | Chamadas no Front-end |
-|-----------------|------------------|-----------------------|
-| `bling-create-order` | ~2851 linhas | 8 arquivos |
-| `bling-generate-nfe` | ~1455 linhas | 2 arquivos |
-| `bling-check-stock` | ~250 linhas | 1 arquivo |
-| `bling-sync-order-status` | ~321 linhas | Não chamado diretamente (cron) |
+**Linha 781 - handleGenerateNfe:**
+```typescript
+const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
+```
 
-### Arquivos do Front-end que Precisam Refatoração
+### Impacto da Vulnerabilidade
 
-| Arquivo | Função Chamada |
-|---------|----------------|
-| `src/pages/ebd/CheckoutBling.tsx` | `bling-create-order` |
-| `src/pages/admin/Orders.tsx` | `bling-create-order` |
-| `src/pages/vendedor/VendedorPedidosPage.tsx` | `bling-create-order` |
-| `src/pages/vendedor/VendedorPDV.tsx` | `bling-create-order`, `bling-generate-nfe` |
-| `src/pages/shopify/ShopifyPedidos.tsx` | `bling-create-order` |
-| `src/pages/ebd/Checkout.tsx` | `bling-create-order`, `bling-check-stock` |
-| `src/pages/admin/AdminEBDPropostasPage.tsx` | `bling-create-order` |
-| `src/components/shopify/VendaConcluidaDialog.tsx` | `bling-generate-nfe` |
+- Requisições sem Authorization são processadas com privilégios de Service Role
+- Qualquer atacante pode acessar funcionalidades protegidas sem autenticação
+- Viola princípios básicos de segurança (bypass de autenticação)
 
 ---
 
-## Plano de Implementação
+## Correção Proposta
 
-### Tarefa 1: Criar o Núcleo `api-bling`
+### 1. Adicionar Verificação de Authorization no Main Handler
 
-Criar uma nova Edge Function `supabase/functions/api-bling/index.ts` que centraliza as 4 lógicas usando um padrão de roteamento `switch(action)`.
+No início da função `serve`, após capturar o `authHeader`, adicionar verificação imediata para ações que requerem autenticação.
 
-**Estrutura proposta:**
+### 2. Bloquear Execução sem Authorization
+
+Nos handlers `CREATE_ORDER` e `GENERATE_NFE`, antes de qualquer lógica:
 
 ```typescript
-// v1.0.0 - Consolidação Bling
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
-
-// Imports compartilhados (CORS, helpers, etc)
-const corsHeaders = { ... };
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  const { action, payload } = await req.json();
-
-  switch (action) {
-    case 'CREATE_ORDER':
-      return handleCreateOrder(payload);
-    case 'GENERATE_NFE':
-      return handleGenerateNfe(payload);
-    case 'CHECK_STOCK':
-      return handleCheckStock(payload);
-    case 'SYNC_ORDER_STATUS':
-      return handleSyncOrderStatus(payload);
-    default:
-      return new Response(
-        JSON.stringify({ error: 'Ação inválida' }),
-        { status: 400, headers: corsHeaders }
-      );
-  }
-});
+if (!authHeader) {
+  console.error("[API-BLING] [AUTH] Missing Authorization header");
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: "Unauthorized: missing Authorization header",
+      fase: "auth"
+    }),
+    {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    }
+  );
+}
 ```
 
-**Código compartilhado a extrair:**
-- `refreshBlingToken()` - renovação de token OAuth
-- `isTokenExpired()` - verificação de expiração
-- `corsHeaders` - headers CORS padrão
-- Helpers fiscais (`extractFiscalError`, `resolveNaturezaOperacaoId`, etc.)
+### 3. Remover Fallback para Service Role Key
 
-### Tarefa 2: Refatorar Chamadas no Front-end
-
-Atualizar todos os componentes para usar o novo formato de payload:
-
-**Antes:**
+Substituir:
 ```typescript
-await supabase.functions.invoke('bling-create-order', {
-  body: { cliente, itens, forma_pagamento }
-});
+const authorizationHeader = authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`;
 ```
 
-**Depois:**
+Por:
 ```typescript
-await supabase.functions.invoke('api-bling', {
-  body: {
-    action: 'CREATE_ORDER',
-    payload: { cliente, itens, forma_pagamento }
-  }
-});
+const authorizationHeader = authHeader; // SEM fallback para Service Role
 ```
+
+---
+
+## Arquivos a Modificar
 
 | Arquivo | Mudança |
 |---------|---------|
-| `CheckoutBling.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
-| `Orders.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
-| `VendedorPedidosPage.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
-| `VendedorPDV.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
-| `VendedorPDV.tsx` | `bling-generate-nfe` → `api-bling` + `action: 'GENERATE_NFE'` |
-| `ShopifyPedidos.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
-| `Checkout.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
-| `Checkout.tsx` | `bling-check-stock` → `api-bling` + `action: 'CHECK_STOCK'` |
-| `AdminEBDPropostasPage.tsx` | `bling-create-order` → `api-bling` + `action: 'CREATE_ORDER'` |
-| `VendaConcluidaDialog.tsx` | `bling-generate-nfe` → `api-bling` + `action: 'GENERATE_NFE'` |
+| `supabase/functions/api-bling/index.ts` | Correção de segurança completa |
 
-### Tarefa 3: Verificação
+## Alterações Detalhadas
 
-1. Deploy automático da nova função `api-bling`
-2. Teste via `supabase.functions.invoke` para verificar status 200
-3. **As funções antigas NÃO serão deletadas** - apenas desativadas no front-end
+### Função `handleCreateOrder` (linhas 666-769)
 
----
+1. Adicionar verificação de `authHeader` no início
+2. Retornar 401 se ausente
+3. Remover fallback da linha 719
 
-## Detalhes Técnicos
+### Função `handleGenerateNfe` (linhas 773-824)
 
-### Estrutura da Nova Função
+1. Adicionar verificação de `authHeader` no início
+2. Retornar 401 se ausente
+3. Remover fallback da linha 781
 
-```
-supabase/functions/api-bling/
-└── index.ts  (~4800 linhas consolidadas)
-```
+### Uso Correto do Service Role Key
 
-### Mapeamento de Ações
+O `SUPABASE_SERVICE_ROLE_KEY` continuará sendo usado **apenas** para:
+- Inicialização do cliente Supabase (linha 846): `createClient(supabaseUrl, supabaseServiceKey)`
 
-| Action | Função Original | Payload Esperado |
-|--------|-----------------|------------------|
-| `CREATE_ORDER` | `bling-create-order` | `{ cliente, itens, forma_pagamento, ... }` |
-| `GENERATE_NFE` | `bling-generate-nfe` | `{ bling_order_id }` |
-| `CHECK_STOCK` | `bling-check-stock` | `{ produtos }` |
-| `SYNC_ORDER_STATUS` | `bling-sync-order-status` | `{ limit?, force? }` |
-
-### Código Compartilhado (Helpers)
-
-Os seguintes helpers serão definidos uma única vez no arquivo consolidado:
-
-1. **refreshBlingToken()** - Renovação de token OAuth do Bling
-2. **isTokenExpired()** - Verificação de expiração de token
-3. **loadAllSituacoes()** - Cache de situações de pedido
-4. **loadAllFormasPagamento()** - Cache de formas de pagamento
-5. **resolveNaturezaOperacaoId()** - Resolução de natureza de operação
-6. **extractFiscalError()** - Extração de erros fiscais
-7. **getLastNfeNumber()** - Busca último número de NF-e
+Ele **nunca** será usado como Bearer token em chamadas HTTP.
 
 ---
 
-## Arquivos a Criar/Modificar
+## Validação Pós-Deploy
 
-### Novos Arquivos
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/api-bling/index.ts` | Nova função consolidada |
+1. **Teste sem Authorization**: Deve retornar HTTP 401
+   ```bash
+   curl -X POST .../api-bling -d '{"action":"CREATE_ORDER",...}'
+   # Esperado: 401 Unauthorized
+   ```
 
-### Arquivos a Modificar (Front-end)
-| Arquivo | Mudança |
-|---------|---------|
-| `src/pages/ebd/CheckoutBling.tsx` | Atualizar chamada |
-| `src/pages/admin/Orders.tsx` | Atualizar chamadas |
-| `src/pages/vendedor/VendedorPedidosPage.tsx` | Atualizar chamada |
-| `src/pages/vendedor/VendedorPDV.tsx` | Atualizar 2 chamadas |
-| `src/pages/shopify/ShopifyPedidos.tsx` | Atualizar chamada |
-| `src/pages/ebd/Checkout.tsx` | Atualizar 2 chamadas |
-| `src/pages/admin/AdminEBDPropostasPage.tsx` | Atualizar chamada |
-| `src/components/shopify/VendaConcluidaDialog.tsx` | Atualizar chamada |
+2. **Teste com Authorization válido**: Deve funcionar normalmente
+   ```bash
+   curl -X POST .../api-bling -H "Authorization: Bearer <token>" -d '...'
+   # Esperado: 200 OK ou erro de negócio
+   ```
+
+3. **Verificar logs**: Nenhum uso de Service Role em Authorization
 
 ---
 
-## Benefícios Esperados
+## Benefícios da Correção
 
-1. **Redução de 4 funções para 1** - Menos funções para deployar
-2. **Código compartilhado** - Helpers como `refreshBlingToken` definidos uma única vez
-3. **Estabilidade** - Menos chance de 404 por falha de deploy
-4. **Manutenibilidade** - Lógica Bling centralizada em um único lugar
-5. **Consistência** - Padrão de chamada unificado no front-end
+1. **Segurança**: Requisições não autenticadas são rejeitadas imediatamente
+2. **Conformidade**: Service Role Key usado apenas para fins administrativos
+3. **Auditoria**: Logs claros de tentativas não autenticadas
+4. **Padrão**: Alinhamento com melhores práticas de segurança
