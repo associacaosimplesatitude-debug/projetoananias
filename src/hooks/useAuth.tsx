@@ -53,12 +53,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const fetchUserRole = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
     
+    if (error) {
+      console.warn('Role não encontrada para usuário:', userId);
+    }
     setRole(data?.role || null);
     setLoading(false);
   };

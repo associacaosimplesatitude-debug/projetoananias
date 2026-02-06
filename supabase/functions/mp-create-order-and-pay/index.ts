@@ -1,11 +1,25 @@
-// v2 - deploy fix 2026-02-05
+// v3 - CORS fix 2026-02-06
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const ALLOWED_ORIGINS = [
+  'https://gestaoebd.com.br',
+  'https://www.gestaoebd.com.br',
+  'http://localhost:5173',
+];
+
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : ALLOWED_ORIGINS[0];
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Max-Age': '86400',
+  };
+}
 
 // Ambiente é detectado apenas pelo prefixo do token (TEST- = sandbox, APP_USR- = produção)
 // Não bloqueamos por BIN - deixamos o Mercado Pago validar
@@ -82,8 +96,11 @@ const createCardErrorResponse = (
 };
 
 serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   const requestId = crypto.randomUUID().slice(0, 8);
