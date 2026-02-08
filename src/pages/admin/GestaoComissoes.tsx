@@ -1435,7 +1435,8 @@ export default function GestaoComissoes() {
                 onBuscarNfe={handleBuscarNfe}
                 onRefazerNfe={handleRefazerNfe}
                 isUpdating={marcarPagaMutation.isPending}
-                showActions={false}
+                showActions={true}
+                isAdmin={isAdmin}
               />
             </CardContent>
           </Card>
