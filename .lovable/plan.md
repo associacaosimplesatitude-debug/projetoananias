@@ -1,159 +1,176 @@
 
-# Plano: Corrigir Exibição de Comissões Pagas para o Vendedor
+# Plano: Corrigir Fluxo de Pagamento de Comissões
 
-## Problema Identificado
+## Problema
 
-O clique no botão "Pagar" **funcionou corretamente** no banco de dados:
-- A parcela `cf7e986b-e447-4a05-bd35-2e7797f0389c` foi atualizada para `comissao_status: 'paga'` e `comissao_paga_em: '2026-02-08 18:31:43'`
+O botão "Pagar" na aba **Pendentes Futuras** está com a ação errada:
+- **Atual**: Clica "Pagar" → muda para `paga` → vai para aba "Pagas"
+- **Esperado**: Clica "Liberar" → muda para `liberada` → vai para aba "A Pagar"
 
-Porém, a tela do vendedor (`ComissaoPrevisaoCard.tsx`) **não mostra a comissão como paga** porque:
-
-1. **Interface incompleta**: A interface `Parcela` não inclui os campos `comissao_status` e `comissao_paga_em`
-2. **Filtro incorreto**: O código filtra por `p.status === 'paga'` (status do pagamento do cliente) ao invés de `p.comissao_status === 'paga'` (status do pagamento da comissão ao vendedor)
-
----
-
-## Campos na Tabela
+## Fluxo Correto
 
 ```text
-vendedor_propostas_parcelas:
-├── status: 'paga'|'aguardando'|'atrasada' (pagamento DO CLIENTE)
-└── comissao_status: 'pendente'|'agendada'|'liberada'|'paga' (pagamento AO VENDEDOR)
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                    FLUXO CORRETO DE COMISSÕES                             ║
+╠═══════════════════════════════════════════════════════════════════════════╣
+║                                                                           ║
+║  1. PENDENTE/AGENDADA                                                     ║
+║     └─ Aba: "Pendentes Futuras"                                           ║
+║     └─ Significado: Cliente AINDA NÃO PAGOU a fatura                      ║
+║     └─ Ação: [✓ Liberar] → Confirma que cliente pagou                     ║
+║                    │                                                      ║
+║                    ▼                                                      ║
+║  2. LIBERADA                                                              ║
+║     └─ Aba: "A Pagar"                                                     ║
+║     └─ Significado: Cliente pagou, comissão LIBERADA para vendedor        ║
+║     └─ Ação: [💰 Pagar] → Confirma pagamento ao vendedor                  ║
+║                    │                                                      ║
+║                    ▼                                                      ║
+║  3. PAGA                                                                  ║
+║     └─ Aba: "Pagas"                                                       ║
+║     └─ Significado: Empresa PAGOU comissão ao vendedor                    ║
+║     └─ Visível para vendedor como "Comissão Recebida"                     ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
 ## Mudanças Planejadas
 
-### 1. Atualizar Interface Parcela
-**Arquivo:** `src/components/vendedor/ComissaoPrevisaoCard.tsx`
+### 1. Criar Nova Mutation para Liberar Comissão
+**Arquivo:** `src/pages/admin/GestaoComissoes.tsx`
 
-Adicionar os campos faltantes na interface:
+Adicionar uma nova mutation `liberarComissaoMutation` que muda o status de `pendente`/`agendada` para `liberada`:
 
 ```tsx
-interface Parcela {
-  // ... campos existentes ...
-  status: string;
-  origem: string;
-  comissao_status: string;      // ADICIONAR
-  comissao_paga_em: string | null; // ADICIONAR
-}
+const liberarComissaoMutation = useMutation({
+  mutationFn: async (id: string) => {
+    const { error } = await supabase
+      .from("vendedor_propostas_parcelas")
+      .update({ 
+        comissao_status: 'liberada',
+        data_liberacao: new Date().toISOString().split('T')[0]
+      })
+      .eq("id", id);
+    
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+    toast.success("Comissão liberada! Aparece agora em 'A Pagar'");
+  },
+  onError: (error) => {
+    toast.error("Erro ao liberar comissão");
+  },
+});
 ```
 
-### 2. Corrigir Filtros de Status
-**Arquivo:** `src/components/vendedor/ComissaoPrevisaoCard.tsx`
+### 2. Modificar ComissaoTable Props
+**Arquivo:** `src/components/admin/comissoes/ComissaoTable.tsx`
 
-| Linha | Antes | Depois |
-|-------|-------|--------|
-| 68 | `p.status === 'paga'` | `p.comissao_status === 'paga'` |
-| 72 | `p.status !== 'paga'` | `p.comissao_status !== 'paga'` |
-| 84 | `p.status !== 'paga'` | `p.comissao_status !== 'paga'` |
-| 103 | `p.status === 'paga'` | `p.comissao_status === 'paga'` |
-| 109 | `p.status === 'paga'` | `p.comissao_status === 'paga'` |
-| 114 | `p.status === 'paga'` | `p.comissao_status === 'paga'` |
+Adicionar nova prop `onLiberar` e modificar a lógica do botão:
+- Para status `pendente` ou `agendada`: mostrar botão "Liberar" (ícone check)
+- Para status `liberada`: mostrar botão "Pagar" (ícone dinheiro)
 
----
+| Status | Botão | Ação | Resultado |
+|--------|-------|------|-----------|
+| `pendente` | ✓ Liberar | `onLiberar()` | → `liberada` |
+| `agendada` | ✓ Liberar | `onLiberar()` | → `liberada` |
+| `liberada` | 💰 Pagar | `onMarcarPaga()` | → `paga` |
 
-## Fluxo Corrigido
+### 3. Atualizar Aba Pendentes
+**Arquivo:** `src/pages/admin/GestaoComissoes.tsx`
 
-```text
-╔══════════════════════════════════════════════════════════════╗
-║  ADMIN: Clica "Pagar" na comissão                            ║
-╠══════════════════════════════════════════════════════════════╣
-║  1. PATCH vendedor_propostas_parcelas                        ║
-║     - comissao_status = 'paga'                               ║
-║     - comissao_paga_em = timestamp                           ║
-║                                                              ║
-║  2. toast.success("Comissão marcada como paga!")             ║
-║                                                              ║
-║  3. invalidateQueries → atualiza lista                       ║
-╚══════════════════════════════════════════════════════════════╝
-                         │
-                         ▼
-╔══════════════════════════════════════════════════════════════╗
-║  VENDEDOR: Tela de Comissões                                 ║
-╠══════════════════════════════════════════════════════════════╣
-║  Query busca parcelas com vendedor_id                        ║
-║                                                              ║
-║  Filtro CORRIGIDO:                                           ║
-║  - comissao_status === 'paga' → "Comissão Recebida no Mês"   ║
-║  - comissao_status !== 'paga' → "Pendente no mês"            ║
-╚══════════════════════════════════════════════════════════════╝
+Na aba "Pendentes Futuras", passar a nova função `onLiberar` ao invés de `onMarcarPaga`:
+
+```tsx
+<ComissaoTable
+  comissoes={[
+    ...comissoesFiltradas.filter(c => c.comissao_status === 'agendada'),
+    ...comissoesFiltradas.filter(c => c.comissao_status === 'pendente')
+  ]}
+  onLiberar={(id) => liberarComissaoMutation.mutate(id)}
+  onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+  // ...
+/>
 ```
-
----
-
-## Resultado Esperado
-
-Após a correção:
-
-1. Quando o admin clicar em "Pagar", a comissão será atualizada no banco
-2. A tela do vendedor exibirá corretamente:
-   - **"Comissão Recebida no Mês"**: soma das comissões com `comissao_status === 'paga'`
-   - **"Recebidas: X parcelas"**: contagem correta de parcelas pagas
-   - **"Pendente no mês"**: mostra apenas comissões ainda não pagas
 
 ---
 
 ## Detalhes Técnicos
 
-### Alteração no ComissaoPrevisaoCard.tsx
+### Alteração 1: ComissaoTable.tsx - Interface
 
-**Interface atualizada (linhas 16-29):**
 ```tsx
-interface Parcela {
-  id: string;
-  proposta_id: string;
-  vendedor_id: string;
-  cliente_id: string;
-  numero_parcela: number;
-  total_parcelas: number;
-  valor: number;
-  valor_comissao: number;
-  data_vencimento: string;
-  data_pagamento: string | null;
-  status: string;
-  origem: string;
-  comissao_status: string;
-  comissao_paga_em: string | null;
+interface ComissaoTableProps {
+  comissoes: ComissaoItem[];
+  onMarcarPaga: (id: string) => void;
+  onLiberar?: (id: string) => void;  // NOVO
+  // ... resto das props
 }
 ```
 
-**Filtros corrigidos:**
+### Alteração 2: ComissaoTable.tsx - Botões
 
 ```tsx
-// Linha 67-69: Comissão recebida no mês
-const comissaoRecebidaMes = parcelasDoMes
-  .filter(p => p.comissao_status === 'paga')
-  .reduce((sum, p) => sum + Number(p.valor_comissao || 0), 0);
+{showActions && (
+  <TableCell>
+    <div className="flex items-center gap-1">
+      {/* Botão LIBERAR para pendente/agendada */}
+      {["pendente", "agendada"].includes(item.comissao_status) && onLiberar && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-blue-600 border-blue-300 hover:bg-blue-50"
+          onClick={() => onLiberar(item.id)}
+          disabled={isUpdating}
+        >
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Liberar
+        </Button>
+      )}
+      
+      {/* Botão PAGAR apenas para liberada */}
+      {item.comissao_status === "liberada" && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-green-600 border-green-300 hover:bg-green-50"
+          onClick={() => onMarcarPaga(item.id)}
+          disabled={isUpdating}
+        >
+          <DollarSign className="h-3 w-3 mr-1" />
+          Pagar
+        </Button>
+      )}
+      
+      {/* ... resto (botão excluir) */}
+    </div>
+  </TableCell>
+)}
+```
 
-// Linha 71-73: Comissão pendente no mês
-const comissaoPendenteMes = parcelasDoMes
-  .filter(p => p.comissao_status !== 'paga')
-  .reduce((sum, p) => sum + Number(p.valor_comissao || 0), 0);
+### Alteração 3: GestaoComissoes.tsx - Nova Mutation
 
-// Linha 82-85: Previsões futuras
-const parcelasDoMesAlvo = parcelas.filter(p => {
-  const vencimento = parseISO(p.data_vencimento);
-  return vencimento >= inicioMes && vencimento <= fimMes && p.comissao_status !== 'paga';
-});
+Adicionar `liberarComissaoMutation` após `marcarPagaMutation` (linha ~638).
 
-// Linha 102-106: Parcelas atrasadas
-const parcelasAtrasadas = parcelasDoMes.filter(p => {
-  if (p.comissao_status === 'paga') return false;
-  const vencimento = parseISO(p.data_vencimento);
-  return isBefore(vencimento, hoje);
-}).length;
+### Alteração 4: GestaoComissoes.tsx - Aba Pendentes
 
-// Linha 108-112: Parcelas aguardando
-const parcelasAguardando = parcelasDoMes.filter(p => {
-  if (p.comissao_status === 'paga') return false;
-  const vencimento = parseISO(p.data_vencimento);
-  return isAfter(vencimento, hoje) || format(vencimento, 'yyyy-MM-dd') === format(hoje, 'yyyy-MM-dd');
-}).length;
+Modificar linhas ~1429-1440 para usar `onLiberar`:
 
-// Linha 114: Contagem de parcelas pagas
-const parcelasPagas = parcelasDoMes.filter(p => p.comissao_status === 'paga').length;
+```tsx
+<ComissaoTable
+  comissoes={[
+    ...comissoesFiltradas.filter(c => c.comissao_status === 'agendada'),
+    ...comissoesFiltradas.filter(c => c.comissao_status === 'pendente')
+  ]}
+  onLiberar={(id) => liberarComissaoMutation.mutate(id)}
+  onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+  isUpdating={liberarComissaoMutation.isPending || marcarPagaMutation.isPending}
+  showActions={true}
+  isAdmin={isAdmin}
+/>
 ```
 
 ---
@@ -162,5 +179,14 @@ const parcelasPagas = parcelasDoMes.filter(p => p.comissao_status === 'paga').le
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/vendedor/ComissaoPrevisaoCard.tsx` | Adicionar `comissao_status` e `comissao_paga_em` na interface `Parcela` |
-| `src/components/vendedor/ComissaoPrevisaoCard.tsx` | Trocar 6 ocorrências de `status` por `comissao_status` nos filtros |
+| `ComissaoTable.tsx` | Adicionar prop `onLiberar` e lógica de botões separados |
+| `GestaoComissoes.tsx` | Criar `liberarComissaoMutation` |
+| `GestaoComissoes.tsx` | Aba Pendentes: usar `onLiberar` ao invés de `onMarcarPaga` |
+
+---
+
+## Resultado Esperado
+
+1. Na aba **Pendentes Futuras**: botão "Liberar" → comissão vai para "A Pagar"
+2. Na aba **A Pagar**: botão "Pagar" → comissão vai para "Pagas"
+3. Vendedor vê corretamente: "Liberada" em A Pagar, "Paga" em Recebidas
