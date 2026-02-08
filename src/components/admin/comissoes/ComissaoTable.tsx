@@ -59,6 +59,7 @@ interface BuscarNfeParams {
 interface ComissaoTableProps {
   comissoes: ComissaoItem[];
   onMarcarPaga: (id: string) => void;
+  onLiberar?: (id: string) => void;
   onBuscarNfe?: (params: BuscarNfeParams) => void;
   onRefazerNfe?: (params: BuscarNfeParams) => void;
   onVincularManual?: (parcelaId: string, clienteNome: string) => void;
@@ -71,6 +72,7 @@ interface ComissaoTableProps {
 export function ComissaoTable({ 
   comissoes, 
   onMarcarPaga, 
+  onLiberar,
   onBuscarNfe, 
   onRefazerNfe, 
   onVincularManual,
@@ -291,14 +293,29 @@ export function ComissaoTable({
               {showActions && (
                 <TableCell>
                   <div className="flex items-center gap-1">
-              {["liberada", "pendente", "agendada"].includes(item.comissao_status) && (
+                    {/* Botão LIBERAR para pendente/agendada */}
+                    {["pendente", "agendada"].includes(item.comissao_status) && onLiberar && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onMarcarPaga(item.id)}
+                        className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                        onClick={() => onLiberar(item.id)}
                         disabled={isUpdating}
                       >
                         <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Liberar
+                      </Button>
+                    )}
+                    {/* Botão PAGAR apenas para liberada */}
+                    {item.comissao_status === "liberada" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-green-600 border-green-300 hover:bg-green-50"
+                        onClick={() => onMarcarPaga(item.id)}
+                        disabled={isUpdating}
+                      >
+                        <Wallet className="h-3 w-3 mr-1" />
                         Pagar
                       </Button>
                     )}

@@ -614,7 +614,30 @@ export default function GestaoComissoes() {
     return lotes.find(l => l.id === selectedLoteId) || null;
   }, [lotes, selectedLoteId]);
 
-  // Mutation: marcar como paga
+  // Mutation: liberar comissão (pendente/agendada → liberada)
+  const liberarComissaoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("vendedor_propostas_parcelas")
+        .update({ 
+          comissao_status: 'liberada',
+          data_liberacao: new Date().toISOString().split('T')[0]
+        })
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-comissoes-parcelas"] });
+      toast.success("Comissão liberada! Aparece agora em 'A Pagar'");
+    },
+    onError: (error) => {
+      console.error("Erro ao liberar comissão:", error);
+      toast.error("Erro ao liberar comissão");
+    },
+  });
+
+  // Mutation: marcar como paga (liberada → paga)
   const marcarPagaMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -1432,9 +1455,10 @@ export default function GestaoComissoes() {
                   ...comissoesFiltradas.filter(c => c.comissao_status === 'pendente')
                 ]}
                 onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
+                onLiberar={(id) => liberarComissaoMutation.mutate(id)}
                 onBuscarNfe={handleBuscarNfe}
                 onRefazerNfe={handleRefazerNfe}
-                isUpdating={marcarPagaMutation.isPending}
+                isUpdating={liberarComissaoMutation.isPending || marcarPagaMutation.isPending}
                 showActions={true}
                 isAdmin={isAdmin}
               />
