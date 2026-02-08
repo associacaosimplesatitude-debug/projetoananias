@@ -291,7 +291,7 @@ export function ComissaoTable({
               {showActions && (
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    {item.comissao_status === "liberada" && (
+              {["liberada", "pendente", "agendada"].includes(item.comissao_status) && (
                       <Button
                         size="sm"
                         variant="outline"
