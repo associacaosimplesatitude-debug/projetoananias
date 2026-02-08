@@ -26,6 +26,8 @@ interface Parcela {
   data_pagamento: string | null;
   status: string;
   origem: string;
+  comissao_status: string;
+  comissao_paga_em: string | null;
 }
 
 interface PrevisaoMes {
@@ -65,11 +67,11 @@ export function ComissaoPrevisaoCard({ vendedorId, comissaoPercentual }: Comissa
   });
 
   const comissaoRecebidaMes = parcelasDoMes
-    .filter(p => p.status === 'paga')
+    .filter(p => p.comissao_status === 'paga')
     .reduce((sum, p) => sum + Number(p.valor_comissao || 0), 0);
 
   const comissaoPendenteMes = parcelasDoMes
-    .filter(p => p.status !== 'paga')
+    .filter(p => p.comissao_status !== 'paga')
     .reduce((sum, p) => sum + Number(p.valor_comissao || 0), 0);
 
   // Group future parcels by month
@@ -81,7 +83,7 @@ export function ComissaoPrevisaoCard({ vendedorId, comissaoPercentual }: Comissa
     
     const parcelasDoMesAlvo = parcelas.filter(p => {
       const vencimento = parseISO(p.data_vencimento);
-      return vencimento >= inicioMes && vencimento <= fimMes && p.status !== 'paga';
+      return vencimento >= inicioMes && vencimento <= fimMes && p.comissao_status !== 'paga';
     });
 
     if (parcelasDoMesAlvo.length > 0) {
@@ -100,18 +102,18 @@ export function ComissaoPrevisaoCard({ vendedorId, comissaoPercentual }: Comissa
 
   // Count by status for current month
   const parcelasAtrasadas = parcelasDoMes.filter(p => {
-    if (p.status === 'paga') return false;
+    if (p.comissao_status === 'paga') return false;
     const vencimento = parseISO(p.data_vencimento);
     return isBefore(vencimento, hoje);
   }).length;
 
   const parcelasAguardando = parcelasDoMes.filter(p => {
-    if (p.status === 'paga') return false;
+    if (p.comissao_status === 'paga') return false;
     const vencimento = parseISO(p.data_vencimento);
     return isAfter(vencimento, hoje) || format(vencimento, 'yyyy-MM-dd') === format(hoje, 'yyyy-MM-dd');
   }).length;
 
-  const parcelasPagas = parcelasDoMes.filter(p => p.status === 'paga').length;
+  const parcelasPagas = parcelasDoMes.filter(p => p.comissao_status === 'paga').length;
 
   if (isLoading) {
     return (
