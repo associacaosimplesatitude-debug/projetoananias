@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { EditarEscalaDialog } from "@/components/ebd/EditarEscalaDialog";
 import { MontarEscalaDialog } from "@/components/ebd/MontarEscalaDialog";
 import { Progress } from "@/components/ui/progress";
+import { EscalaGeral } from "@/components/ebd/EscalaGeral";
 
 
 interface Planejamento {
@@ -327,14 +328,18 @@ export default function EBDSchedule() {
             
             return (
               <Tabs defaultValue="ativas" className="w-full">
-                <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsList className="grid w-full max-w-lg grid-cols-3">
                   <TabsTrigger value="ativas" className="flex items-center gap-2">
                     <BookOpen className="w-4 h-4" />
-                    Revistas Ativas
+                    <span className="hidden sm:inline">Revistas</span> Ativas
+                  </TabsTrigger>
+                  <TabsTrigger value="geral" className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Escala Geral
                   </TabsTrigger>
                   <TabsTrigger value="finalizadas" className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4" />
-                    Revistas Finalizadas
+                    Finalizadas
                   </TabsTrigger>
                 </TabsList>
 
@@ -345,22 +350,42 @@ export default function EBDSchedule() {
                         key={planejamento.id} 
                         className="overflow-hidden hover:shadow-md transition-shadow"
                       >
-                        <div className="flex items-center gap-4 p-4">
-                          <div className="w-16 h-20 flex-shrink-0 bg-muted rounded-lg overflow-hidden">
-                            {planejamento.revista?.imagem_url ? (
-                              <img
-                                src={planejamento.revista.imagem_url}
-                                alt={planejamento.revista.titulo}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <BookOpen className="w-6 h-6 text-muted-foreground/50" />
+                        <div className="flex flex-col md:flex-row md:items-center gap-4 p-4">
+                          <div className="flex items-start gap-3 md:gap-4">
+                            <div className="w-16 h-20 flex-shrink-0 bg-muted rounded-lg overflow-hidden">
+                              {planejamento.revista?.imagem_url ? (
+                                <img
+                                  src={planejamento.revista.imagem_url}
+                                  alt={planejamento.revista.titulo}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <BookOpen className="w-6 h-6 text-muted-foreground/50" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 md:hidden space-y-1">
+                              <p className="text-xs text-muted-foreground">Turma</p>
+                              <p className="font-medium text-sm">{planejamento.turma?.nome || '-'}</p>
+                              <p className="text-xs text-muted-foreground">{planejamento.revista?.faixa_etaria_alvo || '-'} | {planejamento.dia_semana}</p>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">Progresso</p>
+                                <div className="flex items-center gap-2">
+                                  <Progress 
+                                    value={(planejamento as any).progresso?.percentual || 0} 
+                                    className="h-2 flex-1" 
+                                    indicatorClassName={getProgressColor((planejamento as any).progresso?.percentual || 0)}
+                                  />
+                                  <span className="text-xs font-medium whitespace-nowrap">
+                                    {(planejamento as any).progresso?.ministradas || 0}/{(planejamento as any).progresso?.total || 13}
+                                  </span>
+                                </div>
                               </div>
-                            )}
+                            </div>
                           </div>
-                          <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4 items-center">
-                            <div className="col-span-2 md:col-span-1">
+                          <div className="hidden md:grid flex-1 grid-cols-6 gap-4 items-center">
+                            <div>
                               <p className="text-xs text-muted-foreground">Turma</p>
                               <p className="font-medium text-sm truncate">{planejamento.turma?.nome || '-'}</p>
                             </div>
@@ -372,15 +397,15 @@ export default function EBDSchedule() {
                               <p className="text-xs text-muted-foreground">Dia</p>
                               <p className="font-medium text-sm">{planejamento.dia_semana}</p>
                             </div>
-                            <div className="hidden md:block">
+                            <div>
                               <p className="text-xs text-muted-foreground">Início</p>
                               <p className="font-medium text-sm">{format(parseISO(planejamento.data_inicio), "dd/MM/yyyy")}</p>
                             </div>
-                            <div className="hidden md:block">
+                            <div>
                               <p className="text-xs text-muted-foreground">Término</p>
                               <p className="font-medium text-sm">{format(parseISO(planejamento.data_termino), "dd/MM/yyyy")}</p>
                             </div>
-                            <div className="col-span-2 md:col-span-1">
+                            <div>
                               <p className="text-xs text-muted-foreground mb-1">Progresso</p>
                               <div className="flex items-center gap-2">
                                 <Progress 
@@ -446,6 +471,10 @@ export default function EBDSchedule() {
                   )}
                 </TabsContent>
 
+                <TabsContent value="geral" className="mt-4">
+                  <EscalaGeral churchId={churchData?.id} />
+                </TabsContent>
+
                 <TabsContent value="finalizadas" className="space-y-3 mt-4">
                   {planejamentosFinalizados.length > 0 ? (
                     planejamentosFinalizados.map((planejamento) => (
@@ -453,25 +482,45 @@ export default function EBDSchedule() {
                         key={planejamento.id} 
                         className="overflow-hidden hover:shadow-md transition-shadow border-green-200 dark:border-green-800"
                       >
-                        <div className="flex items-center gap-4 p-4">
-                          <div className="w-16 h-20 flex-shrink-0 bg-muted rounded-lg overflow-hidden relative">
-                            {planejamento.revista?.imagem_url ? (
-                              <img
-                                src={planejamento.revista.imagem_url}
-                                alt={planejamento.revista.titulo}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <BookOpen className="w-6 h-6 text-muted-foreground/50" />
+                        <div className="flex flex-col md:flex-row md:items-center gap-4 p-4">
+                          <div className="flex items-start gap-3 md:gap-4">
+                            <div className="w-16 h-20 flex-shrink-0 bg-muted rounded-lg overflow-hidden relative">
+                              {planejamento.revista?.imagem_url ? (
+                                <img
+                                  src={planejamento.revista.imagem_url}
+                                  alt={planejamento.revista.titulo}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <BookOpen className="w-6 h-6 text-muted-foreground/50" />
+                                </div>
+                              )}
+                              <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
+                                <CheckCircle2 className="w-4 h-4 text-white" />
                               </div>
-                            )}
-                            <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
-                              <CheckCircle2 className="w-4 h-4 text-white" />
+                            </div>
+                            <div className="flex-1 md:hidden space-y-1">
+                              <p className="text-xs text-muted-foreground">Turma</p>
+                              <p className="font-medium text-sm">{planejamento.turma?.nome || '-'}</p>
+                              <p className="text-xs text-muted-foreground">{planejamento.revista?.faixa_etaria_alvo || '-'} | {planejamento.dia_semana}</p>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">Progresso</p>
+                                <div className="flex items-center gap-2">
+                                  <Progress 
+                                    value={100} 
+                                    className="h-2 flex-1" 
+                                    indicatorClassName="bg-green-500"
+                                  />
+                                  <span className="text-xs font-medium whitespace-nowrap text-green-600">
+                                    {(planejamento as any).progresso?.ministradas || 0}/{(planejamento as any).progresso?.total || 13}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4 items-center">
-                            <div className="col-span-2 md:col-span-1">
+                          <div className="hidden md:grid flex-1 grid-cols-6 gap-4 items-center">
+                            <div>
                               <p className="text-xs text-muted-foreground">Turma</p>
                               <p className="font-medium text-sm truncate">{planejamento.turma?.nome || '-'}</p>
                             </div>
@@ -483,15 +532,15 @@ export default function EBDSchedule() {
                               <p className="text-xs text-muted-foreground">Dia</p>
                               <p className="font-medium text-sm">{planejamento.dia_semana}</p>
                             </div>
-                            <div className="hidden md:block">
+                            <div>
                               <p className="text-xs text-muted-foreground">Início</p>
                               <p className="font-medium text-sm">{format(parseISO(planejamento.data_inicio), "dd/MM/yyyy")}</p>
                             </div>
-                            <div className="hidden md:block">
+                            <div>
                               <p className="text-xs text-muted-foreground">Término</p>
                               <p className="font-medium text-sm">{format(parseISO(planejamento.data_termino), "dd/MM/yyyy")}</p>
                             </div>
-                            <div className="col-span-2 md:col-span-1">
+                            <div>
                               <p className="text-xs text-muted-foreground mb-1">Progresso</p>
                               <div className="flex items-center gap-2">
                                 <Progress 
