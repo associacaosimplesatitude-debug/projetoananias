@@ -141,8 +141,9 @@ export default function RoyaltiesLivros() {
                   <TableHead className="w-16">Capa</TableHead>
                   <TableHead>Título</TableHead>
                   <TableHead>Autor</TableHead>
-                  <TableHead>Valor Capa</TableHead>
-                  <TableHead>Comissão</TableHead>
+                   <TableHead>Preço de Capa</TableHead>
+                   <TableHead>Valor Líquido</TableHead>
+                   <TableHead>Comissão</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -165,6 +166,7 @@ export default function RoyaltiesLivros() {
                     </TableCell>
                     <TableCell className="font-medium">{livro.titulo}</TableCell>
                     <TableCell>{livro.royalties_autores?.nome_completo || "-"}</TableCell>
+                    <TableCell>{formatCurrency((livro as any).preco_capa || 0)}</TableCell>
                     <TableCell>{formatCurrency(livro.valor_capa)}</TableCell>
                     <TableCell>
                       {livro.royalties_comissoes?.percentual 

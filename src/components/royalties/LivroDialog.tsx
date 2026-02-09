@@ -36,6 +36,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
   const [formData, setFormData] = useState({
     titulo: "",
     autor_id: "",
+    preco_capa: "",
     valor_capa: "",
     percentual_comissao: "",
     periodo_pagamento: "3_meses" as PeriodoPagamento,
@@ -71,6 +72,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
         setFormData({
           titulo: livro.titulo || "",
           autor_id: livro.autor_id || "",
+          preco_capa: (livro as any).preco_capa?.toString() || "",
           valor_capa: livro.valor_capa?.toString() || "",
           percentual_comissao: comissao?.percentual?.toString() || "",
           periodo_pagamento: (comissao?.periodo_pagamento as PeriodoPagamento) || "3_meses",
@@ -82,6 +84,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
         setFormData({
           titulo: "",
           autor_id: "",
+          preco_capa: "",
           valor_capa: "",
           percentual_comissao: "",
           periodo_pagamento: "3_meses",
@@ -116,6 +119,7 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
       const livroPayload = {
         titulo: formData.titulo.trim(),
         autor_id: formData.autor_id,
+        preco_capa: parseFloat(formData.preco_capa) || 0,
         valor_capa: parseFloat(formData.valor_capa) || 0,
         is_active: formData.is_active,
         capa_url: formData.capa_url || null,
@@ -273,17 +277,30 @@ export function LivroDialog({ open, onOpenChange, livro }: LivroDialogProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="valor_capa">Valor Líquido (R$) *</Label>
-            <Input
-              id="valor_capa"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.valor_capa}
-              onChange={(e) => setFormData({ ...formData, valor_capa: e.target.value })}
-              required
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="preco_capa">Preço de Capa (R$)</Label>
+              <Input
+                id="preco_capa"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.preco_capa}
+                onChange={(e) => setFormData({ ...formData, preco_capa: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="valor_capa">Valor Líquido (R$) *</Label>
+              <Input
+                id="valor_capa"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.valor_capa}
+                onChange={(e) => setFormData({ ...formData, valor_capa: e.target.value })}
+                required
+              />
+            </div>
           </div>
 
           <div className="border-t pt-4">

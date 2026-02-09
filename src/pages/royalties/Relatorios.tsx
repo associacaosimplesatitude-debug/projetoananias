@@ -33,9 +33,16 @@ export default function RoyaltiesRelatorios() {
             quantidade,
             valor_unitario,
             valor_comissao_total,
+            livro_id,
             royalties_livros (
+              id,
               titulo,
-              royalties_autores (nome_completo)
+              codigo_bling,
+              is_active,
+              preco_capa,
+              valor_capa,
+              royalties_autores (nome_completo),
+              royalties_comissoes (percentual)
             )
           `)
           .gte("data_venda", dataInicio)
@@ -43,7 +50,44 @@ export default function RoyaltiesRelatorios() {
           .order("data_venda", { ascending: false });
 
         if (error) throw error;
-        return data || [];
+        
+        // Group by book
+        const byBook: Record<string, any> = {};
+        for (const venda of (data || [])) {
+          const livroId = venda.livro_id;
+          if (!byBook[livroId]) {
+            const livro = venda.royalties_livros as any;
+            byBook[livroId] = {
+              livro_id: livroId,
+              codigo: livro?.codigo_bling || "-",
+              titulo: livro?.titulo || "-",
+              autor: livro?.royalties_autores?.nome_completo || "-",
+              status: livro?.is_active ? "Ativo" : "Inativo",
+              preco_capa: Number(livro?.preco_capa || 0),
+              valor_liquido: Number(livro?.valor_capa || 0),
+              taxa_royalty: livro?.royalties_comissoes?.percentual || 0,
+              quantidade_vendida: 0,
+              compras_autor: 0,
+              menor_valor: Infinity,
+              soma_valor_unitario: 0,
+              royalties_apurado: 0,
+              count: 0,
+            };
+          }
+          const g = byBook[livroId];
+          g.quantidade_vendida += venda.quantidade || 0;
+          g.royalties_apurado += Number(venda.valor_comissao_total || 0);
+          const vu = Number(venda.valor_unitario || 0);
+          if (vu > 0 && vu < g.menor_valor) g.menor_valor = vu;
+          g.soma_valor_unitario += vu * (venda.quantidade || 1);
+          g.count += venda.quantidade || 1;
+        }
+        
+        return Object.values(byBook).map((g: any) => ({
+          ...g,
+          menor_valor: g.menor_valor === Infinity ? 0 : g.menor_valor,
+          preco_liquido_medio: g.count > 0 ? g.soma_valor_unitario / g.count : 0,
+        }));
       } else if (tipoRelatorio === "comissoes") {
         const { data, error } = await supabase
           .from("royalties_vendas")
@@ -119,7 +163,11 @@ export default function RoyaltiesRelatorios() {
   };
 
   const calcularTotais = () => {
-    if (tipoRelatorio === "vendas" || tipoRelatorio === "comissoes") {
+    if (tipoRelatorio === "vendas") {
+      const totalQtd = dadosRelatorio.reduce((acc: number, v: any) => acc + (v.quantidade_vendida || 0), 0);
+      const totalComissao = dadosRelatorio.reduce((acc: number, v: any) => acc + Number(v.royalties_apurado || 0), 0);
+      return { totalQtd, totalComissao };
+    } else if (tipoRelatorio === "comissoes") {
       const totalQtd = dadosRelatorio.reduce((acc: number, v: any) => acc + (v.quantidade || 0), 0);
       const totalComissao = dadosRelatorio.reduce((acc: number, v: any) => acc + Number(v.valor_comissao_total || 0), 0);
       return { totalQtd, totalComissao };
@@ -424,6 +472,53 @@ export default function RoyaltiesRelatorios() {
                 ))}
               </TableBody>
             </Table>
+          ) : tipoRelatorio === "vendas" ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Título</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Qtd Vendida</TableHead>
+                    <TableHead className="text-right">Compras Autor</TableHead>
+                    <TableHead className="text-right">Preço de Capa</TableHead>
+                    <TableHead className="text-right">Menor Valor</TableHead>
+                    <TableHead className="text-right">Preço Líq. Médio</TableHead>
+                    <TableHead className="text-right">Taxa Royalty</TableHead>
+                    <TableHead className="text-right">Royalties Apurado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dadosRelatorio.map((item: any, idx: number) => (
+                    <TableRow key={item.livro_id || idx}>
+                      <TableCell className="font-mono text-xs">{item.codigo}</TableCell>
+                      <TableCell className="font-medium">{item.titulo}</TableCell>
+                      <TableCell>
+                        <Badge variant={item.status === "Ativo" ? "default" : "secondary"}>
+                          {item.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{item.quantidade_vendida}</TableCell>
+                      <TableCell className="text-right">{item.compras_autor}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.preco_capa)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.menor_valor)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.preco_liquido_medio)}</TableCell>
+                      <TableCell className="text-right">{item.taxa_royalty}%</TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(item.royalties_apurado)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {dadosRelatorio.length > 0 && (
+                    <TableRow className="bg-muted/50 font-bold">
+                      <TableCell colSpan={9} className="text-right">TOTAL DE ROYALTIES APURADO</TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(dadosRelatorio.reduce((acc: number, i: any) => acc + Number(i.royalties_apurado || 0), 0))}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <Table>
               <TableHeader>

@@ -1,0 +1,1 @@
+ALTER TABLE public.royalties_livros ADD COLUMN preco_capa NUMERIC DEFAULT 0;

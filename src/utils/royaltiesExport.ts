@@ -58,26 +58,30 @@ export const exportToPDF = ({ tipoRelatorio, dataInicio, dataFim, dados }: Expor
       formatCurrency(item.valor_total),
       item.status === "pago" ? "Pago" : item.status === "cancelado" ? "Cancelado" : "Pendente",
     ]);
+  } else if (tipoRelatorio === "vendas") {
+    tableHeaders = ["Código", "Título", "Status", "Qtd Vendida", "Compras Autor", "Preço de Capa", "Menor Valor", "Preço Líq. Médio", "Taxa Royalty", "Royalties Apurado"];
+    tableData = dados.map((item) => [
+      item.codigo || "-",
+      item.titulo || "-",
+      item.status || "-",
+      item.quantidade_vendida?.toString() || "0",
+      item.compras_autor?.toString() || "0",
+      formatCurrency(item.preco_capa || 0),
+      formatCurrency(item.menor_valor || 0),
+      formatCurrency(item.preco_liquido_medio || 0),
+      `${item.taxa_royalty || 0}%`,
+      formatCurrency(item.royalties_apurado || 0),
+    ]);
   } else {
-    tableHeaders = tipoRelatorio === "comissoes" 
-      ? ["Data", "Livro", "Autor", "Qtd", "Comissão", "Status"]
-      : ["Data", "Livro", "Autor", "Qtd", "Comissão"];
-    
-    tableData = dados.map((item) => {
-      const row = [
-        format(new Date(item.data_venda), "dd/MM/yyyy"),
-        item.royalties_livros?.titulo || "-",
-        item.royalties_livros?.royalties_autores?.nome_completo || "-",
-        item.quantidade.toString(),
-        formatCurrency(item.valor_comissao_total),
-      ];
-      
-      if (tipoRelatorio === "comissoes") {
-        row.push(item.pagamento_id ? "Pago" : "Pendente");
-      }
-      
-      return row;
-    });
+    tableHeaders = ["Data", "Livro", "Autor", "Qtd", "Comissão", "Status"];
+    tableData = dados.map((item) => [
+      format(new Date(item.data_venda), "dd/MM/yyyy"),
+      item.royalties_livros?.titulo || "-",
+      item.royalties_livros?.royalties_autores?.nome_completo || "-",
+      item.quantidade.toString(),
+      formatCurrency(item.valor_comissao_total),
+      item.pagamento_id ? "Pago" : "Pendente",
+    ]);
   }
 
   // Add table
@@ -85,7 +89,7 @@ export const exportToPDF = ({ tipoRelatorio, dataInicio, dataFim, dados }: Expor
     head: [tableHeaders],
     body: tableData,
     startY: 42,
-    styles: { fontSize: 9 },
+    styles: { fontSize: 8 },
     headStyles: { fillColor: [59, 130, 246] },
   });
 
@@ -100,6 +104,11 @@ export const exportToPDF = ({ tipoRelatorio, dataInicio, dataFim, dados }: Expor
     
     doc.text(`Total Pago: ${formatCurrency(totalPago)}`, 14, finalY);
     doc.text(`Total Pendente: ${formatCurrency(totalPendente)}`, 14, finalY + 6);
+  } else if (tipoRelatorio === "vendas") {
+    const totalRoyalties = dados.reduce((acc, v) => acc + Number(v.royalties_apurado || 0), 0);
+    doc.setFontSize(12);
+    doc.setFont(undefined as any, "bold");
+    doc.text(`TOTAL DE ROYALTIES APURADO: ${formatCurrency(totalRoyalties)}`, 14, finalY);
   } else {
     const totalQtd = dados.reduce((acc, v) => acc + (v.quantidade || 0), 0);
     const totalComissao = dados.reduce((acc, v) => acc + Number(v.valor_comissao_total || 0), 0);
@@ -124,22 +133,28 @@ export const exportToExcel = ({ tipoRelatorio, dataInicio, dataFim, dados }: Exp
       "Valor": Number(item.valor_total || 0),
       "Status": item.status === "pago" ? "Pago" : item.status === "cancelado" ? "Cancelado" : "Pendente",
     }));
+  } else if (tipoRelatorio === "vendas") {
+    worksheetData = dados.map((item) => ({
+      "Código": item.codigo || "-",
+      "Título": item.titulo || "-",
+      "Status": item.status || "-",
+      "Qtd Vendida": item.quantidade_vendida || 0,
+      "Compras Autor": item.compras_autor || 0,
+      "Preço de Capa": Number(item.preco_capa || 0),
+      "Menor Valor": Number(item.menor_valor || 0),
+      "Preço Líq. Médio": Number(item.preco_liquido_medio || 0),
+      "Taxa Royalty (%)": item.taxa_royalty || 0,
+      "Royalties Apurado": Number(item.royalties_apurado || 0),
+    }));
   } else {
-    worksheetData = dados.map((item) => {
-      const row: any = {
-        "Data": format(new Date(item.data_venda), "dd/MM/yyyy"),
-        "Livro": item.royalties_livros?.titulo || "-",
-        "Autor": item.royalties_livros?.royalties_autores?.nome_completo || "-",
-        "Quantidade": item.quantidade,
-        "Comissão": Number(item.valor_comissao_total || 0),
-      };
-      
-      if (tipoRelatorio === "comissoes") {
-        row["Status"] = item.pagamento_id ? "Pago" : "Pendente";
-      }
-      
-      return row;
-    });
+    worksheetData = dados.map((item) => ({
+      "Data": format(new Date(item.data_venda), "dd/MM/yyyy"),
+      "Livro": item.royalties_livros?.titulo || "-",
+      "Autor": item.royalties_livros?.royalties_autores?.nome_completo || "-",
+      "Quantidade": item.quantidade,
+      "Comissão": Number(item.valor_comissao_total || 0),
+      "Status": item.pagamento_id ? "Pago" : "Pendente",
+    }));
   }
 
   // Create workbook
@@ -157,6 +172,13 @@ export const exportToExcel = ({ tipoRelatorio, dataInicio, dataFim, dados }: Exp
       [],
       ["Total Pago:", totalPago],
       ["Total Pendente:", totalPendente],
+    ], { origin: `A${summaryRowIndex}` });
+  } else if (tipoRelatorio === "vendas") {
+    const totalRoyalties = dados.reduce((acc, v) => acc + Number(v.royalties_apurado || 0), 0);
+    
+    XLSX.utils.sheet_add_aoa(ws, [
+      [],
+      ["TOTAL DE ROYALTIES APURADO:", totalRoyalties],
     ], { origin: `A${summaryRowIndex}` });
   } else {
     const totalQtd = dados.reduce((acc, v) => acc + (v.quantidade || 0), 0);

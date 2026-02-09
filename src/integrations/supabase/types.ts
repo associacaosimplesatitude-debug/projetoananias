@@ -4864,6 +4864,7 @@ export type Database = {
           especificacoes: Json | null
           id: string
           is_active: boolean | null
+          preco_capa: number | null
           subtitulo: string | null
           titulo: string
           updated_at: string
@@ -4880,6 +4881,7 @@ export type Database = {
           especificacoes?: Json | null
           id?: string
           is_active?: boolean | null
+          preco_capa?: number | null
           subtitulo?: string | null
           titulo: string
           updated_at?: string
@@ -4896,6 +4898,7 @@ export type Database = {
           especificacoes?: Json | null
           id?: string
           is_active?: boolean | null
+          preco_capa?: number | null
           subtitulo?: string | null
           titulo?: string
           updated_at?: string
