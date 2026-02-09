@@ -294,7 +294,7 @@ export function ComissaoTable({
                 <TableCell>
                   <div className="flex items-center gap-1">
                     {/* Botão LIBERAR para pendente/agendada */}
-                    {["pendente", "agendada"].includes(item.comissao_status) && onLiberar && (
+                    {["pendente", "agendada", "atrasada"].includes(item.comissao_status) && onLiberar && (
                       <Button
                         size="sm"
                         variant="outline"

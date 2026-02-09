@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, Link } from "react-router-dom";
 import { 
   LayoutDashboard, 
   Users, 
@@ -11,7 +11,9 @@ import {
   ScrollText,
   Package,
   Mail,
+  ArrowLeft,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NavLink as RouterNavLink } from "@/components/NavLink";
 import {
@@ -92,6 +94,12 @@ export function RoyaltiesAdminLayout() {
         <div className="flex-1 flex flex-col">
           {/* Header */}
           <header className="border-b bg-background h-14 flex items-center px-4 gap-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/admin/ebd">
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Voltar
+              </Link>
+            </Button>
             <SidebarTrigger />
             <div className="flex-1" />
             <UserProfileDropdown />
