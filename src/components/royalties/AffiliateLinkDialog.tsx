@@ -150,6 +150,25 @@ export function AffiliateLinkDialog({ open, onOpenChange }: AffiliateLinkDialogP
       toast.success("Link de afiliado criado com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["affiliate-links-stats"] });
       onOpenChange(false);
+
+      // Disparo automático de email em background
+      const linkAfiliado = `${window.location.origin}/livro/${slug}`;
+      supabase.functions.invoke("send-royalties-email", {
+        body: {
+          autorId: formData.autor_id,
+          templateCode: "afiliado_link",
+          dados: {
+            livro: livro.titulo,
+            link_afiliado: linkAfiliado,
+            codigo: codigo_afiliado,
+          },
+        },
+      }).then(() => {
+        toast.success("Email com link de afiliado enviado ao autor.");
+      }).catch((err) => {
+        console.error("Erro ao enviar email de afiliado:", err);
+        toast.warning("Link criado, mas houve erro ao enviar email ao autor.");
+      });
     } catch (error: any) {
       console.error("Erro ao criar link de afiliado:", error);
       toast.error(error.message || "Erro ao criar link de afiliado.");
