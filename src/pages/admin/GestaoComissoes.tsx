@@ -134,6 +134,10 @@ export default function GestaoComissoes() {
   const [vendedorEquipeFiltro, setVendedorEquipeFiltro] = useState<string>("todos");
   const [statusHierarquicoFiltro, setStatusHierarquicoFiltro] = useState<string>("todos");
   
+  // Filtros para aba Pendentes
+  const [pendentesSearchTerm, setPendentesSearchTerm] = useState("");
+  const [pendentesDataVencimento, setPendentesDataVencimento] = useState("");
+  
   // State for manual linking dialog
   const [showVincularDialog, setShowVincularDialog] = useState(false);
   const [selectedParcelaVincular, setSelectedParcelaVincular] = useState<{ id: string; clienteNome: string } | null>(null);
@@ -880,7 +884,7 @@ export default function GestaoComissoes() {
     setStatusSelecionado(status);
     if (status === 'paga') {
       setActiveTab('pagas');
-    } else if (status === 'agendada' || status === 'pendente') {
+    } else if (status === 'agendada' || status === 'pendente' || status === 'atrasada') {
       setActiveTab('pendentes');
     } else {
       setActiveTab('a_pagar');
@@ -1454,12 +1458,57 @@ export default function GestaoComissoes() {
                 Importar Extrato
               </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Filtros */}
+              <div className="flex flex-wrap gap-4">
+                <div className="w-64">
+                  <label className="text-sm font-medium mb-1 block">Buscar por nome</label>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Cliente ou vendedor..."
+                      value={pendentesSearchTerm}
+                      onChange={(e) => setPendentesSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+                <div className="w-48">
+                  <label className="text-sm font-medium mb-1 block">Data de Vencimento</label>
+                  <Input
+                    type="date"
+                    value={pendentesDataVencimento}
+                    onChange={(e) => setPendentesDataVencimento(e.target.value)}
+                  />
+                </div>
+                {(pendentesSearchTerm || pendentesDataVencimento) && (
+                  <div className="flex items-end">
+                    <Button variant="ghost" size="sm" onClick={() => { setPendentesSearchTerm(""); setPendentesDataVencimento(""); }}>
+                      Limpar filtros
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               <ComissaoTable
-                comissoes={[
-                  ...comissoesFiltradas.filter(c => c.comissao_status === 'agendada'),
-                  ...comissoesFiltradas.filter(c => c.comissao_status === 'pendente')
-                ]}
+                comissoes={(() => {
+                  let items = [
+                    ...comissoesFiltradas.filter(c => c.comissao_status === 'atrasada'),
+                    ...comissoesFiltradas.filter(c => c.comissao_status === 'agendada'),
+                    ...comissoesFiltradas.filter(c => c.comissao_status === 'pendente'),
+                  ];
+                  if (pendentesSearchTerm) {
+                    const term = pendentesSearchTerm.toLowerCase();
+                    items = items.filter(c => 
+                      c.cliente_nome.toLowerCase().includes(term) || 
+                      c.vendedor_nome.toLowerCase().includes(term)
+                    );
+                  }
+                  if (pendentesDataVencimento) {
+                    items = items.filter(c => c.data_vencimento === pendentesDataVencimento);
+                  }
+                  return items;
+                })()}
                 onMarcarPaga={(id) => marcarPagaMutation.mutate(id)}
                 onLiberar={(id) => liberarComissaoMutation.mutate(id)}
                 onBuscarNfe={handleBuscarNfe}
