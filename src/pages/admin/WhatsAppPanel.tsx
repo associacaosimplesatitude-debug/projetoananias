@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook } from "lucide-react";
 import { format } from "date-fns";
 
 const MESSAGE_TYPES = [
@@ -34,6 +35,18 @@ const TEMPLATES: Record<string, string> = {
   agenda_aulas: "Olá {nome}! 📋\n\nConfira a agenda de aulas da EBD:\n\n{agenda}\n\nBoas aulas! 🙏",
 };
 
+function JsonBlock({ data, label }: { data: unknown; label: string }) {
+  if (!data) return null;
+  return (
+    <div className="space-y-1">
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
+      <pre className="bg-muted rounded-md p-3 text-xs overflow-x-auto max-h-60 overflow-y-auto font-mono">
+        {JSON.stringify(data, null, 2)}
+      </pre>
+    </div>
+  );
+}
+
 function CredentialsTab() {
   const queryClient = useQueryClient();
   const [showToken, setShowToken] = useState(false);
@@ -51,14 +64,11 @@ function CredentialsTab() {
         .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token"]);
       if (error) throw error;
       const map: Record<string, string> = {};
-      (data || []).forEach((s) => {
-        map[s.key] = s.value;
-      });
+      (data || []).forEach((s) => { map[s.key] = s.value; });
       return map;
     },
   });
 
-  // Set initial values when loaded
   useState(() => {
     if (settings) {
       setInstanceId(settings["zapi_instance_id"] || "");
@@ -67,11 +77,9 @@ function CredentialsTab() {
     }
   });
 
-  // Sync state when settings load
   const currentInstanceId = instanceId || settings?.["zapi_instance_id"] || "";
   const currentToken = token || settings?.["zapi_token"] || "";
   const currentClientToken = clientToken || settings?.["zapi_client_token"] || "";
-
   const isConfigured = !!(settings?.["zapi_instance_id"] && settings?.["zapi_token"] && settings?.["zapi_client_token"]);
 
   const saveMutation = useMutation({
@@ -81,29 +89,18 @@ function CredentialsTab() {
         { key: "zapi_token", value: currentToken, description: "Z-API Token da Instância" },
         { key: "zapi_client_token", value: currentClientToken, description: "Z-API Client Token" },
       ];
-
       for (const entry of entries) {
         const { error } = await supabase
           .from("system_settings")
-          .upsert(
-            { key: entry.key, value: entry.value, description: entry.description, updated_at: new Date().toISOString() },
-            { onConflict: "key" }
-          );
+          .upsert({ key: entry.key, value: entry.value, description: entry.description, updated_at: new Date().toISOString() }, { onConflict: "key" });
         if (error) throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["system-settings-zapi"] });
-      toast.success("Credenciais salvas com sucesso!");
-    },
-    onError: (err: Error) => {
-      toast.error("Erro ao salvar: " + err.message);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["system-settings-zapi"] }); toast.success("Credenciais salvas com sucesso!"); },
+    onError: (err: Error) => { toast.error("Erro ao salvar: " + err.message); },
   });
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center p-8 text-muted-foreground">Carregando...</div>;
-  }
+  if (isLoading) return <div className="flex items-center justify-center p-8 text-muted-foreground">Carregando...</div>;
 
   return (
     <Card>
@@ -122,56 +119,26 @@ function CredentialsTab() {
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="instance-id">Instance ID</Label>
-          <Input
-            id="instance-id"
-            placeholder="Ex: 3C7A..."
-            value={currentInstanceId}
-            onChange={(e) => setInstanceId(e.target.value)}
-          />
+          <Input id="instance-id" placeholder="Ex: 3C7A..." value={currentInstanceId} onChange={(e) => setInstanceId(e.target.value)} />
         </div>
-
         <div className="space-y-2">
           <Label htmlFor="zapi-token">Token da Instância</Label>
           <div className="relative">
-            <Input
-              id="zapi-token"
-              type={showToken ? "text" : "password"}
-              placeholder="Token da instância Z-API"
-              value={currentToken}
-              onChange={(e) => setToken(e.target.value)}
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowToken(!showToken)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
+            <Input id="zapi-token" type={showToken ? "text" : "password"} placeholder="Token da instância Z-API" value={currentToken} onChange={(e) => setToken(e.target.value)} className="pr-10" />
+            <button type="button" onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
         </div>
-
         <div className="space-y-2">
           <Label htmlFor="client-token">Client Token</Label>
           <div className="relative">
-            <Input
-              id="client-token"
-              type={showClientToken ? "text" : "password"}
-              placeholder="Token de segurança da conta"
-              value={currentClientToken}
-              onChange={(e) => setClientToken(e.target.value)}
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowClientToken(!showClientToken)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
+            <Input id="client-token" type={showClientToken ? "text" : "password"} placeholder="Token de segurança da conta" value={currentClientToken} onChange={(e) => setClientToken(e.target.value)} className="pr-10" />
+            <button type="button" onClick={() => setShowClientToken(!showClientToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               {showClientToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
         </div>
-
         <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-2">
           <Save className="h-4 w-4" />
           {saveMutation.isPending ? "Salvando..." : "Salvar Credenciais"}
@@ -188,6 +155,7 @@ function SendMessageTab() {
   const [nome, setNome] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [imagemUrl, setImagemUrl] = useState("");
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const { data: historico = [], isLoading: loadingHistorico } = useQuery({
     queryKey: ["whatsapp-mensagens"],
@@ -206,42 +174,18 @@ function SendMessageTab() {
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Não autenticado");
-
       const response = await supabase.functions.invoke("send-whatsapp-message", {
-        body: {
-          tipo_mensagem: tipo || "manual",
-          telefone: telefone.replace(/\D/g, ""),
-          nome,
-          mensagem,
-          imagem_url: imagemUrl || undefined,
-        },
+        body: { tipo_mensagem: tipo || "manual", telefone: telefone.replace(/\D/g, ""), nome, mensagem, imagem_url: imagemUrl || undefined },
       });
-
       if (response.error) throw new Error(response.error.message);
       if (response.data?.error) throw new Error(response.data.error);
       return response.data;
     },
-    onSuccess: () => {
-      toast.success("Mensagem enviada com sucesso!");
-      setTelefone("");
-      setNome("");
-      setMensagem("");
-      setImagemUrl("");
-      setTipo("");
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens"] });
-    },
-    onError: (err: Error) => {
-      toast.error("Erro: " + err.message);
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens"] });
-    },
+    onSuccess: () => { toast.success("Mensagem enviada com sucesso!"); setTelefone(""); setNome(""); setMensagem(""); setImagemUrl(""); setTipo(""); queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens"] }); },
+    onError: (err: Error) => { toast.error("Erro: " + err.message); queryClient.invalidateQueries({ queryKey: ["whatsapp-mensagens"] }); },
   });
 
-  const handleTipoChange = (value: string) => {
-    setTipo(value);
-    if (TEMPLATES[value]) {
-      setMensagem(TEMPLATES[value]);
-    }
-  };
+  const handleTipoChange = (value: string) => { setTipo(value); if (TEMPLATES[value]) setMensagem(TEMPLATES[value]); };
 
   const statusIcon = (status: string) => {
     if (status === "enviado") return <CheckCircle2 className="h-4 w-4 text-primary" />;
@@ -263,51 +207,28 @@ function SendMessageTab() {
               <Select value={tipo} onValueChange={handleTipoChange}>
                 <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
                 <SelectContent>
-                  {MESSAGE_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
+                  {MESSAGE_TYPES.map((t) => (<SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Telefone (com DDD)</Label>
-              <Input
-                placeholder="5521999999999"
-                value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
-              />
+              <Input placeholder="5521999999999" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
             </div>
           </div>
-
           <div className="space-y-2">
             <Label>Nome do Destinatário</Label>
             <Input placeholder="Nome" value={nome} onChange={(e) => setNome(e.target.value)} />
           </div>
-
           <div className="space-y-2">
             <Label>Mensagem</Label>
-            <Textarea
-              placeholder="Digite a mensagem..."
-              rows={6}
-              value={mensagem}
-              onChange={(e) => setMensagem(e.target.value)}
-            />
+            <Textarea placeholder="Digite a mensagem..." rows={6} value={mensagem} onChange={(e) => setMensagem(e.target.value)} />
           </div>
-
           <div className="space-y-2">
             <Label>URL da Imagem (opcional)</Label>
-            <Input
-              placeholder="https://exemplo.com/imagem.jpg"
-              value={imagemUrl}
-              onChange={(e) => setImagemUrl(e.target.value)}
-            />
+            <Input placeholder="https://exemplo.com/imagem.jpg" value={imagemUrl} onChange={(e) => setImagemUrl(e.target.value)} />
           </div>
-
-          <Button
-            onClick={() => sendMutation.mutate()}
-            disabled={sendMutation.isPending || !telefone || !mensagem}
-            className="gap-2"
-          >
+          <Button onClick={() => sendMutation.mutate()} disabled={sendMutation.isPending || !telefone || !mensagem} className="gap-2">
             <Send className="h-4 w-4" />
             {sendMutation.isPending ? "Enviando..." : "Enviar Mensagem"}
           </Button>
@@ -317,7 +238,7 @@ function SendMessageTab() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Histórico de Mensagens</CardTitle>
-          <CardDescription>Últimas 50 mensagens enviadas.</CardDescription>
+          <CardDescription>Últimas 50 mensagens enviadas. Clique para ver detalhes.</CardDescription>
         </CardHeader>
         <CardContent>
           {loadingHistorico ? (
@@ -329,6 +250,7 @@ function SendMessageTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8"></TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Destinatário</TableHead>
@@ -338,17 +260,41 @@ function SendMessageTab() {
                 </TableHeader>
                 <TableBody>
                   {historico.map((msg: any) => (
-                    <TableRow key={msg.id}>
-                      <TableCell>{statusIcon(msg.status)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {MESSAGE_TYPES.find((t) => t.value === msg.tipo_mensagem)?.label || msg.tipo_mensagem}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{msg.nome_destino || "-"}</TableCell>
-                      <TableCell className="font-mono text-xs">{msg.telefone_destino}</TableCell>
-                      <TableCell className="text-xs">{format(new Date(msg.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
-                    </TableRow>
+                    <Collapsible key={msg.id} open={expandedRow === msg.id} onOpenChange={(open) => setExpandedRow(open ? msg.id : null)} asChild>
+                      <>
+                        <CollapsibleTrigger asChild>
+                          <TableRow className="cursor-pointer">
+                            <TableCell className="p-2">
+                              {expandedRow === msg.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </TableCell>
+                            <TableCell>{statusIcon(msg.status)}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {MESSAGE_TYPES.find((t) => t.value === msg.tipo_mensagem)?.label || msg.tipo_mensagem}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{msg.nome_destino || "-"}</TableCell>
+                            <TableCell className="font-mono text-xs">{msg.telefone_destino}</TableCell>
+                            <TableCell className="text-xs">{format(new Date(msg.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
+                          </TableRow>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent asChild>
+                          <tr>
+                            <td colSpan={6} className="p-4 bg-muted/30 border-b">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <JsonBlock data={msg.payload_enviado} label="📤 Payload Enviado" />
+                                <JsonBlock data={msg.resposta_recebida} label="📥 Resposta Z-API" />
+                                {msg.erro_detalhes && (
+                                  <div className="md:col-span-2">
+                                    <JsonBlock data={msg.erro_detalhes} label="❌ Erro" />
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        </CollapsibleContent>
+                      </>
+                    </Collapsible>
                   ))}
                 </TableBody>
               </Table>
@@ -357,6 +303,80 @@ function SendMessageTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function WebhooksTab() {
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
+  const { data: webhooks = [], isLoading } = useQuery({
+    queryKey: ["whatsapp-webhooks"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_webhooks")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 10000,
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Webhooks Recebidos</CardTitle>
+        <CardDescription>Últimos 100 eventos recebidos da Z-API. Atualiza a cada 10s.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="text-muted-foreground text-center py-4">Carregando...</p>
+        ) : webhooks.length === 0 ? (
+          <p className="text-muted-foreground text-center py-4">Nenhum webhook recebido ainda.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Evento</TableHead>
+                  <TableHead>Telefone</TableHead>
+                  <TableHead>Message ID</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {webhooks.map((wh: any) => (
+                  <Collapsible key={wh.id} open={expandedRow === wh.id} onOpenChange={(open) => setExpandedRow(open ? wh.id : null)} asChild>
+                    <>
+                      <CollapsibleTrigger asChild>
+                        <TableRow className="cursor-pointer">
+                          <TableCell className="p-2">
+                            {expandedRow === wh.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </TableCell>
+                          <TableCell className="text-xs">{format(new Date(wh.created_at), "dd/MM/yyyy HH:mm:ss")}</TableCell>
+                          <TableCell><Badge variant="outline" className="text-xs">{wh.evento}</Badge></TableCell>
+                          <TableCell className="font-mono text-xs">{wh.telefone || "-"}</TableCell>
+                          <TableCell className="font-mono text-xs max-w-[200px] truncate">{wh.message_id || "-"}</TableCell>
+                        </TableRow>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent asChild>
+                        <tr>
+                          <td colSpan={5} className="p-4 bg-muted/30 border-b">
+                            <JsonBlock data={wh.payload} label="📋 Payload Completo" />
+                          </td>
+                        </tr>
+                      </CollapsibleContent>
+                    </>
+                  </Collapsible>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -374,6 +394,10 @@ export default function WhatsAppPanel() {
             <MessageSquare className="h-4 w-4" />
             Enviar Mensagem
           </TabsTrigger>
+          <TabsTrigger value="webhooks" className="gap-2">
+            <Webhook className="h-4 w-4" />
+            Webhooks
+          </TabsTrigger>
           <TabsTrigger value="credenciais" className="gap-2">
             <Settings className="h-4 w-4" />
             Credenciais Z-API
@@ -382,6 +406,10 @@ export default function WhatsAppPanel() {
 
         <TabsContent value="enviar">
           <SendMessageTab />
+        </TabsContent>
+
+        <TabsContent value="webhooks">
+          <WebhooksTab />
         </TabsContent>
 
         <TabsContent value="credenciais">

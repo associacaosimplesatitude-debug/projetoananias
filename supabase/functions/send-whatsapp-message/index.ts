@@ -82,40 +82,30 @@ Deno.serve(async (req) => {
 
     const baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
 
-    let zapiResponse;
+    let zapiPayload: Record<string, unknown>;
+    let zapiEndpoint: string;
+
     if (imagem_url) {
-      // Send image with caption
-      zapiResponse = await fetch(`${baseUrl}/send-image`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Client-Token": clientToken,
-        },
-        body: JSON.stringify({
-          phone: telefone,
-          image: imagem_url,
-          caption: mensagem,
-        }),
-      });
+      zapiEndpoint = `${baseUrl}/send-image`;
+      zapiPayload = { phone: telefone, image: imagem_url, caption: mensagem };
     } else {
-      // Send text
-      zapiResponse = await fetch(`${baseUrl}/send-text`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Client-Token": clientToken,
-        },
-        body: JSON.stringify({
-          phone: telefone,
-          message: mensagem,
-        }),
-      });
+      zapiEndpoint = `${baseUrl}/send-text`;
+      zapiPayload = { phone: telefone, message: mensagem };
     }
+
+    const zapiResponse = await fetch(zapiEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Client-Token": clientToken,
+      },
+      body: JSON.stringify(zapiPayload),
+    });
 
     const zapiResult = await zapiResponse.json();
     const isSuccess = zapiResponse.ok;
 
-    // Log message
+    // Log message with payload and response
     await supabase.from("whatsapp_mensagens").insert({
       tipo_mensagem: tipo_mensagem || "manual",
       telefone_destino: telefone,
@@ -125,6 +115,8 @@ Deno.serve(async (req) => {
       status: isSuccess ? "enviado" : "erro",
       erro_detalhes: isSuccess ? null : JSON.stringify(zapiResult),
       enviado_por: user.id,
+      payload_enviado: zapiPayload,
+      resposta_recebida: zapiResult,
     });
 
     if (!isSuccess) {
