@@ -10,7 +10,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Filter, Search, Wallet, Calendar, Clock, CheckCircle2, 
   AlertTriangle, FileText, TrendingUp, List, Users, RefreshCw, Download,
-  ShoppingCart, Crown
+  ShoppingCart, Crown, Upload
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -33,6 +33,7 @@ import {
   ComissaoResumoAdminCard,
 } from "@/components/admin/comissoes";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ImportarExtratoBancario } from "@/components/admin/comissoes/ImportarExtratoBancario";
 
 interface VendedorExtended {
   id: string;
@@ -139,6 +140,7 @@ export default function GestaoComissoes() {
 
   // State for NF loading per row
   const [fetchingNfeIds, setFetchingNfeIds] = useState<Set<string>>(new Set());
+  const [showImportarExtrato, setShowImportarExtrato] = useState(false);
 
   // Fetch all parcelas with comissao_status
   const { data: parcelas = [], isLoading: parcelasLoading } = useQuery({
@@ -1445,8 +1447,12 @@ export default function GestaoComissoes() {
           </div>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Todas as Pendentes</CardTitle>
+              <Button onClick={() => setShowImportarExtrato(true)} variant="outline" size="sm">
+                <Upload className="h-4 w-4" />
+                Importar Extrato
+              </Button>
             </CardHeader>
             <CardContent>
               <ComissaoTable
@@ -1654,6 +1660,13 @@ export default function GestaoComissoes() {
           isLoading={vincularManualMutation.isPending}
         />
       )}
+
+      <ImportarExtratoBancario
+        open={showImportarExtrato}
+        onOpenChange={setShowImportarExtrato}
+        parcelas={parcelas}
+        clienteMap={clienteMap}
+      />
     </div>
   );
 }

@@ -266,3 +266,6 @@ verify_jwt = true
 
 [functions.apresentacao-ai-assistant]
 verify_jwt = false
+
+[functions.parse-bank-statement]
+verify_jwt = false
