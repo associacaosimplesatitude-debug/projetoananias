@@ -1,33 +1,72 @@
 
 
-# Correcao do Envio de Emails Transacionais (Resend)
+# Disparo Automatico de Emails: Dados de Acesso e Link de Afiliado
 
-## Problemas Identificados
+## Resumo
 
-1. **Remetente incorreto**: O codigo atual usa `from: "Projeto Ananias <noreply@projetoananias.com.br>"` mas o dominio verificado no Resend e `painel.editoracentralgospel.com.br`
-2. **Edge function nao registrada**: `send-royalties-email` nao esta no `supabase/config.toml`, o que impede o deploy
-3. A `RESEND_API_KEY` ja esta configurada nos secrets - ok
+Implementar o disparo automatico de emails em duas acoes:
+
+1. **Dados de Acesso ao Painel de Royalties** - Quando um novo autor e cadastrado com email, enviar automaticamente o template `autor_acesso` com as credenciais de login.
+2. **Link de Afiliado** - Quando um novo link de afiliado e criado, enviar automaticamente o template `afiliado_link` para o autor com o link e codigo.
+
+## Correcao necessaria
+
+O template `autor_acesso` ainda tem o assunto "Seus dados de acesso - Projeto Ananias". Sera corrigido via SQL para "Seus dados de acesso - Central Gospel Editora".
 
 ## Alteracoes
 
-### 1. Registrar a edge function no config.toml
+### 1. Corrigir assunto do template `autor_acesso`
 
-Adicionar `[functions.send-royalties-email]` com `verify_jwt = false` (a funcao valida auth internamente via service role).
+Migração SQL para atualizar o assunto removendo "Projeto Ananias".
 
-### 2. Corrigir o remetente na edge function
+### 2. Disparo automatico: Link de Afiliado
 
-Atualizar `supabase/functions/send-royalties-email/index.ts`:
+No arquivo `src/components/royalties/AffiliateLinkDialog.tsx`, apos o `insert` bem-sucedido na tabela `royalties_affiliate_links`, disparar a edge function `send-royalties-email` com:
 
-- Trocar o `from` de `"Projeto Ananias <noreply@projetoananias.com.br>"` para `"Relatorios <relatorios@painel.editoracentralgospel.com.br>"` (dominio verificado no Resend)
+- `autorId`: ID do autor selecionado
+- `templateCode`: `afiliado_link`
+- `dados`:
+  - `livro`: titulo do livro
+  - `link_afiliado`: URL completa do link gerado (`{origin}/livro/{slug}`)
+  - `codigo`: codigo do afiliado gerado
 
-### 3. Deploy da edge function
+O envio sera feito em background (sem bloquear a UI). Se falhar, exibe toast de aviso mas nao impede o cadastro.
 
-Fazer o deploy de `send-royalties-email` para que fique disponivel.
+### 3. Disparo automatico: Dados de Acesso
 
-## Arquivos alterados
+No componente `AutorDialog.tsx` (cadastro de autores), apos o insert bem-sucedido de um novo autor que possua email, disparar a edge function com:
+
+- `autorId`: ID do autor recem-criado
+- `templateCode`: `autor_acesso`
+- `dados`:
+  - `senha_temporaria`: senha gerada para o autor
+  - `link_login`: URL do portal do autor (`https://gestaoebd.lovable.app/autor`)
+
+Isso depende de como o cadastro de autor cria o usuario de login. Sera necessario verificar o fluxo no `AutorDialog` para integrar corretamente.
+
+## Detalhes Tecnicos
+
+### Arquivos alterados
 
 | Arquivo | Acao |
 |---------|------|
-| `supabase/config.toml` | Adicionar registro da funcao |
-| `supabase/functions/send-royalties-email/index.ts` | Corrigir remetente |
+| `src/components/royalties/AffiliateLinkDialog.tsx` | Adicionar disparo do email `afiliado_link` apos insert |
+| `src/components/royalties/AutorDialog.tsx` | Adicionar disparo do email `autor_acesso` apos criacao de autor |
+| Migracao SQL | Corrigir assunto do template `autor_acesso` |
+
+### Logica de envio (ambos os casos)
+
+```text
+// Apos insert bem-sucedido:
+supabase.functions.invoke("send-royalties-email", {
+  body: { autorId, templateCode, dados }
+}).then(() => {
+  toast.success("Email enviado ao autor");
+}).catch((err) => {
+  console.error(err);
+  toast.warning("Cadastro realizado, mas houve erro ao enviar email");
+});
+```
+
+O envio nao bloqueia o fluxo principal - se falhar, o cadastro ja foi concluido com sucesso.
 
