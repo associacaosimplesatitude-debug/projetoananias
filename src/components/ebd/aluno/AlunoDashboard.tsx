@@ -163,7 +163,7 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
       // Buscar todos os quizzes ativos (incluindo passados que não foram respondidos)
       const { data: quizzes, error: quizzesError } = await supabase
         .from("ebd_quizzes")
-        .select("id, titulo, pontos_max, data_limite, hora_liberacao, contexto, nivel")
+        .select("id, titulo, pontos_max, data_limite, hora_liberacao, contexto, nivel, escala_id, ebd_escalas(observacao)")
         .eq("turma_id", aluno.turma_id)
         .eq("is_active", true)
         .order("data_limite", { ascending: true, nullsFirst: true });
@@ -185,12 +185,18 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
       // Retornar TODOS os quizzes não respondidos
       const pendentes = quizzes.filter((q) => !respondidos.has(q.id));
       
-      return pendentes.map((q) => ({
-        ...q,
-        hora_liberacao: q.hora_liberacao || "09:00:00",
-        contexto: q.contexto || null,
-        nivel: q.nivel || null,
-      }));
+      return pendentes.map((q) => {
+        const obs = (q as any).ebd_escalas?.observacao || "";
+        const matchAula = obs.match(/Aula (\d+)/i);
+        const numeroAula = matchAula ? parseInt(matchAula[1]) : null;
+        return {
+          ...q,
+          hora_liberacao: q.hora_liberacao || "09:00:00",
+          contexto: q.contexto || null,
+          nivel: q.nivel || null,
+          numeroAula,
+        };
+      });
     },
     enabled: !!aluno.turma_id,
   });
@@ -486,7 +492,7 @@ export function AlunoDashboard({ aluno }: AlunoDashboardProps) {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
                     <HelpCircle className={`w-5 h-5 ${liberado ? "text-purple-500" : "text-gray-400"}`} />
-                    Quiz da Aula
+                    Quiz da Aula {quiz.numeroAula ? quiz.numeroAula : ""}
                   </CardTitle>
                   {quiz.nivel && (
                     <Badge variant="outline" className="text-xs">{quiz.nivel}</Badge>
