@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import * as pdfjsLib from "pdfjs-dist";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -77,18 +78,26 @@ export function ImportarExtratoBancario({ open, onOpenChange, parcelas, clienteM
     onOpenChange(open);
   }, [onOpenChange, reset]);
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Remove data URL prefix
-        const base64 = result.split(",")[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  const pdfToImageBase64 = async (file: File): Promise<string[]> => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const images: string[] = [];
+    
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d")!;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const dataUrl = canvas.toDataURL("image/png");
+      images.push(dataUrl.split(",")[1]);
+    }
+    
+    return images;
   };
 
   const findMatches = (titulos: TituloExtrato[]): MatchResult[] => {
@@ -123,13 +132,14 @@ export function ImportarExtratoBancario({ open, onOpenChange, parcelas, clienteM
 
     setProcessing(true);
     try {
-      const base64 = await fileToBase64(file);
+      const images = await pdfToImageBase64(file);
       
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
 
+      // Send all pages as separate images
       const response = await supabase.functions.invoke("parse-bank-statement", {
-        body: { pdf_base64: base64, banco },
+        body: { images_base64: images, banco },
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 

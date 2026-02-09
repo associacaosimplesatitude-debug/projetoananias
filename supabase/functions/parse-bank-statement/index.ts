@@ -17,10 +17,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { pdf_base64, banco } = await req.json();
+    const { images_base64, banco } = await req.json();
 
-    if (!pdf_base64 || !banco) {
-      return new Response(JSON.stringify({ error: 'pdf_base64 and banco are required' }), {
+    if (!images_base64 || !Array.isArray(images_base64) || images_base64.length === 0 || !banco) {
+      return new Response(JSON.stringify({ error: 'images_base64 (array) and banco are required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -90,6 +90,15 @@ Formato de saída:
   ]
 }`;
 
+    // Build content array with all page images
+    const imageContents = images_base64.map((img: string) => ({
+      type: 'image_url',
+      image_url: {
+        url: `data:image/png;base64,${img}`,
+        detail: 'high',
+      },
+    }));
+
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -103,13 +112,7 @@ Formato de saída:
           {
             role: 'user',
             content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/png;base64,${pdf_base64}`,
-                  detail: 'high',
-                },
-              },
+              ...imageContents,
               {
                 type: 'text',
                 text: 'Extraia todos os títulos deste extrato bancário conforme as instruções.',
@@ -117,7 +120,7 @@ Formato de saída:
             ],
           },
         ],
-        max_tokens: 4096,
+        max_tokens: 16384,
         temperature: 0,
       }),
     });
