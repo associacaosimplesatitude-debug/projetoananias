@@ -5113,6 +5113,36 @@ export type Database = {
         }
         Relationships: []
       }
+      system_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       tutoriais: {
         Row: {
           categorias: string[] | null
@@ -5788,6 +5818,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_mensagens: {
+        Row: {
+          created_at: string
+          enviado_por: string | null
+          erro_detalhes: string | null
+          id: string
+          imagem_url: string | null
+          mensagem: string
+          nome_destino: string | null
+          status: string
+          telefone_destino: string
+          tipo_mensagem: string
+        }
+        Insert: {
+          created_at?: string
+          enviado_por?: string | null
+          erro_detalhes?: string | null
+          id?: string
+          imagem_url?: string | null
+          mensagem: string
+          nome_destino?: string | null
+          status?: string
+          telefone_destino: string
+          tipo_mensagem: string
+        }
+        Update: {
+          created_at?: string
+          enviado_por?: string | null
+          erro_detalhes?: string | null
+          id?: string
+          imagem_url?: string | null
+          mensagem?: string
+          nome_destino?: string | null
+          status?: string
+          telefone_destino?: string
+          tipo_mensagem?: string
+        }
+        Relationships: []
       }
     }
     Views: {

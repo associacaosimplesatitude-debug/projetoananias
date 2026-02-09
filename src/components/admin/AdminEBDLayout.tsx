@@ -26,6 +26,7 @@ import {
   ArrowRightLeft,
   Wallet,
   BookMarked,
+  MessageSquare,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -389,6 +390,14 @@ function AdminSidebar() {
                     <RouterNavLink to="/admin/ebd/gestao-tutoriais">
                       <Video className="h-4 w-4" />
                       <span>Gestão de Tutoriais</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/whatsapp')}>
+                    <RouterNavLink to="/admin/ebd/whatsapp">
+                      <MessageSquare className="h-4 w-4" />
+                      <span>WhatsApp</span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
