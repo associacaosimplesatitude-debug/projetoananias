@@ -1,56 +1,44 @@
 
-# Plano: Campo Preco de Capa + Relatorio no Padrao do Modelo
+# Plano: Botao Voltar no Royalties + Botao Liberar nas Atrasadas
 
-## Resumo
+## Problema 1: Botao "Voltar ao Painel Financeiro" no /royalties
 
-Duas alteracoes: (1) adicionar campo "Preco de Capa" no cadastro de livros (o campo atual `valor_capa` passa a ser o valor liquido, e um novo campo `preco_capa` armazena o preco de capa real); (2) reformular o relatorio de vendas para seguir o layout do modelo fornecido, com colunas: Codigo, Titulo, Status, Quantidade Vendida, Compras do Autor, Preco de Capa, Menor Valor Vendido, Preco Liquido Medio, Taxa de Royalty, Royalties Apurado.
+O modulo de Royalties (`/royalties`) tem seu proprio layout com sidebar, sem nenhum botao para voltar ao painel administrativo principal. O usuario precisa de um botao "Voltar" no header para retornar ao painel financeiro.
 
-## Alteracoes
+### Solucao
 
-### 1. Migration: Novo campo `preco_capa` na tabela `royalties_livros`
+Adicionar um botao "Voltar" no header do `RoyaltiesAdminLayout.tsx`, ao lado do `SidebarTrigger`. O botao usara o icone `ArrowLeft` e navegara para `/admin/ebd` (painel EBD/Financeiro).
 
-Adicionar coluna `preco_capa NUMERIC DEFAULT 0` na tabela. O campo existente `valor_capa` continua como valor liquido.
+**Arquivo:** `src/components/royalties/RoyaltiesAdminLayout.tsx`
+- Importar `ArrowLeft` do lucide-react e `Link` do react-router-dom
+- Adicionar botao com texto "Voltar" no header, antes do `SidebarTrigger`
 
-### 2. Atualizar `LivroDialog.tsx`
+---
 
-- Adicionar campo "Preco de Capa (R$)" no formulario, entre o campo de Autor e o campo "Valor Liquido"
-- Renomear label atual de "Valor Liquido (R$)" para deixar claro que e o valor liquido
-- Incluir `preco_capa` no formData, no payload de submit, e no carregamento de dados existentes
+## Problema 2: Botao "Liberar" nao aparece nas parcelas atrasadas
 
-### 3. Atualizar `Livros.tsx` (tabela de listagem)
+Quando o usuario clica no card "Atrasadas" no KPI, e direcionado para a aba "Pendentes" onde as parcelas atrasadas sao listadas. Porem, o botao "Liberar" nao aparece para itens com status `atrasada`.
 
-- Exibir a coluna "Preco de Capa" separada da coluna "Valor Capa" (que e o valor liquido)
-- Ou renomear a coluna existente para "Valor Liquido" e adicionar "Preco de Capa"
+### Causa
 
-### 4. Reformular Relatorio de Vendas (`Relatorios.tsx`)
+No componente `ComissaoTable.tsx`, a condicao para exibir o botao "Liberar" e:
+```
+["pendente", "agendada"].includes(item.comissao_status)
+```
+O status `atrasada` nao esta incluido nessa lista.
 
-Alterar a tabela do relatorio de vendas para seguir o modelo da imagem:
+### Solucao
 
-| Coluna | Origem |
-|--------|--------|
-| Codigo | `royalties_livros.codigo_bling` |
-| Titulo | `royalties_livros.titulo` |
-| Status do Livro | `royalties_livros.is_active` (Ativo/Inativo) |
-| Quantidade Vendida | soma de `royalties_vendas.quantidade` por livro |
-| Compras do Autor | (campo novo ou calculado - sera 0 por padrao) |
-| Preco de Capa | `royalties_livros.preco_capa` |
-| Menor Valor Vendido | `MIN(royalties_vendas.valor_unitario)` por livro |
-| Preco Liquido Medio no Periodo | `AVG(royalties_vendas.valor_unitario)` ou media ponderada |
-| Taxa de Royalty | `royalties_comissoes.percentual` |
-| Royalties Apurado | soma de `royalties_vendas.valor_comissao_total` |
+Adicionar `"atrasada"` a lista de status que permitem o botao "Liberar".
 
-Os dados serao agrupados por livro (nao por venda individual), com totalizacao no final.
+**Arquivo:** `src/components/admin/comissoes/ComissaoTable.tsx`
+- Alterar a condicao na linha 297 para: `["pendente", "agendada", "atrasada"].includes(item.comissao_status)`
 
-### 5. Atualizar Exportacao PDF (`royaltiesExport.ts`)
+---
 
-Ajustar o export PDF do relatorio de vendas para seguir o mesmo layout do modelo:
-- Cabecalho com dados do autor, periodo
-- Tabela com as mesmas colunas
-- Totalizacao "TOTAL DE ROYALTIES APURADO" no rodape
+## Resumo das alteracoes
 
-## Detalhes Tecnicos
-
-- Nova coluna: `ALTER TABLE royalties_livros ADD COLUMN preco_capa NUMERIC DEFAULT 0;`
-- O relatorio de vendas passa a agrupar por livro no periodo, calculando agregacoes (SUM quantidade, MIN valor_unitario, AVG valor_unitario, SUM comissao)
-- A query do relatorio sera ajustada para trazer dados dos livros com join nas comissoes
-- O campo "Compras do Autor" pode ser preenchido futuramente; por hora sera exibido como 0
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/components/royalties/RoyaltiesAdminLayout.tsx` | Adicionar botao "Voltar" no header com link para `/admin/ebd` |
+| `src/components/admin/comissoes/ComissaoTable.tsx` | Incluir status "atrasada" na condicao do botao "Liberar" |
