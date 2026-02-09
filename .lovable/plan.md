@@ -1,30 +1,56 @@
 
+# Plano: Campo Preco de Capa + Relatorio no Padrao do Modelo
 
-# Plano: Corrigir Edge Function `parse-bank-statement`
+## Resumo
 
-## Problema
+Duas alteracoes: (1) adicionar campo "Preco de Capa" no cadastro de livros (o campo atual `valor_capa` passa a ser o valor liquido, e um novo campo `preco_capa` armazena o preco de capa real); (2) reformular o relatorio de vendas para seguir o layout do modelo fornecido, com colunas: Codigo, Titulo, Status, Quantidade Vendida, Compras do Autor, Preco de Capa, Menor Valor Vendido, Preco Liquido Medio, Taxa de Royalty, Royalties Apurado.
 
-A funcao esta falhando no boot com o erro:
-```
-worker boot error: Unable to load .../edge-runtime.d.ts imported from .../parse-bank-statement/index.ts: path not found
-```
+## Alteracoes
 
-A linha `import "npm:@supabase/functions-js/edge-runtime.d.ts"` nao e compativel com o runtime atual. Outras funcoes do projeto nao usam esse import.
+### 1. Migration: Novo campo `preco_capa` na tabela `royalties_livros`
 
-## Correcoes
+Adicionar coluna `preco_capa NUMERIC DEFAULT 0` na tabela. O campo existente `valor_capa` continua como valor liquido.
 
-### Arquivo: `supabase/functions/parse-bank-statement/index.ts`
+### 2. Atualizar `LivroDialog.tsx`
 
-1. **Remover a linha 1** (`import "npm:@supabase/functions-js/edge-runtime.d.ts"`) - nao e necessaria, o `Deno.serve` funciona nativamente no edge runtime
+- Adicionar campo "Preco de Capa (R$)" no formulario, entre o campo de Autor e o campo "Valor Liquido"
+- Renomear label atual de "Valor Liquido (R$)" para deixar claro que e o valor liquido
+- Incluir `preco_capa` no formData, no payload de submit, e no carregamento de dados existentes
 
-2. **Atualizar CORS headers** para incluir todos os headers necessarios:
-```typescript
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
-```
+### 3. Atualizar `Livros.tsx` (tabela de listagem)
 
-3. **Tambem atualizar `verify_jwt`** no config.toml para `false` (a funcao ja valida o header de autorizacao manualmente no codigo, e o sistema de signing-keys nao funciona com `verify_jwt = true`)
+- Exibir a coluna "Preco de Capa" separada da coluna "Valor Capa" (que e o valor liquido)
+- Ou renomear a coluna existente para "Valor Liquido" e adicionar "Preco de Capa"
 
-Nenhuma outra alteracao necessaria - o resto do codigo (chamada OpenAI, parsing, etc.) esta correto.
+### 4. Reformular Relatorio de Vendas (`Relatorios.tsx`)
+
+Alterar a tabela do relatorio de vendas para seguir o modelo da imagem:
+
+| Coluna | Origem |
+|--------|--------|
+| Codigo | `royalties_livros.codigo_bling` |
+| Titulo | `royalties_livros.titulo` |
+| Status do Livro | `royalties_livros.is_active` (Ativo/Inativo) |
+| Quantidade Vendida | soma de `royalties_vendas.quantidade` por livro |
+| Compras do Autor | (campo novo ou calculado - sera 0 por padrao) |
+| Preco de Capa | `royalties_livros.preco_capa` |
+| Menor Valor Vendido | `MIN(royalties_vendas.valor_unitario)` por livro |
+| Preco Liquido Medio no Periodo | `AVG(royalties_vendas.valor_unitario)` ou media ponderada |
+| Taxa de Royalty | `royalties_comissoes.percentual` |
+| Royalties Apurado | soma de `royalties_vendas.valor_comissao_total` |
+
+Os dados serao agrupados por livro (nao por venda individual), com totalizacao no final.
+
+### 5. Atualizar Exportacao PDF (`royaltiesExport.ts`)
+
+Ajustar o export PDF do relatorio de vendas para seguir o mesmo layout do modelo:
+- Cabecalho com dados do autor, periodo
+- Tabela com as mesmas colunas
+- Totalizacao "TOTAL DE ROYALTIES APURADO" no rodape
+
+## Detalhes Tecnicos
+
+- Nova coluna: `ALTER TABLE royalties_livros ADD COLUMN preco_capa NUMERIC DEFAULT 0;`
+- O relatorio de vendas passa a agrupar por livro no periodo, calculando agregacoes (SUM quantidade, MIN valor_unitario, AVG valor_unitario, SUM comissao)
+- A query do relatorio sera ajustada para trazer dados dos livros com join nas comissoes
+- O campo "Compras do Autor" pode ser preenchido futuramente; por hora sera exibido como 0
