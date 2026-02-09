@@ -304,6 +304,28 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         }
         
         toast({ title: "Autor cadastrado com sucesso!" });
+
+        // Disparo automático de email de dados de acesso em background
+        if (data && formData.email && formData.senha) {
+          supabase.functions.invoke("send-royalties-email", {
+            body: {
+              autorId: data.id,
+              templateCode: "autor_acesso",
+              dados: {
+                senha_temporaria: formData.senha,
+                link_login: "https://gestaoebd.lovable.app/autor",
+              },
+            },
+          }).then(() => {
+            toast({ title: "Email de acesso enviado ao autor." });
+          }).catch((err) => {
+            console.error("Erro ao enviar email de acesso:", err);
+            toast({
+              title: "Autor cadastrado, mas houve erro ao enviar email de acesso.",
+              variant: "destructive",
+            });
+          });
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["royalties-autores"] });
