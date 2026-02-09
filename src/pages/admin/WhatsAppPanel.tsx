@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook } from "lucide-react";
+import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
 const MESSAGE_TYPES = [
@@ -54,6 +54,10 @@ function CredentialsTab() {
   const [instanceId, setInstanceId] = useState("");
   const [token, setToken] = useState("");
   const [clientToken, setClientToken] = useState("");
+  const [statusResult, setStatusResult] = useState<any>(null);
+  const [deviceResult, setDeviceResult] = useState<any>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [loadingDevice, setLoadingDevice] = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["system-settings-zapi"],
@@ -85,9 +89,9 @@ function CredentialsTab() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const entries = [
-        { key: "zapi_instance_id", value: currentInstanceId, description: "Z-API Instance ID" },
+        { key: "zapi_instance_id", value: currentInstanceId, description: "Z-API ID da Instância" },
         { key: "zapi_token", value: currentToken, description: "Z-API Token da Instância" },
-        { key: "zapi_client_token", value: currentClientToken, description: "Z-API Client Token" },
+        { key: "zapi_client_token", value: currentClientToken, description: "Z-API Token de Segurança da Conta" },
       ];
       for (const entry of entries) {
         const { error } = await supabase
@@ -100,51 +104,134 @@ function CredentialsTab() {
     onError: (err: Error) => { toast.error("Erro ao salvar: " + err.message); },
   });
 
+  const fetchInstanceInfo = async (action: "status" | "device") => {
+    const setLoading = action === "status" ? setLoadingStatus : setLoadingDevice;
+    const setResult = action === "status" ? setStatusResult : setDeviceResult;
+    setLoading(true);
+    setResult(null);
+    try {
+      const response = await supabase.functions.invoke("zapi-instance-info", { body: { action } });
+      if (response.error) throw new Error(response.error.message);
+      if (response.data?.error) throw new Error(response.data.error);
+      setResult(response.data?.data);
+    } catch (err: any) {
+      toast.error(`Erro ao buscar ${action}: ${err.message}`);
+      setResult({ error: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (isLoading) return <div className="flex items-center justify-center p-8 text-muted-foreground">Carregando...</div>;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">Credenciais Z-API</CardTitle>
-            <CardDescription>Configure as credenciais da sua instância Z-API para envio de mensagens WhatsApp.</CardDescription>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Credenciais Z-API</CardTitle>
+              <CardDescription>Configure as credenciais da sua instância Z-API para envio de mensagens WhatsApp.</CardDescription>
+            </div>
+            <Badge variant={isConfigured ? "default" : "destructive"} className="gap-1">
+              {isConfigured ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+              {isConfigured ? "Configurado" : "Não configurado"}
+            </Badge>
           </div>
-          <Badge variant={isConfigured ? "default" : "destructive"} className="gap-1">
-            {isConfigured ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-            {isConfigured ? "Configurado" : "Não configurado"}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="instance-id">Instance ID</Label>
-          <Input id="instance-id" placeholder="Ex: 3C7A..." value={currentInstanceId} onChange={(e) => setInstanceId(e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="zapi-token">Token da Instância</Label>
-          <div className="relative">
-            <Input id="zapi-token" type={showToken ? "text" : "password"} placeholder="Token da instância Z-API" value={currentToken} onChange={(e) => setToken(e.target.value)} className="pr-10" />
-            <button type="button" onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="instance-id">ID da Instância</Label>
+            <Input id="instance-id" placeholder="Ex: 3C7A..." value={currentInstanceId} onChange={(e) => setInstanceId(e.target.value)} />
           </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="client-token">Client Token</Label>
-          <div className="relative">
-            <Input id="client-token" type={showClientToken ? "text" : "password"} placeholder="Token de segurança da conta" value={currentClientToken} onChange={(e) => setClientToken(e.target.value)} className="pr-10" />
-            <button type="button" onClick={() => setShowClientToken(!showClientToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              {showClientToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+          <div className="space-y-2">
+            <Label htmlFor="zapi-token">Token da Instância</Label>
+            <div className="relative">
+              <Input id="zapi-token" type={showToken ? "text" : "password"} placeholder="Token da instância Z-API" value={currentToken} onChange={(e) => setToken(e.target.value)} className="pr-10" />
+              <button type="button" onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
-        </div>
-        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-2">
-          <Save className="h-4 w-4" />
-          {saveMutation.isPending ? "Salvando..." : "Salvar Credenciais"}
-        </Button>
-      </CardContent>
-    </Card>
+          <div className="space-y-2">
+            <Label htmlFor="client-token">Token de Segurança da Conta</Label>
+            <div className="relative">
+              <Input id="client-token" type={showClientToken ? "text" : "password"} placeholder="Token de segurança da conta" value={currentClientToken} onChange={(e) => setClientToken(e.target.value)} className="pr-10" />
+              <button type="button" onClick={() => setShowClientToken(!showClientToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showClientToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-2">
+              <Save className="h-4 w-4" />
+              {saveMutation.isPending ? "Salvando..." : "Salvar Credenciais"}
+            </Button>
+            <Button variant="outline" onClick={() => fetchInstanceInfo("status")} disabled={loadingStatus || !isConfigured} className="gap-2">
+              {loadingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
+              Verificar Status
+            </Button>
+            <Button variant="outline" onClick={() => fetchInstanceInfo("device")} disabled={loadingDevice || !isConfigured} className="gap-2">
+              {loadingDevice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+              Dados do Celular
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {statusResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Status da Instância
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!statusResult.error && (
+              <div className="flex flex-wrap gap-3">
+                <Badge variant={statusResult.connected ? "default" : "destructive"}>
+                  {statusResult.connected ? "Conectado" : "Desconectado"}
+                </Badge>
+                {statusResult.smartPhoneConnected !== undefined && (
+                  <Badge variant={statusResult.smartPhoneConnected ? "default" : "secondary"}>
+                    Celular: {statusResult.smartPhoneConnected ? "Online" : "Offline"}
+                  </Badge>
+                )}
+                {statusResult.session && (
+                  <Badge variant="outline">Sessão: {statusResult.session}</Badge>
+                )}
+              </div>
+            )}
+            <JsonBlock data={statusResult} label="📋 Resposta completa" />
+          </CardContent>
+        </Card>
+      )}
+
+      {deviceResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Smartphone className="h-5 w-5" />
+              Dados do Celular
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!deviceResult.error && (
+              <div className="flex flex-wrap gap-3 items-center">
+                {deviceResult.imgUrl && (
+                  <img src={deviceResult.imgUrl} alt="Foto do perfil" className="h-10 w-10 rounded-full object-cover" />
+                )}
+                {deviceResult.phone && <Badge variant="outline">📞 {deviceResult.phone}</Badge>}
+                {deviceResult.name && <Badge variant="outline">👤 {deviceResult.name}</Badge>}
+                {deviceResult.device?.device_model && <Badge variant="secondary">📱 {deviceResult.device.device_model}</Badge>}
+              </div>
+            )}
+            <JsonBlock data={deviceResult} label="📋 Resposta completa" />
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 

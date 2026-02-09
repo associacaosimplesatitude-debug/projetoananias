@@ -269,3 +269,6 @@ verify_jwt = false
 
 [functions.parse-bank-statement]
 verify_jwt = false
+
+[functions.zapi-instance-info]
+verify_jwt = false
