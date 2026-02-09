@@ -1,61 +1,82 @@
 
-# Historico Completo com Payloads e Webhooks
+
+# Ajuste de Nomenclaturas e Botoes de Status/Device Z-API
 
 ## Resumo
 
-Adicionar ao historico de mensagens WhatsApp: o JSON enviado para a Z-API, a resposta recebida, e criar uma nova aba/secao para receber e exibir webhooks da Z-API.
+Corrigir as nomenclaturas dos campos para alinhar com a documentacao oficial da Z-API e adicionar dois botoes na aba Credenciais para verificar o status da instancia e os dados do celular conectado.
 
 ## Alteracoes
 
-### 1. Banco de Dados
+### 1. Nomenclaturas - Aba Credenciais
 
-**Adicionar 2 colunas na tabela `whatsapp_mensagens`:**
-- `payload_enviado` (jsonb, nullable) - JSON exato enviado para a Z-API
-- `resposta_recebida` (jsonb, nullable) - JSON da resposta da Z-API
+Ajustar os labels dos campos para ficarem identicos ao painel da Z-API:
 
-**Nova tabela `whatsapp_webhooks`** para receber webhooks da Z-API:
+| Campo atual | Novo label | Chave no banco |
+|-------------|-----------|----------------|
+| Instance ID | ID da Instancia | zapi_instance_id |
+| Token da Instancia | Token da Instancia | zapi_token |
+| Client Token | Token de Seguranca da Conta | zapi_client_token |
 
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid | PK |
-| evento | text | Tipo do evento (ex: message-status, on-message-received) |
-| payload | jsonb | JSON completo do webhook |
-| telefone | text (nullable) | Telefone relacionado (extraido do payload) |
-| message_id | text (nullable) | ID da mensagem na Z-API |
-| created_at | timestamptz | Data de recebimento |
+### 2. Nova Edge Function `zapi-instance-info`
 
-RLS: Apenas admins podem ler. A edge function insere via service role.
+Criar uma unica edge function que aceita um parametro `action` ("status" ou "device") e faz o GET correspondente na Z-API:
 
-### 2. Edge Function `send-whatsapp-message` (atualizar)
+- `GET /status` - Retorna o status da instancia (connected, smartPhoneConnected, session, etc.)
+- `GET /device` - Retorna dados do celular conectado (phone, name, imgUrl, device, etc.)
 
-Salvar o JSON enviado (`payload_enviado`) e a resposta da Z-API (`resposta_recebida`) no registro da mensagem.
+A funcao:
+- Valida autenticacao do usuario
+- Busca credenciais da `system_settings`
+- Faz GET no endpoint correto da Z-API com header `Client-Token`
+- Retorna o resultado
 
-### 3. Nova Edge Function `whatsapp-webhook`
+### 3. Frontend - Botoes na aba Credenciais
 
-Endpoint publico (sem auth) que:
-- Recebe POST da Z-API com eventos (status de mensagem, mensagens recebidas, etc.)
-- Salva tudo na tabela `whatsapp_webhooks`
-- Retorna 200 OK
+Adicionar na aba Credenciais, abaixo do botao "Salvar Credenciais":
 
-### 4. Frontend - Historico expandido
+- **Botao "Verificar Status"**: Chama a edge function com action=status e exibe o resultado em um card/bloco JSON formatado
+- **Botao "Dados do Celular"**: Chama a edge function com action=device e exibe o resultado (telefone, nome, modelo, etc.)
 
-Na tabela de historico, cada linha tera um botao para expandir e ver:
-- **Payload Enviado**: JSON formatado do que foi enviado
-- **Resposta Z-API**: JSON formatado da resposta recebida
-- **Erro**: detalhes do erro (ja existe)
+Os resultados serao exibidos em cards visuais com os dados principais destacados e o JSON completo disponivel para inspecao.
 
-### 5. Frontend - Nova aba "Webhooks"
+## Detalhes Tecnicos
 
-Nova aba no painel WhatsApp mostrando:
-- Tabela com todos os webhooks recebidos (ultimos 100)
-- Colunas: Data, Evento, Telefone, Message ID
-- Botao para expandir e ver o JSON completo do webhook
+### Endpoints Z-API utilizados
 
-## Arquivos criados/alterados
+```text
+GET https://api.z-api.io/instances/{INSTANCE_ID}/token/{TOKEN}/status
+GET https://api.z-api.io/instances/{INSTANCE_ID}/token/{TOKEN}/device
+Header: Client-Token: {CLIENT_TOKEN}
+```
+
+### Resposta esperada do /status
+
+```text
+{
+  "connected": true/false,
+  "smartPhoneConnected": true/false,
+  "session": "connected"/"disconnected",
+  ...
+}
+```
+
+### Resposta esperada do /device
+
+```text
+{
+  "phone": "5521...",
+  "name": "Nome",
+  "imgUrl": "...",
+  "device": { "sessionName": "...", "device_model": "..." },
+  ...
+}
+```
+
+### Arquivos criados/alterados
 
 | Arquivo | Acao |
 |---------|------|
-| Migracao SQL | Adicionar colunas + criar tabela webhooks |
-| `supabase/functions/send-whatsapp-message/index.ts` | Salvar payload e resposta |
-| `supabase/functions/whatsapp-webhook/index.ts` | Criar (receber webhooks) |
-| `src/pages/admin/WhatsAppPanel.tsx` | Historico expandivel + aba Webhooks |
+| `supabase/functions/zapi-instance-info/index.ts` | Criar edge function |
+| `src/pages/admin/WhatsAppPanel.tsx` | Ajustar labels + adicionar botoes + exibir resultados |
+
