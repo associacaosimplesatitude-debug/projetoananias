@@ -1,120 +1,55 @@
 
 
-# Plano: Melhorar Layout Responsivo + Criar Escala Geral
+# Plano: Melhorar Contraste dos Botoes no Sistema EBD
 
-## Parte 1: Corrigir Layout Responsivo dos Cards de Revistas
+## Problema
 
-### Problema
-No mobile, o card usa `flex items-center` em uma unica linha horizontal com imagem + grid + botoes, causando sobreposicao de texto e botoes (como na imagem enviada).
+O dominio EBD aplica `#FFC107` (amarelo vivo) como cor primaria via CSS variables. Todos os botoes que usam `bg-primary text-primary-foreground` ficam **amarelo com texto branco** — contraste muito baixo e dificil leitura.
 
-### Solucao
-**Arquivo:** `src/pages/ebd/Schedule.tsx`
+A causa esta no arquivo `src/contexts/DomainBrandingContext.tsx` (linha 44), que sobrescreve `--primary` com o valor de `#FFC107`, mas **nao atualiza** `--primary-foreground` para uma cor escura.
 
-Mudar o layout dos cards de revistas ativas e finalizadas para empilhar verticalmente no mobile:
+## Solucao
 
-- **Mobile**: Layout vertical - imagem + info em cima, botoes embaixo
-- **Desktop**: Manter layout horizontal atual
+Duas mudancas simples que resolvem o problema em **todo o sistema** de uma vez:
 
-```text
-MOBILE (atual - quebrado):
-[img] [turma faixa dia progresso] [botao] [lixo]  ← tudo apertado
+### 1. Escurecer a cor primaria (de amarelo vivo para dourado escuro)
 
-MOBILE (corrigido):
-[img]  Turma: X
-       Faixa: Y | Dia: Dom
-       Progresso: ████ 3/13
-       [Ver Escala]  [🗑]
-```
+**Arquivo:** `src/hooks/useDomainBranding.tsx`
 
-Alteracoes especificas:
-- Linha 348: Mudar `flex items-center` para `flex flex-col md:flex-row md:items-center`
-- Linha 362: No mobile usar `grid-cols-1` ao inves de `grid-cols-2`
-- Linha 397: Botoes no mobile ficam em linha separada com `w-full md:w-auto`
-- Aplicar as mesmas correcoes nos cards de "Revistas Finalizadas" (linhas 456-526)
+Mudar a `primaryColor` do EBD de `#FFC107` (amarelo vivo) para `#B8860B` (dourado escuro / "DarkGoldenrod"). Isso mantem a identidade visual dourada, mas com contraste muito melhor com texto branco.
 
----
+| Antes | Depois |
+|-------|--------|
+| `#FFC107` (amarelo vivo, contraste 1.9:1 com branco) | `#B8860B` (dourado escuro, contraste 3.8:1 com branco) |
 
-## Parte 2: Criar Aba "Escala Geral" com Todas as Turmas
+### 2. Aplicar foreground escuro como fallback
 
-### Objetivo
-Uma nova aba que mostra todas as escalas de todas as turmas agrupadas por data, para que qualquer professor veja a programacao completa da igreja.
+**Arquivo:** `src/contexts/DomainBrandingContext.tsx`
 
-### Implementacao
+Alem de aplicar `--primary`, tambem aplicar `--primary-foreground` com cor escura (`0 0% 100%` branco se o primario for escuro o suficiente, ou `0 0% 10%` preto se o primario for claro). Isso garante contraste adequado independente do tom escolhido.
 
-**Arquivo:** `src/pages/ebd/Schedule.tsx`
-
-#### 1. Nova aba no TabsList
-Adicionar uma terceira aba "Escala Geral" ao lado de "Revistas Ativas" e "Revistas Finalizadas":
-
+Adicionar na linha 45:
 ```tsx
-<TabsList className="grid w-full max-w-lg grid-cols-3">
-  <TabsTrigger value="ativas">Revistas Ativas</TabsTrigger>
-  <TabsTrigger value="geral">Escala Geral</TabsTrigger>
-  <TabsTrigger value="finalizadas">Revistas Finalizadas</TabsTrigger>
-</TabsList>
+root.style.setProperty('--primary-foreground', '0 0% 100%');
 ```
 
-#### 2. Nova query para buscar todas as escalas
-Buscar todas as escalas ativas (futuras e recentes) de todas as turmas da igreja, com dados dos professores:
+### 3. Ajustar accentColor para combinar
 
-```tsx
-const { data: escalaGeral } = useQuery({
-  queryKey: ['ebd-escala-geral', churchData?.id],
-  queryFn: async () => {
-    // Buscar escalas com turma e professores
-    // Agrupar por data
-    // Retornar ordenado por data
-  },
-  enabled: !!churchData?.id,
-});
-```
+**Arquivo:** `src/hooks/useDomainBranding.tsx`
 
-#### 3. Layout da aba - Cards agrupados por data
-Cada data tera um card com todas as turmas daquele dia:
+Mudar `accentColor` de `#FFC107` para `#D4A017` (dourado medio) para manter harmonia visual nos elementos de destaque sem problemas de contraste.
 
-```text
-╔══════════════════════════════════════════════╗
-║  📅 Domingo, 16 de Fevereiro de 2025        ║
-╠══════════════════════════════════════════════╣
-║                                              ║
-║  Adultos          | Aula 5                   ║
-║  👤 Pr. Cleuton / Pr. Valeney               ║
-║                                              ║
-║  12-14 anos       | Aula 5                   ║
-║  👤 Prof. Renato                             ║
-║                                              ║
-║  15-17 anos       | Aula 5                   ║
-║  👤 Prof. Lucas                              ║
-║                                              ║
-╚══════════════════════════════════════════════╝
+## Resultado Esperado
 
-╔══════════════════════════════════════════════╗
-║  📅 Domingo, 23 de Fevereiro de 2025        ║
-╠══════════════════════════════════════════════╣
-║  ...                                         ║
-╚══════════════════════════════════════════════╝
-```
+- Botoes como "Lancamento Manual" ficarao com fundo dourado escuro e texto branco legivel
+- Toda a identidade visual dourada do EBD e mantida
+- A mudanca afeta automaticamente **todos os botoes e elementos** que usam a cor primaria em todo o sistema
+- Nenhuma alteracao em componentes individuais necessaria
 
-Cada turma dentro do card mostrara:
-- Nome da turma e faixa etaria
-- Numero da aula (extraido do campo `observacao`, ex: "Aula 5 - Titulo")
-- Avatar(s) e nome(s) do(s) professor(es)
-- Badge "Sem Aula" quando aplicavel
-
----
-
-## Resumo das Alteracoes
+## Arquivos Alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `Schedule.tsx` | Corrigir layout responsivo dos cards (ativas + finalizadas) |
-| `Schedule.tsx` | Adicionar aba "Escala Geral" com nova query |
-| `Schedule.tsx` | Renderizar cards agrupados por data com todas as turmas |
+| `src/hooks/useDomainBranding.tsx` | Atualizar `primaryColor` e `accentColor` para tons mais escuros |
+| `src/contexts/DomainBrandingContext.tsx` | Aplicar `--primary-foreground` junto com `--primary` |
 
-## Detalhes Tecnicos
-
-- A query da Escala Geral usara `ebd_escalas` filtrado por `church_id`, com joins em `ebd_turmas` e `ebd_professores`
-- Agrupamento por data feito no frontend com `reduce()`
-- O numero da aula sera extraido do campo `observacao` com regex `/Aula (\d+)/i`
-- Layout responsivo: cards empilham verticalmente no mobile, lado a lado no desktop
-- Nenhuma alteracao no banco de dados necessaria
