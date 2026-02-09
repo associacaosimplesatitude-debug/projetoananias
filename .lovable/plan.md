@@ -1,110 +1,74 @@
 
-# Painel de Envio de Mensagens WhatsApp via Z-API
+# Painel WhatsApp com Aba de Credenciais Z-API
 
-## Visao Geral
+## Resumo
 
-Criar um painel administrativo completo para envio de mensagens via WhatsApp usando a Z-API. O painel ficara em `/admin/ebd/whatsapp` e permitira envio de mensagens de texto e imagens para contatos do sistema EBD.
+Criar a pagina do painel WhatsApp em `/admin/ebd/whatsapp` com uma aba de **Credenciais** onde voce podera salvar as credenciais da Z-API (Instance ID, Token e Client Token) diretamente pelo painel, sem precisar configurar por fora. As credenciais serao armazenadas no banco de dados na tabela `system_settings`.
 
-## Tipos de Mensagens Suportadas
+## Alteracoes
 
-1. **Pedido Aprovado** - Notificar cliente que o pedido foi aprovado
-2. **Dados de Acesso** - Enviar login/senha do sistema EBD
-3. **Codigo de Rastreio** - Informar rastreio da encomenda
-4. **Cupom de Desconto** - Enviar cupons promocionais
-5. **Promocoes** - Divulgar ofertas e promocoes
-6. **Lembrete de Aula** - Lembrar sobre aulas da EBD
-7. **Agenda de Aulas** - Compartilhar cronograma de aulas
+### 1. Banco de Dados
 
-## Arquitetura
-
-```text
-+------------------+       +---------------------+       +----------+
-| Painel WhatsApp  | ----> | Edge Function       | ----> | Z-API    |
-| (React)          |       | send-whatsapp-msg   |       | WhatsApp |
-+------------------+       +---------------------+       +----------+
-```
-
-## Segredos Necessarios
-
-A Z-API requer 3 credenciais:
-- **ZAPI_INSTANCE_ID** - ID da instancia
-- **ZAPI_TOKEN** - Token da instancia  
-- **ZAPI_CLIENT_TOKEN** - Token de seguranca da conta
-
-Esses segredos serao solicitados ao usuario antes de prosseguir com a implementacao.
-
-## Alteracoes Planejadas
-
-### 1. Banco de Dados - Nova tabela `whatsapp_mensagens`
-
-Tabela para registrar historico de mensagens enviadas:
+**Nova tabela `system_settings`** para armazenar configuracoes do sistema (incluindo credenciais Z-API):
 
 | Coluna | Tipo | Descricao |
 |--------|------|-----------|
 | id | uuid | PK |
-| tipo_mensagem | text | Tipo (pedido_aprovado, dados_acesso, rastreio, cupom, promocao, lembrete_aula, agenda_aulas) |
-| telefone_destino | text | Numero do destinatario |
-| nome_destino | text | Nome do destinatario |
-| mensagem | text | Conteudo da mensagem |
-| imagem_url | text (nullable) | URL publica da imagem enviada |
-| status | text | enviado, erro, pendente |
-| erro_detalhes | text (nullable) | Detalhes do erro se houver |
-| enviado_por | uuid | FK para auth.users |
-| created_at | timestamptz | Data de envio |
+| key | text (unique) | Chave da configuracao (ex: `zapi_instance_id`) |
+| value | text | Valor (criptografado para dados sensiveis) |
+| description | text | Descricao da configuracao |
+| updated_by | uuid | Quem alterou por ultimo |
+| updated_at | timestamptz | Data da ultima alteracao |
 
-RLS: Apenas admins podem ler/inserir.
+RLS: Apenas usuarios admin/gerente_ebd podem ler e editar.
 
-### 2. Edge Function - `send-whatsapp-message`
+**Nova tabela `whatsapp_mensagens`** para historico de mensagens (conforme plano anterior).
 
-Funcao backend que:
-- Recebe tipo, telefone, mensagem e opcionalmente imagem_url
-- Envia via Z-API (`/send-text` ou `/send-image`)
-- Registra na tabela `whatsapp_mensagens`
-- Retorna status do envio
+### 2. Pagina `src/pages/admin/WhatsAppPanel.tsx`
 
-Endpoints Z-API utilizados:
-- **Texto**: `POST https://api.z-api.io/instances/{ID}/token/{TOKEN}/send-text`
-- **Imagem**: `POST https://api.z-api.io/instances/{ID}/token/{TOKEN}/send-image`
+Pagina com **2 abas** (usando Tabs do shadcn):
 
-### 3. Pagina - `src/pages/admin/WhatsAppPanel.tsx`
+- **Aba "Enviar Mensagem"**: Formulario de envio (tipo, telefone, nome, mensagem, URL imagem) + historico de mensagens enviadas
+- **Aba "Credenciais Z-API"**: Formulario para salvar/editar as 3 credenciais:
+  - Instance ID
+  - Token da Instancia
+  - Client Token
+  - Botao "Salvar Credenciais"
+  - Indicador visual de status (configurado/nao configurado)
+  - Campos com mascara de senha (mostrar/ocultar)
 
-Interface com:
-- **Selecao de tipo de mensagem** (dropdown com os 7 tipos)
-- **Campo telefone** com formato brasileiro
-- **Campo nome do destinatario**
-- **Textarea para mensagem** com template pre-preenchido conforme o tipo selecionado
-- **Campo URL da imagem** (opcional, para envio com imagem)
-- **Botao enviar**
-- **Tabela de historico** com mensagens ja enviadas (ultimas 50)
-- **Indicadores** de status (enviado/erro)
+### 3. Edge Function `send-whatsapp-message`
 
-Templates pre-definidos por tipo:
-- Pedido Aprovado: "Ola {nome}! Seu pedido foi aprovado..."
-- Dados de Acesso: "Ola {nome}! Seguem seus dados de acesso..."
-- Codigo de Rastreio: "Ola {nome}! Seu pedido foi enviado. Rastreio: {codigo}..."
-- etc.
+Funcao que:
+- Busca as credenciais Z-API da tabela `system_settings` (nao de secrets)
+- Envia mensagem via Z-API
+- Registra no historico
 
-### 4. Rota - Adicionar ao App.tsx
+### 4. Rota e Navegacao
 
-Nova rota: `/admin/ebd/whatsapp` -> `WhatsAppPanel`
-
-### 5. Link no Painel Admin
-
-Adicionar card/link para o painel WhatsApp na navegacao do admin EBD.
-
-## Ordem de Implementacao
-
-1. Solicitar os 3 segredos da Z-API ao usuario
-2. Criar a tabela no banco (migracao)
-3. Criar a edge function `send-whatsapp-message`
-4. Criar a pagina `WhatsAppPanel.tsx`
-5. Adicionar rota no `App.tsx`
-6. Adicionar link de acesso no painel admin
+- Adicionar rota `/admin/ebd/whatsapp` no `App.tsx`
+- Adicionar link "WhatsApp" no sidebar do admin EBD (`AdminEBDLayout.tsx`) na secao Configuracoes, com icone de mensagem
 
 ## Detalhes Tecnicos
 
-- A edge function usara `Deno.env.get()` para acessar os segredos
-- CORS headers incluidos na edge function
-- Validacao de telefone no formato brasileiro (55 + DDD + numero)
-- Historico de mensagens com paginacao simples (ultimas 50)
-- Toast de feedback apos envio
+### Fluxo de Credenciais
+
+```text
+Aba Credenciais -> Salva em system_settings -> Edge Function le de system_settings -> Envia via Z-API
+```
+
+### Chaves armazenadas em `system_settings`
+
+- `zapi_instance_id` - ID da instancia Z-API
+- `zapi_token` - Token da instancia
+- `zapi_client_token` - Token de seguranca da conta
+
+### Arquivos criados/alterados
+
+| Arquivo | Acao |
+|---------|------|
+| Migracao SQL | Criar tabelas `system_settings` e `whatsapp_mensagens` |
+| `supabase/functions/send-whatsapp-message/index.ts` | Criar edge function |
+| `src/pages/admin/WhatsAppPanel.tsx` | Criar pagina com 2 abas |
+| `src/App.tsx` | Adicionar rota |
+| `src/components/admin/AdminEBDLayout.tsx` | Adicionar link no sidebar |
