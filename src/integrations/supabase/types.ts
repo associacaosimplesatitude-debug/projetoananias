@@ -5828,6 +5828,8 @@ export type Database = {
           imagem_url: string | null
           mensagem: string
           nome_destino: string | null
+          payload_enviado: Json | null
+          resposta_recebida: Json | null
           status: string
           telefone_destino: string
           tipo_mensagem: string
@@ -5840,6 +5842,8 @@ export type Database = {
           imagem_url?: string | null
           mensagem: string
           nome_destino?: string | null
+          payload_enviado?: Json | null
+          resposta_recebida?: Json | null
           status?: string
           telefone_destino: string
           tipo_mensagem: string
@@ -5852,9 +5856,38 @@ export type Database = {
           imagem_url?: string | null
           mensagem?: string
           nome_destino?: string | null
+          payload_enviado?: Json | null
+          resposta_recebida?: Json | null
           status?: string
           telefone_destino?: string
           tipo_mensagem?: string
+        }
+        Relationships: []
+      }
+      whatsapp_webhooks: {
+        Row: {
+          created_at: string
+          evento: string
+          id: string
+          message_id: string | null
+          payload: Json
+          telefone: string | null
+        }
+        Insert: {
+          created_at?: string
+          evento: string
+          id?: string
+          message_id?: string | null
+          payload: Json
+          telefone?: string | null
+        }
+        Update: {
+          created_at?: string
+          evento?: string
+          id?: string
+          message_id?: string | null
+          payload?: Json
+          telefone?: string | null
         }
         Relationships: []
       }
