@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://esm.sh/resend@4.0.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "npm:resend@4.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -115,7 +115,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`send-royalties-email: Sending email to '${destinatario}'`);
 
     const emailResponse = await resend.emails.send({
-      from: "Projeto Ananias <noreply@projetoananias.com.br>",
+      from: "Relatorios <relatorios@painel.editoracentralgospel.com.br>",
       to: [destinatario],
       subject: assunto,
       html: corpo,
