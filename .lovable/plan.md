@@ -1,74 +1,61 @@
 
-# Painel WhatsApp com Aba de Credenciais Z-API
+# Historico Completo com Payloads e Webhooks
 
 ## Resumo
 
-Criar a pagina do painel WhatsApp em `/admin/ebd/whatsapp` com uma aba de **Credenciais** onde voce podera salvar as credenciais da Z-API (Instance ID, Token e Client Token) diretamente pelo painel, sem precisar configurar por fora. As credenciais serao armazenadas no banco de dados na tabela `system_settings`.
+Adicionar ao historico de mensagens WhatsApp: o JSON enviado para a Z-API, a resposta recebida, e criar uma nova aba/secao para receber e exibir webhooks da Z-API.
 
 ## Alteracoes
 
 ### 1. Banco de Dados
 
-**Nova tabela `system_settings`** para armazenar configuracoes do sistema (incluindo credenciais Z-API):
+**Adicionar 2 colunas na tabela `whatsapp_mensagens`:**
+- `payload_enviado` (jsonb, nullable) - JSON exato enviado para a Z-API
+- `resposta_recebida` (jsonb, nullable) - JSON da resposta da Z-API
+
+**Nova tabela `whatsapp_webhooks`** para receber webhooks da Z-API:
 
 | Coluna | Tipo | Descricao |
 |--------|------|-----------|
 | id | uuid | PK |
-| key | text (unique) | Chave da configuracao (ex: `zapi_instance_id`) |
-| value | text | Valor (criptografado para dados sensiveis) |
-| description | text | Descricao da configuracao |
-| updated_by | uuid | Quem alterou por ultimo |
-| updated_at | timestamptz | Data da ultima alteracao |
+| evento | text | Tipo do evento (ex: message-status, on-message-received) |
+| payload | jsonb | JSON completo do webhook |
+| telefone | text (nullable) | Telefone relacionado (extraido do payload) |
+| message_id | text (nullable) | ID da mensagem na Z-API |
+| created_at | timestamptz | Data de recebimento |
 
-RLS: Apenas usuarios admin/gerente_ebd podem ler e editar.
+RLS: Apenas admins podem ler. A edge function insere via service role.
 
-**Nova tabela `whatsapp_mensagens`** para historico de mensagens (conforme plano anterior).
+### 2. Edge Function `send-whatsapp-message` (atualizar)
 
-### 2. Pagina `src/pages/admin/WhatsAppPanel.tsx`
+Salvar o JSON enviado (`payload_enviado`) e a resposta da Z-API (`resposta_recebida`) no registro da mensagem.
 
-Pagina com **2 abas** (usando Tabs do shadcn):
+### 3. Nova Edge Function `whatsapp-webhook`
 
-- **Aba "Enviar Mensagem"**: Formulario de envio (tipo, telefone, nome, mensagem, URL imagem) + historico de mensagens enviadas
-- **Aba "Credenciais Z-API"**: Formulario para salvar/editar as 3 credenciais:
-  - Instance ID
-  - Token da Instancia
-  - Client Token
-  - Botao "Salvar Credenciais"
-  - Indicador visual de status (configurado/nao configurado)
-  - Campos com mascara de senha (mostrar/ocultar)
+Endpoint publico (sem auth) que:
+- Recebe POST da Z-API com eventos (status de mensagem, mensagens recebidas, etc.)
+- Salva tudo na tabela `whatsapp_webhooks`
+- Retorna 200 OK
 
-### 3. Edge Function `send-whatsapp-message`
+### 4. Frontend - Historico expandido
 
-Funcao que:
-- Busca as credenciais Z-API da tabela `system_settings` (nao de secrets)
-- Envia mensagem via Z-API
-- Registra no historico
+Na tabela de historico, cada linha tera um botao para expandir e ver:
+- **Payload Enviado**: JSON formatado do que foi enviado
+- **Resposta Z-API**: JSON formatado da resposta recebida
+- **Erro**: detalhes do erro (ja existe)
 
-### 4. Rota e Navegacao
+### 5. Frontend - Nova aba "Webhooks"
 
-- Adicionar rota `/admin/ebd/whatsapp` no `App.tsx`
-- Adicionar link "WhatsApp" no sidebar do admin EBD (`AdminEBDLayout.tsx`) na secao Configuracoes, com icone de mensagem
+Nova aba no painel WhatsApp mostrando:
+- Tabela com todos os webhooks recebidos (ultimos 100)
+- Colunas: Data, Evento, Telefone, Message ID
+- Botao para expandir e ver o JSON completo do webhook
 
-## Detalhes Tecnicos
-
-### Fluxo de Credenciais
-
-```text
-Aba Credenciais -> Salva em system_settings -> Edge Function le de system_settings -> Envia via Z-API
-```
-
-### Chaves armazenadas em `system_settings`
-
-- `zapi_instance_id` - ID da instancia Z-API
-- `zapi_token` - Token da instancia
-- `zapi_client_token` - Token de seguranca da conta
-
-### Arquivos criados/alterados
+## Arquivos criados/alterados
 
 | Arquivo | Acao |
 |---------|------|
-| Migracao SQL | Criar tabelas `system_settings` e `whatsapp_mensagens` |
-| `supabase/functions/send-whatsapp-message/index.ts` | Criar edge function |
-| `src/pages/admin/WhatsAppPanel.tsx` | Criar pagina com 2 abas |
-| `src/App.tsx` | Adicionar rota |
-| `src/components/admin/AdminEBDLayout.tsx` | Adicionar link no sidebar |
+| Migracao SQL | Adicionar colunas + criar tabela webhooks |
+| `supabase/functions/send-whatsapp-message/index.ts` | Salvar payload e resposta |
+| `supabase/functions/whatsapp-webhook/index.ts` | Criar (receber webhooks) |
+| `src/pages/admin/WhatsAppPanel.tsx` | Historico expandivel + aba Webhooks |
