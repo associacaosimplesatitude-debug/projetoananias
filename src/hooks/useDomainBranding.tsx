@@ -15,10 +15,10 @@ interface DomainBranding {
 const ebdBranding: DomainBranding = {
   logoUrl: '/logos/logo-ebd-horizontal.png',
   logoHorizontalUrl: '/logos/logo-ebd-horizontal.png',
-  primaryColor: '#FFC107',
+  primaryColor: '#B8860B',
   navBackgroundColor: '#1a1a1a',
   navTextColor: '#FFFFFF',
-  accentColor: '#FFC107',
+  accentColor: '#D4A017',
   appName: 'Gestão EBD',
   domain: 'gestaoebd.com.br',
   isEBD: true
