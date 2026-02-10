@@ -1,82 +1,54 @@
 
-# Disparos Automaticos de Email - 6 Novos Gatilhos
+
+# Agenda de Envio de Relatorios por Periodo de Pagamento
 
 ## Resumo
 
-Adicionar envio automatico de emails nos seguintes eventos, usando os templates que ja existem no banco:
+Duas alteracoes na pagina de Relatorios (/royalties/relatorios):
 
-| Evento | Template | Onde adicionar |
-|--------|----------|----------------|
-| Nova venda registrada | `royalty_venda` | `bling-sync-royalties-sales` (edge function) |
-| Relatorio mensal gerado | `relatorio_mensal` | `src/pages/royalties/Relatorios.tsx` (ao gerar) |
-| Resgate aprovado | (novo template `resgate_aprovado`) | `aprovar-resgate` (edge function) |
-| Resgate solicitado | (novo template `resgate_solicitado`) | `src/pages/autor/Loja.tsx` |
-| Novo contrato cadastrado | (novo template `contrato_novo`) | `src/components/royalties/ContratoDialog.tsx` |
-| Pagamento efetuado | `pagamento_realizado` | `src/pages/royalties/Pagamentos.tsx` (handleMarcarPago) |
+1. **Nova aba "Agenda de Envios"** com tabela mostrando autor, livro e data do proximo relatorio baseado no `periodo_pagamento` de cada livro
+2. **Logica de calculo da data** baseada no periodo cadastrado (1_mes, 3_meses, 6_meses, 1_ano) contando a partir de 01/01/2026
 
-## Templates a criar no banco
+## Logica de calculo das datas
 
-Tres templates precisam ser criados (os outros 3 ja existem):
+Data base: **01/01/2026**
 
-1. **`resgate_aprovado`** - "Seu resgate foi aprovado!"
-2. **`resgate_solicitado`** - "Recebemos sua solicitacao de resgate"
-3. **`contrato_novo`** - "Novo contrato cadastrado"
+| Periodo | Datas de envio |
+|---------|---------------|
+| 1_mes | 31/01, 28/02, 31/03... (ultimo dia de cada mes) |
+| 3_meses | 31/03, 30/06, 30/09, 31/12 |
+| 6_meses | 30/06, 31/12 |
+| 1_ano | 31/12 |
 
-## Alteracoes por arquivo
+O sistema calcula o proximo envio futuro mais proximo a partir da data atual.
 
-### 1. Migracao SQL - Inserir 3 novos templates
+## Alteracoes
 
-Inserir os templates `resgate_aprovado`, `resgate_solicitado` e `contrato_novo` na tabela `royalties_email_templates`.
+### 1. `src/pages/royalties/Relatorios.tsx`
 
-### 2. `supabase/functions/bling-sync-royalties-sales/index.ts`
+- Adicionar nova aba "Agenda" nas tabs existentes (junto com Relatorios e Auditoria)
+- Nova query para buscar livros ativos com autor e periodo de pagamento
+- Funcao `calcularProximoEnvio(periodo_pagamento)` que:
+  - Parte de 01/01/2026
+  - Avanca pelo intervalo do periodo
+  - Retorna a proxima data futura
+- Tabela com colunas: Autor, Livro, Periodo, Proximo Envio
+- Ordenar por data de proximo envio (mais proximo primeiro)
 
-Apos inserir cada venda com sucesso, chamar `send-royalties-email` com:
-- Template: `royalty_venda`
-- Dados: nome do livro, quantidade, valor
-- tipoEnvio: `automatico`
+### Detalhes tecnicos
 
-Nota: como esta funcao processa vendas em lote, os emails serao enviados em background sem bloquear o sync. Agrupar vendas por autor para evitar spam (1 email por autor com resumo).
+**Query necessaria:**
+```
+royalties_livros (id, titulo, is_active)
+  -> royalties_autores (nome_completo)
+  -> royalties_comissoes (periodo_pagamento)
+```
 
-### 3. `supabase/functions/aprovar-resgate/index.ts`
+**Funcao de calculo:**
+- Data base fixa: 2026-01-01
+- Para cada periodo, gerar sequencia de datas ate encontrar a proxima futura
+- Exemplo: periodo 3_meses -> datas 31/03/2026, 30/06/2026, 30/09/2026...
+- Retorna a primeira data >= hoje
 
-Apos aprovar com sucesso (apos atualizar status para "aprovado"), chamar `send-royalties-email` com:
-- Template: `resgate_aprovado`
-- Dados: valor total, numero do pedido Bling, lista de itens
-- tipoEnvio: `automatico`
+**Arquivo alterado:** `src/pages/royalties/Relatorios.tsx` (adicionar aba + query + tabela)
 
-### 4. `src/pages/autor/Loja.tsx`
-
-Apos o insert do resgate (onSuccess do mutation), chamar a edge function com:
-- Template: `resgate_solicitado`
-- Dados: valor total, quantidade de itens
-- tipoEnvio: `automatico`
-
-### 5. `src/components/royalties/ContratoDialog.tsx`
-
-Apos insert de novo contrato (nao no update), chamar a edge function com:
-- Template: `contrato_novo`
-- Dados: nome do livro, datas
-- tipoEnvio: `automatico`
-
-### 6. `src/pages/royalties/Pagamentos.tsx`
-
-Na funcao `handleMarcarPago`, apos atualizar status para "pago", chamar a edge function com:
-- Template: `pagamento_realizado`
-- Dados: valor, data
-- tipoEnvio: `automatico`
-
-Precisa buscar o `autor_id` do pagamento para enviar.
-
-### 7. Relatorio mensal (`src/pages/royalties/Relatorios.tsx`)
-
-Ao gerar/exportar relatorio, disparar email com:
-- Template: `relatorio_mensal`
-- Dados: mes/ano, link ou resumo
-- tipoEnvio: `automatico`
-
-## Notas tecnicas
-
-- Todos os disparos usam `supabase.functions.invoke("send-royalties-email", ...)` com `tipoEnvio: "automatico"`
-- Nos edge functions (bling-sync e aprovar-resgate), a chamada e feita via `supabase.functions.invoke` internamente
-- Emails sao enviados em background (sem await no frontend) para nao bloquear a UI
-- O edge function `send-royalties-email` ja esta preparado para receber `tipoEnvio` e registrar no log
