@@ -311,6 +311,59 @@ async function syncNFeBatch(
       if (error) {
         console.error("[DB] Insert error:", error);
         result.errors += newRecords.length;
+      } else {
+        // Agrupar vendas por livro_id para enviar emails por autor
+        const vendasPorLivro: Record<string, { quantidade: number; valor_total: number; valor_royalties: number }> = {};
+        for (const rec of newRecords) {
+          if (!vendasPorLivro[rec.livro_id]) {
+            vendasPorLivro[rec.livro_id] = { quantidade: 0, valor_total: 0, valor_royalties: 0 };
+          }
+          vendasPorLivro[rec.livro_id].quantidade += rec.quantidade;
+          vendasPorLivro[rec.livro_id].valor_total += rec.valor_unitario * rec.quantidade;
+          vendasPorLivro[rec.livro_id].valor_royalties += rec.valor_comissao_total;
+        }
+
+        // Buscar autores dos livros para enviar emails
+        const livroIds = Object.keys(vendasPorLivro);
+        const { data: livrosInfo } = await supabase
+          .from("royalties_livros")
+          .select("id, titulo, autor_id")
+          .in("id", livroIds);
+
+        if (livrosInfo) {
+          // Agrupar por autor para evitar spam
+          const porAutor: Record<string, { livros: string[]; totalQtd: number; totalRoyalties: number }> = {};
+          for (const livro of livrosInfo) {
+            if (!livro.autor_id) continue;
+            if (!porAutor[livro.autor_id]) {
+              porAutor[livro.autor_id] = { livros: [], totalQtd: 0, totalRoyalties: 0 };
+            }
+            const venda = vendasPorLivro[livro.id];
+            porAutor[livro.autor_id].livros.push(livro.titulo);
+            porAutor[livro.autor_id].totalQtd += venda.quantidade;
+            porAutor[livro.autor_id].totalRoyalties += venda.valor_royalties;
+          }
+
+          const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+          for (const [autorId, info] of Object.entries(porAutor)) {
+            supabase.functions.invoke('send-royalties-email', {
+              body: {
+                autorId,
+                templateCode: 'royalty_venda',
+                tipoEnvio: 'automatico',
+                dados: {
+                  livro: info.livros.join(', '),
+                  quantidade: String(info.totalQtd),
+                  valor_venda: fmt(info.totalQtd * (vendasPorLivro[livrosInfo.find(l => l.autor_id === autorId)!.id]?.valor_total / vendasPorLivro[livrosInfo.find(l => l.autor_id === autorId)!.id]?.quantidade || 0)),
+                  valor_royalty: fmt(info.totalRoyalties),
+                  data: new Date().toLocaleDateString('pt-BR'),
+                },
+              },
+            }).then(() => console.log(`[Email] Venda notificada para autor ${autorId}`))
+              .catch((e: any) => console.error(`[Email] Erro ao notificar autor ${autorId}:`, e));
+          }
+        }
       }
     }
   }

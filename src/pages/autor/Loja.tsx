@@ -316,6 +316,23 @@ export default function AutorLoja() {
       toast.success("Resgate solicitado!", {
         description: "Aguarde a aprovação do administrador.",
       });
+
+      // Enviar email automático de resgate solicitado (background)
+      if (autorId) {
+        const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+        supabase.functions.invoke("send-royalties-email", {
+          body: {
+            autorId,
+            templateCode: "resgate_solicitado",
+            tipoEnvio: "automatico",
+            dados: {
+              valor_total: formatCurrency(totalCarrinho),
+              quantidade_itens: String(totalItens),
+            },
+          },
+        }).catch(console.error);
+      }
+
       setCarrinho([]);
       setIsCartOpen(false);
       queryClient.invalidateQueries({ queryKey: ["autor-saldo"] });

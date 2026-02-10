@@ -211,6 +211,24 @@ serve(async (req) => {
 
     console.log('[APROVAR-RESGATE] Resgate aprovado com sucesso!');
 
+    // 8. Enviar email automático de aprovação
+    const formatCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+    const itensResumo = itensResgate.map(i => `${i.quantidade}x ${i.titulo}`).join(', ');
+
+    supabase.functions.invoke('send-royalties-email', {
+      body: {
+        autorId: resgate.autor_id,
+        templateCode: 'resgate_aprovado',
+        tipoEnvio: 'automatico',
+        dados: {
+          valor_total: formatCurrency(resgate.valor_total),
+          numero_pedido: String(blingResult.blingOrderNumber || blingResult.blingOrderId),
+          itens: itensResumo,
+        },
+      },
+    }).then(() => console.log('[APROVAR-RESGATE] Email de aprovação enviado'))
+      .catch((e: any) => console.error('[APROVAR-RESGATE] Erro ao enviar email:', e));
+
     return new Response(
       JSON.stringify({
         success: true,

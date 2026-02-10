@@ -82,6 +82,23 @@ export default function RoyaltiesPagamentos() {
 
       toast({ title: "Pagamento marcado como pago!" });
       queryClient.invalidateQueries({ queryKey: ["royalties-pagamentos"] });
+
+      // Enviar email automático de pagamento realizado (background)
+      const pagamento = pagamentos.find((p: any) => p.id === pagamentoId);
+      if (pagamento?.autor_id) {
+        supabase.functions.invoke("send-royalties-email", {
+          body: {
+            autorId: pagamento.autor_id,
+            templateCode: "pagamento_realizado",
+            tipoEnvio: "automatico",
+            dados: {
+              valor: formatCurrency(pagamento.valor_total),
+              data: new Date().toLocaleDateString("pt-BR"),
+              comprovante_url: pagamento.comprovante_url || "",
+            },
+          },
+        }).catch(console.error);
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao atualizar pagamento",

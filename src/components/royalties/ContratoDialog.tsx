@@ -209,6 +209,21 @@ export function ContratoDialog({ open, onOpenChange, contrato }: ContratoDialogP
 
         if (error) throw error;
         toast({ title: "Contrato cadastrado com sucesso!" });
+
+        // Enviar email automático de novo contrato (background)
+        const livroSelecionado = livros.find((l) => l.id === formData.livro_id);
+        supabase.functions.invoke("send-royalties-email", {
+          body: {
+            autorId: formData.autor_id,
+            templateCode: "contrato_novo",
+            tipoEnvio: "automatico",
+            dados: {
+              livro: livroSelecionado?.titulo || "—",
+              data_inicio: formData.data_inicio,
+              data_termino: formData.data_termino,
+            },
+          },
+        }).catch(console.error);
       }
 
       queryClient.invalidateQueries({ queryKey: ["royalties-contratos"] });
