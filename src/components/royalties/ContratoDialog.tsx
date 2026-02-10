@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +37,6 @@ export function ContratoDialog({ open, onOpenChange, contrato }: ContratoDialogP
     pdf_url: null as string | null,
     data_inicio: "",
     data_termino: "",
-    termos_contrato: "",
   });
 
   // Fetch authors
@@ -83,7 +82,6 @@ export function ContratoDialog({ open, onOpenChange, contrato }: ContratoDialogP
           pdf_url: contrato.pdf_url || null,
           data_inicio: contrato.data_inicio || "",
           data_termino: contrato.data_termino || "",
-          termos_contrato: contrato.termos_contrato || "",
         });
       } else {
         setFormData({
@@ -92,7 +90,6 @@ export function ContratoDialog({ open, onOpenChange, contrato }: ContratoDialogP
           pdf_url: null,
           data_inicio: "",
           data_termino: "",
-          termos_contrato: "",
         });
       }
     }
@@ -191,7 +188,6 @@ export function ContratoDialog({ open, onOpenChange, contrato }: ContratoDialogP
         pdf_url: formData.pdf_url,
         data_inicio: formData.data_inicio,
         data_termino: formData.data_termino,
-        termos_contrato: formData.termos_contrato.trim() || null,
       };
 
       if (contrato?.id) {
@@ -353,24 +349,6 @@ export function ContratoDialog({ open, onOpenChange, contrato }: ContratoDialogP
                 </Button>
               </div>
             )}
-          </div>
-
-          {/* Terms textarea for BI */}
-          <div className="space-y-2">
-            <Label htmlFor="termos_contrato">
-              Termos do Contrato
-              <span className="text-muted-foreground text-xs ml-2">
-                (Cole aqui os termos para análise via Business Intelligence)
-              </span>
-            </Label>
-            <Textarea
-              id="termos_contrato"
-              value={formData.termos_contrato}
-              onChange={(e) => setFormData({ ...formData, termos_contrato: e.target.value })}
-              placeholder="Cole aqui os termos e cláusulas do contrato..."
-              rows={8}
-              className="resize-none"
-            />
           </div>
 
           <DialogFooter>
