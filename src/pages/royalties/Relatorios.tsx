@@ -8,10 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, BarChart3, TrendingUp, Filter, FileSpreadsheet, History } from "lucide-react";
+import { FileText, Download, BarChart3, TrendingUp, Filter, FileSpreadsheet, History, CalendarClock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, lastDayOfMonth, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { exportToPDF, exportToExcel } from "@/utils/royaltiesExport";
 
@@ -214,6 +214,69 @@ export default function RoyaltiesRelatorios() {
     { value: "pagamentos", label: "Relatório de Pagamentos", icon: FileText },
   ];
 
+  // ---- Agenda de Envios ----
+  const calcularProximoEnvio = (periodoPagamento: string): Date => {
+    const hoje = new Date();
+    const base = new Date(2026, 0, 1); // 01/01/2026
+    let mesesIntervalo: number;
+    switch (periodoPagamento) {
+      case "1_mes": mesesIntervalo = 1; break;
+      case "3_meses": mesesIntervalo = 3; break;
+      case "6_meses": mesesIntervalo = 6; break;
+      case "1_ano": mesesIntervalo = 12; break;
+      default: mesesIntervalo = 3;
+    }
+    let cursor = base;
+    while (true) {
+      const dataEnvio = lastDayOfMonth(addMonths(cursor, mesesIntervalo - 1));
+      if (dataEnvio >= hoje) return dataEnvio;
+      cursor = addMonths(cursor, mesesIntervalo);
+    }
+  };
+
+  const getPeriodoLabel = (p: string) => {
+    switch (p) {
+      case "1_mes": return "Mensal";
+      case "3_meses": return "Trimestral";
+      case "6_meses": return "Semestral";
+      case "1_ano": return "Anual";
+      default: return p;
+    }
+  };
+
+  const { data: agendaEnvios = [], isLoading: loadingAgenda } = useQuery({
+    queryKey: ["royalties-agenda-envios"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("royalties_livros")
+        .select(`
+          id,
+          titulo,
+          is_active,
+          royalties_autores (nome_completo),
+          royalties_comissoes (periodo_pagamento)
+        `)
+        .eq("is_active", true);
+
+      if (error) throw error;
+
+      return (data || [])
+        .filter((l: any) => l.royalties_comissoes?.periodo_pagamento)
+        .map((livro: any) => {
+          const periodo = livro.royalties_comissoes?.periodo_pagamento;
+          const proximoEnvio = calcularProximoEnvio(periodo);
+          return {
+            id: livro.id,
+            autor: (livro.royalties_autores as any)?.nome_completo || "-",
+            livro: livro.titulo,
+            periodo,
+            proximoEnvio,
+          };
+        })
+        .sort((a: any, b: any) => a.proximoEnvio.getTime() - b.proximoEnvio.getTime());
+    },
+  });
+
   const getAcaoBadge = (acao: string) => {
     switch (acao) {
       case "INSERT":
@@ -253,410 +316,483 @@ export default function RoyaltiesRelatorios() {
         </p>
       </div>
 
-      {/* Filtros */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtros
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
-              <Label>Tipo de Relatório</Label>
-              <Select value={tipoRelatorio} onValueChange={(v: any) => setTipoRelatorio(v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {relatorioTipos.map((tipo) => (
-                    <SelectItem key={tipo.value} value={tipo.value}>
-                      {tipo.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      <Tabs defaultValue="relatorios" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="relatorios" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Relatórios
+          </TabsTrigger>
+          <TabsTrigger value="agenda" className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4" />
+            Agenda de Envios
+          </TabsTrigger>
+          <TabsTrigger value="auditoria" className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Auditoria
+          </TabsTrigger>
+        </TabsList>
 
-            <div className="space-y-2">
-              <Label>Período</Label>
-              <Select value={periodo} onValueChange={handlePeriodoChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ultimo_mes">Último Mês</SelectItem>
-                  <SelectItem value="ultimos_3_meses">Últimos 3 Meses</SelectItem>
-                  <SelectItem value="ultimos_6_meses">Últimos 6 Meses</SelectItem>
-                  <SelectItem value="este_ano">Este Ano</SelectItem>
-                  <SelectItem value="personalizado">Personalizado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* ===== ABA RELATÓRIOS ===== */}
+        <TabsContent value="relatorios" className="space-y-6">
+          {/* Filtros */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filtros
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="space-y-2">
+                  <Label>Tipo de Relatório</Label>
+                  <Select value={tipoRelatorio} onValueChange={(v: any) => setTipoRelatorio(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {relatorioTipos.map((tipo) => (
+                        <SelectItem key={tipo.value} value={tipo.value}>
+                          {tipo.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Data Início</Label>
-              <Input
-                type="date"
-                value={dataInicio}
-                onChange={(e) => {
-                  setDataInicio(e.target.value);
-                  setPeriodo("personalizado");
-                }}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label>Período</Label>
+                  <Select value={periodo} onValueChange={handlePeriodoChange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ultimo_mes">Último Mês</SelectItem>
+                      <SelectItem value="ultimos_3_meses">Últimos 3 Meses</SelectItem>
+                      <SelectItem value="ultimos_6_meses">Últimos 6 Meses</SelectItem>
+                      <SelectItem value="este_ano">Este Ano</SelectItem>
+                      <SelectItem value="personalizado">Personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Data Fim</Label>
-              <Input
-                type="date"
-                value={dataFim}
-                onChange={(e) => {
-                  setDataFim(e.target.value);
-                  setPeriodo("personalizado");
-                }}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label>Data Início</Label>
+                  <Input
+                    type="date"
+                    value={dataInicio}
+                    onChange={(e) => {
+                      setDataInicio(e.target.value);
+                      setPeriodo("personalizado");
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Data Fim</Label>
+                  <Input
+                    type="date"
+                    value={dataFim}
+                    onChange={(e) => {
+                      setDataFim(e.target.value);
+                      setPeriodo("personalizado");
+                    }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Resumo */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {tipoRelatorio === "pagamentos" ? "Registros" : "Total de Vendas"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {tipoRelatorio === "pagamentos" 
+                    ? dadosRelatorio.length 
+                    : (totais as any).totalQtd || 0} 
+                  {tipoRelatorio !== "pagamentos" && " unidades"}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {tipoRelatorio === "pagamentos" ? "Total Pago" : "Total Comissões"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">
+                  {formatCurrency(
+                    tipoRelatorio === "pagamentos" 
+                      ? (totais as any).totalPago || 0 
+                      : (totais as any).totalComissao || 0
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {tipoRelatorio === "pagamentos" ? "Total Pendente" : "Período"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {tipoRelatorio === "pagamentos" 
+                    ? formatCurrency((totais as any).totalPendente || 0)
+                    : `${format(new Date(dataInicio), "dd/MM", { locale: ptBR })} - ${format(new Date(dataFim), "dd/MM/yy", { locale: ptBR })}`
+                  }
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Resumo */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {tipoRelatorio === "pagamentos" ? "Registros" : "Total de Vendas"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {tipoRelatorio === "pagamentos" 
-                ? dadosRelatorio.length 
-                : (totais as any).totalQtd || 0} 
-              {tipoRelatorio !== "pagamentos" && " unidades"}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {tipoRelatorio === "pagamentos" ? "Total Pago" : "Total Comissões"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">
-              {formatCurrency(
-                tipoRelatorio === "pagamentos" 
-                  ? (totais as any).totalPago || 0 
-                  : (totais as any).totalComissao || 0
+          {/* Tabela de Dados */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>
+                    {relatorioTipos.find(t => t.value === tipoRelatorio)?.label}
+                  </CardTitle>
+                  <CardDescription>
+                    {dadosRelatorio.length} registros encontrados
+                  </CardDescription>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={dadosRelatorio.length === 0}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Exportar
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem 
+                      onClick={() => exportToPDF({ 
+                        tipoRelatorio, 
+                        dataInicio, 
+                        dataFim, 
+                        dados: dadosRelatorio 
+                      })}
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Exportar PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => exportToExcel({ 
+                        tipoRelatorio, 
+                        dataInicio, 
+                        dataFim, 
+                        dados: dadosRelatorio 
+                      })}
+                    >
+                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                      Exportar Excel
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : dadosRelatorio.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum registro encontrado para o período selecionado.
+                </div>
+              ) : tipoRelatorio === "pagamentos" ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Autor</TableHead>
+                      <TableHead>Data Prevista</TableHead>
+                      <TableHead>Data Efetivação</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dadosRelatorio.map((item: any) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">
+                          {item.royalties_autores?.nome_completo || "-"}
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(item.data_prevista), "dd/MM/yyyy", { locale: ptBR })}
+                        </TableCell>
+                        <TableCell>
+                          {item.data_efetivacao 
+                            ? format(new Date(item.data_efetivacao), "dd/MM/yyyy", { locale: ptBR })
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(item.valor_total)}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                            item.status === "pago" 
+                              ? "bg-green-100 text-green-800" 
+                              : item.status === "cancelado"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}>
+                            {item.status === "pago" ? "Pago" : item.status === "cancelado" ? "Cancelado" : "Pendente"}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : tipoRelatorio === "vendas" ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Código</TableHead>
+                        <TableHead>Título</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Qtd Vendida</TableHead>
+                        <TableHead className="text-right">Compras Autor</TableHead>
+                        <TableHead className="text-right">Preço de Capa</TableHead>
+                        <TableHead className="text-right">Menor Valor</TableHead>
+                        <TableHead className="text-right">Preço Líq. Médio</TableHead>
+                        <TableHead className="text-right">Taxa Royalty</TableHead>
+                        <TableHead className="text-right">Royalties Apurado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dadosRelatorio.map((item: any, idx: number) => (
+                        <TableRow key={item.livro_id || idx}>
+                          <TableCell className="font-mono text-xs">{item.codigo}</TableCell>
+                          <TableCell className="font-medium">{item.titulo}</TableCell>
+                          <TableCell>
+                            <Badge variant={item.status === "Ativo" ? "default" : "secondary"}>
+                              {item.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">{item.quantidade_vendida}</TableCell>
+                          <TableCell className="text-right">{item.compras_autor}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(item.preco_capa)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(item.menor_valor)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(item.preco_liquido_medio)}</TableCell>
+                          <TableCell className="text-right">{item.taxa_royalty}%</TableCell>
+                          <TableCell className="text-right font-semibold">{formatCurrency(item.royalties_apurado)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {dadosRelatorio.length > 0 && (
+                        <TableRow className="bg-muted/50 font-bold">
+                          <TableCell colSpan={9} className="text-right">TOTAL DE ROYALTIES APURADO</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(dadosRelatorio.reduce((acc: number, i: any) => acc + Number(i.royalties_apurado || 0), 0))}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Livro</TableHead>
+                      <TableHead>Autor</TableHead>
+                      <TableHead className="text-right">Qtd</TableHead>
+                      <TableHead className="text-right">Comissão</TableHead>
+                      {tipoRelatorio === "comissoes" && <TableHead>Status</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dadosRelatorio.map((item: any) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          {format(new Date(item.data_venda), "dd/MM/yyyy", { locale: ptBR })}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {item.royalties_livros?.titulo || "-"}
+                        </TableCell>
+                        <TableCell>
+                          {item.royalties_livros?.royalties_autores?.nome_completo || "-"}
+                        </TableCell>
+                        <TableCell className="text-right">{item.quantidade}</TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(item.valor_comissao_total)}
+                        </TableCell>
+                        {tipoRelatorio === "comissoes" && (
+                          <TableCell>
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                              item.pagamento_id 
+                                ? "bg-green-100 text-green-800" 
+                                : "bg-yellow-100 text-yellow-800"
+                            }`}>
+                              {item.pagamento_id ? "Pago" : "Pendente"}
+                            </span>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              {tipoRelatorio === "pagamentos" ? "Total Pendente" : "Período"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {tipoRelatorio === "pagamentos" 
-                ? formatCurrency((totais as any).totalPendente || 0)
-                : `${format(new Date(dataInicio), "dd/MM", { locale: ptBR })} - ${format(new Date(dataFim), "dd/MM/yy", { locale: ptBR })}`
-              }
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabela de Dados */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>
-                {relatorioTipos.find(t => t.value === tipoRelatorio)?.label}
+        {/* ===== ABA AGENDA DE ENVIOS ===== */}
+        <TabsContent value="agenda" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5" />
+                Agenda de Envio de Relatórios
               </CardTitle>
               <CardDescription>
-                {dadosRelatorio.length} registros encontrados
+                Próximas datas de envio baseadas no período de pagamento de cada livro (a partir de 01/01/2026)
               </CardDescription>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={dadosRelatorio.length === 0}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem 
-                  onClick={() => exportToPDF({ 
-                    tipoRelatorio, 
-                    dataInicio, 
-                    dataFim, 
-                    dados: dadosRelatorio 
-                  })}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Exportar PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={() => exportToExcel({ 
-                    tipoRelatorio, 
-                    dataInicio, 
-                    dataFim, 
-                    dados: dadosRelatorio 
-                  })}
-                >
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Exportar Excel
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
-          ) : dadosRelatorio.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhum registro encontrado para o período selecionado.
-            </div>
-          ) : tipoRelatorio === "pagamentos" ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Autor</TableHead>
-                  <TableHead>Data Prevista</TableHead>
-                  <TableHead>Data Efetivação</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dadosRelatorio.map((item: any) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {item.royalties_autores?.nome_completo || "-"}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(item.data_prevista), "dd/MM/yyyy", { locale: ptBR })}
-                    </TableCell>
-                    <TableCell>
-                      {item.data_efetivacao 
-                        ? format(new Date(item.data_efetivacao), "dd/MM/yyyy", { locale: ptBR })
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(item.valor_total)}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                        item.status === "pago" 
-                          ? "bg-green-100 text-green-800" 
-                          : item.status === "cancelado"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}>
-                        {item.status === "pago" ? "Pago" : item.status === "cancelado" ? "Cancelado" : "Pendente"}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : tipoRelatorio === "vendas" ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Título</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Qtd Vendida</TableHead>
-                    <TableHead className="text-right">Compras Autor</TableHead>
-                    <TableHead className="text-right">Preço de Capa</TableHead>
-                    <TableHead className="text-right">Menor Valor</TableHead>
-                    <TableHead className="text-right">Preço Líq. Médio</TableHead>
-                    <TableHead className="text-right">Taxa Royalty</TableHead>
-                    <TableHead className="text-right">Royalties Apurado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dadosRelatorio.map((item: any, idx: number) => (
-                    <TableRow key={item.livro_id || idx}>
-                      <TableCell className="font-mono text-xs">{item.codigo}</TableCell>
-                      <TableCell className="font-medium">{item.titulo}</TableCell>
-                      <TableCell>
-                        <Badge variant={item.status === "Ativo" ? "default" : "secondary"}>
-                          {item.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{item.quantidade_vendida}</TableCell>
-                      <TableCell className="text-right">{item.compras_autor}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.preco_capa)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.menor_valor)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.preco_liquido_medio)}</TableCell>
-                      <TableCell className="text-right">{item.taxa_royalty}%</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(item.royalties_apurado)}</TableCell>
+            </CardHeader>
+            <CardContent>
+              {loadingAgenda ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : agendaEnvios.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum livro ativo com período de pagamento cadastrado.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Autor</TableHead>
+                      <TableHead>Livro</TableHead>
+                      <TableHead>Período</TableHead>
+                      <TableHead>Próximo Envio</TableHead>
                     </TableRow>
-                  ))}
-                  {dadosRelatorio.length > 0 && (
-                    <TableRow className="bg-muted/50 font-bold">
-                      <TableCell colSpan={9} className="text-right">TOTAL DE ROYALTIES APURADO</TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(dadosRelatorio.reduce((acc: number, i: any) => acc + Number(i.royalties_apurado || 0), 0))}
-                      </TableCell>
+                  </TableHeader>
+                  <TableBody>
+                    {agendaEnvios.map((item: any) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.autor}</TableCell>
+                        <TableCell>{item.livro}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{getPeriodoLabel(item.periodo)}</Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {format(item.proximoEnvio, "dd/MM/yyyy", { locale: ptBR })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ===== ABA AUDITORIA ===== */}
+        <TabsContent value="auditoria" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Logs de Auditoria
+              </CardTitle>
+              <CardDescription>
+                Histórico de alterações no sistema de royalties
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4 mb-4">
+                <div className="space-y-2">
+                  <Label>Tabela</Label>
+                  <Select value={auditTabela} onValueChange={setAuditTabela}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas</SelectItem>
+                      <SelectItem value="royalties_autores">Autores</SelectItem>
+                      <SelectItem value="royalties_livros">Livros</SelectItem>
+                      <SelectItem value="royalties_comissoes">Comissões</SelectItem>
+                      <SelectItem value="royalties_vendas">Vendas</SelectItem>
+                      <SelectItem value="royalties_pagamentos">Pagamentos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Ação</Label>
+                  <Select value={auditAcao} onValueChange={setAuditAcao}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas</SelectItem>
+                      <SelectItem value="INSERT">Criação</SelectItem>
+                      <SelectItem value="UPDATE">Atualização</SelectItem>
+                      <SelectItem value="DELETE">Exclusão</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {loadingAudit ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum registro de auditoria encontrado para o período selecionado.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data/Hora</TableHead>
+                      <TableHead>Tabela</TableHead>
+                      <TableHead>Ação</TableHead>
+                      <TableHead>Registro ID</TableHead>
+                      <TableHead>Detalhes</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Livro</TableHead>
-                  <TableHead>Autor</TableHead>
-                  <TableHead className="text-right">Qtd</TableHead>
-                  <TableHead className="text-right">Comissão</TableHead>
-                  {tipoRelatorio === "comissoes" && <TableHead>Status</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dadosRelatorio.map((item: any) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      {format(new Date(item.data_venda), "dd/MM/yyyy", { locale: ptBR })}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {item.royalties_livros?.titulo || "-"}
-                    </TableCell>
-                    <TableCell>
-                      {item.royalties_livros?.royalties_autores?.nome_completo || "-"}
-                    </TableCell>
-                    <TableCell className="text-right">{item.quantidade}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(item.valor_comissao_total)}
-                    </TableCell>
-                    {tipoRelatorio === "comissoes" && (
-                      <TableCell>
-                        <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                          item.pagamento_id 
-                            ? "bg-green-100 text-green-800" 
-                            : "bg-yellow-100 text-yellow-800"
-                        }`}>
-                          {item.pagamento_id ? "Pago" : "Pendente"}
-                        </span>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Logs de Auditoria */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Logs de Auditoria
-          </CardTitle>
-          <CardDescription>
-            Histórico de alterações no sistema de royalties
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 mb-4">
-            <div className="space-y-2">
-              <Label>Tabela</Label>
-              <Select value={auditTabela} onValueChange={setAuditTabela}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  <SelectItem value="royalties_autores">Autores</SelectItem>
-                  <SelectItem value="royalties_livros">Livros</SelectItem>
-                  <SelectItem value="royalties_comissoes">Comissões</SelectItem>
-                  <SelectItem value="royalties_vendas">Vendas</SelectItem>
-                  <SelectItem value="royalties_pagamentos">Pagamentos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Ação</Label>
-              <Select value={auditAcao} onValueChange={setAuditAcao}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  <SelectItem value="INSERT">Criação</SelectItem>
-                  <SelectItem value="UPDATE">Atualização</SelectItem>
-                  <SelectItem value="DELETE">Exclusão</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {loadingAudit ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            </div>
-          ) : auditLogs.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhum registro de auditoria encontrado para o período selecionado.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data/Hora</TableHead>
-                  <TableHead>Tabela</TableHead>
-                  <TableHead>Ação</TableHead>
-                  <TableHead>Registro ID</TableHead>
-                  <TableHead>Detalhes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {auditLogs.map((log: any) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-sm">
-                      {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getTabelaLabel(log.tabela)}</Badge>
-                    </TableCell>
-                    <TableCell>{getAcaoBadge(log.acao)}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {log.registro_id?.substring(0, 8)}...
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                      {log.acao === "DELETE" 
-                        ? JSON.stringify(log.dados_antigos)?.substring(0, 50) + "..."
-                        : log.acao === "INSERT"
-                        ? JSON.stringify(log.dados_novos)?.substring(0, 50) + "..."
-                        : "Alteração de dados"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {auditLogs.map((log: any) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-sm">
+                          {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{getTabelaLabel(log.tabela)}</Badge>
+                        </TableCell>
+                        <TableCell>{getAcaoBadge(log.acao)}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {log.registro_id?.substring(0, 8)}...
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                          {log.acao === "DELETE" 
+                            ? JSON.stringify(log.dados_antigos)?.substring(0, 50) + "..."
+                            : log.acao === "INSERT"
+                            ? JSON.stringify(log.dados_novos)?.substring(0, 50) + "..."
+                            : "Alteração de dados"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
