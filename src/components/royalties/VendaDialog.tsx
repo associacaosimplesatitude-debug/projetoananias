@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +20,7 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   
+  const [isCompraAutor, setIsCompraAutor] = useState(false);
   const [formData, setFormData] = useState({
     livro_id: "",
     quantidade: "",
@@ -102,10 +104,11 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
         livro_id: formData.livro_id,
         quantidade,
         valor_unitario: valorUnitario,
-        valor_comissao_unitario: valorComissaoUnitario,
-        valor_comissao_total: valorComissaoTotal,
+        valor_comissao_unitario: isCompraAutor ? 0 : valorComissaoUnitario,
+        valor_comissao_total: isCompraAutor ? 0 : valorComissaoTotal,
         data_venda: formData.data_fim,
         observacao: observacaoCompleta,
+        is_compra_autor: isCompraAutor,
       };
 
       const { error } = await supabase
@@ -128,6 +131,7 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
         observacao: "",
       });
       setSelectedLivro(null);
+      setIsCompraAutor(false);
     } catch (error: any) {
       console.error("Erro ao registrar venda:", error);
       toast({
@@ -231,6 +235,23 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
             </div>
           </div>
 
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="is_compra_autor"
+              checked={isCompraAutor}
+              onCheckedChange={(checked) => setIsCompraAutor(checked === true)}
+            />
+            <Label htmlFor="is_compra_autor" className="text-sm font-normal cursor-pointer">
+              Compra do Autor (sem royalties)
+            </Label>
+          </div>
+
+          {isCompraAutor && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+              ⚠️ Compras feitas pelo próprio autor não geram royalties. A comissão será registrada como R$ 0,00.
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="observacao">Observação (opcional)</Label>
             <Input
@@ -254,10 +275,13 @@ export function VendaDialog({ open, onOpenChange }: VendaDialogProps) {
               </div>
               <div className="flex justify-between text-sm">
                 <span>Comissão ({getComissaoPercentual()}%):</span>
-                <span className="font-medium text-primary">
-                  {formatCurrency(calcularComissaoTotal())}
+                <span className={`font-medium ${isCompraAutor ? "line-through text-muted-foreground" : "text-primary"}`}>
+                  {formatCurrency(isCompraAutor ? 0 : calcularComissaoTotal())}
                 </span>
               </div>
+              {isCompraAutor && (
+                <p className="text-xs text-amber-600">Compra do autor — sem royalties</p>
+              )}
             </div>
           )}
 

@@ -33,6 +33,7 @@ export default function RoyaltiesRelatorios() {
             quantidade,
             valor_unitario,
             valor_comissao_total,
+            is_compra_autor,
             livro_id,
             royalties_livros (
               id,
@@ -75,8 +76,13 @@ export default function RoyaltiesRelatorios() {
             };
           }
           const g = byBook[livroId];
+          const isCompraAutor = (venda as any).is_compra_autor === true;
           g.quantidade_vendida += venda.quantidade || 0;
-          g.royalties_apurado += Number(venda.valor_comissao_total || 0);
+          if (isCompraAutor) {
+            g.compras_autor += venda.quantidade || 0;
+          } else {
+            g.royalties_apurado += Number(venda.valor_comissao_total || 0);
+          }
           const vu = Number(venda.valor_unitario || 0);
           if (vu > 0 && vu < g.menor_valor) g.menor_valor = vu;
           g.soma_valor_unitario += vu * (venda.quantidade || 1);

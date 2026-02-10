@@ -1,0 +1,1 @@
+ALTER TABLE public.royalties_vendas ADD COLUMN is_compra_autor boolean DEFAULT false;

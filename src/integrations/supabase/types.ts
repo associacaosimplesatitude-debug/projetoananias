@@ -5033,6 +5033,7 @@ export type Database = {
           created_at: string
           data_venda: string
           id: string
+          is_compra_autor: boolean | null
           livro_id: string
           nota_fiscal_numero: string | null
           nota_fiscal_url: string | null
@@ -5049,6 +5050,7 @@ export type Database = {
           created_at?: string
           data_venda?: string
           id?: string
+          is_compra_autor?: boolean | null
           livro_id: string
           nota_fiscal_numero?: string | null
           nota_fiscal_url?: string | null
@@ -5065,6 +5067,7 @@ export type Database = {
           created_at?: string
           data_venda?: string
           id?: string
+          is_compra_autor?: boolean | null
           livro_id?: string
           nota_fiscal_numero?: string | null
           nota_fiscal_url?: string | null
