@@ -311,6 +311,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
             body: {
               autorId: data.id,
               templateCode: "autor_acesso",
+              tipoEnvio: "automatico",
               dados: {
                 senha_temporaria: formData.senha,
                 link_login: "https://gestaoebd.lovable.app/autor",

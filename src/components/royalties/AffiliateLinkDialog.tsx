@@ -157,6 +157,7 @@ export function AffiliateLinkDialog({ open, onOpenChange }: AffiliateLinkDialogP
         body: {
           autorId: formData.autor_id,
           templateCode: "afiliado_link",
+          tipoEnvio: "automatico",
           dados: {
             livro: livro.titulo,
             link_afiliado: linkAfiliado,

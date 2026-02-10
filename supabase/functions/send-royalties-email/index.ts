@@ -15,6 +15,7 @@ interface EmailRequest {
   templateCode: string;
   dados: Record<string, string>;
   destinatarioOverride?: string;
+  tipoEnvio?: string;
 }
 
 interface Template {
@@ -46,7 +47,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { autorId, templateCode, dados, destinatarioOverride }: EmailRequest = await req.json();
+    const { autorId, templateCode, dados, destinatarioOverride, tipoEnvio }: EmailRequest = await req.json();
 
     console.log(`send-royalties-email: Processing template '${templateCode}' for autor '${autorId}'`);
 
@@ -133,6 +134,8 @@ const handler = async (req: Request): Promise<Response> => {
         assunto: assunto,
         status: "enviado",
         dados_enviados: variables,
+        tipo_envio: tipoEnvio || "manual",
+        resend_email_id: emailResponse.data?.id || null,
       });
 
     if (logError) {
