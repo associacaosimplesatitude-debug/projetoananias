@@ -134,7 +134,10 @@ serve(async (req) => {
       frete_observacao?: string;
     };
 
-    if (!cliente || !items || items.length === 0) {
+    // Ensure items is always an array (may come as JSON string from JSONB)
+    const parsedItems: CartItem[] = typeof items === 'string' ? JSON.parse(items) : (Array.isArray(items) ? items : []);
+
+    if (!cliente || !parsedItems || parsedItems.length === 0) {
       return new Response(
         JSON.stringify({ error: "Cliente e itens são obrigatórios" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -153,7 +156,7 @@ serve(async (req) => {
     console.log("Creating draft order for cliente:", cliente.nome_igreja);
     console.log("Criando Draft Order com Vendedor ID:", finalVendedorId);
     console.log("Vendedor Nome:", vendedor_nome);
-    console.log("Items:", items);
+    console.log("Items:", JSON.stringify(parsedItems));
     console.log("Faturamento:", isFaturamento, "Prazo:", faturamento_prazo);
     console.log("Desconto:", descontoPercentual, "%");
     console.log("Frete:", metodoFreteRecebido, "Valor:", valorFreteRecebido);
@@ -353,7 +356,7 @@ serve(async (req) => {
     // Step 2: Create Draft Order
     // Convert GraphQL variant IDs to numeric IDs
     // Apply line-item discount if desconto_percentual is provided
-    const lineItems = items.map(item => {
+    const lineItems = parsedItems.map(item => {
       // Extract numeric ID from GraphQL ID (gid://shopify/ProductVariant/123456)
       const variantIdMatch = item.variantId.match(/(\d+)$/);
       const numericVariantId = variantIdMatch ? parseInt(variantIdMatch[1]) : null;
@@ -662,7 +665,7 @@ serve(async (req) => {
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
       
       // Format items for Bling - apply discount if provided
-      const itensBling = items.map(item => {
+      const itensBling = parsedItems.map(item => {
         const precoOriginal = parseFloat(item.price);
         const precoComDesconto = descontoPercentual > 0 
           ? precoOriginal * (1 - descontoPercentual / 100) 
@@ -678,7 +681,7 @@ serve(async (req) => {
       });
 
       // Calculate totals with discount
-      const valorProdutosSemDesconto = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
+      const valorProdutosSemDesconto = parsedItems.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
       const valorProdutos = descontoPercentual > 0 
         ? valorProdutosSemDesconto * (1 - descontoPercentual / 100)
         : valorProdutosSemDesconto;
@@ -827,7 +830,7 @@ serve(async (req) => {
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
       // Calculate totals
-      const valorProdutos = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
+      const valorProdutos = parsedItems.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
       const valorDescontado = descontoPercentual > 0 
         ? valorProdutos * (1 - descontoPercentual / 100)
         : valorProdutos;
