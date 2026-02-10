@@ -1,54 +1,53 @@
 
-
-# Agenda de Envio de Relatorios por Periodo de Pagamento
+# Compras do Autor - Royalties Zerados
 
 ## Resumo
 
-Duas alteracoes na pagina de Relatorios (/royalties/relatorios):
-
-1. **Nova aba "Agenda de Envios"** com tabela mostrando autor, livro e data do proximo relatorio baseado no `periodo_pagamento` de cada livro
-2. **Logica de calculo da data** baseada no periodo cadastrado (1_mes, 3_meses, 6_meses, 1_ano) contando a partir de 01/01/2026
-
-## Logica de calculo das datas
-
-Data base: **01/01/2026**
-
-| Periodo | Datas de envio |
-|---------|---------------|
-| 1_mes | 31/01, 28/02, 31/03... (ultimo dia de cada mes) |
-| 3_meses | 31/03, 30/06, 30/09, 31/12 |
-| 6_meses | 30/06, 31/12 |
-| 1_ano | 31/12 |
-
-O sistema calcula o proximo envio futuro mais proximo a partir da data atual.
+Adicionar um campo `is_compra_autor` na tabela `royalties_vendas` para identificar compras feitas pelo proprio autor. Essas vendas aparecem normalmente na listagem e no relatorio, porem com comissao zerada e uma indicacao visual clara do motivo.
 
 ## Alteracoes
 
-### 1. `src/pages/royalties/Relatorios.tsx`
+### 1. Migracao SQL
 
-- Adicionar nova aba "Agenda" nas tabs existentes (junto com Relatorios e Auditoria)
-- Nova query para buscar livros ativos com autor e periodo de pagamento
-- Funcao `calcularProximoEnvio(periodo_pagamento)` que:
-  - Parte de 01/01/2026
-  - Avanca pelo intervalo do periodo
-  - Retorna a proxima data futura
-- Tabela com colunas: Autor, Livro, Periodo, Proximo Envio
-- Ordenar por data de proximo envio (mais proximo primeiro)
+- Adicionar coluna `is_compra_autor` (boolean, default false) na tabela `royalties_vendas`
 
-### Detalhes tecnicos
+### 2. `src/pages/royalties/Vendas.tsx`
 
-**Query necessaria:**
+Na tabela de vendas:
+- Quando `is_compra_autor = true`, exibir a comissao como R$ 0,00
+- Adicionar um Badge "Compra Autor" na coluna de Status (cor diferenciada, ex: amber/warning)
+- Adicionar tooltip ou texto explicativo "Sem royalties - compra do proprio autor"
+
+### 3. `src/components/royalties/VendaDialog.tsx`
+
+- Adicionar checkbox "Compra do Autor" no formulario de venda manual
+- Quando marcado, zerar automaticamente os campos de comissao (unitaria e total) e mostrar aviso visual
+- Salvar `is_compra_autor: true` e `valor_comissao_unitario: 0, valor_comissao_total: 0`
+
+### 4. `src/pages/royalties/Relatorios.tsx`
+
+Na query de vendas agrupadas por livro:
+- Contar vendas onde `is_compra_autor = true` no campo `compras_autor` (que hoje esta sempre em 0)
+- Subtrair essas quantidades do calculo de royalties apurado
+- A coluna "Compras Autor" finalmente mostrara o valor correto
+
+### 5. `src/components/royalties/VendasSummaryCards.tsx`
+
+- Verificar se os cards de resumo excluem vendas do autor dos totais de comissao (caso nao, ajustar)
+
+### 6. `supabase/functions/bling-sync-royalties-sales/index.ts`
+
+- Considerar: vendas vindas do Bling nao sao compras do autor (sao vendas normais), portanto o campo fica `false` por padrao. Nao precisa de alteracao nesta funcao.
+
+## Detalhes tecnicos
+
+**Coluna nova:**
+```sql
+ALTER TABLE royalties_vendas ADD COLUMN is_compra_autor boolean DEFAULT false;
 ```
-royalties_livros (id, titulo, is_active)
-  -> royalties_autores (nome_completo)
-  -> royalties_comissoes (periodo_pagamento)
-```
 
-**Funcao de calculo:**
-- Data base fixa: 2026-01-01
-- Para cada periodo, gerar sequencia de datas ate encontrar a proxima futura
-- Exemplo: periodo 3_meses -> datas 31/03/2026, 30/06/2026, 30/09/2026...
-- Retorna a primeira data >= hoje
+**Logica no relatorio:**
+Ao agrupar vendas por livro, incrementar `compras_autor` quando `venda.is_compra_autor === true`, e nao somar a comissao dessas vendas no `royalties_apurado`.
 
-**Arquivo alterado:** `src/pages/royalties/Relatorios.tsx` (adicionar aba + query + tabela)
-
+**Logica na VendaDialog:**
+Quando checkbox "Compra do Autor" estiver marcado, forcar `valor_comissao_unitario = 0` e `valor_comissao_total = 0` no payload de insert, independente do calculo de percentual.
