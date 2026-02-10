@@ -4771,8 +4771,10 @@ export type Database = {
           destinatario: string
           erro: string | null
           id: string
+          resend_email_id: string | null
           status: string | null
           template_id: string | null
+          tipo_envio: string
         }
         Insert: {
           assunto: string
@@ -4782,8 +4784,10 @@ export type Database = {
           destinatario: string
           erro?: string | null
           id?: string
+          resend_email_id?: string | null
           status?: string | null
           template_id?: string | null
+          tipo_envio?: string
         }
         Update: {
           assunto?: string
@@ -4793,8 +4797,10 @@ export type Database = {
           destinatario?: string
           erro?: string | null
           id?: string
+          resend_email_id?: string | null
           status?: string | null
           template_id?: string | null
+          tipo_envio?: string
         }
         Relationships: [
           {
