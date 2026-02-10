@@ -1,88 +1,82 @@
 
-# Painel de Emails Enviados
+# Disparos Automaticos de Email - 6 Novos Gatilhos
 
 ## Resumo
 
-Melhorar a aba "Historico" existente na pagina de Emails (`/royalties/emails`) transformando-a em um painel completo com:
+Adicionar envio automatico de emails nos seguintes eventos, usando os templates que ja existem no banco:
 
-- Cards de resumo no topo (total enviados, erros, taxa de sucesso)
-- Indicacao se o envio foi automatico ou manual
-- Tabela melhorada com filtros e detalhes expandiveis
-- Coluna de tipo (automatico/manual) baseada nos dados enviados
+| Evento | Template | Onde adicionar |
+|--------|----------|----------------|
+| Nova venda registrada | `royalty_venda` | `bling-sync-royalties-sales` (edge function) |
+| Relatorio mensal gerado | `relatorio_mensal` | `src/pages/royalties/Relatorios.tsx` (ao gerar) |
+| Resgate aprovado | (novo template `resgate_aprovado`) | `aprovar-resgate` (edge function) |
+| Resgate solicitado | (novo template `resgate_solicitado`) | `src/pages/autor/Loja.tsx` |
+| Novo contrato cadastrado | (novo template `contrato_novo`) | `src/components/royalties/ContratoDialog.tsx` |
+| Pagamento efetuado | `pagamento_realizado` | `src/pages/royalties/Pagamentos.tsx` (handleMarcarPago) |
 
-## Problema atual
+## Templates a criar no banco
 
-A tabela `royalties_email_logs` nao possui um campo para diferenciar envios automaticos de manuais, nem rastreamento de abertura de email. Precisaremos:
+Tres templates precisam ser criados (os outros 3 ja existem):
 
-1. Adicionar coluna `tipo_envio` (automatico/manual) na tabela
-2. Nota: rastreamento de abertura (open tracking) requer integracao com webhook do Resend - sera preparada a estrutura mas depende de configuracao adicional
+1. **`resgate_aprovado`** - "Seu resgate foi aprovado!"
+2. **`resgate_solicitado`** - "Recebemos sua solicitacao de resgate"
+3. **`contrato_novo`** - "Novo contrato cadastrado"
 
-## Alteracoes
+## Alteracoes por arquivo
 
-### 1. Migracao SQL
+### 1. Migracao SQL - Inserir 3 novos templates
 
-Adicionar duas novas colunas na tabela `royalties_email_logs`:
+Inserir os templates `resgate_aprovado`, `resgate_solicitado` e `contrato_novo` na tabela `royalties_email_templates`.
 
-- `tipo_envio` (TEXT, default 'manual') - valores: 'automatico' ou 'manual'
-- `resend_email_id` (TEXT, nullable) - para futuro rastreamento de abertura via Resend webhooks
+### 2. `supabase/functions/bling-sync-royalties-sales/index.ts`
 
-### 2. Atualizar Edge Function `send-royalties-email`
+Apos inserir cada venda com sucesso, chamar `send-royalties-email` com:
+- Template: `royalty_venda`
+- Dados: nome do livro, quantidade, valor
+- tipoEnvio: `automatico`
 
-Aceitar novo campo `tipoEnvio` no request body e salvar no log. Tambem salvar o `emailId` retornado pelo Resend no campo `resend_email_id`.
+Nota: como esta funcao processa vendas em lote, os emails serao enviados em background sem bloquear o sync. Agrupar vendas por autor para evitar spam (1 email por autor com resumo).
 
-### 3. Atualizar disparos automaticos
+### 3. `supabase/functions/aprovar-resgate/index.ts`
 
-Nos arquivos `AffiliateLinkDialog.tsx` e `AutorDialog.tsx`, passar `tipoEnvio: "automatico"` no body da chamada a edge function.
+Apos aprovar com sucesso (apos atualizar status para "aprovado"), chamar `send-royalties-email` com:
+- Template: `resgate_aprovado`
+- Dados: valor total, numero do pedido Bling, lista de itens
+- tipoEnvio: `automatico`
 
-### 4. Reescrever `EmailLogsTab.tsx` como painel completo
+### 4. `src/pages/autor/Loja.tsx`
 
-O componente sera transformado para incluir:
+Apos o insert do resgate (onSuccess do mutation), chamar a edge function com:
+- Template: `resgate_solicitado`
+- Dados: valor total, quantidade de itens
+- tipoEnvio: `automatico`
 
-**Cards de Resumo (topo)**:
-- Total de emails enviados
-- Emails com sucesso
-- Emails com erro  
-- Taxa de sucesso (%)
+### 5. `src/components/royalties/ContratoDialog.tsx`
 
-**Filtros**:
-- Busca por texto (destinatario, assunto, autor)
-- Filtro por status (todos, enviado, erro)
-- Filtro por tipo (todos, automatico, manual)
-- Filtro por periodo (ultimos 7 dias, 30 dias, todos)
+Apos insert de novo contrato (nao no update), chamar a edge function com:
+- Template: `contrato_novo`
+- Dados: nome do livro, datas
+- tipoEnvio: `automatico`
 
-**Tabela melhorada**:
-- Coluna "Tipo" com badge diferenciando automatico/manual
-- Coluna "Data" com formatacao
-- Coluna "Autor"
-- Coluna "Destinatario"
-- Coluna "Template"
-- Coluna "Assunto"
-- Coluna "Status" com badge colorido
-- Linha expandivel com detalhes (dados enviados, erro se houver)
+### 6. `src/pages/royalties/Pagamentos.tsx`
 
-## Detalhes Tecnicos
+Na funcao `handleMarcarPago`, apos atualizar status para "pago", chamar a edge function com:
+- Template: `pagamento_realizado`
+- Dados: valor, data
+- tipoEnvio: `automatico`
 
-### Arquivos alterados
+Precisa buscar o `autor_id` do pagamento para enviar.
 
-| Arquivo | Acao |
-|---------|------|
-| Migracao SQL | Adicionar colunas `tipo_envio` e `resend_email_id` |
-| `supabase/functions/send-royalties-email/index.ts` | Aceitar `tipoEnvio`, salvar `resend_email_id` |
-| `src/components/royalties/AffiliateLinkDialog.tsx` | Passar `tipoEnvio: "automatico"` |
-| `src/components/royalties/AutorDialog.tsx` | Passar `tipoEnvio: "automatico"` |
-| `src/components/royalties/EmailLogsTab.tsx` | Reescrever como painel completo com cards e filtros |
+### 7. Relatorio mensal (`src/pages/royalties/Relatorios.tsx`)
 
-### Estrutura do novo EmailLogsTab
+Ao gerar/exportar relatorio, disparar email com:
+- Template: `relatorio_mensal`
+- Dados: mes/ano, link ou resumo
+- tipoEnvio: `automatico`
 
-```text
-+--------------------------------------------------+
-| [Total: 25]  [Sucesso: 23]  [Erro: 2]  [92%]   |
-+--------------------------------------------------+
-| [Busca...]  [Status: v]  [Tipo: v]  [Periodo: v] |
-+--------------------------------------------------+
-| Data | Tipo | Autor | Dest. | Template | Status  |
-|------|------|-------|-------|----------|---------|
-| ...  | Auto | ...   | ...   | ...      | OK      |
-| ...  | Man. | ...   | ...   | ...      | Erro    |
-+--------------------------------------------------+
-```
+## Notas tecnicas
+
+- Todos os disparos usam `supabase.functions.invoke("send-royalties-email", ...)` com `tipoEnvio: "automatico"`
+- Nos edge functions (bling-sync e aprovar-resgate), a chamada e feita via `supabase.functions.invoke` internamente
+- Emails sao enviados em background (sem await no frontend) para nao bloquear a UI
+- O edge function `send-royalties-email` ja esta preparado para receber `tipoEnvio` e registrar no log
