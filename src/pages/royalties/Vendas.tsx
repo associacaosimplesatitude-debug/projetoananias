@@ -149,7 +149,10 @@ export default function RoyaltiesVendas() {
                     </TableCell>
                     <TableCell className="text-right">{venda.quantidade}</TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(venda.valor_comissao_total)}
+                      {(venda as any).is_compra_autor 
+                        ? <span className="text-muted-foreground" title="Sem royalties - compra do próprio autor">R$ 0,00</span>
+                        : formatCurrency(venda.valor_comissao_total)
+                      }
                     </TableCell>
                     <TableCell>
                       {venda.nota_fiscal_url ? (
@@ -169,9 +172,14 @@ export default function RoyaltiesVendas() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-wrap">
                         {!venda.bling_order_id && (
                           <Badge variant="outline">Manual</Badge>
+                        )}
+                        {(venda as any).is_compra_autor && (
+                          <Badge className="bg-amber-100 text-amber-800 border-amber-200" title="Sem royalties - compra do próprio autor">
+                            Compra Autor
+                          </Badge>
                         )}
                         <Badge variant={venda.pagamento_id ? "default" : "secondary"}>
                           {venda.pagamento_id ? "Pago" : "Pendente"}
