@@ -1,114 +1,79 @@
 
+# Corrigir Sincronizacao de Vendas - Preencher codigo_bling (SKU) dos Livros
 
-# Filtros em Relatorios + Pagamentos Parciais com Saldo
+## Problema Raiz
 
-## Resumo
+Apenas 2 livros tem vendas aparecendo porque **somente 2 livros possuem o campo `codigo_bling` (SKU) preenchido**: "O Cativeiro Babilonico" (SKU: 33476) e "Mulheres Em Reforma" (SKU: 33455). Os outros 27 livros tem `codigo_bling = null`.
 
-Duas melhorias principais:
-1. Adicionar filtros por **Autor** e **Livro** na pagina de Relatorios (`/royalties/relatorios`)
-2. Permitir **pagamentos parciais** na pagina de Pagamentos (`/royalties/pagamentos`), com saldo do autor visivel, debito do saldo, e reflexo no extrato do autor e no relatorio
+A funcao de sincronizacao (`bling-sync-royalties-sales`) tenta casar itens de NF-e com livros usando `bling_produto_id` ou `codigo_bling`. Porem, nas NF-es do Bling, os itens usam o **codigo (SKU)** do produto, nao o ID do produto. Sem o SKU preenchido, o sistema nao consegue identificar quais livros foram vendidos.
 
----
+## Solucao em 2 Partes
 
-## 1. Filtros por Autor e Livro em Relatorios
+### Parte 1: Criar Edge Function para preencher automaticamente o `codigo_bling`
 
-**Arquivo:** `src/pages/royalties/Relatorios.tsx`
+Nova Edge Function `backfill-royalties-bling-skus` que:
+1. Busca todos os livros que tem `bling_produto_id` mas nao tem `codigo_bling`
+2. Para cada livro, consulta a API do Bling (`GET /produtos/{id}`) para obter o campo `codigo` (SKU)
+3. Atualiza o campo `codigo_bling` na tabela `royalties_livros`
+4. Respeita rate limit do Bling (350ms entre chamadas)
 
-- Adicionar dois novos estados: `filtroAutor` e `filtroLivro`
-- Buscar lista de autores (`royalties_autores`) e livros (`royalties_livros`) para popular os selects
-- Aplicar filtros na query de vendas/comissoes/pagamentos:
-  - Vendas: filtrar por `autor_id` do livro e/ou `livro_id`
-  - Comissoes: idem, via join com `royalties_livros`
-  - Pagamentos: filtrar por `autor_id`
-- Adicionar dois `Select` na area de filtros (grid md:grid-cols-6 ao inves de md:grid-cols-4)
+### Parte 2: Melhorar a sincronizacao de vendas
 
----
+**Arquivo:** `supabase/functions/bling-sync-royalties-sales/index.ts`
 
-## 2. Pagamentos Parciais com Saldo
+Melhorias:
+- Aumentar limite de paginas de NFes de 5 para 20 (para cobrir periodo de 1 Jan ate hoje)
+- Aumentar `maxNfes` default para 500 (era 30)
+- Garantir que `data_venda` use a data de emissao da NF-e (ja faz isso, mas verificar)
 
-### 2a. Campo de Valor Editavel no Modal de Pagamento
+**Arquivo:** `src/components/royalties/BlingSyncButton.tsx`
 
-**Arquivo:** `src/components/royalties/PagamentoDialog.tsx`
+- Adicionar opcao "Desde 01/Jan" no dropdown de periodos
 
-Atualmente o `valor_total` e preenchido automaticamente com o total de vendas pendentes e nao pode ser alterado. Mudancas:
+### Parte 3: Adicionar botao de backfill na pagina de Vendas
 
-- Exibir o **Saldo disponivel** (total de vendas pendentes) de forma clara
-- Tornar o campo `valor_total` **editavel**, permitindo pagamento parcial (ex: saldo R$ 2.069,88 mas pagar R$ 1.000,00)
-- Validar que o valor informado seja maior que 0 e menor ou igual ao saldo disponivel
-- Ao criar pagamento parcial: **nao vincular todas as vendas** ao pagamento. Vincular vendas na ordem cronologica ate cobrir o valor pago. Se o valor parcial nao cobrir uma venda inteira, aquela venda permanece pendente (simplificacao: vincular vendas completas ate onde o valor permitir)
+**Arquivo:** `src/pages/royalties/Vendas.tsx`
 
-### 2b. Saldo do Autor na Pagina de Pagamentos
-
-**Arquivo:** `src/pages/royalties/Pagamentos.tsx`
-
-- Adicionar cards de resumo por autor no topo (ou mostrar saldo ao lado do nome na tabela)
-- Ao clicar "Novo Pagamento" e selecionar autor, o saldo disponivel ja aparece no modal (ja acontece parcialmente)
-
-### 2c. Saldo e Total Pago no Relatorio
-
-**Arquivo:** `src/pages/royalties/Relatorios.tsx`
-
-- No relatorio de vendas, adicionar colunas ou cards mostrando:
-  - **Total Apurado** (royalties total)
-  - **Total Pago** (pagamentos efetivados)
-  - **Saldo Pendente** (apurado - pago)
-- Quando filtrado por autor, mostrar esses valores especificos do autor
-
-### 2d. Reflexo no Extrato do Autor
-
-**Arquivo:** `src/pages/autor/Extrato.tsx` e `src/pages/autor/MeusPagamentos.tsx`
-
-Essas paginas ja mostram vendas com status "Pago" vs "Pendente" baseado no `pagamento_id`. Com pagamentos parciais, o comportamento ja funciona corretamente pois:
-- Vendas vinculadas a um pagamento ficam como "Pago"
-- Vendas nao vinculadas ficam como "Pendente"
-- O card "A Faturar" em MeusPagamentos ja calcula vendas sem `pagamento_id`
-
-Nenhuma alteracao necessaria nessas paginas -- elas ja refletem o saldo corretamente.
+- Adicionar botao "Preencher SKUs" que chama a nova Edge Function antes de sincronizar
 
 ---
 
 ## Detalhes Tecnicos
 
-### Relatorios.tsx - Filtros
+### Nova Edge Function: `backfill-royalties-bling-skus`
 
 ```text
-Novos estados:
-  filtroAutor: string (default "todos")
-  filtroLivro: string (default "todos")
-
-Novas queries:
-  - royalties_autores (id, nome_completo) para popular select
-  - royalties_livros (id, titulo) para popular select (filtrado por autor se selecionado)
-
-Aplicacao dos filtros na queryFn principal:
-  - vendas: filtrar livroIds por autor_id e/ou livro_id especifico
-  - comissoes: idem
-  - pagamentos: .eq("autor_id", filtroAutor) quando != "todos"
+1. Buscar bling_config para obter access_token
+2. Buscar royalties_livros WHERE bling_produto_id IS NOT NULL AND codigo_bling IS NULL
+3. Para cada livro:
+   a. GET /Api/v3/produtos/{bling_produto_id}
+   b. Extrair campo "codigo" da resposta
+   c. UPDATE royalties_livros SET codigo_bling = codigo WHERE id = livro.id
+   d. Aguardar 400ms (rate limit)
+4. Retornar quantidade de SKUs preenchidos
 ```
 
-### PagamentoDialog.tsx - Pagamento Parcial
+### Sync Function - Mudancas
 
 ```text
-Mudancas:
-1. Mostrar "Saldo disponivel: R$ X.XXX,XX" em destaque
-2. Campo valor_total editavel (Input type number) pre-preenchido com total
-3. Validacao: valor > 0 && valor <= saldoDisponivel
-4. Na criacao: vincular vendas ordenadas por data ate cobrir valor_total
-   - Loop pelas vendas pendentes somando valor_comissao_total
-   - Vincular vendas completas ate o valor pago ser atingido
-   - Vendas restantes ficam sem pagamento_id
+- Aumentar page limit: while (hasMore && page <= 20)  // era 5
+- Aumentar maxNfes default: maxNfes = body.max_nfes || 500  // era 30
+- Manter data_venda = nfeData.dataEmissao (ja correto)
 ```
 
-### Relatorios.tsx - Cards de Saldo
+### BlingSyncButton - Nova opcao
 
 ```text
-Quando tipo = "vendas":
-  - Buscar pagamentos pagos no periodo para calcular "Total Pago"
-  - Card 1: Total Vendas (qtd)
-  - Card 2: Total Royalties Apurado
-  - Card 3: Total Pago / Saldo Pendente
+PERIOD_OPTIONS adicionar:
+  { days: -1, label: "Desde 01/Jan" }  // valor especial
+
+No handleSync, quando days === -1:
+  Calcular days_back = dias desde 01/Janeiro ate hoje
+  Enviar max_nfes: 500
 ```
 
-### Nenhuma alteracao de banco de dados necessaria
-A estrutura atual ja suporta pagamentos parciais -- o campo `valor_total` em `royalties_pagamentos` aceita qualquer valor, e o vinculo com vendas e feito via `pagamento_id` em `royalties_vendas`.
+### Fluxo do Usuario
 
+1. Clicar "Preencher SKUs" (uma vez) - preenche codigo_bling de todos os livros
+2. Clicar "Sincronizar > Desde 01/Jan" - puxa todas as NF-es desde janeiro
+3. Historico de vendas mostra todos os livros com datas corretas e notas fiscais
