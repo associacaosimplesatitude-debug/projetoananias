@@ -10,6 +10,7 @@ interface DomainBranding {
   appName: string;
   domain: string;
   isEBD: boolean;
+  isAutor: boolean;
 }
 
 const ebdBranding: DomainBranding = {
@@ -21,7 +22,8 @@ const ebdBranding: DomainBranding = {
   accentColor: '#D4A017',
   appName: 'Gestão EBD',
   domain: 'gestaoebd.com.br',
-  isEBD: true
+  isEBD: true,
+  isAutor: false
 };
 
 const ananiasBranding: DomainBranding = {
@@ -33,12 +35,31 @@ const ananiasBranding: DomainBranding = {
   accentColor: '#3b82f6',
   appName: 'Projeto Ananias',
   domain: 'projetoananias.com.br',
-  isEBD: false
+  isEBD: false,
+  isAutor: false
+};
+
+const autorBranding: DomainBranding = {
+  logoUrl: '/logos/logo-central-gospel-autor.png',
+  logoHorizontalUrl: '/logos/logo-central-gospel-autor.png',
+  primaryColor: '#1a1a1a',
+  navBackgroundColor: '#1a1a1a',
+  navTextColor: '#FFFFFF',
+  accentColor: '#E8A917',
+  appName: 'Área do Autor',
+  domain: 'autor.editoracentralgospel.com.br',
+  isEBD: false,
+  isAutor: true
 };
 
 export const useDomainBranding = (): DomainBranding => {
   const branding = useMemo(() => {
     const hostname = window.location.hostname.toLowerCase();
+    
+    // Check if accessing from Central Gospel Autor domain
+    if (hostname.includes('editoracentralgospel')) {
+      return autorBranding;
+    }
     
     // Check if accessing from EBD domain
     if (hostname.includes('gestaoebd') || hostname.includes('ebd')) {
