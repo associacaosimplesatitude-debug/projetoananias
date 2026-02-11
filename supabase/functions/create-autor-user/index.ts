@@ -56,10 +56,11 @@ serve(async (req) => {
       if (createError.code === 'email_exists') {
         console.log('User already exists, finding by email...');
         
-        // List users with filter
+        // Use listUsers with email filter instead of loading all users
         const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
           page: 1,
-          perPage: 1000,
+          perPage: 50,
+          filter: email.toLowerCase(),
         });
 
         if (listError) {
@@ -89,7 +90,7 @@ serve(async (req) => {
           }
           console.log('Updated existing user password');
         } else {
-          console.error('User exists but could not be found in listing');
+          console.error('User exists but could not be found with filter');
           throw new Error('Usuário existe mas não foi encontrado');
         }
       } else {
