@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 
@@ -59,7 +59,17 @@ export default function AutorLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a] p-4">
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        background: `
+          radial-gradient(ellipse at 20% 50%, rgba(232,169,23,0.08) 0%, transparent 50%),
+          radial-gradient(ellipse at 80% 20%, rgba(232,169,23,0.05) 0%, transparent 40%),
+          radial-gradient(ellipse at 50% 100%, rgba(232,169,23,0.06) 0%, transparent 50%),
+          linear-gradient(160deg, #1a1a1a 0%, #2d2525 50%, #1a1a1a 100%)
+        `,
+      }}
+    >
       <Card className="w-full max-w-md border-none shadow-2xl">
         <CardHeader className="space-y-4">
           <div className="flex justify-center">
@@ -69,8 +79,7 @@ export default function AutorLogin() {
               className="h-20 object-contain"
             />
           </div>
-          <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
-          <CardDescription className="text-center">
+          <CardDescription className="text-center text-base">
             Entre com suas credenciais para acessar a área do autor
           </CardDescription>
         </CardHeader>
