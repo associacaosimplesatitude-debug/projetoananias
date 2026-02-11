@@ -63,6 +63,20 @@ export default function Auth() {
         return;
       }
 
+      // 1.5 AUTOR - verificar pela tabela royalties_autores
+      const { data: autorData } = await supabase
+        .from('royalties_autores')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (autorData) {
+        pushLoginSuccess(user.id, 'Autor');
+        console.log('Redirecting to /autor');
+        navigate('/autor');
+        return;
+      }
+
       // 2. SUPERINTENDENTE (ebd_clientes) - verificar pelo user_id
       const { data: superintendenteData, error: superintendenteError } = await supabase
         .from('ebd_clientes')
@@ -298,17 +312,19 @@ export default function Auth() {
             <img src={loginLogoUrl} alt="Logo" className="h-20" />
           </div>
           <CardTitle className="text-2xl font-bold text-center">
-            {isLogin ? 'Fazer Login' : 'Criar Conta'}
+            {domainBranding.isAutor ? 'Login' : (isLogin ? 'Fazer Login' : 'Criar Conta')}
           </CardTitle>
           <CardDescription className="text-center">
-            {isLogin 
-              ? `Entre com suas credenciais para acessar o ${appName}` 
-              : `Crie sua conta no ${appName}`}
+            {domainBranding.isAutor
+              ? 'Entre com suas credenciais para acessar a área do autor'
+              : (isLogin 
+                ? `Entre com suas credenciais para acessar o ${appName}` 
+                : `Crie sua conta no ${appName}`)}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
+            {!isLogin && !domainBranding.isAutor && (
               <div className="space-y-2">
                 <Label htmlFor="fullName">Nome Completo</Label>
                 <Input
@@ -356,18 +372,20 @@ export default function Auth() {
             </Button>
           </form>
           
-          <div className="mt-4 text-center text-sm">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="hover:underline font-medium"
-              style={{ color: accentColor }}
-            >
-              {isLogin 
-                ? 'Não tem uma conta? Cadastre-se' 
-                : 'Já tem uma conta? Faça login'}
-            </button>
-          </div>
+          {!domainBranding.isAutor && (
+            <div className="mt-4 text-center text-sm">
+              <button
+                type="button"
+                onClick={() => setIsLogin(!isLogin)}
+                className="hover:underline font-medium"
+                style={{ color: accentColor }}
+              >
+                {isLogin 
+                  ? 'Não tem uma conta? Cadastre-se' 
+                  : 'Já tem uma conta? Faça login'}
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
