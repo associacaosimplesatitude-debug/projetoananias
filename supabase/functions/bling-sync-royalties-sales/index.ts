@@ -384,7 +384,7 @@ Deno.serve(async (req) => {
     );
 
     let daysBack = 30;
-    let maxNfes = 500;
+    let maxNfes = 50;
     let skipNfes = 0;
     
     try {
