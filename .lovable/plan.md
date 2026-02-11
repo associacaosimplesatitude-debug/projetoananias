@@ -1,43 +1,32 @@
 
 
-# Rota dedicada de login para Autores
+# Corrigir redirecionamento do /login/autor no site publicado
 
 ## Problema
-O domínio `autor.editoracentralgospel.com.br` está configurado e ativo no Lovable, porém `gestaoebd.com.br` é o domínio **primário** (marcado com estrela). Isso faz com que a plataforma redirecione automaticamente todos os domínios secundários para o primário, antes do código da aplicação ser executado.
 
-## Solução
-Criar uma rota dedicada `/login/autor` que mostra o login com branding da Central Gospel, independente do domínio. Assim o link enviado aos autores será `https://gestaoebd.com.br/login/autor` (ou o domínio do autor, caso o redirect seja corrigido no futuro).
+No ambiente de preview, a rota `/login/autor` funciona perfeitamente. O problema ocorre apenas no site publicado (`gestaoebd.com.br`). Quando voce acessa `gestaoebd.com.br/login/autor` diretamente no navegador, o servidor nao encontra um arquivo fisico nesse caminho e redireciona para `/auth` (ou retorna erro).
 
-## Alterações
+Isso acontece porque aplicacoes React SPA (Single Page Application) precisam de uma configuracao de fallback no servidor: todas as rotas devem servir o `index.html`, e o React Router cuida do roteamento no navegador.
 
-### 1. Criar página `src/pages/AutorLogin.tsx`
-Página simples de login exclusiva para autores com:
-- Logo da Central Gospel Editora
-- Título "Login"
-- Texto "Entre com suas credenciais para acessar a área do autor"
-- Apenas formulário de email + senha (sem opção de cadastro)
-- Após login, redireciona para `/autor`
+## Solucao
 
-### 2. Registrar rota em `src/App.tsx`
-Adicionar: `<Route path="/login/autor" element={<AutorLogin />} />`
-(ao lado da rota existente `/login/ebd`)
+Criar o arquivo `public/_redirects` com a regra de fallback SPA. Isso instrui o servidor a servir `index.html` para qualquer rota que nao corresponda a um arquivo fisico.
 
-### 3. Atualizar link no email - `src/components/royalties/AutorDialog.tsx`
-Alterar o `link_login` de:
+## Alteracao
+
+### Criar `public/_redirects`
+
+Conteudo:
 ```
-https://autor.editoracentralgospel.com.br/auth
+/*    /index.html   200
 ```
-Para:
-```
-https://gestaoebd.com.br/login/autor
-```
-Isso garante que funciona imediatamente, sem depender do domínio secundário.
 
-### 4. Manter o código do `useDomainBranding.tsx` e `Auth.tsx`
-As alterações anteriores no branding e na detecção de domínio continuam válidas. Se no futuro o domínio `autor.editoracentralgospel.com.br` deixar de redirecionar, o `/auth` também funcionará com o branding correto.
+Esta unica linha resolve o problema para `/login/autor` e qualquer outra rota futura que seja acessada diretamente pela URL.
 
-## O que NÃO muda
-- Nenhuma tabela ou RLS alterada
-- Login de EBD, Ananias e admin permanecem iguais
-- Portal do autor (`/autor/*`) não sofre alteração
+## O que NAO muda
+
+- Nenhum componente React e alterado
+- Nenhuma rota e alterada
+- Arquivos estaticos (imagens, CSS, JS) continuam sendo servidos normalmente
+- O comportamento no preview continua identico
 
