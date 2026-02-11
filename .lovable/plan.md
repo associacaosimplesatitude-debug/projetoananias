@@ -1,62 +1,42 @@
 
-# Corrigir vinculacao do user_id ao registro do autor
+# Melhorar botoes dos emails - Cores da Central Gospel Editora
 
 ## Problema
-Ao cadastrar um autor, a edge function `create-autor-user` cria o usuario de autenticacao e retorna o `userId`. O dialogo chama `setFormData({ ...formData, user_id: userId })` para salvar esse ID. Porem, como `setFormData` e uma atualizacao de estado React (assincrona), quando o `handleSubmit` continua executando e monta o `payload` na linha seguinte, ele ainda le o valor antigo de `formData.user_id` (null).
-
-Resultado: o registro em `royalties_autores` e salvo com `user_id = NULL`. O hook `useRoyaltiesAuth` busca por `user_id` e nunca encontra o autor, deixando a pagina `/autor` em loading infinito.
+Os botoes nos templates de email usam `background:#1a2d40` (azul escuro/navy), que tem baixo contraste e fica quase ilegivel, como mostrado na imagem do email "Acessar o Sistema".
 
 ## Solucao
-Fazer `createUserAccount` retornar o `userId` diretamente, e usar esse valor ao montar o payload, sem depender da atualizacao de estado React.
+Atualizar todos os templates de email no banco de dados para usar as cores do logo da Central Gospel Editora:
+- **Botoes**: `background:#B8860B` (Dark Goldenrod/dourado) com texto branco
+- **Hover visual**: Padding maior e border-radius para destaque
+- **Info-box border**: Tambem atualizar de navy para dourado onde aplicavel
+
+## Templates afetados
+Todos os templates que possuem a classe `.btn` serao atualizados via SQL UPDATE:
+
+1. **autor_acesso** (Dados de Acesso) - Botao "Acessar o Sistema"
+2. **pagamento_realizado** (Pagamento Confirmado) - Botao "Ver Comprovante"  
+3. **afiliado_link** (Link de Afiliado) - Botoes de link/acoes
+4. **relatorio_mensal** - Se tiver botao
+5. **resgate_solicitado** - Se tiver botao
+6. **resgate_aprovado** - Se tiver botao
+7. **contrato_novo** - Se tiver botao
 
 ## Detalhes tecnicos
 
-**Arquivo:** `src/components/royalties/AutorDialog.tsx`
+Para cada template, substituir no campo `corpo_html`:
 
-### Alteracao 1: createUserAccount retorna userId
-Alterar a funcao `createUserAccount` para retornar o `userId` como string (em vez de depender apenas de `setFormData`):
-
-```typescript
-const createUserAccount = async (): Promise<string | null> => {
-  // ... logica existente ...
-  const userId = response.data.userId;
-  setFormData({ ...formData, user_id: userId, senha: "" });
-  return userId;  // <-- retornar o userId
-};
+**Antes:**
+```css
+.btn{display:inline-block;background:#1a2d40;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;margin-top:15px}
 ```
 
-### Alteracao 2: handleSubmit usa o retorno
-No `handleSubmit`, capturar o retorno de `createUserAccount` e usar na montagem do payload:
-
-```typescript
-let effectiveUserId = formData.user_id;
-
-if (formData.senha && formData.senha.length >= 6 && !formData.user_id) {
-  const newUserId = await createUserAccount();
-  if (newUserId) {
-    effectiveUserId = newUserId;
-  }
-}
-
-const payload = {
-  // ...
-  user_id: effectiveUserId,  // <-- usar valor correto
-  // ...
-};
+**Depois:**
+```css
+.btn{display:inline-block;background:#B8860B;color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:6px;margin-top:15px;font-weight:bold;font-size:16px}
 ```
 
-### Alteracao 3: Corrigir registro existente
-Tambem e necessario corrigir o registro atual do autor "Cleuton Teste 3" que ja esta com `user_id = NULL`. A migracao SQL fara o update:
+Tambem atualizar a borda do `.info-box` de `#1a2d40` para `#B8860B` no template `autor_acesso` para manter consistencia visual com a marca.
 
-```sql
-UPDATE royalties_autores
-SET user_id = '93f132b7-6923-4cfe-a155-1964ddf6c58b'
-WHERE email = 'lftennisstore@gmail.com'
-AND user_id IS NULL;
-```
+Sera executado via SQL UPDATE direto nos registros da tabela `royalties_email_templates`, atualizando o campo `corpo_html` de cada template afetado.
 
-### Resultado esperado
-1. A funcao retorna o userId diretamente
-2. O payload usa o valor correto sem depender de re-render do React
-3. O registro do autor fica vinculado ao usuario de autenticacao
-4. O hook `useRoyaltiesAuth` encontra o autor e carrega o dashboard
+Tambem sera atualizado o `sampleData` no componente `EmailPreviewDialog.tsx` para refletir as cores na preview, caso necessario.
