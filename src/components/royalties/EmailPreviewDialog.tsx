@@ -29,7 +29,7 @@ const sampleData: Record<string, string> = {
   nome: "João da Silva",
   email: "joao@email.com",
   senha_temporaria: "abc123",
-  link_login: "https://gestaoebd.lovable.app/auth",
+  link_login: "https://gestaoebd.com.br/login/autor",
   livro: "A Jornada da Fé",
   quantidade: "5",
   valor_venda: "R$ 150,00",
