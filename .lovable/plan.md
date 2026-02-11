@@ -1,51 +1,62 @@
 
-
-# Corrigir login do autor - Busca de usuario via REST API
+# Corrigir vinculacao do user_id ao registro do autor
 
 ## Problema
-Quando o email do autor ja existe no sistema de autenticacao, a funcao `create-autor-user` nao consegue localizar o usuario para atualizar a senha. O SDK JS (`listUsers`) nao retorna o usuario mesmo com paginacao completa, resultando no erro "Usuario existe mas nao foi encontrado". Consequencia: a senha nunca e atualizada e o autor nao consegue fazer login.
+Ao cadastrar um autor, a edge function `create-autor-user` cria o usuario de autenticacao e retorna o `userId`. O dialogo chama `setFormData({ ...formData, user_id: userId })` para salvar esse ID. Porem, como `setFormData` e uma atualizacao de estado React (assincrona), quando o `handleSubmit` continua executando e monta o `payload` na linha seguinte, ele ainda le o valor antigo de `formData.user_id` (null).
+
+Resultado: o registro em `royalties_autores` e salvo com `user_id = NULL`. O hook `useRoyaltiesAuth` busca por `user_id` e nunca encontra o autor, deixando a pagina `/autor` em loading infinito.
 
 ## Solucao
-Substituir a busca via SDK (`supabaseAdmin.auth.admin.listUsers`) por uma chamada direta a REST API Admin do Supabase Auth, que suporta filtro por email de forma confiavel.
+Fazer `createUserAccount` retornar o `userId` diretamente, e usar esse valor ao montar o payload, sem depender da atualizacao de estado React.
 
 ## Detalhes tecnicos
 
-**Arquivo:** `supabase/functions/create-autor-user/index.ts`
+**Arquivo:** `src/components/royalties/AutorDialog.tsx`
 
-Quando o erro `email_exists` ocorrer, em vez de usar o loop de paginacao com `listUsers`, fazer:
+### Alteracao 1: createUserAccount retorna userId
+Alterar a funcao `createUserAccount` para retornar o `userId` como string (em vez de depender apenas de `setFormData`):
 
 ```typescript
-// Chamada direta a REST API Admin
-const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-const response = await fetch(
-  `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email.toLowerCase().trim())}`,
-  {
-    headers: {
-      'Authorization': `Bearer ${serviceKey}`,
-      'apikey': serviceKey,
-    },
-  }
-);
-
-const usersData = await response.json();
-const foundUser = usersData.users?.find(
-  u => (u.email ?? '').toLowerCase().trim() === email.toLowerCase().trim()
-);
+const createUserAccount = async (): Promise<string | null> => {
+  // ... logica existente ...
+  const userId = response.data.userId;
+  setFormData({ ...formData, user_id: userId, senha: "" });
+  return userId;  // <-- retornar o userId
+};
 ```
 
-### O que muda
-- Remove o loop de paginacao (linhas 59-80) que percorria todos os usuarios
-- Usa a REST API diretamente com filtro por email, que e mais confiavel que o SDK
-- Faz match exato apos receber os resultados filtrados
-- Mantem toda a logica existente de atualizacao de senha e atribuicao de role
+### Alteracao 2: handleSubmit usa o retorno
+No `handleSubmit`, capturar o retorno de `createUserAccount` e usar na montagem do payload:
 
-### Fluxo completo apos a correcao
-1. Tenta criar usuario novo
-2. Se email ja existe -> busca via REST API com filtro
-3. Encontra usuario -> atualiza senha e confirma email
-4. Cria/atualiza perfil na tabela `profiles`
-5. Atribui role `autor` se nao existir
-6. Autor consegue fazer login com as credenciais
+```typescript
+let effectiveUserId = formData.user_id;
 
+if (formData.senha && formData.senha.length >= 6 && !formData.user_id) {
+  const newUserId = await createUserAccount();
+  if (newUserId) {
+    effectiveUserId = newUserId;
+  }
+}
+
+const payload = {
+  // ...
+  user_id: effectiveUserId,  // <-- usar valor correto
+  // ...
+};
+```
+
+### Alteracao 3: Corrigir registro existente
+Tambem e necessario corrigir o registro atual do autor "Cleuton Teste 3" que ja esta com `user_id = NULL`. A migracao SQL fara o update:
+
+```sql
+UPDATE royalties_autores
+SET user_id = '93f132b7-6923-4cfe-a155-1964ddf6c58b'
+WHERE email = 'lftennisstore@gmail.com'
+AND user_id IS NULL;
+```
+
+### Resultado esperado
+1. A funcao retorna o userId diretamente
+2. O payload usa o valor correto sem depender de re-render do React
+3. O registro do autor fica vinculado ao usuario de autenticacao
+4. O hook `useRoyaltiesAuth` encontra o autor e carrega o dashboard
