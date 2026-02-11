@@ -54,30 +54,32 @@ serve(async (req) => {
     if (createError) {
       // If user already exists, find them by email and update password
       if (createError.code === 'email_exists') {
-        console.log('User already exists, finding by email...');
+        console.log('User already exists, searching via REST API...');
         
-        let foundUser = null;
-        let page = 1;
-        const perPage = 1000;
-
-        while (true) {
-          const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-            page,
-            perPage,
-          });
-
-          if (listError) {
-            console.error('Error listing users:', listError);
-            throw listError;
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+        
+        const response = await fetch(
+          `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email.toLowerCase().trim())}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${serviceKey}`,
+              'apikey': serviceKey,
+            },
           }
+        );
 
-          foundUser = usersData?.users?.find(
-            (u) => (u.email ?? '').toLowerCase().trim() === email.toLowerCase().trim()
-          );
-
-          if (foundUser || usersData.users.length < perPage) break;
-          page++;
+        if (!response.ok) {
+          console.error('REST API error:', response.status, await response.text());
+          throw new Error('Erro ao buscar usuário via API');
         }
+
+        const usersData = await response.json();
+        console.log(`REST API returned ${usersData.users?.length ?? 0} users for filter`);
+        
+        const foundUser = usersData.users?.find(
+          (u: any) => (u.email ?? '').toLowerCase().trim() === email.toLowerCase().trim()
+        );
 
         if (foundUser) {
           userId = foundUser.id;
