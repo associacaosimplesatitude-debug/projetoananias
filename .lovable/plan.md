@@ -1,55 +1,43 @@
 
-# Login Exclusivo para Autores no dominio autor.editoracentralgospel.com.br
 
-## Resumo
+# Rota dedicada de login para Autores
 
-Criar experiencia de login diferenciada para autores acessando via `autor.editoracentralgospel.com.br`, com logo da Central Gospel Editora (imagem fornecida) e texto exclusivo. Atualizar o link enviado nos emails de dados de acesso.
+## Problema
+O domínio `autor.editoracentralgospel.com.br` está configurado e ativo no Lovable, porém `gestaoebd.com.br` é o domínio **primário** (marcado com estrela). Isso faz com que a plataforma redirecione automaticamente todos os domínios secundários para o primário, antes do código da aplicação ser executado.
 
-## Alteracoes
+## Solução
+Criar uma rota dedicada `/login/autor` que mostra o login com branding da Central Gospel, independente do domínio. Assim o link enviado aos autores será `https://gestaoebd.com.br/login/autor` (ou o domínio do autor, caso o redirect seja corrigido no futuro).
 
-### 1. Salvar o logo fornecido
+## Alterações
 
-Copiar o logo enviado (`horizontal-3.png`) para `public/logos/logo-central-gospel-autor.png` para uso no login do autor. O logo existente (`logo-central-gospel-horizontal.png`) tambem pode ser avaliado, mas usaremos o novo fornecido para garantir que e exatamente o desejado.
+### 1. Criar página `src/pages/AutorLogin.tsx`
+Página simples de login exclusiva para autores com:
+- Logo da Central Gospel Editora
+- Título "Login"
+- Texto "Entre com suas credenciais para acessar a área do autor"
+- Apenas formulário de email + senha (sem opção de cadastro)
+- Após login, redireciona para `/autor`
 
-### 2. `src/hooks/useDomainBranding.tsx`
+### 2. Registrar rota em `src/App.tsx`
+Adicionar: `<Route path="/login/autor" element={<AutorLogin />} />`
+(ao lado da rota existente `/login/ebd`)
 
-- Adicionar propriedade `isAutor: boolean` na interface `DomainBranding`
-- Criar novo objeto `autorBranding` com:
-  - `logoUrl`: `/logos/logo-central-gospel-autor.png`
-  - `appName`: "Area do Autor"
-  - `primaryColor` / `accentColor`: cores da Central Gospel (preto `#1a1a1a` e amarelo/dourado `#E8A917`)
-  - `isAutor: true`
-- Atualizar deteccao no `useDomainBranding`: se hostname inclui `editoracentralgospel`, retornar `autorBranding`
-- Adicionar `isAutor: false` nos demais objetos de branding (ebdBranding, ananiasBranding)
-
-### 3. `src/pages/Auth.tsx`
-
-Quando `domainBranding.isAutor === true`:
-
-- Mostrar logo da Central Gospel Editora
-- Descricao simplificada: "Entre com suas credenciais para acessar a area do autor"
-- Esconder o botao "Nao tem uma conta? Cadastre-se" (autores nao se cadastram sozinhos)
-- Esconder opcao de "Criar Conta" (manter apenas login)
-
-### 4. `src/components/royalties/AutorDialog.tsx` (linha 317)
-
-Alterar:
+### 3. Atualizar link no email - `src/components/royalties/AutorDialog.tsx`
+Alterar o `link_login` de:
 ```
-link_login: "https://gestaoebd.lovable.app/autor"
+https://autor.editoracentralgospel.com.br/auth
 ```
 Para:
 ```
-link_login: "https://autor.editoracentralgospel.com.br/auth"
+https://gestaoebd.com.br/login/autor
 ```
+Isso garante que funciona imediatamente, sem depender do domínio secundário.
 
-### 5. Redirect pos-login para autores
+### 4. Manter o código do `useDomainBranding.tsx` e `Auth.tsx`
+As alterações anteriores no branding e na detecção de domínio continuam válidas. Se no futuro o domínio `autor.editoracentralgospel.com.br` deixar de redirecionar, o `/auth` também funcionará com o branding correto.
 
-No `handlePostLoginRedirect` do `Auth.tsx`, adicionar verificacao de role `autor` (consultando `user_roles`) para redirecionar para `/autor` quando o dominio for o do autor. Isso garante que ao fazer login nesse dominio, o autor va direto para seu painel.
+## O que NÃO muda
+- Nenhuma tabela ou RLS alterada
+- Login de EBD, Ananias e admin permanecem iguais
+- Portal do autor (`/autor/*`) não sofre alteração
 
-## O que NAO muda
-
-- Nenhuma rota nova e criada
-- Login de EBD, Ananias e admin permanecem identicos
-- Portal do autor (`/autor/*`) nao sofre alteracao
-- Logica de autenticacao e roles permanece a mesma
-- Banco de dados nao e alterado
