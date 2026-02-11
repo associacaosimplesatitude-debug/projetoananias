@@ -20,12 +20,55 @@ export default function RoyaltiesRelatorios() {
   const [periodo, setPeriodo] = useState("ultimos_3_meses");
   const [dataInicio, setDataInicio] = useState(format(subMonths(new Date(), 3), "yyyy-MM-dd"));
   const [dataFim, setDataFim] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [filtroAutor, setFiltroAutor] = useState("todos");
+  const [filtroLivro, setFiltroLivro] = useState("todos");
+
+  // Buscar autores e livros para filtros
+  const { data: autoresFiltro = [] } = useQuery({
+    queryKey: ["royalties-autores-filtro"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("royalties_autores")
+        .select("id, nome_completo")
+        .eq("is_active", true)
+        .order("nome_completo");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: livrosFiltro = [] } = useQuery({
+    queryKey: ["royalties-livros-filtro", filtroAutor],
+    queryFn: async () => {
+      let query = supabase
+        .from("royalties_livros")
+        .select("id, titulo, autor_id")
+        .order("titulo");
+      if (filtroAutor !== "todos") {
+        query = query.eq("autor_id", filtroAutor);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data: dadosRelatorio = [], isLoading } = useQuery({
-    queryKey: ["royalties-relatorio", tipoRelatorio, dataInicio, dataFim],
+    queryKey: ["royalties-relatorio", tipoRelatorio, dataInicio, dataFim, filtroAutor, filtroLivro],
     queryFn: async () => {
       if (tipoRelatorio === "vendas") {
-        const { data, error } = await supabase
+        // Get livro IDs filtered by author/book
+        let livroIds: string[] | null = null;
+        if (filtroAutor !== "todos" || filtroLivro !== "todos") {
+          let livroQuery = supabase.from("royalties_livros").select("id");
+          if (filtroAutor !== "todos") livroQuery = livroQuery.eq("autor_id", filtroAutor);
+          if (filtroLivro !== "todos") livroQuery = livroQuery.eq("id", filtroLivro);
+          const { data: livroData } = await livroQuery;
+          livroIds = (livroData || []).map((l: any) => l.id);
+          if (livroIds.length === 0) return [];
+        }
+
+        let vendaQuery = supabase
           .from("royalties_vendas")
           .select(`
             id,
@@ -50,6 +93,11 @@ export default function RoyaltiesRelatorios() {
           .lte("data_venda", dataFim)
           .order("data_venda", { ascending: false });
 
+        if (livroIds) {
+          vendaQuery = vendaQuery.in("livro_id", livroIds);
+        }
+
+        const { data, error } = await vendaQuery;
         if (error) throw error;
         
         // Group by book
@@ -95,7 +143,17 @@ export default function RoyaltiesRelatorios() {
           preco_liquido_medio: g.count > 0 ? g.soma_valor_unitario / g.count : 0,
         }));
       } else if (tipoRelatorio === "comissoes") {
-        const { data, error } = await supabase
+        let livroIdsC: string[] | null = null;
+        if (filtroAutor !== "todos" || filtroLivro !== "todos") {
+          let lq = supabase.from("royalties_livros").select("id");
+          if (filtroAutor !== "todos") lq = lq.eq("autor_id", filtroAutor);
+          if (filtroLivro !== "todos") lq = lq.eq("id", filtroLivro);
+          const { data: ld } = await lq;
+          livroIdsC = (ld || []).map((l: any) => l.id);
+          if (livroIdsC.length === 0) return [];
+        }
+
+        let comQuery = supabase
           .from("royalties_vendas")
           .select(`
             id,
@@ -103,6 +161,7 @@ export default function RoyaltiesRelatorios() {
             quantidade,
             valor_comissao_total,
             pagamento_id,
+            livro_id,
             royalties_livros (
               titulo,
               royalties_autores (nome_completo)
@@ -112,10 +171,15 @@ export default function RoyaltiesRelatorios() {
           .lte("data_venda", dataFim)
           .order("data_venda", { ascending: false });
 
+        if (livroIdsC) {
+          comQuery = comQuery.in("livro_id", livroIdsC);
+        }
+
+        const { data, error } = await comQuery;
         if (error) throw error;
         return data || [];
       } else {
-        const { data, error } = await supabase
+        let pagQuery = supabase
           .from("royalties_pagamentos")
           .select(`
             id,
@@ -129,6 +193,11 @@ export default function RoyaltiesRelatorios() {
           .lte("data_prevista", dataFim)
           .order("data_prevista", { ascending: false });
 
+        if (filtroAutor !== "todos") {
+          pagQuery = pagQuery.eq("autor_id", filtroAutor);
+        }
+
+        const { data, error } = await pagQuery;
         if (error) throw error;
         return data || [];
       }
@@ -349,7 +418,7 @@ export default function RoyaltiesRelatorios() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
                 <div className="space-y-2">
                   <Label>Tipo de Relatório</Label>
                   <Select value={tipoRelatorio} onValueChange={(v: any) => setTipoRelatorio(v)}>
@@ -361,6 +430,36 @@ export default function RoyaltiesRelatorios() {
                         <SelectItem key={tipo.value} value={tipo.value}>
                           {tipo.label}
                         </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Autor</Label>
+                  <Select value={filtroAutor} onValueChange={(v) => { setFiltroAutor(v); setFiltroLivro("todos"); }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os autores</SelectItem>
+                      {autoresFiltro.map((a: any) => (
+                        <SelectItem key={a.id} value={a.id}>{a.nome_completo}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Livro</Label>
+                  <Select value={filtroLivro} onValueChange={setFiltroLivro}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os livros</SelectItem>
+                      {livrosFiltro.map((l: any) => (
+                        <SelectItem key={l.id} value={l.id}>{l.titulo}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
