@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ComprovanteUpload } from "./ComprovanteUpload";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
   });
 
   const [vendasPendentes, setVendasPendentes] = useState<any[]>([]);
+  const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
 
   const { data: autores = [] } = useQuery({
     queryKey: ["royalties-autores-select"],
@@ -111,6 +113,7 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
           valor_total: valorTotal,
           data_prevista: formData.data_prevista,
           observacoes: formData.observacoes || null,
+          comprovante_url: comprovanteUrl,
           status: "pendente",
         })
         .select("id")
@@ -141,6 +144,7 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
         data_prevista: format(new Date(), "yyyy-MM-dd"),
         observacoes: "",
       });
+      setComprovanteUrl(null);
     } catch (error: any) {
       console.error("Erro ao criar pagamento:", error);
       toast({
@@ -220,7 +224,7 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="data_prevista">Data Prevista *</Label>
+            <Label htmlFor="data_prevista">Data do Pagamento *</Label>
             <Input
               id="data_prevista"
               type="date"
@@ -237,6 +241,16 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
               value={formData.observacoes}
               onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
               rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Comprovante</Label>
+            <ComprovanteUpload
+              pagamentoId="novo"
+              currentUrl={comprovanteUrl}
+              onUpload={(url) => setComprovanteUrl(url)}
+              onRemove={() => setComprovanteUrl(null)}
             />
           </div>
 
