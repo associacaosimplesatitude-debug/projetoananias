@@ -29,6 +29,7 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
   });
 
   const [vendasPendentes, setVendasPendentes] = useState<any[]>([]);
+  const [saldoDisponivel, setSaldoDisponivel] = useState(0);
   const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
 
   const { data: autores = [] } = useQuery({
@@ -88,6 +89,7 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
       setVendasPendentes(data || []);
       
       const total = (data || []).reduce((sum, v) => sum + (v.valor_comissao_total || 0), 0);
+      setSaldoDisponivel(total);
       setFormData(prev => ({ ...prev, valor_total: total.toFixed(2) }));
     };
 
@@ -102,7 +104,11 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
       const valorTotal = parseFloat(formData.valor_total);
       
       if (valorTotal <= 0) {
-        throw new Error("Não há vendas pendentes para este autor");
+        throw new Error("O valor deve ser maior que zero");
+      }
+
+      if (valorTotal > saldoDisponivel) {
+        throw new Error("O valor não pode ser maior que o saldo disponível");
       }
 
       // Create payment
@@ -121,13 +127,26 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
 
       if (pagamentoError) throw pagamentoError;
 
-      // Link sales to payment
-      const vendaIds = vendasPendentes.map(v => v.id);
-      if (vendaIds.length > 0) {
+      // Link sales chronologically until the paid amount is covered
+      let acumulado = 0;
+      const vendaIdsVincular: string[] = [];
+      const vendasOrdenadas = [...vendasPendentes].sort(
+        (a, b) => new Date(a.data_venda).getTime() - new Date(b.data_venda).getTime()
+      );
+
+      for (const venda of vendasOrdenadas) {
+        if (acumulado + (venda.valor_comissao_total || 0) <= valorTotal) {
+          acumulado += venda.valor_comissao_total || 0;
+          vendaIdsVincular.push(venda.id);
+        }
+        if (acumulado >= valorTotal) break;
+      }
+
+      if (vendaIdsVincular.length > 0) {
         const { error: vendaError } = await supabase
           .from("royalties_vendas")
           .update({ pagamento_id: pagamento.id })
-          .in("id", vendaIds);
+          .in("id", vendaIdsVincular);
 
         if (vendaError) throw vendaError;
       }
@@ -145,6 +164,7 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
         observacoes: "",
       });
       setComprovanteUrl(null);
+      setSaldoDisponivel(0);
     } catch (error: any) {
       console.error("Erro ao criar pagamento:", error);
       toast({
@@ -193,8 +213,13 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
           </div>
 
           {formData.autor_id && (
-            <div className="bg-muted/50 rounded-lg p-4">
-              <h4 className="font-medium mb-2">Vendas Pendentes</h4>
+            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <h4 className="font-medium">Saldo Disponível</h4>
+                <span className="text-lg font-bold text-primary">{formatCurrency(saldoDisponivel)}</span>
+              </div>
+
+              <h4 className="font-medium text-sm">Vendas Pendentes</h4>
               {vendasPendentes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Nenhuma venda pendente para este autor.
@@ -214,12 +239,27 @@ export function PagamentoDialog({ open, onOpenChange }: PagamentoDialogProps) {
                       +{vendasPendentes.length - 5} vendas
                     </p>
                   )}
-                  <div className="border-t pt-2 mt-2 flex justify-between font-medium">
-                    <span>Total:</span>
-                    <span className="text-primary">{formatCurrency(parseFloat(formData.valor_total) || 0)}</span>
-                  </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {formData.autor_id && vendasPendentes.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="valor_total">Valor do Pagamento *</Label>
+              <Input
+                id="valor_total"
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={saldoDisponivel}
+                value={formData.valor_total}
+                onChange={(e) => setFormData({ ...formData, valor_total: e.target.value })}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Informe o valor a pagar (máximo: {formatCurrency(saldoDisponivel)}). Vendas serão vinculadas cronologicamente até cobrir este valor.
+              </p>
             </div>
           )}
 
