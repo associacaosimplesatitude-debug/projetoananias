@@ -56,21 +56,28 @@ serve(async (req) => {
       if (createError.code === 'email_exists') {
         console.log('User already exists, finding by email...');
         
-        // Use listUsers with email filter instead of loading all users
-        const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-          page: 1,
-          perPage: 50,
-          filter: email.toLowerCase(),
-        });
+        let foundUser = null;
+        let page = 1;
+        const perPage = 1000;
 
-        if (listError) {
-          console.error('Error listing users:', listError);
-          throw listError;
+        while (true) {
+          const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+            page,
+            perPage,
+          });
+
+          if (listError) {
+            console.error('Error listing users:', listError);
+            throw listError;
+          }
+
+          foundUser = usersData?.users?.find(
+            (u) => (u.email ?? '').toLowerCase().trim() === email.toLowerCase().trim()
+          );
+
+          if (foundUser || usersData.users.length < perPage) break;
+          page++;
         }
-
-        const foundUser = usersData?.users?.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase()
-        );
 
         if (foundUser) {
           userId = foundUser.id;
@@ -90,7 +97,7 @@ serve(async (req) => {
           }
           console.log('Updated existing user password');
         } else {
-          console.error('User exists but could not be found with filter');
+          console.error('User exists but could not be found after paginating all users');
           throw new Error('Usuário existe mas não foi encontrado');
         }
       } else {
