@@ -1,17 +1,55 @@
 
-# Remover campo "Termos do Contrato" do formulario de Contratos
+# Login Exclusivo para Autores no dominio autor.editoracentralgospel.com.br
 
 ## Resumo
 
-Remover o campo de texto "Termos do Contrato" do dialog de criacao/edicao de contratos (`ContratoDialog.tsx`).
+Criar experiencia de login diferenciada para autores acessando via `autor.editoracentralgospel.com.br`, com logo da Central Gospel Editora (imagem fornecida) e texto exclusivo. Atualizar o link enviado nos emails de dados de acesso.
 
 ## Alteracoes
 
-### `src/components/royalties/ContratoDialog.tsx`
+### 1. Salvar o logo fornecido
 
-1. Remover o import de `Textarea` (se nao for usado em outro lugar)
-2. Remover `termos_contrato` do estado `formData` (inicializacao e reset)
-3. Remover `termos_contrato` do payload de submit
-4. Remover o bloco JSX do campo "Termos do Contrato" (linhas 358-374 - o Label + Textarea)
+Copiar o logo enviado (`horizontal-3.png`) para `public/logos/logo-central-gospel-autor.png` para uso no login do autor. O logo existente (`logo-central-gospel-horizontal.png`) tambem pode ser avaliado, mas usaremos o novo fornecido para garantir que e exatamente o desejado.
 
-O campo `termos_contrato` continuara existindo na tabela do banco de dados, apenas nao sera mais exibido no formulario.
+### 2. `src/hooks/useDomainBranding.tsx`
+
+- Adicionar propriedade `isAutor: boolean` na interface `DomainBranding`
+- Criar novo objeto `autorBranding` com:
+  - `logoUrl`: `/logos/logo-central-gospel-autor.png`
+  - `appName`: "Area do Autor"
+  - `primaryColor` / `accentColor`: cores da Central Gospel (preto `#1a1a1a` e amarelo/dourado `#E8A917`)
+  - `isAutor: true`
+- Atualizar deteccao no `useDomainBranding`: se hostname inclui `editoracentralgospel`, retornar `autorBranding`
+- Adicionar `isAutor: false` nos demais objetos de branding (ebdBranding, ananiasBranding)
+
+### 3. `src/pages/Auth.tsx`
+
+Quando `domainBranding.isAutor === true`:
+
+- Mostrar logo da Central Gospel Editora
+- Descricao simplificada: "Entre com suas credenciais para acessar a area do autor"
+- Esconder o botao "Nao tem uma conta? Cadastre-se" (autores nao se cadastram sozinhos)
+- Esconder opcao de "Criar Conta" (manter apenas login)
+
+### 4. `src/components/royalties/AutorDialog.tsx` (linha 317)
+
+Alterar:
+```
+link_login: "https://gestaoebd.lovable.app/autor"
+```
+Para:
+```
+link_login: "https://autor.editoracentralgospel.com.br/auth"
+```
+
+### 5. Redirect pos-login para autores
+
+No `handlePostLoginRedirect` do `Auth.tsx`, adicionar verificacao de role `autor` (consultando `user_roles`) para redirecionar para `/autor` quando o dominio for o do autor. Isso garante que ao fazer login nesse dominio, o autor va direto para seu painel.
+
+## O que NAO muda
+
+- Nenhuma rota nova e criada
+- Login de EBD, Ananias e admin permanecem identicos
+- Portal do autor (`/autor/*`) nao sofre alteracao
+- Logica de autenticacao e roles permanece a mesma
+- Banco de dados nao e alterado
