@@ -43,7 +43,7 @@ const sampleData: Record<string, string> = {
   resumo_livros: "<p><strong>A Jornada da Fé:</strong> 50 unidades - R$ 150,00</p><p><strong>Caminhos de Luz:</strong> 30 unidades - R$ 100,00</p>",
   comprador: "Maria Santos",
   valor_comissao: "R$ 7,50",
-  link_afiliado: "https://gestaoebd.lovable.app/livro/a-jornada-da-fe?ref=joao123",
+  link_afiliado: "https://gestaoebd.com.br/livro/a-jornada-da-fe?ref=joao123",
   codigo: "JOAO123",
 };
 
