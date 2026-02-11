@@ -314,7 +314,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
               tipoEnvio: "automatico",
               dados: {
                 senha_temporaria: formData.senha,
-                link_login: "https://autor.editoracentralgospel.com.br/auth",
+                link_login: "https://gestaoebd.com.br/login/autor",
               },
             },
           }).then(() => {

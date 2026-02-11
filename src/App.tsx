@@ -172,6 +172,7 @@ import PedidosAtacado from "./pages/shopify/PedidosAtacado";
 import PedidosIgrejaCPF from "./pages/shopify/PedidosIgrejaCPF";
 import PedidosIgrejaCNPJ from "./pages/shopify/PedidosIgrejaCNPJ";
 import EBDLogin from "./pages/EBDLogin";
+import AutorLogin from "./pages/AutorLogin";
 import LandingEBD from "./pages/LandingEBD";
 import Tutoriais from "./pages/Tutoriais";
 import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
@@ -199,6 +200,7 @@ const App = () => (
                 </EBDLandingRedirect>
               } />
               <Route path="/login/ebd" element={<EBDLogin />} />
+              <Route path="/login/autor" element={<AutorLogin />} />
               <Route path="/gestao-ebd" element={<LandingEBD />} />
               <Route path="/apresentacao" element={<Apresentacao />} />
               <Route path="/proposta/:token" element={<PropostaDigital />} />
