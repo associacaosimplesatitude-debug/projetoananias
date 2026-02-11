@@ -189,7 +189,7 @@ async function syncNFeBatch(
   let page = 1;
   let hasMore = true;
   
-  while (hasMore && page <= 5) { // Max 5 pages = 500 NFes
+  while (hasMore && page <= 20) { // Max 20 pages = 2000 NFes
     const endpoint = `/nfe?dataEmissaoInicial=${dataInicial}&dataEmissaoFinal=${dataFinal}&limite=100&pagina=${page}`;
     const response = await blingApiCall(accessToken, endpoint);
     const nfes = response.data || [];
@@ -384,13 +384,13 @@ Deno.serve(async (req) => {
     );
 
     let daysBack = 30;
-    let maxNfes = 30;
+    let maxNfes = 500;
     let skipNfes = 0;
     
     try {
       const body = await req.json();
       daysBack = body.days_back || 30;
-      maxNfes = body.max_nfes || 30;
+      maxNfes = body.max_nfes || 500;
       skipNfes = body.skip || 0;
     } catch {
       // Use defaults

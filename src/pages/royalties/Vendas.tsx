@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, ExternalLink, RefreshCw } from "lucide-react";
+import { Plus, Search, ExternalLink, RefreshCw, Database } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -50,6 +50,21 @@ export default function RoyaltiesVendas() {
     queryClient.invalidateQueries({ queryKey: ["royalties-vendas"] });
   };
 
+  const backfillSkusMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("backfill-royalties-bling-skus");
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["royalties-vendas"] });
+      toast.success(data.message || "SKUs preenchidos com sucesso!");
+    },
+    onError: (error) => {
+      toast.error(`Erro ao preencher SKUs: ${error.message}`);
+    },
+  });
+
   const syncNfLinksMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("sync-royalties-nfe-links");
@@ -75,6 +90,14 @@ export default function RoyaltiesVendas() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => backfillSkusMutation.mutate()}
+            disabled={backfillSkusMutation.isPending}
+          >
+            <Database className={`mr-2 h-4 w-4 ${backfillSkusMutation.isPending ? "animate-spin" : ""}`} />
+            {backfillSkusMutation.isPending ? "Preenchendo..." : "Preencher SKUs"}
+          </Button>
           <RecalcularComissoesButton />
           <Button
             variant="outline"
