@@ -188,7 +188,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
     toast({ title: "Vínculo removido" });
   };
 
-  const createUserAccount = async () => {
+  const createUserAccount = async (): Promise<string | null> => {
     if (!formData.email.trim()) {
       toast({
         title: "Email obrigatório",
@@ -235,6 +235,8 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         title: "Conta criada com sucesso!", 
         description: "O autor já pode acessar o portal com o email e senha informados." 
       });
+
+      return userId;
     } catch (error: any) {
       console.error("Erro ao criar conta:", error);
       toast({
@@ -253,10 +255,12 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
 
     try {
       // If password is provided and no user linked yet, create user first
+      let effectiveUserId = formData.user_id;
       if (formData.senha && formData.senha.length >= 6 && !formData.user_id) {
-        await createUserAccount();
-        // If createUserAccount was successful, formData.user_id will be set
-        // but we need to get the updated value
+        const newUserId = await createUserAccount();
+        if (newUserId) {
+          effectiveUserId = newUserId;
+        }
       }
 
       const dados_bancarios = {
@@ -271,7 +275,7 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         endereco: formData.endereco || null,
         dados_bancarios,
         is_active: formData.is_active,
-        user_id: formData.user_id,
+        user_id: effectiveUserId,
         desconto_livros_proprios: formData.desconto_livros_proprios,
       };
 
@@ -284,8 +288,8 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         if (error) throw error;
         
         // If user is linked, update their role to 'autor'
-        if (formData.user_id && formData.is_active) {
-          await ensureAutorRole(formData.user_id);
+        if (effectiveUserId && formData.is_active) {
+          await ensureAutorRole(effectiveUserId);
         }
         
         toast({ title: "Autor atualizado com sucesso!" });
@@ -299,8 +303,8 @@ export function AutorDialog({ open, onOpenChange, autor }: AutorDialogProps) {
         if (error) throw error;
         
         // If user is linked, update their role to 'autor'
-        if (formData.user_id && data) {
-          await ensureAutorRole(formData.user_id);
+        if (effectiveUserId && data) {
+          await ensureAutorRole(effectiveUserId);
         }
         
         toast({ title: "Autor cadastrado com sucesso!" });
