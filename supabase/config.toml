@@ -272,3 +272,6 @@ verify_jwt = false
 
 [functions.zapi-instance-info]
 verify_jwt = false
+
+[functions.backfill-royalties-bling-skus]
+verify_jwt = true

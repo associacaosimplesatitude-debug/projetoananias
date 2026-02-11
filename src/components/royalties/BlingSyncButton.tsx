@@ -33,6 +33,7 @@ const PERIOD_OPTIONS = [
   { days: 60, label: "60 dias" },
   { days: 90, label: "90 dias" },
   { days: 180, label: "180 dias" },
+  { days: -1, label: "Desde 01/Jan" },
 ];
 
 export function BlingSyncButton({ onSyncComplete }: BlingSyncButtonProps) {
@@ -44,10 +45,20 @@ export function BlingSyncButton({ onSyncComplete }: BlingSyncButtonProps) {
     setSelectedDays(days);
     
     try {
+      // Special case: "Desde 01/Jan" calculates days from Jan 1st to today
+      let actualDays = days;
+      let maxNfes = 500;
+      if (days === -1) {
+        const now = new Date();
+        const jan1 = new Date(now.getFullYear(), 0, 1);
+        actualDays = Math.ceil((now.getTime() - jan1.getTime()) / (1000 * 60 * 60 * 24));
+        maxNfes = 2000;
+      }
+
       const { data, error } = await supabase.functions.invoke<SyncResult>(
         "bling-sync-royalties-sales",
         {
-          body: { days_back: days, dry_run: false },
+          body: { days_back: actualDays, max_nfes: maxNfes, dry_run: false },
         }
       );
 
@@ -83,7 +94,7 @@ export function BlingSyncButton({ onSyncComplete }: BlingSyncButtonProps) {
         className="rounded-r-none"
       >
         <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        {loading ? "Sincronizando..." : `Sincronizar (${selectedDays}d)`}
+        {loading ? "Sincronizando..." : selectedDays === -1 ? "Sincronizar (Jan)" : `Sincronizar (${selectedDays}d)`}
       </Button>
       
       <DropdownMenu>
@@ -98,7 +109,7 @@ export function BlingSyncButton({ onSyncComplete }: BlingSyncButtonProps) {
               key={option.days}
               onClick={() => handleSync(option.days)}
             >
-              Últimos {option.label}
+              {option.days === -1 ? option.label : `Últimos ${option.label}`}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
