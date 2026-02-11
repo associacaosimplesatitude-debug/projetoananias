@@ -1,36 +1,22 @@
 
 
-# Corrigir URLs dos Templates de Email e Código
+# Corrigir exclusao de autor bloqueada por email logs
 
 ## Problema
-Todos os 9 templates de email salvos no banco de dados usam `gestaoebd.lovable.app` nas imagens do logo. Alem disso, alguns arquivos no codigo fonte tambem referenciam o dominio antigo.
+A tabela `royalties_email_logs` possui uma foreign key para `royalties_autores` **sem** `ON DELETE CASCADE`. Todas as outras tabelas relacionadas ja possuem CASCADE configurado corretamente.
 
-## Alteracoes
+## Solucao
+Alterar a constraint `royalties_email_logs_autor_id_fkey` para incluir `ON DELETE CASCADE`, permitindo que os logs de email sejam removidos automaticamente ao excluir um autor.
 
-### 1. Atualizar todos os 9 templates no banco de dados
-Executar um UPDATE em `royalties_email_templates` para substituir `gestaoebd.lovable.app` por `gestaoebd.com.br` em todos os templates:
+### Migracao SQL
+```sql
+ALTER TABLE royalties_email_logs
+  DROP CONSTRAINT royalties_email_logs_autor_id_fkey;
 
-Templates afetados:
-- autor_acesso (Dados de Acesso)
-- royalty_venda (Aviso de Venda)
-- pagamento_realizado (Pagamento Confirmado)
-- afiliado_link (Link de Afiliado)
-- afiliado_venda (Venda via Afiliado)
-- relatorio_mensal (Relatorio Mensal)
-- resgate_aprovado (Resgate Aprovado)
-- resgate_solicitado (Resgate Solicitado)
-- contrato_novo (Novo Contrato)
+ALTER TABLE royalties_email_logs
+  ADD CONSTRAINT royalties_email_logs_autor_id_fkey
+  FOREIGN KEY (autor_id) REFERENCES royalties_autores(id) ON DELETE CASCADE;
+```
 
-### 2. Atualizar referencias no codigo fonte
+Nenhuma alteracao de codigo e necessaria. Apos a migracao, a exclusao de autores funcionara normalmente.
 
-**`src/components/royalties/EmailPreviewDialog.tsx`**:
-- Atualizar `link_afiliado` de exemplo que ainda usa `gestaoebd.lovable.app`
-
-**`src/components/vendedor/PlaybookClienteCard.tsx`**:
-- Atualizar link do painel de `gestaoebd.lovable.app/ebd/login` para `gestaoebd.com.br/ebd/login`
-
-**`src/pages/vendedor/VendedorPosVenda.tsx`**:
-- Atualizar link do painel de `gestaoebd.lovable.app/ebd/login` para `gestaoebd.com.br/ebd/login`
-
-### Resultado
-Todos os emails enviados pelo sistema usarao o dominio correto `gestaoebd.com.br`, tanto nas imagens do logo quanto nos links de acesso.
