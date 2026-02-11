@@ -125,7 +125,7 @@ Se desejar, posso te ajudar a ativar agora mesmo 👍`;
 
   // Gerar mensagem com dados de acesso - TEXTO PADRÃO DO PROMPT
   const generateDadosAcessoMessage = () => {
-    const linkPainel = "https://gestaoebd.lovable.app/ebd/login";
+    const linkPainel = "https://gestaoebd.com.br/ebd/login";
     
     return `Perfeito, ${nomeCliente}!
 

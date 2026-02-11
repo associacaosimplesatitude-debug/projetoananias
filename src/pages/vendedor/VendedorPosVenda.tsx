@@ -229,7 +229,7 @@ Se desejar, posso te ajudar a ativar agora mesmo 👍`;
     const nomeCliente = item.cliente?.nome_superintendente || item.pedido?.customer_name || "Superintendente";
     const email = item.cliente?.email_superintendente || item.pedido?.customer_email || "[E-mail não cadastrado]";
     const senha = item.cliente?.senha_temporaria || "[Será enviada após ativação]";
-    const linkPainel = "https://gestaoebd.lovable.app/ebd/login";
+    const linkPainel = "https://gestaoebd.com.br/ebd/login";
     
     return `Perfeito, ${nomeCliente}!
 
