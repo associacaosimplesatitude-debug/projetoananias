@@ -1,71 +1,61 @@
 
-# Corrigir Timeout na Sincronizacao de Vendas
 
-## Problema
+# Corrigir acesso do usuario elizeu@centralgospel.com.br
 
-A Edge Function `bling-sync-royalties-sales` esta tentando processar 1355+ NF-es em uma unica chamada. Cada NF-e requer uma chamada a API do Bling com 400ms de delay, resultando em um tempo total de ~9 minutos. Edge Functions tem limite de ~60 segundos, causando timeout e o erro "Failed to send a request to the Edge Function".
+## Problema Identificado
 
-Alem disso, o backfill de SKUs funcionou (27 livros preenchidos), mas a sincronizacao anterior rodou antes do backfill terminar, entao so 2 livros foram mapeados.
+O usuario `elizeu@centralgospel.com.br` possui **duas roles** na tabela `user_roles`:
+- `financeiro` (role correta - e um funcionario da editora)
+- `autor` (role incorreta - foi atribuida automaticamente quando o autor "DJALMA CORRE PINHO JUNIOR" foi cadastrado com esse email)
 
-## Solucao: Sincronizacao em Lotes no Frontend
+Isso causa dois problemas:
 
-A Edge Function ja possui o parametro `skip` para paginacao. A solucao e fazer o frontend chamar a funcao em lotes pequenos (50 NF-es por vez), usando o retorno `total_nfes_available` para saber quando parar.
+1. **`useAuth` quebra silenciosamente**: O hook usa `.maybeSingle()` para buscar a role, mas com 2 registros ele retorna erro, fazendo `role = null`.
 
-### Mudancas
+2. **AutorLogin redireciona cegamente**: A pagina `/login/autor` redireciona para `/autor` assim que detecta um usuario logado, sem verificar se o usuario realmente tem role `autor`.
 
-**Arquivo: `src/components/royalties/BlingSyncButton.tsx`**
+## Solucao
 
-1. Alterar `handleSync` para fazer chamadas em loop:
-   - Primeira chamada: `{ days_back, max_nfes: 50, skip: 0 }`
-   - Retorno inclui `total_nfes_available` (ex: 1355)
-   - Segunda chamada: `{ days_back, max_nfes: 50, skip: 50 }`
-   - Continuar ate `skip >= total_nfes_available`
-2. Mostrar progresso no botao (ex: "Sincronizando 50/1355...")
-3. Aguardar 1 segundo entre lotes para evitar sobrecarga
-4. Acumular resultados de todos os lotes para exibir no toast final
+### 1. Remover a role `autor` incorreta do banco
 
-**Arquivo: `supabase/functions/bling-sync-royalties-sales/index.ts`**
+Executar migracao para remover a role `autor` do usuario `elizeu@centralgospel.com.br`, mantendo apenas `financeiro`.
 
-1. Reduzir `maxNfes` default de 500 para 50 (para caber no timeout)
-2. Separar a listagem de NFes da fase de processamento de detalhes:
-   - A listagem (paginas de 100 NFes) e rapida (~15s para 20 paginas)
-   - O processamento de detalhes (1 chamada por NFe) e o gargalo
-3. Na primeira chamada (skip=0), fazer a listagem completa e retornar `total_nfes_available`
-4. Nas chamadas seguintes (skip>0), reutilizar a listagem ja feita (ou refazer, que e rapido)
+### 2. Corrigir AutorLogin.tsx para verificar a role
 
-### Fluxo Resumido
+Alterar o `useEffect` na pagina `/login/autor` para verificar se o usuario realmente tem role `autor` antes de redirecionar. Se nao tiver, redirecionar para `/` (DashboardRedirect) que fara o roteamento correto.
 
 ```text
-Frontend                          Edge Function
-   |                                    |
-   |-- POST {days: 42, max: 50, skip:0} -->|
-   |                                    |-- Lista todas NFes (rapido)
-   |                                    |-- Processa NFes 0-49 (detalhes)
-   |<-- {total: 1355, synced: 50} ------|
-   |                                    |
-   | (aguarda 1s)                       |
-   |                                    |
-   |-- POST {days: 42, max: 50, skip:50}-->|
-   |                                    |-- Lista NFes novamente
-   |                                    |-- Processa NFes 50-99
-   |<-- {total: 1355, synced: 50} ------|
-   |                                    |
-   | ... repete ate skip >= total ...    |
+useEffect:
+  if (user && role === 'autor') -> navigate('/autor')
+  if (user && role && role !== 'autor') -> navigate('/')
 ```
 
-### Detalhes Tecnicos - BlingSyncButton.tsx
+### 3. Corrigir useAuth para lidar com multiplas roles
 
-- Novo estado `progress: { current: number; total: number } | null`
-- Loop while com `skip < total`:
-  - Chamar `supabase.functions.invoke("bling-sync-royalties-sales", { body: { days_back, max_nfes: 50, skip } })`
-  - Atualizar `progress` com skip atual e total
-  - Incrementar skip += 50
-  - Aguardar 1000ms entre chamadas
-- No botao: mostrar "Sincronizando 150/1355..." durante o processo
-- Toast final com total acumulado de todas as chamadas
+Alterar `fetchUserRole` em `useAuth.tsx` para usar prioridade de roles caso existam multiplas. A ordem de prioridade sera:
+- admin > gerente_royalties > financeiro > gerente_ebd > representante > autor > client
 
-### Detalhes Tecnicos - Edge Function
+Isso previne que o problema se repita com outros usuarios que possam ter roles duplicadas.
 
-- Mudar default `maxNfes` para 50
-- A funcao ja suporta `skip` e `max_nfes` - nao precisa de grandes mudancas
-- Retorno ja inclui `total_nfes_available` - o frontend usa isso para saber quando parar
+## Detalhes Tecnicos
+
+### Migracao SQL
+
+```text
+DELETE FROM user_roles 
+WHERE user_id = '84fb9588-b997-4754-8f83-5b5f45498ed6' 
+AND role = 'autor';
+```
+
+### AutorLogin.tsx
+
+- Importar `role` do `useAuth`
+- Alterar useEffect para checar role antes de redirecionar
+- Se role !== 'autor', redirecionar para '/'
+
+### useAuth.tsx - fetchUserRole
+
+- Trocar `.maybeSingle()` por `.select('role')` sem single
+- Se retornar multiplas roles, usar a de maior prioridade
+- Isso evita o erro silencioso quando um usuario tem mais de uma role
+
