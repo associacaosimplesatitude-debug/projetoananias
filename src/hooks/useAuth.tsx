@@ -53,16 +53,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const fetchUserRole = async (userId: string) => {
+    const ROLE_PRIORITY: AppRole[] = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd', 'secretario', 'tesoureiro', 'representante', 'autor', 'client'];
+    
     const { data, error } = await supabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', userId)
-      .maybeSingle();
+      .eq('user_id', userId);
     
-    if (error) {
+    if (error || !data || data.length === 0) {
       console.warn('Role não encontrada para usuário:', userId);
+      setRole(null);
+      setLoading(false);
+      return;
     }
-    setRole(data?.role || null);
+    
+    // If multiple roles, pick the highest priority one
+    const roles = data.map(d => d.role as AppRole);
+    const primaryRole = ROLE_PRIORITY.find(p => roles.includes(p)) || roles[0];
+    setRole(primaryRole);
     setLoading(false);
   };
 

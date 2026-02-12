@@ -18,15 +18,18 @@ export default function AutorLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, user } = useAuth();
+  const { signIn, user, role, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
+    if (authLoading || !user) return;
+    if (role === 'autor') {
       navigate('/autor');
+    } else if (role) {
+      navigate('/');
     }
-  }, [user, navigate]);
+  }, [user, role, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
