@@ -1,61 +1,48 @@
 
 
-# Corrigir acesso do usuario elizeu@centralgospel.com.br
+# Plano: Gerar Script SQL Completo para Migrar o Banco de Dados
 
-## Problema Identificado
+## Resumo
 
-O usuario `elizeu@centralgospel.com.br` possui **duas roles** na tabela `user_roles`:
-- `financeiro` (role correta - e um funcionario da editora)
-- `autor` (role incorreta - foi atribuida automaticamente quando o autor "DJALMA CORRE PINHO JUNIOR" foi cadastrado com esse email)
+Vou gerar um arquivo SQL completo (`migration-script.sql`) contendo todo o schema do seu banco de dados atual, pronto para colar no SQL Editor de um Supabase externo. O arquivo incluira:
 
-Isso causa dois problemas:
+- **8 ENUMs** (app_role, church_permission, ebd_role, etc.)
+- **110 tabelas** com todas as colunas, tipos, defaults e constraints
+- **Todas as foreign keys** (chaves estrangeiras)
+- **Todos os indices** customizados
+- **RLS habilitado** em todas as tabelas
+- **500+ RLS policies**
+- **25+ database functions** (has_role, is_vendedor, etc.)
+- **Triggers** associados
 
-1. **`useAuth` quebra silenciosamente**: O hook usa `.maybeSingle()` para buscar a role, mas com 2 registros ele retorna erro, fazendo `role = null`.
+## Importante
 
-2. **AutorLogin redireciona cegamente**: A pagina `/login/autor` redireciona para `/autor` assim que detecta um usuario logado, sem verificar se o usuario realmente tem role `autor`.
+- O script cria apenas a **estrutura** (schema), nao migra os **dados**. Para migrar dados, sera necessario fazer export/import separadamente.
+- Foreign keys que referenciam `auth.users` serao mantidas, pois o Supabase externo ja possui essa tabela.
+- O script sera organizado na ordem correta de dependencias (enums primeiro, depois tabelas sem FK, depois tabelas com FK).
 
-## Solucao
+## Estrutura do Arquivo
 
-### 1. Remover a role `autor` incorreta do banco
+O script SQL sera dividido em seções:
 
-Executar migracao para remover a role `autor` do usuario `elizeu@centralgospel.com.br`, mantendo apenas `financeiro`.
-
-### 2. Corrigir AutorLogin.tsx para verificar a role
-
-Alterar o `useEffect` na pagina `/login/autor` para verificar se o usuario realmente tem role `autor` antes de redirecionar. Se nao tiver, redirecionar para `/` (DashboardRedirect) que fara o roteamento correto.
-
-```text
-useEffect:
-  if (user && role === 'autor') -> navigate('/autor')
-  if (user && role && role !== 'autor') -> navigate('/')
-```
-
-### 3. Corrigir useAuth para lidar com multiplas roles
-
-Alterar `fetchUserRole` em `useAuth.tsx` para usar prioridade de roles caso existam multiplas. A ordem de prioridade sera:
-- admin > gerente_royalties > financeiro > gerente_ebd > representante > autor > client
-
-Isso previne que o problema se repita com outros usuarios que possam ter roles duplicadas.
+1. **ENUMs** - Criacao dos tipos enum
+2. **Tabelas** - CREATE TABLE em ordem de dependencia
+3. **Indices** - CREATE INDEX para indices customizados
+4. **RLS** - ALTER TABLE ENABLE RLS + todas as policies
+5. **Functions** - Todas as database functions
+6. **Triggers** - Todos os triggers associados
 
 ## Detalhes Tecnicos
 
-### Migracao SQL
+- O arquivo sera criado em `docs/migration-script.sql` no projeto
+- Tamanho estimado: ~3000-5000 linhas de SQL
+- Compativel com Supabase SQL Editor (PostgreSQL 15+)
+- Inclui `IF NOT EXISTS` onde possivel para seguranca
 
-```text
-DELETE FROM user_roles 
-WHERE user_id = '84fb9588-b997-4754-8f83-5b5f45498ed6' 
-AND role = 'autor';
-```
+## Limitacoes
 
-### AutorLogin.tsx
-
-- Importar `role` do `useAuth`
-- Alterar useEffect para checar role antes de redirecionar
-- Se role !== 'autor', redirecionar para '/'
-
-### useAuth.tsx - fetchUserRole
-
-- Trocar `.maybeSingle()` por `.select('role')` sem single
-- Se retornar multiplas roles, usar a de maior prioridade
-- Isso evita o erro silencioso quando um usuario tem mais de uma role
+- **Storage buckets** e **Edge Functions** precisam ser recriados manualmente no novo Supabase
+- **Secrets** (API keys) precisam ser reconfigurados
+- **Dados** nao sao incluidos - apenas a estrutura
+- **Auth users** precisam ser migrados separadamente
 
