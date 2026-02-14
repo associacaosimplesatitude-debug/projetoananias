@@ -1,51 +1,57 @@
 
-# Funil de Vendas: Visao Admin vs Vendedor
 
-## Problema Atual
-O componente `VendedorFunil.tsx` filtra por `vendedor?.id` em todas as queries, mas so funciona na area do vendedor. O admin precisa ver TODOS os clientes (sem filtro de vendedor), e o vendedor so os que foram atribuidos a ele.
+# Filtrar Funil "Primeira Compra" a partir de Dez/2025 + Mostrar Valor e Data
 
-## Solucao
+## O que muda
 
-### 1. Tornar o componente reutilizavel com uma prop `isAdmin`
+### 1. Filtro de data (a partir de 01/12/2025)
+Tanto na contagem dos cards quanto na listagem expandida, a etapa "Primeira Compra" passara a filtrar apenas registros de `ebd_pos_venda_ecommerce` cujo pedido associado (`ebd_shopify_pedidos`) tenha `created_at >= '2025-12-01'`.
 
-Adicionar uma prop opcional `isAdminView` ao `VendedorFunil`. Quando `true`, nao aplica o filtro `vendedor_id` nas queries (mostra todos). Quando `false` (padrao), filtra pelo vendedor logado.
+### 2. Exibir valor e data na lista
+Quando o usuario expandir o card "Primeira Compra", cada cliente mostrara:
+- Nome da igreja
+- Telefone
+- **Valor da compra** (ex: R$ 171,11)
+- **Data do pedido** (ex: 23/12/2025)
+- Status WhatsApp
 
-### 2. Adicionar rota no painel Admin EBD
+### 3. Arquivo unico a editar
+`src/pages/vendedor/VendedorFunil.tsx`
 
-Rota: `/admin/ebd/funil`
+---
 
-Dentro do `AdminEBDLayout`, renderizar o mesmo componente `VendedorFunil` com `isAdminView={true}`.
+## Detalhes tecnicos
 
-### 3. Adicionar item no menu lateral do Admin EBD
+### Interface `ClienteItem`
+Adicionar dois campos opcionais:
+- `valor_compra?: number`
+- `data_compra?: string`
 
-Adicionar "Funil de Vendas" no sidebar do `AdminEBDLayout.tsx`.
-
-## Arquivos a Editar
-
-1. **`src/pages/vendedor/VendedorFunil.tsx`**
-   - Aceitar prop `isAdminView?: boolean`
-   - Quando `isAdminView = true`: nao filtrar por vendedor_id, usar `enabled: true` (sem depender de `vendedor`)
-   - Quando `isAdminView = false`: manter logica atual (filtra por vendedor_id)
-   - Ajustar subtitulo: "todos os clientes" vs "seus clientes"
-
-2. **`src/App.tsx`**
-   - Adicionar rota `/admin/ebd/funil` renderizando `<VendedorFunil isAdminView />`
-
-3. **`src/components/admin/AdminEBDLayout.tsx`**
-   - Adicionar item "Funil de Vendas" no menu lateral com icone Filter
-
-## Detalhes Tecnicos
-
-No `VendedorFunil.tsx`, a logica de filtro muda assim:
+### Query de contagem (card)
+Adicionar filtro de data no JOIN com pedidos:
 
 ```text
-// Antes (sempre filtra):
-const vendedorFilter = vendedor?.id;
-if (vendedorFilter) q = q.eq("vendedor_id", vendedorFilter);
-
-// Depois:
-const vendedorFilter = isAdminView ? null : vendedor?.id;
-if (vendedorFilter) q = q.eq("vendedor_id", vendedorFilter);
+// Buscar pedido_ids de pedidos a partir de 01/12/2025
+// Depois contar apenas os registros de pos_venda cujo pedido_id esta nessa lista
 ```
 
-A query sera habilitada com `enabled: isAdminView || !!vendedor` para funcionar sem depender do hook `useVendedor` no modo admin.
+Como a tabela `ebd_pos_venda_ecommerce` nao tem a data do pedido diretamente, a contagem precisara de uma abordagem em dois passos:
+1. Buscar IDs de pedidos com `created_at >= '2025-12-01'` em `ebd_shopify_pedidos`
+2. Contar registros em `ebd_pos_venda_ecommerce` onde `pedido_id` esta nessa lista e `status = 'pendente'`
+
+### Query de listagem expandida
+Para a etapa `compra_aprovada`:
+1. Buscar de `ebd_pos_venda_ecommerce` (status=pendente) com seus `pedido_id` e `cliente_id`
+2. Buscar de `ebd_shopify_pedidos` pelos `pedido_id` para obter `valor_total` e `created_at`, filtrando `created_at >= '2025-12-01'`
+3. Cruzar os resultados: so manter clientes cujo pedido e de dez/2025 em diante
+4. Buscar dados do cliente em `ebd_clientes`
+
+### Renderizacao
+Na lista expandida, quando `valor_compra` e `data_compra` existirem, exibir ao lado do nome:
+
+```text
+Igreja Exemplo          R$ 294,36    28/12/2025    [Entregue]
+  51999999999
+```
+
+Valor formatado com `toLocaleString('pt-BR')` e data com `toLocaleDateString('pt-BR')`.
