@@ -4,10 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShoppingCart, LogIn, Settings, CheckCircle, AlertTriangle, Phone, MessageSquare, DollarSign, Calendar, Mail, Lock, Clock, ChevronDown } from "lucide-react";
+import { ShoppingCart, LogIn, Settings, CheckCircle, AlertTriangle, Phone, MessageSquare, DollarSign, Calendar, Mail, Lock, Clock, ChevronDown, Star } from "lucide-react";
 import { useVendedor } from "@/hooks/useVendedor";
 
-type FunnelStage = "compra_aprovada" | "aguardando_login" | "pendente_config" | "ativos" | "zona_renovacao";
+type FunnelStage = "compra_aprovada" | "aguardando_login" | "pendente_config" | "ativos" | "zona_renovacao" | "recompra";
 
 interface ClienteItem {
   id: string;
@@ -27,6 +27,7 @@ const stages = [
   { key: "pendente_config" as FunnelStage, label: "Pendente Config.", icon: Settings, color: "bg-yellow-500", widthPercent: 60 },
   { key: "ativos" as FunnelStage, label: "Ativos", icon: CheckCircle, color: "bg-emerald-500", widthPercent: 40 },
   { key: "zona_renovacao" as FunnelStage, label: "Zona de Renovação", icon: AlertTriangle, color: "bg-green-700", widthPercent: 25 },
+  { key: "recompra" as FunnelStage, label: "Recompra", icon: Star, color: "bg-amber-500", widthPercent: 20 },
 ];
 
 function getWhatsAppBadge(status: string | null) {
@@ -64,6 +65,8 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
         pendente_config: Number(result?.pendente_config || 0),
         ativos: Number(result?.ativos || 0),
         zona_renovacao: Number(result?.zona_renovacao || 0),
+        recompra: Number(result?.recompra || 0),
+        recompra_total: Number(result?.recompra_total || 0),
       };
     },
     enabled: isAdminView || !!vendedor,
@@ -123,6 +126,8 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
           const isExpanded = expandedStage === stage.key;
           const extraLabel = stage.key === "compra_aprovada" && counts?.compra_aprovada_total
             ? ` (R$ ${Number(counts.compra_aprovada_total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})`
+            : stage.key === "recompra" && counts?.recompra_total
+            ? ` (R$ ${Number(counts.recompra_total).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})`
             : "";
 
           return (
