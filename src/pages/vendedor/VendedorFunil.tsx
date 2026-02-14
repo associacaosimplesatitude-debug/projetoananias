@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShoppingCart, LogIn, Settings, CheckCircle, AlertTriangle, Phone, MessageSquare } from "lucide-react";
+import { ShoppingCart, LogIn, Settings, CheckCircle, AlertTriangle, Phone, MessageSquare, DollarSign, Calendar } from "lucide-react";
 import { useVendedor } from "@/hooks/useVendedor";
 
 type FunnelStage = "compra_aprovada" | "aguardando_login" | "pendente_config" | "ativos" | "zona_renovacao";
@@ -14,6 +14,8 @@ interface ClienteItem {
   nome_igreja: string;
   telefone: string | null;
   whatsapp_status: string | null;
+  valor_compra?: number;
+  data_compra?: string;
 }
 
 const stages = [
@@ -23,6 +25,8 @@ const stages = [
   { key: "ativos" as FunnelStage, label: "Ativos", icon: CheckCircle, color: "bg-green-500", textColor: "text-green-600", borderColor: "border-green-500" },
   { key: "zona_renovacao" as FunnelStage, label: "Zona de Renovação", icon: AlertTriangle, color: "bg-red-500", textColor: "text-red-600", borderColor: "border-red-500" },
 ];
+
+const PRIMEIRA_COMPRA_START = "2025-12-01T00:00:00Z";
 
 function getWhatsAppBadge(status: string | null) {
   switch (status) {
@@ -38,6 +42,15 @@ interface VendedorFunilProps {
   isAdminView?: boolean;
 }
 
+/** Helper: fetch pedido IDs from ebd_shopify_pedidos created >= Dec 2025 */
+async function fetchPedidoIdsDezembro(): Promise<string[]> {
+  const { data } = await supabase
+    .from("ebd_shopify_pedidos")
+    .select("id")
+    .gte("created_at", PRIMEIRA_COMPRA_START);
+  return data?.map((d) => d.id) || [];
+}
+
 export default function VendedorFunil({ isAdminView = false }: VendedorFunilProps) {
   const [expandedStage, setExpandedStage] = useState<FunnelStage | null>(null);
   const { vendedor } = useVendedor();
@@ -48,10 +61,22 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
     queryFn: async () => {
       const vendedorFilter = isAdminView ? null : vendedor?.id;
 
-      // Compra Aprovada - pos venda ecommerce pendente
-      let q1 = supabase.from("ebd_pos_venda_ecommerce").select("id", { count: "exact", head: true }).eq("status", "pendente");
-      if (vendedorFilter) q1 = q1.eq("vendedor_id", vendedorFilter);
-      const { count: compraAprovada } = await q1;
+      // Compra Aprovada - filtered by pedidos from Dec/2025+
+      const pedidoIds = await fetchPedidoIdsDezembro();
+      let compraAprovada = 0;
+      if (pedidoIds.length > 0) {
+        // Process in batches of 100 to avoid URL length limits
+        for (let i = 0; i < pedidoIds.length; i += 100) {
+          const batch = pedidoIds.slice(i, i + 100);
+          let q1 = supabase.from("ebd_pos_venda_ecommerce")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pendente")
+            .in("pedido_id", batch);
+          if (vendedorFilter) q1 = q1.eq("vendedor_id", vendedorFilter);
+          const { count } = await q1;
+          compraAprovada += count || 0;
+        }
+      }
 
       // Aguardando Login
       let q2 = supabase.from("ebd_clientes").select("id", { count: "exact", head: true })
@@ -85,7 +110,7 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
       const { count: zonaRenovacao } = await q5;
 
       return {
-        compra_aprovada: compraAprovada || 0,
+        compra_aprovada: compraAprovada,
         aguardando_login: aguardandoLogin || 0,
         pendente_config: pendenteConfig || 0,
         ativos: ativos || 0,
@@ -102,17 +127,54 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
       if (!expandedStage) return [];
       const vendedorFilter = isAdminView ? null : vendedor?.id;
 
-      let results: { id: string; nome_igreja: string; telefone: string | null }[] = [];
+      let results: { id: string; nome_igreja: string; telefone: string | null; valor_compra?: number; data_compra?: string }[] = [];
 
       if (expandedStage === "compra_aprovada") {
-        let q = supabase.from("ebd_pos_venda_ecommerce").select("id, cliente_id").eq("status", "pendente");
+        // 1. Fetch pos_venda records
+        let q = supabase.from("ebd_pos_venda_ecommerce").select("id, cliente_id, pedido_id").eq("status", "pendente");
         if (vendedorFilter) q = q.eq("vendedor_id", vendedorFilter);
-        const { data } = await q.limit(100);
-        if (data && data.length > 0) {
-          const clienteIds = data.map((d) => d.cliente_id).filter(Boolean) as string[];
+        const { data: posVendaData } = await q.limit(500);
+
+        if (posVendaData && posVendaData.length > 0) {
+          const pedidoIds = posVendaData.map((d) => d.pedido_id).filter(Boolean) as string[];
+
+          // 2. Fetch pedidos from Dec/2025+ with valor and date
+          let pedidoMap: Record<string, { valor_total: number; created_at: string }> = {};
+          if (pedidoIds.length > 0) {
+            const { data: pedidos } = await supabase
+              .from("ebd_shopify_pedidos")
+              .select("id, valor_total, created_at")
+              .in("id", pedidoIds)
+              .gte("created_at", PRIMEIRA_COMPRA_START);
+
+            if (pedidos) {
+              for (const p of pedidos) {
+                pedidoMap[p.id] = { valor_total: p.valor_total, created_at: p.created_at };
+              }
+            }
+          }
+
+          // 3. Filter pos_venda to only those with valid pedidos (Dec/2025+)
+          const filteredPosVenda = posVendaData.filter((d) => d.pedido_id && pedidoMap[d.pedido_id]);
+          const clienteIds = filteredPosVenda.map((d) => d.cliente_id).filter(Boolean) as string[];
+
           if (clienteIds.length > 0) {
             const { data: clientes } = await supabase.from("ebd_clientes").select("id, nome_igreja, telefone").in("id", clienteIds);
-            results = clientes || [];
+            if (clientes) {
+              // Build a map from cliente_id -> pedido info
+              const clientePedidoMap: Record<string, { valor_total: number; created_at: string }> = {};
+              for (const pv of filteredPosVenda) {
+                if (pv.cliente_id && pv.pedido_id && pedidoMap[pv.pedido_id]) {
+                  clientePedidoMap[pv.cliente_id] = pedidoMap[pv.pedido_id];
+                }
+              }
+
+              results = clientes.map((c) => ({
+                ...c,
+                valor_compra: clientePedidoMap[c.id]?.valor_total,
+                data_compra: clientePedidoMap[c.id]?.created_at,
+              }));
+            }
           }
         }
       } else {
@@ -150,7 +212,6 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
           .order("created_at", { ascending: false });
 
         if (msgs) {
-          // Keep only latest per phone
           for (const msg of msgs) {
             if (!whatsappMap[msg.telefone_destino]) {
               whatsappMap[msg.telefone_destino] = msg.status;
@@ -160,8 +221,12 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
       }
 
       return results.map((r) => ({
-        ...r,
+        id: r.id,
+        nome_igreja: r.nome_igreja,
+        telefone: r.telefone,
         whatsapp_status: r.telefone ? whatsappMap[r.telefone] || null : null,
+        valor_compra: r.valor_compra,
+        data_compra: r.data_compra,
       }));
     },
     enabled: !!expandedStage && (isAdminView || !!vendedor),
@@ -212,6 +277,9 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               {stages.find((s) => s.key === expandedStage)?.label}
               <Badge variant="outline">{clients?.length || 0} clientes</Badge>
+              {expandedStage === "compra_aprovada" && (
+                <span className="text-xs text-muted-foreground font-normal">(a partir de Dez/2025)</span>
+              )}
             </h3>
 
             {clientsLoading ? (
@@ -232,7 +300,20 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
+                    {/* Valor e Data da compra - só para Primeira Compra */}
+                    {client.valor_compra != null && (
+                      <div className="flex items-center gap-1 text-sm font-medium text-green-600 shrink-0">
+                        <DollarSign className="h-3 w-3" />
+                        R$ {client.valor_compra.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </div>
+                    )}
+                    {client.data_compra && (
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground shrink-0">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(client.data_compra).toLocaleDateString("pt-BR")}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 shrink-0">
                       <MessageSquare className="h-3 w-3 text-muted-foreground" />
                       {getWhatsAppBadge(client.whatsapp_status)}
                     </div>
