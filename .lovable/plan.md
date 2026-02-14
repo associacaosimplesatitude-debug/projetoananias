@@ -1,29 +1,21 @@
 
-# Mostrar datas e dias entre compras na etapa Recompra
+# Mostrar valor da primeira compra na etapa Recompra
 
 ## O que muda
 
-Na lista expandida da etapa "Recompra", cada cliente passara a mostrar:
-- **Data da 1a compra** (quando entrou no funil)
-- **Data da 2a compra** (recompra mais recente)
-- **Dias entre compras** (ex: "65 dias")
+Na lista expandida da etapa "Recompra", alem das datas e dias entre compras, cada cliente passara a mostrar tambem o **valor da primeira compra** (vindo do pedido Shopify original).
 
 ## Alteracoes tecnicas
 
 ### 1. Banco de dados -- atualizar RPC `get_funil_stage_list`
 
-No case `recompra`, adicionar 3 campos ao retorno:
-- `data_primeira_compra` (timestamptz) -- vem do CTE `first_buyers.primeira_compra`
-- `data_recompra` (timestamptz) -- data do pedido mais recente (segundo pedido Shopify, MP ou proposta faturada)
-- `dias_entre_compras` (integer) -- diferenca em dias entre as duas datas
-
-A data da recompra sera calculada como o `MAX(created_at)` entre as 3 fontes (Shopify, MP, Propostas) que ocorreram apos a primeira compra.
+No case `recompra`, o CTE `first_buyers` ja faz join com o pedido original e tem acesso ao `p.valor_total`. Basta:
+- Carregar esse valor atraves dos CTEs (`first_buyers` -> `matched` -> `recompra_clients`)
+- Retornar como `valor_primeira_compra` no SELECT final
 
 ### 2. Frontend -- `VendedorFunil.tsx`
 
-- Adicionar campos `data_primeira_compra`, `data_recompra` e `dias_entre_compras` na interface `ClienteItem`
-- No parsing da resposta da RPC, mapear esses 3 campos
-- Na renderizacao da lista expandida, quando `expandedStage === "recompra"`, exibir:
-  - "1a compra: DD/MM/AAAA"
-  - "2a compra: DD/MM/AAAA"
-  - Badge com "X dias" entre as compras
+- Adicionar campo `valor_primeira_compra` na interface `ClienteItem`
+- Mapear o novo campo no parsing da RPC
+- Na renderizacao da etapa "recompra", exibir o valor da primeira compra com icone de cifrao, similar ao valor de recompra ja exibido
+- Layout: mostrar ambos os valores lado a lado ou empilhados para facil comparacao
