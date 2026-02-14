@@ -2,11 +2,12 @@ import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogCancel,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, CreditCard, AlertCircle } from "lucide-react";
+import { FileText, CreditCard, AlertCircle, X } from "lucide-react";
 
 interface FaturamentoModeDialogProps {
   open: boolean;
@@ -25,8 +26,12 @@ export function FaturamentoModeDialog({
 }: FaturamentoModeDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="w-[95vw] max-w-lg p-6">
-        <AlertDialogHeader className="space-y-2">
+      <AlertDialogContent className="w-[95vw] max-w-lg p-6 relative">
+        <AlertDialogCancel className="absolute right-4 top-4 h-8 w-8 p-0 border-0 rounded-full hover:bg-muted">
+          <X className="h-4 w-4" />
+          <span className="sr-only">Fechar</span>
+        </AlertDialogCancel>
+        <AlertDialogHeader className="space-y-2 pr-8">
           <AlertDialogTitle className="flex items-center gap-2 text-lg">
             <AlertCircle className="h-5 w-5 text-primary shrink-0" />
             Selecione a Forma de Pagamento
