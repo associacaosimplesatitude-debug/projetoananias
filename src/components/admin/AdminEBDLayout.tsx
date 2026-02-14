@@ -27,6 +27,7 @@ import {
   Wallet,
   BookMarked,
   MessageSquare,
+  Filter,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -185,6 +186,15 @@ function AdminSidebar() {
                   <RouterNavLink to="/admin/ebd/propostas">
                     <FileText className="h-4 w-4" />
                     <span>Pedidos e Propostas</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/ebd/funil')}>
+                  <RouterNavLink to="/admin/ebd/funil">
+                    <Filter className="h-4 w-4" />
+                    <span>Funil de Vendas</span>
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
