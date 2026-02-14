@@ -1,34 +1,58 @@
 
-# Adicionar Lista de Transportadoras no Modal de Frete
+# Adicionar Opcao de Faturamento na Calculadora de Peso
 
-## Resumo
-Substituir o campo de texto livre "Nome da Transportadora" por um dropdown (Select) com as transportadoras pre-definidas, mantendo tambem a opcao de digitar outra transportadora caso necessario.
+## Problema
+Atualmente, ao criar uma proposta a partir de um orcamento na calculadora de peso (`/vendedor/calculadora-peso`), o sistema sempre cria a proposta com `pode_faturar: false`, direcionando o cliente exclusivamente para o Mercado Pago. Nao existe a opcao do vendedor escolher entre faturamento B2B ou pagamento padrao, como ja acontece no fluxo do catalogo (`VendedorCatalogo`).
 
-## Transportadoras da lista
-1. R3 EXPRESS
-2. BRASPRESS
-3. KR TRANSPORTES
-4. VIA PAJUCARA
-5. CAMILO DOS SANTOS
-6. M2000 TRANSPORTES
-7. BOMFIM CARGAS
-8. L AUTO
-9. PROGRESSO LOGISTICA
-10. TRANSPO EXPRESS
-11. MOVVI TRANSPORTES
+## Solucao
+Adicionar o dialogo `FaturamentoModeDialog` no fluxo de criacao de proposta da calculadora de peso. Quando o vendedor clicar em "Gerar Proposta" e o cliente tiver `pode_faturar = true`, o sistema exibira o modal perguntando se deseja faturar (B2B) ou usar pagamento padrao. A escolha sera salva na proposta.
 
-## O que sera alterado
+## Alteracoes
 
-### 1. `src/components/vendedor/AdicionarFreteOrcamentoDialog.tsx`
-- Substituir o `<Input>` de transportadora por um `<Select>` com as opcoes listadas acima
-- Adicionar uma opcao "Outra..." que, ao ser selecionada, exibe um campo de texto para digitar o nome manualmente
-- O valor selecionado sera salvo no campo `transportadora_nome` do banco (ja existente)
+### 1. `src/pages/vendedor/VendedorCalculadoraPeso.tsx`
 
-### 2. Proposta e Bling
-- Nenhuma alteracao necessaria: o campo `transportadora_nome` ja e passado para a proposta (via `frete_transportadora`) e para o Bling (campo `transporte.transportador.nome`). O fluxo existente ja funciona corretamente com qualquer nome de transportadora.
+**Novos estados:**
+- `showFaturamentoModal` - controlar abertura do modal
+- `orcamentoParaFaturamento` - armazenar qual orcamento esta sendo processado
 
-## Detalhes Tecnicos
-- Usar o componente `Select` do Radix UI ja disponivel no projeto
-- Lista de transportadoras definida como constante no componente
-- Quando "Outra..." for selecionada, mostrar um Input adicional para digitacao livre
-- O estado `transportadora` continua armazenando o nome final (seja da lista ou digitado)
+**Novo fluxo no `handleCriarProposta`:**
+1. Buscar dados do cliente incluindo `pode_faturar`
+2. Se `pode_faturar === true`: abrir `FaturamentoModeDialog` e aguardar escolha do vendedor
+3. Se `pode_faturar === false`: prosseguir normalmente (pagamento padrao via MP)
+
+**Funcoes de callback do modal:**
+- `handleSelectFaturamento`: criar proposta com `pode_faturar: true` e `prazo_faturamento_selecionado: '30/60/90'`
+- `handleSelectPadrao`: criar proposta com `pode_faturar: false`
+
+**No insert da proposta:**
+- Adicionar os campos `pode_faturar` e `prazo_faturamento_selecionado` de acordo com a escolha
+
+**Importar e renderizar:**
+- Importar `FaturamentoModeDialog` de `@/components/vendedor/FaturamentoModeDialog`
+- Renderizar o componente no JSX com os estados e callbacks
+
+### 2. Impacto nos fluxos existentes
+- Nenhuma alteracao necessaria nas demais paginas
+- O campo `pode_faturar` ja existe na tabela `vendedor_propostas`
+- O fluxo de aprovacao financeira ja trata propostas com `pode_faturar: true` corretamente
+- A pagina de pedidos (`VendedorPedidosPage`) ja exibe o badge B2B e botoes corretos baseado em `pode_faturar`
+
+### 3. Resumo do fluxo
+```text
+Vendedor clica "Gerar Proposta"
+         |
+   Cliente pode faturar?
+    /              \
+  SIM              NAO
+   |                |
+Abre modal       Cria proposta
+de escolha       pode_faturar=false
+   |                |
+Faturar / Padrao    |
+   |       |        |
+B2B(true)  false    |
+   \       |       /
+    Cria proposta
+         |
+   Exibe link
+```
