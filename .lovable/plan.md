@@ -1,57 +1,29 @@
 
-
-# Adicionar Etapa "RECOMPRA" ao Funil de Vendas
+# Mostrar datas e dias entre compras na etapa Recompra
 
 ## O que muda
 
-Uma sexta etapa sera adicionada ao funil, chamada **RECOMPRA**, representando clientes que ja fizeram uma segunda compra (fidelizacao). A deteccao considera pedidos de 3 fontes: Shopify, Mercado Pago e Propostas Faturadas.
-
-## Logica da Recompra
-
-Um cliente e considerado "recompra" quando:
-1. Ele aparece na lista de primeira compra (primeiro pedido pago a partir de Jan/2026 na `ebd_shopify_pedidos`)
-2. E possui **pelo menos um segundo pedido pago** em qualquer uma destas tabelas:
-   - `ebd_shopify_pedidos` (segundo pedido com `status_pagamento = 'paid'`)
-   - `ebd_shopify_pedidos_mercadopago` (pedido com `status = 'PAGO'`, vinculado via `cliente_id` ou email)
-   - `vendedor_propostas` (proposta com `status = 'FATURADO'`, vinculada via `cliente_id`)
-
-O valor total acumulado dessas segundas compras sera exibido ao lado do label, igual ao "Primeira Compra".
-
-## Visual
-
-- Cor: dourado/amber (`bg-amber-500`) para destacar a fidelizacao
-- Largura: 20% (menor que todas as outras, no fundo do funil)
-- Icone: estrela ou coroa (usando `Star` do lucide-react)
+Na lista expandida da etapa "Recompra", cada cliente passara a mostrar:
+- **Data da 1a compra** (quando entrou no funil)
+- **Data da 2a compra** (recompra mais recente)
+- **Dias entre compras** (ex: "65 dias")
 
 ## Alteracoes tecnicas
 
-### 1. Banco de dados -- atualizar RPCs
+### 1. Banco de dados -- atualizar RPC `get_funil_stage_list`
 
-**`get_funil_stage_counts`**: Adicionar contagem e valor total da recompra. A logica:
+No case `recompra`, adicionar 3 campos ao retorno:
+- `data_primeira_compra` (timestamptz) -- vem do CTE `first_buyers.primeira_compra`
+- `data_recompra` (timestamptz) -- data do pedido mais recente (segundo pedido Shopify, MP ou proposta faturada)
+- `dias_entre_compras` (integer) -- diferenca em dias entre as duas datas
 
-```text
-WITH first_buyers AS (
-  -- emails dos primeiros compradores a partir de Jan/2026
-),
-matched_clients AS (
-  -- cruzamento com ebd_clientes
-),
-recompra AS (
-  -- Para cada first_buyer, verificar se existe:
-  --   1) Um segundo pedido em ebd_shopify_pedidos (mesmo email, created_at > primeira_compra)
-  --   2) OU um pedido em ebd_shopify_pedidos_mercadopago (via cliente_id do matched, status = 'PAGO')
-  --   3) OU uma proposta em vendedor_propostas (via cliente_id do matched, status = 'FATURADO')
-)
--- retornar count e sum do valor dessas recompras
-```
-
-**`get_funil_stage_list`**: Adicionar case `recompra` que retorna a lista de clientes com valor e data da segunda compra.
+A data da recompra sera calculada como o `MAX(created_at)` entre as 3 fontes (Shopify, MP, Propostas) que ocorreram apos a primeira compra.
 
 ### 2. Frontend -- `VendedorFunil.tsx`
 
-- Adicionar `"recompra"` ao type `FunnelStage`
-- Adicionar a 6a etapa no array `stages` com cor `bg-amber-500`, largura 20%, icone `Star`
-- Parsear `recompra` e `recompra_total` do retorno da RPC `get_funil_stage_counts`
-- Exibir o valor total ao lado do label "Recompra" (mesmo padrao do "Primeira Compra")
-- A lista expandida mostrara os mesmos campos (nome, telefone, email, valor, data)
-
+- Adicionar campos `data_primeira_compra`, `data_recompra` e `dias_entre_compras` na interface `ClienteItem`
+- No parsing da resposta da RPC, mapear esses 3 campos
+- Na renderizacao da lista expandida, quando `expandedStage === "recompra"`, exibir:
+  - "1a compra: DD/MM/AAAA"
+  - "2a compra: DD/MM/AAAA"
+  - Badge com "X dias" entre as compras
