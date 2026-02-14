@@ -468,6 +468,7 @@ const App = () => (
                       <Route path="conteudo-biblico" element={<AdminEBDConteudoBiblico />} />
                       <Route path="usuarios" element={<EBDSystemUsers />} />
                       <Route path="whatsapp" element={<WhatsAppPanel />} />
+                      <Route path="funil" element={<VendedorFunil isAdminView />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"

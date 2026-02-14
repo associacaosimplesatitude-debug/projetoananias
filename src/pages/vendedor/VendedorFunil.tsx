@@ -34,15 +34,19 @@ function getWhatsAppBadge(status: string | null) {
   }
 }
 
-export default function VendedorFunil() {
+interface VendedorFunilProps {
+  isAdminView?: boolean;
+}
+
+export default function VendedorFunil({ isAdminView = false }: VendedorFunilProps) {
   const [expandedStage, setExpandedStage] = useState<FunnelStage | null>(null);
   const { vendedor } = useVendedor();
 
   // Counts query
   const { data: counts, isLoading: countsLoading } = useQuery({
-    queryKey: ["funil-counts", vendedor?.id],
+    queryKey: ["funil-counts", isAdminView ? "admin" : vendedor?.id],
     queryFn: async () => {
-      const vendedorFilter = vendedor?.id;
+      const vendedorFilter = isAdminView ? null : vendedor?.id;
 
       // Compra Aprovada - pos venda ecommerce pendente
       let q1 = supabase.from("ebd_pos_venda_ecommerce").select("id", { count: "exact", head: true }).eq("status", "pendente");
@@ -88,15 +92,15 @@ export default function VendedorFunil() {
         zona_renovacao: zonaRenovacao || 0,
       };
     },
-    enabled: !!vendedor,
+    enabled: isAdminView || !!vendedor,
   });
 
   // Expanded stage clients
   const { data: clients, isLoading: clientsLoading } = useQuery({
-    queryKey: ["funil-clients", expandedStage, vendedor?.id],
+    queryKey: ["funil-clients", expandedStage, isAdminView ? "admin" : vendedor?.id],
     queryFn: async (): Promise<ClienteItem[]> => {
       if (!expandedStage) return [];
-      const vendedorFilter = vendedor?.id;
+      const vendedorFilter = isAdminView ? null : vendedor?.id;
 
       let results: { id: string; nome_igreja: string; telefone: string | null }[] = [];
 
@@ -160,14 +164,16 @@ export default function VendedorFunil() {
         whatsapp_status: r.telefone ? whatsappMap[r.telefone] || null : null,
       }));
     },
-    enabled: !!expandedStage && !!vendedor,
+    enabled: !!expandedStage && (isAdminView || !!vendedor),
   });
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Funil de Vendas</h1>
-        <p className="text-muted-foreground">Acompanhe seus clientes em cada etapa do ciclo de 90 dias.</p>
+        <p className="text-muted-foreground">
+          {isAdminView ? "Visão geral de todos os clientes em cada etapa do ciclo de 90 dias." : "Acompanhe seus clientes em cada etapa do ciclo de 90 dias."}
+        </p>
       </div>
 
       {/* Funnel Cards */}
