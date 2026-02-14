@@ -6040,6 +6040,10 @@ export type Database = {
           vendedor_id: string
         }[]
       }
+      get_primeira_compra_funil_total: {
+        Args: { p_vendedor_id?: string }
+        Returns: Json
+      }
       get_sales_channel_totals: {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: Json
