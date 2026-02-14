@@ -17,6 +17,8 @@ import {
   Eye,
   Wallet,
   Mail,
+  Filter,
+  Settings,
 } from "lucide-react";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
 import { NotificationBell } from "@/components/vendedor/NotificationBell";
@@ -63,6 +65,8 @@ const allMenuItems: MenuItem[] = [
   { to: "/vendedor/parcelas", icon: Wallet, label: "Minhas Parcelas" },
   { to: "/vendedor/calculadora-peso", icon: Scale, label: "Orçamento Transportadora" },
   { to: "/vendedor/emails-ebd", icon: Mail, label: "Emails EBD" },
+  { to: "/vendedor/funil", icon: Filter, label: "Funil de Vendas", vendedorOnly: true },
+  { to: "/vendedor/integracoes", icon: Settings, label: "Integrações", vendedorOnly: true },
   { to: "/vendedor/tutoriais", icon: Video, label: "Tutoriais" },
 ];
 
