@@ -1,48 +1,64 @@
 
+# Adicionar Periodo Personalizado ao Sincronizar Royalties
 
-# Plano: Gerar Script SQL Completo para Migrar o Banco de Dados
+## Problema
+Atualmente o botao de sincronizacao so oferece periodos fixos (30, 60, 90, 180 dias, desde Jan). Para sincronizacoes manuais pontuais, o usuario precisa de um seletor de datas personalizado.
 
-## Resumo
+## Solucao
+Adicionar uma opcao "Periodo personalizado" no dropdown que abre um popover com dois date pickers (data inicio e data fim). A edge function ja recebe `days_back` e calcula as datas internamente, mas tambem aceita `dataInicialStr` e `dataFinalStr` na funcao `syncNFeBatch`. Vamos atualizar a edge function para aceitar datas customizadas diretamente.
 
-Vou gerar um arquivo SQL completo (`migration-script.sql`) contendo todo o schema do seu banco de dados atual, pronto para colar no SQL Editor de um Supabase externo. O arquivo incluira:
+## Alteracoes
 
-- **8 ENUMs** (app_role, church_permission, ebd_role, etc.)
-- **110 tabelas** com todas as colunas, tipos, defaults e constraints
-- **Todas as foreign keys** (chaves estrangeiras)
-- **Todos os indices** customizados
-- **RLS habilitado** em todas as tabelas
-- **500+ RLS policies**
-- **25+ database functions** (has_role, is_vendedor, etc.)
-- **Triggers** associados
+### 1. Edge Function `bling-sync-royalties-sales/index.ts`
+- Aceitar parametros opcionais `data_inicio` e `data_fim` (formato YYYY-MM-DD) no body
+- Se fornecidos, usar essas datas ao inves de calcular via `days_back`
+- Manter compatibilidade: se nao enviados, funciona como antes com `days_back`
 
-## Importante
+### 2. Componente `BlingSyncButton.tsx`
+- Adicionar estado para controlar a abertura de um Dialog/Popover de periodo personalizado
+- Adicionar opcao "Periodo personalizado" no dropdown existente
+- Ao clicar, abrir um Dialog com dois date pickers (Data Inicio e Data Fim)
+- Botao "Sincronizar" no dialog que chama a funcao com as datas escolhidas
+- Usar os componentes Shadcn existentes: Dialog, Calendar, Popover
+- Calcular `days_back` a partir da diferenca entre as duas datas e enviar `data_inicio`/`data_fim` diretamente para a edge function
 
-- O script cria apenas a **estrutura** (schema), nao migra os **dados**. Para migrar dados, sera necessario fazer export/import separadamente.
-- Foreign keys que referenciam `auth.users` serao mantidas, pois o Supabase externo ja possui essa tabela.
-- O script sera organizado na ordem correta de dependencias (enums primeiro, depois tabelas sem FK, depois tabelas com FK).
-
-## Estrutura do Arquivo
-
-O script SQL sera dividido em seções:
-
-1. **ENUMs** - Criacao dos tipos enum
-2. **Tabelas** - CREATE TABLE em ordem de dependencia
-3. **Indices** - CREATE INDEX para indices customizados
-4. **RLS** - ALTER TABLE ENABLE RLS + todas as policies
-5. **Functions** - Todas as database functions
-6. **Triggers** - Todos os triggers associados
+### 3. Fluxo do usuario
+1. Clica no chevron do botao de sincronizar
+2. Ve as opcoes existentes + "Periodo personalizado"
+3. Ao clicar em "Periodo personalizado", abre um dialog
+4. Seleciona data inicio e data fim
+5. Clica "Sincronizar" e o processo roda normalmente com feedback de progresso
 
 ## Detalhes Tecnicos
 
-- O arquivo sera criado em `docs/migration-script.sql` no projeto
-- Tamanho estimado: ~3000-5000 linhas de SQL
-- Compativel com Supabase SQL Editor (PostgreSQL 15+)
-- Inclui `IF NOT EXISTS` onde possivel para seguranca
+### Parametros novos na Edge Function
+```text
+body: {
+  days_back?: number,      // existente
+  data_inicio?: string,    // novo (YYYY-MM-DD)
+  data_fim?: string,       // novo (YYYY-MM-DD)
+  max_nfes?: number,       // existente
+  skip?: number,           // existente
+}
+```
 
-## Limitacoes
+### Logica na Edge Function
+```text
+if (body.data_inicio && body.data_fim) {
+  dataInicialStr = body.data_inicio;
+  dataFinalStr = body.data_fim;
+} else {
+  // calculo existente com days_back
+}
+```
 
-- **Storage buckets** e **Edge Functions** precisam ser recriados manualmente no novo Supabase
-- **Secrets** (API keys) precisam ser reconfigurados
-- **Dados** nao sao incluidos - apenas a estrutura
-- **Auth users** precisam ser migrados separadamente
+### Componentes utilizados
+- `Dialog` para o formulario de periodo
+- `Calendar` com `Popover` para os date pickers (padrao Shadcn)
+- `Button` para confirmar
 
+## Tambem inclui
+- O cron job diario (conforme plano anterior aprovado):
+  - Habilitar extensoes `pg_cron` e `pg_net`
+  - Alterar `verify_jwt = false` no config.toml
+  - Criar cron schedule para rodar diariamente as 00:00 Brasilia
