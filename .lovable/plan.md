@@ -1,14 +1,56 @@
 
-# Corrigir Posicionamento do Modal de Faturamento
 
-## Problema
-O modal continua aparecendo na parte inferior da tela, cortado. O `AlertDialogContent` base usa `top-[50%] translate-y-[-50%]` para centralizar, mas algo esta interferindo no posicionamento.
+# Solucao Definitiva: Modal com Portal React Customizado
+
+## Problema Raiz
+O `AlertDialogContent` do Radix UI aplica internamente classes de posicionamento (`fixed left-[50%] top-[50%] translate-x/y`) que conflitam com as classes adicionadas no componente. Independente das classes que adicionamos por cima, o comportamento base do Radix continua interferindo, causando o modal aparecer cortado no rodape.
 
 ## Solucao
-Forcar a centralizacao do modal adicionando classes explicitas de posicionamento e garantir que ele caiba na viewport.
+Abandonar o `AlertDialog` do Radix para este componente e criar um modal customizado usando `ReactDOM.createPortal`, renderizando diretamente no `body` com controle total sobre o posicionamento.
+
+## Mudancas
 
 ### Arquivo: `src/components/vendedor/FaturamentoModeDialog.tsx`
-- Na linha 29, substituir as classes do `AlertDialogContent` para incluir posicionamento explicito:
-  - Adicionar `top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 fixed` para garantir centralizacao
-  - Manter `max-h-[85vh] overflow-y-auto` para scroll quando necessario
-  - Isso sobrescreve qualquer estilo herdado que esteja empurrando o modal para baixo
+Reescrever o componente para usar `ReactDOM.createPortal` ao inves de `AlertDialog`:
+
+1. **Overlay (camada de fundo)**:
+   - `fixed inset-0 z-[9999] flex items-center justify-center bg-black/50`
+   - Cobre toda a tela, centraliza o conteudo, z-index alto para ficar acima de tudo
+
+2. **Conteudo interno (caixa do modal)**:
+   - `bg-background rounded-lg shadow-lg w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto p-6 m-auto relative`
+   - Altura maxima de 90vh com scroll interno
+   - `m-auto` para centralizacao
+   - Sem heranca de estilos de footer/rodape
+
+3. **Botao X**: Mantido com posicionamento absoluto no canto superior direito
+
+4. **Fechamento**: Clicar no overlay (fundo escuro) fecha o modal, assim como o botao X
+
+5. **Condicional**: O modal so renderiza quando `open === true`, sem animacoes complexas que possam interferir no posicionamento
+
+### Estrutura do componente
+
+```text
+createPortal(
+  +------------------------------------------+
+  | overlay: fixed inset-0 z-[9999]          |
+  | flex items-center justify-center         |
+  | bg-black/50                              |
+  |                                          |
+  |   +----------------------------------+   |
+  |   | content: max-w-lg max-h-[90vh]   |   |
+  |   | overflow-y-auto p-6 m-auto       |   |
+  |   | bg-background rounded-lg         |   |
+  |   |                                  |   |
+  |   |  [X]  Titulo + Descricao         |   |
+  |   |                                  |   |
+  |   |  [Botao Faturar]                 |   |
+  |   |  [Botao Pagamento Padrao]        |   |
+  |   +----------------------------------+   |
+  +------------------------------------------+
+  , document.body
+)
+```
+
+Esta abordagem elimina completamente qualquer interferencia do Radix AlertDialog e garante que o modal sempre apareca centralizado na tela.
