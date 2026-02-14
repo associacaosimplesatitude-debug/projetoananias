@@ -159,6 +159,7 @@ import { VendedorLayout } from "./components/vendedor/VendedorLayout";
 import { VendedorProtectedRoute } from "./components/vendedor/VendedorProtectedRoute";
 import VendedorCalculadoraPeso from "./pages/vendedor/VendedorCalculadoraPeso";
 import VendedorPDV from "./pages/vendedor/VendedorPDV";
+import VendedorEmailsEBD from "./pages/vendedor/VendedorEmailsEBD";
 
 // Shopify Pages
 import ShopifyPedidos from "./pages/shopify/ShopifyPedidos";
@@ -511,6 +512,7 @@ const App = () => (
                       <Route path="parcelas" element={<VendedorParcelas />} />
                       <Route path="calculadora-peso" element={<VendedorCalculadoraPeso />} />
                       <Route path="shopify" element={<ShopifyPedidos />} />
+                      <Route path="emails-ebd" element={<VendedorEmailsEBD />} />
                       <Route path="tutoriais" element={<Tutoriais />} />
                     </Route>
                     <Route path="/vendedor/catalogo" element={<VendedorCatalogo />} />

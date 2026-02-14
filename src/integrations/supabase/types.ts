@@ -2053,6 +2053,112 @@ export type Database = {
           },
         ]
       }
+      ebd_email_logs: {
+        Row: {
+          assunto: string | null
+          cliente_id: string | null
+          created_at: string
+          dados_enviados: Json | null
+          destinatario: string
+          erro: string | null
+          id: string
+          resend_email_id: string | null
+          status: string
+          template_id: string | null
+          tipo_envio: string | null
+          vendedor_id: string | null
+        }
+        Insert: {
+          assunto?: string | null
+          cliente_id?: string | null
+          created_at?: string
+          dados_enviados?: Json | null
+          destinatario: string
+          erro?: string | null
+          id?: string
+          resend_email_id?: string | null
+          status?: string
+          template_id?: string | null
+          tipo_envio?: string | null
+          vendedor_id?: string | null
+        }
+        Update: {
+          assunto?: string | null
+          cliente_id?: string | null
+          created_at?: string
+          dados_enviados?: Json | null
+          destinatario?: string
+          erro?: string | null
+          id?: string
+          resend_email_id?: string | null
+          status?: string
+          template_id?: string | null
+          tipo_envio?: string | null
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_email_logs_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_email_logs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_email_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_email_logs_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ebd_email_templates: {
+        Row: {
+          assunto: string
+          codigo: string
+          corpo_html: string
+          created_at: string
+          descricao: string | null
+          id: string
+          is_active: boolean | null
+          nome: string
+          updated_at: string
+          variaveis: Json | null
+        }
+        Insert: {
+          assunto: string
+          codigo: string
+          corpo_html: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          nome: string
+          updated_at?: string
+          variaveis?: Json | null
+        }
+        Update: {
+          assunto?: string
+          codigo?: string
+          corpo_html?: string
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          nome?: string
+          updated_at?: string
+          variaveis?: Json | null
+        }
+        Relationships: []
+      }
       ebd_endereco_entrega: {
         Row: {
           bairro: string
