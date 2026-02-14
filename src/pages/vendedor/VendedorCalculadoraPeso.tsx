@@ -22,6 +22,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { AdicionarFreteOrcamentoDialog } from "@/components/vendedor/AdicionarFreteOrcamentoDialog";
 import { EditarPropostaDialog } from "@/components/vendedor/EditarPropostaDialog";
+import { FaturamentoModeDialog } from "@/components/vendedor/FaturamentoModeDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { fetchShopifyProducts, ShopifyProduct } from "@/lib/shopify";
 
@@ -48,6 +49,7 @@ interface Cliente {
   endereco_cep: string | null;
   cnpj: string | null;
   cpf: string | null;
+  pode_faturar: boolean;
 }
 
 type LocalColeta = 'matriz' | 'polo_pe' | 'penha';
@@ -108,6 +110,10 @@ export default function VendedorCalculadoraPeso() {
   // Estados para editar proposta
   const [editarPropostaDialogOpen, setEditarPropostaDialogOpen] = useState(false);
   const [propostaParaEditar, setPropostaParaEditar] = useState<any>(null);
+  
+  // Estados para faturamento
+  const [showFaturamentoModal, setShowFaturamentoModal] = useState(false);
+  const [orcamentoParaFaturamento, setOrcamentoParaFaturamento] = useState<OrcamentoFrete | null>(null);
 
   // Buscar clientes do vendedor
   const { data: clientes } = useQuery({
@@ -116,7 +122,7 @@ export default function VendedorCalculadoraPeso() {
       if (!vendedor?.id) return [];
       const { data, error } = await supabase
         .from("ebd_clientes")
-        .select("id, nome_igreja, tipo_cliente, onboarding_concluido, desconto_faturamento, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, cnpj, cpf")
+        .select("id, nome_igreja, tipo_cliente, onboarding_concluido, desconto_faturamento, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_estado, endereco_cep, cnpj, cpf, pode_faturar")
         .eq("vendedor_id", vendedor.id)
         .order("nome_igreja");
       if (error) throw error;
@@ -467,23 +473,14 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
     }
   }, [deletingOrcamento, refetchOrcamentos]);
 
-  // Criar proposta a partir do orçamento
-  const handleCriarProposta = useCallback(async (orcamento: OrcamentoFrete) => {
+  // Criar proposta efetivamente (com ou sem faturamento)
+  const criarPropostaEfetiva = useCallback(async (orcamento: OrcamentoFrete, podeFaturar: boolean) => {
     if (!vendedor) return;
-    
-    // TRAVA 1: Se já está criando alguma proposta, ignorar
-    if (creatingProposta) return;
-    
-    // TRAVA 2: Se este orçamento já foi convertido em proposta, ignorar
-    if (orcamento.proposta_id) {
-      toast.warning("Este orçamento já foi convertido em proposta!");
-      return;
-    }
     
     setCreatingProposta(orcamento.id);
     
     try {
-      // TRAVA 3: Verificar novamente no banco se já existe proposta
+      // Verificar novamente no banco se já existe proposta
       const { data: orcamentoAtual } = await supabase
         .from("vendedor_orcamentos_frete")
         .select("proposta_id, status")
@@ -537,6 +534,8 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
           frete_transportadora: orcamento.transportadora_nome,
           frete_prazo_estimado: orcamento.prazo_entrega,
           frete_observacao: orcamento.observacoes,
+          pode_faturar: podeFaturar,
+          prazo_faturamento_selecionado: podeFaturar ? '30/60/90' : null,
         })
         .select("id")
         .single();
@@ -556,9 +555,6 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
       
       // Sempre usar domínio oficial de produção
       const baseUrl = 'https://gestaoebd.com.br';
-      
-      // TODOS os vendedores (incluindo vendedor teste) usam link de proposta
-      // O redirecionamento para checkout MP acontece quando o CLIENTE clica "Confirmar Compra"
       const link = `${baseUrl}/proposta/${token}`;
       
       setPropostaLink(link);
@@ -572,7 +568,51 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
     } finally {
       setCreatingProposta(null);
     }
-  }, [vendedor, creatingProposta, refetchOrcamentos]);
+  }, [vendedor, refetchOrcamentos]);
+
+  // Criar proposta a partir do orçamento (verifica se cliente pode faturar)
+  const handleCriarProposta = useCallback(async (orcamento: OrcamentoFrete) => {
+    if (!vendedor) return;
+    if (creatingProposta) return;
+    if (orcamento.proposta_id) {
+      toast.warning("Este orçamento já foi convertido em proposta!");
+      return;
+    }
+
+    // Verificar se o cliente pode faturar
+    const { data: clienteFaturamento } = await supabase
+      .from("ebd_clientes")
+      .select("pode_faturar, nome_igreja")
+      .eq("id", orcamento.cliente_id)
+      .single();
+
+    if (clienteFaturamento?.pode_faturar) {
+      // Abrir modal de escolha
+      setOrcamentoParaFaturamento(orcamento);
+      setPropostaClienteNome(clienteFaturamento.nome_igreja);
+      setShowFaturamentoModal(true);
+    } else {
+      // Criar proposta direto com pagamento padrão
+      await criarPropostaEfetiva(orcamento, false);
+    }
+  }, [vendedor, creatingProposta, criarPropostaEfetiva]);
+
+  // Callbacks do modal de faturamento
+  const handleSelectFaturamento = useCallback(async () => {
+    setShowFaturamentoModal(false);
+    if (orcamentoParaFaturamento) {
+      await criarPropostaEfetiva(orcamentoParaFaturamento, true);
+      setOrcamentoParaFaturamento(null);
+    }
+  }, [orcamentoParaFaturamento, criarPropostaEfetiva]);
+
+  const handleSelectPadrao = useCallback(async () => {
+    setShowFaturamentoModal(false);
+    if (orcamentoParaFaturamento) {
+      await criarPropostaEfetiva(orcamentoParaFaturamento, false);
+      setOrcamentoParaFaturamento(null);
+    }
+  }, [orcamentoParaFaturamento, criarPropostaEfetiva]);
 
   const copiarMensagemCompleta = useCallback(async () => {
     const mensagem = `Prezado(a) ${propostaClienteNome || '[Nome do Cliente]'},
@@ -1236,6 +1276,15 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`}
         onOpenChange={setEditarPropostaDialogOpen}
         proposta={propostaParaEditar}
         onSuccess={refetchOrcamentos}
+      />
+
+      {/* Modal de Faturamento */}
+      <FaturamentoModeDialog
+        open={showFaturamentoModal}
+        onOpenChange={setShowFaturamentoModal}
+        clienteNome={propostaClienteNome}
+        onSelectFaturamento={handleSelectFaturamento}
+        onSelectPadrão={handleSelectPadrao}
       />
     </div>
   );
