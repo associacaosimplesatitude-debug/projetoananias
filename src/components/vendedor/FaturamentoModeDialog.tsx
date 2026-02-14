@@ -26,7 +26,7 @@ export function FaturamentoModeDialog({
 }: FaturamentoModeDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="w-[95vw] max-w-lg p-6 relative">
+      <AlertDialogContent className="w-[95vw] max-w-lg p-6 relative max-h-[85vh] overflow-y-auto">
         <AlertDialogCancel className="absolute right-4 top-4 h-8 w-8 p-0 border-0 rounded-full hover:bg-muted">
           <X className="h-4 w-4" />
           <span className="sr-only">Fechar</span>
