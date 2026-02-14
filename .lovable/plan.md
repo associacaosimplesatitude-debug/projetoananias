@@ -1,46 +1,34 @@
 
-# Corrigir Comissoes Zero e Auto-Recalcular Apos Sync
+# Adicionar Lista de Transportadoras no Modal de Frete
 
-## Problema Identificado
-Os registros de vendas sincronizados mostram `valor_comissao_total = 0.00` porque foram inseridos por uma sincronizacao anterior quando os percentuais de comissao nao estavam configurados. A sincronizacao atual nao atualiza registros existentes (apenas insere novos). O botao "Recalcular Comissoes" corrige os valores, mas nao e chamado automaticamente.
+## Resumo
+Substituir o campo de texto livre "Nome da Transportadora" por um dropdown (Select) com as transportadoras pre-definidas, mantendo tambem a opcao de digitar outra transportadora caso necessario.
 
-## Evidencia
-- Banco de dados (SQL direto): `valor_comissao_total = 2.32` (apos recalculo)
-- API REST (frontend): `valor_comissao_total = 0.00` (antes do recalculo)
-- Livros possuem comissoes configuradas (10%, 12%, 15%)
-- Sync reportou "0 new records (9 already exist)" - nenhum dado alterado
+## Transportadoras da lista
+1. R3 EXPRESS
+2. BRASPRESS
+3. KR TRANSPORTES
+4. VIA PAJUCARA
+5. CAMILO DOS SANTOS
+6. M2000 TRANSPORTES
+7. BOMFIM CARGAS
+8. L AUTO
+9. PROGRESSO LOGISTICA
+10. TRANSPO EXPRESS
+11. MOVVI TRANSPORTES
 
-## Solucao
-Modificar o `BlingSyncButton.tsx` para chamar automaticamente a funcao `recalcular_royalties_pendentes` apos cada sincronizacao bem-sucedida. Isso garante que todos os registros pendentes tenham comissoes corretas, inclusive os antigos.
+## O que sera alterado
 
-## Alteracoes
+### 1. `src/components/vendedor/AdicionarFreteOrcamentoDialog.tsx`
+- Substituir o `<Input>` de transportadora por um `<Select>` com as opcoes listadas acima
+- Adicionar uma opcao "Outra..." que, ao ser selecionada, exibe um campo de texto para digitar o nome manualmente
+- O valor selecionado sera salvo no campo `transportadora_nome` do banco (ja existente)
 
-### 1. `src/components/royalties/BlingSyncButton.tsx`
-- Apos o loop de sincronizacao concluir com sucesso, chamar `supabase.rpc('recalcular_royalties_pendentes')` automaticamente
-- Incluir resultado do recalculo na mensagem de sucesso (ex: "X registros recalculados")
-- Manter o `onSyncComplete()` apos o recalculo para atualizar a tela
-
-### 2. Fluxo atualizado
-1. Sync processa NFes em lotes
-2. Apos todos os lotes, chama `recalcular_royalties_pendentes`
-3. Exibe toast com resultados da sync + recalculo
-4. Invalida queries para atualizar a tela
+### 2. Proposta e Bling
+- Nenhuma alteracao necessaria: o campo `transportadora_nome` ja e passado para a proposta (via `frete_transportadora`) e para o Bling (campo `transporte.transportador.nome`). O fluxo existente ja funciona corretamente com qualquer nome de transportadora.
 
 ## Detalhes Tecnicos
-
-### Codigo a adicionar no `runSync` (apos o loop while)
-```text
-// Apos o loop de sync, recalcular comissoes
-const { data: recalcData } = await supabase.rpc('recalcular_royalties_pendentes');
-// recalcData retorna { count, antes, depois }
-```
-
-### Toast atualizado
-```text
-`${totalProcessed} NF-es processadas. ${totalQuantidade} livros encontrados. Comissoes recalculadas.`
-```
-
-## Resultado esperado
-- Comissoes nunca ficam em R$ 0,00 apos uma sincronizacao
-- Cards de resumo atualizam automaticamente com valores corretos
-- Historico mostra os valores de comissao corretos imediatamente
+- Usar o componente `Select` do Radix UI ja disponivel no projeto
+- Lista de transportadoras definida como constante no componente
+- Quando "Outra..." for selecionada, mostrar um Input adicional para digitacao livre
+- O estado `transportadora` continua armazenando o nome final (seja da lista ou digitado)
