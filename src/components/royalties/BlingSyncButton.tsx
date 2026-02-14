@@ -94,9 +94,21 @@ export function BlingSyncButton({ onSyncComplete }: BlingSyncButtonProps) {
         }
       } while (skip < totalAvailable);
 
+      // Auto-recalcular comissões pendentes
+      let recalcMsg = "";
+      try {
+        const { data: recalcData } = await supabase.rpc("recalcular_royalties_pendentes");
+        const result = recalcData?.[0];
+        if (result && result.vendas_atualizadas > 0) {
+          recalcMsg = ` ${result.vendas_atualizadas} comissões recalculadas.`;
+        }
+      } catch (e) {
+        console.warn("Erro ao recalcular comissões:", e);
+      }
+
       toast({
         title: "Sincronização concluída",
-        description: `${totalProcessed} NF-es processadas. ${totalQuantidade} livros vendidos encontrados.${totalErrors > 0 ? ` ${totalErrors} erros.` : ""}`,
+        description: `${totalProcessed} NF-es processadas. ${totalQuantidade} livros vendidos encontrados.${totalErrors > 0 ? ` ${totalErrors} erros.` : ""}${recalcMsg}`,
       });
       onSyncComplete();
     } catch (error: any) {
