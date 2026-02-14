@@ -4,9 +4,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Truck, DollarSign, Clock, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const TRANSPORTADORAS = [
+  "R3 EXPRESS",
+  "BRASPRESS",
+  "KR TRANSPORTES",
+  "VIA PAJUÇARA",
+  "CAMILO DOS SANTOS",
+  "M2000 TRANSPORTES",
+  "BOMFIM CARGAS",
+  "L AUTO",
+  "PROGRESSO LOGÍSTICA",
+  "TRANSPO EXPRESS",
+  "MOVVI TRANSPORTES",
+] as const;
 
 interface OrcamentoFrete {
   id: string;
@@ -36,6 +51,8 @@ export function AdicionarFreteOrcamentoDialog({
   onSuccess,
 }: AdicionarFreteOrcamentoDialogProps) {
   const [transportadora, setTransportadora] = useState("");
+  const [selectValue, setSelectValue] = useState("");
+  const [isOutra, setIsOutra] = useState(false);
   const [valorFrete, setValorFrete] = useState("");
   const [prazoEntrega, setPrazoEntrega] = useState("");
   const [observacoes, setObservacoes] = useState("");
@@ -82,8 +99,21 @@ export function AdicionarFreteOrcamentoDialog({
     }
   };
 
+  const handleSelectChange = (value: string) => {
+    setSelectValue(value);
+    if (value === "__outra__") {
+      setIsOutra(true);
+      setTransportadora("");
+    } else {
+      setIsOutra(false);
+      setTransportadora(value);
+    }
+  };
+
   const resetForm = () => {
     setTransportadora("");
+    setSelectValue("");
+    setIsOutra(false);
     setValorFrete("");
     setPrazoEntrega("");
     setObservacoes("");
@@ -110,16 +140,29 @@ export function AdicionarFreteOrcamentoDialog({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="transportadora" className="flex items-center gap-2">
+            <Label className="flex items-center gap-2">
               <Truck className="h-4 w-4" />
-              Nome da Transportadora *
+              Transportadora *
             </Label>
-            <Input
-              id="transportadora"
-              placeholder="Ex: Jamef, Braspress, TNT..."
-              value={transportadora}
-              onChange={(e) => setTransportadora(e.target.value)}
-            />
+            <Select value={selectValue} onValueChange={handleSelectChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a transportadora" />
+              </SelectTrigger>
+              <SelectContent>
+                {TRANSPORTADORAS.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+                <SelectItem value="__outra__">Outra...</SelectItem>
+              </SelectContent>
+            </Select>
+            {isOutra && (
+              <Input
+                placeholder="Digite o nome da transportadora"
+                value={transportadora}
+                onChange={(e) => setTransportadora(e.target.value)}
+                autoFocus
+              />
+            )}
           </div>
 
           <div className="space-y-2">
