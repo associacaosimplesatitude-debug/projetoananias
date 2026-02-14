@@ -1,36 +1,57 @@
 
 
-# Correcao do Funil de Vendas
+# Adicionar Etapa "RECOMPRA" ao Funil de Vendas
 
-## Problema 1: Numeros nao batem
+## O que muda
 
-As etapas 2-4 consultam **todos** os registros da tabela `ebd_clientes`, independente de terem aparecido na etapa "Primeira Compra". Por isso a soma e maior que 518.
+Uma sexta etapa sera adicionada ao funil, chamada **RECOMPRA**, representando clientes que ja fizeram uma segunda compra (fidelizacao). A deteccao considera pedidos de 3 fontes: Shopify, Mercado Pago e Propostas Faturadas.
 
-**Solucao**: As etapas 2-4 devem filtrar apenas clientes que possuem um pedido pago na `ebd_shopify_pedidos` com primeira compra a partir de 01/01/2026. Isso garante que o funil seja progressivo --- cada etapa e um subconjunto da anterior.
+## Logica da Recompra
 
-Logica corrigida:
-- **Primeira Compra (518)**: Primeiro pedido pago a partir de 01/01/2026
-- **Aguardando Login**: Desses 518, quais tem registro em `ebd_clientes` com `ultimo_login IS NULL`
-- **Pendente Config**: Desses 518, quais tem `ultimo_login IS NOT NULL` e `onboarding_concluido = false`
-- **Ativos**: Desses 518, quais tem `ultimo_login IS NOT NULL`, `onboarding_concluido = true` e login nos ultimos 30 dias
-- **Zona de Renovacao**: Desses 518, quais tem `data_proxima_compra` nos proximos 15 dias
+Um cliente e considerado "recompra" quando:
+1. Ele aparece na lista de primeira compra (primeiro pedido pago a partir de Jan/2026 na `ebd_shopify_pedidos`)
+2. E possui **pelo menos um segundo pedido pago** em qualquer uma destas tabelas:
+   - `ebd_shopify_pedidos` (segundo pedido com `status_pagamento = 'paid'`)
+   - `ebd_shopify_pedidos_mercadopago` (pedido com `status = 'PAGO'`, vinculado via `cliente_id` ou email)
+   - `vendedor_propostas` (proposta com `status = 'FATURADO'`, vinculada via `cliente_id`)
 
-Para fazer esse cruzamento, sera criada uma nova RPC no banco que faz JOIN entre `ebd_shopify_pedidos` e `ebd_clientes` (via email ou telefone) para cada etapa.
+O valor total acumulado dessas segundas compras sera exibido ao lado do label, igual ao "Primeira Compra".
 
-## Problema 2: Data de corte
+## Visual
 
-Alterar a data de corte de `2025-12-01` para `2026-01-01` em todos os locais:
-- RPC `get_primeira_compra_funil_total`
-- RPC `get_primeira_compra_funil_list`
-- Nova RPC de contagem por etapa
+- Cor: dourado/amber (`bg-amber-500`) para destacar a fidelizacao
+- Largura: 20% (menor que todas as outras, no fundo do funil)
+- Icone: estrela ou coroa (usando `Star` do lucide-react)
 
 ## Alteracoes tecnicas
 
-### Banco de dados
-1. Atualizar RPCs `get_primeira_compra_funil_total` e `get_primeira_compra_funil_list` para usar data `2026-01-01`
-2. Criar nova RPC `get_funil_stage_counts(p_vendedor_id)` que retorna as contagens das 5 etapas com cruzamento entre pedidos e clientes, garantindo que cada etapa seja subconjunto da "Primeira Compra"
+### 1. Banco de dados -- atualizar RPCs
 
-### Arquivo: `src/pages/vendedor/VendedorFunil.tsx`
-1. Substituir as 5 queries separadas por uma unica chamada a nova RPC
-2. Ajustar as queries de lista expandida para tambem filtrar apenas clientes com primeira compra a partir de 01/01/2026
+**`get_funil_stage_counts`**: Adicionar contagem e valor total da recompra. A logica:
+
+```text
+WITH first_buyers AS (
+  -- emails dos primeiros compradores a partir de Jan/2026
+),
+matched_clients AS (
+  -- cruzamento com ebd_clientes
+),
+recompra AS (
+  -- Para cada first_buyer, verificar se existe:
+  --   1) Um segundo pedido em ebd_shopify_pedidos (mesmo email, created_at > primeira_compra)
+  --   2) OU um pedido em ebd_shopify_pedidos_mercadopago (via cliente_id do matched, status = 'PAGO')
+  --   3) OU uma proposta em vendedor_propostas (via cliente_id do matched, status = 'FATURADO')
+)
+-- retornar count e sum do valor dessas recompras
+```
+
+**`get_funil_stage_list`**: Adicionar case `recompra` que retorna a lista de clientes com valor e data da segunda compra.
+
+### 2. Frontend -- `VendedorFunil.tsx`
+
+- Adicionar `"recompra"` ao type `FunnelStage`
+- Adicionar a 6a etapa no array `stages` com cor `bg-amber-500`, largura 20%, icone `Star`
+- Parsear `recompra` e `recompra_total` do retorno da RPC `get_funil_stage_counts`
+- Exibir o valor total ao lado do label "Recompra" (mesmo padrao do "Primeira Compra")
+- A lista expandida mostrara os mesmos campos (nome, telefone, email, valor, data)
 
