@@ -1,63 +1,36 @@
 
 
-# Melhorias no Funil de Vendas
+# Correcao do Funil de Vendas
 
-## 1. Corrigir logica das etapas usando `ultimo_login`
+## Problema 1: Numeros nao batem
 
-A logica atual usa `status_ativacao_ebd` para determinar se o cliente fez login, o que e impreciso. A nova logica sera:
+As etapas 2-4 consultam **todos** os registros da tabela `ebd_clientes`, independente de terem aparecido na etapa "Primeira Compra". Por isso a soma e maior que 518.
 
-- **Aguardando Login**: `ultimo_login IS NULL` (nunca logou, independente do status_ativacao)
-- **Pendente Config**: `ultimo_login IS NOT NULL` E `onboarding_concluido = false` (logou mas nao configurou)
-- **Ativos**: `ultimo_login IS NOT NULL` E `onboarding_concluido = true` E login nos ultimos 30 dias
+**Solucao**: As etapas 2-4 devem filtrar apenas clientes que possuem um pedido pago na `ebd_shopify_pedidos` com primeira compra a partir de 01/01/2026. Isso garante que o funil seja progressivo --- cada etapa e um subconjunto da anterior.
 
-## 2. Mostrar email e senha de acesso na lista expandida
+Logica corrigida:
+- **Primeira Compra (518)**: Primeiro pedido pago a partir de 01/01/2026
+- **Aguardando Login**: Desses 518, quais tem registro em `ebd_clientes` com `ultimo_login IS NULL`
+- **Pendente Config**: Desses 518, quais tem `ultimo_login IS NOT NULL` e `onboarding_concluido = false`
+- **Ativos**: Desses 518, quais tem `ultimo_login IS NOT NULL`, `onboarding_concluido = true` e login nos ultimos 30 dias
+- **Zona de Renovacao**: Desses 518, quais tem `data_proxima_compra` nos proximos 15 dias
 
-Os campos `email_superintendente` e `senha_temporaria` da tabela `ebd_clientes` serao exibidos na lista expandida de cada etapa (exceto "Primeira Compra" que vem de outra tabela).
+Para fazer esse cruzamento, sera criada uma nova RPC no banco que faz JOIN entre `ebd_shopify_pedidos` e `ebd_clientes` (via email ou telefone) para cada etapa.
 
-Exemplo de como ficara cada item da lista:
+## Problema 2: Data de corte
 
-```text
-ADVEC SAO JOAO DE MERITI
-  Tel: 21999999999
-  Email: gilsoncost5@gmail.com | Senha: mudar123
-  Ultimo login: nunca
-```
+Alterar a data de corte de `2025-12-01` para `2026-01-01` em todos os locais:
+- RPC `get_primeira_compra_funil_total`
+- RPC `get_primeira_compra_funil_list`
+- Nova RPC de contagem por etapa
 
-## 3. Mostrar data do ultimo login
-
-Na lista expandida, exibir a data formatada do `ultimo_login` ou "Nunca" se for nulo.
-
-## 4. Mostrar valor total das primeiras compras
-
-No card "Primeira Compra", alem do numero de clientes, exibir o valor total somado (atualmente R$ 105.852,82). Sera necessario criar uma nova RPC ou ajustar a existente para retornar tambem o valor total.
-
-## 5. Novo layout visual tipo funil
-
-Trocar o layout atual de 5 cards lado a lado por um layout vertical em formato de funil, inspirado na imagem de referencia:
-
-- Cada etapa e uma barra horizontal com largura decrescente (de cima para baixo)
-- O numero fica dentro da barra, centralizado
-- O label/descricao fica ao lado direito, fora da barra
-- Cores degradando de vermelho/laranja no topo para verde na base
-- Ao clicar numa barra, expande a lista de clientes abaixo
-
-```text
-|========= 517 =========|  Primeira Compra (R$ 105.852)
-  |======= 355 =======|    Aguardando Login
-    |===== 140 =====|      Pendente Config.
-      |=== 2 ===|           Ativos
-        |= 0 =|            Zona de Renovacao
-```
-
-## Resumo tecnico das alteracoes
+## Alteracoes tecnicas
 
 ### Banco de dados
-- Criar RPC `get_primeira_compra_funil_total` (ou ajustar a count existente) para retornar tambem a soma dos valores
+1. Atualizar RPCs `get_primeira_compra_funil_total` e `get_primeira_compra_funil_list` para usar data `2026-01-01`
+2. Criar nova RPC `get_funil_stage_counts(p_vendedor_id)` que retorna as contagens das 5 etapas com cruzamento entre pedidos e clientes, garantindo que cada etapa seja subconjunto da "Primeira Compra"
 
 ### Arquivo: `src/pages/vendedor/VendedorFunil.tsx`
-1. **Corrigir queries** das etapas 2-4 para usar `ultimo_login IS NULL / IS NOT NULL` em vez de `status_ativacao_ebd`
-2. **Adicionar campos** `email_superintendente`, `senha_temporaria`, `ultimo_login` no select das etapas que consultam `ebd_clientes`
-3. **Exibir** email, senha e data do login na lista expandida
-4. **Buscar e exibir** o valor total das primeiras compras no card
-5. **Redesenhar** o layout dos cards para formato de funil vertical com barras de largura decrescente, numero dentro e descricao fora
+1. Substituir as 5 queries separadas por uma unica chamada a nova RPC
+2. Ajustar as queries de lista expandida para tambem filtrar apenas clientes com primeira compra a partir de 01/01/2026
 
