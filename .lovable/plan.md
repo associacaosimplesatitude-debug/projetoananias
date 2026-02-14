@@ -1,9 +1,12 @@
 
-# Ajustar Textos do Modal de Faturamento
+# Corrigir Modal Cortado no Rodape
 
-## Alteracao
-Remover as palavras "Sim, " e "Nao, " dos botoes do `FaturamentoModeDialog`.
+## Problema
+O modal esta posicionado parcialmente fora da area visivel, com os botoes de opcao cortados na parte inferior da tela.
+
+## Solucao
+Adicionar restricao de altura maxima e scroll automatico ao `AlertDialogContent` para garantir que o modal sempre caiba na tela.
 
 ### Arquivo: `src/components/vendedor/FaturamentoModeDialog.tsx`
-- Linha 48: `"Sim, Faturar (30/60/90 dias)"` -> `"Faturar (30/60/90 dias)"`
-- Linha 64: `"Não, Usar Pagamento Padrão"` -> `"Pagamento Padrão"`
+- Linha 29: adicionar `max-h-[85vh] overflow-y-auto` na classe do `AlertDialogContent`
+- Isso garante que o modal nunca ultrapasse 85% da altura da tela e, caso o conteudo seja maior, permite rolagem interna
