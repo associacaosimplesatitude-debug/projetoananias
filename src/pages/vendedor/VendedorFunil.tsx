@@ -17,7 +17,7 @@ interface ClienteItem {
 }
 
 const stages = [
-  { key: "compra_aprovada" as FunnelStage, label: "Compra Aprovada", icon: ShoppingCart, color: "bg-blue-500", textColor: "text-blue-600", borderColor: "border-blue-500" },
+  { key: "compra_aprovada" as FunnelStage, label: "Primeira Compra", icon: ShoppingCart, color: "bg-blue-500", textColor: "text-blue-600", borderColor: "border-blue-500" },
   { key: "aguardando_login" as FunnelStage, label: "Aguardando Login", icon: LogIn, color: "bg-yellow-500", textColor: "text-yellow-600", borderColor: "border-yellow-500" },
   { key: "pendente_config" as FunnelStage, label: "Pendente Config.", icon: Settings, color: "bg-orange-500", textColor: "text-orange-600", borderColor: "border-orange-500" },
   { key: "ativos" as FunnelStage, label: "Ativos", icon: CheckCircle, color: "bg-green-500", textColor: "text-green-600", borderColor: "border-green-500" },
