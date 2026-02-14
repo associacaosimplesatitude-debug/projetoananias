@@ -1,152 +1,116 @@
 
-
-# Implementar Sistema Completo de Emails de Vendas para EBD
+# Configuracoes de Integracao Z-API + Dashboard de Funil de Vendas
 
 ## Visao Geral
-Criar um sistema de emails transacionais para o pipeline de vendas EBD, reutilizando a infraestrutura existente (Resend, templates no banco). Serao 8 templates de email, uma Edge Function dedicada, tabelas de controle, e uma pagina de gestao na area do vendedor.
+Duas novas paginas na area do vendedor: uma para gestao de credenciais Z-API com teste de conexao, e outra com o dashboard visual do funil de vendas de 90 dias, mostrando clientes em cada etapa com status de mensagens WhatsApp.
 
 ---
 
 ## Parte 1: Banco de Dados
 
-### Tabela `ebd_email_templates`
-Armazena os templates de email para vendas EBD (separado dos templates de royalties).
+### Tabela `vendedor_zapi_settings`
+Credenciais Z-API por vendedor (cada vendedor pode ter sua propria instancia).
 
 | Coluna | Tipo | Descricao |
 |--------|------|-----------|
 | id | uuid | PK |
-| codigo | text | Codigo unico (ex: `ebd_reposicao_14d`) |
-| nome | text | Nome amigavel |
-| descricao | text | Descricao do uso |
-| assunto | text | Assunto com variaveis `{nome}` |
-| corpo_html | text | HTML do email |
-| variaveis | jsonb | Lista de variaveis aceitas |
-| is_active | boolean | Ativo/inativo |
+| vendedor_id | uuid | FK vendedores, UNIQUE |
+| instance_id | text | Z-API Instance ID |
+| token | text | Z-API Token |
+| client_token | text | Z-API Client Token |
+| is_connected | boolean | Status da ultima validacao |
+| last_tested_at | timestamptz | Data do ultimo teste |
 | created_at / updated_at | timestamptz | Controle |
 
-### Tabela `ebd_email_logs`
-Historico de envios.
+**RLS**: Vendedor le/escreve apenas seus proprios registros. Admins veem tudo.
 
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid | PK |
-| template_id | uuid | FK para ebd_email_templates |
-| cliente_id | uuid | FK para ebd_clientes |
-| vendedor_id | uuid | FK para vendedores |
-| destinatario | text | Email destino |
-| assunto | text | Assunto enviado |
-| status | text | enviado / erro |
-| erro | text | Mensagem de erro |
-| dados_enviados | jsonb | Variaveis usadas |
-| tipo_envio | text | manual / automatico / cron |
-| resend_email_id | text | ID do Resend |
-| created_at | timestamptz | Data do envio |
-
-### RLS Policies
-- Vendedores veem apenas seus proprios logs
-- Admins/gerentes veem tudo
-- Templates sao leitura publica (para a edge function)
+**Nota**: Se a intencao for manter credenciais globais (como ja existe em `system_settings`), a tela pode simplesmente ler/escrever de `system_settings` com as chaves existentes (`zapi_instance_id`, `zapi_token`, `zapi_client_token`). A escolha depende se cada vendedor tera instancia propria ou se e uma unica instancia compartilhada. Vou implementar usando `system_settings` (compartilhado) com opcao de expandir futuramente, ja que a infraestrutura ja existe.
 
 ---
 
-## Parte 2: 8 Templates de Email
+## Parte 2: Pagina de Configuracoes de Integracao
 
-Todos com identidade visual Central Gospel (cor dourada #B8860B, logo, rodape padrao).
+### Rota: `/vendedor/integracoes`
 
-### 1. `ebd_reposicao_14d` - Alerta de Reposicao (14 dias)
-- **Gatilho**: `data_proxima_compra - 14 dias`
-- **Variaveis**: `nome`, `nome_igreja`, `data_proxima_compra`, `link_catalogo`, `vendedor_nome`
-- **Assunto**: "Suas revistas estao acabando - Hora de repor!"
+Tela com:
+1. **Card de Credenciais Z-API**: Campos para Instance ID, Token, Client Token com toggle de visibilidade (senha)
+2. **Botao "Salvar Credenciais"**: Grava em `system_settings`
+3. **Botao "Testar Conexao"**: Chama a Edge Function `zapi-instance-info` com action `status` e mostra resultado (conectado/desconectado/erro)
+4. **Indicador visual**: Badge verde (Conectado) ou vermelho (Desconectado) apos teste
 
-### 2. `ebd_reposicao_7d` - Alerta de Reposicao (7 dias)
-- **Gatilho**: `data_proxima_compra - 7 dias`
-- **Variaveis**: mesmas + urgencia
-- **Assunto**: "Ultimos dias! Reponha suas revistas EBD"
-
-### 3. `ebd_reposicao_hoje` - Alerta de Reposicao (no dia)
-- **Gatilho**: `data_proxima_compra = hoje`
-- **Variaveis**: mesmas
-- **Assunto**: "Hoje e o dia! Garanta suas revistas EBD"
-
-### 4. `ebd_boas_vindas` - Pos-Compra / Boas-vindas
-- **Gatilho**: Apos pedido e-commerce (is_pos_venda_ecommerce = true)
-- **Variaveis**: `nome`, `nome_igreja`, `vendedor_nome`, `vendedor_telefone`, `link_painel`
-- **Assunto**: "Bem-vindo a Central Gospel! Ative seu painel gratuito"
-
-### 5. `ebd_ativacao_3d` - Lembrete Ativacao (3 dias)
-- **Gatilho**: 3 dias apos cadastro, `status_ativacao_ebd = false`
-- **Variaveis**: `nome`, `nome_igreja`, `link_painel`, `vendedor_nome`
-- **Assunto**: "Voce ainda nao ativou seu Painel EBD!"
-
-### 6. `ebd_ativacao_7d` - Lembrete Ativacao (7 dias)
-- Variacao mais urgente do anterior
-
-### 7. `ebd_cliente_inativo` - Re-engajamento (30+ dias sem login)
-- **Gatilho**: `ultimo_login < 30 dias atras`
-- **Variaveis**: `nome`, `nome_igreja`, `dias_sem_login`, `link_painel`, `vendedor_nome`
-- **Assunto**: "Sentimos sua falta na EBD!"
-
-### 8. `ebd_novo_trimestre` - Lancamento Novo Trimestre
-- **Gatilho**: Manual/sazonal (Jan, Abr, Jul, Out)
-- **Variaveis**: `nome`, `nome_igreja`, `trimestre`, `link_catalogo`, `vendedor_nome`
-- **Assunto**: "Novas revistas EBD disponiveis - Trimestre {trimestre}"
+Reutiliza a logica ja existente em `WhatsAppPanel.tsx` mas adaptada para a area do vendedor.
 
 ---
 
-## Parte 3: Edge Function `send-ebd-email`
+## Parte 3: Dashboard do Funil de Vendas
 
-Similar a `send-royalties-email`, mas adaptada para clientes EBD:
+### Rota: `/vendedor/funil`
 
-- Recebe: `clienteId`, `templateCode`, `dados`, `vendedorId`, `tipoEnvio`
-- Busca template na tabela `ebd_email_templates`
-- Busca dados do cliente em `ebd_clientes`
-- Busca dados do vendedor em `vendedores` (para personalizar com nome/telefone)
-- Substitui variaveis no HTML
-- Envia via Resend (remetente: `relatorios@painel.editoracentralgospel.com.br`)
-- Loga em `ebd_email_logs`
+Dashboard com 5 cards de etapas do funil, usando dados reais de `ebd_clientes` e `ebd_pos_venda_ecommerce`:
+
+### Etapas do Funil (calculadas via queries)
+
+| Etapa | Logica de Consulta |
+|-------|-------------------|
+| **Compra Aprovada (Dia 0)** | `ebd_pos_venda_ecommerce` com `status = 'pendente'` (clientes e-commerce aguardando primeiro contato) |
+| **Aguardando Login** | `ebd_clientes` com `status_ativacao_ebd = false` e `is_pos_venda_ecommerce = false` (cadastrados mas nunca logaram) |
+| **Pendente de Configuracao** | `ebd_clientes` com `status_ativacao_ebd = true` e `onboarding_concluido = false` (logaram mas nao completaram quiz/onboarding) |
+| **Ativos** | `ebd_clientes` com `status_ativacao_ebd = true`, `onboarding_concluido = true` e `ultimo_login` nos ultimos 30 dias |
+| **Zona de Renovacao (75-90 dias)** | `ebd_clientes` com `data_proxima_compra` entre hoje e hoje + 15 dias (proximo de renovar) |
+
+### Interface Visual
+
+- 5 Cards horizontais com icone, contagem e nome da etapa
+- Cores distintas: azul (Compra Aprovada), amarelo (Aguardando Login), laranja (Pendente Config), verde (Ativos), vermelho (Renovacao)
+- Clicar em um card expande abaixo a lista de clientes daquela etapa
+- Cada cliente mostra: nome da igreja, telefone, e badge com status da ultima mensagem WhatsApp
+
+### Status WhatsApp por Cliente
+Para cada cliente listado, buscar na tabela `whatsapp_mensagens` a ultima mensagem enviada para o telefone do cliente e exibir:
+- **Enviada** (badge azul)
+- **Entregue** (badge verde)
+- **Lida** (badge verde escuro)
+- **Erro** (badge vermelho)
+- **Sem envio** (badge cinza)
+
+Tambem cruzar com `whatsapp_webhooks` para eventos de delivery/read.
 
 ---
 
-## Parte 4: Edge Function `ebd-email-cron`
+## Parte 4: Navegacao
 
-Funcao agendada via pg_cron que roda 1x por dia e dispara automaticamente os emails baseados nos gatilhos:
+Adicionar dois novos itens no menu lateral do vendedor:
 
-1. Busca clientes com `data_proxima_compra` em 14, 7 ou 0 dias
-2. Busca clientes com `status_ativacao_ebd = false` ha 3 ou 7 dias
-3. Busca clientes com `ultimo_login` > 30 dias atras
-4. Para cada grupo, verifica se o email ja foi enviado (evita duplicidade via `ebd_email_logs`)
-5. Chama `send-ebd-email` para cada cliente elegivel
+```text
+Sidebar:
+  ...
+  Funil de Vendas (icone: Filter)
+  Integracoes (icone: Settings)
+  ...
+```
+
+Ambos com `vendedorOnly: true`.
 
 ---
 
-## Parte 5: Interface - Pagina de Gestao de Emails EBD
+## Parte 5: Arquivos a Criar/Editar
 
-Nova aba ou pagina na area do vendedor com 3 abas:
+### Novos Arquivos
+1. `src/pages/vendedor/VendedorFunil.tsx` - Dashboard do funil com cards e lista expansivel
+2. `src/pages/vendedor/VendedorIntegracoes.tsx` - Tela de configuracao Z-API
 
-### Aba "Disparar Email"
-- Selecionar cliente (dropdown dos clientes do vendedor)
-- Selecionar template (dropdown)
-- Preencher variaveis extras se necessario
-- Preview do email
-- Botao enviar
+### Arquivos Editados
+1. `src/App.tsx` - Adicionar rotas `/vendedor/funil` e `/vendedor/integracoes`
+2. `src/components/vendedor/VendedorLayout.tsx` - Adicionar itens no menu lateral
 
-### Aba "Historico"
-- Tabela com todos os envios do vendedor
-- Filtro por template, status, data
-- Badge de status (enviado/erro)
-
-### Aba "Emails Automaticos"
-- Dashboard mostrando quantos emails automaticos foram disparados hoje/semana/mes
-- Lista dos proximos disparos agendados (clientes com data_proxima_compra proxima)
+### Nao requer migracoes de banco
+Todas as tabelas necessarias ja existem (`system_settings`, `ebd_clientes`, `ebd_pos_venda_ecommerce`, `whatsapp_mensagens`, `whatsapp_webhooks`).
 
 ---
 
 ## Sequencia de Implementacao
 
-1. Migracoes de banco (tabelas + dados iniciais dos 8 templates + RLS)
-2. Edge Function `send-ebd-email`
-3. Edge Function `ebd-email-cron`
-4. Cron job no pg_cron para rodar `ebd-email-cron` diariamente
-5. Pagina de gestao na interface do vendedor
-6. Testes end-to-end
-
+1. Criar pagina `VendedorIntegracoes.tsx` com gestao de credenciais Z-API e teste de conexao
+2. Criar pagina `VendedorFunil.tsx` com os 5 cards estatisticos e lista expansivel
+3. Integrar status WhatsApp nos clientes listados (cruzando `whatsapp_mensagens`)
+4. Atualizar rotas e sidebar
