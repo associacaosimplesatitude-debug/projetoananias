@@ -6024,6 +6024,14 @@ export type Database = {
       get_autor_id_by_user: { Args: { _user_id: string }; Returns: string }
       get_cliente_by_documento: { Args: { _documento: string }; Returns: Json }
       get_co_professor_ids: { Args: { p_user_id: string }; Returns: string[] }
+      get_funil_stage_counts: {
+        Args: { p_vendedor_id?: string }
+        Returns: Json
+      }
+      get_funil_stage_list: {
+        Args: { p_limit?: number; p_stage?: string; p_vendedor_id?: string }
+        Returns: Json
+      }
       get_primeira_compra_funil_count: {
         Args: { p_vendedor_id?: string }
         Returns: number

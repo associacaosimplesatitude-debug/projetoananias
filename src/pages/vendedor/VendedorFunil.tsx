@@ -47,116 +47,53 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
   const [expandedStage, setExpandedStage] = useState<FunnelStage | null>(null);
   const { vendedor } = useVendedor();
 
-  // Counts + total value query
+  // Unified counts query via RPC
   const { data: counts, isLoading: countsLoading } = useQuery({
     queryKey: ["funil-counts", isAdminView ? "admin" : vendedor?.id],
     queryFn: async () => {
       const vendedorFilter = isAdminView ? null : vendedor?.id;
-
-      // Primeira Compra - count + total via new RPC
-      const { data: primeiraCompraData } = await supabase.rpc("get_primeira_compra_funil_total", {
+      const { data, error } = await supabase.rpc("get_funil_stage_counts", {
         p_vendedor_id: vendedorFilter || null,
       });
-      const primeiraCompra = primeiraCompraData as any;
-
-      // Aguardando Login - ultimo_login IS NULL
-      let q2 = supabase.from("ebd_clientes").select("id", { count: "exact", head: true })
-        .is("ultimo_login", null);
-      if (vendedorFilter) q2 = q2.eq("vendedor_id", vendedorFilter);
-      const { count: aguardandoLogin } = await q2;
-
-      // Pendente Config - ultimo_login IS NOT NULL AND onboarding_concluido = false
-      let q3 = supabase.from("ebd_clientes").select("id", { count: "exact", head: true })
-        .not("ultimo_login", "is", null).eq("onboarding_concluido", false);
-      if (vendedorFilter) q3 = q3.eq("vendedor_id", vendedorFilter);
-      const { count: pendenteConfig } = await q3;
-
-      // Ativos - ultimo_login IS NOT NULL AND onboarding_concluido = true AND login nos últimos 30 dias
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      let q4 = supabase.from("ebd_clientes").select("id", { count: "exact", head: true })
-        .not("ultimo_login", "is", null).eq("onboarding_concluido", true)
-        .gte("ultimo_login", thirtyDaysAgo.toISOString());
-      if (vendedorFilter) q4 = q4.eq("vendedor_id", vendedorFilter);
-      const { count: ativos } = await q4;
-
-      // Zona de Renovação
-      const today = new Date().toISOString().split("T")[0];
-      const in15 = new Date();
-      in15.setDate(in15.getDate() + 15);
-      const in15Str = in15.toISOString().split("T")[0];
-      let q5 = supabase.from("ebd_clientes").select("id", { count: "exact", head: true })
-        .gte("data_proxima_compra", today).lte("data_proxima_compra", in15Str);
-      if (vendedorFilter) q5 = q5.eq("vendedor_id", vendedorFilter);
-      const { count: zonaRenovacao } = await q5;
-
+      if (error) throw error;
+      const result = data as any;
       return {
-        compra_aprovada: primeiraCompra?.count || 0,
-        compra_aprovada_total: primeiraCompra?.total || 0,
-        aguardando_login: aguardandoLogin || 0,
-        pendente_config: pendenteConfig || 0,
-        ativos: ativos || 0,
-        zona_renovacao: zonaRenovacao || 0,
+        compra_aprovada: Number(result?.compra_aprovada || 0),
+        compra_aprovada_total: Number(result?.compra_aprovada_total || 0),
+        aguardando_login: Number(result?.aguardando_login || 0),
+        pendente_config: Number(result?.pendente_config || 0),
+        ativos: Number(result?.ativos || 0),
+        zona_renovacao: Number(result?.zona_renovacao || 0),
       };
     },
     enabled: isAdminView || !!vendedor,
   });
 
-  // Expanded stage clients
+  // Expanded stage clients via RPC
   const { data: clients, isLoading: clientsLoading } = useQuery({
     queryKey: ["funil-clients", expandedStage, isAdminView ? "admin" : vendedor?.id],
     queryFn: async (): Promise<ClienteItem[]> => {
       if (!expandedStage) return [];
       const vendedorFilter = isAdminView ? null : vendedor?.id;
 
-      // Primeira Compra - via RPC
-      if (expandedStage === "compra_aprovada") {
-        const { data: primeiraCompraData } = await supabase.rpc("get_primeira_compra_funil_list", {
-          p_vendedor_id: vendedorFilter || null,
-          p_limit: 500,
-        });
-        if (!primeiraCompraData || primeiraCompraData.length === 0) return [];
-        const phones = (primeiraCompraData as any[]).map((r: any) => r.customer_phone).filter(Boolean) as string[];
-        const whatsappMap = await fetchWhatsAppStatuses(phones);
-        return (primeiraCompraData as any[]).map((r: any) => ({
-          id: r.id,
-          nome_igreja: r.customer_name || r.customer_email,
-          telefone: r.customer_phone,
-          whatsapp_status: r.customer_phone ? whatsappMap[r.customer_phone] || null : null,
-          valor_compra: r.valor_total,
-          data_compra: r.created_at,
-        }));
-      }
+      const { data, error } = await supabase.rpc("get_funil_stage_list", {
+        p_vendedor_id: vendedorFilter || null,
+        p_stage: expandedStage,
+        p_limit: 500,
+      });
+      if (error) throw error;
 
-      // Outras etapas - consulta ebd_clientes com email, senha, ultimo_login
-      let q = supabase.from("ebd_clientes").select("id, nome_igreja, telefone, email_superintendente, senha_temporaria, ultimo_login");
-      if (vendedorFilter) q = q.eq("vendedor_id", vendedorFilter);
-
-      if (expandedStage === "aguardando_login") {
-        q = q.is("ultimo_login", null);
-      } else if (expandedStage === "pendente_config") {
-        q = q.not("ultimo_login", "is", null).eq("onboarding_concluido", false);
-      } else if (expandedStage === "ativos") {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        q = q.not("ultimo_login", "is", null).eq("onboarding_concluido", true).gte("ultimo_login", thirtyDaysAgo.toISOString());
-      } else if (expandedStage === "zona_renovacao") {
-        const today = new Date().toISOString().split("T")[0];
-        const in15 = new Date();
-        in15.setDate(in15.getDate() + 15);
-        q = q.gte("data_proxima_compra", today).lte("data_proxima_compra", in15.toISOString().split("T")[0]);
-      }
-
-      const { data } = await q.limit(500);
-      const results = data || [];
-      const phones = results.map((r) => r.telefone).filter(Boolean) as string[];
+      const rows = (data as any[]) || [];
+      const phones = rows.map((r: any) => r.telefone).filter(Boolean) as string[];
       const whatsappMap = await fetchWhatsAppStatuses(phones);
 
-      return results.map((r) => ({
+      return rows.map((r: any) => ({
         id: r.id,
         nome_igreja: r.nome_igreja,
         telefone: r.telefone,
         whatsapp_status: r.telefone ? whatsappMap[r.telefone] || null : null,
+        valor_compra: r.valor_compra != null ? Number(r.valor_compra) : undefined,
+        data_compra: r.data_compra || undefined,
         email_superintendente: r.email_superintendente,
         senha_temporaria: r.senha_temporaria,
         ultimo_login: r.ultimo_login,
@@ -194,7 +131,6 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                 className="flex items-center gap-4 cursor-pointer group"
                 onClick={() => setExpandedStage(isExpanded ? null : stage.key)}
               >
-                {/* Funnel bar */}
                 <div
                   className={`${stage.color} rounded-md h-12 flex items-center justify-center transition-all hover:opacity-90 ${isExpanded ? "ring-2 ring-offset-2 ring-foreground/20" : ""}`}
                   style={{ width: `${stage.widthPercent}%` }}
@@ -205,7 +141,6 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                     <span className="text-white font-bold text-lg">{count}</span>
                   )}
                 </div>
-                {/* Label outside */}
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm font-medium text-foreground whitespace-nowrap">
                     {stage.label}{extraLabel}
@@ -214,7 +149,6 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                 </div>
               </div>
 
-              {/* Expanded Client List */}
               {isExpanded && (
                 <Card className="mt-2 mb-2">
                   <CardContent className="p-4">
@@ -222,7 +156,7 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                       {stage.label}
                       <Badge variant="outline">{clients?.length || 0} clientes</Badge>
                       {stage.key === "compra_aprovada" && (
-                        <span className="text-xs text-muted-foreground font-normal">(a partir de Dez/2025)</span>
+                        <span className="text-xs text-muted-foreground font-normal">(a partir de Jan/2026)</span>
                       )}
                     </h3>
 
@@ -257,7 +191,6 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                                 {getWhatsAppBadge(client.whatsapp_status)}
                               </div>
                             </div>
-                            {/* Details row */}
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                               {client.telefone && (
                                 <span className="flex items-center gap-1">
