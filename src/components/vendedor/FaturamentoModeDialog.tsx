@@ -45,7 +45,7 @@ export function FaturamentoModeDialog({
             <div className="flex gap-3">
               <FileText className="h-8 w-8 text-blue-500 shrink-0" />
               <div>
-                <p className="font-semibold text-base">Sim, Faturar (30/60/90 dias)</p>
+                <p className="font-semibold text-base">Faturar (30/60/90 dias)</p>
                 <p className="text-sm text-muted-foreground font-normal">
                   Pedido será enviado diretamente para o Bling com condição de pagamento parcelada via boleto.
                 </p>
@@ -61,7 +61,7 @@ export function FaturamentoModeDialog({
             <div className="flex gap-3">
               <CreditCard className="h-8 w-8 text-green-500 shrink-0" />
               <div>
-                <p className="font-semibold text-base">Não, Usar Pagamento Padrão</p>
+                <p className="font-semibold text-base">Pagamento Padrão</p>
                 <p className="text-sm text-muted-foreground font-normal">
                   O cliente pagará via PIX, Cartão ou Boleto através do checkout padrão.
                 </p>
