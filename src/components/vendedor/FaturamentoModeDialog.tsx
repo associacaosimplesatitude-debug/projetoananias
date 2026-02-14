@@ -1,11 +1,4 @@
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogCancel,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { FileText, CreditCard, AlertCircle, X } from "lucide-react";
 
@@ -24,24 +17,36 @@ export function FaturamentoModeDialog({
   onSelectFaturamento,
   onSelectPadrão,
 }: FaturamentoModeDialogProps) {
-  return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="fixed top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[95vw] max-w-lg max-h-[85vh] overflow-y-auto p-6 relative">
-        <AlertDialogCancel className="absolute right-4 top-4 h-8 w-8 p-0 border-0 rounded-full hover:bg-muted">
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+      onClick={() => onOpenChange(false)}
+    >
+      <div
+        className="bg-background rounded-lg shadow-lg w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto p-6 m-auto relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted"
+        >
           <X className="h-4 w-4" />
           <span className="sr-only">Fechar</span>
-        </AlertDialogCancel>
-        <AlertDialogHeader className="space-y-2 pr-8">
-          <AlertDialogTitle className="flex items-center gap-2 text-lg">
+        </button>
+
+        <div className="space-y-2 pr-8">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
             <AlertCircle className="h-5 w-5 text-primary shrink-0" />
             Selecione a Forma de Pagamento
-          </AlertDialogTitle>
-          <AlertDialogDescription className="text-sm leading-relaxed">
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
             O cliente <strong className="text-foreground">{clienteNome}</strong> está habilitado para faturamento B2B.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
+          </p>
+        </div>
 
-        <div className="space-y-3 mt-2">
+        <div className="space-y-3 mt-4">
           <Button
             variant="outline"
             className="w-full h-auto p-4 justify-start text-left border hover:border-primary/50 hover:bg-primary/5"
@@ -74,7 +79,8 @@ export function FaturamentoModeDialog({
             </div>
           </Button>
         </div>
-      </AlertDialogContent>
-    </AlertDialog>
+      </div>
+    </div>,
+    document.body
   );
 }
