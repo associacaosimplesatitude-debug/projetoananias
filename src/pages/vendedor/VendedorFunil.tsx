@@ -26,8 +26,6 @@ const stages = [
   { key: "zona_renovacao" as FunnelStage, label: "Zona de Renovação", icon: AlertTriangle, color: "bg-red-500", textColor: "text-red-600", borderColor: "border-red-500" },
 ];
 
-const PRIMEIRA_COMPRA_START = "2025-12-01T00:00:00Z";
-
 function getWhatsAppBadge(status: string | null) {
   switch (status) {
     case "enviada": return <Badge className="bg-blue-500 hover:bg-blue-600 text-xs">Enviada</Badge>;
@@ -42,15 +40,6 @@ interface VendedorFunilProps {
   isAdminView?: boolean;
 }
 
-/** Helper: fetch pedido IDs from ebd_shopify_pedidos created >= Dec 2025 */
-async function fetchPedidoIdsDezembro(): Promise<string[]> {
-  const { data } = await supabase
-    .from("ebd_shopify_pedidos")
-    .select("id")
-    .gte("created_at", PRIMEIRA_COMPRA_START);
-  return data?.map((d) => d.id) || [];
-}
-
 export default function VendedorFunil({ isAdminView = false }: VendedorFunilProps) {
   const [expandedStage, setExpandedStage] = useState<FunnelStage | null>(null);
   const { vendedor } = useVendedor();
@@ -61,22 +50,10 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
     queryFn: async () => {
       const vendedorFilter = isAdminView ? null : vendedor?.id;
 
-      // Compra Aprovada - filtered by pedidos from Dec/2025+
-      const pedidoIds = await fetchPedidoIdsDezembro();
-      let compraAprovada = 0;
-      if (pedidoIds.length > 0) {
-        // Process in batches of 100 to avoid URL length limits
-        for (let i = 0; i < pedidoIds.length; i += 100) {
-          const batch = pedidoIds.slice(i, i + 100);
-          let q1 = supabase.from("ebd_pos_venda_ecommerce")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pendente")
-            .in("pedido_id", batch);
-          if (vendedorFilter) q1 = q1.eq("vendedor_id", vendedorFilter);
-          const { count } = await q1;
-          compraAprovada += count || 0;
-        }
-      }
+      // Compra Aprovada - via RPC direto de ebd_shopify_pedidos
+      const { data: compraCount } = await supabase.rpc("get_primeira_compra_funil_count", {
+        p_vendedor_id: vendedorFilter || null,
+      });
 
       // Aguardando Login
       let q2 = supabase.from("ebd_clientes").select("id", { count: "exact", head: true })
@@ -110,7 +87,7 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
       const { count: zonaRenovacao } = await q5;
 
       return {
-        compra_aprovada: compraAprovada,
+        compra_aprovada: compraCount || 0,
         aguardando_login: aguardandoLogin || 0,
         pendente_config: pendenteConfig || 0,
         ativos: ativos || 0,
@@ -127,106 +104,60 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
       if (!expandedStage) return [];
       const vendedorFilter = isAdminView ? null : vendedor?.id;
 
-      let results: { id: string; nome_igreja: string; telefone: string | null; valor_compra?: number; data_compra?: string }[] = [];
-
+      // Primeira Compra - via RPC
       if (expandedStage === "compra_aprovada") {
-        // 1. Fetch pos_venda records
-        let q = supabase.from("ebd_pos_venda_ecommerce").select("id, cliente_id, pedido_id").eq("status", "pendente");
-        if (vendedorFilter) q = q.eq("vendedor_id", vendedorFilter);
-        const { data: posVendaData } = await q.limit(500);
+        const { data: primeiraCompraData } = await supabase.rpc("get_primeira_compra_funil_list", {
+          p_vendedor_id: vendedorFilter || null,
+          p_limit: 500,
+        });
 
-        if (posVendaData && posVendaData.length > 0) {
-          const pedidoIds = posVendaData.map((d) => d.pedido_id).filter(Boolean) as string[];
+        if (!primeiraCompraData || primeiraCompraData.length === 0) return [];
 
-          // 2. Fetch pedidos from Dec/2025+ with valor and date
-          let pedidoMap: Record<string, { valor_total: number; created_at: string }> = {};
-          if (pedidoIds.length > 0) {
-            const { data: pedidos } = await supabase
-              .from("ebd_shopify_pedidos")
-              .select("id, valor_total, created_at")
-              .in("id", pedidoIds)
-              .gte("created_at", PRIMEIRA_COMPRA_START);
+        // Fetch WhatsApp status
+        const phones = (primeiraCompraData as any[]).map((r: any) => r.customer_phone).filter(Boolean) as string[];
+        const whatsappMap = await fetchWhatsAppStatuses(phones);
 
-            if (pedidos) {
-              for (const p of pedidos) {
-                pedidoMap[p.id] = { valor_total: p.valor_total, created_at: p.created_at };
-              }
-            }
-          }
-
-          // 3. Filter pos_venda to only those with valid pedidos (Dec/2025+)
-          const filteredPosVenda = posVendaData.filter((d) => d.pedido_id && pedidoMap[d.pedido_id]);
-          const clienteIds = filteredPosVenda.map((d) => d.cliente_id).filter(Boolean) as string[];
-
-          if (clienteIds.length > 0) {
-            const { data: clientes } = await supabase.from("ebd_clientes").select("id, nome_igreja, telefone").in("id", clienteIds);
-            if (clientes) {
-              // Build a map from cliente_id -> pedido info
-              const clientePedidoMap: Record<string, { valor_total: number; created_at: string }> = {};
-              for (const pv of filteredPosVenda) {
-                if (pv.cliente_id && pv.pedido_id && pedidoMap[pv.pedido_id]) {
-                  clientePedidoMap[pv.cliente_id] = pedidoMap[pv.pedido_id];
-                }
-              }
-
-              results = clientes.map((c) => ({
-                ...c,
-                valor_compra: clientePedidoMap[c.id]?.valor_total,
-                data_compra: clientePedidoMap[c.id]?.created_at,
-              }));
-            }
-          }
-        }
-      } else {
-        let q = supabase.from("ebd_clientes").select("id, nome_igreja, telefone");
-        if (vendedorFilter) q = q.eq("vendedor_id", vendedorFilter);
-
-        if (expandedStage === "aguardando_login") {
-          q = q.eq("status_ativacao_ebd", false).eq("is_pos_venda_ecommerce", false);
-        } else if (expandedStage === "pendente_config") {
-          q = q.eq("status_ativacao_ebd", true).eq("onboarding_concluido", false);
-        } else if (expandedStage === "ativos") {
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          q = q.eq("status_ativacao_ebd", true).eq("onboarding_concluido", true).gte("ultimo_login", thirtyDaysAgo.toISOString());
-        } else if (expandedStage === "zona_renovacao") {
-          const today = new Date().toISOString().split("T")[0];
-          const in15 = new Date();
-          in15.setDate(in15.getDate() + 15);
-          q = q.gte("data_proxima_compra", today).lte("data_proxima_compra", in15.toISOString().split("T")[0]);
-        }
-
-        const { data } = await q.limit(100);
-        results = data || [];
+        return (primeiraCompraData as any[]).map((r: any) => ({
+          id: r.id,
+          nome_igreja: r.customer_name || r.customer_email,
+          telefone: r.customer_phone,
+          whatsapp_status: r.customer_phone ? whatsappMap[r.customer_phone] || null : null,
+          valor_compra: r.valor_total,
+          data_compra: r.created_at,
+        }));
       }
 
-      // Fetch WhatsApp status for each client
+      // Outras etapas - consulta ebd_clientes
+      let q = supabase.from("ebd_clientes").select("id, nome_igreja, telefone");
+      if (vendedorFilter) q = q.eq("vendedor_id", vendedorFilter);
+
+      if (expandedStage === "aguardando_login") {
+        q = q.eq("status_ativacao_ebd", false).eq("is_pos_venda_ecommerce", false);
+      } else if (expandedStage === "pendente_config") {
+        q = q.eq("status_ativacao_ebd", true).eq("onboarding_concluido", false);
+      } else if (expandedStage === "ativos") {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        q = q.eq("status_ativacao_ebd", true).eq("onboarding_concluido", true).gte("ultimo_login", thirtyDaysAgo.toISOString());
+      } else if (expandedStage === "zona_renovacao") {
+        const today = new Date().toISOString().split("T")[0];
+        const in15 = new Date();
+        in15.setDate(in15.getDate() + 15);
+        q = q.gte("data_proxima_compra", today).lte("data_proxima_compra", in15.toISOString().split("T")[0]);
+      }
+
+      const { data } = await q.limit(100);
+      const results = data || [];
+
+      // Fetch WhatsApp status
       const phones = results.map((r) => r.telefone).filter(Boolean) as string[];
-      let whatsappMap: Record<string, string> = {};
-
-      if (phones.length > 0) {
-        const { data: msgs } = await supabase
-          .from("whatsapp_mensagens")
-          .select("telefone_destino, status, created_at")
-          .in("telefone_destino", phones)
-          .order("created_at", { ascending: false });
-
-        if (msgs) {
-          for (const msg of msgs) {
-            if (!whatsappMap[msg.telefone_destino]) {
-              whatsappMap[msg.telefone_destino] = msg.status;
-            }
-          }
-        }
-      }
+      const whatsappMap = await fetchWhatsAppStatuses(phones);
 
       return results.map((r) => ({
         id: r.id,
         nome_igreja: r.nome_igreja,
         telefone: r.telefone,
         whatsapp_status: r.telefone ? whatsappMap[r.telefone] || null : null,
-        valor_compra: r.valor_compra,
-        data_compra: r.data_compra,
       }));
     },
     enabled: !!expandedStage && (isAdminView || !!vendedor),
@@ -300,7 +231,6 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                         </p>
                       )}
                     </div>
-                    {/* Valor e Data da compra - só para Primeira Compra */}
                     {client.valor_compra != null && (
                       <div className="flex items-center gap-1 text-sm font-medium text-green-600 shrink-0">
                         <DollarSign className="h-3 w-3" />
@@ -328,4 +258,25 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
       )}
     </div>
   );
+}
+
+/** Helper to fetch WhatsApp message statuses for a list of phones */
+async function fetchWhatsAppStatuses(phones: string[]): Promise<Record<string, string>> {
+  const whatsappMap: Record<string, string> = {};
+  if (phones.length === 0) return whatsappMap;
+
+  const { data: msgs } = await supabase
+    .from("whatsapp_mensagens")
+    .select("telefone_destino, status, created_at")
+    .in("telefone_destino", phones)
+    .order("created_at", { ascending: false });
+
+  if (msgs) {
+    for (const msg of msgs) {
+      if (!whatsappMap[msg.telefone_destino]) {
+        whatsappMap[msg.telefone_destino] = msg.status;
+      }
+    }
+  }
+  return whatsappMap;
 }
