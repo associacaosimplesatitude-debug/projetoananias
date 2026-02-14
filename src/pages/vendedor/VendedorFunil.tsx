@@ -19,6 +19,9 @@ interface ClienteItem {
   email_superintendente?: string | null;
   senha_temporaria?: string | null;
   ultimo_login?: string | null;
+  data_primeira_compra?: string;
+  data_recompra?: string;
+  dias_entre_compras?: number;
 }
 
 const stages = [
@@ -100,6 +103,9 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
         email_superintendente: r.email_superintendente,
         senha_temporaria: r.senha_temporaria,
         ultimo_login: r.ultimo_login,
+        data_primeira_compra: r.data_primeira_compra || undefined,
+        data_recompra: r.data_recompra || undefined,
+        dias_entre_compras: r.dias_entre_compras != null ? Number(r.dias_entre_compras) : undefined,
       }));
     },
     enabled: !!expandedStage && (isAdminView || !!vendedor),
@@ -212,10 +218,29 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                                   <Lock className="h-3 w-3" /> {client.senha_temporaria}
                                 </span>
                               )}
-                              {expandedStage !== "compra_aprovada" && (
+                              {expandedStage !== "compra_aprovada" && expandedStage !== "recompra" && (
                                 <span className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" /> Último login: {formatLoginDate(client.ultimo_login)}
                                 </span>
+                              )}
+                              {expandedStage === "recompra" && (
+                                <>
+                                  {client.data_primeira_compra && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" /> 1ª compra: {new Date(client.data_primeira_compra).toLocaleDateString("pt-BR")}
+                                    </span>
+                                  )}
+                                  {client.data_recompra && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" /> 2ª compra: {new Date(client.data_recompra).toLocaleDateString("pt-BR")}
+                                    </span>
+                                  )}
+                                  {client.dias_entre_compras != null && (
+                                    <Badge variant="outline" className="text-xs font-normal">
+                                      {client.dias_entre_compras} dias
+                                    </Badge>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
