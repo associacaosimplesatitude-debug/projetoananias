@@ -1,57 +1,75 @@
 
 
-# Filtrar Funil "Primeira Compra" a partir de Dez/2025 + Mostrar Valor e Data
+# Funil "Primeira Compra" direto de Pedidos Online (ebd_shopify_pedidos)
+
+## Contexto
+
+A etapa "Primeira Compra" do funil atualmente depende da tabela `ebd_pos_venda_ecommerce`, que nao tem todos os pedidos (faltam janeiro e fevereiro). A solucao e buscar direto da tabela `ebd_shopify_pedidos`, que ja tem todos os pedidos do e-commerce sincronizados.
+
+Para identificar primeira compra, usaremos a logica recomendada pela Shopify: verificar se o `customer_email` aparece pela primeira vez no sistema. Ou seja, o primeiro pedido daquele email e a "primeira compra".
+
+### Numeros atuais
+- **516** clientes fizeram sua primeira compra a partir de Dez/2025
+- **87** clientes ja tinham comprado antes de Dez/2025 (recorrentes)
 
 ## O que muda
 
-### 1. Filtro de data (a partir de 01/12/2025)
-Tanto na contagem dos cards quanto na listagem expandida, a etapa "Primeira Compra" passara a filtrar apenas registros de `ebd_pos_venda_ecommerce` cujo pedido associado (`ebd_shopify_pedidos`) tenha `created_at >= '2025-12-01'`.
+### Arquivo: `src/pages/vendedor/VendedorFunil.tsx`
 
-### 2. Exibir valor e data na lista
-Quando o usuario expandir o card "Primeira Compra", cada cliente mostrara:
-- Nome da igreja
-- Telefone
-- **Valor da compra** (ex: R$ 171,11)
-- **Data do pedido** (ex: 23/12/2025)
-- Status WhatsApp
+A etapa `compra_aprovada` deixa de consultar `ebd_pos_venda_ecommerce` e passa a consultar diretamente `ebd_shopify_pedidos`.
 
-### 3. Arquivo unico a editar
-`src/pages/vendedor/VendedorFunil.tsx`
-
----
-
-## Detalhes tecnicos
-
-### Interface `ClienteItem`
-Adicionar dois campos opcionais:
-- `valor_compra?: number`
-- `data_compra?: string`
-
-### Query de contagem (card)
-Adicionar filtro de data no JOIN com pedidos:
+### Logica de contagem (card)
 
 ```text
-// Buscar pedido_ids de pedidos a partir de 01/12/2025
-// Depois contar apenas os registros de pos_venda cujo pedido_id esta nessa lista
+1. Buscar todos os pedidos pagos (status_pagamento = 'paid') desde sempre
+2. Agrupar por customer_email e pegar a data do primeiro pedido (MIN created_at)
+3. Filtrar apenas os que tem primeiro pedido >= 01/12/2025
+4. Se nao for admin, filtrar por vendedor_id
+5. Contar o total
 ```
 
-Como a tabela `ebd_pos_venda_ecommerce` nao tem a data do pedido diretamente, a contagem precisara de uma abordagem em dois passos:
-1. Buscar IDs de pedidos com `created_at >= '2025-12-01'` em `ebd_shopify_pedidos`
-2. Contar registros em `ebd_pos_venda_ecommerce` onde `pedido_id` esta nessa lista e `status = 'pendente'`
+Como o Supabase JS nao suporta GROUP BY/HAVING diretamente, a abordagem sera:
+- Buscar pedidos pagos com `created_at >= '2025-12-01'`
+- Verificar se cada `customer_email` nao tem pedidos anteriores a Dez/2025 (ou usar uma abordagem com RPC/subquery)
+- Alternativa mais simples: buscar todos os pedidos e filtrar no JS quais emails aparecem pela primeira vez desde Dez/2025
 
-### Query de listagem expandida
-Para a etapa `compra_aprovada`:
-1. Buscar de `ebd_pos_venda_ecommerce` (status=pendente) com seus `pedido_id` e `cliente_id`
-2. Buscar de `ebd_shopify_pedidos` pelos `pedido_id` para obter `valor_total` e `created_at`, filtrando `created_at >= '2025-12-01'`
-3. Cruzar os resultados: so manter clientes cujo pedido e de dez/2025 em diante
-4. Buscar dados do cliente em `ebd_clientes`
+### Logica de listagem expandida
+
+Quando expandir o card, mostrar:
+- **Nome do cliente** (`customer_name`)
+- **Telefone** (`customer_phone`)
+- **Valor** (`valor_total`)
+- **Data** (`created_at`)
+- **Status WhatsApp** (mantido)
+- **Vendedor** (se admin view)
+
+### Abordagem tecnica (eficiente)
+
+Criar uma funcao SQL (RPC) no banco para fazer a query de forma eficiente:
+
+```sql
+-- Funcao que retorna primeira compra de cada cliente desde uma data
+-- Agrupa por email, pega MIN(created_at), filtra >= data_inicio
+-- Retorna os dados do pedido correspondente
+```
+
+Ou, se preferir manter tudo no frontend sem RPC:
+1. Buscar todos pedidos pagos desde Dez/2025 da `ebd_shopify_pedidos`
+2. No JS, agrupar por `customer_email`
+3. Para cada email, pegar apenas o primeiro pedido (menor `created_at`)
+4. Verificar se esse email NAO aparece em pedidos anteriores a Dez/2025
+5. Resultado: lista de primeiras compras
 
 ### Renderizacao
-Na lista expandida, quando `valor_compra` e `data_compra` existirem, exibir ao lado do nome:
 
 ```text
-Igreja Exemplo          R$ 294,36    28/12/2025    [Entregue]
-  51999999999
+AMANDA DE OLIVEIRA          R$ 78,98    14/02/2026    [Sem envio]
+  33991307574
 ```
 
-Valor formatado com `toLocaleString('pt-BR')` e data com `toLocaleDateString('pt-BR')`.
+## Resumo das alteracoes
+
+1. **Criar funcao SQL** `get_primeira_compra_funil` para consulta eficiente de primeiras compras
+2. **Editar** `src/pages/vendedor/VendedorFunil.tsx` - trocar a fonte de dados da etapa "Primeira Compra" de `ebd_pos_venda_ecommerce` para `ebd_shopify_pedidos` via RPC
+3. A contagem e a listagem passam a mostrar dados reais e completos (Dez/2025 ate hoje)
+
