@@ -1,64 +1,47 @@
 
-# Adicionar Periodo Personalizado ao Sincronizar Royalties
 
-## Problema
-Atualmente o botao de sincronizacao so oferece periodos fixos (30, 60, 90, 180 dias, desde Jan). Para sincronizacoes manuais pontuais, o usuario precisa de um seletor de datas personalizado.
+# Configurar Cron Job para Sincronizacao Automatica Diaria
 
-## Solucao
-Adicionar uma opcao "Periodo personalizado" no dropdown que abre um popover com dois date pickers (data inicio e data fim). A edge function ja recebe `days_back` e calcula as datas internamente, mas tambem aceita `dataInicialStr` e `dataFinalStr` na funcao `syncNFeBatch`. Vamos atualizar a edge function para aceitar datas customizadas diretamente.
+## O que ja esta pronto
+- Botao "Sincronizar" com opcao de periodo personalizado (datas de inicio e fim)
+- Edge function atualizada para aceitar datas customizadas
+- Configuracao de seguranca ajustada para permitir chamadas automaticas
 
-## Alteracoes
+## O que falta
+Executar o SQL no banco de dados para:
 
-### 1. Edge Function `bling-sync-royalties-sales/index.ts`
-- Aceitar parametros opcionais `data_inicio` e `data_fim` (formato YYYY-MM-DD) no body
-- Se fornecidos, usar essas datas ao inves de calcular via `days_back`
-- Manter compatibilidade: se nao enviados, funciona como antes com `days_back`
-
-### 2. Componente `BlingSyncButton.tsx`
-- Adicionar estado para controlar a abertura de um Dialog/Popover de periodo personalizado
-- Adicionar opcao "Periodo personalizado" no dropdown existente
-- Ao clicar, abrir um Dialog com dois date pickers (Data Inicio e Data Fim)
-- Botao "Sincronizar" no dialog que chama a funcao com as datas escolhidas
-- Usar os componentes Shadcn existentes: Dialog, Calendar, Popover
-- Calcular `days_back` a partir da diferenca entre as duas datas e enviar `data_inicio`/`data_fim` diretamente para a edge function
-
-### 3. Fluxo do usuario
-1. Clica no chevron do botao de sincronizar
-2. Ve as opcoes existentes + "Periodo personalizado"
-3. Ao clicar em "Periodo personalizado", abre um dialog
-4. Seleciona data inicio e data fim
-5. Clica "Sincronizar" e o processo roda normalmente com feedback de progresso
+1. **Habilitar extensoes** `pg_cron` e `pg_net` (necessarias para agendar tarefas)
+2. **Criar o agendamento** para rodar todos os dias as 00:00 (horario de Brasilia), sincronizando apenas os ultimos 2 dias de notas fiscais
 
 ## Detalhes Tecnicos
 
-### Parametros novos na Edge Function
+### SQL a ser executado
 ```text
-body: {
-  days_back?: number,      // existente
-  data_inicio?: string,    // novo (YYYY-MM-DD)
-  data_fim?: string,       // novo (YYYY-MM-DD)
-  max_nfes?: number,       // existente
-  skip?: number,           // existente
-}
+-- Habilitar extensoes
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+
+-- Agendar sync diario as 00:00 Brasilia (03:00 UTC)
+SELECT cron.schedule(
+  'sync-royalties-sales-daily',
+  '0 3 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/bling-sync-royalties-sales',
+    headers := '{"Content-Type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jY3lydmZudmpuZ2Z5ZnZnbnd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NjMzNzQsImV4cCI6MjA3OTAzOTM3NH0.X7KFK1yGyeD0wqHQXCCLDqh9YBixDXYl9qNzwY6LXCI"}'::jsonb,
+    body := '{"days_back":2,"max_nfes":500}'::jsonb
+  ) AS request_id;
+  $$
+);
 ```
 
-### Logica na Edge Function
-```text
-if (body.data_inicio && body.data_fim) {
-  dataInicialStr = body.data_inicio;
-  dataFinalStr = body.data_fim;
-} else {
-  // calculo existente com days_back
-}
-```
+### O que o cron faz
+- Roda automaticamente todo dia as 00:00 (Brasilia)
+- Busca apenas os ultimos 2 dias de notas fiscais (rapido, poucas NFes)
+- Insere automaticamente as novas vendas na tabela de royalties
+- Envia emails de notificacao para os autores quando ha novas vendas
 
-### Componentes utilizados
-- `Dialog` para o formulario de periodo
-- `Calendar` com `Popover` para os date pickers (padrao Shadcn)
-- `Button` para confirmar
+### Resultado final
+- Sincronizacao automatica diaria sem intervencao manual
+- Botao manual continua disponivel para sincronizacoes sob demanda com periodo personalizado
 
-## Tambem inclui
-- O cron job diario (conforme plano anterior aprovado):
-  - Habilitar extensoes `pg_cron` e `pg_net`
-  - Alterar `verify_jwt = false` no config.toml
-  - Criar cron schedule para rodar diariamente as 00:00 Brasilia
