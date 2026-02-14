@@ -386,17 +386,21 @@ Deno.serve(async (req) => {
     let daysBack = 30;
     let maxNfes = 50;
     let skipNfes = 0;
+    let customDataInicio: string | null = null;
+    let customDataFim: string | null = null;
     
     try {
       const body = await req.json();
       daysBack = body.days_back || 30;
       maxNfes = body.max_nfes || 500;
       skipNfes = body.skip || 0;
+      customDataInicio = body.data_inicio || null;
+      customDataFim = body.data_fim || null;
     } catch {
       // Use defaults
     }
 
-    console.log(`[Start] Syncing NFes from last ${daysBack} days (skip: ${skipNfes}, max: ${maxNfes})`);
+    console.log(`[Start] Syncing NFes (skip: ${skipNfes}, max: ${maxNfes})${customDataInicio ? ` custom range: ${customDataInicio} to ${customDataFim}` : ` last ${daysBack} days`}`);
 
     // Get Bling config
     const { data: configData, error: configError } = await supabase
@@ -431,12 +435,19 @@ Deno.serve(async (req) => {
     }
 
     // Calculate date range
-    const dataFinal = new Date();
-    const dataInicial = new Date();
-    dataInicial.setDate(dataInicial.getDate() - daysBack);
-    
-    const dataInicialStr = dataInicial.toISOString().split("T")[0];
-    const dataFinalStr = dataFinal.toISOString().split("T")[0];
+    let dataInicialStr: string;
+    let dataFinalStr: string;
+
+    if (customDataInicio && customDataFim) {
+      dataInicialStr = customDataInicio;
+      dataFinalStr = customDataFim;
+    } else {
+      const dataFinal = new Date();
+      const dataInicial = new Date();
+      dataInicial.setDate(dataInicial.getDate() - daysBack);
+      dataInicialStr = dataInicial.toISOString().split("T")[0];
+      dataFinalStr = dataFinal.toISOString().split("T")[0];
+    }
 
     // Sync batch
     const result = await syncNFeBatch(supabase, accessToken, bookMap, dataInicialStr, dataFinalStr, maxNfes, skipNfes);
