@@ -6024,6 +6024,22 @@ export type Database = {
       get_autor_id_by_user: { Args: { _user_id: string }; Returns: string }
       get_cliente_by_documento: { Args: { _documento: string }; Returns: Json }
       get_co_professor_ids: { Args: { p_user_id: string }; Returns: string[] }
+      get_primeira_compra_funil_count: {
+        Args: { p_vendedor_id?: string }
+        Returns: number
+      }
+      get_primeira_compra_funil_list: {
+        Args: { p_limit?: number; p_vendedor_id?: string }
+        Returns: {
+          created_at: string
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          id: string
+          valor_total: number
+          vendedor_id: string
+        }[]
+      }
       get_sales_channel_totals: {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: Json
