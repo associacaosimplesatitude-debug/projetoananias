@@ -22,6 +22,7 @@ interface ClienteItem {
   data_primeira_compra?: string;
   data_recompra?: string;
   dias_entre_compras?: number;
+  valor_primeira_compra?: number;
 }
 
 const stages = [
@@ -106,6 +107,7 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
         data_primeira_compra: r.data_primeira_compra || undefined,
         data_recompra: r.data_recompra || undefined,
         dias_entre_compras: r.dias_entre_compras != null ? Number(r.dias_entre_compras) : undefined,
+        valor_primeira_compra: r.valor_primeira_compra != null ? Number(r.valor_primeira_compra) : undefined,
       }));
     },
     enabled: !!expandedStage && (isAdminView || !!vendedor),
@@ -228,6 +230,11 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                                   {client.data_primeira_compra && (
                                     <span className="flex items-center gap-1">
                                       <Calendar className="h-3 w-3" /> 1ª compra: {new Date(client.data_primeira_compra).toLocaleDateString("pt-BR")}
+                                      {client.valor_primeira_compra != null && (
+                                        <span className="text-green-600 font-medium ml-1">
+                                          (R$ {client.valor_primeira_compra.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                                        </span>
+                                      )}
                                     </span>
                                   )}
                                   {client.data_recompra && (
