@@ -1,75 +1,63 @@
 
 
-# Funil "Primeira Compra" direto de Pedidos Online (ebd_shopify_pedidos)
+# Melhorias no Funil de Vendas
 
-## Contexto
+## 1. Corrigir logica das etapas usando `ultimo_login`
 
-A etapa "Primeira Compra" do funil atualmente depende da tabela `ebd_pos_venda_ecommerce`, que nao tem todos os pedidos (faltam janeiro e fevereiro). A solucao e buscar direto da tabela `ebd_shopify_pedidos`, que ja tem todos os pedidos do e-commerce sincronizados.
+A logica atual usa `status_ativacao_ebd` para determinar se o cliente fez login, o que e impreciso. A nova logica sera:
 
-Para identificar primeira compra, usaremos a logica recomendada pela Shopify: verificar se o `customer_email` aparece pela primeira vez no sistema. Ou seja, o primeiro pedido daquele email e a "primeira compra".
+- **Aguardando Login**: `ultimo_login IS NULL` (nunca logou, independente do status_ativacao)
+- **Pendente Config**: `ultimo_login IS NOT NULL` E `onboarding_concluido = false` (logou mas nao configurou)
+- **Ativos**: `ultimo_login IS NOT NULL` E `onboarding_concluido = true` E login nos ultimos 30 dias
 
-### Numeros atuais
-- **516** clientes fizeram sua primeira compra a partir de Dez/2025
-- **87** clientes ja tinham comprado antes de Dez/2025 (recorrentes)
+## 2. Mostrar email e senha de acesso na lista expandida
 
-## O que muda
+Os campos `email_superintendente` e `senha_temporaria` da tabela `ebd_clientes` serao exibidos na lista expandida de cada etapa (exceto "Primeira Compra" que vem de outra tabela).
+
+Exemplo de como ficara cada item da lista:
+
+```text
+ADVEC SAO JOAO DE MERITI
+  Tel: 21999999999
+  Email: gilsoncost5@gmail.com | Senha: mudar123
+  Ultimo login: nunca
+```
+
+## 3. Mostrar data do ultimo login
+
+Na lista expandida, exibir a data formatada do `ultimo_login` ou "Nunca" se for nulo.
+
+## 4. Mostrar valor total das primeiras compras
+
+No card "Primeira Compra", alem do numero de clientes, exibir o valor total somado (atualmente R$ 105.852,82). Sera necessario criar uma nova RPC ou ajustar a existente para retornar tambem o valor total.
+
+## 5. Novo layout visual tipo funil
+
+Trocar o layout atual de 5 cards lado a lado por um layout vertical em formato de funil, inspirado na imagem de referencia:
+
+- Cada etapa e uma barra horizontal com largura decrescente (de cima para baixo)
+- O numero fica dentro da barra, centralizado
+- O label/descricao fica ao lado direito, fora da barra
+- Cores degradando de vermelho/laranja no topo para verde na base
+- Ao clicar numa barra, expande a lista de clientes abaixo
+
+```text
+|========= 517 =========|  Primeira Compra (R$ 105.852)
+  |======= 355 =======|    Aguardando Login
+    |===== 140 =====|      Pendente Config.
+      |=== 2 ===|           Ativos
+        |= 0 =|            Zona de Renovacao
+```
+
+## Resumo tecnico das alteracoes
+
+### Banco de dados
+- Criar RPC `get_primeira_compra_funil_total` (ou ajustar a count existente) para retornar tambem a soma dos valores
 
 ### Arquivo: `src/pages/vendedor/VendedorFunil.tsx`
-
-A etapa `compra_aprovada` deixa de consultar `ebd_pos_venda_ecommerce` e passa a consultar diretamente `ebd_shopify_pedidos`.
-
-### Logica de contagem (card)
-
-```text
-1. Buscar todos os pedidos pagos (status_pagamento = 'paid') desde sempre
-2. Agrupar por customer_email e pegar a data do primeiro pedido (MIN created_at)
-3. Filtrar apenas os que tem primeiro pedido >= 01/12/2025
-4. Se nao for admin, filtrar por vendedor_id
-5. Contar o total
-```
-
-Como o Supabase JS nao suporta GROUP BY/HAVING diretamente, a abordagem sera:
-- Buscar pedidos pagos com `created_at >= '2025-12-01'`
-- Verificar se cada `customer_email` nao tem pedidos anteriores a Dez/2025 (ou usar uma abordagem com RPC/subquery)
-- Alternativa mais simples: buscar todos os pedidos e filtrar no JS quais emails aparecem pela primeira vez desde Dez/2025
-
-### Logica de listagem expandida
-
-Quando expandir o card, mostrar:
-- **Nome do cliente** (`customer_name`)
-- **Telefone** (`customer_phone`)
-- **Valor** (`valor_total`)
-- **Data** (`created_at`)
-- **Status WhatsApp** (mantido)
-- **Vendedor** (se admin view)
-
-### Abordagem tecnica (eficiente)
-
-Criar uma funcao SQL (RPC) no banco para fazer a query de forma eficiente:
-
-```sql
--- Funcao que retorna primeira compra de cada cliente desde uma data
--- Agrupa por email, pega MIN(created_at), filtra >= data_inicio
--- Retorna os dados do pedido correspondente
-```
-
-Ou, se preferir manter tudo no frontend sem RPC:
-1. Buscar todos pedidos pagos desde Dez/2025 da `ebd_shopify_pedidos`
-2. No JS, agrupar por `customer_email`
-3. Para cada email, pegar apenas o primeiro pedido (menor `created_at`)
-4. Verificar se esse email NAO aparece em pedidos anteriores a Dez/2025
-5. Resultado: lista de primeiras compras
-
-### Renderizacao
-
-```text
-AMANDA DE OLIVEIRA          R$ 78,98    14/02/2026    [Sem envio]
-  33991307574
-```
-
-## Resumo das alteracoes
-
-1. **Criar funcao SQL** `get_primeira_compra_funil` para consulta eficiente de primeiras compras
-2. **Editar** `src/pages/vendedor/VendedorFunil.tsx` - trocar a fonte de dados da etapa "Primeira Compra" de `ebd_pos_venda_ecommerce` para `ebd_shopify_pedidos` via RPC
-3. A contagem e a listagem passam a mostrar dados reais e completos (Dez/2025 ate hoje)
+1. **Corrigir queries** das etapas 2-4 para usar `ultimo_login IS NULL / IS NOT NULL` em vez de `status_ativacao_ebd`
+2. **Adicionar campos** `email_superintendente`, `senha_temporaria`, `ultimo_login` no select das etapas que consultam `ebd_clientes`
+3. **Exibir** email, senha e data do login na lista expandida
+4. **Buscar e exibir** o valor total das primeiras compras no card
+5. **Redesenhar** o layout dos cards para formato de funil vertical com barras de largura decrescente, numero dentro e descricao fora
 
