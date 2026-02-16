@@ -374,6 +374,38 @@ serve(async (req) => {
 
     console.log("Webhook processado: Pedido", order.name, "atribuído ao Vendedor:", finalVendedorId);
 
+    // === CRIAR ebd_clientes PARA CLIENTES NOVOS ===
+    if (!clienteId && statusPagamento === 'paid' && customerEmail) {
+      console.log("🆕 Cliente novo detectado - criando ebd_clientes para:", customerEmail);
+      const customerNameForInsert = order.customer
+        ? `${order.customer.first_name} ${order.customer.last_name}`.trim()
+        : null;
+      const customerPhoneForInsert = order.customer?.phone 
+        || order.shipping_address?.phone 
+        || order.billing_address?.phone 
+        || null;
+
+      const { data: newCliente, error: newClienteErr } = await supabase
+        .from("ebd_clientes")
+        .insert({
+          nome_igreja: customerNameForInsert || customerEmail,
+          nome_responsavel: customerNameForInsert,
+          email_superintendente: customerEmail,
+          telefone: customerPhoneForInsert,
+          vendedor_id: finalVendedorId,
+          is_pos_venda_ecommerce: true,
+        })
+        .select("id")
+        .single();
+
+      if (newClienteErr) {
+        console.error("❌ Erro ao criar novo ebd_clientes:", newClienteErr);
+      } else {
+        clienteId = newCliente.id;
+        console.log("✅ Novo ebd_clientes criado com ID:", clienteId);
+      }
+    }
+
     // Upsert the order in our database
     const orderData = {
       shopify_order_id: order.id,
