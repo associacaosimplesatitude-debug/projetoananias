@@ -1,90 +1,43 @@
 
 
-# Correcao: Criar ebd_clientes para novos compradores
+# Correcao definitiva + disparo manual do webhook
 
-## Problema Critico Encontrado
+## Problema
 
-O bug do fuzzy match foi corrigido, porem existe um **segundo problema**: o auto-provisioning (linha 549) so executa quando `clienteId` nao e null. Para um cliente completamente novo como `cayk500@gmail.com`, nenhuma das 3 buscas (email, CPF/CNPJ, nome) vai encontrar um registro existente, entao `clienteId` permanece `null` e o bloco inteiro e pulado.
+A variavel `customerEmail` e declarada com `const` na linha 281, **dentro** do bloco `if (!finalVendedorId)` (linhas 277-373). O codigo de criacao de novo cliente na linha 378 esta **fora** desse bloco e nao consegue acessar a variavel -- causando `ReferenceError: customerEmail is not defined`.
 
-```text
-Fluxo atual (QUEBRADO para clientes novos):
-  Busca email -> nao encontra
-  Busca CPF   -> nao encontra  
-  Busca nome  -> nao encontra (fix aplicado)
-  clienteId = null
-  if (customerEmail && clienteId) -> FALSE
-  Auto-provisioning PULADO!
-```
+Existem 3 declaracoes duplicadas de `customerEmail`:
+- Linha 281 (dentro do bloco de heranca de vendedor)
+- Linha 482 (dentro do bloco de propostas)
+- Linha 579 (dentro do bloco de auto-provisioning)
 
-## Acao
+## Correcao (1 unica acao)
 
-### 1. Adicionar criacao de ebd_clientes para clientes novos
-
-Apos a secao de heranca de vendedor (linha 373) e antes do upsert do pedido (linha 378), adicionar logica para criar um novo registro em `ebd_clientes` quando `clienteId` for null e o pagamento estiver confirmado:
+Adicionar **uma unica declaracao** de `customerEmail` no escopo principal, logo apos `customerPhone` (linha 233):
 
 ```javascript
-// Se nao encontrou cliente existente e pagamento confirmado, criar novo
-if (!clienteId && statusPagamento === 'paid' && customerEmail) {
-  const customerName = order.customer
-    ? `${order.customer.first_name} ${order.customer.last_name}`.trim()
-    : null;
-  const customerPhone = order.customer?.phone 
-    || order.shipping_address?.phone 
-    || order.billing_address?.phone 
-    || null;
-
-  const { data: newCliente, error: newClienteErr } = await supabase
-    .from("ebd_clientes")
-    .insert({
-      nome_igreja: customerName || customerEmail,
-      nome_responsavel: customerName,
-      email_superintendente: customerEmail,
-      telefone: customerPhone,
-      vendedor_id: finalVendedorId,
-      is_pos_venda_ecommerce: true,
-    })
-    .select("id")
-    .single();
-
-  if (newClienteErr) {
-    console.error("Erro ao criar novo ebd_clientes:", newClienteErr);
-  } else {
-    clienteId = newCliente.id;
-    console.log("Novo ebd_clientes criado:", clienteId);
-  }
-}
+const customerEmail = order.email || order.customer?.email;
 ```
 
-### 2. Limpar registro de teste (novamente)
+E converter as 3 declaracoes existentes (linhas 281, 482, 579) de `const customerEmail = ...` para simples comentarios ou remover, ja que a variavel estara disponivel no escopo superior.
 
-Deletar qualquer pedido que tenha sido criado com `cayk500@gmail.com` durante este ultimo teste.
+## Disparo manual do webhook
 
-### 3. Re-deploy da edge function
+Apos o deploy, chamar o webhook manualmente com os dados do pedido #2594 (order_id: 7160015159430, email: saudemaissimples@gmail.com, valor: 9.50, status: paid) para que o fluxo completo execute:
 
-Deploy da funcao corrigida para que o proximo teste funcione.
-
-## Resultado Esperado
-
-```text
-Fluxo corrigido:
-  Busca email -> nao encontra
-  Busca CPF   -> nao encontra
-  Busca nome  -> nao encontra
-  clienteId = null
-  NOVO: Cria ebd_clientes -> clienteId = uuid
-  Upsert pedido com clienteId
-  if (customerEmail && clienteId) -> TRUE
-  Auto-provisioning EXECUTA!
-    -> Cria usuario Auth + senha
-    -> Atualiza ebd_clientes com credenciais
-    -> Insere no funil (Fase 1)
-    -> Envia WhatsApp
-```
+1. Criar registro em `ebd_clientes` (cliente novo)
+2. Upsert do pedido em `ebd_shopify_pedidos`
+3. Criar usuario Auth + senha temporaria
+4. Disparar trigger do funil pos-venda (Fase 1)
+5. Enviar WhatsApp de boas-vindas
 
 ## Secao Tecnica
 
 - **Arquivo**: `supabase/functions/ebd-shopify-order-webhook/index.ts`
-- **Local da insercao**: Entre a linha 373 (fim da heranca de vendedor) e linha 378 (upsert do pedido)
-- **Condicao**: `!clienteId && statusPagamento === 'paid' && customerEmail`
-- **Tabela**: `ebd_clientes` - INSERT de novo registro
-- **Impacto**: Apenas clientes novos que nao existem em nenhuma tabela serao criados. Clientes existentes continuam sendo encontrados pelas buscas por email/CPF/nome
+- **Linha 233**: Adicionar `const customerEmail = order.email || order.customer?.email;`
+- **Linha 281**: Remover `const customerEmail = order.email || order.customer?.email;`
+- **Linha 482**: Remover `const customerEmail = order.email || order.customer?.email;`
+- **Linha 579**: Remover `const customerEmail = order.email || order.customer?.email;`
+- **Deploy**: Automatico apos edicao
+- **Webhook manual**: Chamar `ebd-shopify-order-webhook` via POST com payload simulando o pedido #2594 com topic `orders/paid`
+- **Dados do pedido**: id=7160015159430, order_number=2594, email=saudemaissimples@gmail.com, financial_status=paid, total_price=9.50, customer: Byanca Soares, phone: 11969910179
