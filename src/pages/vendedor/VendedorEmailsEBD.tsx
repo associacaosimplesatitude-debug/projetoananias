@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Send, History, Zap, Mail, Eye, Loader2, CheckCircle, XCircle, Clock, MousePointerClick, EyeIcon } from "lucide-react";
+import { Send, History, Zap, Mail, Eye, Loader2, CheckCircle, XCircle, Clock, MousePointerClick, EyeIcon, BarChart3 } from "lucide-react";
+import EmailMetricsTab from "@/components/admin/EmailMetricsTab";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -269,6 +270,12 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
             <Zap className="h-4 w-4" />
             Automáticos
           </TabsTrigger>
+          {isAdminView && (
+            <TabsTrigger value="metricas" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Métricas
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* === Aba Enviar === */}
@@ -561,6 +568,13 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
             </Card>
           </div>
         </TabsContent>
+
+        {/* === Aba Métricas (admin only) === */}
+        {isAdminView && (
+          <TabsContent value="metricas">
+            <EmailMetricsTab isAdminView={isAdminView} vendedorId={vendedor?.id} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Dialog para ver conteúdo do email */}
