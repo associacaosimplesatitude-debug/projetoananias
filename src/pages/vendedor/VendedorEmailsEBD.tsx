@@ -8,34 +8,46 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { Send, History, Zap, Mail, Eye, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-export default function VendedorEmailsEBD() {
-  const { vendedor } = useVendedor();
+interface Props {
+  isAdminView?: boolean;
+}
+
+export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
+  const vendedorHook = useVendedor();
+  const vendedor = isAdminView ? null : vendedorHook?.vendedor ?? null;
   const queryClient = useQueryClient();
   const [selectedCliente, setSelectedCliente] = useState<string>("");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [showPreview, setShowPreview] = useState(false);
+  const [emailContentHtml, setEmailContentHtml] = useState<string>("");
+  const [showEmailContent, setShowEmailContent] = useState(false);
 
-  // Fetch clientes do vendedor
+  // Fetch clientes - admin vê todos, vendedor vê os seus
   const { data: clientes = [] } = useQuery({
-    queryKey: ["ebd-clientes-vendedor", vendedor?.id],
+    queryKey: ["ebd-clientes-emails", isAdminView ? "all" : vendedor?.id],
     queryFn: async () => {
-      if (!vendedor?.id) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("ebd_clientes")
         .select("id, nome_igreja, nome_responsavel, email_superintendente")
-        .eq("vendedor_id", vendedor.id)
         .not("email_superintendente", "is", null)
         .order("nome_igreja");
+
+      if (!isAdminView && vendedor?.id) {
+        query = query.eq("vendedor_id", vendedor.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!vendedor?.id,
+    enabled: isAdminView || !!vendedor?.id,
   });
 
   // Fetch templates ativos
@@ -52,81 +64,94 @@ export default function VendedorEmailsEBD() {
     },
   });
 
-  // Fetch logs do vendedor
+  // Fetch logs - admin vê todos, vendedor vê os seus
   const { data: logs = [], isLoading: logsLoading } = useQuery({
-    queryKey: ["ebd-email-logs", vendedor?.id],
+    queryKey: ["ebd-email-logs", isAdminView ? "all" : vendedor?.id],
     queryFn: async () => {
-      if (!vendedor?.id) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("ebd_email_logs")
-        .select("*, template:ebd_email_templates(nome, codigo), cliente:ebd_clientes(nome_igreja)")
-        .eq("vendedor_id", vendedor.id)
+        .select("*, template:ebd_email_templates(nome, codigo, corpo_html), cliente:ebd_clientes(nome_igreja), vendedor:vendedores(nome)")
         .order("created_at", { ascending: false })
         .limit(100);
+
+      if (!isAdminView && vendedor?.id) {
+        query = query.eq("vendedor_id", vendedor.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!vendedor?.id,
+    enabled: isAdminView || !!vendedor?.id,
   });
 
   // Fetch stats automáticos
   const { data: autoStats } = useQuery({
-    queryKey: ["ebd-email-auto-stats", vendedor?.id],
+    queryKey: ["ebd-email-auto-stats", isAdminView ? "all" : vendedor?.id],
     queryFn: async () => {
-      if (!vendedor?.id) return { hoje: 0, semana: 0, mes: 0 };
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
+      const buildQuery = (startDate: string) => {
+        let q = supabase.from("ebd_email_logs").select("id", { count: "exact", head: true })
+          .eq("tipo_envio", "cron").gte("created_at", startDate);
+        if (!isAdminView && vendedor?.id) {
+          q = q.eq("vendedor_id", vendedor.id);
+        }
+        return q;
+      };
+
       const [hRes, wRes, mRes] = await Promise.all([
-        supabase.from("ebd_email_logs").select("id", { count: "exact", head: true })
-          .eq("vendedor_id", vendedor.id).eq("tipo_envio", "cron").gte("created_at", startOfDay),
-        supabase.from("ebd_email_logs").select("id", { count: "exact", head: true })
-          .eq("vendedor_id", vendedor.id).eq("tipo_envio", "cron").gte("created_at", startOfWeek),
-        supabase.from("ebd_email_logs").select("id", { count: "exact", head: true })
-          .eq("vendedor_id", vendedor.id).eq("tipo_envio", "cron").gte("created_at", startOfMonth),
+        buildQuery(startOfDay),
+        buildQuery(startOfWeek),
+        buildQuery(startOfMonth),
       ]);
 
       return { hoje: hRes.count || 0, semana: wRes.count || 0, mes: mRes.count || 0 };
     },
-    enabled: !!vendedor?.id,
+    enabled: isAdminView || !!vendedor?.id,
   });
 
   // Fetch próximos disparos
   const { data: proximosDisparos = [] } = useQuery({
-    queryKey: ["ebd-proximos-disparos", vendedor?.id],
+    queryKey: ["ebd-proximos-disparos", isAdminView ? "all" : vendedor?.id],
     queryFn: async () => {
-      if (!vendedor?.id) return [];
       const today = new Date();
       const in14days = new Date(today);
       in14days.setDate(in14days.getDate() + 14);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("ebd_clientes")
         .select("id, nome_igreja, nome_responsavel, data_proxima_compra")
-        .eq("vendedor_id", vendedor.id)
         .not("data_proxima_compra", "is", null)
         .gte("data_proxima_compra", today.toISOString().split("T")[0])
         .lte("data_proxima_compra", in14days.toISOString().split("T")[0])
         .order("data_proxima_compra");
+
+      if (!isAdminView && vendedor?.id) {
+        query = query.eq("vendedor_id", vendedor.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!vendedor?.id,
+    enabled: isAdminView || !!vendedor?.id,
   });
 
   // Enviar email
   const sendMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedCliente || !selectedTemplate || !vendedor?.id) {
+      if (!selectedCliente || !selectedTemplate) {
         throw new Error("Selecione cliente e template");
       }
       const { data, error } = await supabase.functions.invoke("send-ebd-email", {
         body: {
           clienteId: selectedCliente,
           templateCode: selectedTemplate,
-          vendedorId: vendedor.id,
+          vendedorId: vendedor?.id || null,
           tipoEnvio: "manual",
         },
       });
@@ -171,12 +196,34 @@ export default function VendedorEmailsEBD() {
     setShowPreview(true);
   };
 
+  // Ver conteúdo do email enviado
+  const handleViewEmailContent = (log: any) => {
+    const templateHtml = (log.template as any)?.corpo_html;
+    const dadosEnviados = log.dados_enviados as Record<string, any> | null;
+
+    if (!templateHtml) {
+      toast({ title: "Template não encontrado", variant: "destructive" });
+      return;
+    }
+
+    let html = templateHtml;
+    if (dadosEnviados) {
+      for (const [k, v] of Object.entries(dadosEnviados)) {
+        html = html.replace(new RegExp(`\\{${k}\\}`, "g"), String(v || ""));
+      }
+    }
+    setEmailContentHtml(html);
+    setShowEmailContent(true);
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">📧 Emails EBD</h1>
         <p className="text-muted-foreground">
-          Dispare emails para seus clientes e acompanhe os envios automáticos
+          {isAdminView
+            ? "Gerencie todos os emails EBD enviados por vendedores"
+            : "Dispare emails para seus clientes e acompanhe os envios automáticos"}
         </p>
       </div>
 
@@ -292,7 +339,9 @@ export default function VendedorEmailsEBD() {
           <Card>
             <CardHeader>
               <CardTitle>Histórico de Envios</CardTitle>
-              <CardDescription>Todos os emails enviados para seus clientes</CardDescription>
+              <CardDescription>
+                {isAdminView ? "Todos os emails enviados por todos os vendedores" : "Todos os emails enviados para seus clientes"}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {logsLoading ? (
@@ -307,10 +356,12 @@ export default function VendedorEmailsEBD() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Data</TableHead>
+                        {isAdminView && <TableHead>Vendedor</TableHead>}
                         <TableHead>Cliente</TableHead>
                         <TableHead>Template</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -319,6 +370,11 @@ export default function VendedorEmailsEBD() {
                           <TableCell className="text-sm whitespace-nowrap">
                             {format(new Date(log.created_at), "dd/MM/yy HH:mm", { locale: ptBR })}
                           </TableCell>
+                          {isAdminView && (
+                            <TableCell className="text-sm">
+                              {(log.vendedor as any)?.nome || "—"}
+                            </TableCell>
+                          )}
                           <TableCell className="text-sm">
                             {(log.cliente as any)?.nome_igreja || log.destinatario}
                           </TableCell>
@@ -340,6 +396,16 @@ export default function VendedorEmailsEBD() {
                                 <XCircle className="h-3 w-3 mr-1" /> Erro
                               </Badge>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewEmailContent(log)}
+                              disabled={!(log.template as any)?.corpo_html}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -424,6 +490,19 @@ export default function VendedorEmailsEBD() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog para ver conteúdo do email */}
+      <Dialog open={showEmailContent} onOpenChange={setShowEmailContent}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Conteúdo do Email</DialogTitle>
+          </DialogHeader>
+          <div
+            className="bg-white rounded-lg border p-0"
+            dangerouslySetInnerHTML={{ __html: emailContentHtml }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

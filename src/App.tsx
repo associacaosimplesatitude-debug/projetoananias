@@ -469,6 +469,8 @@ const App = () => (
                       <Route path="usuarios" element={<EBDSystemUsers />} />
                       <Route path="whatsapp" element={<WhatsAppPanel />} />
                       <Route path="funil" element={<VendedorFunil isAdminView />} />
+                      <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />
+                      <Route path="integracoes" element={<VendedorIntegracoes />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
@@ -515,15 +517,10 @@ const App = () => (
                       <Route path="parcelas" element={<VendedorParcelas />} />
                       <Route path="calculadora-peso" element={<VendedorCalculadoraPeso />} />
                       <Route path="shopify" element={<ShopifyPedidos />} />
-                      <Route path="emails-ebd" element={<VendedorEmailsEBD />} />
+                      
                       <Route path="funil" element={
                         <VendedorProtectedRoute vendedorOnly>
                           <VendedorFunil />
-                        </VendedorProtectedRoute>
-                      } />
-                      <Route path="integracoes" element={
-                        <VendedorProtectedRoute vendedorOnly>
-                          <VendedorIntegracoes />
                         </VendedorProtectedRoute>
                       } />
                       <Route path="tutoriais" element={<Tutoriais />} />
