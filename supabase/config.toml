@@ -284,3 +284,9 @@ verify_jwt = false
 
 [functions.ebd-email-tracker]
 verify_jwt = false
+
+[functions.whatsapp-link-tracker]
+verify_jwt = false
+
+[functions.funil-posv-cron]
+verify_jwt = false
