@@ -1,60 +1,28 @@
 
 
-# Correção: Exibir Código de Rastreio do Bling nos Pedidos
+# Limpeza de Registros para Teste: cayk500@gmail.com
 
-## Problema Identificado
+## Registros encontrados
 
-Os códigos de rastreio vindos da integração com o Bling estão sendo salvos corretamente no campo `codigo_rastreio_bling`, mas o frontend exibe apenas o campo `codigo_rastreio` (do Shopify), que está vazio para todos os pedidos. Resultado: a coluna "Rastreio" mostra "-" mesmo com rastreio disponível.
+- **auth.users**: 1 registro (ID: `1cfcf0fb-4bd7-4df8-8bf5-2c02b28c9efe`)
+- **profiles**: 1 registro (mesmo ID)
+- **ebd_clientes**: nenhum
+- **ebd_shopify_pedidos**: nenhum
+- **funil_posv_tracking**: nenhum
 
-**Dados confirmados no banco:**
-- Pedido #2266: `codigo_rastreio` = null, `codigo_rastreio_bling` = AB932227694BR
-- Pedido #2259: `codigo_rastreio` = null, `codigo_rastreio_bling` = AN488374125BR
-- (Todos os pedidos pagos seguem este padrão)
+## Acoes
 
-## Solução
+1. Deletar o usuario Auth via Edge Function `delete-user` ou diretamente via admin API (isso automaticamente remove o profile por cascade)
+2. Confirmar que todos os registros foram removidos
 
-Alterar o frontend para usar `codigo_rastreio_bling` como fallback quando `codigo_rastreio` estiver vazio. A prioridade sera: Shopify > Bling.
-
----
-
-## Arquivos a Alterar
-
-### 1. `src/components/vendedor/VendedorPedidosTab.tsx`
-
-**Interface ShopifyPedido** (linha ~59): Adicionar `codigo_rastreio_bling` ao tipo.
-
-**Coluna Rastreio na tabela** (linha ~743): Alterar a logica para usar `pedido.codigo_rastreio || pedido.codigo_rastreio_bling` em vez de apenas `pedido.codigo_rastreio`.
-
-Mesma correção na segunda tabela de pedidos cancelados/pendentes (linha ~1031).
-
-### 2. `src/components/vendedor/ShopifyPedidoDetailDialog.tsx`
-
-**Interface ShopifyPedido** (linha ~28): Adicionar `codigo_rastreio_bling` ao tipo.
-
-**Secao Rastreamento** (linha ~194): Alterar para exibir `pedido.codigo_rastreio || pedido.codigo_rastreio_bling`, e gerar URL de rastreio dos Correios automaticamente se for codigo Bling (formato BR).
-
-### 3. `src/components/admin/AdminPedidosTab.tsx`
-
-Mesma correção de fallback para a interface e exibicao na tabela admin.
-
----
+Assim, quando voce fizer a compra no Shopify com esse email, o webhook vai:
+- Criar o usuario Auth do zero
+- Gerar a senha temporaria
+- Atualizar o ebd_clientes
+- Inserir no funil pos-venda
+- Enviar o WhatsApp da Fase 1
 
 ## Secao Tecnica
 
-### Logica de fallback
-
-```typescript
-// Prioridade: Shopify > Bling
-const trackingCode = pedido.codigo_rastreio || pedido.codigo_rastreio_bling;
-const trackingUrl = pedido.url_rastreio || 
-  (pedido.codigo_rastreio_bling 
-    ? `https://www.linkcorreios.com.br/?id=${pedido.codigo_rastreio_bling}` 
-    : null);
-```
-
-### Resultado esperado
-
-- Pedidos com rastreio do Bling passarao a exibir o codigo como link clicavel para rastreamento nos Correios
-- Se o Shopify eventualmente fornecer rastreio, ele tera prioridade sobre o do Bling
-- Nenhuma alteracao no backend necessaria - os dados ja estao corretos no banco
+A limpeza sera feita chamando a Edge Function `delete-user` que ja existe no projeto, passando o `userId: "1cfcf0fb-4bd7-4df8-8bf5-2c02b28c9efe"`. Isso deleta o usuario do auth.users e o cascade remove o profile automaticamente.
 
