@@ -340,12 +340,19 @@ serve(async (req) => {
         if (nameError) {
           console.error("Error fetching clientes for name matching:", nameError);
         } else if (clientes && clientes.length > 0) {
-          const matchingCliente = clientes.find(c => 
-            c.nome_igreja?.toLowerCase().includes(customerName) ||
-            customerName.includes(c.nome_igreja?.toLowerCase() || '') ||
-            c.nome_superintendente?.toLowerCase().includes(customerName) ||
-            customerName.includes(c.nome_superintendente?.toLowerCase() || '')
-          );
+          const matchingCliente = clientes.find(c => {
+            const nomeIgreja = c.nome_igreja?.toLowerCase()?.trim();
+            const nomeSuperintendente = c.nome_superintendente?.toLowerCase()?.trim();
+            
+            return (
+              (nomeIgreja && nomeIgreja.length > 2 && (
+                nomeIgreja.includes(customerName) || customerName.includes(nomeIgreja)
+              )) ||
+              (nomeSuperintendente && nomeSuperintendente.length > 2 && (
+                nomeSuperintendente.includes(customerName) || customerName.includes(nomeSuperintendente)
+              ))
+            );
+          });
           
           if (matchingCliente?.vendedor_id) {
             finalVendedorId = matchingCliente.vendedor_id;
