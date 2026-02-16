@@ -1,43 +1,62 @@
 
 
-# Correcao definitiva + disparo manual do webhook
+# 4 Ajustes: Toggle de envio automatico, senha padrao, URLs corretas
 
-## Problema
+## 1. Botao Liga/Desliga para envio automatico de WhatsApp
 
-A variavel `customerEmail` e declarada com `const` na linha 281, **dentro** do bloco `if (!finalVendedorId)` (linhas 277-373). O codigo de criacao de novo cliente na linha 378 esta **fora** desse bloco e nao consegue acessar a variavel -- causando `ReferenceError: customerEmail is not defined`.
+Adicionar uma configuracao `whatsapp_auto_envio_ativo` na tabela `system_settings` e um botao toggle na pagina WhatsApp (/admin/ebd/whatsapp) na aba de Credenciais.
 
-Existem 3 declaracoes duplicadas de `customerEmail`:
-- Linha 281 (dentro do bloco de heranca de vendedor)
-- Linha 482 (dentro do bloco de propostas)
-- Linha 579 (dentro do bloco de auto-provisioning)
+- Quando desligado, tanto o `funil-posv-cron` quanto o envio automatico no `ebd-shopify-order-webhook` verificam essa flag antes de enviar qualquer mensagem.
+- O toggle sera um Switch com label claro "Envio Automatico de WhatsApp" na aba Credenciais.
 
-## Correcao (1 unica acao)
+## 2. Senha padrao fixa: `mudar123`
 
-Adicionar **uma unica declaracao** de `customerEmail` no escopo principal, logo apos `customerPhone` (linha 233):
+Substituir a geracao aleatoria de senha (`generateTempPassword(8)`) por uma senha fixa `mudar123` no arquivo `ebd-shopify-order-webhook/index.ts`.
 
-```javascript
-const customerEmail = order.email || order.customer?.email;
-```
+- Linha 592: trocar `const tempPassword = generateTempPassword(8);` por `const tempPassword = "mudar123";`
 
-E converter as 3 declaracoes existentes (linhas 281, 482, 579) de `const customerEmail = ...` para simples comentarios ou remover, ja que a variavel estara disponivel no escopo superior.
+## 3. Corrigir URL do painel nas mensagens
 
-## Disparo manual do webhook
+Substituir TODAS as ocorrencias de `https://gestaoebd.lovable.app` por `https://gestaoebd.com.br` nos seguintes arquivos:
 
-Apos o deploy, chamar o webhook manualmente com os dados do pedido #2594 (order_id: 7160015159430, email: saudemaissimples@gmail.com, valor: 9.50, status: paid) para que o fluxo completo execute:
+- `supabase/functions/whatsapp-link-tracker/index.ts` (linha 3: PANEL_URL)
+- `supabase/functions/funil-posv-cron/index.ts` (linha 10: PANEL_URL, linha 186: URL hardcoded)
+- `supabase/functions/ebd-email-cron/index.ts` (linhas 109-110)
+- `supabase/functions/send-ebd-email/index.ts` (linhas 83-84)
 
-1. Criar registro em `ebd_clientes` (cliente novo)
-2. Upsert do pedido em `ebd_shopify_pedidos`
-3. Criar usuario Auth + senha temporaria
-4. Disparar trigger do funil pos-venda (Fase 1)
-5. Enviar WhatsApp de boas-vindas
+E corrigir o redirect do `whatsapp-link-tracker` para apontar para `/login/ebd` em vez de `/ebd/painel` como destino padrao.
+
+## 4. Corrigir link do tracker nas mensagens do webhook
+
+No `ebd-shopify-order-webhook/index.ts` (linha 719-720), o link tracker usa a URL crua do Supabase. O redirect `r=/ebd/painel` precisa mudar para `r=/login/ebd` para que ao clicar o cliente va para a pagina de login correta em `gestaoebd.com.br/login/ebd`.
+
+Tambem no `funil-posv-cron/index.ts`, todos os `r=/ebd/painel` e `r=/ebd/escala` devem apontar para caminhos relativos corretos que o link-tracker redirecionara para `gestaoebd.com.br`.
 
 ## Secao Tecnica
 
-- **Arquivo**: `supabase/functions/ebd-shopify-order-webhook/index.ts`
-- **Linha 233**: Adicionar `const customerEmail = order.email || order.customer?.email;`
-- **Linha 281**: Remover `const customerEmail = order.email || order.customer?.email;`
-- **Linha 482**: Remover `const customerEmail = order.email || order.customer?.email;`
-- **Linha 579**: Remover `const customerEmail = order.email || order.customer?.email;`
-- **Deploy**: Automatico apos edicao
-- **Webhook manual**: Chamar `ebd-shopify-order-webhook` via POST com payload simulando o pedido #2594 com topic `orders/paid`
-- **Dados do pedido**: id=7160015159430, order_number=2594, email=saudemaissimples@gmail.com, financial_status=paid, total_price=9.50, customer: Byanca Soares, phone: 11969910179
+### Arquivos alterados:
+
+**Edge Functions (backend):**
+- `supabase/functions/ebd-shopify-order-webhook/index.ts`:
+  - Linha 592: senha fixa `mudar123`
+  - Linha 700+: verificar flag `whatsapp_auto_envio_ativo` antes de enviar
+  - Linha 720: `r=/ebd/painel` → `r=/login/ebd`
+- `supabase/functions/whatsapp-link-tracker/index.ts`:
+  - Linha 3: `PANEL_URL` → `https://gestaoebd.com.br`
+- `supabase/functions/funil-posv-cron/index.ts`:
+  - Linha 10: `PANEL_URL` → `https://gestaoebd.com.br`
+  - Linha 186: URL hardcoded → usar `PANEL_URL`
+  - Inicio: verificar flag `whatsapp_auto_envio_ativo`, se desligado retorna sem processar
+- `supabase/functions/ebd-email-cron/index.ts`:
+  - Linhas 109-110: URLs → `https://gestaoebd.com.br/login/ebd` e `.../vendedor/catalogo`
+- `supabase/functions/send-ebd-email/index.ts`:
+  - Linhas 83-84: mesma correcao de URLs
+
+**Frontend:**
+- `src/pages/admin/WhatsAppPanel.tsx`:
+  - Adicionar Switch toggle na aba Credenciais para ligar/desligar envio automatico
+  - Ler e salvar a key `whatsapp_auto_envio_ativo` em `system_settings`
+
+**Banco de dados:**
+- Inserir registro inicial: `INSERT INTO system_settings (key, value) VALUES ('whatsapp_auto_envio_ativo', 'true')` (ligado por padrao)
+
