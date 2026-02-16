@@ -4312,6 +4312,77 @@ export type Database = {
           },
         ]
       }
+      funil_posv_tracking: {
+        Row: {
+          cliente_id: string
+          concluido: boolean
+          created_at: string
+          fase_atual: number
+          fase1_enviada_em: string | null
+          fase1_link_clicado: boolean
+          fase1_link_clicado_em: string | null
+          fase2_enviada_em: string | null
+          fase2_link_clicado: boolean
+          fase2_link_clicado_em: string | null
+          fase3a_enviada_em: string | null
+          fase3b_enviada_em: string | null
+          fase4a_enviada_em: string | null
+          fase4b_enviada_em: string | null
+          fase5_enviada_em: string | null
+          id: string
+          ultima_mensagem_em: string | null
+          updated_at: string
+        }
+        Insert: {
+          cliente_id: string
+          concluido?: boolean
+          created_at?: string
+          fase_atual?: number
+          fase1_enviada_em?: string | null
+          fase1_link_clicado?: boolean
+          fase1_link_clicado_em?: string | null
+          fase2_enviada_em?: string | null
+          fase2_link_clicado?: boolean
+          fase2_link_clicado_em?: string | null
+          fase3a_enviada_em?: string | null
+          fase3b_enviada_em?: string | null
+          fase4a_enviada_em?: string | null
+          fase4b_enviada_em?: string | null
+          fase5_enviada_em?: string | null
+          id?: string
+          ultima_mensagem_em?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cliente_id?: string
+          concluido?: boolean
+          created_at?: string
+          fase_atual?: number
+          fase1_enviada_em?: string | null
+          fase1_link_clicado?: boolean
+          fase1_link_clicado_em?: string | null
+          fase2_enviada_em?: string | null
+          fase2_link_clicado?: boolean
+          fase2_link_clicado_em?: string | null
+          fase3a_enviada_em?: string | null
+          fase3b_enviada_em?: string | null
+          fase4a_enviada_em?: string | null
+          fase4b_enviada_em?: string | null
+          fase5_enviada_em?: string | null
+          id?: string
+          ultima_mensagem_em?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funil_posv_tracking_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: true
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lancamentos_contabeis: {
         Row: {
           church_id: string
