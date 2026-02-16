@@ -1,54 +1,53 @@
 
 
-# Rastreamento de Abertura e Cliques nos Emails EBD
+# Dashboard de Metricas de Emails com Graficos
 
 ## Resumo
 
-Adicionar rastreamento de abertura (open tracking) e cliques em links (click tracking) nos emails enviados, exibindo essas informacoes tanto no historico quanto nos cards da aba "Automaticos".
+Adicionar uma nova aba "Metricas" na pagina Emails EBD (`/admin/ebd/emails-ebd`) com graficos de volume de envios por dia e por semana, alem de taxas de abertura e clique ao longo do tempo.
 
 ## Alteracoes
 
-### 1. Banco de dados -- novos campos na tabela `ebd_email_logs`
+### 1. Nova aba "Metricas" no componente VendedorEmailsEBD.tsx
 
-Adicionar 4 colunas:
-- `email_aberto` (boolean, default false)
-- `data_abertura` (timestamptz, nullable)
-- `link_clicado` (boolean, default false)
-- `data_clique` (timestamptz, nullable)
+Adicionar uma 4a aba chamada "Metricas" (com icone BarChart3) ao TabsList existente, ao lado de "Disparar Email", "Historico" e "Automaticos".
 
-### 2. Edge Function -- `ebd-email-tracker`
+### 2. Query de dados para os graficos
 
-Criar uma nova Edge Function que recebe requisicoes GET com parametros para registrar aberturas e cliques:
+Buscar os logs dos ultimos 30 dias agrupados por dia, calculando:
+- Total de envios por dia
+- Total de aberturas por dia
+- Total de cliques por dia
 
-- **Abertura**: `GET /ebd-email-tracker?type=open&logId=xxx` -- retorna um pixel transparente 1x1 (imagem GIF) e atualiza `email_aberto=true` e `data_abertura=now()` no log
-- **Clique**: `GET /ebd-email-tracker?type=click&logId=xxx&url=https://...` -- atualiza `link_clicado=true` e `data_clique=now()` no log, e redireciona o usuario para a URL original
+A query vai buscar todos os `ebd_email_logs` dos ultimos 30 dias e agrupar no frontend por data (usando `format(created_at, 'dd/MM')`).
 
-### 3. Injecao do tracking nos emails enviados
+### 3. Graficos usando Recharts (ja instalado)
 
-Nas Edge Functions `send-ebd-email` e `ebd-email-cron`, apos montar o HTML final e ANTES de enviar via Resend:
-- Inserir o log no banco primeiro (para obter o `logId`)
-- Adicionar um `<img>` pixel de tracking no final do corpo HTML apontando para a funcao tracker
-- Reescrever os links `<a href="...">` no HTML para apontar para a funcao tracker com redirect
+Dois graficos principais:
 
-### 4. Frontend -- Historico (tabela)
+**Grafico 1 -- Envios por dia (ultimos 30 dias)**
+- Grafico de barras (BarChart) com eixo X = dia, eixo Y = quantidade
+- Barras empilhadas: abertos (verde), nao abertos (cinza)
 
-Na tabela de historico, adicionar duas novas colunas apos "Status":
-- **Aberto**: icone de olho verde se `email_aberto=true` com tooltip mostrando a data/hora, cinza se nao
-- **Clicou**: icone de cursor/link verde se `link_clicado=true` com tooltip mostrando data/hora, cinza se nao
+**Grafico 2 -- Taxa de abertura e clique por semana**
+- Grafico de linhas (LineChart) com 2 linhas
+- Linha 1: taxa de abertura (%)
+- Linha 2: taxa de clique (%)
+- Eixo X = semana (ex: "Sem 1", "Sem 2"...)
 
-### 5. Frontend -- Aba Automaticos (cards)
+### 4. Cards resumo no topo da aba
 
-Adicionar dois novos cards de estatisticas alem dos 3 existentes (Hoje/Semana/Mes):
-- **Taxa de Abertura**: percentual de emails com `email_aberto=true` sobre o total enviado (no periodo do mes)
-- **Taxa de Clique**: percentual de emails com `link_clicado=true` sobre o total enviado (no periodo do mes)
+Quatro cards compactos no topo da aba Metricas:
+- Total de emails (30 dias)
+- Taxa de abertura geral (%)
+- Taxa de clique geral (%)
+- Media de envios/dia
 
-Os cards existentes passam de grid-cols-3 para grid-cols-5 (ou 2 linhas em mobile).
+### 5. Detalhes tecnicos
 
-### Sequencia de implementacao
-
-1. Migracao do banco (adicionar colunas)
-2. Criar Edge Function `ebd-email-tracker`
-3. Atualizar `send-ebd-email` para inserir log antes e injetar pixel + rewrite de links
-4. Atualizar `ebd-email-cron` com a mesma logica de tracking
-5. Atualizar frontend `VendedorEmailsEBD.tsx` com colunas e cards novos
+- Usar os componentes `ChartContainer`, `ChartTooltip`, `ChartTooltipContent` ja existentes em `src/components/ui/chart.tsx`
+- Usar `Card`, `CardHeader`, `CardTitle`, `CardContent` existentes
+- O `TabsList` passa de 4 itens (grid-cols-4 em mobile se necessario)
+- A aba so aparece quando `isAdminView = true` (apenas admin ve metricas)
+- Responsividade: graficos em stack vertical no mobile, lado a lado no desktop
 
