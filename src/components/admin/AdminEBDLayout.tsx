@@ -28,6 +28,7 @@ import {
   BookMarked,
   MessageSquare,
   Filter,
+  Mail,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -408,6 +409,22 @@ function AdminSidebar() {
                     <RouterNavLink to="/admin/ebd/whatsapp">
                       <MessageSquare className="h-4 w-4" />
                       <span>WhatsApp</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/emails-ebd')}>
+                    <RouterNavLink to="/admin/ebd/emails-ebd">
+                      <Mail className="h-4 w-4" />
+                      <span>Emails EBD</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/integracoes')}>
+                    <RouterNavLink to="/admin/ebd/integracoes">
+                      <Settings className="h-4 w-4" />
+                      <span>Integrações</span>
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
