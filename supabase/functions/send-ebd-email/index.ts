@@ -80,8 +80,8 @@ const handler = async (req: Request): Promise<Response> => {
       nome_igreja: cliente.nome_igreja,
       vendedor_nome: vendedor?.nome || "Equipe Central Gospel",
       vendedor_telefone: vendedor?.email || "",
-      link_painel: "https://gestaoebd.lovable.app/login/ebd",
-      link_catalogo: "https://gestaoebd.lovable.app/vendedor/catalogo",
+      link_painel: "https://gestaoebd.com.br/login/ebd",
+      link_catalogo: "https://gestaoebd.com.br/vendedor/catalogo",
       data_proxima_compra: cliente.data_proxima_compra 
         ? new Date(cliente.data_proxima_compra).toLocaleDateString("pt-BR") 
         : "N/A",

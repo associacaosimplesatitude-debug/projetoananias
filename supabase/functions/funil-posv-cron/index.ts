@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const TRACKER_BASE_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-link-tracker";
-const PANEL_URL = "https://gestaoebd.lovable.app";
+const PANEL_URL = "https://gestaoebd.com.br";
 
 interface ClienteTracking {
   id: string;
@@ -47,10 +47,19 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Buscar credenciais Z-API
-    const { data: settings } = await supabase
+      const { data: settings } = await supabase
       .from("system_settings")
       .select("key, value")
-      .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token"]);
+      .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token", "whatsapp_auto_envio_ativo"]);
+
+    // Verificar flag de envio automático
+    const autoEnvioSetting = (settings || []).find((s: { key: string; value: string }) => s.key === "whatsapp_auto_envio_ativo");
+    if (autoEnvioSetting && autoEnvioSetting.value === "false") {
+      return new Response(
+        JSON.stringify({ message: "Envio automático de WhatsApp está desativado", processed: 0 }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const settingsMap: Record<string, string> = {};
     (settings || []).forEach((s: { key: string; value: string }) => {
@@ -134,7 +143,7 @@ Deno.serve(async (req) => {
         const hoursElapsed = (now.getTime() - fase1Date.getTime()) / (1000 * 60 * 60);
         
         if (hoursElapsed >= 48 && !cliente.ultimo_login) {
-          const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=2&r=/ebd/painel`;
+          const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=2&r=/login/ebd`;
           mensagem = `Olá ${nome}! Seu pedido já está sendo preparado.\n\nVocê sabia que pode acompanhar tudo em tempo real pelo painel? Ainda não vimos seu acesso.\n\nEntre agora com:\nEmail: ${email}\nSenha: ${senha}\n\n${trackLink}\n\nGanhe até ${desconto}% de desconto na próxima compra respondendo apenas 3 perguntas rápidas após o login!`;
           faseUpdate = { fase2_enviada_em: now.toISOString(), fase_atual: 2, ultima_mensagem_em: now.toISOString() };
           novaFase = 2;
@@ -143,7 +152,7 @@ Deno.serve(async (req) => {
 
       // === Detectar login → FASE 3A ===
       if ((tracking.fase_atual === 1 || tracking.fase_atual === 2) && cliente.ultimo_login && !tracking.fase3a_enviada_em) {
-        const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=3&r=/ebd/painel`;
+        const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=3&r=/login/ebd`;
         mensagem = `Parabéns ${nome}! Você acessou o painel com sucesso!\n\nAgora complete 3 perguntas rápidas e ganhe até ${desconto}% de desconto na sua próxima compra. Leva menos de 2 minutos!\n\n${trackLink}`;
         faseUpdate = { fase3a_enviada_em: now.toISOString(), fase_atual: 3, ultima_mensagem_em: now.toISOString() };
         novaFase = 3;
@@ -155,7 +164,7 @@ Deno.serve(async (req) => {
         const daysElapsed = (now.getTime() - fase3aDate.getTime()) / (1000 * 60 * 60 * 24);
         
         if (daysElapsed >= 3) {
-          const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=3&r=/ebd/painel`;
+          const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=3&r=/login/ebd`;
           mensagem = `${nome}, falta pouco para garantir seu desconto de até ${desconto}%!\n\nVocê só precisa responder 3 perguntinhas rápidas. Não perca essa oportunidade!\n\n${trackLink}`;
           faseUpdate = { fase3b_enviada_em: now.toISOString(), ultima_mensagem_em: now.toISOString() };
         }
@@ -183,7 +192,7 @@ Deno.serve(async (req) => {
 
       // === Detectar escala criada → FASE 5 ===
       if (tracking.fase_atual === 4 && clientesComEscala.has(tracking.cliente_id) && !tracking.fase5_enviada_em) {
-        mensagem = `Parabéns ${nome}! Sua EBD está 100% configurada no sistema!\n\nAgora você pode acompanhar frequência, devocionais, ranking de alunos e muito mais. Tudo automático!\n\nSeu desconto de ${desconto}% está disponível para a próxima compra. Aproveite!\n\nhttps://gestaoebd.lovable.app/ebd/painel`;
+        mensagem = `Parabéns ${nome}! Sua EBD está 100% configurada no sistema!\n\nAgora você pode acompanhar frequência, devocionais, ranking de alunos e muito mais. Tudo automático!\n\nSeu desconto de ${desconto}% está disponível para a próxima compra. Aproveite!\n\n${PANEL_URL}/login/ebd`;
         faseUpdate = { fase5_enviada_em: now.toISOString(), fase_atual: 5, concluido: true, ultima_mensagem_em: now.toISOString() };
         novaFase = 5;
       }

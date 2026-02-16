@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
 import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -59,6 +60,10 @@ function CredentialsTab() {
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [loadingDevice, setLoadingDevice] = useState(false);
 
+  // Auto envio toggle
+  const [autoEnvio, setAutoEnvio] = useState(true);
+  const [loadingAutoEnvio, setLoadingAutoEnvio] = useState(false);
+
   const { data: settings, isLoading } = useQuery({
     queryKey: ["system-settings-zapi"],
     queryFn: async () => {
@@ -73,6 +78,19 @@ function CredentialsTab() {
     },
   });
 
+  const { data: autoEnvioSetting } = useQuery({
+    queryKey: ["system-settings-auto-envio"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "whatsapp_auto_envio_ativo")
+        .maybeSingle();
+      if (error) throw error;
+      return data?.value !== "false";
+    },
+  });
+
   useState(() => {
     if (settings) {
       setInstanceId(settings["zapi_instance_id"] || "");
@@ -80,6 +98,10 @@ function CredentialsTab() {
       setClientToken(settings["zapi_client_token"] || "");
     }
   });
+
+  useEffect(() => {
+    if (autoEnvioSetting !== undefined) setAutoEnvio(autoEnvioSetting);
+  }, [autoEnvioSetting]);
 
   const currentInstanceId = instanceId || settings?.["zapi_instance_id"] || "";
   const currentToken = token || settings?.["zapi_token"] || "";
@@ -122,10 +144,39 @@ function CredentialsTab() {
     }
   };
 
+  const toggleAutoEnvio = async (checked: boolean) => {
+    setLoadingAutoEnvio(true);
+    try {
+      await supabase
+        .from("system_settings")
+        .upsert({ key: "whatsapp_auto_envio_ativo", value: checked ? "true" : "false", description: "Liga/desliga envio automático de WhatsApp", updated_at: new Date().toISOString() }, { onConflict: "key" });
+      setAutoEnvio(checked);
+      queryClient.invalidateQueries({ queryKey: ["system-settings-auto-envio"] });
+      toast.success(checked ? "Envio automático ativado" : "Envio automático desativado");
+    } catch (err: any) {
+      toast.error("Erro: " + err.message);
+    } finally {
+      setLoadingAutoEnvio(false);
+    }
+  };
+
   if (isLoading) return <div className="flex items-center justify-center p-8 text-muted-foreground">Carregando...</div>;
+
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Envio Automático de WhatsApp</CardTitle>
+              <CardDescription>Controle o envio automático de mensagens do funil pós-venda e notificações de pedidos.</CardDescription>
+            </div>
+            <Switch checked={autoEnvio} onCheckedChange={toggleAutoEnvio} disabled={loadingAutoEnvio} />
+          </div>
+        </CardHeader>
+      </Card>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

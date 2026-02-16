@@ -1,13 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const PANEL_URL = "https://gestaoebd.lovable.app";
+const PANEL_URL = "https://gestaoebd.com.br";
 
 Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const clienteId = url.searchParams.get("c");
     const fase = url.searchParams.get("f");
-    const redirect = url.searchParams.get("r") || "/ebd/painel";
+    const redirect = url.searchParams.get("r") || "/login/ebd";
 
     if (!clienteId) {
       return new Response("Parâmetro inválido", { status: 400 });
