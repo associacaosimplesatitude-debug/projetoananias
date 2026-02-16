@@ -107,6 +107,18 @@ async function fetchFulfillmentData(orderId: number): Promise<{ trackingNumber: 
   }
 }
 
+// Generate a random temporary password
+function generateTempPassword(length = 8): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let password = '';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  for (const byte of array) {
+    password += chars[byte % chars.length];
+  }
+  return password;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -522,9 +534,220 @@ serve(async (req) => {
         console.log("No matching proposal found for order:", order.id, "value:", valorTotal);
       }
 
+      // ===================================================================
+      // AUTO-PROVISIONING: Criar usuário + funil pós-venda para pedidos pagos
+      // ===================================================================
+      const customerEmail = order.email || order.customer?.email;
+      
+      if (customerEmail && clienteId) {
+        console.log("=== AUTO PROVISIONING START ===");
+        
+        // Verificar se o cliente já tem superintendente_user_id (evitar recriar)
+        const { data: clienteCheck } = await supabase
+          .from("ebd_clientes")
+          .select("id, superintendente_user_id, telefone, nome_responsavel, nome_igreja, email_superintendente, senha_temporaria")
+          .eq("id", clienteId)
+          .maybeSingle();
+        
+        if (clienteCheck && !clienteCheck.superintendente_user_id) {
+          console.log("Cliente sem usuário, provisionando automaticamente:", clienteId);
+          
+          // a) Gerar senha temporária
+          const tempPassword = generateTempPassword(8);
+          console.log("Senha temporária gerada para:", customerEmail);
+          
+          // b) Criar usuário Auth via REST API Admin
+          let newUserId: string | null = null;
+          const customerName = order.customer
+            ? `${order.customer.first_name} ${order.customer.last_name}`.trim()
+            : "Superintendente";
+          
+          try {
+            const authResponse = await fetch(
+              `${SUPABASE_URL}/auth/v1/admin/users`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                  "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                },
+                body: JSON.stringify({
+                  email: customerEmail,
+                  password: tempPassword,
+                  email_confirm: true,
+                  user_metadata: { full_name: customerName },
+                }),
+              }
+            );
+            
+            const authData = await authResponse.json();
+            
+            if (authResponse.ok && authData?.id) {
+              newUserId = authData.id;
+              console.log("✅ Usuário Auth criado:", newUserId);
+            } else if (authData?.msg?.includes("already been registered") || authData?.message?.includes("already been registered")) {
+              // Usuário já existe, buscar ID e atualizar senha
+              console.log("Usuário já existe, buscando e atualizando senha...");
+              const lookupResp = await fetch(
+                `${SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(customerEmail)}`,
+                {
+                  headers: {
+                    "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                    "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                  },
+                }
+              );
+              const lookupData = await lookupResp.json();
+              const existingUser = lookupData?.users?.find((u: { email: string }) => u.email === customerEmail);
+              
+              if (existingUser?.id) {
+                newUserId = existingUser.id;
+                // Atualizar senha
+                await fetch(
+                  `${SUPABASE_URL}/auth/v1/admin/users/${existingUser.id}`,
+                  {
+                    method: "PUT",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                      "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                    },
+                    body: JSON.stringify({ password: tempPassword }),
+                  }
+                );
+                console.log("✅ Senha atualizada para usuário existente:", newUserId);
+              }
+            } else {
+              console.error("❌ Erro ao criar usuário Auth:", authData);
+            }
+          } catch (authErr) {
+            console.error("❌ Exceção ao criar usuário Auth:", authErr);
+          }
+          
+          // c) Atualizar ebd_clientes com credenciais
+          if (newUserId) {
+            const { error: updateClienteErr } = await supabase
+              .from("ebd_clientes")
+              .update({
+                superintendente_user_id: newUserId,
+                email_superintendente: customerEmail,
+                senha_temporaria: tempPassword,
+                status_ativacao_ebd: true,
+                is_pos_venda_ecommerce: true,
+              })
+              .eq("id", clienteId);
+            
+            if (updateClienteErr) {
+              console.error("Erro ao atualizar ebd_clientes:", updateClienteErr);
+            } else {
+              console.log("✅ ebd_clientes atualizado com credenciais");
+            }
+            
+            // d) Inserir no funil_posv_tracking
+            const { error: funilErr } = await supabase
+              .from("funil_posv_tracking")
+              .upsert(
+                { cliente_id: clienteId, fase_atual: 1 },
+                { onConflict: "cliente_id", ignoreDuplicates: true }
+              );
+            
+            if (funilErr) {
+              console.error("Erro ao inserir funil_posv_tracking:", funilErr);
+            } else {
+              console.log("✅ funil_posv_tracking inserido (fase 1)");
+            }
+            
+            // e) Enviar WhatsApp Fase 1 imediatamente
+            const telefoneCliente = clienteCheck.telefone || order.customer?.phone || (order.shipping_address?.phone) || null;
+            
+            if (telefoneCliente) {
+              console.log("Enviando WhatsApp Fase 1 para:", telefoneCliente);
+              
+              // Buscar credenciais Z-API
+              const { data: zapiSettings } = await supabase
+                .from("system_settings")
+                .select("key, value")
+                .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token"]);
+              
+              const zapiMap: Record<string, string> = {};
+              (zapiSettings || []).forEach((s: { key: string; value: string }) => {
+                zapiMap[s.key] = s.value;
+              });
+              
+              const instanceId = zapiMap["zapi_instance_id"];
+              const zapiToken = zapiMap["zapi_token"];
+              const clientToken = zapiMap["zapi_client_token"];
+              
+              if (instanceId && zapiToken && clientToken) {
+                const TRACKER_BASE = "https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-link-tracker";
+                const trackLink = `${TRACKER_BASE}?c=${clienteId}&f=1&r=/ebd/painel`;
+                const nomeCliente = clienteCheck.nome_responsavel || clienteCheck.nome_igreja || customerName;
+                
+                const fase1Msg = `Olá ${nomeCliente}! Seja bem-vindo(a) ao Painel EBD! 🎉\n\nSeu pedido foi confirmado e seu acesso ao sistema já está liberado.\n\nAcesse agora:\nEmail: ${customerEmail}\nSenha: ${tempPassword}\n\n${trackLink}\n\nAcompanhe seu pedido, gerencie sua EBD e muito mais!`;
+                
+                const zapiBaseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
+                const zapiPayload = { phone: telefoneCliente, message: fase1Msg };
+                
+                try {
+                  const zapiResp = await fetch(`${zapiBaseUrl}/send-text`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Client-Token": clientToken,
+                    },
+                    body: JSON.stringify(zapiPayload),
+                  });
+                  
+                  const zapiResult = await zapiResp.json();
+                  const whatsappOk = zapiResp.ok;
+                  
+                  // Registrar mensagem
+                  await supabase.from("whatsapp_mensagens").insert({
+                    tipo_mensagem: "funil_fase1_auto",
+                    telefone_destino: telefoneCliente,
+                    nome_destino: nomeCliente,
+                    mensagem: fase1Msg,
+                    status: whatsappOk ? "enviado" : "erro",
+                    erro_detalhes: whatsappOk ? null : JSON.stringify(zapiResult),
+                    payload_enviado: zapiPayload,
+                    resposta_recebida: zapiResult,
+                  });
+                  
+                  // Atualizar tracking com fase1_enviada_em
+                  if (whatsappOk) {
+                    const nowISO = new Date().toISOString();
+                    await supabase
+                      .from("funil_posv_tracking")
+                      .update({
+                        fase1_enviada_em: nowISO,
+                        ultima_mensagem_em: nowISO,
+                      })
+                      .eq("cliente_id", clienteId);
+                    
+                    console.log("✅ WhatsApp Fase 1 enviado e tracking atualizado");
+                  } else {
+                    console.error("❌ Falha ao enviar WhatsApp Fase 1:", zapiResult);
+                  }
+                } catch (whatsappErr) {
+                  console.error("❌ Exceção ao enviar WhatsApp:", whatsappErr);
+                }
+              } else {
+                console.log("⚠️ Credenciais Z-API não configuradas, WhatsApp não enviado");
+              }
+            } else {
+              console.log("⚠️ Cliente sem telefone, WhatsApp não enviado");
+            }
+          }
+        } else if (clienteCheck?.superintendente_user_id) {
+          console.log("Cliente já possui usuário, pulando auto-provisioning:", clienteCheck.superintendente_user_id);
+        }
+        
+        console.log("=== AUTO PROVISIONING END ===");
+      }
+
       // AUTO-UPDATE LANDING PAGE LEADS
       // If a lead from landing page made a purchase, automatically move to "Fechou"
-      const customerEmail = order.email || order.customer?.email;
       if (customerEmail) {
         console.log("=== LEAD KANBAN UPDATE START ===");
         console.log("Looking for landing page lead with email:", customerEmail);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -23,11 +23,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, AlertTriangle } from "lucide-react";
 import { format, addWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Cliente {
   id: string;
@@ -61,6 +62,8 @@ export function AtivarClienteDialog({
   onSuccess,
 }: AtivarClienteDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [isShopifyClient, setIsShopifyClient] = useState<boolean | null>(null);
+  const [checkingShopify, setCheckingShopify] = useState(true);
   const [formData, setFormData] = useState({
     email_superintendente: cliente.email_superintendente || "",
     nome_superintendente: cliente.nome_superintendente || "",
@@ -68,6 +71,32 @@ export function AtivarClienteDialog({
     dia_aula: "Domingo",
     data_inicio_ebd: undefined as Date | undefined,
   });
+
+  // Verificar se o cliente veio do Shopify
+  useEffect(() => {
+    if (!open) return;
+    
+    setCheckingShopify(true);
+    const checkShopifyOrigin = async () => {
+      try {
+        const { data: pedidoShopify } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select("id")
+          .eq("cliente_id", cliente.id)
+          .eq("status_pagamento", "paid")
+          .limit(1)
+          .maybeSingle();
+
+        setIsShopifyClient(!!pedidoShopify);
+      } catch {
+        setIsShopifyClient(false);
+      } finally {
+        setCheckingShopify(false);
+      }
+    };
+
+    checkShopifyOrigin();
+  }, [open, cliente.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +113,6 @@ export function AtivarClienteDialog({
 
     setLoading(true);
     try {
-      // Verificar se o usuário tem uma sessão válida antes de chamar a edge function
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session) {
         toast.error("Sua sessão expirou. Por favor, faça login novamente.");
@@ -92,13 +120,9 @@ export function AtivarClienteDialog({
         return;
       }
 
-      // Calculate next purchase date (13 weeks from start date)
       const dataProximaCompra = addWeeks(formData.data_inicio_ebd, 13);
-
-      // Usar a senha definida pelo vendedor
       const tempPassword = formData.senha;
 
-      // 1. Create the superintendent user via edge function (and link to cliente)
       const { data: userData, error: userError } = await supabase.functions.invoke(
         "create-ebd-user",
         {
@@ -113,7 +137,6 @@ export function AtivarClienteDialog({
 
       if (userError || !userData?.userId) {
         console.error("Error creating user:", userError, userData);
-        // Verificar se é erro de autenticação
         const errorMessage = userError?.message || userData?.error || "";
         if (errorMessage.toLowerCase().includes("unauthorized") || errorMessage.toLowerCase().includes("auth")) {
           toast.error("Sessão expirada. Por favor, faça login novamente.");
@@ -124,7 +147,6 @@ export function AtivarClienteDialog({
         return;
       }
 
-      // 2. Update the cliente record (redundant com a função, mas garante dados locais)
       const { error: updateError } = await supabase
         .from("ebd_clientes")
         .update({
@@ -134,7 +156,6 @@ export function AtivarClienteDialog({
           data_inicio_ebd: format(formData.data_inicio_ebd, "yyyy-MM-dd"),
           data_proxima_compra: format(dataProximaCompra, "yyyy-MM-dd"),
           status_ativacao_ebd: true,
-          // Remover da lista de pós-venda ao ativar painel
           is_pos_venda_ecommerce: false,
           superintendente_user_id: userData.userId,
           senha_temporaria: tempPassword,
@@ -143,7 +164,6 @@ export function AtivarClienteDialog({
 
       if (updateError) throw updateError;
 
-      // 2.5. Atualizar status na tabela pivô ebd_pos_venda_ecommerce (se existir)
       try {
         await (supabase as any)
           .from("ebd_pos_venda_ecommerce")
@@ -152,10 +172,8 @@ export function AtivarClienteDialog({
           .eq("status", "pendente");
       } catch (pivotError) {
         console.error("Erro ao atualizar status na tabela pivô (não crítico):", pivotError);
-        // Não é crítico, continuar mesmo se falhar
       }
 
-      // 3. Send welcome email
       try {
         await supabase.functions.invoke("send-welcome-email", {
           body: {
@@ -166,7 +184,6 @@ export function AtivarClienteDialog({
         });
       } catch (emailError) {
         console.error("Error sending welcome email:", emailError);
-        // Continue anyway
       }
 
       toast.success("Cliente ativado com sucesso! E-mail de boas-vindas enviado.");
@@ -191,124 +208,135 @@ export function AtivarClienteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="nome_superintendente">Nome do Superintendente</Label>
-            <Input
-              id="nome_superintendente"
-              value={formData.nome_superintendente}
-              onChange={(e) =>
-                setFormData({ ...formData, nome_superintendente: e.target.value })
-              }
-              placeholder="Nome completo"
-            />
-          </div>
+        {checkingShopify ? (
+          <p className="text-sm text-muted-foreground py-4">Verificando origem do cliente...</p>
+        ) : isShopifyClient ? (
+          <Alert variant="destructive" className="my-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Este cliente realizou compra pelo e-commerce (Shopify). A ativação do painel e criação de usuário/senha é feita <strong>automaticamente</strong> no momento da confirmação do pagamento. Não é possível ativar manualmente.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nome_superintendente">Nome do Superintendente</Label>
+              <Input
+                id="nome_superintendente"
+                value={formData.nome_superintendente}
+                onChange={(e) =>
+                  setFormData({ ...formData, nome_superintendente: e.target.value })
+                }
+                placeholder="Nome completo"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email_superintendente">E-mail do Superintendente *</Label>
-            <Input
-              id="email_superintendente"
-              type="email"
-              value={formData.email_superintendente}
-              onChange={(e) =>
-                setFormData({ ...formData, email_superintendente: e.target.value })
-              }
-              placeholder="email@igreja.com"
-              required
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="email_superintendente">E-mail do Superintendente *</Label>
+              <Input
+                id="email_superintendente"
+                type="email"
+                value={formData.email_superintendente}
+                onChange={(e) =>
+                  setFormData({ ...formData, email_superintendente: e.target.value })
+                }
+                placeholder="email@igreja.com"
+                required
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="senha">Senha de Acesso *</Label>
-            <Input
-              id="senha"
-              type="text"
-              value={formData.senha}
-              onChange={(e) =>
-                setFormData({ ...formData, senha: e.target.value })
-              }
-              placeholder="Mínimo 6 caracteres"
-              required
-              minLength={6}
-            />
-            <p className="text-xs text-muted-foreground">
-              Esta senha será usada para o primeiro acesso ao painel
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Dia da Aula *</Label>
-            <Select
-              value={formData.dia_aula}
-              onValueChange={(value) =>
-                setFormData({ ...formData, dia_aula: value })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o dia" />
-              </SelectTrigger>
-              <SelectContent>
-                {DIAS_AULA.map((dia) => (
-                  <SelectItem key={dia} value={dia}>
-                    {dia}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Data de Início da EBD *</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !formData.data_inicio_ebd && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.data_inicio_ebd ? (
-                    format(formData.data_inicio_ebd, "dd/MM/yyyy", { locale: ptBR })
-                  ) : (
-                    <span>Selecione a data</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={formData.data_inicio_ebd}
-                  onSelect={(date) =>
-                    setFormData({ ...formData, data_inicio_ebd: date })
-                  }
-                  initialFocus
-                  locale={ptBR}
-                />
-              </PopoverContent>
-            </Popover>
-            {formData.data_inicio_ebd && (
+            <div className="space-y-2">
+              <Label htmlFor="senha">Senha de Acesso *</Label>
+              <Input
+                id="senha"
+                type="text"
+                value={formData.senha}
+                onChange={(e) =>
+                  setFormData({ ...formData, senha: e.target.value })
+                }
+                placeholder="Mínimo 6 caracteres"
+                required
+                minLength={6}
+              />
               <p className="text-xs text-muted-foreground">
-                Próxima compra prevista: {format(addWeeks(formData.data_inicio_ebd, 13), "dd/MM/yyyy", { locale: ptBR })}
+                Esta senha será usada para o primeiro acesso ao painel
               </p>
-            )}
-          </div>
+            </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Ativando..." : "Ativar Painel EBD"}
-            </Button>
-          </div>
-        </form>
+            <div className="space-y-2">
+              <Label>Dia da Aula *</Label>
+              <Select
+                value={formData.dia_aula}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, dia_aula: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o dia" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIAS_AULA.map((dia) => (
+                    <SelectItem key={dia} value={dia}>
+                      {dia}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Data de Início da EBD *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.data_inicio_ebd && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.data_inicio_ebd ? (
+                      format(formData.data_inicio_ebd, "dd/MM/yyyy", { locale: ptBR })
+                    ) : (
+                      <span>Selecione a data</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.data_inicio_ebd}
+                    onSelect={(date) =>
+                      setFormData({ ...formData, data_inicio_ebd: date })
+                    }
+                    initialFocus
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+              {formData.data_inicio_ebd && (
+                <p className="text-xs text-muted-foreground">
+                  Próxima compra prevista: {format(addWeeks(formData.data_inicio_ebd, 13), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Ativando..." : "Ativar Painel EBD"}
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
