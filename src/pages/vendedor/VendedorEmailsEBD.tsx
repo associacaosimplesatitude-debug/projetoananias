@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Send, History, Zap, Mail, Eye, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Send, History, Zap, Mail, Eye, Loader2, CheckCircle, XCircle, Clock, MousePointerClick, EyeIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -103,13 +104,40 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
         return q;
       };
 
-      const [hRes, wRes, mRes] = await Promise.all([
+      // Tracking stats for the month
+      const buildTrackingQuery = () => {
+        let q = supabase.from("ebd_email_logs")
+          .select("id, email_aberto, link_clicado")
+          .eq("status", "enviado")
+          .gte("created_at", startOfMonth);
+        if (!isAdminView && vendedor?.id) {
+          q = q.eq("vendedor_id", vendedor.id);
+        }
+        return q;
+      };
+
+      const [hRes, wRes, mRes, trackingRes] = await Promise.all([
         buildQuery(startOfDay),
         buildQuery(startOfWeek),
         buildQuery(startOfMonth),
+        buildTrackingQuery(),
       ]);
 
-      return { hoje: hRes.count || 0, semana: wRes.count || 0, mes: mRes.count || 0 };
+      const trackingData = trackingRes.data || [];
+      const totalEnviados = trackingData.length;
+      const totalAbertos = trackingData.filter((l: any) => l.email_aberto).length;
+      const totalClicados = trackingData.filter((l: any) => l.link_clicado).length;
+
+      return {
+        hoje: hRes.count || 0,
+        semana: wRes.count || 0,
+        mes: mRes.count || 0,
+        taxaAbertura: totalEnviados > 0 ? Math.round((totalAbertos / totalEnviados) * 100) : 0,
+        taxaClique: totalEnviados > 0 ? Math.round((totalClicados / totalEnviados) * 100) : 0,
+        totalAbertos,
+        totalClicados,
+        totalEnviados,
+      };
     },
     enabled: isAdminView || !!vendedor?.id,
   });
@@ -361,6 +389,8 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
                         <TableHead>Template</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Aberto</TableHead>
+                        <TableHead>Clicou</TableHead>
                         <TableHead>Ações</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -398,6 +428,34 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
                             )}
                           </TableCell>
                           <TableCell>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <EyeIcon className={`h-4 w-4 ${log.email_aberto ? "text-green-600" : "text-muted-foreground/40"}`} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {log.email_aberto
+                                    ? `Aberto em ${format(new Date(log.data_abertura), "dd/MM/yy HH:mm", { locale: ptBR })}`
+                                    : "Não aberto"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                          <TableCell>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <MousePointerClick className={`h-4 w-4 ${log.link_clicado ? "text-green-600" : "text-muted-foreground/40"}`} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {log.link_clicado
+                                    ? `Clicou em ${format(new Date(log.data_clique), "dd/MM/yy HH:mm", { locale: ptBR })}`
+                                    : "Não clicou"}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                          <TableCell>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -421,7 +479,7 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
         <TabsContent value="automaticos">
           <div className="space-y-4">
             {/* Stats cards */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <Card>
                 <CardContent className="pt-6 text-center">
                   <p className="text-3xl font-bold">{autoStats?.hoje || 0}</p>
@@ -438,6 +496,20 @@ export default function VendedorEmailsEBD({ isAdminView = false }: Props) {
                 <CardContent className="pt-6 text-center">
                   <p className="text-3xl font-bold">{autoStats?.mes || 0}</p>
                   <p className="text-sm text-muted-foreground">Este mês</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <p className="text-3xl font-bold text-green-600">{autoStats?.taxaAbertura || 0}%</p>
+                  <p className="text-sm text-muted-foreground">Taxa de Abertura</p>
+                  <p className="text-xs text-muted-foreground">{autoStats?.totalAbertos || 0}/{autoStats?.totalEnviados || 0}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <p className="text-3xl font-bold text-blue-600">{autoStats?.taxaClique || 0}%</p>
+                  <p className="text-sm text-muted-foreground">Taxa de Clique</p>
+                  <p className="text-xs text-muted-foreground">{autoStats?.totalClicados || 0}/{autoStats?.totalEnviados || 0}</p>
                 </CardContent>
               </Card>
             </div>
