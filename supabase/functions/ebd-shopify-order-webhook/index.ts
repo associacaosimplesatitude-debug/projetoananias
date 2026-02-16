@@ -231,6 +231,7 @@ serve(async (req) => {
 
     // Extract phone from order
     const customerPhone = order.customer?.phone || shippingAddr?.phone || null;
+    const customerEmail = order.email || order.customer?.email;
 
     // ===================================================================
     // GARANTIA DE ATRIBUIÇÃO DE VENDEDOR
@@ -278,7 +279,6 @@ serve(async (req) => {
       console.log("=== HERANÇA DE VENDEDOR ===");
       console.log("Pedido sem vendedor, buscando vendedor do cliente cadastrado...");
       
-      const customerEmail = order.email || order.customer?.email;
       console.log("Email do cliente:", customerEmail);
       console.log("CPF/CNPJ do pedido:", cpfCnpj);
       
@@ -479,7 +479,6 @@ serve(async (req) => {
       
       // Method 2: If not found by cliente_id, try to find by customer email and value
       if (!matchingPropostaId && (order.email || order.customer?.email)) {
-        const customerEmail = order.email || order.customer?.email;
         console.log("Trying to find proposal by email:", customerEmail);
         
         // First find the cliente by email
@@ -576,8 +575,6 @@ serve(async (req) => {
       // ===================================================================
       // AUTO-PROVISIONING: Criar usuário + funil pós-venda para pedidos pagos
       // ===================================================================
-      const customerEmail = order.email || order.customer?.email;
-      
       if (customerEmail && clienteId) {
         console.log("=== AUTO PROVISIONING START ===");
         
