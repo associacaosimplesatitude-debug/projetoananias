@@ -1,28 +1,31 @@
 
 
-# Limpeza de Registros para Teste: cayk500@gmail.com
+# Limpeza Completa: cayk500@gmail.com
 
-## Registros encontrados
+## O que precisa ser deletado
 
-- **auth.users**: 1 registro (ID: `1cfcf0fb-4bd7-4df8-8bf5-2c02b28c9efe`)
-- **profiles**: 1 registro (mesmo ID)
-- **ebd_clientes**: nenhum
-- **ebd_shopify_pedidos**: nenhum
-- **funil_posv_tracking**: nenhum
+| Tabela | Registro | Status |
+|--------|----------|--------|
+| auth.users | Nenhum | Ja limpo |
+| profiles | Nenhum | Ja limpo |
+| ebd_clientes | Nenhum com esse email | Ja limpo |
+| funil_posv_tracking | Nenhum | Ja limpo |
+| **ebd_shopify_pedidos** | `fcbcd403-0eec-4c10-907b-08cede02cee9` | **DELETAR** |
 
-## Acoes
+## Acao
 
-1. Deletar o usuario Auth via Edge Function `delete-user` ou diretamente via admin API (isso automaticamente remove o profile por cascade)
-2. Confirmar que todos os registros foram removidos
+1. Deletar o pedido `fcbcd403-0eec-4c10-907b-08cede02cee9` da tabela `ebd_shopify_pedidos`
+2. Confirmar que nao resta nenhum registro associado a `cayk500@gmail.com` em nenhuma tabela
 
-Assim, quando voce fizer a compra no Shopify com esse email, o webhook vai:
-- Criar o usuario Auth do zero
-- Gerar a senha temporaria
-- Atualizar o ebd_clientes
-- Inserir no funil pos-venda
-- Enviar o WhatsApp da Fase 1
+## Resultado esperado
+
+Quando voce fizer a proxima compra no Shopify com `cayk500@gmail.com`, o webhook vai executar o fluxo completo:
+- Criar usuario Auth com senha temporaria
+- Criar/atualizar registro em `ebd_clientes`
+- Inserir no funil pos-venda (Fase 1)
+- Enviar mensagem WhatsApp de boas-vindas
 
 ## Secao Tecnica
 
-A limpeza sera feita chamando a Edge Function `delete-user` que ja existe no projeto, passando o `userId: "1cfcf0fb-4bd7-4df8-8bf5-2c02b28c9efe"`. Isso deleta o usuario do auth.users e o cascade remove o profile automaticamente.
+Sera executado um DELETE na tabela `ebd_shopify_pedidos` filtrando pelo ID do pedido. Nenhum outro registro precisa ser removido pois as demais tabelas ja estao limpas.
 
