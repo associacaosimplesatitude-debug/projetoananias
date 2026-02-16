@@ -1,21 +1,40 @@
 
-# Mostrar valor da primeira compra na etapa Recompra
+# Mover Integracoes e Emails EBD para o Admin Geral
 
 ## O que muda
 
-Na lista expandida da etapa "Recompra", alem das datas e dias entre compras, cada cliente passara a mostrar tambem o **valor da primeira compra** (vindo do pedido Shopify original).
+1. **Menu "Integracoes"** sai do menu do vendedor (/vendedor/integracoes) e vai para o Admin EBD (/admin/ebd/integracoes), acessivel apenas para admin e gerente_ebd
+2. **Menu "Emails EBD"** sai do menu do vendedor (/vendedor/emails-ebd) e vai para o Admin EBD (/admin/ebd/emails-ebd), acessivel para admin e gerente_ebd
+3. Ambos os itens serao removidos do sidebar do vendedor
 
 ## Alteracoes tecnicas
 
-### 1. Banco de dados -- atualizar RPC `get_funil_stage_list`
+### 1. Rotas (App.tsx)
 
-No case `recompra`, o CTE `first_buyers` ja faz join com o pedido original e tem acesso ao `p.valor_total`. Basta:
-- Carregar esse valor atraves dos CTEs (`first_buyers` -> `matched` -> `recompra_clients`)
-- Retornar como `valor_primeira_compra` no SELECT final
+- Remover as rotas `/vendedor/emails-ebd` e `/vendedor/integracoes` do bloco de rotas do vendedor
+- Adicionar as rotas `/admin/ebd/emails-ebd` e `/admin/ebd/integracoes` dentro do bloco `<AdminEBDLayout>`
+- O componente VendedorEmailsEBD precisara ser adaptado para nao depender do hook `useVendedor()` (que so funciona para vendedores logados), carregando todos os logs em vez de filtrar por vendedor
+- O componente VendedorIntegracoes pode ser reutilizado diretamente pois ja usa `system_settings` global
 
-### 2. Frontend -- `VendedorFunil.tsx`
+### 2. Sidebar do Admin EBD (AdminEBDLayout.tsx)
 
-- Adicionar campo `valor_primeira_compra` na interface `ClienteItem`
-- Mapear o novo campo no parsing da RPC
-- Na renderizacao da etapa "recompra", exibir o valor da primeira compra com icone de cifrao, similar ao valor de recompra ja exibido
-- Layout: mostrar ambos os valores lado a lado ou empilhados para facil comparacao
+- Adicionar dois novos itens de menu na secao "Configuracoes":
+  - "Emails EBD" com icone Mail, link para `/admin/ebd/emails-ebd`
+  - "Integracoes" com icone Settings, link para `/admin/ebd/integracoes`
+- Ambos visiveis apenas para admin e gerente_ebd (nao para financeiro)
+
+### 3. Sidebar do Vendedor (VendedorLayout.tsx)
+
+- Remover as entradas `emails-ebd` e `integracoes` do array de menu items
+
+### 4. Pagina Emails EBD (VendedorEmailsEBD.tsx)
+
+- Remover a dependencia do `useVendedor()` -- a versao admin deve mostrar TODOS os logs, de todos os vendedores
+- Na aba de historico, adicionar coluna "Vendedor" para identificar qual vendedor disparou
+- A aba "Disparar Email" no admin deve permitir selecionar qualquer cliente (nao filtrado por vendedor)
+- Renomear o componente para refletir o contexto admin (ou manter reutilizavel com prop)
+
+### 5. Conteudo dos emails no historico
+
+- Na tabela de historico, adicionar um botao "Ver" em cada linha que abre um dialog/modal com o HTML renderizado do email (usando o campo `dados_enviados` do log + template para reconstruir, ou armazenando o HTML final)
+- Isso permitira inspecionar o conteudo exato de cada email enviado
