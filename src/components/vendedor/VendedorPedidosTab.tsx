@@ -57,6 +57,7 @@ interface ShopifyPedido {
   customer_name: string | null;
   created_at: string;
   codigo_rastreio: string | null;
+  codigo_rastreio_bling: string | null;
   url_rastreio: string | null;
   shopify_cancelled_at?: string | null;
 }
@@ -740,23 +741,17 @@ export function VendedorPedidosTab({ vendedorId }: VendedorPedidosTabProps) {
                         {getShopifyStatusBadge(pedido.status_pagamento, pedido.shopify_cancelled_at)}
                       </TableCell>
                       <TableCell>
-                        {pedido.codigo_rastreio ? (
-                          pedido.url_rastreio ? (
-                            <a 
-                              href={pedido.url_rastreio} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              {pedido.codigo_rastreio}
+                        {(() => {
+                          const trackingCode = pedido.codigo_rastreio || pedido.codigo_rastreio_bling;
+                          const trackingUrl = pedido.url_rastreio || (pedido.codigo_rastreio_bling ? `https://www.linkcorreios.com.br/?id=${pedido.codigo_rastreio_bling}` : null);
+                          if (!trackingCode) return <span className="text-muted-foreground">-</span>;
+                          return trackingUrl ? (
+                            <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
+                              {trackingCode}
                               <ExternalLink className="h-3 w-3" />
                             </a>
-                          ) : (
-                            <span>{pedido.codigo_rastreio}</span>
-                          )
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                          ) : <span>{trackingCode}</span>;
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

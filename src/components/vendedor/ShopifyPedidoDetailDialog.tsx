@@ -34,6 +34,7 @@ interface ShopifyPedido {
   customer_name: string | null;
   created_at: string;
   codigo_rastreio: string | null;
+  codigo_rastreio_bling: string | null;
   url_rastreio: string | null;
 }
 
@@ -195,18 +196,29 @@ export function ShopifyPedidoDetailDialog({ open, onOpenChange, pedido }: Shopif
           </div>
 
           {/* Rastreio */}
-          {pedido.codigo_rastreio && (
-            <>
-              <Separator />
-              <div>
-                <h4 className="font-semibold flex items-center gap-2 mb-2">
-                  <Truck className="h-4 w-4" />
-                  Rastreamento
-                </h4>
-                <p className="font-mono bg-muted p-2 rounded">{pedido.codigo_rastreio}</p>
-              </div>
-            </>
-          )}
+          {(() => {
+            const trackingCode = pedido.codigo_rastreio || pedido.codigo_rastreio_bling;
+            const trackingUrl = pedido.url_rastreio || (pedido.codigo_rastreio_bling ? `https://www.linkcorreios.com.br/?id=${pedido.codigo_rastreio_bling}` : null);
+            if (!trackingCode) return null;
+            return (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="font-semibold flex items-center gap-2 mb-2">
+                    <Truck className="h-4 w-4" />
+                    Rastreamento
+                  </h4>
+                  {trackingUrl ? (
+                    <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="font-mono bg-muted p-2 rounded block text-blue-600 hover:underline">
+                      {trackingCode} ↗
+                    </a>
+                  ) : (
+                    <p className="font-mono bg-muted p-2 rounded">{trackingCode}</p>
+                  )}
+                </div>
+              </>
+            );
+          })()}
 
           {/* IDs técnicos */}
           <div className="text-xs text-muted-foreground space-y-1">
