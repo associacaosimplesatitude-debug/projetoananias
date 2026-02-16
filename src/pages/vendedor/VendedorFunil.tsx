@@ -4,10 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShoppingCart, LogIn, Settings, CheckCircle, AlertTriangle, Phone, MessageSquare, DollarSign, Calendar, Mail, Lock, Clock, ChevronDown, Star } from "lucide-react";
+import { ShoppingCart, LogIn, Settings, CheckCircle, AlertTriangle, Phone, MessageSquare, DollarSign, Calendar, Mail, Lock, Clock, ChevronDown, Star, Zap } from "lucide-react";
 import { useVendedor } from "@/hooks/useVendedor";
 
 type FunnelStage = "compra_aprovada" | "aguardando_login" | "pendente_config" | "ativos" | "zona_renovacao" | "recompra";
+
+interface FunilTracking {
+  fase_atual: number;
+  fase1_link_clicado: boolean;
+  concluido: boolean;
+  ultima_mensagem_em: string | null;
+}
 
 interface ClienteItem {
   id: string;
@@ -23,7 +30,24 @@ interface ClienteItem {
   data_recompra?: string;
   dias_entre_compras?: number;
   valor_primeira_compra?: number;
+  funil_tracking?: FunilTracking | null;
 }
+
+const faseLabels: Record<number, string> = {
+  1: "Bem-vindo",
+  2: "Lembrete Login",
+  3: "Onboarding",
+  4: "Config. Escala",
+  5: "Ativo",
+};
+
+const faseColors: Record<number, string> = {
+  1: "bg-blue-500",
+  2: "bg-orange-500",
+  3: "bg-yellow-500",
+  4: "bg-purple-500",
+  5: "bg-emerald-500",
+};
 
 const stages = [
   { key: "compra_aprovada" as FunnelStage, label: "Primeira Compra", icon: ShoppingCart, color: "bg-red-500", widthPercent: 100 },
@@ -92,7 +116,12 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
 
       const rows = (data as any[]) || [];
       const phones = rows.map((r: any) => r.telefone).filter(Boolean) as string[];
-      const whatsappMap = await fetchWhatsAppStatuses(phones);
+      const clienteIds = rows.map((r: any) => r.id).filter(Boolean) as string[];
+      
+      const [whatsappMap, trackingMap] = await Promise.all([
+        fetchWhatsAppStatuses(phones),
+        fetchFunilTracking(clienteIds),
+      ]);
 
       return rows.map((r: any) => ({
         id: r.id,
@@ -108,6 +137,7 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
         data_recompra: r.data_recompra || undefined,
         dias_entre_compras: r.dias_entre_compras != null ? Number(r.dias_entre_compras) : undefined,
         valor_primeira_compra: r.valor_primeira_compra != null ? Number(r.valor_primeira_compra) : undefined,
+        funil_tracking: clienteIds.length > 0 ? trackingMap[r.id] || null : null,
       }));
     },
     enabled: !!expandedStage && (isAdminView || !!vendedor),
@@ -203,6 +233,20 @@ export default function VendedorFunil({ isAdminView = false }: VendedorFunilProp
                                 <MessageSquare className="h-3 w-3 text-muted-foreground" />
                                 {getWhatsAppBadge(client.whatsapp_status)}
                               </div>
+                              {client.funil_tracking && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Zap className="h-3 w-3 text-muted-foreground" />
+                                  <Badge className={`${faseColors[client.funil_tracking.fase_atual] || "bg-gray-500"} text-white text-xs`}>
+                                    F{client.funil_tracking.fase_atual}: {faseLabels[client.funil_tracking.fase_atual] || "?"}
+                                  </Badge>
+                                  {client.funil_tracking.fase1_link_clicado && (
+                                    <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-300">Clicou</Badge>
+                                  )}
+                                  {client.funil_tracking.concluido && (
+                                    <Badge className="bg-emerald-600 text-white text-xs">Concluído</Badge>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                               {client.telefone && (
@@ -284,4 +328,25 @@ async function fetchWhatsAppStatuses(phones: string[]): Promise<Record<string, s
     }
   }
   return whatsappMap;
+}
+
+/** Helper to fetch funil pós-venda tracking for a list of cliente IDs */
+async function fetchFunilTracking(clienteIds: string[]): Promise<Record<string, FunilTracking>> {
+  const trackingMap: Record<string, FunilTracking> = {};
+  if (clienteIds.length === 0) return trackingMap;
+  const { data } = await supabase
+    .from("funil_posv_tracking")
+    .select("cliente_id, fase_atual, fase1_link_clicado, concluido, ultima_mensagem_em")
+    .in("cliente_id", clienteIds);
+  if (data) {
+    for (const row of data) {
+      trackingMap[row.cliente_id] = {
+        fase_atual: row.fase_atual,
+        fase1_link_clicado: row.fase1_link_clicado,
+        concluido: row.concluido,
+        ultima_mensagem_em: row.ultima_mensagem_em,
+      };
+    }
+  }
+  return trackingMap;
 }
