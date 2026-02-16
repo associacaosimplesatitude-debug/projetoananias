@@ -1,31 +1,61 @@
 
 
-# Limpeza Completa: cayk500@gmail.com
+# Correção do Bug de Match por Nome + Limpeza Completa
 
-## O que precisa ser deletado
+## Problema Identificado
 
-| Tabela | Registro | Status |
-|--------|----------|--------|
-| auth.users | Nenhum | Ja limpo |
-| profiles | Nenhum | Ja limpo |
-| ebd_clientes | Nenhum com esse email | Ja limpo |
-| funil_posv_tracking | Nenhum | Ja limpo |
-| **ebd_shopify_pedidos** | `fcbcd403-0eec-4c10-907b-08cede02cee9` | **DELETAR** |
+Existe um **bug critico** no fuzzy match por nome no webhook (linha 343-348 do `ebd-shopify-order-webhook/index.ts`):
 
-## Acao
+```javascript
+customerName.includes(c.nome_superintendente?.toLowerCase() || '')
+```
 
-1. Deletar o pedido `fcbcd403-0eec-4c10-907b-08cede02cee9` da tabela `ebd_shopify_pedidos`
-2. Confirmar que nao resta nenhum registro associado a `cayk500@gmail.com` em nenhuma tabela
+Quando `nome_superintendente` é `null`, isso vira `customerName.includes('')` que **SEMPRE retorna true** em JavaScript. Isso faz com que o primeiro cliente da lista com vendedor seja selecionado incorretamente. Por isso "Cayk Soares" foi vinculado a "ADVEC SAO JOAO DE MERITI".
 
-## Resultado esperado
+## Acoes
 
-Quando voce fizer a proxima compra no Shopify com `cayk500@gmail.com`, o webhook vai executar o fluxo completo:
-- Criar usuario Auth com senha temporaria
-- Criar/atualizar registro em `ebd_clientes`
-- Inserir no funil pos-venda (Fase 1)
-- Enviar mensagem WhatsApp de boas-vindas
+### 1. Corrigir o bug do fuzzy match
+
+Alterar a logica de match por nome para verificar se os valores nao sao vazios antes de comparar:
+
+```javascript
+const matchingCliente = clientes.find(c => {
+  const nomeIgreja = c.nome_igreja?.toLowerCase()?.trim();
+  const nomeSuperintendente = c.nome_superintendente?.toLowerCase()?.trim();
+  
+  return (
+    (nomeIgreja && nomeIgreja.length > 2 && (
+      nomeIgreja.includes(customerName) || customerName.includes(nomeIgreja)
+    )) ||
+    (nomeSuperintendente && nomeSuperintendente.length > 2 && (
+      nomeSuperintendente.includes(customerName) || customerName.includes(nomeSuperintendente)
+    ))
+  );
+});
+```
+
+### 2. Limpar todos os registros do teste
+
+- Deletar o pedido #2593 de `ebd_shopify_pedidos` (email `cayk500@gmail.com`)
+- Confirmar que `auth.users`, `profiles`, `ebd_clientes` e `funil_posv_tracking` estao limpos
+
+### 3. Re-deploy da edge function
+
+Apos corrigir o bug, fazer deploy da funcao para que o proximo pedido funcione corretamente.
+
+## Resultado Esperado
+
+Com o bug corrigido e a base limpa, o proximo pedido com `cayk500@gmail.com`:
+- **NAO** vai fazer match incorreto com clientes existentes
+- Vai criar um novo registro em `ebd_clientes`
+- Vai criar o usuario Auth com senha temporaria
+- Vai inserir no funil pos-venda (Fase 1)
+- Vai enviar a mensagem WhatsApp de boas-vindas
 
 ## Secao Tecnica
 
-Sera executado um DELETE na tabela `ebd_shopify_pedidos` filtrando pelo ID do pedido. Nenhum outro registro precisa ser removido pois as demais tabelas ja estao limpas.
+- **Arquivo**: `supabase/functions/ebd-shopify-order-webhook/index.ts` (linhas 343-348)
+- **Bug**: `String.prototype.includes('')` sempre retorna `true` em JavaScript
+- **Fix**: Adicionar validacao de comprimento minimo (> 2 caracteres) antes do `includes()`
+- **Tabela afetada**: `ebd_shopify_pedidos` - deletar registro com `customer_email = 'cayk500@gmail.com'`
 
