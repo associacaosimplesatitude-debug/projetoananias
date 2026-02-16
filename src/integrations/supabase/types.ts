@@ -2059,9 +2059,13 @@ export type Database = {
           cliente_id: string | null
           created_at: string
           dados_enviados: Json | null
+          data_abertura: string | null
+          data_clique: string | null
           destinatario: string
+          email_aberto: boolean
           erro: string | null
           id: string
+          link_clicado: boolean
           resend_email_id: string | null
           status: string
           template_id: string | null
@@ -2073,9 +2077,13 @@ export type Database = {
           cliente_id?: string | null
           created_at?: string
           dados_enviados?: Json | null
+          data_abertura?: string | null
+          data_clique?: string | null
           destinatario: string
+          email_aberto?: boolean
           erro?: string | null
           id?: string
+          link_clicado?: boolean
           resend_email_id?: string | null
           status?: string
           template_id?: string | null
@@ -2087,9 +2095,13 @@ export type Database = {
           cliente_id?: string | null
           created_at?: string
           dados_enviados?: Json | null
+          data_abertura?: string | null
+          data_clique?: string | null
           destinatario?: string
+          email_aberto?: boolean
           erro?: string | null
           id?: string
+          link_clicado?: boolean
           resend_email_id?: string | null
           status?: string
           template_id?: string | null

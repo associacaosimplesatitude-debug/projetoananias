@@ -123,16 +123,10 @@ const handler = async (req: Request): Promise<Response> => {
         corpo = corpo.replace(regex, value || "");
       }
 
-      // Send
+      // Send with tracking
       try {
-        const emailResponse = await resend.emails.send({
-          from: "Relatorios <relatorios@painel.editoracentralgospel.com.br>",
-          to: [destinatario],
-          subject: assunto,
-          html: corpo,
-        });
-
-        await supabase.from("ebd_email_logs").insert({
+        // Insert log FIRST to get logId
+        const { data: logRow, error: logError } = await supabase.from("ebd_email_logs").insert({
           template_id: template.id,
           cliente_id: cliente.id,
           vendedor_id: cliente.vendedor_id || null,
@@ -141,8 +135,44 @@ const handler = async (req: Request): Promise<Response> => {
           status: "enviado",
           dados_enviados: variables,
           tipo_envio: "cron",
-          resend_email_id: emailResponse.data?.id || null,
+        }).select("id").single();
+
+        if (logError) {
+          console.error(`ebd-email-cron: Error creating log for ${templateCode}:`, logError);
+          return;
+        }
+
+        const logId = logRow.id;
+        const trackerBaseUrl = `${supabaseUrl}/functions/v1/ebd-email-tracker`;
+
+        // Rewrite links for click tracking
+        corpo = corpo.replace(/<a\s+([^>]*?)href="([^"]*)"([^>]*)>/gi, (_match: string, before: string, href: string, after: string) => {
+          if (href.startsWith("mailto:") || href.startsWith("tel:")) {
+            return `<a ${before}href="${href}"${after}>`;
+          }
+          const trackedUrl = `${trackerBaseUrl}?type=click&logId=${logId}&url=${encodeURIComponent(href)}`;
+          return `<a ${before}href="${trackedUrl}"${after}>`;
         });
+
+        // Add tracking pixel
+        const trackingPixel = `<img src="${trackerBaseUrl}?type=open&logId=${logId}" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" alt="" />`;
+        if (corpo.includes("</body>")) {
+          corpo = corpo.replace("</body>", `${trackingPixel}</body>`);
+        } else {
+          corpo += trackingPixel;
+        }
+
+        const emailResponse = await resend.emails.send({
+          from: "Relatorios <relatorios@painel.editoracentralgospel.com.br>",
+          to: [destinatario],
+          subject: assunto,
+          html: corpo,
+        });
+
+        // Update log with resend_email_id
+        await supabase.from("ebd_email_logs").update({
+          resend_email_id: emailResponse.data?.id || null,
+        }).eq("id", logId);
 
         console.log(`ebd-email-cron: Sent ${templateCode} to ${destinatario}`);
       } catch (emailErr: any) {

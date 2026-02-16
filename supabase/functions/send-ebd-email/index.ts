@@ -104,7 +104,46 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("No email address available for recipient");
     }
 
-    // 7. Send via Resend
+    // 7. Insert log FIRST to get logId for tracking
+    const { data: logRow, error: logError } = await supabase.from("ebd_email_logs").insert({
+      template_id: template.id,
+      cliente_id: clienteId,
+      vendedor_id: vId || null,
+      destinatario,
+      assunto,
+      status: "enviado",
+      dados_enviados: variables,
+      tipo_envio: tipoEnvio || "manual",
+    }).select("id").single();
+
+    if (logError) {
+      console.error("send-ebd-email: Error creating log:", logError);
+      throw new Error("Failed to create email log");
+    }
+
+    const logId = logRow.id;
+    const trackerBaseUrl = `${supabaseUrl}/functions/v1/ebd-email-tracker`;
+
+    // 8. Inject tracking pixel and rewrite links
+    // Rewrite <a href="..."> to go through tracker
+    corpo = corpo.replace(/<a\s+([^>]*?)href="([^"]*)"([^>]*)>/gi, (_match: string, before: string, href: string, after: string) => {
+      // Skip mailto: and tel: links
+      if (href.startsWith("mailto:") || href.startsWith("tel:")) {
+        return `<a ${before}href="${href}"${after}>`;
+      }
+      const trackedUrl = `${trackerBaseUrl}?type=click&logId=${logId}&url=${encodeURIComponent(href)}`;
+      return `<a ${before}href="${trackedUrl}"${after}>`;
+    });
+
+    // Add tracking pixel at the end of the body
+    const trackingPixel = `<img src="${trackerBaseUrl}?type=open&logId=${logId}" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" alt="" />`;
+    if (corpo.includes("</body>")) {
+      corpo = corpo.replace("</body>", `${trackingPixel}</body>`);
+    } else {
+      corpo += trackingPixel;
+    }
+
+    // 9. Send via Resend
     console.log(`send-ebd-email: Sending to '${destinatario}'`);
     const emailResponse = await resend.emails.send({
       from: "Relatorios <relatorios@painel.editoracentralgospel.com.br>",
@@ -115,18 +154,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("send-ebd-email: Email sent:", emailResponse);
 
-    // 8. Log
-    await supabase.from("ebd_email_logs").insert({
-      template_id: template.id,
-      cliente_id: clienteId,
-      vendedor_id: vId || null,
-      destinatario,
-      assunto,
-      status: "enviado",
-      dados_enviados: variables,
-      tipo_envio: tipoEnvio || "manual",
+    // 10. Update log with resend_email_id
+    await supabase.from("ebd_email_logs").update({
       resend_email_id: emailResponse.data?.id || null,
-    });
+    }).eq("id", logId);
 
     return new Response(
       JSON.stringify({ success: true, message: "Email enviado com sucesso", emailId: emailResponse.data?.id }),

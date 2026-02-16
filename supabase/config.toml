@@ -281,3 +281,6 @@ verify_jwt = false
 
 [functions.ebd-email-cron]
 verify_jwt = false
+
+[functions.ebd-email-tracker]
+verify_jwt = false
