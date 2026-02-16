@@ -1,40 +1,54 @@
 
-# Mover Integracoes e Emails EBD para o Admin Geral
 
-## O que muda
+# Rastreamento de Abertura e Cliques nos Emails EBD
 
-1. **Menu "Integracoes"** sai do menu do vendedor (/vendedor/integracoes) e vai para o Admin EBD (/admin/ebd/integracoes), acessivel apenas para admin e gerente_ebd
-2. **Menu "Emails EBD"** sai do menu do vendedor (/vendedor/emails-ebd) e vai para o Admin EBD (/admin/ebd/emails-ebd), acessivel para admin e gerente_ebd
-3. Ambos os itens serao removidos do sidebar do vendedor
+## Resumo
 
-## Alteracoes tecnicas
+Adicionar rastreamento de abertura (open tracking) e cliques em links (click tracking) nos emails enviados, exibindo essas informacoes tanto no historico quanto nos cards da aba "Automaticos".
 
-### 1. Rotas (App.tsx)
+## Alteracoes
 
-- Remover as rotas `/vendedor/emails-ebd` e `/vendedor/integracoes` do bloco de rotas do vendedor
-- Adicionar as rotas `/admin/ebd/emails-ebd` e `/admin/ebd/integracoes` dentro do bloco `<AdminEBDLayout>`
-- O componente VendedorEmailsEBD precisara ser adaptado para nao depender do hook `useVendedor()` (que so funciona para vendedores logados), carregando todos os logs em vez de filtrar por vendedor
-- O componente VendedorIntegracoes pode ser reutilizado diretamente pois ja usa `system_settings` global
+### 1. Banco de dados -- novos campos na tabela `ebd_email_logs`
 
-### 2. Sidebar do Admin EBD (AdminEBDLayout.tsx)
+Adicionar 4 colunas:
+- `email_aberto` (boolean, default false)
+- `data_abertura` (timestamptz, nullable)
+- `link_clicado` (boolean, default false)
+- `data_clique` (timestamptz, nullable)
 
-- Adicionar dois novos itens de menu na secao "Configuracoes":
-  - "Emails EBD" com icone Mail, link para `/admin/ebd/emails-ebd`
-  - "Integracoes" com icone Settings, link para `/admin/ebd/integracoes`
-- Ambos visiveis apenas para admin e gerente_ebd (nao para financeiro)
+### 2. Edge Function -- `ebd-email-tracker`
 
-### 3. Sidebar do Vendedor (VendedorLayout.tsx)
+Criar uma nova Edge Function que recebe requisicoes GET com parametros para registrar aberturas e cliques:
 
-- Remover as entradas `emails-ebd` e `integracoes` do array de menu items
+- **Abertura**: `GET /ebd-email-tracker?type=open&logId=xxx` -- retorna um pixel transparente 1x1 (imagem GIF) e atualiza `email_aberto=true` e `data_abertura=now()` no log
+- **Clique**: `GET /ebd-email-tracker?type=click&logId=xxx&url=https://...` -- atualiza `link_clicado=true` e `data_clique=now()` no log, e redireciona o usuario para a URL original
 
-### 4. Pagina Emails EBD (VendedorEmailsEBD.tsx)
+### 3. Injecao do tracking nos emails enviados
 
-- Remover a dependencia do `useVendedor()` -- a versao admin deve mostrar TODOS os logs, de todos os vendedores
-- Na aba de historico, adicionar coluna "Vendedor" para identificar qual vendedor disparou
-- A aba "Disparar Email" no admin deve permitir selecionar qualquer cliente (nao filtrado por vendedor)
-- Renomear o componente para refletir o contexto admin (ou manter reutilizavel com prop)
+Nas Edge Functions `send-ebd-email` e `ebd-email-cron`, apos montar o HTML final e ANTES de enviar via Resend:
+- Inserir o log no banco primeiro (para obter o `logId`)
+- Adicionar um `<img>` pixel de tracking no final do corpo HTML apontando para a funcao tracker
+- Reescrever os links `<a href="...">` no HTML para apontar para a funcao tracker com redirect
 
-### 5. Conteudo dos emails no historico
+### 4. Frontend -- Historico (tabela)
 
-- Na tabela de historico, adicionar um botao "Ver" em cada linha que abre um dialog/modal com o HTML renderizado do email (usando o campo `dados_enviados` do log + template para reconstruir, ou armazenando o HTML final)
-- Isso permitira inspecionar o conteudo exato de cada email enviado
+Na tabela de historico, adicionar duas novas colunas apos "Status":
+- **Aberto**: icone de olho verde se `email_aberto=true` com tooltip mostrando a data/hora, cinza se nao
+- **Clicou**: icone de cursor/link verde se `link_clicado=true` com tooltip mostrando data/hora, cinza se nao
+
+### 5. Frontend -- Aba Automaticos (cards)
+
+Adicionar dois novos cards de estatisticas alem dos 3 existentes (Hoje/Semana/Mes):
+- **Taxa de Abertura**: percentual de emails com `email_aberto=true` sobre o total enviado (no periodo do mes)
+- **Taxa de Clique**: percentual de emails com `link_clicado=true` sobre o total enviado (no periodo do mes)
+
+Os cards existentes passam de grid-cols-3 para grid-cols-5 (ou 2 linhas em mobile).
+
+### Sequencia de implementacao
+
+1. Migracao do banco (adicionar colunas)
+2. Criar Edge Function `ebd-email-tracker`
+3. Atualizar `send-ebd-email` para inserir log antes e injetar pixel + rewrite de links
+4. Atualizar `ebd-email-cron` com a mesma logica de tracking
+5. Atualizar frontend `VendedorEmailsEBD.tsx` com colunas e cards novos
+
