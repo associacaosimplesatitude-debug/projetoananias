@@ -1,202 +1,168 @@
 
+# Plano: Criacao Automatica de Usuario no Webhook Shopify + Envio Imediato da Fase 1
 
-# Funil de Pos-Venda E-commerce -- Automacao WhatsApp
+## Resumo
 
-## Contexto Atual
+Quando um pedido **pago** chega do Shopify, o sistema vai automaticamente:
+1. Gerar uma senha temporaria
+2. Criar o usuario no Auth (ou atualizar se ja existir)
+3. Salvar as credenciais no `ebd_clientes`
+4. Inserir o cliente no funil pos-venda (`funil_posv_tracking`)
+5. Enviar imediatamente a mensagem de Fase 1 (boas-vindas + credenciais) via WhatsApp
+6. Bloquear a ativacao manual pelo vendedor para clientes vindos do Shopify
 
-Hoje existe um funil visual com 6 etapas (`VendedorFunil.tsx`), mas ele e apenas informativo -- nao dispara mensagens automaticas. O sistema de onboarding do cliente (`OnboardingProgressCard`) ja rastreia 7 etapas internas (aplicar revista, criar turma, cadastrar professor, definir data, criar escala, aniversario, configurar lancamento).
-
-Dos 98 clientes marcados como `is_pos_venda_ecommerce`, apenas 4 fizeram login e nenhum completou o onboarding.
-
-## Proposta: Funil de Pos-Venda com 5 Fases + Mensagens Automaticas
-
-O objetivo e guiar o cliente desde a primeira compra ate o uso ativo do sistema, usando WhatsApp como canal principal de comunicacao.
-
----
-
-### FASE 1 -- BEM-VINDO (Primeira Compra Aprovada)
-
-**Gatilho:** Pedido pago no Shopify (status `paid`) + cliente criado em `ebd_clientes`
-
-**Mensagem (imediata):**
-```
-Ola [NOME]! Sua compra foi confirmada!
-
-Acompanhe o status do seu pedido, codigo de rastreio e muito mais pelo nosso painel exclusivo:
-
-[LINK DO PAINEL]
-
-Seu acesso:
-Email: [EMAIL]
-Senha: [SENHA_TEMPORARIA]
-
-Acesse agora e veja o andamento do seu pedido!
-```
-
-**Botao com link rastreavel:** O link do painel sera um link intermediario (via Edge Function `whatsapp-link-tracker`) que registra o clique antes de redirecionar. Isso permite saber se o cliente abriu a mensagem e clicou no link.
-
-**Rastreamento:**
-- Mensagem enviada (registro em `whatsapp_mensagens`)
-- Link clicado (registro em tabela `funil_posv_tracking`)
-- Login realizado (campo `ultimo_login` em `ebd_clientes`)
+O cron diario (09h BRT) continuara responsavel apenas pelas fases 2 em diante.
 
 ---
 
-### FASE 2 -- LEMBRETE DE LOGIN (Nao se logou em 2 dias)
+## Mudancas Detalhadas
 
-**Gatilho:** 48h apos a Fase 1 E `ultimo_login IS NULL`
+### 1. Edge Function: `ebd-shopify-order-webhook/index.ts`
 
-**Mensagem:**
+Adicionar um bloco **apos o upsert do pedido** (linha ~399) e **dentro do bloco `if (statusPagamento === "paid")`** (linha ~402):
+
+**Novo fluxo quando `financial_status === "paid"`:**
+
+a) **Verificar se ja existe cliente** vinculado (`clienteId`) ou buscar por `customer_email` na tabela `ebd_clientes`.
+
+b) **Gerar senha temporaria** aleatoria (8 caracteres alfanumericos).
+
+c) **Criar usuario Auth** chamando a REST API Admin do Supabase (`/auth/v1/admin/users`) com o email da compra e a senha gerada. Se o usuario ja existir, atualizar a senha.
+
+d) **Atualizar `ebd_clientes`** com:
+   - `superintendente_user_id`
+   - `email_superintendente` (email da compra Shopify)
+   - `senha_temporaria`
+   - `status_ativacao_ebd = true`
+   - `is_pos_venda_ecommerce = true`
+
+e) **Inserir no `funil_posv_tracking`** com `fase_atual = 1` (ON CONFLICT DO NOTHING).
+
+f) **Enviar mensagem WhatsApp Fase 1** imediatamente usando Z-API (mesma logica do cron). A mensagem inclui credenciais de acesso e link rastreavel.
+
+g) **Atualizar `funil_posv_tracking`** com `fase1_enviada_em` e `ultima_mensagem_em`.
+
+**Logica de seguranca:** So executa se:
+- `statusPagamento === "paid"`
+- Existe um `clienteId` vinculado (ja encontrado ou encontrado por email)
+- O cliente ainda NAO tem `superintendente_user_id` (evita recriar em atualizacoes)
+
+### 2. Frontend: `AtivarClienteDialog.tsx`
+
+Adicionar verificacao antes de permitir ativacao manual:
+
+- Ao abrir o dialog, verificar se o cliente tem pedido na tabela `ebd_shopify_pedidos` (vinculado por `cliente_id` ou `customer_email`).
+- Se tiver pedido Shopify: exibir mensagem informativa dizendo que clientes do e-commerce sao ativados automaticamente e **desabilitar o botao de ativacao**.
+- Se NAO tiver pedido Shopify (cliente cadastrado manualmente ou vindo do Bling): permitir ativacao normal como hoje.
+
+### 3. Edge Function: `funil-posv-cron/index.ts`
+
+Pequeno ajuste:
+
+- Na Fase 1, o cron **nao tentara enviar** a mensagem de boas-vindas se `fase1_enviada_em` ja estiver preenchido (o webhook ja enviou).
+- O cron continuara processando normalmente as fases 2, 3, 4 e 5.
+- Isso ja funciona com a logica atual (o cron so processa Fase 1 -> 2 quando `fase1_enviada_em` existe), mas vamos garantir que nao haja duplicacao.
+
+---
+
+## Secao Tecnica
+
+### Geracao de senha no webhook
+
+```typescript
+function generateTempPassword(length = 8): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let password = '';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  for (const byte of array) {
+    password += chars[byte % chars.length];
+  }
+  return password;
+}
 ```
-Ola [NOME]! Seu pedido ja esta sendo preparado.
 
-Voce sabia que pode acompanhar tudo em tempo real pelo painel? Ainda nao vimos seu acesso.
+### Criacao de usuario via REST API Admin
 
-Entre agora com:
-Email: [EMAIL]
-Senha: [SENHA_TEMPORARIA]
+Seguindo o padrao ja estabelecido no projeto (memoria: `edge-functions-auth-user-lookup-rest-api`):
 
-[LINK DO PAINEL]
+```typescript
+const authResponse = await fetch(
+  `${SUPABASE_URL}/auth/v1/admin/users`,
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'apikey': SUPABASE_SERVICE_ROLE_KEY,
+    },
+    body: JSON.stringify({
+      email: customerEmail,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { full_name: customerName },
+    }),
+  }
+);
+```
 
-Ganhe ate 30% de desconto na proxima compra respondendo apenas 3 perguntas rapidas apos o login!
+Se retornar erro `email_exists`, busca o usuario existente e atualiza a senha via PUT.
+
+### Envio WhatsApp inline
+
+Reutiliza a mesma logica de `sendWhatsAppMessage` que ja existe no `funil-posv-cron`, trazendo-a como funcao compartilhada ou duplicando no webhook (mais simples e independente).
+
+### Bloqueio no frontend
+
+```typescript
+// Em AtivarClienteDialog, antes de renderizar o form:
+const { data: pedidoShopify } = await supabase
+  .from("ebd_shopify_pedidos")
+  .select("id")
+  .eq("cliente_id", cliente.id)
+  .eq("status_pagamento", "paid")
+  .limit(1)
+  .maybeSingle();
+
+if (pedidoShopify) {
+  // Mostrar aviso e desabilitar ativacao
+}
 ```
 
 ---
 
-### FASE 3 -- ONBOARDING (Logou mas nao completou o setup)
-
-**Gatilho:** `ultimo_login IS NOT NULL` E `onboarding_concluido = false`
-
-**Mensagem 3A (imediata apos primeiro login):**
-```
-Parabens [NOME]! Voce acessou o painel com sucesso!
-
-Agora complete 3 perguntas rapidas e ganhe ate 30% de desconto na sua proxima compra. Leva menos de 2 minutos!
-
-[LINK DO PAINEL]
-```
-
-**Mensagem 3B (3 dias apos 3A se onboarding nao concluido):**
-```
-[NOME], falta pouco para garantir seu desconto de ate 30%!
-
-Voce so precisa responder 3 perguntinhas rapidas. Nao perca essa oportunidade!
-
-[LINK DO PAINEL]
-```
-
----
-
-### FASE 4 -- CONFIGURACAO DA ESCALA (Onboarding concluido, escala nao criada)
-
-**Gatilho:** `onboarding_concluido = true` E nenhuma escala cadastrada para o `church_id`
-
-**Mensagem 4A (imediata apos onboarding):**
-```
-Fantastico [NOME]! Seu desconto de [X]% ja esta garantido!
-
-Agora configure a escala de professores da sua EBD e tenha tudo organizado automaticamente. E rapido e facil!
-
-[LINK ESCALA]
-```
-
-**Mensagem 4B (5 dias apos 4A se escala nao criada):**
-```
-[NOME], voce ja garantiu seu desconto! Que tal dar o proximo passo?
-
-Configure a escala da sua EBD e deixe tudo organizado para o trimestre. Seus professores vao agradecer!
-
-[LINK ESCALA]
-```
-
----
-
-### FASE 5 -- ATIVO / ENGAJADO (Escala configurada)
-
-**Gatilho:** Escala criada com sucesso
-
-**Mensagem (unica, parabenizacao):**
-```
-Parabens [NOME]! Sua EBD esta 100% configurada no sistema!
-
-Agora voce pode acompanhar frequencia, devocionais, ranking de alunos e muito mais. Tudo automatico!
-
-Seu desconto de [X]% esta disponivel para a proxima compra. Aproveite!
-
-[LINK CATALOGO]
-```
-
----
-
-## Regras de Disparo
-
-1. **Apenas clientes novos** (primeira compra a partir de Jan/2026, flag `is_pos_venda_ecommerce = true`)
-2. **Intercalar dias** -- nunca enviar duas mensagens no mesmo dia
-3. **Maximo 1 mensagem por fase** (exceto Fase 3 e 4 que tem lembretes)
-4. **Parar automacao** se o cliente completar a acao da fase atual
-5. **Horario de envio:** Entre 9h e 18h (horario de Brasilia)
-
----
-
-## Implementacao Tecnica
-
-### 1. Nova tabela `funil_posv_tracking`
-
-Registra o progresso de cada cliente no funil automatico:
+## Fluxo Final
 
 ```text
-| Coluna               | Tipo        | Descricao                          |
-|----------------------|-------------|------------------------------------|
-| id                   | uuid (PK)   | Identificador                      |
-| cliente_id           | uuid (FK)   | Referencia ebd_clientes            |
-| fase_atual           | integer     | 1-5                                |
-| fase1_enviada_em     | timestamptz | Data envio msg fase 1              |
-| fase1_link_clicado   | boolean     | Se clicou no link da fase 1        |
-| fase2_enviada_em     | timestamptz | Data envio msg fase 2              |
-| fase3a_enviada_em    | timestamptz | Data envio msg fase 3A             |
-| fase3b_enviada_em    | timestamptz | Data envio msg fase 3B             |
-| fase4a_enviada_em    | timestamptz | Data envio msg fase 4A             |
-| fase4b_enviada_em    | timestamptz | Data envio msg fase 4B             |
-| fase5_enviada_em     | timestamptz | Data envio msg fase 5              |
-| concluido            | boolean     | Se completou todas as fases        |
-| created_at           | timestamptz | Data criacao                       |
-| updated_at           | timestamptz | Data atualizacao                   |
+Compra paga no Shopify
+    |
+    v
+Webhook recebe pedido
+    |
+    v
+Salva em ebd_shopify_pedidos (ja existe)
+    |
+    v
+[NOVO] Gera senha + Cria usuario Auth
+    |
+    v
+[NOVO] Atualiza ebd_clientes com credenciais
+    |
+    v
+[NOVO] Insere no funil_posv_tracking (fase 1)
+    |
+    v
+[NOVO] Envia WhatsApp Fase 1 (boas-vindas + credenciais)
+    |
+    v
+Cron diario cuida das fases 2-5
 ```
-
-### 2. Nova Edge Function `funil-posv-cron`
-
-Funcao agendada (cron) que roda 1x/dia verificando:
-- Clientes na Fase 1 sem login apos 48h -> envia Fase 2
-- Clientes que logaram mas nao completaram onboarding -> envia Fase 3A
-- Clientes com 3A enviada ha 3 dias sem onboarding -> envia Fase 3B
-- Clientes com onboarding completo sem escala -> envia Fase 4A
-- Clientes com 4A enviada ha 5 dias sem escala -> envia Fase 4B
-- Clientes com escala criada -> envia Fase 5
-
-### 3. Nova Edge Function `whatsapp-link-tracker`
-
-Endpoint publico que recebe cliques dos links das mensagens:
-- Registra o clique em `funil_posv_tracking`
-- Redireciona para a URL real do painel
-
-### 4. Trigger ou Hook no cadastro de cliente
-
-Quando um novo cliente `is_pos_venda_ecommerce` e criado, insere registro em `funil_posv_tracking` e dispara a mensagem da Fase 1 imediatamente.
-
-### 5. Visualizacao no Funil Admin
-
-Adicionar no funil existente (`VendedorFunil.tsx`) indicadores visuais de qual fase de WhatsApp cada cliente esta, com badges de status (Enviada, Clicada, Respondida).
 
 ---
 
-## Resumo de Arquivos
+## O que NAO muda
 
-| Acao   | Arquivo                                          |
-|--------|--------------------------------------------------|
-| Criar  | Migracao SQL para tabela `funil_posv_tracking`   |
-| Criar  | `supabase/functions/funil-posv-cron/index.ts`    |
-| Criar  | `supabase/functions/whatsapp-link-tracker/index.ts` |
-| Editar | `supabase/functions/send-whatsapp-message/index.ts` (suportar tipo funil) |
-| Editar | `src/pages/vendedor/VendedorFunil.tsx` (badges WhatsApp por fase) |
-| Criar  | SQL para cron job diario                         |
-
+- Clientes cadastrados manualmente ou vindos do Bling continuam sendo ativados pelo vendedor via `AtivarClienteDialog`
+- O cron diario continua rodando normalmente para fases 2-5
+- A logica de heranca de vendedor no webhook permanece intacta
+- O `create-ebd-user` Edge Function continua existindo para uso manual (Bling/cadastro)
