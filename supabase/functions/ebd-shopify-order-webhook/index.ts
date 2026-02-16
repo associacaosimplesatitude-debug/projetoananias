@@ -589,7 +589,7 @@ serve(async (req) => {
           console.log("Cliente sem usuário, provisionando automaticamente:", clienteId);
           
           // a) Gerar senha temporária
-          const tempPassword = generateTempPassword(8);
+          const tempPassword = "mudar123";
           console.log("Senha temporária gerada para:", customerEmail);
           
           // b) Criar usuário Auth via REST API Admin
@@ -700,11 +700,11 @@ serve(async (req) => {
             if (telefoneCliente) {
               console.log("Enviando WhatsApp Fase 1 para:", telefoneCliente);
               
-              // Buscar credenciais Z-API
+              // Buscar credenciais Z-API + flag de envio automático
               const { data: zapiSettings } = await supabase
                 .from("system_settings")
                 .select("key, value")
-                .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token"]);
+                .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token", "whatsapp_auto_envio_ativo"]);
               
               const zapiMap: Record<string, string> = {};
               (zapiSettings || []).forEach((s: { key: string; value: string }) => {
@@ -715,9 +715,9 @@ serve(async (req) => {
               const zapiToken = zapiMap["zapi_token"];
               const clientToken = zapiMap["zapi_client_token"];
               
-              if (instanceId && zapiToken && clientToken) {
+              if (instanceId && zapiToken && clientToken && zapiMap["whatsapp_auto_envio_ativo"] !== "false") {
                 const TRACKER_BASE = "https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-link-tracker";
-                const trackLink = `${TRACKER_BASE}?c=${clienteId}&f=1&r=/ebd/painel`;
+                const trackLink = `${TRACKER_BASE}?c=${clienteId}&f=1&r=/login/ebd`;
                 const nomeCliente = clienteCheck.nome_responsavel || clienteCheck.nome_igreja || customerName;
                 
                 const fase1Msg = `Olá ${nomeCliente}! Seja bem-vindo(a) ao Painel EBD! 🎉\n\nSeu pedido foi confirmado e seu acesso ao sistema já está liberado.\n\nAcesse agora:\nEmail: ${customerEmail}\nSenha: ${tempPassword}\n\n${trackLink}\n\nAcompanhe seu pedido, gerencie sua EBD e muito mais!`;
