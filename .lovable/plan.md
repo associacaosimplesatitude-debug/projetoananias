@@ -1,44 +1,59 @@
 
 
-# Correcao: Trocar buttonActions por texto simples com link
+# Ajustar textos das mensagens do funil pos-venda
 
-## Problema
-O endpoint `/send-button-actions` da Z-API aceita o payload mas nao entrega a mensagem ao destinatario. Mensagens de texto simples (`/send-text`) funcionam normalmente.
-
-## Solucao
-Remover o uso de `buttonActions` e `/send-button-actions` em todos os locais. Incorporar o link diretamente no texto da mensagem.
+## Contexto
+As mensagens estao chegando como texto simples (sem botoes). Agora precisamos ajustar o conteudo para manter a sequencia desejada.
 
 ## Alteracoes
 
-### 1. send-whatsapp-message/index.ts
-- Remover a condicao `if (buttonActions)` (linhas 88-90)
-- Manter apenas as opcoes `/send-text` e `/send-image`
-- Se `buttonActions` for enviado no body, ignorar e usar texto simples
+### 1. Mensagem 1 - Gancho de Credibilidade (`ebd-shopify-order-webhook/index.ts`, linha 751)
+Ajustar o texto da `fase1Msg` para:
+- Terminar com a pergunta "Quer acompanhar o prazo de entrega e o codigo de rastreio em tempo real?"
+- Adicionar na linha seguinte o texto clicavel: `SIM, QUERO 👉 {trackerUrl}`
+- Isso mantem o "call to action" claro mesmo sem botao interativo
 
-### 2. ebd-shopify-order-webhook/index.ts (linhas 748-775)
-- Adicionar o link do tracker diretamente no texto da `fase1Msg`, ex:
-  `Acompanhe seu pedido aqui: LINK`
-- Usar endpoint `/send-text` em vez de `/send-button-actions`
-- Remover `title`, `footer`, `buttonActions` do payload
+### 2. Mensagem 2 - Entrega do Acesso (`whatsapp-link-tracker/index.ts`, linha 89)
+Ajustar o texto da `msg2` para:
+- Comecar com "Excelente! 🎉"
+- Incluir "criamos um painel exclusivo para voce acompanhar sua entrega e ja comecar a organizar suas aulas"
+- Mostrar credenciais (email e senha)
+- Incluir link do painel: "Acesse aqui: {PANEL_URL}/login/ebd"
+- Finalizar com: "Alem do rastreio, voce acaba de ganhar acesso ao sistema Gestao EBD para gerenciar suas turmas!"
 
-### 3. whatsapp-link-tracker/index.ts (linhas 89-113)
-- Na Mensagem 2 (credenciais), colocar o link do painel no texto
-- Usar `/send-text` em vez de `/send-button-actions`
-- Remover `title`, `footer`, `buttonActions` do payload
-
-### 4. Teste
-- Reenviar a Mensagem 1 para 5511986216465 como texto simples com link embutido
+### 3. Teste
+Reenviar Mensagem 1 para 5511986216465 para validar o novo formato
 
 ## Secao Tecnica
 
-Payload antes (nao funciona):
-```text
-POST /send-button-actions
-{ phone, message, title, footer, buttonActions: [...] }
+**Mensagem 1 (fase1Msg) - novo texto:**
+```
+Ola, {nome}! 👋
+
+Recebemos seu pedido na Central Gospel! Obrigado pela confianca.
+
+Resumo do Pedido:
+📦 Item: {itens}
+🚚 Frete: R$ {frete}
+✨ Total: R$ {total}
+
+Quer acompanhar o prazo de entrega e o codigo de rastreio em tempo real?
+
+SIM, QUERO 👉 {trackerUrl}
 ```
 
-Payload depois (funciona):
-```text
-POST /send-text
-{ phone, message: "...texto...\n\nLink: https://..." }
+**Mensagem 2 (msg2) - novo texto:**
 ```
+Excelente! 🎉
+
+Para facilitar, criamos um painel exclusivo para voce acompanhar sua entrega e ja comecar a organizar suas aulas.
+
+Seus dados de acesso:
+📧 E-mail: {email}
+🔑 Senha: {senha}
+
+Acesse aqui: {PANEL_URL}/login/ebd
+
+Alem do rastreio, voce acaba de ganhar acesso ao sistema Gestao EBD para gerenciar suas turmas!
+```
+
