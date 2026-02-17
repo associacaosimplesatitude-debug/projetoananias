@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const clienteId = url.searchParams.get("c");
     const fase = url.searchParams.get("f");
-    const redirect = url.searchParams.get("r") || "/login/ebd";
+    const redirect = url.searchParams.get("r") || "/confirmacao-whatsapp";
 
     if (!clienteId) {
       return new Response("Parâmetro inválido", { status: 400 });
