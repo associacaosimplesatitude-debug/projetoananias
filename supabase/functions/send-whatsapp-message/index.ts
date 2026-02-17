@@ -85,10 +85,7 @@ Deno.serve(async (req) => {
     let zapiPayload: Record<string, unknown>;
     let zapiEndpoint: string;
 
-    if (buttonActions && buttonActions.length > 0) {
-      zapiEndpoint = `${baseUrl}/send-button-actions`;
-      zapiPayload = { phone: telefone, message: mensagem, title: title || "", footer: footer || "", buttonActions };
-    } else if (imagem_url) {
+    if (imagem_url) {
       zapiEndpoint = `${baseUrl}/send-image`;
       zapiPayload = { phone: telefone, image: imagem_url, caption: mensagem };
     } else {

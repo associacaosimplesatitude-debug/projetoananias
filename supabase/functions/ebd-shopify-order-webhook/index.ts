@@ -745,27 +745,18 @@ serve(async (req) => {
                   return `📦 Item: ${qty}${item.title} - R$ ${parseFloat(item.price).toFixed(2).replace(".", ",")}`;
                 }).join("\n");
 
-                const fase1Msg = `Olá, ${nomeCliente}! 👋\n\nRecebemos seu pedido na Central Gospel! Obrigado pela confiança.\n\nResumo do Pedido:\n${itensTexto}\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}\n✨ Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}\n\nQuer acompanhar o prazo de entrega e o código de rastreio em tempo real?`;
-                
                 const zapiBaseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
                 const trackerUrl = `${supabaseUrl}/functions/v1/whatsapp-link-tracker?c=${clienteId}&f=1&r=/login/ebd`;
+                
+                const fase1Msg = `Olá, ${nomeCliente}! 👋\n\nRecebemos seu pedido na Central Gospel! Obrigado pela confiança.\n\nResumo do Pedido:\n${itensTexto}\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}\n✨ Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}\n\nAcompanhe o prazo de entrega e o código de rastreio em tempo real:\n👉 ${trackerUrl}`;
+                
                 const zapiPayload = {
                   phone: telefoneCliente,
                   message: fase1Msg,
-                  title: "Central Gospel",
-                  footer: "gestaoebd.com.br",
-                  buttonActions: [
-                    {
-                      id: "1",
-                      type: "URL",
-                      url: trackerUrl,
-                      label: "Acompanhar meu Pedido"
-                    }
-                  ]
                 };
                 
                 try {
-                  const zapiResp = await fetch(`${zapiBaseUrl}/send-button-actions`, {
+                  const zapiResp = await fetch(`${zapiBaseUrl}/send-text`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
