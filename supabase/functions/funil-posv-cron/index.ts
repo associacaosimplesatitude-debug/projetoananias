@@ -6,7 +6,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const TRACKER_BASE_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-link-tracker";
 const PANEL_URL = "https://gestaoebd.com.br";
 
 interface ClienteTracking {
@@ -34,6 +33,13 @@ interface ClienteInfo {
   ultimo_login: string | null;
   onboarding_concluido: boolean | null;
   desconto_onboarding: number | null;
+}
+
+interface ButtonAction {
+  id: string;
+  type: string;
+  url: string;
+  label: string;
 }
 
 Deno.serve(async (req) => {
@@ -134,6 +140,9 @@ Deno.serve(async (req) => {
       const telefone = cliente.telefone;
 
       let mensagem: string | null = null;
+      let buttonActions: ButtonAction[] | null = null;
+      let msgTitle: string | null = null;
+      let msgFooter: string | null = null;
       let faseUpdate: Record<string, unknown> = {};
       let novaFase = tracking.fase_atual;
 
@@ -143,8 +152,10 @@ Deno.serve(async (req) => {
         const hoursElapsed = (now.getTime() - fase1Date.getTime()) / (1000 * 60 * 60);
         
         if (hoursElapsed >= 48 && !cliente.ultimo_login) {
-          const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=2&r=/login/ebd`;
-          mensagem = `Olá ${nome}! Seu pedido já está sendo preparado.\n\nVocê sabia que pode acompanhar tudo em tempo real pelo painel? Ainda não vimos seu acesso.\n\nEntre agora com:\nEmail: ${email}\nSenha: ${senha}\n\n${trackLink}\n\nGanhe até ${desconto}% de desconto na próxima compra respondendo apenas 3 perguntas rápidas após o login!`;
+          mensagem = `Olá ${nome}! Seu pedido já está sendo preparado. 📦\n\nVocê sabia que pode acompanhar tudo em tempo real pelo painel? Ainda não vimos seu acesso.\n\nEntre agora com:\n📧 Email: ${email}\n🔑 Senha: ${senha}\n\nGanhe até ${desconto}% de desconto na próxima compra respondendo apenas 3 perguntas rápidas após o login!`;
+          msgTitle = "Central Gospel - Acompanhe seu Pedido";
+          msgFooter = "gestaoebd.com.br";
+          buttonActions = [{ id: "1", type: "URL", url: `${PANEL_URL}/login/ebd`, label: "Acessar Painel" }];
           faseUpdate = { fase2_enviada_em: now.toISOString(), fase_atual: 2, ultima_mensagem_em: now.toISOString() };
           novaFase = 2;
         }
@@ -152,8 +163,10 @@ Deno.serve(async (req) => {
 
       // === Detectar login → FASE 3A ===
       if ((tracking.fase_atual === 1 || tracking.fase_atual === 2) && cliente.ultimo_login && !tracking.fase3a_enviada_em) {
-        const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=3&r=/login/ebd`;
-        mensagem = `Parabéns ${nome}! Você acessou o painel com sucesso!\n\nAgora complete 3 perguntas rápidas e ganhe até ${desconto}% de desconto na sua próxima compra. Leva menos de 2 minutos!\n\n${trackLink}`;
+        mensagem = `Parabéns ${nome}! Você acessou o painel com sucesso! 🎉\n\nAgora complete 3 perguntas rápidas e ganhe até ${desconto}% de desconto na sua próxima compra. Leva menos de 2 minutos!`;
+        msgTitle = "Central Gospel - Desconto Garantido";
+        msgFooter = "gestaoebd.com.br";
+        buttonActions = [{ id: "1", type: "URL", url: `${PANEL_URL}/login/ebd`, label: "Garantir Desconto" }];
         faseUpdate = { fase3a_enviada_em: now.toISOString(), fase_atual: 3, ultima_mensagem_em: now.toISOString() };
         novaFase = 3;
       }
@@ -164,16 +177,20 @@ Deno.serve(async (req) => {
         const daysElapsed = (now.getTime() - fase3aDate.getTime()) / (1000 * 60 * 60 * 24);
         
         if (daysElapsed >= 3) {
-          const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=3&r=/login/ebd`;
-          mensagem = `${nome}, falta pouco para garantir seu desconto de até ${desconto}%!\n\nVocê só precisa responder 3 perguntinhas rápidas. Não perca essa oportunidade!\n\n${trackLink}`;
+          mensagem = `${nome}, falta pouco para garantir seu desconto de até ${desconto}%! 🏷️\n\nVocê só precisa responder 3 perguntinhas rápidas. Não perca essa oportunidade!`;
+          msgTitle = "Central Gospel - Seu Desconto Espera";
+          msgFooter = "gestaoebd.com.br";
+          buttonActions = [{ id: "1", type: "URL", url: `${PANEL_URL}/login/ebd`, label: "Responder Agora" }];
           faseUpdate = { fase3b_enviada_em: now.toISOString(), ultima_mensagem_em: now.toISOString() };
         }
       }
 
       // === Detectar onboarding concluído → FASE 4A ===
       if (tracking.fase_atual === 3 && cliente.onboarding_concluido && !tracking.fase4a_enviada_em) {
-        const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=4&r=/ebd/escala`;
-        mensagem = `Fantástico ${nome}! Seu desconto de ${desconto}% já está garantido!\n\nAgora configure a escala de professores da sua EBD e tenha tudo organizado automaticamente. É rápido e fácil!\n\n${trackLink}`;
+        mensagem = `Fantástico ${nome}! Seu desconto de ${desconto}% já está garantido! 🎉\n\nAgora configure a escala de professores da sua EBD e tenha tudo organizado automaticamente. É rápido e fácil!`;
+        msgTitle = "Central Gospel - Escala EBD";
+        msgFooter = "gestaoebd.com.br";
+        buttonActions = [{ id: "1", type: "URL", url: `${PANEL_URL}/login/ebd`, label: "Configurar Escala" }];
         faseUpdate = { fase4a_enviada_em: now.toISOString(), fase_atual: 4, ultima_mensagem_em: now.toISOString() };
         novaFase = 4;
       }
@@ -184,15 +201,20 @@ Deno.serve(async (req) => {
         const daysElapsed = (now.getTime() - fase4aDate.getTime()) / (1000 * 60 * 60 * 24);
         
         if (daysElapsed >= 5) {
-          const trackLink = `${TRACKER_BASE_URL}?c=${cliente.id}&f=4&r=/ebd/escala`;
-          mensagem = `${nome}, você já garantiu seu desconto! Que tal dar o próximo passo?\n\nConfigure a escala da sua EBD e deixe tudo organizado para o trimestre. Seus professores vão agradecer!\n\n${trackLink}`;
+          mensagem = `${nome}, você já garantiu seu desconto! Que tal dar o próximo passo? 🚀\n\nConfigure a escala da sua EBD e deixe tudo organizado para o trimestre. Seus professores vão agradecer!`;
+          msgTitle = "Central Gospel - Organize sua EBD";
+          msgFooter = "gestaoebd.com.br";
+          buttonActions = [{ id: "1", type: "URL", url: `${PANEL_URL}/login/ebd`, label: "Configurar Escala" }];
           faseUpdate = { fase4b_enviada_em: now.toISOString(), ultima_mensagem_em: now.toISOString() };
         }
       }
 
       // === Detectar escala criada → FASE 5 ===
       if (tracking.fase_atual === 4 && clientesComEscala.has(tracking.cliente_id) && !tracking.fase5_enviada_em) {
-        mensagem = `Parabéns ${nome}! Sua EBD está 100% configurada no sistema!\n\nAgora você pode acompanhar frequência, devocionais, ranking de alunos e muito mais. Tudo automático!\n\nSeu desconto de ${desconto}% está disponível para a próxima compra. Aproveite!\n\n${PANEL_URL}/login/ebd`;
+        mensagem = `Parabéns ${nome}! Sua EBD está 100% configurada no sistema! 🏆\n\nAgora você pode acompanhar frequência, devocionais, ranking de alunos e muito mais. Tudo automático!\n\nSeu desconto de ${desconto}% está disponível para a próxima compra. Aproveite!`;
+        msgTitle = "Central Gospel - EBD Configurada";
+        msgFooter = "gestaoebd.com.br";
+        buttonActions = [{ id: "1", type: "URL", url: `${PANEL_URL}/login/ebd`, label: "Acessar Painel" }];
         faseUpdate = { fase5_enviada_em: now.toISOString(), fase_atual: 5, concluido: true, ultima_mensagem_em: now.toISOString() };
         novaFase = 5;
       }
@@ -203,7 +225,8 @@ Deno.serve(async (req) => {
           instanceId, zapiToken, clientToken,
           telefone, mensagem, nome,
           `funil_fase${novaFase}`,
-          supabase
+          supabase,
+          msgTitle, msgFooter, buttonActions
         );
 
         if (success) {
@@ -239,12 +262,24 @@ async function sendWhatsAppMessage(
   mensagem: string,
   nome: string,
   tipoMensagem: string,
-  supabase: ReturnType<typeof createClient>
+  supabase: ReturnType<typeof createClient>,
+  title?: string | null,
+  footer?: string | null,
+  buttonActions?: ButtonAction[] | null
 ): Promise<boolean> {
   try {
     const baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
-    const zapiEndpoint = `${baseUrl}/send-text`;
-    const zapiPayload = { phone: telefone, message: mensagem };
+    
+    // Usar send-button-actions quando há botões, senão send-text
+    const hasButtons = buttonActions && buttonActions.length > 0;
+    const zapiEndpoint = hasButtons ? `${baseUrl}/send-button-actions` : `${baseUrl}/send-text`;
+    
+    const zapiPayload: Record<string, unknown> = { phone: telefone, message: mensagem };
+    if (hasButtons) {
+      zapiPayload.title = title || "";
+      zapiPayload.footer = footer || "";
+      zapiPayload.buttonActions = buttonActions;
+    }
 
     const zapiResponse = await fetch(zapiEndpoint, {
       method: "POST",

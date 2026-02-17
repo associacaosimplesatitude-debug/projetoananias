@@ -59,6 +59,12 @@ interface ShopifyOrder {
   } | null;
   shipping_address?: ShopifyAddress;
   billing_address?: ShopifyAddress;
+  line_items?: Array<{
+    title: string;
+    quantity: number;
+    price: string;
+    variant_title?: string;
+  }>;
   created_at: string;
   updated_at: string;
 }
@@ -716,17 +722,49 @@ serve(async (req) => {
               const clientToken = zapiMap["zapi_client_token"];
               
               if (instanceId && zapiToken && clientToken && zapiMap["whatsapp_auto_envio_ativo"] !== "false") {
-                const TRACKER_BASE = "https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-link-tracker";
-                const trackLink = `${TRACKER_BASE}?c=${clienteId}&f=1&r=/login/ebd`;
                 const nomeCliente = clienteCheck.nome_responsavel || clienteCheck.nome_igreja || customerName;
+                const PANEL_URL = "https://gestaoebd.com.br/login/ebd";
                 
-                const fase1Msg = `Olá ${nomeCliente}! Seja bem-vindo(a) ao Painel EBD! 🎉\n\nSeu pedido foi confirmado e seu acesso ao sistema já está liberado.\n\nAcesse agora:\nEmail: ${customerEmail}\nSenha: ${tempPassword}\n\n${trackLink}\n\nAcompanhe seu pedido, gerencie sua EBD e muito mais!`;
+                // Montar detalhes do pedido
+                const lineItems = order.line_items || [];
+                let produtosTexto = "";
+                if (lineItems.length > 0) {
+                  produtosTexto = lineItems.map((item) => {
+                    const qty = item.quantity > 1 ? ` x${item.quantity}` : "";
+                    return `• ${item.title}${qty} - R$ ${parseFloat(item.price).toFixed(2).replace(".", ",")}`;
+                  }).join("\n");
+                }
+                
+                const frete = order.shipping_lines?.reduce((sum, s) => sum + parseFloat(s.price || "0"), 0) || 0;
+                const totalPedido = parseFloat(order.total_price || "0");
+                const desconto = parseFloat(order.total_discounts || "0");
+                
+                let detalhesCompra = `📦 Pedido #${order.order_number}\n`;
+                if (produtosTexto) detalhesCompra += `\n${produtosTexto}\n`;
+                if (frete > 0) detalhesCompra += `\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}`;
+                if (desconto > 0) detalhesCompra += `\n🏷️ Desconto: -R$ ${desconto.toFixed(2).replace(".", ",")}`;
+                detalhesCompra += `\n💰 Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}`;
+                
+                const fase1Msg = `Olá ${nomeCliente}! Obrigado por sua compra na Central Gospel! 🎉\n\n${detalhesCompra}\n\nSeu pedido está sendo preparado! Acesse o painel para acompanhar a entrega, ver prazo e código de rastreio.\n\nSeus dados de acesso:\n📧 Email: ${customerEmail}\n🔑 Senha: ${tempPassword}`;
                 
                 const zapiBaseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
-                const zapiPayload = { phone: telefoneCliente, message: fase1Msg };
+                const zapiPayload = {
+                  phone: telefoneCliente,
+                  message: fase1Msg,
+                  title: "Central Gospel - Pedido Confirmado",
+                  footer: "gestaoebd.com.br",
+                  buttonActions: [
+                    {
+                      id: "1",
+                      type: "URL",
+                      url: PANEL_URL,
+                      label: "Acompanhar Pedido"
+                    }
+                  ]
+                };
                 
                 try {
-                  const zapiResp = await fetch(`${zapiBaseUrl}/send-text`, {
+                  const zapiResp = await fetch(`${zapiBaseUrl}/send-button-actions`, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",

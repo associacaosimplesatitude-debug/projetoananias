@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
-import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2 } from "lucide-react";
+import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2, Filter, Users, Phone } from "lucide-react";
 import { format } from "date-fns";
 
 const MESSAGE_TYPES = [
@@ -518,6 +518,174 @@ function WebhooksTab() {
   );
 }
 
+const FUNIL_FASES = [
+  { fase: 1, label: "Boas-vindas Enviada", cor: "bg-blue-500", corBg: "bg-blue-50 dark:bg-blue-950", corTexto: "text-blue-700 dark:text-blue-300", corBorda: "border-blue-300" },
+  { fase: 2, label: "Lembrete de Login", cor: "bg-orange-500", corBg: "bg-orange-50 dark:bg-orange-950", corTexto: "text-orange-700 dark:text-orange-300", corBorda: "border-orange-300" },
+  { fase: 3, label: "Onboarding / Pesquisa", cor: "bg-yellow-500", corBg: "bg-yellow-50 dark:bg-yellow-950", corTexto: "text-yellow-700 dark:text-yellow-300", corBorda: "border-yellow-300" },
+  { fase: 4, label: "Configuração de Escala", cor: "bg-lime-500", corBg: "bg-lime-50 dark:bg-lime-950", corTexto: "text-lime-700 dark:text-lime-300", corBorda: "border-lime-300" },
+  { fase: 5, label: "Ativo / Concluído", cor: "bg-green-500", corBg: "bg-green-50 dark:bg-green-950", corTexto: "text-green-700 dark:text-green-300", corBorda: "border-green-300" },
+];
+
+function FunilTab() {
+  const [selectedFase, setSelectedFase] = useState<number | null>(null);
+
+  const { data: contagens = {}, isLoading } = useQuery({
+    queryKey: ["funil-posv-contagens"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("funil_posv_tracking")
+        .select("fase_atual, concluido");
+      if (error) throw error;
+      const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      (data || []).forEach((t: { fase_atual: number }) => {
+        counts[t.fase_atual] = (counts[t.fase_atual] || 0) + 1;
+      });
+      return counts;
+    },
+    refetchInterval: 30000,
+  });
+
+  const totalClientes = Object.values(contagens).reduce((a: number, b: number) => a + b, 0);
+
+  const { data: clientesFase = [], isLoading: loadingClientes } = useQuery({
+    queryKey: ["funil-posv-clientes", selectedFase],
+    queryFn: async () => {
+      if (!selectedFase) return [];
+      const { data: trackings, error } = await supabase
+        .from("funil_posv_tracking")
+        .select("cliente_id, fase_atual, fase1_enviada_em, ultima_mensagem_em, concluido")
+        .eq("fase_atual", selectedFase);
+      if (error) throw error;
+      if (!trackings || trackings.length === 0) return [];
+
+      const ids = trackings.map((t: { cliente_id: string }) => t.cliente_id);
+      const { data: clientes } = await supabase
+        .from("ebd_clientes")
+        .select("id, nome_igreja, nome_responsavel, telefone, email_superintendente, ultimo_login")
+        .in("id", ids);
+
+      return (clientes || []).map((c: any) => {
+        const tracking = trackings.find((t: { cliente_id: string }) => t.cliente_id === c.id);
+        return { ...c, ...tracking };
+      });
+    },
+    enabled: !!selectedFase,
+  });
+
+  if (isLoading) return <div className="flex items-center justify-center p-8 text-muted-foreground">Carregando funil...</div>;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Funil Primeira Compra
+          </CardTitle>
+          <CardDescription>
+            Visualize o progresso dos clientes no funil pós-venda. Total: {totalClientes} clientes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {FUNIL_FASES.map((fase, idx) => {
+              const count = contagens[fase.fase] || 0;
+              const pct = totalClientes > 0 ? (count / totalClientes) * 100 : 0;
+              const widthPct = Math.max(20, 100 - idx * 16);
+              const isSelected = selectedFase === fase.fase;
+
+              return (
+                <button
+                  key={fase.fase}
+                  onClick={() => setSelectedFase(isSelected ? null : fase.fase)}
+                  className={`w-full text-left transition-all rounded-lg border-2 p-0.5 ${isSelected ? fase.corBorda + " shadow-md" : "border-transparent hover:border-muted"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`${fase.cor} rounded-md flex items-center justify-center text-white font-bold text-lg py-3 transition-all`}
+                      style={{ width: `${widthPct}%`, minWidth: "80px" }}
+                    >
+                      {count}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">Fase {fase.fase}</span>
+                        <span className="text-xs text-muted-foreground">— {fase.label}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{pct.toFixed(0)}% do total</span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedFase && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Clientes na Fase {selectedFase} — {FUNIL_FASES.find(f => f.fase === selectedFase)?.label}
+            </CardTitle>
+            <CardDescription>{clientesFase.length} clientes nesta fase.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingClientes ? (
+              <p className="text-muted-foreground text-center py-4">Carregando...</p>
+            ) : clientesFase.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">Nenhum cliente nesta fase.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Último Login</TableHead>
+                      <TableHead>Última Msg</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientesFase.map((c: any) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-medium">{c.nome_responsavel || c.nome_igreja}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {c.telefone ? (
+                            <a href={`https://wa.me/${c.telefone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                              <Phone className="h-3 w-3" />
+                              {c.telefone}
+                            </a>
+                          ) : "-"}
+                        </TableCell>
+                        <TableCell className="text-xs">{c.email_superintendente || "-"}</TableCell>
+                        <TableCell className="text-xs">
+                          {c.ultimo_login ? (
+                            <Badge variant="default" className="text-xs">
+                              {format(new Date(c.ultimo_login), "dd/MM/yy HH:mm")}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">Nunca</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {c.ultima_mensagem_em ? format(new Date(c.ultima_mensagem_em), "dd/MM/yy HH:mm") : "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function WhatsAppPanel() {
   return (
     <div className="space-y-6">
@@ -526,8 +694,12 @@ export default function WhatsAppPanel() {
         <p className="text-muted-foreground">Envie mensagens via WhatsApp usando a Z-API.</p>
       </div>
 
-      <Tabs defaultValue="enviar" className="w-full">
+      <Tabs defaultValue="funil" className="w-full">
         <TabsList>
+          <TabsTrigger value="funil" className="gap-2">
+            <Filter className="h-4 w-4" />
+            Funil Primeira Compra
+          </TabsTrigger>
           <TabsTrigger value="enviar" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Enviar Mensagem
@@ -541,6 +713,10 @@ export default function WhatsAppPanel() {
             Credenciais Z-API
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="funil">
+          <FunilTab />
+        </TabsContent>
 
         <TabsContent value="enviar">
           <SendMessageTab />
