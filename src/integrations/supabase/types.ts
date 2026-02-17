@@ -6023,6 +6023,44 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversas: {
+        Row: {
+          cliente_id: string | null
+          content: string
+          created_at: string | null
+          id: string
+          role: string
+          telefone: string
+          tool_used: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          role: string
+          telefone: string
+          tool_used?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          role?: string
+          telefone?: string
+          tool_used?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_mensagens: {
         Row: {
           created_at: string
