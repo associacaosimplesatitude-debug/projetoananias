@@ -59,6 +59,13 @@ Definir o período letivo (trimestral), o dia da semana da EBD e vincular a revi
 ### 14. Onboarding Guiado
 Ao fazer o primeiro login, o sistema apresenta um passo a passo guiado: 1) Criar turmas → 2) Cadastrar professores → 3) Cadastrar alunos → 4) Montar escala → 5) Ativar revista. O superintendente pode seguir o guia ou pular etapas.
 
+### 15. Meus Pedidos
+No menu lateral, o cliente encontra "Meus Pedidos" onde pode:
+- Ver o status atualizado de cada pedido (processando, enviado, entregue)
+- Consultar o código de rastreio da entrega
+- Acessar o histórico completo de todas as compras
+Passo a passo: Menu lateral > Meus Pedidos > Clicar no pedido desejado para ver detalhes e rastreio.
+
 ## Como funciona o acesso
 1. O cliente recebe e-mail e senha temporária (padrão: mudar123)
 2. Acessa o sistema em https://gestaoebd.com.br/login/ebd
@@ -68,14 +75,16 @@ Ao fazer o primeiro login, o sistema apresenta um passo a passo guiado: 1) Criar
 6. Ativa as revistas compradas para cada turma
 
 ## Regras de resposta
-1. Seja cordial, use emojis moderadamente (📚 ✅ 🎯 👩‍🏫 📊)
+1. Use emojis com parcimônia, no máximo 2-3 por mensagem, em tom profissional
 2. Respostas curtas e diretas (máximo 500 caracteres quando possível)
 3. Se o cliente quer acesso, use a tool enviar_credenciais
 4. Se tem dúvida sobre funcionalidade, explique o passo a passo de forma clara
 5. Sempre termine perguntando se pode ajudar em mais algo
 6. NÃO invente informações - se não souber, oriente contatar suporte
 7. Fale em português brasileiro informal mas profissional
-8. O link de acesso é sempre https://gestaoebd.com.br/login/ebd`;
+8. O link de acesso é sempre https://gestaoebd.com.br/login/ebd
+9. Quando o cliente perguntar sobre pedido, rastreio ou entrega, SEMPRE oriente a acessar o sistema primeiro: faça login em https://gestaoebd.com.br/login/ebd > No menu lateral, clique em "Meus Pedidos" > Lá encontra status, código de rastreio e histórico
+10. O foco principal é sempre levar o cliente a acessar e usar o sistema`;
 
 const OPENAI_TOOLS = [
   {
@@ -421,13 +430,16 @@ async function handleEnviarCredenciais(
       .eq("cliente_id", cliente.id);
   }
 
-  return `🎉 *Aqui estão seus dados de acesso ao Sistema Gestão EBD!*\n\n` +
-    `📧 *E-mail:* ${email}\n` +
-    `🔑 *Senha:* ${senha}\n\n` +
-    `🔗 *Acesse:* https://gestaoebd.com.br/login/ebd\n\n` +
-    `⚠️ Recomendamos alterar a senha no primeiro acesso.\n\n` +
-    `Ao entrar, o sistema vai te guiar passo a passo para configurar suas turmas, professores e alunos. 🎯\n\n` +
-    `Precisa de ajuda para configurar? Me pergunte! 😊`;
+  return `*Aqui estão seus dados de acesso ao Sistema Gestão EBD:*\n\n` +
+    `*E-mail:* ${email}\n` +
+    `*Senha:* ${senha}\n\n` +
+    `*Acesse:* https://gestaoebd.com.br/login/ebd\n\n` +
+    `Recomendamos alterar a senha no primeiro acesso.\n\n` +
+    `Ao entrar, você já pode:\n` +
+    `- Acompanhar seu pedido e código de rastreio (Menu > Meus Pedidos)\n` +
+    `- Configurar turmas, professores e alunos com o guia passo a passo\n\n` +
+    `O sistema vai te orientar em cada etapa.\n\n` +
+    `Precisa de ajuda? Me pergunte!`;
 }
 
 async function sendZApiMessage(
