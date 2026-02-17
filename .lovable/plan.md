@@ -1,62 +1,128 @@
 
 
-# 4 Ajustes: Toggle de envio automatico, senha padrao, URLs corretas
+# Funil Primeira Compra no WhatsApp + Links corrigidos + Mensagens com botoes de acao
 
-## 1. Botao Liga/Desliga para envio automatico de WhatsApp
+## 1. Funil Primeira Compra no painel WhatsApp
 
-Adicionar uma configuracao `whatsapp_auto_envio_ativo` na tabela `system_settings` e um botao toggle na pagina WhatsApp (/admin/ebd/whatsapp) na aba de Credenciais.
+Adicionar uma nova aba "Funil Primeira Compra" em `/admin/ebd/whatsapp` com visualizacao das 5 fases do funil pos-venda, mostrando quantidade de clientes em cada fase e cores distintas.
 
-- Quando desligado, tanto o `funil-posv-cron` quanto o envio automatico no `ebd-shopify-order-webhook` verificam essa flag antes de enviar qualquer mensagem.
-- O toggle sera um Switch com label claro "Envio Automatico de WhatsApp" na aba Credenciais.
+**Fases e cores:**
+- Fase 1 - Boas-vindas enviada (azul)
+- Fase 2 - Lembrete de Login (laranja)
+- Fase 3 - Onboarding/Pesquisa (amarelo)
+- Fase 4 - Configuracao de Escala (verde-claro)
+- Fase 5 - Ativo/Concluido (verde)
 
-## 2. Senha padrao fixa: `mudar123`
+Os dados virao diretamente da tabela `funil_posv_tracking` agrupados por `fase_atual`. Ao clicar em cada fase, exibe a lista de clientes naquela etapa.
 
-Substituir a geracao aleatoria de senha (`generateTempPassword(8)`) por uma senha fixa `mudar123` no arquivo `ebd-shopify-order-webhook/index.ts`.
+**Arquivo:** `src/pages/admin/WhatsAppPanel.tsx` - nova aba "Funil" no TabsList.
 
-- Linha 592: trocar `const tempPassword = generateTempPassword(8);` por `const tempPassword = "mudar123";`
+---
 
-## 3. Corrigir URL do painel nas mensagens
+## 2. Corrigir URLs do link tracker
 
-Substituir TODAS as ocorrencias de `https://gestaoebd.lovable.app` por `https://gestaoebd.com.br` nos seguintes arquivos:
+O `TRACKER_BASE_URL` no `funil-posv-cron` e o `TRACKER_BASE` no `ebd-shopify-order-webhook` ainda usam a URL crua do Supabase (`https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-link-tracker`).
 
-- `supabase/functions/whatsapp-link-tracker/index.ts` (linha 3: PANEL_URL)
-- `supabase/functions/funil-posv-cron/index.ts` (linha 10: PANEL_URL, linha 186: URL hardcoded)
-- `supabase/functions/ebd-email-cron/index.ts` (linhas 109-110)
-- `supabase/functions/send-ebd-email/index.ts` (linhas 83-84)
+**Solucao:** Substituir por um link direto para o painel `https://gestaoebd.com.br/login/ebd` em vez de usar o tracker intermediario. Ou manter o tracker mas com URL amigavel via redirect no dominio principal.
 
-E corrigir o redirect do `whatsapp-link-tracker` para apontar para `/login/ebd` em vez de `/ebd/painel` como destino padrao.
+Como o tracker precisa registrar cliques no banco, a melhor abordagem e manter o tracker mas nas mensagens mostrar apenas a URL amigavel `https://gestaoebd.com.br/login/ebd` e fazer o tracking por outro mecanismo (ex: detectar login no banco). Isso elimina URLs estranhas nas mensagens.
 
-## 4. Corrigir link do tracker nas mensagens do webhook
+**Arquivos:**
+- `supabase/functions/ebd-shopify-order-webhook/index.ts` (linha 719-720): trocar `TRACKER_BASE` por URL direta
+- `supabase/functions/funil-posv-cron/index.ts` (linha 9 e todas as construcoes de `trackLink`): trocar por URL direta
 
-No `ebd-shopify-order-webhook/index.ts` (linha 719-720), o link tracker usa a URL crua do Supabase. O redirect `r=/ebd/painel` precisa mudar para `r=/login/ebd` para que ao clicar o cliente va para a pagina de login correta em `gestaoebd.com.br/login/ebd`.
+---
 
-Tambem no `funil-posv-cron/index.ts`, todos os `r=/ebd/painel` e `r=/ebd/escala` devem apontar para caminhos relativos corretos que o link-tracker redirecionara para `gestaoebd.com.br`.
+## 3. Redesenhar mensagens do funil com botoes de acao (Z-API)
+
+### Mensagem Fase 1 - Duas mensagens interativas
+
+**Mensagem 1 - Confirmacao de compra (com detalhes do produto):**
+Usar endpoint `/send-button-actions` da Z-API para enviar texto com botoes.
+
+```
+Ola [nome]! Obrigado por sua compra na Central Gospel! 
+
+Pedido #[numero_pedido]
+[lista de produtos com nome e valor]
+Frete: R$ [frete]
+Total: R$ [total]
+
+Seu pedido esta sendo preparado! Deseja receber seus dados de acesso para acompanhar a entrega?
+```
+
+Botao: "Quero acompanhar meu pedido" (tipo URL -> https://gestaoebd.com.br/login/ebd)
+
+**Para incluir detalhes do produto na mensagem**, sera necessario adicionar `line_items` ao payload do Shopify webhook (ja vem por padrao no webhook do Shopify, so precisa tipar na interface e usar).
+
+### Estrutura Z-API send-button-actions
+
+```json
+{
+  "phone": "5511999999999",
+  "message": "Texto da mensagem...",
+  "title": "Central Gospel - Pedido Confirmado",
+  "footer": "gestaoebd.com.br",
+  "buttonActions": [
+    {
+      "id": "1",
+      "type": "URL",
+      "url": "https://gestaoebd.com.br/login/ebd",
+      "label": "Acompanhar Pedido"
+    }
+  ]
+}
+```
+
+### Fases subsequentes do funil
+
+Todas as mensagens do `funil-posv-cron` tambem serao convertidas para usar `/send-button-actions` com botoes de URL em vez de texto puro com links.
+
+---
 
 ## Secao Tecnica
 
+### Interface ShopifyOrder (webhook)
+Adicionar `line_items` a interface:
+```typescript
+line_items: Array<{
+  title: string;
+  quantity: number;
+  price: string;
+  variant_title?: string;
+}>;
+```
+
 ### Arquivos alterados:
 
-**Edge Functions (backend):**
-- `supabase/functions/ebd-shopify-order-webhook/index.ts`:
-  - Linha 592: senha fixa `mudar123`
-  - Linha 700+: verificar flag `whatsapp_auto_envio_ativo` antes de enviar
-  - Linha 720: `r=/ebd/painel` → `r=/login/ebd`
-- `supabase/functions/whatsapp-link-tracker/index.ts`:
-  - Linha 3: `PANEL_URL` → `https://gestaoebd.com.br`
-- `supabase/functions/funil-posv-cron/index.ts`:
-  - Linha 10: `PANEL_URL` → `https://gestaoebd.com.br`
-  - Linha 186: URL hardcoded → usar `PANEL_URL`
-  - Inicio: verificar flag `whatsapp_auto_envio_ativo`, se desligado retorna sem processar
-- `supabase/functions/ebd-email-cron/index.ts`:
-  - Linhas 109-110: URLs → `https://gestaoebd.com.br/login/ebd` e `.../vendedor/catalogo`
-- `supabase/functions/send-ebd-email/index.ts`:
-  - Linhas 83-84: mesma correcao de URLs
+**`supabase/functions/ebd-shopify-order-webhook/index.ts`:**
+- Adicionar `line_items` na interface `ShopifyOrder`
+- Linha 719: remover `TRACKER_BASE`, usar URL direta
+- Linhas 722-726: reescrever mensagem Fase 1 com detalhes do produto (nome, quantidade, valor, frete, total)
+- Linhas 729-735: trocar de `send-text` para `send-button-actions` com payload de botoes
+- Mudar referencia de "Painel EBD" para "Central Gospel" na mensagem
 
-**Frontend:**
-- `src/pages/admin/WhatsAppPanel.tsx`:
-  - Adicionar Switch toggle na aba Credenciais para ligar/desligar envio automatico
-  - Ler e salvar a key `whatsapp_auto_envio_ativo` em `system_settings`
+**`supabase/functions/funil-posv-cron/index.ts`:**
+- Linha 9: remover `TRACKER_BASE_URL`
+- Todas as construcoes de mensagem: trocar de `send-text` para `send-button-actions`
+- Remover links crus, usar botoes de acao
+- Funcao `sendWhatsAppMessage`: aceitar parametro opcional de `buttonActions` e escolher endpoint dinamicamente
 
-**Banco de dados:**
-- Inserir registro inicial: `INSERT INTO system_settings (key, value) VALUES ('whatsapp_auto_envio_ativo', 'true')` (ligado por padrao)
+**`src/pages/admin/WhatsAppPanel.tsx`:**
+- Adicionar aba "Funil" no TabsList
+- Criar componente de visualizacao do funil com barras coloridas (similar ao VendedorFunil)
+- Query na tabela `funil_posv_tracking` agrupada por `fase_atual`
+- Ao clicar na fase, expandir lista de clientes com nome, telefone e status do WhatsApp
+
+### Funcao auxiliar para send-button-actions
+
+Criar funcao reutilizavel no `funil-posv-cron`:
+```typescript
+async function sendWhatsAppWithButtons(
+  instanceId, zapiToken, clientToken,
+  telefone, message, title, footer,
+  buttonActions, nome, tipoMensagem, supabase
+)
+```
+Que usa `/send-button-actions` quando ha botoes, ou `/send-text` como fallback.
 
