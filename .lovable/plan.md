@@ -1,34 +1,44 @@
 
-# Implementacao: Fluxo 2 mensagens + Teste
 
-## Resumo
+# Correcao: Trocar buttonActions por texto simples com link
 
-1. **Migracao SQL**: Adicionar colunas `email_acesso` e `senha_temp` em `funil_posv_tracking`
-2. **send-whatsapp-message**: Adicionar suporte a `buttonActions` para usar `/send-button-actions`
-3. **ebd-shopify-order-webhook**: Reescrever Mensagem 1 sem credenciais, salvar email/senha no tracking, botao com tracker URL
-4. **whatsapp-link-tracker**: Ao detectar clique fase 1, disparar Mensagem 2 com credenciais automaticamente
-5. **Teste**: Enviar Mensagem 1 para 5511964103366 (Cleuton Soares) com dados ficticios
+## Problema
+O endpoint `/send-button-actions` da Z-API aceita o payload mas nao entrega a mensagem ao destinatario. Mensagens de texto simples (`/send-text`) funcionam normalmente.
+
+## Solucao
+Remover o uso de `buttonActions` e `/send-button-actions` em todos os locais. Incorporar o link diretamente no texto da mensagem.
+
+## Alteracoes
+
+### 1. send-whatsapp-message/index.ts
+- Remover a condicao `if (buttonActions)` (linhas 88-90)
+- Manter apenas as opcoes `/send-text` e `/send-image`
+- Se `buttonActions` for enviado no body, ignorar e usar texto simples
+
+### 2. ebd-shopify-order-webhook/index.ts (linhas 748-775)
+- Adicionar o link do tracker diretamente no texto da `fase1Msg`, ex:
+  `Acompanhe seu pedido aqui: LINK`
+- Usar endpoint `/send-text` em vez de `/send-button-actions`
+- Remover `title`, `footer`, `buttonActions` do payload
+
+### 3. whatsapp-link-tracker/index.ts (linhas 89-113)
+- Na Mensagem 2 (credenciais), colocar o link do painel no texto
+- Usar `/send-text` em vez de `/send-button-actions`
+- Remover `title`, `footer`, `buttonActions` do payload
+
+### 4. Teste
+- Reenviar a Mensagem 1 para 5511986216465 como texto simples com link embutido
 
 ## Secao Tecnica
 
-### Migracao SQL
-```sql
-ALTER TABLE funil_posv_tracking
-ADD COLUMN IF NOT EXISTS email_acesso TEXT,
-ADD COLUMN IF NOT EXISTS senha_temp TEXT;
+Payload antes (nao funciona):
+```text
+POST /send-button-actions
+{ phone, message, title, footer, buttonActions: [...] }
 ```
 
-### send-whatsapp-message/index.ts
-- Linha 38: extrair `title`, `footer`, `buttonActions` do body
-- Linhas 88-94: adicionar condicao para buttonActions antes de imagem/texto
-
-### ebd-shopify-order-webhook/index.ts
-- Linhas 690-695: adicionar `email_acesso` e `senha_temp` no upsert do tracking
-- Linhas 742-748: reescrever mensagem Fase 1 no novo formato sem credenciais
-- Linha 760: URL do botao usa tracker `whatsapp-link-tracker?c=ID&f=1&r=/login/ebd`
-
-### whatsapp-link-tracker/index.ts
-- Ao receber clique fase 1: verificar se ja foi clicado antes, buscar dados do cliente e credenciais, enviar Mensagem 2 via Z-API com botao "Acessar meu Painel"
-
-### Teste
-Chamar `send-whatsapp-message` com payload da Mensagem 1 para 5511964103366.
+Payload depois (funciona):
+```text
+POST /send-text
+{ phone, message: "...texto...\n\nLink: https://..." }
+```
