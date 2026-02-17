@@ -748,7 +748,7 @@ serve(async (req) => {
                 const zapiBaseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
                 const trackerUrl = `${supabaseUrl}/functions/v1/whatsapp-link-tracker?c=${clienteId}&f=1&r=/login/ebd`;
                 
-                const fase1Msg = `Olá, ${nomeCliente}! 👋\n\nRecebemos seu pedido na Central Gospel! Obrigado pela confiança.\n\nResumo do Pedido:\n${itensTexto}\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}\n✨ Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}\n\nAcompanhe o prazo de entrega e o código de rastreio em tempo real:\n👉 ${trackerUrl}`;
+                const fase1Msg = `Olá, ${nomeCliente}! 👋\n\nRecebemos seu pedido na Central Gospel! Obrigado pela confiança.\n\nResumo do Pedido:\n${itensTexto}\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}\n✨ Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}\n\nQuer acompanhar o prazo de entrega e o código de rastreio em tempo real?\n\nSIM, QUERO 👉 ${trackerUrl}`;
                 
                 const zapiPayload = {
                   phone: telefoneCliente,

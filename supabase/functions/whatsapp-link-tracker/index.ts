@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
             const clientToken = zapiMap["zapi_client_token"];
 
             if (instanceId && zapiToken && clientToken) {
-              const msg2 = `Excelente! 🎉\n\nPara facilitar, criamos um painel exclusivo para você acompanhar sua entrega e já começar a organizar suas aulas.\n\nSeus dados de acesso:\n📧 E-mail: ${tracking.email_acesso}\n🔑 Senha: ${tracking.senha_temp}\n\nAlém do rastreio, você acaba de ganhar acesso ao sistema Gestão EBD para gerenciar suas turmas!\n\n👉 Acesse seu painel: ${PANEL_URL}/login/ebd`;
+              const msg2 = `Excelente! 🎉\n\nPara facilitar, criamos um painel exclusivo para você acompanhar sua entrega e já começar a organizar suas aulas.\n\nSeus dados de acesso:\n📧 E-mail: ${tracking.email_acesso}\n🔑 Senha: ${tracking.senha_temp}\n\nAcesse aqui: ${PANEL_URL}/login/ebd\n\nAlém do rastreio, você acaba de ganhar acesso ao sistema Gestão EBD para gerenciar suas turmas!`;
 
               const zapiBaseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
               const msg2Payload = {
