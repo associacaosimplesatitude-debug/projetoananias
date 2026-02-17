@@ -1,127 +1,64 @@
 
-# Agente IA para WhatsApp - Primeira Compra EBD
+# Aprimorar o Agente IA do WhatsApp
 
-## Visao Geral
+## Problema 1: API Key
+A `OPENAI_API_KEY` ja esta configurada e funcionando nos secrets do projeto. O teste anterior comprovou que a IA respondeu corretamente. Nenhuma acao necessaria aqui.
 
-Transformar o webhook da Z-API em um agente inteligente que:
-1. Recebe mensagens dos clientes via Z-API
-2. Usa OpenAI para entender a intencao (quer acesso, tem duvida sobre o sistema, etc.)
-3. Responde automaticamente com credenciais OU resposta contextual sobre o sistema
-4. Funciona em qualquer fase do funil
+## Problema 2: Fluxo correto das mensagens
+O fluxo ja esta correto na arquitetura:
+- **Mensagem 1** (resumo do pedido) e enviada automaticamente pelo `ebd-shopify-order-webhook` quando o pedido entra no Shopify
+- **Agente IA** so responde quando o cliente **escreve de volta** no WhatsApp
 
-## Como Funciona Hoje
+O teste anterior pareceu estranho porque foi simulado manualmente com a frase "quero acessar". No uso real, o cliente recebe primeiro o resumo do pedido e so depois responde.
 
-```text
-Webhook Z-API → whatsapp-webhook → salva no banco (whatsapp_webhooks) → FIM
-```
+**Nenhuma mudanca de fluxo necessaria** -- apenas melhorar o link/URL de acesso na resposta de credenciais para apontar para `gestaoebd.com.br` em vez de `gestaoebd.lovable.app`.
 
-O webhook atual apenas armazena os eventos. Nao processa nem responde.
+## Problema 3: Conhecimento detalhado do sistema
+O system prompt atual e muito superficial. Precisa incluir instrucoes detalhadas sobre:
 
-## Novo Fluxo
+### Alteracao: Expandir o SYSTEM_PROMPT no `whatsapp-webhook/index.ts`
 
-```text
-Cliente responde WhatsApp
-  → Z-API envia webhook para whatsapp-webhook
-  → Identifica que e mensagem de texto recebida
-  → Busca contexto do cliente (telefone → ebd_clientes → tracking)
-  → Envia para OpenAI com prompt contextual
-  → OpenAI decide a acao:
-      a) "quer_acesso" → Envia Mensagem 2 (credenciais)
-      b) "duvida_sistema" → Responde com orientacao sobre o sistema
-      c) "outro" → Resposta generica amigavel
-  → Envia resposta via Z-API
-  → Registra tudo em whatsapp_mensagens
-```
+Adicionar conhecimento completo sobre o **Painel do Superintendente**:
 
-## Alteracoes
+**Funcionalidades que o agente precisa saber explicar:**
+1. **Dashboard EBD** - Visao geral com total de alunos, professores, turmas, frequencia media, grafico de evolucao semanal, ranking de alunos, aniversariantes do mes, saldo de creditos
+2. **Gestao de Alunos** - Cadastro completo com foto, telefone, data de nascimento, turma vinculada, historico de presenca, link de cadastro publico para o aluno se cadastrar sozinho
+3. **Gestao de Professores** - Cadastro com especialidade por faixa etaria, vinculacao a turmas, controle de disponibilidade
+4. **Gestao de Turmas** - Criar turmas por faixa etaria (Adultos, Jovens, Adolescentes, Juniores, Jardim, Maternal), vincular professor titular e auxiliar, definir sala
+5. **Ativar Revistas** - Selecionar a turma, escolher a revista comprada no catalogo, ativar para liberar o conteudo das aulas
+6. **Montar Escala** - Calendario mensal, atribuir professor por domingo, definir numero da aula, permitir substituicoes, visualizar escala geral de todas as turmas
+7. **Lancamento de Presenca** - Selecionar turma e data, marcar presentes/ausentes, adicionar observacoes por aluno, registrar visitantes
+8. **Relatorios de Frequencia** - Filtros por periodo e turma, graficos de barras e pizza, percentual de frequencia por aluno, exportar para PDF
+9. **Quizzes Interativos** - Criar quizzes com perguntas e alternativas, alunos respondem pelo app, ranking de pontuacao, gamificacao com estrelas
+10. **Desafio Biblico** - Programa de leitura da Biblia com metas diarias, alunos registram leituras, medalhas por conquistas, ranking geral entre alunos
+11. **Devocionais** - Conteudo devocional diario gerado para os alunos, com versiculo e reflexao
+12. **Catalogo EBD** - Visualizar todas as revistas disponiveis para compra, adicionar ao carrinho, finalizar pedido
+13. **Planejamento Escolar** - Definir periodo letivo, dia da semana da EBD, vincular revista ao planejamento da turma
+14. **Onboarding Guiado** - Passo a passo para configurar a EBD: criar turmas > cadastrar professores > cadastrar alunos > montar escala > ativar revista
 
-### 1. Salvar a API Key da OpenAI como secret
-Voce ja tem a chave do projeto "PRIMEIRA COMPRA EBD". Vamos armazena-la de forma segura para uso na Edge Function.
+### Instrucoes adicionais no prompt:
+- Quando o cliente perguntar "como cadastro uma turma", explicar o passo a passo
+- Quando perguntar sobre escala, explicar como funciona o calendario e a atribuicao
+- Quando perguntar sobre frequencia, explicar o lancamento e os relatorios
+- O link de acesso deve ser `https://gestaoebd.com.br/login/ebd`
+- A senha padrao e `mudar123` (buscar do campo `senha_temporaria` do banco)
 
-### 2. Atualizar `whatsapp-webhook/index.ts`
-Expandir a funcao para:
-- Detectar quando o evento e uma **mensagem recebida** (text message from client)
-- Extrair o texto e o telefone do remetente
-- Buscar o cliente no banco pelo telefone (`ebd_clientes.telefone`)
-- Buscar o tracking do funil (`funil_posv_tracking`)
-- Montar contexto para a OpenAI:
-  - Nome do cliente, fase atual, se ja fez login, se tem onboarding, etc.
-  - System prompt com instrucoes sobre o sistema EBD e suas funcionalidades
-- Chamar OpenAI API com tool calling para decidir a acao
-- Executar a acao (enviar credenciais, responder duvida)
-- Enviar resposta via Z-API
-- Registrar em `whatsapp_mensagens`
-
-### 3. Criar tabela `whatsapp_conversas` (opcional mas recomendado)
-Para manter historico de conversa por telefone e alimentar contexto nas proximas interacoes:
-- `id`, `telefone`, `cliente_id`, `role` (user/assistant), `content`, `created_at`
+### Correcao do link na resposta de credenciais:
+Trocar `gestaoebd.lovable.app` por `gestaoebd.com.br` na funcao `handleEnviarCredenciais`.
 
 ## Secao Tecnica
 
-### Estrutura do payload Z-API (mensagem recebida)
-A Z-API envia webhooks com eventos como:
-- `event: "received"` ou `type: "ReceivedCallback"` para mensagens recebidas
-- `text.message` contem o texto da mensagem
-- `phone` ou `from` contem o telefone do remetente
-
-### System Prompt da OpenAI
-O agente tera um prompt detalhado sobre:
-- As funcionalidades do sistema Gestao EBD (cadastro de turmas, escalas, frequencia, devocionais, quiz, ranking, etc.)
-- Informacoes sobre o pedido e rastreio
-- Instrucoes para identificar intencao e responder de forma comercial/amigavel
-- Uso de tool calling para acoes estruturadas (enviar credenciais, responder duvida)
-
-### Tools da OpenAI
-```text
-1. enviar_credenciais - Quando o cliente quer acesso ao sistema
-   Parametros: nenhum (credenciais sao buscadas do banco)
-
-2. responder_duvida - Quando o cliente tem pergunta sobre o sistema
-   Parametros: resposta (string com a resposta)
-
-3. resposta_generica - Para saudacoes ou mensagens nao relacionadas
-   Parametros: resposta (string)
-```
-
-### Fluxo no codigo
-```text
-1. Receber webhook
-2. Verificar se e mensagem recebida (text)
-3. Buscar cliente por telefone
-4. Se nao encontrar → resposta padrao ("Nao encontramos seu cadastro")
-5. Se encontrar:
-   a. Buscar tracking do funil
-   b. Buscar ultimas mensagens da conversa (contexto)
-   c. Montar mensagens para OpenAI (system + historico + mensagem atual)
-   d. Chamar OpenAI com tools
-   e. Executar tool escolhida
-   f. Enviar resposta via Z-API
-   g. Salvar conversa no banco
-```
-
 ### Arquivo alterado: `supabase/functions/whatsapp-webhook/index.ts`
-- Adicionar logica de deteccao de mensagem recebida
-- Adicionar integracao com OpenAI
-- Adicionar envio de resposta via Z-API
-- Adicionar registro de conversa
 
-### Novo recurso no banco: tabela `whatsapp_conversas`
-```sql
-CREATE TABLE whatsapp_conversas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  telefone TEXT NOT NULL,
-  cliente_id UUID REFERENCES ebd_clientes(id),
-  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
-  content TEXT NOT NULL,
-  tool_used TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE INDEX idx_whatsapp_conversas_telefone ON whatsapp_conversas(telefone);
-CREATE INDEX idx_whatsapp_conversas_created ON whatsapp_conversas(created_at DESC);
+**Mudanca 1**: Expandir o `SYSTEM_PROMPT` (linhas 9-41) com conhecimento detalhado das 14 funcionalidades do painel do superintendente, incluindo passo-a-passo de cada uma.
+
+**Mudanca 2**: Na funcao `handleEnviarCredenciais` (linha 390), trocar:
+```
+gestaoebd.lovable.app → gestaoebd.com.br
 ```
 
-### Secret necessario
-- `OPENAI_API_KEY` - **ja existe** nos secrets do projeto
-
-### Config.toml
-- `whatsapp-webhook` ja esta com `verify_jwt = false` (correto para webhook externo)
+**Mudanca 3**: Adicionar ao system prompt instrucoes sobre o fluxo correto:
+- O cliente ja recebeu a Mensagem 1 com resumo do pedido
+- Se ele responde "sim", "quero", "ok" → enviar credenciais
+- Se ele pergunta algo sobre o sistema → responder com conhecimento detalhado
+- Se ele responde depois de dias (lembrete de login) → ser amigavel e oferecer ajuda
