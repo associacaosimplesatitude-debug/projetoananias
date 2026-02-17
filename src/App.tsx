@@ -13,6 +13,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import ModuleProtectedRoute from "@/components/ModuleProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import ConfirmacaoWhatsApp from "./pages/ConfirmacaoWhatsApp";
 import DiretoriaForm from "./pages/DiretoriaForm";
 import Members from "./pages/Members";
 import ChurchMembers from "./pages/ChurchMembers";
@@ -203,6 +204,7 @@ const App = () => (
                 </EBDLandingRedirect>
               } />
               <Route path="/login/ebd" element={<EBDLogin />} />
+              <Route path="/confirmacao-whatsapp" element={<ConfirmacaoWhatsApp />} />
               <Route path="/login/autor" element={<AutorLogin />} />
               <Route path="/gestao-ebd" element={<LandingEBD />} />
               <Route path="/apresentacao" element={<Apresentacao />} />
