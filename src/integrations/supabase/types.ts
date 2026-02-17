@@ -4317,6 +4317,7 @@ export type Database = {
           cliente_id: string
           concluido: boolean
           created_at: string
+          email_acesso: string | null
           fase_atual: number
           fase1_enviada_em: string | null
           fase1_link_clicado: boolean
@@ -4330,6 +4331,7 @@ export type Database = {
           fase4b_enviada_em: string | null
           fase5_enviada_em: string | null
           id: string
+          senha_temp: string | null
           ultima_mensagem_em: string | null
           updated_at: string
         }
@@ -4337,6 +4339,7 @@ export type Database = {
           cliente_id: string
           concluido?: boolean
           created_at?: string
+          email_acesso?: string | null
           fase_atual?: number
           fase1_enviada_em?: string | null
           fase1_link_clicado?: boolean
@@ -4350,6 +4353,7 @@ export type Database = {
           fase4b_enviada_em?: string | null
           fase5_enviada_em?: string | null
           id?: string
+          senha_temp?: string | null
           ultima_mensagem_em?: string | null
           updated_at?: string
         }
@@ -4357,6 +4361,7 @@ export type Database = {
           cliente_id?: string
           concluido?: boolean
           created_at?: string
+          email_acesso?: string | null
           fase_atual?: number
           fase1_enviada_em?: string | null
           fase1_link_clicado?: boolean
@@ -4370,6 +4375,7 @@ export type Database = {
           fase4b_enviada_em?: string | null
           fase5_enviada_em?: string | null
           id?: string
+          senha_temp?: string | null
           ultima_mensagem_em?: string | null
           updated_at?: string
         }

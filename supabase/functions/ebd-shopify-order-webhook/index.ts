@@ -690,7 +690,7 @@ serve(async (req) => {
             const { error: funilErr } = await supabase
               .from("funil_posv_tracking")
               .upsert(
-                { cliente_id: clienteId, fase_atual: 1 },
+                { cliente_id: clienteId, fase_atual: 1, email_acesso: customerEmail, senha_temp: tempPassword },
                 { onConflict: "cliente_id", ignoreDuplicates: true }
               );
             
@@ -739,26 +739,27 @@ serve(async (req) => {
                 const totalPedido = parseFloat(order.total_price || "0");
                 const desconto = parseFloat(order.total_discounts || "0");
                 
-                let detalhesCompra = `📦 Pedido #${order.order_number}\n`;
-                if (produtosTexto) detalhesCompra += `\n${produtosTexto}\n`;
-                if (frete > 0) detalhesCompra += `\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}`;
-                if (desconto > 0) detalhesCompra += `\n🏷️ Desconto: -R$ ${desconto.toFixed(2).replace(".", ",")}`;
-                detalhesCompra += `\n💰 Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}`;
-                
-                const fase1Msg = `Olá ${nomeCliente}! Obrigado por sua compra na Central Gospel! 🎉\n\n${detalhesCompra}\n\nSeu pedido está sendo preparado! Acesse o painel para acompanhar a entrega, ver prazo e código de rastreio.\n\nSeus dados de acesso:\n📧 Email: ${customerEmail}\n🔑 Senha: ${tempPassword}`;
+                // Montar itens para o novo formato
+                const itensTexto = lineItems.map((item) => {
+                  const qty = item.quantity > 1 ? `${item.quantity}x ` : "";
+                  return `📦 Item: ${qty}${item.title} - R$ ${parseFloat(item.price).toFixed(2).replace(".", ",")}`;
+                }).join("\n");
+
+                const fase1Msg = `Olá, ${nomeCliente}! 👋\n\nRecebemos seu pedido na Central Gospel! Obrigado pela confiança.\n\nResumo do Pedido:\n${itensTexto}\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}\n✨ Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}\n\nQuer acompanhar o prazo de entrega e o código de rastreio em tempo real?`;
                 
                 const zapiBaseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
+                const trackerUrl = `${supabaseUrl}/functions/v1/whatsapp-link-tracker?c=${clienteId}&f=1&r=/login/ebd`;
                 const zapiPayload = {
                   phone: telefoneCliente,
                   message: fase1Msg,
-                  title: "Central Gospel - Pedido Confirmado",
+                  title: "Central Gospel",
                   footer: "gestaoebd.com.br",
                   buttonActions: [
                     {
                       id: "1",
                       type: "URL",
-                      url: PANEL_URL,
-                      label: "Acompanhar Pedido"
+                      url: trackerUrl,
+                      label: "Acompanhar meu Pedido"
                     }
                   ]
                 };

@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { tipo_mensagem, telefone, nome, mensagem, imagem_url } = body;
+    const { tipo_mensagem, telefone, nome, mensagem, imagem_url, title, footer, buttonActions } = body;
 
     if (!telefone || !mensagem) {
       return new Response(JSON.stringify({ error: "Telefone e mensagem são obrigatórios" }), {
@@ -85,7 +85,10 @@ Deno.serve(async (req) => {
     let zapiPayload: Record<string, unknown>;
     let zapiEndpoint: string;
 
-    if (imagem_url) {
+    if (buttonActions && buttonActions.length > 0) {
+      zapiEndpoint = `${baseUrl}/send-button-actions`;
+      zapiPayload = { phone: telefone, message: mensagem, title: title || "", footer: footer || "", buttonActions };
+    } else if (imagem_url) {
       zapiEndpoint = `${baseUrl}/send-image`;
       zapiPayload = { phone: telefone, image: imagem_url, caption: mensagem };
     } else {
