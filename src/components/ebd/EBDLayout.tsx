@@ -31,10 +31,12 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 function EBDSidebar() {
   const location = useLocation();
+  const { setOpenMobile } = useSidebar();
 
   const isActive = (path: string, end?: boolean) => {
     if (end) return location.pathname === path;
@@ -62,7 +64,7 @@ function EBDSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/dashboard', true)}>
-                    <RouterNavLink to="/ebd/dashboard" end>
+                    <RouterNavLink to="/ebd/dashboard" end onClick={() => setOpenMobile(false)}>
                       <LayoutDashboard className="h-4 w-4" />
                       <span>Dashboard</span>
                     </RouterNavLink>
@@ -79,7 +81,7 @@ function EBDSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/students')}>
-                    <RouterNavLink to="/ebd/students">
+                    <RouterNavLink to="/ebd/students" onClick={() => setOpenMobile(false)}>
                       <Users className="h-4 w-4" />
                       <span>Alunos</span>
                     </RouterNavLink>
@@ -87,7 +89,7 @@ function EBDSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/teachers')}>
-                    <RouterNavLink to="/ebd/teachers">
+                    <RouterNavLink to="/ebd/teachers" onClick={() => setOpenMobile(false)}>
                       <GraduationCap className="h-4 w-4" />
                       <span>Professores</span>
                     </RouterNavLink>
@@ -95,7 +97,7 @@ function EBDSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/turmas')}>
-                    <RouterNavLink to="/ebd/turmas">
+                    <RouterNavLink to="/ebd/turmas" onClick={() => setOpenMobile(false)}>
                       <Layers className="h-4 w-4" />
                       <span>Turmas</span>
                     </RouterNavLink>
@@ -112,7 +114,7 @@ function EBDSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/ativar-revistas')}>
-                    <RouterNavLink to="/ebd/ativar-revistas">
+                    <RouterNavLink to="/ebd/ativar-revistas" onClick={() => setOpenMobile(false)}>
                       <BookOpen className="h-4 w-4" />
                       <span>Ativar Revistas</span>
                     </RouterNavLink>
@@ -120,7 +122,7 @@ function EBDSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/escala')}>
-                    <RouterNavLink to="/ebd/escala">
+                    <RouterNavLink to="/ebd/escala" onClick={() => setOpenMobile(false)}>
                       <Calendar className="h-4 w-4" />
                       <span>Escala</span>
                     </RouterNavLink>
@@ -128,7 +130,7 @@ function EBDSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/lancamento-manual')}>
-                    <RouterNavLink to="/ebd/lancamento-manual">
+                    <RouterNavLink to="/ebd/lancamento-manual" onClick={() => setOpenMobile(false)}>
                       <FileText className="h-4 w-4" />
                       <span>Lançamento Manual</span>
                     </RouterNavLink>
@@ -145,7 +147,7 @@ function EBDSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/frequencia/relatorio')}>
-                    <RouterNavLink to="/ebd/frequencia/relatorio">
+                    <RouterNavLink to="/ebd/frequencia/relatorio" onClick={() => setOpenMobile(false)}>
                       <BarChart3 className="h-4 w-4" />
                       <span>Frequência</span>
                     </RouterNavLink>
@@ -162,7 +164,7 @@ function EBDSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/quizzes')}>
-                    <RouterNavLink to="/ebd/quizzes">
+                    <RouterNavLink to="/ebd/quizzes" onClick={() => setOpenMobile(false)}>
                       <Gamepad2 className="h-4 w-4" />
                       <span>Quizzes</span>
                     </RouterNavLink>
@@ -170,7 +172,7 @@ function EBDSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/desafio-biblico')}>
-                    <RouterNavLink to="/ebd/desafio-biblico">
+                    <RouterNavLink to="/ebd/desafio-biblico" onClick={() => setOpenMobile(false)}>
                       <Gamepad2 className="h-4 w-4" />
                       <span>Desafio Bíblico</span>
                     </RouterNavLink>
@@ -187,7 +189,7 @@ function EBDSidebar() {
               <SidebarMenu>
               <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/shopify-pedidos')}>
-                    <RouterNavLink to="/ebd/shopify-pedidos">
+                    <RouterNavLink to="/ebd/shopify-pedidos" onClick={() => setOpenMobile(false)}>
                       <ShoppingCart className="h-4 w-4" />
                       <span>Catálogo</span>
                     </RouterNavLink>
@@ -195,7 +197,7 @@ function EBDSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/ebd/pedidos') || isActive('/ebd/my-orders')}>
-                    <RouterNavLink to="/ebd/pedidos">
+                    <RouterNavLink to="/ebd/pedidos" onClick={() => setOpenMobile(false)}>
                       <Package className="h-4 w-4" />
                       <span>Meus Pedidos</span>
                     </RouterNavLink>
