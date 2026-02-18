@@ -1,49 +1,105 @@
 
 
-# Criar Acesso de Superintendente para Teste
+# Redesign Premium do Dashboard do Superintendente
 
-## Situacao Atual
-- O cliente "Igreja Teste WhatsApp" ja existe na tabela `ebd_clientes` (ID: `9a1b4214-18a4-4311-84a7-c248bac2e24a`)
-- Email: `teste.whatsapp@gestaoebd.com`
-- Status EBD: ativo
-- **Problema**: Nao existe usuario na tabela `auth.users` e o campo `superintendente_user_id` esta vazio
+## Visao Geral
+Transformar o dashboard atual em um painel moderno, profissional e futurista usando as cores da marca: **#1b191c** (preto escuro) e **#f4b328** (dourado/amber). Inspirado nos exemplos enviados com cards elegantes, graficos estilizados e visual dark premium.
 
-## O que sera feito
+## Paleta de Cores da Marca
+- **Primario escuro**: #1b191c (fundo de cards destaque, sidebar)
+- **Dourado/Amber**: #f4b328 (acentos, icones, destaques, botoes)
+- **Superficies**: tons de cinza escuro para profundidade
+- **Textos**: branco sobre fundos escuros, cinza claro para secundarios
 
-### Passo 1 - Criar usuario auth
-Usar a Edge Function `create-auth-user-direct` para criar o usuario com:
-- **Email:** `teste.whatsapp@gestaoebd.com`
-- **Senha:** `mudar123`
-- **Nome:** `Superintendente Teste`
+## Mudancas Visuais
 
-### Passo 2 - Vincular ao cliente EBD
-Atualizar o campo `superintendente_user_id` na tabela `ebd_clientes` com o ID do usuario criado. Isso fara o `DashboardRedirect` reconhecer o usuario como superintendente e redirecionar para `/ebd/dashboard`.
+### 1. Header Redesenhado
+- Saudacao personalizada com hora do dia ("Bom dia, Superintendente")
+- Nome da igreja em destaque com badge dourado
+- Botoes de acao com estilo dourado (outline com borda amber)
+- Data atual formatada
 
-### Passo 3 - Criar perfil
-A Edge Function ja cria o perfil automaticamente na tabela `profiles`.
+### 2. Cards de Metricas (KPI Cards)
+- Background escuro (#1b191c) com bordas sutis
+- Numeros grandes em dourado (#f4b328) para destaque
+- Icones dentro de circulos com fundo dourado translucido
+- Efeito de hover com elevacao e brilho sutil
+- Animacao fade-in ao carregar
 
-## Resultado
-Ao fazer login com `teste.whatsapp@gestaoebd.com` / `mudar123`, o usuario sera redirecionado automaticamente para o painel do superintendente (`/ebd/dashboard`) onde tera acesso a todas as funcoes: turmas, professores, alunos, frequencia, pedidos, etc.
+### 3. Cards Informativos (Aniversariantes, Ofertas, Creditos)
+- Fundo com gradiente escuro sutil ao inves de cores pasteis
+- Bordas com acento dourado
+- Icones em dourado
+
+### 4. Graficos Estilizados
+- Fundo escuro nos containers de graficos
+- Linhas e barras em dourado (#f4b328) e branco
+- Grid sutil em cinza escuro
+- Tooltips com estilo dark
+
+### 5. Ranking e Listas
+- Items com fundo escuro e hover dourado
+- Medalhas (1o, 2o, 3o) com gradientes dourados
+- Badges com estilo premium
+
+### 6. Cards de Revistas e Turmas
+- Progress bars com cor dourada
+- Separadores visuais mais elegantes
 
 ## Secao Tecnica
 
-### Chamadas necessarias
+### Arquivo modificado: `src/pages/ebd/Dashboard.tsx`
 
-1. **Chamar Edge Function** `create-auth-user-direct`:
-```json
-{
-  "email": "teste.whatsapp@gestaoebd.com",
-  "password": "mudar123",
-  "full_name": "Superintendente Teste"
-}
-```
+Todas as mudancas sao visuais (classNames e estilos inline). Nenhuma logica de dados sera alterada.
 
-2. **Atualizar `ebd_clientes`** (via SQL insert tool):
-```sql
-UPDATE ebd_clientes 
-SET superintendente_user_id = '<user_id_retornado>'
-WHERE id = '9a1b4214-18a4-4311-84a7-c248bac2e24a';
-```
+**Principais alteracoes de classes CSS:**
 
-Nenhuma alteracao de codigo e necessaria -- apenas dados no banco.
+1. **KPI Cards** - Trocar `bg-gradient-to-br from-blue-500/10...` por classes com fundo escuro e acentos dourados:
+   ```
+   bg-[#1b191c] text-white border-[#f4b328]/20
+   ```
+
+2. **Numeros destaque** - Trocar cores individuais (blue-600, green-600, etc) por dourado:
+   ```
+   text-[#f4b328]
+   ```
+
+3. **Icone containers** - Circulo com fundo dourado translucido:
+   ```
+   bg-[#f4b328]/20
+   ```
+
+4. **Icones** - Cor dourada uniforme:
+   ```
+   text-[#f4b328]
+   ```
+
+5. **Header** - Saudacao com hora do dia + estilo refinado
+
+6. **Botoes** - Botao primario com fundo dourado, secundario com outline dourado:
+   ```
+   bg-[#f4b328] text-[#1b191c] hover:bg-[#f4b328]/90
+   ```
+
+7. **Cards de graficos** - Background escuro, cores douradas nos graficos:
+   ```
+   stroke="#f4b328" para linhas
+   fill="#f4b328" para barras/pie
+   ```
+
+8. **Ranking medalhas** - Gradiente dourado para o 1o lugar, prata e bronze mantidos
+
+9. **Cards informativos** (aniversariantes, ofertas) - Fundo escuro com bordas douradas ao inves de pasteis coloridos
+
+10. **Progress bars** - Indicador dourado
+
+### Arquivo modificado: `src/index.css`
+- Nenhuma alteracao necessaria -- as cores serao aplicadas inline via classes Tailwind arbitrarias `[#1b191c]` e `[#f4b328]`
+
+### Componentes auxiliares inalterados
+- `OnboardingProgressCard`, `TaxaLeituraSemanalCard`, `BirthdayCouponModal` - permanecem como estao (podem ser ajustados numa segunda iteracao)
+
+### Animacoes
+- Cards KPI com `animate-fade-in` escalonado
+- Hover nos cards com `transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10`
 
