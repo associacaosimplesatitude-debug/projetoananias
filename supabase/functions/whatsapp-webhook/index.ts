@@ -210,12 +210,23 @@ Deno.serve(async (req) => {
 
     // Check if this is a received text message
     if (isReceivedMessage(payload)) {
-      const messageText = extractMessageText(payload);
-      const senderPhone = extractPhone(payload);
+      // Verificar se o agente está ativo
+      const { data: autoEnvioSetting } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "whatsapp_auto_envio_ativo")
+        .maybeSingle();
 
-      if (messageText && senderPhone) {
-        console.log(`Received message from ${senderPhone}: ${messageText}`);
-        await processIncomingMessage(supabase, senderPhone, messageText);
+      if (autoEnvioSetting?.value === "false") {
+        console.log("Agente de IA desativado - envio automático desligado");
+      } else {
+        const messageText = extractMessageText(payload);
+        const senderPhone = extractPhone(payload);
+
+        if (messageText && senderPhone) {
+          console.log(`Received message from ${senderPhone}: ${messageText}`);
+          await processIncomingMessage(supabase, senderPhone, messageText);
+        }
       }
     }
 
