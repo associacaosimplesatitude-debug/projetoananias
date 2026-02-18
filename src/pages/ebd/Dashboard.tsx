@@ -444,8 +444,8 @@ export default function EBDDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header Premium */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 rounded-2xl bg-[#1b191c] border border-[#f4b328]/20 shadow-lg shadow-[#f4b328]/5">
+      {/* Header Premium - único bloco escuro */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 rounded-2xl bg-[#1b191c] border border-[#f4b328]/20">
         <div>
           <p className="text-[#f4b328]/70 text-sm font-medium tracking-wide uppercase">
             {format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
@@ -462,7 +462,7 @@ export default function EBDDashboard() {
         <div className="flex flex-wrap gap-2">
           <Button 
             onClick={() => navigate("/ebd/lancamento-manual")} 
-            className="gap-2 bg-[#f4b328] text-[#1b191c] hover:bg-[#f4b328]/90 font-semibold shadow-md shadow-[#f4b328]/20"
+            className="gap-2 bg-[#f4b328] text-[#1b191c] hover:bg-[#f4b328]/90 font-semibold"
           >
             <ClipboardList className="h-4 w-4" />
             Lançamento Manual
@@ -470,7 +470,7 @@ export default function EBDDashboard() {
           <Button 
             onClick={() => navigate("/ebd/desafio-biblico")} 
             variant="outline" 
-            className="gap-2 border-[#f4b328]/40 text-[#f4b328] hover:bg-[#f4b328]/10 hover:text-[#f4b328]"
+            className="gap-2 border-white/20 text-white hover:bg-white/10 hover:text-white"
           >
             <Gamepad2 className="h-4 w-4" />
             Desafio Bíblico
@@ -483,25 +483,25 @@ export default function EBDDashboard() {
         <OnboardingProgressCard churchId={ebdClienteId} />
       )}
 
-      {/* Card de Créditos Disponíveis - Premium */}
+      {/* Card de Créditos Disponíveis */}
       {(creditosDisponiveis > 0 || creditosUsados > 0) && (
-        <Card className="border-[#f4b328]/20 bg-[#1b191c] transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+        <Card className="border-gray-200 bg-white rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-[#f4b328]/20 flex items-center justify-center">
+                <div className="h-12 w-12 rounded-full bg-[#f4b328]/10 flex items-center justify-center">
                   <Wallet className="h-6 w-6 text-[#f4b328]" />
                 </div>
                 <div>
-                  <p className="text-sm text-white/60">Créditos Disponíveis</p>
+                  <p className="text-sm text-gray-500">Créditos Disponíveis</p>
                   <p className="text-2xl font-bold text-[#f4b328]">
                     R$ {creditosDisponiveis.toFixed(2)}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs text-white/40">Já utilizados</p>
-                <p className="text-sm font-medium text-white/60">
+                <p className="text-xs text-gray-400">Já utilizados</p>
+                <p className="text-sm font-medium text-gray-500">
                   R$ {creditosUsados.toFixed(2)}
                 </p>
               </div>
@@ -510,17 +510,17 @@ export default function EBDDashboard() {
         </Card>
       )}
 
-      {/* KPI Cards Premium */}
+      {/* KPI Cards - Fundo branco, clean */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Total de Alunos */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10 hover:border-[#f4b328]/30 animate-fade-in">
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md animate-fade-in">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-white/60">Total de Alunos</p>
-                <p className="text-3xl font-bold text-[#f4b328]">{totalAlunos}</p>
+                <p className="text-sm text-gray-500">Total de Alunos</p>
+                <p className="text-3xl font-bold text-gray-900">{totalAlunos}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-[#f4b328]/15 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full bg-[#f4b328]/10 flex items-center justify-center">
                 <Users className="h-6 w-6 text-[#f4b328]" />
               </div>
             </div>
@@ -528,14 +528,14 @@ export default function EBDDashboard() {
         </Card>
 
         {/* Total de Professores */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10 hover:border-[#f4b328]/30 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md animate-fade-in" style={{ animationDelay: '0.1s' }}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-white/60">Professores</p>
-                <p className="text-3xl font-bold text-[#f4b328]">{totalProfessores}</p>
+                <p className="text-sm text-gray-500">Professores</p>
+                <p className="text-3xl font-bold text-gray-900">{totalProfessores}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-[#f4b328]/15 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full bg-[#f4b328]/10 flex items-center justify-center">
                 <GraduationCap className="h-6 w-6 text-[#f4b328]" />
               </div>
             </div>
@@ -543,14 +543,14 @@ export default function EBDDashboard() {
         </Card>
 
         {/* Total de Turmas */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10 hover:border-[#f4b328]/30 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-white/60">Turmas Ativas</p>
-                <p className="text-3xl font-bold text-[#f4b328]">{turmas.length}</p>
+                <p className="text-sm text-gray-500">Turmas Ativas</p>
+                <p className="text-3xl font-bold text-gray-900">{turmas.length}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-[#f4b328]/15 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full bg-[#f4b328]/10 flex items-center justify-center">
                 <BookOpen className="h-6 w-6 text-[#f4b328]" />
               </div>
             </div>
@@ -558,16 +558,16 @@ export default function EBDDashboard() {
         </Card>
 
         {/* Taxa de Frequência */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10 hover:border-[#f4b328]/30 animate-fade-in" style={{ animationDelay: '0.3s' }}>
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md animate-fade-in" style={{ animationDelay: '0.3s' }}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-white/60">Frequência Média</p>
-                <p className="text-3xl font-bold text-[#f4b328]">
+                <p className="text-sm text-gray-500">Frequência Média</p>
+                <p className="text-3xl font-bold text-gray-900">
                   {frequenciaData?.mediaFrequencia || 0}%
                 </p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-[#f4b328]/15 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full bg-[#f4b328]/10 flex items-center justify-center">
                 <Target className="h-6 w-6 text-[#f4b328]" />
               </div>
             </div>
@@ -583,17 +583,17 @@ export default function EBDDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Card Minha Escala - Próxima Aula */}
           {proximaEscala && (
-            <Card className="bg-[#1b191c] border-[#f4b328]/20 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+            <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base text-white">
+                <CardTitle className="flex items-center gap-2 text-base text-gray-900">
                   <Calendar className="h-5 w-5 text-[#f4b328]" />
                   Minha Escala
                 </CardTitle>
-                <CardDescription className="text-white/50">Sua próxima aula como professor</CardDescription>
+                <CardDescription className="text-gray-400">Sua próxima aula como professor</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-start gap-4">
-                  <div className="h-14 w-14 rounded-lg bg-[#f4b328]/20 flex flex-col items-center justify-center">
+                  <div className="h-14 w-14 rounded-lg bg-amber-50 flex flex-col items-center justify-center">
                     <span className="text-xs text-[#f4b328] font-medium">
                       {format(new Date(proximaEscala.data + 'T00:00:00'), 'MMM', { locale: ptBR }).toUpperCase()}
                     </span>
@@ -602,37 +602,37 @@ export default function EBDDashboard() {
                     </span>
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold text-white">{(proximaEscala.turma as any)?.nome || 'Aula'}</p>
-                    <p className="text-sm text-white/50">
+                    <p className="font-semibold text-gray-900">{(proximaEscala.turma as any)?.nome || 'Aula'}</p>
+                    <p className="text-sm text-gray-500">
                       {(proximaEscala.turma as any)?.faixa_etaria || 'Turma'}
                     </p>
-                    <p className="text-xs text-white/40 mt-1">
+                    <p className="text-xs text-gray-400 mt-1">
                       {format(new Date(proximaEscala.data + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })}
                     </p>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-white/40">Professores:</span>
+                  <span className="text-xs text-gray-400">Professores:</span>
                   <div className="flex -space-x-2">
                     {proximaEscala.professor && (
-                      <Avatar className="h-7 w-7 border-2 border-[#1b191c]">
+                      <Avatar className="h-7 w-7 border-2 border-white">
                         <AvatarImage src={proximaEscala.professor.avatar_url || undefined} />
-                        <AvatarFallback className="bg-[#f4b328]/20 text-[#f4b328] text-xs">
+                        <AvatarFallback className="bg-[#f4b328]/10 text-[#f4b328] text-xs">
                           {proximaEscala.professor.nome_completo?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
                     )}
                     {proximaEscala.professor2 && (
-                      <Avatar className="h-7 w-7 border-2 border-[#1b191c]">
+                      <Avatar className="h-7 w-7 border-2 border-white">
                         <AvatarImage src={proximaEscala.professor2.avatar_url || undefined} />
-                        <AvatarFallback className="bg-[#f4b328]/20 text-[#f4b328] text-xs">
+                        <AvatarFallback className="bg-[#f4b328]/10 text-[#f4b328] text-xs">
                           {proximaEscala.professor2.nome_completo?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
                     )}
                   </div>
-                  <span className="text-xs text-white/50">
+                  <span className="text-xs text-gray-500">
                     {proximaEscala.professor?.nome_completo?.split(' ')[0]}
                     {proximaEscala.professor2 && ` e ${proximaEscala.professor2.nome_completo?.split(' ')[0]}`}
                   </span>
@@ -641,7 +641,7 @@ export default function EBDDashboard() {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="w-full gap-2 border-[#f4b328]/30 text-[#f4b328] hover:bg-[#f4b328]/10"
+                  className="w-full gap-2 border-gray-200 text-gray-700 hover:bg-gray-50"
                   onClick={() => navigate('/ebd/escala')}
                 >
                   Ver Escala Completa
@@ -652,19 +652,19 @@ export default function EBDDashboard() {
           )}
 
           {/* Card Próximas Aulas */}
-          <Card className="bg-[#1b191c] border-[#f4b328]/20 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+          <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base text-white">
+              <CardTitle className="flex items-center gap-2 text-base text-gray-900">
                 <ClipboardList className="h-5 w-5 text-[#f4b328]" />
                 Próximas Aulas
               </CardTitle>
-              <CardDescription className="text-white/50">Sua agenda como professor</CardDescription>
+              <CardDescription className="text-gray-400">Sua agenda como professor</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {escalasSuper.slice(0, 4).map((escala: any) => (
-                  <div key={escala.id} className="flex items-center gap-3 p-2 bg-white/5 rounded-lg hover:bg-[#f4b328]/5 transition-colors">
-                    <div className="h-10 w-10 rounded bg-[#f4b328]/15 flex flex-col items-center justify-center">
+                  <div key={escala.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div className="h-10 w-10 rounded bg-amber-50 flex flex-col items-center justify-center">
                       <span className="text-[10px] text-[#f4b328] font-medium">
                         {format(new Date(escala.data + 'T00:00:00'), 'MMM', { locale: ptBR }).toUpperCase()}
                       </span>
@@ -673,26 +673,26 @@ export default function EBDDashboard() {
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate text-white">
+                      <p className="text-sm font-medium truncate text-gray-900">
                         {escala.turma?.nome || 'Aula'}
                       </p>
-                      <p className="text-xs text-white/40 truncate">
+                      <p className="text-xs text-gray-400 truncate">
                         {escala.turma?.faixa_etaria || 'Turma'}
                       </p>
                     </div>
                     <div className="flex -space-x-1">
                       {escala.professor && (
-                        <Avatar className="h-6 w-6 border border-[#1b191c]">
+                        <Avatar className="h-6 w-6 border border-white">
                           <AvatarImage src={escala.professor.avatar_url || undefined} />
-                          <AvatarFallback className="text-[10px] bg-[#f4b328]/20 text-[#f4b328]">
+                          <AvatarFallback className="text-[10px] bg-[#f4b328]/10 text-[#f4b328]">
                             {escala.professor.nome_completo?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                           </AvatarFallback>
                         </Avatar>
                       )}
                       {escala.professor2 && (
-                        <Avatar className="h-6 w-6 border border-[#1b191c]">
+                        <Avatar className="h-6 w-6 border border-white">
                           <AvatarImage src={escala.professor2.avatar_url || undefined} />
-                          <AvatarFallback className="text-[10px] bg-[#f4b328]/20 text-[#f4b328]">
+                          <AvatarFallback className="text-[10px] bg-[#f4b328]/10 text-[#f4b328]">
                             {escala.professor2.nome_completo?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                           </AvatarFallback>
                         </Avatar>
@@ -705,7 +705,7 @@ export default function EBDDashboard() {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="w-full mt-3 gap-2 text-[#f4b328] hover:bg-[#f4b328]/10 hover:text-[#f4b328]"
+                  className="w-full mt-3 gap-2 text-[#f4b328] hover:bg-amber-50 hover:text-[#f4b328]"
                   onClick={() => navigate('/ebd/escala')}
                 >
                   Ver todas ({escalasSuper.length} aulas)
@@ -717,12 +717,12 @@ export default function EBDDashboard() {
         </div>
       )}
 
-      {/* Segunda linha de widgets - Premium */}
+      {/* Segunda linha de widgets */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Aniversariantes do Dia */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base text-white">
+            <CardTitle className="flex items-center gap-2 text-base text-gray-900">
               <Cake className="h-5 w-5 text-[#f4b328]" />
               Aniversariantes do Dia
             </CardTitle>
@@ -734,39 +734,39 @@ export default function EBDDashboard() {
                   <div key={aluno.id} className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={aluno.avatar_url || undefined} />
-                      <AvatarFallback className="bg-[#f4b328]/20 text-[#f4b328] text-xs">
+                      <AvatarFallback className="bg-[#f4b328]/10 text-[#f4b328] text-xs">
                         {aluno.nome_completo.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium truncate text-white">{aluno.nome_completo}</span>
+                    <span className="text-sm font-medium truncate text-gray-900">{aluno.nome_completo}</span>
                   </div>
                 ))}
                 {aniversariantesHoje.length > 3 && (
-                  <p className="text-xs text-white/40">
+                  <p className="text-xs text-gray-400">
                     +{aniversariantesHoje.length - 3} mais
                   </p>
                 )}
               </div>
             ) : (
-              <p className="text-sm text-white/40">Nenhum aniversariante hoje</p>
+              <p className="text-sm text-gray-400">Nenhum aniversariante hoje</p>
             )}
           </CardContent>
         </Card>
 
         {/* Saldo em Caixa */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base text-white">
+            <CardTitle className="flex items-center gap-2 text-base text-gray-900">
               <DollarSign className="h-5 w-5 text-[#f4b328]" />
               Saldo em Caixa (Ofertas)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-[#f4b328]">
+            <p className="text-2xl font-bold text-gray-900">
               R$ {(ofertasData?.saldoTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
             {ofertasData?.topTurmaId && (
-              <p className="text-xs text-white/40 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Top arrecadação: {getTurmaNome(ofertasData.topTurmaId)}
               </p>
             )}
@@ -774,9 +774,9 @@ export default function EBDDashboard() {
         </Card>
 
         {/* Aniversariantes do Mês */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base text-white">
+            <CardTitle className="flex items-center gap-2 text-base text-gray-900">
               <CalendarDays className="h-5 w-5 text-[#f4b328]" />
               Aniversariantes do Mês
             </CardTitle>
@@ -785,36 +785,36 @@ export default function EBDDashboard() {
             {aniversariantesMes.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {aniversariantesMes.slice(0, 5).map(aluno => (
-                  <Avatar key={aluno.id} className="h-8 w-8 border-2 border-[#f4b328]/30">
+                  <Avatar key={aluno.id} className="h-8 w-8 border-2 border-gray-100">
                     <AvatarImage src={aluno.avatar_url || undefined} />
-                    <AvatarFallback className="bg-[#f4b328]/20 text-[#f4b328] text-xs">
+                    <AvatarFallback className="bg-[#f4b328]/10 text-[#f4b328] text-xs">
                       {aluno.nome_completo.split(' ').map(n => n[0]).join('').slice(0, 2)}
                     </AvatarFallback>
                   </Avatar>
                 ))}
                 {aniversariantesMes.length > 5 && (
-                  <div className="h-8 w-8 rounded-full bg-[#f4b328]/20 flex items-center justify-center text-xs font-medium text-[#f4b328]">
+                  <div className="h-8 w-8 rounded-full bg-amber-50 flex items-center justify-center text-xs font-medium text-[#f4b328]">
                     +{aniversariantesMes.length - 5}
                   </div>
                 )}
               </div>
             ) : (
-              <p className="text-sm text-white/40">Nenhum aniversariante este mês</p>
+              <p className="text-sm text-gray-400">Nenhum aniversariante este mês</p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Revistas em Uso e Ranking - Premium */}
+      {/* Revistas em Uso e Ranking */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Revistas em Uso */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
+            <CardTitle className="flex items-center gap-2 text-gray-900">
               <BookOpen className="h-5 w-5 text-[#f4b328]" />
               Revistas em Uso
             </CardTitle>
-            <CardDescription className="text-white/40">Evolução do planejamento trimestral</CardDescription>
+            <CardDescription className="text-gray-400">Evolução do planejamento trimestral</CardDescription>
           </CardHeader>
           <CardContent>
             {revistasEmUso.length > 0 ? (
@@ -822,23 +822,23 @@ export default function EBDDashboard() {
                 {revistasEmUso.map((revista: any, index) => (
                   <div key={index} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium truncate flex-1 text-white">{revista.titulo}</span>
-                      <span className="text-xs text-white/40 ml-2">
+                      <span className="text-sm font-medium truncate flex-1 text-gray-900">{revista.titulo}</span>
+                      <span className="text-xs text-gray-400 ml-2">
                         {revista.licoesMinistradas}/{revista.totalLicoes} aulas
                       </span>
                     </div>
-                    <Progress value={revista.progresso} className="h-2 bg-white/10" indicatorClassName="bg-[#f4b328]" />
+                    <Progress value={revista.progresso} className="h-2 bg-gray-100" indicatorClassName="bg-[#f4b328]" />
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-white/40">
+              <div className="text-center py-8 text-gray-400">
                 <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhum planejamento ativo</p>
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="mt-2 border-[#f4b328]/30 text-[#f4b328] hover:bg-[#f4b328]/10" 
+                  className="mt-2 border-gray-200 text-gray-700 hover:bg-gray-50" 
                   onClick={() => navigate('/ebd/planejamento')}
                 >
                   Criar Planejamento
@@ -849,35 +849,35 @@ export default function EBDDashboard() {
         </Card>
 
         {/* Ranking de Alunos */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
+            <CardTitle className="flex items-center gap-2 text-gray-900">
               <Trophy className="h-5 w-5 text-[#f4b328]" />
               Ranking de Alunos
             </CardTitle>
-            <CardDescription className="text-white/40">Top 10 por pontuação</CardDescription>
+            <CardDescription className="text-gray-400">Top 10 por pontuação</CardDescription>
           </CardHeader>
           <CardContent>
             {ranking.length > 0 ? (
               <div className="space-y-3">
                 {ranking.map((aluno, index) => (
-                  <div key={aluno.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#f4b328]/5 transition-colors">
+                  <div key={aluno.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                     <div className={`h-7 w-7 rounded-full flex items-center justify-center text-sm font-bold ${
                       index === 0 ? 'bg-gradient-to-br from-[#f4b328] to-[#e09a1a] text-[#1b191c] shadow-md shadow-[#f4b328]/30' :
-                      index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-[#1b191c]' :
+                      index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-white' :
                       index === 2 ? 'bg-gradient-to-br from-amber-700 to-amber-800 text-white' :
-                      'bg-white/10 text-white/60'
+                      'bg-gray-100 text-gray-500'
                     }`}>
                       {index === 0 ? <Crown className="h-4 w-4" /> : index + 1}
                     </div>
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={aluno.avatar_url || undefined} />
-                      <AvatarFallback className="text-xs bg-[#f4b328]/20 text-[#f4b328]">
+                      <AvatarFallback className="text-xs bg-[#f4b328]/10 text-[#f4b328]">
                         {aluno.nome_completo.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate text-white">{aluno.nome_completo}</p>
+                      <p className="text-sm font-medium truncate text-gray-900">{aluno.nome_completo}</p>
                     </div>
                     <div className="flex items-center gap-1">
                       <Star className="h-4 w-4 text-[#f4b328]" />
@@ -887,7 +887,7 @@ export default function EBDDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-white/40">
+              <div className="text-center py-8 text-gray-400">
                 <Trophy className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhum aluno cadastrado</p>
               </div>
@@ -896,44 +896,44 @@ export default function EBDDashboard() {
         </Card>
       </div>
 
-      {/* Gráfico de Frequência Histórica - Premium */}
-      <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+      {/* Gráfico de Frequência Histórica */}
+      <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
+          <CardTitle className="flex items-center gap-2 text-gray-900">
             <TrendingUp className="h-5 w-5 text-[#f4b328]" />
             Evolução da Frequência
           </CardTitle>
-          <CardDescription className="text-white/40">Últimos 6 meses</CardDescription>
+          <CardDescription className="text-gray-400">Últimos 6 meses</CardDescription>
         </CardHeader>
         <CardContent>
           {frequenciaHistorica.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={frequenciaHistorica}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                <XAxis dataKey="mes" stroke="rgba(255,255,255,0.4)" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }} />
-                <YAxis domain={[0, 100]} stroke="rgba(255,255,255,0.4)" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }} tickFormatter={(v) => `${v}%`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                <XAxis dataKey="mes" stroke="rgb(156,163,175)" tick={{ fill: 'rgb(156,163,175)', fontSize: 12 }} />
+                <YAxis domain={[0, 100]} stroke="rgb(156,163,175)" tick={{ fill: 'rgb(156,163,175)', fontSize: 12 }} tickFormatter={(v) => `${v}%`} />
                 <Tooltip 
                   formatter={(value: number) => [`${value}%`, 'Frequência']}
                   contentStyle={{ 
-                    backgroundColor: '#1b191c', 
-                    border: '1px solid rgba(244,179,40,0.3)',
+                    backgroundColor: '#fff', 
+                    border: '1px solid #e5e7eb',
                     borderRadius: '8px',
-                    color: '#fff'
+                    color: '#111827'
                   }}
-                  labelStyle={{ color: '#f4b328' }}
+                  labelStyle={{ color: '#6b7280' }}
                 />
                 <Line 
                   type="monotone" 
                   dataKey="frequencia" 
                   stroke="#f4b328" 
                   strokeWidth={3}
-                  dot={{ fill: '#f4b328', strokeWidth: 2, stroke: '#1b191c', r: 5 }}
-                  activeDot={{ r: 7, fill: '#f4b328', stroke: '#fff', strokeWidth: 2 }}
+                  dot={{ fill: '#f4b328', strokeWidth: 2, stroke: '#fff', r: 5 }}
+                  activeDot={{ r: 7, fill: '#f4b328', stroke: '#f4b328', strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[250px] flex items-center justify-center text-white/40">
+            <div className="h-[250px] flex items-center justify-center text-gray-400">
               <div className="text-center">
                 <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Lance frequências para visualizar o gráfico</p>
@@ -943,11 +943,11 @@ export default function EBDDashboard() {
         </CardContent>
       </Card>
 
-      {/* Distribuição por Turma - Premium */}
+      {/* Distribuição por Turma */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
+            <CardTitle className="flex items-center gap-2 text-gray-900">
               <GraduationCap className="h-5 w-5 text-[#f4b328]" />
               Distribuição por Turma
             </CardTitle>
@@ -975,16 +975,16 @@ export default function EBDDashboard() {
                   </Pie>
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: '#1b191c', 
-                      border: '1px solid rgba(244,179,40,0.3)',
+                      backgroundColor: '#fff', 
+                      border: '1px solid #e5e7eb',
                       borderRadius: '8px',
-                      color: '#fff'
+                      color: '#111827'
                     }}
                   />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[250px] flex items-center justify-center text-white/40">
+              <div className="h-[250px] flex items-center justify-center text-gray-400">
                 <p>Cadastre turmas para visualizar</p>
               </div>
             )}
@@ -992,13 +992,13 @@ export default function EBDDashboard() {
         </Card>
 
         {/* Turmas com contagem */}
-        <Card className="bg-[#1b191c] border-[#f4b328]/15 transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10">
+        <Card className="bg-white border-gray-200 rounded-xl shadow-sm transition-all duration-300 hover:shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
+            <CardTitle className="flex items-center gap-2 text-gray-900">
               <Users className="h-5 w-5 text-[#f4b328]" />
               Turmas Ativas
             </CardTitle>
-            <CardDescription className="text-white/40">{turmas.length} turmas cadastradas</CardDescription>
+            <CardDescription className="text-gray-400">{turmas.length} turmas cadastradas</CardDescription>
           </CardHeader>
           <CardContent>
             {turmas.length > 0 ? (
@@ -1006,12 +1006,12 @@ export default function EBDDashboard() {
                 {turmas.slice(0, 6).map(turma => {
                   const alunosCount = alunosData.filter(a => a.turma_id === turma.id).length;
                   return (
-                    <div key={turma.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-[#f4b328]/5 transition-colors">
+                    <div key={turma.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                       <div>
-                        <p className="font-medium text-white">{turma.nome}</p>
-                        <p className="text-xs text-white/40">{turma.faixa_etaria}</p>
+                        <p className="font-medium text-gray-900">{turma.nome}</p>
+                        <p className="text-xs text-gray-400">{turma.faixa_etaria}</p>
                       </div>
-                      <Badge className="bg-[#f4b328]/20 text-[#f4b328] border-[#f4b328]/30 hover:bg-[#f4b328]/30">
+                      <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100">
                         {alunosCount} alunos
                       </Badge>
                     </div>
@@ -1019,13 +1019,13 @@ export default function EBDDashboard() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-8 text-white/40">
+              <div className="text-center py-8 text-gray-400">
                 <GraduationCap className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Nenhuma turma cadastrada</p>
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="mt-2 border-[#f4b328]/30 text-[#f4b328] hover:bg-[#f4b328]/10" 
+                  className="mt-2 border-gray-200 text-gray-700 hover:bg-gray-50" 
                   onClick={() => navigate('/ebd/turmas')}
                 >
                   Cadastrar Turma
