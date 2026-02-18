@@ -1,105 +1,120 @@
 
 
-# Redesign Premium do Dashboard do Superintendente
+# Redesign SaaS Premium - Dashboard do Superintendente
 
-## Visao Geral
-Transformar o dashboard atual em um painel moderno, profissional e futurista usando as cores da marca: **#1b191c** (preto escuro) e **#f4b328** (dourado/amber). Inspirado nos exemplos enviados com cards elegantes, graficos estilizados e visual dark premium.
+## Problema Atual
+O dashboard esta 100% com fundo escuro (#1b191c) em todos os cards, criando uma interface pesada, monolitica e sem respiro visual. Parece um template generico, nao um SaaS premium.
 
-## Paleta de Cores da Marca
-- **Primario escuro**: #1b191c (fundo de cards destaque, sidebar)
-- **Dourado/Amber**: #f4b328 (acentos, icones, destaques, botoes)
-- **Superficies**: tons de cinza escuro para profundidade
-- **Textos**: branco sobre fundos escuros, cinza claro para secundarios
+## Nova Diretriz de Design
 
-## Mudancas Visuais
+### Filosofia
+Inspirado em Stripe, Linear, Vercel e Notion: fundo claro, espacos generosos, tipografia refinada, cor dourada apenas como acento pontual.
 
-### 1. Header Redesenhado
-- Saudacao personalizada com hora do dia ("Bom dia, Superintendente")
-- Nome da igreja em destaque com badge dourado
-- Botoes de acao com estilo dourado (outline com borda amber)
-- Data atual formatada
+### Paleta Revisada
+- **Base**: branco / cinza muito claro (bg-white, bg-gray-50)
+- **#1b191c**: APENAS no header principal (saudacao)
+- **#f4b328**: APENAS para botoes primarios, icones ativos, progress bars, badges de destaque
+- **Textos**: gray-900 para titulos, gray-500 para subtextos
+- **Bordas**: gray-200 (sutis, quase invisiveis)
+- **Sombras**: shadow-sm, muito sutis
 
-### 2. Cards de Metricas (KPI Cards)
-- Background escuro (#1b191c) com bordas sutis
-- Numeros grandes em dourado (#f4b328) para destaque
-- Icones dentro de circulos com fundo dourado translucido
-- Efeito de hover com elevacao e brilho sutil
-- Animacao fade-in ao carregar
+## Mudancas Detalhadas
 
-### 3. Cards Informativos (Aniversariantes, Ofertas, Creditos)
-- Fundo com gradiente escuro sutil ao inves de cores pasteis
-- Bordas com acento dourado
-- Icones em dourado
+### 1. Header (saudacao)
+- Manter fundo escuro #1b191c APENAS aqui (unico bloco escuro)
+- Simplificar: remover shadow-lg exagerado
+- Border-radius 16px (rounded-2xl)
+- Botoes: primario dourado, secundario outline clean
 
-### 4. Graficos Estilizados
-- Fundo escuro nos containers de graficos
-- Linhas e barras em dourado (#f4b328) e branco
-- Grid sutil em cinza escuro
-- Tooltips com estilo dark
+### 2. KPI Cards (4 metricas)
+- Fundo **branco** com borda gray-200
+- Sombra sutil (shadow-sm)
+- Valor numerico em gray-900 (preto), nao dourado
+- Icone em circulo com fundo #f4b328/10 e icone #f4b328
+- Label em gray-500
+- Border-radius 12px+ (rounded-xl)
+- Hover suave: shadow-md
 
-### 5. Ranking e Listas
-- Items com fundo escuro e hover dourado
-- Medalhas (1o, 2o, 3o) com gradientes dourados
-- Badges com estilo premium
+### 3. Card de Creditos
+- Fundo branco, borda gray-200
+- Valor em #f4b328 (destaque unico)
+- Icone dourado translucido
 
-### 6. Cards de Revistas e Turmas
-- Progress bars com cor dourada
-- Separadores visuais mais elegantes
+### 4. Cards Informativos (Aniversariantes, Ofertas)
+- Fundo branco
+- Titulos em gray-900
+- Icones em #f4b328
+- Subtextos em gray-500
+- Bordas cinza claras
+
+### 5. Ranking de Alunos
+- Fundo branco
+- Items com hover bg-gray-50
+- Medalha 1o lugar: dourada
+- Nomes em gray-900
+- Pontos em #f4b328
+
+### 6. Graficos (Frequencia, Distribuicao)
+- Container com fundo branco
+- Grid do grafico em gray-100
+- Linha/barras em #f4b328
+- Eixos em gray-400
+- Tooltip com fundo branco, borda gray-200
+
+### 7. Cards Escala (professor)
+- Fundo branco
+- Badge de data com bg-amber-50 e texto #f4b328
+- Avatars com borda branca
+
+### 8. Revistas em Uso
+- Fundo branco
+- Progress bar: trilha gray-100, indicador #f4b328
+- Texto de progresso em gray-500
+
+### 9. Turmas Ativas
+- Fundo branco
+- Items com bg-gray-50 no hover
+- Badge de contagem com bg-amber-50 e texto amber-700
 
 ## Secao Tecnica
 
 ### Arquivo modificado: `src/pages/ebd/Dashboard.tsx`
 
-Todas as mudancas sao visuais (classNames e estilos inline). Nenhuma logica de dados sera alterada.
+Todas as mudancas sao CSS (classNames). Nenhuma logica de dados sera alterada.
 
-**Principais alteracoes de classes CSS:**
+**Padrao de substituicao em TODOS os cards:**
 
-1. **KPI Cards** - Trocar `bg-gradient-to-br from-blue-500/10...` por classes com fundo escuro e acentos dourados:
-   ```
-   bg-[#1b191c] text-white border-[#f4b328]/20
-   ```
+| De (atual) | Para (novo) |
+|---|---|
+| `bg-[#1b191c]` | `bg-white` |
+| `border-[#f4b328]/15` | `border-gray-200` |
+| `text-white` | `text-gray-900` |
+| `text-white/60` | `text-gray-500` |
+| `text-white/40` | `text-gray-400` |
+| `text-white/50` | `text-gray-400` |
+| `hover:shadow-[#f4b328]/10` | `hover:shadow-md` |
+| `bg-white/5` | `bg-gray-50` |
+| `bg-white/10` | `bg-gray-100` |
+| `hover:bg-[#f4b328]/5` | `hover:bg-gray-50` |
+| `text-[#f4b328]` em valores KPI | `text-gray-900` |
 
-2. **Numeros destaque** - Trocar cores individuais (blue-600, green-600, etc) por dourado:
-   ```
-   text-[#f4b328]
-   ```
+**Excecoes (mantem dourado):**
+- Header saudacao: manter `bg-[#1b191c]`
+- Icones dentro de circulos: manter `text-[#f4b328]`
+- Botao primario: manter `bg-[#f4b328]`
+- Progress bars: manter `bg-[#f4b328]`
+- Pontos do ranking: manter `text-[#f4b328]`
+- Badge da igreja: manter dourado
 
-3. **Icone containers** - Circulo com fundo dourado translucido:
-   ```
-   bg-[#f4b328]/20
-   ```
+**Graficos (Recharts):**
+- CartesianGrid: `stroke="rgba(0,0,0,0.06)"`
+- XAxis/YAxis: `stroke="rgb(156,163,175)"` e tick fill gray
+- Tooltip contentStyle: `backgroundColor: '#fff'`, `border: '1px solid #e5e7eb'`, `color: '#111827'`
+- Manter linha/pie em `#f4b328`
 
-4. **Icones** - Cor dourada uniforme:
-   ```
-   text-[#f4b328]
-   ```
+**Espacamento:**
+- Container principal: manter `space-y-6`
+- Cards: `rounded-xl` (12px+)
+- Padding interno dos cards: manter `p-4` / `p-6`
 
-5. **Header** - Saudacao com hora do dia + estilo refinado
-
-6. **Botoes** - Botao primario com fundo dourado, secundario com outline dourado:
-   ```
-   bg-[#f4b328] text-[#1b191c] hover:bg-[#f4b328]/90
-   ```
-
-7. **Cards de graficos** - Background escuro, cores douradas nos graficos:
-   ```
-   stroke="#f4b328" para linhas
-   fill="#f4b328" para barras/pie
-   ```
-
-8. **Ranking medalhas** - Gradiente dourado para o 1o lugar, prata e bronze mantidos
-
-9. **Cards informativos** (aniversariantes, ofertas) - Fundo escuro com bordas douradas ao inves de pasteis coloridos
-
-10. **Progress bars** - Indicador dourado
-
-### Arquivo modificado: `src/index.css`
-- Nenhuma alteracao necessaria -- as cores serao aplicadas inline via classes Tailwind arbitrarias `[#1b191c]` e `[#f4b328]`
-
-### Componentes auxiliares inalterados
-- `OnboardingProgressCard`, `TaxaLeituraSemanalCard`, `BirthdayCouponModal` - permanecem como estao (podem ser ajustados numa segunda iteracao)
-
-### Animacoes
-- Cards KPI com `animate-fade-in` escalonado
-- Hover nos cards com `transition-all duration-300 hover:shadow-lg hover:shadow-[#f4b328]/10`
-
+Nenhum arquivo adicional precisa ser modificado.
