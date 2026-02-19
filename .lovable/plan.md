@@ -1,62 +1,59 @@
 
-# Tag do Vendedor nos Contatos + Modal "Visualizar Lead"
 
-## 1. Tag do Vendedor na Lista de Contatos
+# Corrigir Modal "Visualizar Lead" - Limite de 1000 rows
 
-Na lista lateral de contatos, abaixo do nome, sera exibida uma badge com o nome do vendedor atribuido ao lead (ex: "Elaine"), similar a imagem de referencia.
+## Problema Identificado
 
-**Como funciona:**
-- Ao carregar a lista de contatos, o sistema cruza o telefone do contato com a tabela `ebd_leads_reativacao` (campo `telefone`) e faz join com `vendedores` para obter o nome.
-- Se o lead tiver `vendedor_id`, exibe uma Badge colorida com o nome do vendedor abaixo do nome do contato.
-- Contatos sem lead ou sem vendedor nao exibem a tag.
+A tabela `ebd_shopify_pedidos` possui **1520 registros** com telefone, mas o Supabase retorna no maximo **1000 por query**. O pedido da Jaqueline Leovani (#2368) esta fora desse corte, por isso o modal aparece vazio.
 
-## 2. Botao "Visualizar Lead" no Header do Chat
+## Solucao
 
-Na barra superior do chat (ao lado do nome do contato), sera adicionado um botao com icone de olho e tooltip "Visualizar lead". Ao clicar, abre um Dialog/Modal com informacoes completas do lead.
+Substituir a abordagem de "buscar todos e filtrar em memoria" por queries mais inteligentes que usam filtros no banco.
 
-**Informacoes exibidas no modal:**
-- **Nome** (nome_igreja ou nome_responsavel)
-- **Telefone**
-- **Vendedor** atribuido (nome do vendedor)
-- **Tipo de cliente** (tipo_lead ou tipo_cliente: Igreja CNPJ, Igreja CPF, ADVEC, etc.)
-- **Email**
-- **CNPJ/CPF**
-- **Dados de acesso ao painel Gestao EBD** (email, conta_criada, senha_temporaria do ebd_clientes se existir)
-- **Ultimo pedido** (ultima proposta da tabela vendedor_propostas com status e data)
-- **Ultimo login no painel Gestao EBD** (ultimo_login_ebd do lead ou ultimo_login do ebd_clientes)
+### Alteracoes em `LeadDetailModal.tsx`
 
-Se o telefone nao corresponder a nenhum lead, o botao ficara desabilitado ou exibira mensagem "Lead nao encontrado".
+**Estrategia: gerar variantes do telefone e usar filtro `in` no Supabase**
 
----
+Em vez de buscar TODOS os registros e filtrar no frontend, vamos:
 
-## Detalhes Tecnicos
+1. Gerar as variantes do telefone (com/sem 9o digito, com/sem prefixo 55, com/sem +)
+2. Usar `.in("customer_phone", variantes)` direto na query do Supabase
 
-### Alteracoes em `src/components/admin/WhatsAppChat.tsx`
+Variantes geradas para `554591482203`:
+- `554591482203`
+- `5545991482203`
+- `+554591482203`
+- `+5545991482203`
+- `4591482203`
+- `45991482203`
 
-**1. Tipo Contact - adicionar campos:**
+Isso elimina o problema do limite de 1000 rows porque a query ja retorna apenas os registros relevantes.
+
+### Detalhes tecnicos
+
 ```text
-vendedorNome?: string | null;
-leadId?: string | null;
+Arquivo: src/components/admin/whatsapp/LeadDetailModal.tsx
+
+1. Nova funcao `generatePhoneFilters(phone)`:
+   - Recebe o telefone bruto
+   - Retorna array com todas as variantes possiveis:
+     - digits puro
+     - com/sem 55
+     - com/sem 9o digito  
+     - com/sem + na frente
+   - Remove duplicatas
+
+2. Query ebd_shopify_pedidos:
+   - DE: .select(...).not("customer_phone", "is", null) + filter em JS
+   - PARA: .select(...).in("customer_phone", phoneFilters)
+   
+3. Query ebd_leads_reativacao:
+   - DE: .select(...).not("telefone", "is", null) + filter em JS  
+   - PARA: .select(...).in("telefone", phoneFilters)
+
+4. Query ebd_clientes:
+   - DE: .select(...).not("telefone", "is", null) + filter em JS
+   - PARA: .select(...).in("telefone", phoneFilters)
 ```
 
-**2. Query de contatos - enriquecer com dados de leads:**
-- Apos montar a lista de telefones, fazer query em `ebd_leads_reativacao` filtrando por telefone (`in`) com join em `vendedores(nome)`.
-- Mapear o resultado para adicionar `vendedorNome` e `leadId` a cada contato.
-
-**3. ContactList - renderizar badge do vendedor:**
-- Abaixo do nome do contato, se `vendedorNome` existir, exibir `<Badge>` com o nome.
-
-**4. ChatWindow header - botao "Visualizar Lead":**
-- Adicionar botao com icone `Eye` ao lado do nome.
-- Ao clicar, abre Dialog com dados do lead.
-
-**5. Novo componente LeadDetailModal:**
-- Recebe o telefone do contato.
-- Faz queries em:
-  - `ebd_leads_reativacao` (dados do lead, vendedor, tipo, score, ultimo_login_ebd)
-  - `ebd_clientes` (dados de acesso: email, conta_criada, senha_temporaria, ultimo_login, tipo_cliente)
-  - `vendedor_propostas` (ultimo pedido: status, valor_total, created_at) filtrando por `cliente_id`
-- Exibe tudo organizado em secoes dentro do modal.
-
-### Nenhuma migracao de banco necessaria
-Todas as informacoes ja existem nas tabelas atuais. A vinculacao e feita pelo campo `telefone`.
+Essa mudanca resolve o problema de limite e tambem melhora a performance (busca apenas registros relevantes em vez de carregar centenas/milhares de registros).
