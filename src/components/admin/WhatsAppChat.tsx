@@ -17,14 +17,13 @@ import {
   Search,
   Send,
   ArrowLeft,
-  Image as ImageIcon,
-  Mic,
   Loader2,
   MessageSquare,
-  User,
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import LeadDetailModal from "./whatsapp/LeadDetailModal";
 
 // Types
 interface Contact {
@@ -33,6 +32,7 @@ interface Contact {
   foto: string | null;
   ultimaMensagem: string;
   ultimaData: string;
+  vendedorNome?: string | null;
 }
 
 interface ChatMessage {
@@ -73,7 +73,6 @@ function ContactList({
 
   return (
     <div className="flex flex-col h-full bg-card">
-      {/* Header */}
       <div className="p-3 border-b bg-muted/30">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -86,7 +85,6 @@ function ContactList({
         </div>
       </div>
 
-      {/* Contact List */}
       <ScrollArea className="flex-1">
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -130,6 +128,11 @@ function ContactList({
                       : ""}
                   </span>
                 </div>
+                {contact.vendedorNome && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 mt-0.5">
+                    {contact.vendedorNome}
+                  </Badge>
+                )}
                 <p className="text-xs text-muted-foreground truncate mt-0.5">
                   {contact.ultimaMensagem}
                 </p>
@@ -156,16 +159,15 @@ function ChatWindow({
 }) {
   const [inputMsg, setInputMsg] = useState("");
   const [sending, setSending] = useState(false);
+  const [showLeadModal, setShowLeadModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
-  // Fetch messages for this phone
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["whatsapp-chat-messages", phone],
     queryFn: async () => {
       const allMessages: ChatMessage[] = [];
 
-      // 1. From whatsapp_conversas
       const { data: conversas } = await supabase
         .from("whatsapp_conversas")
         .select("id, role, content, created_at, imagem_url, audio_url")
@@ -184,7 +186,6 @@ function ChatWindow({
         });
       });
 
-      // 2. From whatsapp_mensagens
       const { data: mensagens } = await supabase
         .from("whatsapp_mensagens")
         .select("id, mensagem, imagem_url, tipo_mensagem, status, created_at")
@@ -203,7 +204,6 @@ function ChatWindow({
         });
       });
 
-      // Sort by timestamp
       allMessages.sort(
         (a, b) =>
           new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -214,12 +214,10 @@ function ChatWindow({
     refetchInterval: 10000,
   });
 
-  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send message
   const handleSend = async () => {
     if (!inputMsg.trim() || sending) return;
     setSending(true);
@@ -253,7 +251,6 @@ function ChatWindow({
     }
   };
 
-  // Group messages by date
   const groupedMessages = useMemo(() => {
     const groups: { date: string; messages: ChatMessage[] }[] = [];
     let currentDate = "";
@@ -291,12 +288,21 @@ function ChatWindow({
               .toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="font-medium text-sm text-foreground truncate">
             {contact?.nome || phone}
           </p>
           <p className="text-xs text-muted-foreground font-mono">{phone}</p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowLeadModal(true)}
+          title="Visualizar Lead"
+          className="shrink-0"
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Messages area */}
@@ -313,7 +319,6 @@ function ChatWindow({
         ) : (
           groupedMessages.map((group) => (
             <div key={group.date}>
-              {/* Date separator */}
               <div className="flex justify-center my-3">
                 <span className="text-[11px] bg-muted text-muted-foreground px-3 py-1 rounded-full">
                   {group.date}
@@ -351,6 +356,12 @@ function ChatWindow({
           )}
         </Button>
       </div>
+
+      <LeadDetailModal
+        open={showLeadModal}
+        onOpenChange={setShowLeadModal}
+        phone={phone}
+      />
     </div>
   );
 }
@@ -368,7 +379,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             : "bg-card text-foreground border border-border/50 rounded-bl-sm"
         }`}
       >
-        {/* Source badge for system messages */}
         {message.source === "mensagem" && message.tipo && (
           <span
             className={`text-[10px] font-medium block mb-1 ${
@@ -379,7 +389,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           </span>
         )}
 
-        {/* Image */}
         {message.imagemUrl && (
           <div className="mb-1.5">
             <img
@@ -391,7 +400,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           </div>
         )}
 
-        {/* Audio */}
         {message.audioUrl && (
           <div className="mb-1.5">
             <audio controls preload="metadata" className="max-w-full h-10">
@@ -401,10 +409,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           </div>
         )}
 
-        {/* Text content */}
         <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
 
-        {/* Timestamp */}
         <span
           className={`text-[10px] float-right ml-2 mt-1 ${
             isSent ? "text-white/60" : "text-muted-foreground"
@@ -436,7 +442,6 @@ export default function WhatsAppChat() {
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch contact list
   const { data: contacts = [], isLoading: loadingContacts } = useQuery({
     queryKey: ["whatsapp-chat-contacts"],
     queryFn: async () => {
@@ -446,7 +451,6 @@ export default function WhatsAppChat() {
         .select("telefone, content, created_at")
         .order("created_at", { ascending: false });
 
-      // Get all unique phones from mensagens
       const { data: mensagens } = await supabase
         .from("whatsapp_mensagens")
         .select("telefone_destino, nome_destino, mensagem, created_at")
@@ -478,16 +482,11 @@ export default function WhatsAppChat() {
             ultimaData: m.created_at,
           };
         } else {
-          // Update name if we have one
           if (m.nome_destino && phoneMap[phone].nome === phone) {
             phoneMap[phone].nome = m.nome_destino;
           }
-          // Update last message if more recent
-          if (
-            new Date(m.created_at) > new Date(phoneMap[phone].ultimaData)
-          ) {
-            phoneMap[phone].ultimaMensagem =
-              m.mensagem?.substring(0, 60) || "";
+          if (new Date(m.created_at) > new Date(phoneMap[phone].ultimaData)) {
+            phoneMap[phone].ultimaMensagem = m.mensagem?.substring(0, 60) || "";
             phoneMap[phone].ultimaData = m.created_at;
           }
         }
@@ -502,8 +501,7 @@ export default function WhatsAppChat() {
         .in("telefone", phones)
         .order("created_at", { ascending: false });
 
-      const photoMap: Record<string, { nome: string; foto: string | null }> =
-        {};
+      const photoMap: Record<string, { nome: string; foto: string | null }> = {};
       (webhooks || []).forEach((w: any) => {
         if (!photoMap[w.telefone] && w.payload) {
           photoMap[w.telefone] = {
@@ -513,19 +511,30 @@ export default function WhatsAppChat() {
         }
       });
 
+      // Get vendor info from leads
+      const { data: leads } = await supabase
+        .from("ebd_leads_reativacao")
+        .select("telefone, vendedores(nome)")
+        .in("telefone", phones)
+        .not("vendedor_id", "is", null);
+
+      const vendedorMap: Record<string, string> = {};
+      (leads || []).forEach((l: any) => {
+        if (l.telefone && l.vendedores?.nome) {
+          vendedorMap[l.telefone] = l.vendedores.nome;
+        }
+      });
+
       // Build contact list
       const contactList: Contact[] = phones.map((phone) => ({
         telefone: phone,
-        nome:
-          photoMap[phone]?.nome ||
-          phoneMap[phone].nome ||
-          phone,
+        nome: photoMap[phone]?.nome || phoneMap[phone].nome || phone,
         foto: photoMap[phone]?.foto || null,
         ultimaMensagem: phoneMap[phone].ultimaMensagem,
         ultimaData: phoneMap[phone].ultimaData,
+        vendedorNome: vendedorMap[phone] || null,
       }));
 
-      // Sort by most recent
       contactList.sort(
         (a, b) =>
           new Date(b.ultimaData).getTime() - new Date(a.ultimaData).getTime()
@@ -545,7 +554,6 @@ export default function WhatsAppChat() {
     setSelectedPhone(phone);
   };
 
-  // Mobile: show either list or chat
   if (isMobile) {
     if (selectedPhone) {
       return (
@@ -573,7 +581,6 @@ export default function WhatsAppChat() {
     );
   }
 
-  // Desktop: side by side
   return (
     <div className="h-[calc(100vh-200px)] rounded-lg border overflow-hidden">
       <ResizablePanelGroup direction="horizontal">
