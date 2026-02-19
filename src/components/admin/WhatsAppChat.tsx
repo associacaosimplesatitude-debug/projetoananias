@@ -25,6 +25,17 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import LeadDetailModal from "./whatsapp/LeadDetailModal";
 
+// Normalize phone: strip non-digits, remove leading "55" country code if present
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  // Z-API phones start with 55 + DDD (2 digits) + number (8-9 digits) = 12-13 digits
+  // Lead/client phones are DDD + number = 10-11 digits
+  if (digits.length >= 12 && digits.startsWith("55")) {
+    return digits.slice(2);
+  }
+  return digits;
+}
+
 // Types
 interface Contact {
   telefone: string;
@@ -511,28 +522,29 @@ export default function WhatsAppChat() {
         }
       });
 
-      // Get vendor info from leads
+      // Get vendor info from leads - fetch all leads with vendors then match by normalized phone
       const { data: leads } = await supabase
         .from("ebd_leads_reativacao")
         .select("telefone, vendedores(nome)")
-        .in("telefone", phones)
-        .not("vendedor_id", "is", null);
+        .not("vendedor_id", "is", null)
+        .not("telefone", "is", null);
 
-      const vendedorMap: Record<string, string> = {};
+      // Build a map: normalizedPhone -> vendedorNome
+      const vendedorByNormalized: Record<string, string> = {};
       (leads || []).forEach((l: any) => {
         if (l.telefone && l.vendedores?.nome) {
-          vendedorMap[l.telefone] = l.vendedores.nome;
+          vendedorByNormalized[normalizePhone(l.telefone)] = l.vendedores.nome;
         }
       });
 
-      // Build contact list
+      // Build contact list, matching vendor by normalized phone
       const contactList: Contact[] = phones.map((phone) => ({
         telefone: phone,
         nome: photoMap[phone]?.nome || phoneMap[phone].nome || phone,
         foto: photoMap[phone]?.foto || null,
         ultimaMensagem: phoneMap[phone].ultimaMensagem,
         ultimaData: phoneMap[phone].ultimaData,
-        vendedorNome: vendedorMap[phone] || null,
+        vendedorNome: vendedorByNormalized[normalizePhone(phone)] || null,
       }));
 
       contactList.sort(
