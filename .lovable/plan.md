@@ -1,40 +1,56 @@
 
-# Corrigir Mensagens Recebidas no Chat WhatsApp
+# Corrigir Recebimento de Imagens no Chat WhatsApp
 
-## Problema Identificado
-Quando o Agente de IA esta desativado, o webhook recebe as mensagens normalmente (os `ReceivedCallback` estao chegando no `whatsapp_webhooks`), porem o codigo pula completamente o bloco que salva a mensagem na tabela `whatsapp_conversas`. Como o chat le mensagens recebidas dessa tabela, elas nunca aparecem no painel.
+## Problema
+Quando alguem envia uma imagem pelo WhatsApp, o payload da Z-API vem com a estrutura `payload.image.imageUrl` e `payload.image.caption` em vez de `payload.text.message`. A funcao `extractMessageText` nao reconhece esse formato, retorna `null`, e a mensagem nunca e salva.
 
-O trecho problematico no webhook:
+## Solucao em 3 partes
+
+### 1. Adicionar coluna `imagem_url` na tabela `whatsapp_conversas`
+- Migracao SQL: `ALTER TABLE whatsapp_conversas ADD COLUMN imagem_url text;`
+- Permite armazenar a URL da imagem junto com a mensagem recebida
+
+### 2. Atualizar o webhook para detectar e salvar imagens
+No arquivo `supabase/functions/whatsapp-webhook/index.ts`:
+
+- Criar funcao `extractImageUrl(payload)` que busca em `payload.image.imageUrl`
+- Atualizar `extractMessageText` para tambem buscar `payload.image.caption` (legenda da imagem)
+- No bloco principal, salvar `imagem_url` junto com o content na tabela `whatsapp_conversas`
+- Tratar caso onde so tem imagem sem legenda (salvar content como "[Imagem]" e a URL)
+
+### 3. Atualizar o componente de chat para exibir imagens de `whatsapp_conversas`
+No arquivo `src/components/admin/WhatsAppChat.tsx`:
+
+- Na query de mensagens, incluir `imagem_url` ao buscar de `whatsapp_conversas`
+- Passar a `imagemUrl` para o `ChatMessage` quando vier de `whatsapp_conversas`
+- O `MessageBubble` ja tem suporte a renderizar imagens (campo `imagemUrl`), entao so precisa mapear
+
+## Detalhes tecnicos
+
+### Migracao SQL
 ```text
-if (agenteIaSetting?.value !== "true") {
-  console.log("Agente de IA desativado");  // <-- para aqui, nao salva nada
-} else {
-  // ... extrai mensagem, salva em whatsapp_conversas, processa com IA
-}
+ALTER TABLE public.whatsapp_conversas ADD COLUMN imagem_url text;
 ```
 
-## Solucao
-
-### Arquivo: `supabase/functions/whatsapp-webhook/index.ts`
-
-Reestruturar o bloco para **SEMPRE** salvar a mensagem recebida em `whatsapp_conversas`, independente do estado do Agente de IA. A flag do agente deve controlar apenas se a mensagem sera processada pela OpenAI e respondida.
-
-Novo fluxo:
-
+### Nova funcao no webhook
 ```text
-if (isReceivedMessage(payload)) {
-  1. Extrair texto e telefone do payload
-  2. Salvar mensagem em whatsapp_conversas (role: "user")  -- SEMPRE
-  3. Verificar flag whatsapp_agente_ia_ativo
-     - Se ativo: processar com OpenAI e responder
-     - Se desativado: apenas logar, mensagem ja foi salva
-}
+function extractImageUrl(payload):
+  if payload.image?.imageUrl -> return imageUrl
+  if payload.image?.thumbnailUrl -> return thumbnailUrl
+  return null
+
+Atualizar extractMessageText para incluir:
+  if payload.image?.caption -> return caption
 ```
 
-### Detalhes tecnicos da mudanca
+### Fluxo atualizado do webhook
+```text
+1. Extrair messageText (texto OU caption da imagem)
+2. Extrair imageUrl da imagem
+3. Se tem messageText OU imageUrl:
+   - Salvar em whatsapp_conversas com content e imagem_url
+4. Processar com IA se ativo
+```
 
-Mover a extracao de `messageText` e `senderPhone` para ANTES da verificacao do agente, e inserir o save em `whatsapp_conversas` tambem antes. O `processIncomingMessage` sera ajustado para nao duplicar o insert do user message (ja que sera feito antes).
-
-Alternativamente, criar um bloco separado que salva a mensagem e depois chama `processIncomingMessage` apenas se o agente estiver ativo.
-
-Nenhuma migracao de banco necessaria - so alteracao na Edge Function.
+### Mudanca na query do chat
+Na funcao que busca mensagens de `whatsapp_conversas`, incluir o campo `imagem_url` no select e mapear para `imagemUrl` no objeto `ChatMessage`.
