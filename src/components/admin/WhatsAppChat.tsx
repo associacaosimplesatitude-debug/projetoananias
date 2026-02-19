@@ -167,7 +167,7 @@ function ChatWindow({
       // 1. From whatsapp_conversas
       const { data: conversas } = await supabase
         .from("whatsapp_conversas")
-        .select("id, role, content, created_at")
+        .select("id, role, content, created_at, imagem_url")
         .eq("telefone", phone)
         .order("created_at", { ascending: true });
 
@@ -178,6 +178,7 @@ function ChatWindow({
           direction: c.role === "user" ? "received" : "sent",
           timestamp: c.created_at,
           source: "conversa",
+          imagemUrl: c.imagem_url || null,
         });
       });
 

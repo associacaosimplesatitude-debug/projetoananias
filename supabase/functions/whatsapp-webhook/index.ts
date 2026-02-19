@@ -154,6 +154,10 @@ function isReceivedMessage(payload: Record<string, unknown>): boolean {
   if (payload.text && typeof (payload.text as Record<string, unknown>).message === "string") return true;
   if (payload.body && typeof payload.body === "string" && !isFromMe) return true;
   
+  // Check for image message
+  const image = payload.image as Record<string, unknown> | undefined;
+  if (image && (image.imageUrl || image.caption)) return true;
+  
   return false;
 }
 
@@ -166,7 +170,18 @@ function extractMessageText(payload: Record<string, unknown>): string | null {
   
   const message = payload.message as Record<string, unknown> | undefined;
   if (message?.body && typeof message.body === "string") return message.body as string;
+
+  // Image with caption
+  const image = payload.image as Record<string, unknown> | undefined;
+  if (image?.caption && typeof image.caption === "string") return image.caption;
   
+  return null;
+}
+
+function extractImageUrl(payload: Record<string, unknown>): string | null {
+  const image = payload.image as Record<string, unknown> | undefined;
+  if (image?.imageUrl && typeof image.imageUrl === "string") return image.imageUrl as string;
+  if (image?.thumbnailUrl && typeof image.thumbnailUrl === "string") return image.thumbnailUrl as string;
   return null;
 }
 
@@ -211,10 +226,12 @@ Deno.serve(async (req) => {
     // Check if this is a received text message
     if (isReceivedMessage(payload)) {
       const messageText = extractMessageText(payload);
+      const imageUrl = extractImageUrl(payload);
       const senderPhone = extractPhone(payload);
 
-      if (messageText && senderPhone) {
-        console.log(`Received message from ${senderPhone}: ${messageText}`);
+      if ((messageText || imageUrl) && senderPhone) {
+        const contentToSave = messageText || (imageUrl ? "[Imagem]" : "");
+        console.log(`Received message from ${senderPhone}: ${contentToSave}${imageUrl ? " [com imagem]" : ""}`);
 
         // SEMPRE salvar mensagem recebida em whatsapp_conversas
         // Look up client by phone for the cliente_id
@@ -237,7 +254,8 @@ Deno.serve(async (req) => {
           telefone: senderPhone,
           cliente_id: clienteId,
           role: "user",
-          content: messageText,
+          content: contentToSave,
+          imagem_url: imageUrl,
         });
 
         // Verificar se o agente IA está ativo para processar com OpenAI
@@ -247,8 +265,8 @@ Deno.serve(async (req) => {
           .eq("key", "whatsapp_agente_ia_ativo")
           .maybeSingle();
 
-        if (agenteIaSetting?.value === "true") {
-          await processIncomingMessage(supabase, senderPhone, messageText);
+        if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]") {
+          await processIncomingMessage(supabase, senderPhone, contentToSave);
         } else {
           console.log("Agente de IA desativado - mensagem salva sem processamento IA");
         }

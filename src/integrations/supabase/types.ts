@@ -6029,6 +6029,7 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          imagem_url: string | null
           role: string
           telefone: string
           tool_used: string | null
@@ -6038,6 +6039,7 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          imagem_url?: string | null
           role: string
           telefone: string
           tool_used?: string | null
@@ -6047,6 +6049,7 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          imagem_url?: string | null
           role?: string
           telefone?: string
           tool_used?: string | null
