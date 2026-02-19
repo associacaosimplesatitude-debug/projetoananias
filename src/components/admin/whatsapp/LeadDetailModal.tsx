@@ -11,6 +11,15 @@ import { Loader2, User, Phone, Mail, Building, ShieldCheck, ShoppingCart, LogIn 
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+// Normalize phone: strip non-digits, remove leading "55" country code
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length >= 12 && digits.startsWith("55")) {
+    return digits.slice(2);
+  }
+  return digits;
+}
+
 interface LeadDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -18,28 +27,32 @@ interface LeadDetailModalProps {
 }
 
 export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetailModalProps) {
+  const normalizedPhone = normalizePhone(phone);
+
   // Fetch lead data
   const { data, isLoading } = useQuery({
     queryKey: ["lead-detail", phone],
     enabled: open && !!phone,
     queryFn: async () => {
-      // 1. Lead from ebd_leads_reativacao
-      const { data: leads } = await supabase
+      // 1. Get all leads, then filter by normalized phone
+      const { data: allLeads } = await supabase
         .from("ebd_leads_reativacao")
         .select("*, vendedores(nome)")
-        .eq("telefone", phone)
-        .limit(1);
+        .not("telefone", "is", null);
 
-      const lead = leads?.[0] || null;
+      const lead = (allLeads || []).find(
+        (l: any) => l.telefone && normalizePhone(l.telefone) === normalizedPhone
+      ) || null;
 
-      // 2. Client from ebd_clientes (match by phone)
-      const { data: clientes } = await supabase
+      // 2. Get all clients, then filter by normalized phone
+      const { data: allClientes } = await supabase
         .from("ebd_clientes")
         .select("id, nome_igreja, email_superintendente, telefone, tipo_cliente, cnpj, cpf, senha_temporaria, ultimo_login, onboarding_concluido, data_proxima_compra")
-        .eq("telefone", phone)
-        .limit(1);
+        .not("telefone", "is", null);
 
-      const cliente = clientes?.[0] || null;
+      const cliente = (allClientes || []).find(
+        (c: any) => c.telefone && normalizePhone(c.telefone) === normalizedPhone
+      ) || null;
 
       // 3. Last order (vendedor_propostas) if we have a cliente_id
       let ultimoPedido = null;
