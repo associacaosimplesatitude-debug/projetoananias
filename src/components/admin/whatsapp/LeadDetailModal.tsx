@@ -11,35 +11,45 @@ import { Loader2, User, Phone, Mail, Building, ShieldCheck, ShoppingCart, LogIn,
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-// Normalize phone: strip non-digits, remove leading "55" country code
-// Also generates variants to handle the Brazilian 9th digit issue
-function normalizePhone(phone: string): string {
+// Generate all phone format variants for server-side filtering
+function generatePhoneFilters(phone: string): string[] {
   const digits = phone.replace(/\D/g, "");
+  const variants = new Set<string>();
+
+  // Raw digits
+  variants.add(digits);
+
+  // Strip country code 55
+  let local = digits;
   if (digits.length >= 12 && digits.startsWith("55")) {
-    return digits.slice(2);
+    local = digits.slice(2);
+    variants.add(local);
   }
-  return digits;
-}
 
-// Generate phone variants for matching (with and without 9th digit)
-function phoneVariants(phone: string): string[] {
-  const base = normalizePhone(phone);
-  const variants = [base];
-  // If 10 digits (DDD + 8 number), add variant with 9: DDD + 9 + number
-  if (base.length === 10) {
-    variants.push(base.slice(0, 2) + "9" + base.slice(2));
+  // With country code
+  if (!digits.startsWith("55") && (digits.length === 10 || digits.length === 11)) {
+    variants.add("55" + digits);
   }
-  // If 11 digits (DDD + 9 + 8 number), add variant without 9
-  if (base.length === 11 && base[2] === "9") {
-    variants.push(base.slice(0, 2) + base.slice(3));
-  }
-  return variants;
-}
 
-function phonesMatch(phone1: string, phone2: string): boolean {
-  const v1 = phoneVariants(phone1);
-  const v2 = phoneVariants(phone2);
-  return v1.some(a => v2.some(b => a === b));
+  // 9th digit variants for local number
+  // 10 digits (DDD + 8) -> add with 9
+  if (local.length === 10) {
+    const with9 = local.slice(0, 2) + "9" + local.slice(2);
+    variants.add(with9);
+    variants.add("55" + with9);
+  }
+  // 11 digits (DDD + 9 + 8) -> add without 9
+  if (local.length === 11 && local[2] === "9") {
+    const without9 = local.slice(0, 2) + local.slice(3);
+    variants.add(without9);
+    variants.add("55" + without9);
+  }
+
+  // Add + prefixed versions
+  const withPlus = [...variants].filter(v => v.startsWith("55")).map(v => "+" + v);
+  withPlus.forEach(v => variants.add(v));
+
+  return [...variants];
 }
 
 interface LeadDetailModalProps {
@@ -54,35 +64,29 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
     queryKey: ["lead-detail", phone],
     enabled: open && !!phone,
     queryFn: async () => {
-      // 1. Get all leads, then filter by normalized phone
-      const { data: allLeads } = await supabase
+      const filters = generatePhoneFilters(phone);
+
+      // 1. Leads - server-side filter
+      const { data: leads } = await supabase
         .from("ebd_leads_reativacao")
         .select("*, vendedores(nome)")
-        .not("telefone", "is", null);
+        .in("telefone", filters);
+      const lead = leads?.[0] || null;
 
-      const lead = (allLeads || []).find(
-        (l: any) => l.telefone && phonesMatch(l.telefone, phone)
-      ) || null;
-
-      // 2. Get all clients, then filter by normalized phone
-      const { data: allClientes } = await supabase
+      // 2. Clients - server-side filter
+      const { data: clientes } = await supabase
         .from("ebd_clientes")
         .select("id, nome_igreja, email_superintendente, telefone, tipo_cliente, cnpj, cpf, senha_temporaria, ultimo_login, onboarding_concluido, data_proxima_compra")
-        .not("telefone", "is", null);
+        .in("telefone", filters);
+      const cliente = clientes?.[0] || null;
 
-      const cliente = (allClientes || []).find(
-        (c: any) => c.telefone && phonesMatch(c.telefone, phone)
-      ) || null;
-
-      // 3. Shopify orders - search by customer_phone
-      const { data: allPedidos } = await supabase
+      // 3. Shopify orders - server-side filter
+      const { data: rawPedidos } = await supabase
         .from("ebd_shopify_pedidos")
         .select("id, order_number, customer_name, customer_email, customer_phone, customer_document, valor_total, valor_frete, status_pagamento, created_at, codigo_rastreio, codigo_rastreio_bling, url_rastreio, vendedor_id")
-        .not("customer_phone", "is", null);
-
-      const pedidos = (allPedidos || []).filter(
-        (p: any) => p.customer_phone && phonesMatch(p.customer_phone, phone)
-      ).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        .in("customer_phone", filters)
+        .order("created_at", { ascending: false });
+      const pedidos = rawPedidos || [];
 
       // 4. Last order (vendedor_propostas) if we have a cliente_id
       let ultimoPedido = null;
