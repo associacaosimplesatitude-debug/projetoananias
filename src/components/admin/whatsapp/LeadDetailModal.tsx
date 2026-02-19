@@ -7,17 +7,39 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, User, Phone, Mail, Building, ShieldCheck, ShoppingCart, LogIn } from "lucide-react";
+import { Loader2, User, Phone, Mail, Building, ShieldCheck, ShoppingCart, LogIn, Package, Truck } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 // Normalize phone: strip non-digits, remove leading "55" country code
+// Also generates variants to handle the Brazilian 9th digit issue
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   if (digits.length >= 12 && digits.startsWith("55")) {
     return digits.slice(2);
   }
   return digits;
+}
+
+// Generate phone variants for matching (with and without 9th digit)
+function phoneVariants(phone: string): string[] {
+  const base = normalizePhone(phone);
+  const variants = [base];
+  // If 10 digits (DDD + 8 number), add variant with 9: DDD + 9 + number
+  if (base.length === 10) {
+    variants.push(base.slice(0, 2) + "9" + base.slice(2));
+  }
+  // If 11 digits (DDD + 9 + 8 number), add variant without 9
+  if (base.length === 11 && base[2] === "9") {
+    variants.push(base.slice(0, 2) + base.slice(3));
+  }
+  return variants;
+}
+
+function phonesMatch(phone1: string, phone2: string): boolean {
+  const v1 = phoneVariants(phone1);
+  const v2 = phoneVariants(phone2);
+  return v1.some(a => v2.some(b => a === b));
 }
 
 interface LeadDetailModalProps {
@@ -27,8 +49,6 @@ interface LeadDetailModalProps {
 }
 
 export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetailModalProps) {
-  const normalizedPhone = normalizePhone(phone);
-
   // Fetch lead data
   const { data, isLoading } = useQuery({
     queryKey: ["lead-detail", phone],
@@ -41,7 +61,7 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
         .not("telefone", "is", null);
 
       const lead = (allLeads || []).find(
-        (l: any) => l.telefone && normalizePhone(l.telefone) === normalizedPhone
+        (l: any) => l.telefone && phonesMatch(l.telefone, phone)
       ) || null;
 
       // 2. Get all clients, then filter by normalized phone
@@ -51,12 +71,22 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
         .not("telefone", "is", null);
 
       const cliente = (allClientes || []).find(
-        (c: any) => c.telefone && normalizePhone(c.telefone) === normalizedPhone
+        (c: any) => c.telefone && phonesMatch(c.telefone, phone)
       ) || null;
 
-      // 3. Last order (vendedor_propostas) if we have a cliente_id
+      // 3. Shopify orders - search by customer_phone
+      const { data: allPedidos } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("id, order_number, customer_name, customer_email, customer_phone, customer_document, valor_total, valor_frete, status_pagamento, created_at, codigo_rastreio, codigo_rastreio_bling, url_rastreio, vendedor_id")
+        .not("customer_phone", "is", null);
+
+      const pedidos = (allPedidos || []).filter(
+        (p: any) => p.customer_phone && phonesMatch(p.customer_phone, phone)
+      ).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      // 4. Last order (vendedor_propostas) if we have a cliente_id
       let ultimoPedido = null;
-      const clienteId = lead?.id && cliente?.id ? cliente.id : (cliente?.id || null);
+      const clienteId = cliente?.id || null;
       if (clienteId) {
         const { data: propostas } = await supabase
           .from("vendedor_propostas")
@@ -67,24 +97,41 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
         ultimoPedido = propostas?.[0] || null;
       }
 
-      return { lead, cliente, ultimoPedido };
+      // Get vendedor name for shopify orders
+      let vendedorNomeShopify: string | null = null;
+      if (pedidos.length > 0 && pedidos[0].vendedor_id) {
+        const { data: vend } = await supabase
+          .from("vendedores")
+          .select("nome")
+          .eq("id", pedidos[0].vendedor_id)
+          .maybeSingle();
+        vendedorNomeShopify = vend?.nome || null;
+      }
+
+      return { lead, cliente, ultimoPedido, pedidos, vendedorNomeShopify };
     },
   });
 
   const lead = data?.lead;
   const cliente = data?.cliente;
   const ultimoPedido = data?.ultimoPedido;
-  const vendedorNome = (lead?.vendedores as any)?.nome || null;
+  const pedidos = data?.pedidos || [];
+  const vendedorNomeShopify = data?.vendedorNomeShopify;
+  const vendedorNome = (lead?.vendedores as any)?.nome || vendedorNomeShopify || null;
 
+  // Merge info from all sources
+  const shopifyOrder = pedidos[0] || null;
   const tipoCliente = lead?.tipo_lead || cliente?.tipo_cliente || "—";
-  const nome = lead?.nome_igreja || cliente?.nome_igreja || "—";
-  const email = lead?.email || cliente?.email_superintendente || "—";
-  const cnpjCpf = lead?.cnpj || cliente?.cnpj || cliente?.cpf || "—";
+  const nome = lead?.nome_igreja || cliente?.nome_igreja || shopifyOrder?.customer_name || "—";
+  const email = lead?.email || cliente?.email_superintendente || shopifyOrder?.customer_email || "—";
+  const cnpjCpf = lead?.cnpj || cliente?.cnpj || cliente?.cpf || shopifyOrder?.customer_document || "—";
   const ultimoLogin = lead?.ultimo_login_ebd || cliente?.ultimo_login || null;
+
+  const hasAnyData = lead || cliente || pedidos.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
@@ -96,7 +143,7 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : !lead && !cliente ? (
+        ) : !hasAnyData ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>Lead não encontrado para este telefone.</p>
           </div>
@@ -123,6 +170,32 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
               )}
             </Section>
 
+            {/* Shopify Orders */}
+            {pedidos.length > 0 && (
+              <Section title={`Pedidos Shopify (${pedidos.length})`} icon={<ShoppingCart className="h-4 w-4" />}>
+                {pedidos.map((p: any) => (
+                  <div key={p.id} className="border rounded p-2 space-y-1 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">{p.order_number}</span>
+                      <Badge variant={p.status_pagamento === 'paid' ? 'default' : 'outline'} className="text-xs">
+                        {p.status_pagamento}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>R$ {Number(p.valor_total).toFixed(2)}</span>
+                      <span>{format(new Date(p.created_at), "dd/MM/yyyy", { locale: ptBR })}</span>
+                    </div>
+                    {(p.codigo_rastreio || p.codigo_rastreio_bling) && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Truck className="h-3 w-3" />
+                        <span className="font-mono">{p.codigo_rastreio || p.codigo_rastreio_bling}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </Section>
+            )}
+
             {/* Access Data */}
             <Section title="Acesso Painel Gestão EBD" icon={<ShieldCheck className="h-4 w-4" />}>
               {cliente ? (
@@ -146,20 +219,16 @@ export default function LeadDetailModal({ open, onOpenChange, phone }: LeadDetai
               } />
             </Section>
 
-            {/* Last Order */}
-            <Section title="Último Pedido" icon={<ShoppingCart className="h-4 w-4" />}>
-              {ultimoPedido ? (
-                <>
-                  <InfoRow label="Status" value={
-                    <Badge variant="outline" className="text-xs">{ultimoPedido.status}</Badge>
-                  } />
-                  <InfoRow label="Valor" value={`R$ ${Number(ultimoPedido.valor_total).toFixed(2)}`} />
-                  <InfoRow label="Data" value={format(new Date(ultimoPedido.created_at), "dd/MM/yyyy", { locale: ptBR })} />
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">Nenhum pedido encontrado.</p>
-              )}
-            </Section>
+            {/* Last Proposta */}
+            {ultimoPedido && (
+              <Section title="Última Proposta" icon={<Package className="h-4 w-4" />}>
+                <InfoRow label="Status" value={
+                  <Badge variant="outline" className="text-xs">{ultimoPedido.status}</Badge>
+                } />
+                <InfoRow label="Valor" value={`R$ ${Number(ultimoPedido.valor_total).toFixed(2)}`} />
+                <InfoRow label="Data" value={format(new Date(ultimoPedido.created_at), "dd/MM/yyyy", { locale: ptBR })} />
+              </Section>
+            )}
           </div>
         )}
       </DialogContent>

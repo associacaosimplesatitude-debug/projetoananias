@@ -28,12 +28,23 @@ import LeadDetailModal from "./whatsapp/LeadDetailModal";
 // Normalize phone: strip non-digits, remove leading "55" country code if present
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
-  // Z-API phones start with 55 + DDD (2 digits) + number (8-9 digits) = 12-13 digits
-  // Lead/client phones are DDD + number = 10-11 digits
   if (digits.length >= 12 && digits.startsWith("55")) {
     return digits.slice(2);
   }
   return digits;
+}
+
+// Generate phone variants for matching (with and without 9th digit)
+function phoneVariants(phone: string): string[] {
+  const base = normalizePhone(phone);
+  const variants = [base];
+  if (base.length === 10) {
+    variants.push(base.slice(0, 2) + "9" + base.slice(2));
+  }
+  if (base.length === 11 && base[2] === "9") {
+    variants.push(base.slice(0, 2) + base.slice(3));
+  }
+  return variants;
 }
 
 // Types
@@ -529,23 +540,29 @@ export default function WhatsAppChat() {
         .not("vendedor_id", "is", null)
         .not("telefone", "is", null);
 
-      // Build a map: normalizedPhone -> vendedorNome
+      // Build a map: normalizedPhone -> vendedorNome (including 9-digit variants)
       const vendedorByNormalized: Record<string, string> = {};
       (leads || []).forEach((l: any) => {
         if (l.telefone && l.vendedores?.nome) {
-          vendedorByNormalized[normalizePhone(l.telefone)] = l.vendedores.nome;
+          phoneVariants(l.telefone).forEach(v => {
+            vendedorByNormalized[v] = l.vendedores.nome;
+          });
         }
       });
 
-      // Build contact list, matching vendor by normalized phone
-      const contactList: Contact[] = phones.map((phone) => ({
-        telefone: phone,
-        nome: photoMap[phone]?.nome || phoneMap[phone].nome || phone,
-        foto: photoMap[phone]?.foto || null,
-        ultimaMensagem: phoneMap[phone].ultimaMensagem,
-        ultimaData: phoneMap[phone].ultimaData,
-        vendedorNome: vendedorByNormalized[normalizePhone(phone)] || null,
-      }));
+      // Build contact list, matching vendor by phone variants
+      const contactList: Contact[] = phones.map((phone) => {
+        const variants = phoneVariants(phone);
+        const matchedVendedor = variants.reduce<string | null>((found, v) => found || vendedorByNormalized[v] || null, null);
+        return {
+          telefone: phone,
+          nome: photoMap[phone]?.nome || phoneMap[phone].nome || phone,
+          foto: photoMap[phone]?.foto || null,
+          ultimaMensagem: phoneMap[phone].ultimaMensagem,
+          ultimaData: phoneMap[phone].ultimaData,
+          vendedorNome: matchedVendedor,
+        };
+      });
 
       contactList.sort(
         (a, b) =>
