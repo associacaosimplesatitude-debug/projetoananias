@@ -42,6 +42,7 @@ interface ChatMessage {
   timestamp: string;
   source: "conversa" | "mensagem";
   imagemUrl?: string | null;
+  audioUrl?: string | null;
   tipo?: string;
 }
 
@@ -167,7 +168,7 @@ function ChatWindow({
       // 1. From whatsapp_conversas
       const { data: conversas } = await supabase
         .from("whatsapp_conversas")
-        .select("id, role, content, created_at, imagem_url")
+        .select("id, role, content, created_at, imagem_url, audio_url")
         .eq("telefone", phone)
         .order("created_at", { ascending: true });
 
@@ -179,6 +180,7 @@ function ChatWindow({
           timestamp: c.created_at,
           source: "conversa",
           imagemUrl: c.imagem_url || null,
+          audioUrl: c.audio_url || null,
         });
       });
 
@@ -386,6 +388,16 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               className="max-w-full rounded-md max-h-60 object-cover cursor-pointer"
               onClick={() => window.open(message.imagemUrl!, "_blank")}
             />
+          </div>
+        )}
+
+        {/* Audio */}
+        {message.audioUrl && (
+          <div className="mb-1.5">
+            <audio controls preload="metadata" className="max-w-full h-10">
+              <source src={message.audioUrl} />
+              Seu navegador não suporta áudio.
+            </audio>
           </div>
         )}
 

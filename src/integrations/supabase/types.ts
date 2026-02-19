@@ -6025,6 +6025,7 @@ export type Database = {
       }
       whatsapp_conversas: {
         Row: {
+          audio_url: string | null
           cliente_id: string | null
           content: string
           created_at: string | null
@@ -6035,6 +6036,7 @@ export type Database = {
           tool_used: string | null
         }
         Insert: {
+          audio_url?: string | null
           cliente_id?: string | null
           content: string
           created_at?: string | null
@@ -6045,6 +6047,7 @@ export type Database = {
           tool_used?: string | null
         }
         Update: {
+          audio_url?: string | null
           cliente_id?: string | null
           content?: string
           created_at?: string | null
