@@ -158,6 +158,10 @@ function isReceivedMessage(payload: Record<string, unknown>): boolean {
   const image = payload.image as Record<string, unknown> | undefined;
   if (image && (image.imageUrl || image.caption)) return true;
   
+  // Check for audio message
+  const audio = payload.audio as Record<string, unknown> | undefined;
+  if (audio && (audio.audioUrl || audio.url)) return true;
+  
   return false;
 }
 
@@ -182,6 +186,13 @@ function extractImageUrl(payload: Record<string, unknown>): string | null {
   const image = payload.image as Record<string, unknown> | undefined;
   if (image?.imageUrl && typeof image.imageUrl === "string") return image.imageUrl as string;
   if (image?.thumbnailUrl && typeof image.thumbnailUrl === "string") return image.thumbnailUrl as string;
+  return null;
+}
+
+function extractAudioUrl(payload: Record<string, unknown>): string | null {
+  const audio = payload.audio as Record<string, unknown> | undefined;
+  if (audio?.audioUrl && typeof audio.audioUrl === "string") return audio.audioUrl as string;
+  if (audio?.url && typeof audio.url === "string") return audio.url as string;
   return null;
 }
 
@@ -227,11 +238,12 @@ Deno.serve(async (req) => {
     if (isReceivedMessage(payload)) {
       const messageText = extractMessageText(payload);
       const imageUrl = extractImageUrl(payload);
+      const audioUrl = extractAudioUrl(payload);
       const senderPhone = extractPhone(payload);
 
-      if ((messageText || imageUrl) && senderPhone) {
-        const contentToSave = messageText || (imageUrl ? "[Imagem]" : "");
-        console.log(`Received message from ${senderPhone}: ${contentToSave}${imageUrl ? " [com imagem]" : ""}`);
+      if ((messageText || imageUrl || audioUrl) && senderPhone) {
+        const contentToSave = messageText || (imageUrl ? "[Imagem]" : (audioUrl ? "[Áudio]" : ""));
+        console.log(`Received message from ${senderPhone}: ${contentToSave}${imageUrl ? " [com imagem]" : ""}${audioUrl ? " [com áudio]" : ""}`);
 
         // SEMPRE salvar mensagem recebida em whatsapp_conversas
         // Look up client by phone for the cliente_id
@@ -256,6 +268,7 @@ Deno.serve(async (req) => {
           role: "user",
           content: contentToSave,
           imagem_url: imageUrl,
+          audio_url: audioUrl,
         });
 
         // Verificar se o agente IA está ativo para processar com OpenAI
@@ -265,7 +278,7 @@ Deno.serve(async (req) => {
           .eq("key", "whatsapp_agente_ia_ativo")
           .maybeSingle();
 
-        if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]") {
+        if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]" && contentToSave !== "[Áudio]") {
           await processIncomingMessage(supabase, senderPhone, contentToSave);
         } else {
           console.log("Agente de IA desativado - mensagem salva sem processamento IA");
