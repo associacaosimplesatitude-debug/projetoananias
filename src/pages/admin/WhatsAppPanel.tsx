@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
-import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2, Filter, Users, Phone } from "lucide-react";
+import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2, Filter, Users, Phone, MessagesSquare } from "lucide-react";
+import WhatsAppChat from "@/components/admin/WhatsAppChat";
 import { format } from "date-fns";
 
 const MESSAGE_TYPES = [
@@ -743,8 +744,12 @@ export default function WhatsAppPanel() {
         <p className="text-muted-foreground">Envie mensagens via WhatsApp usando a Z-API.</p>
       </div>
 
-      <Tabs defaultValue="funil" className="w-full">
-        <TabsList>
+      <Tabs defaultValue="conversas" className="w-full">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="conversas" className="gap-2">
+            <MessagesSquare className="h-4 w-4" />
+            Conversas
+          </TabsTrigger>
           <TabsTrigger value="funil" className="gap-2">
             <Filter className="h-4 w-4" />
             Funil Primeira Compra
@@ -762,6 +767,10 @@ export default function WhatsAppPanel() {
             Credenciais Z-API
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="conversas">
+          <WhatsAppChat />
+        </TabsContent>
 
         <TabsContent value="funil">
           <FunilTab />
