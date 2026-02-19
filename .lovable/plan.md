@@ -1,34 +1,62 @@
 
-# Adicionar Suporte a Audio no Chat WhatsApp
+# Tag do Vendedor nos Contatos + Modal "Visualizar Lead"
 
-## Problema
-O webhook nao reconhece mensagens de audio da Z-API. O payload de audio vem com a estrutura `payload.audio.audioUrl` (similar ao `payload.image.imageUrl`), mas nenhuma funcao no webhook trata esse formato.
+## 1. Tag do Vendedor na Lista de Contatos
 
-## Solucao
+Na lista lateral de contatos, abaixo do nome, sera exibida uma badge com o nome do vendedor atribuido ao lead (ex: "Elaine"), similar a imagem de referencia.
 
-### 1. Migracao de banco
-Adicionar coluna `audio_url` na tabela `whatsapp_conversas` para armazenar a URL do audio recebido.
+**Como funciona:**
+- Ao carregar a lista de contatos, o sistema cruza o telefone do contato com a tabela `ebd_leads_reativacao` (campo `telefone`) e faz join com `vendedores` para obter o nome.
+- Se o lead tiver `vendedor_id`, exibe uma Badge colorida com o nome do vendedor abaixo do nome do contato.
+- Contatos sem lead ou sem vendedor nao exibem a tag.
 
+## 2. Botao "Visualizar Lead" no Header do Chat
+
+Na barra superior do chat (ao lado do nome do contato), sera adicionado um botao com icone de olho e tooltip "Visualizar lead". Ao clicar, abre um Dialog/Modal com informacoes completas do lead.
+
+**Informacoes exibidas no modal:**
+- **Nome** (nome_igreja ou nome_responsavel)
+- **Telefone**
+- **Vendedor** atribuido (nome do vendedor)
+- **Tipo de cliente** (tipo_lead ou tipo_cliente: Igreja CNPJ, Igreja CPF, ADVEC, etc.)
+- **Email**
+- **CNPJ/CPF**
+- **Dados de acesso ao painel Gestao EBD** (email, conta_criada, senha_temporaria do ebd_clientes se existir)
+- **Ultimo pedido** (ultima proposta da tabela vendedor_propostas com status e data)
+- **Ultimo login no painel Gestao EBD** (ultimo_login_ebd do lead ou ultimo_login do ebd_clientes)
+
+Se o telefone nao corresponder a nenhum lead, o botao ficara desabilitado ou exibira mensagem "Lead nao encontrado".
+
+---
+
+## Detalhes Tecnicos
+
+### Alteracoes em `src/components/admin/WhatsAppChat.tsx`
+
+**1. Tipo Contact - adicionar campos:**
 ```text
-ALTER TABLE public.whatsapp_conversas ADD COLUMN audio_url text;
+vendedorNome?: string | null;
+leadId?: string | null;
 ```
 
-### 2. Atualizar o webhook (`supabase/functions/whatsapp-webhook/index.ts`)
+**2. Query de contatos - enriquecer com dados de leads:**
+- Apos montar a lista de telefones, fazer query em `ebd_leads_reativacao` filtrando por telefone (`in`) com join em `vendedores(nome)`.
+- Mapear o resultado para adicionar `vendedorNome` e `leadId` a cada contato.
 
-- **`isReceivedMessage`**: Adicionar deteccao de `payload.audio` (audioUrl)
-- **Nova funcao `extractAudioUrl`**: Extrair `payload.audio.audioUrl` ou `payload.audio.url`
-- **Bloco principal**: Salvar `audio_url` em `whatsapp_conversas` com content `[Audio]` quando nao houver texto
-- **IA**: Nao processar audios com OpenAI (similar a imagens)
+**3. ContactList - renderizar badge do vendedor:**
+- Abaixo do nome do contato, se `vendedorNome` existir, exibir `<Badge>` com o nome.
 
-### 3. Atualizar o chat UI (`src/components/admin/WhatsAppChat.tsx`)
+**4. ChatWindow header - botao "Visualizar Lead":**
+- Adicionar botao com icone `Eye` ao lado do nome.
+- Ao clicar, abre Dialog com dados do lead.
 
-- Incluir `audio_url` no select de `whatsapp_conversas`
-- Adicionar campo `audioUrl` ao tipo `ChatMessage`
-- No `MessageBubble`, renderizar um player de audio (`<audio>` HTML) quando `audioUrl` estiver presente
+**5. Novo componente LeadDetailModal:**
+- Recebe o telefone do contato.
+- Faz queries em:
+  - `ebd_leads_reativacao` (dados do lead, vendedor, tipo, score, ultimo_login_ebd)
+  - `ebd_clientes` (dados de acesso: email, conta_criada, senha_temporaria, ultimo_login, tipo_cliente)
+  - `vendedor_propostas` (ultimo pedido: status, valor_total, created_at) filtrando por `cliente_id`
+- Exibe tudo organizado em secoes dentro do modal.
 
-### Fluxo final
-```text
-Mensagem de audio recebida -> webhook detecta payload.audio
--> Salva em whatsapp_conversas (content: "[Audio]", audio_url: URL)
--> Chat exibe player de audio no balao da mensagem
-```
+### Nenhuma migracao de banco necessaria
+Todas as informacoes ja existem nas tabelas atuais. A vinculacao e feita pelo campo `telefone`.
