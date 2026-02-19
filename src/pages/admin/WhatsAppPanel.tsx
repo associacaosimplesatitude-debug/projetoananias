@@ -64,6 +64,10 @@ function CredentialsTab() {
   const [autoEnvio, setAutoEnvio] = useState(true);
   const [loadingAutoEnvio, setLoadingAutoEnvio] = useState(false);
 
+  // Agente IA toggle
+  const [agenteIa, setAgenteIa] = useState(false);
+  const [loadingAgenteIa, setLoadingAgenteIa] = useState(false);
+
   const { data: settings, isLoading } = useQuery({
     queryKey: ["system-settings-zapi"],
     queryFn: async () => {
@@ -91,6 +95,19 @@ function CredentialsTab() {
     },
   });
 
+  const { data: agenteIaSetting } = useQuery({
+    queryKey: ["system-settings-agente-ia"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "whatsapp_agente_ia_ativo")
+        .maybeSingle();
+      if (error) throw error;
+      return data?.value === "true";
+    },
+  });
+
   useState(() => {
     if (settings) {
       setInstanceId(settings["zapi_instance_id"] || "");
@@ -102,6 +119,10 @@ function CredentialsTab() {
   useEffect(() => {
     if (autoEnvioSetting !== undefined) setAutoEnvio(autoEnvioSetting);
   }, [autoEnvioSetting]);
+
+  useEffect(() => {
+    if (agenteIaSetting !== undefined) setAgenteIa(agenteIaSetting);
+  }, [agenteIaSetting]);
 
   const currentInstanceId = instanceId || settings?.["zapi_instance_id"] || "";
   const currentToken = token || settings?.["zapi_token"] || "";
@@ -144,6 +165,22 @@ function CredentialsTab() {
     }
   };
 
+  const toggleAgenteIa = async (checked: boolean) => {
+    setLoadingAgenteIa(true);
+    try {
+      await supabase
+        .from("system_settings")
+        .upsert({ key: "whatsapp_agente_ia_ativo", value: checked ? "true" : "false", description: "Liga/desliga o Agente de IA do WhatsApp", updated_at: new Date().toISOString() }, { onConflict: "key" });
+      setAgenteIa(checked);
+      queryClient.invalidateQueries({ queryKey: ["system-settings-agente-ia"] });
+      toast.success(checked ? "Agente de IA ativado" : "Agente de IA desativado");
+    } catch (err: any) {
+      toast.error("Erro: " + err.message);
+    } finally {
+      setLoadingAgenteIa(false);
+    }
+  };
+
   const toggleAutoEnvio = async (checked: boolean) => {
     setLoadingAutoEnvio(true);
     try {
@@ -173,6 +210,18 @@ function CredentialsTab() {
               <CardDescription>Controle o envio automático de mensagens do funil pós-venda e notificações de pedidos.</CardDescription>
             </div>
             <Switch checked={autoEnvio} onCheckedChange={toggleAutoEnvio} disabled={loadingAutoEnvio} />
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Agente de IA</CardTitle>
+              <CardDescription>Controle as respostas automáticas do Agente de IA às mensagens recebidas no WhatsApp.</CardDescription>
+            </div>
+            <Switch checked={agenteIa} onCheckedChange={toggleAgenteIa} disabled={loadingAgenteIa} />
           </div>
         </CardHeader>
       </Card>
