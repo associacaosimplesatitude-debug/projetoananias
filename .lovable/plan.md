@@ -1,45 +1,96 @@
 
 
-# Separar Controle: Agente de IA vs Envio Automatico
+# Chat WhatsApp Profissional - Estilo WhatsApp Web
 
-## Situacao Atual
-A flag `whatsapp_auto_envio_ativo` controla tudo: tanto o envio automatico de mensagens (pedidos, funil pos-venda) quanto as respostas do Agente de IA a mensagens recebidas. Nao ha como desligar um sem desligar o outro.
+## Resumo
+Criar uma nova aba "Conversas" no painel WhatsApp admin com interface profissional de chat inspirada no WhatsApp Web, com lista de contatos na lateral e janela de conversa na area central.
 
-## O Que Sera Feito
+## Fontes de Dados
 
-### 1. Nova configuracao no banco de dados
-Criar uma nova chave `whatsapp_agente_ia_ativo` na tabela `system_settings` com valor inicial `"false"` (desativado conforme solicitado).
+As conversas serao montadas combinando 3 tabelas existentes:
 
-### 2. Alterar o webhook do WhatsApp
-No arquivo `supabase/functions/whatsapp-webhook/index.ts`, trocar a verificacao da flag:
-- **Antes**: checa `whatsapp_auto_envio_ativo` para decidir se processa mensagens recebidas com IA
-- **Depois**: checa a nova flag `whatsapp_agente_ia_ativo` para decidir se o Agente de IA responde
+- **whatsapp_conversas**: historico de mensagens (role: user/assistant) por telefone - mensagens recebidas e respostas do agente IA
+- **whatsapp_mensagens**: mensagens enviadas pelo sistema (funil, manuais) - com nome_destino e telefone_destino
+- **whatsapp_webhooks**: payloads recebidos com foto e nome do contato (campo `payload->senderName`, `payload->photo`)
 
-Isso significa que o envio automatico (pedidos, funil) continua funcionando normalmente com a flag existente, e o Agente de IA fica controlado por sua propria flag.
+## Arquitetura
 
-### 3. Adicionar switch no painel WhatsApp
-No arquivo `src/pages/admin/WhatsAppPanel.tsx`, adicionar um novo switch "Agente de IA" ao lado do switch "Envio Automatico" existente, permitindo controlar cada funcionalidade independentemente.
+### Novo componente: `src/components/admin/WhatsAppChat.tsx`
+Componente principal que sera adicionado como nova aba "Conversas" no WhatsAppPanel.
 
-## Resultado
-- **Envio Automatico** (pedidos, funil pos-venda): continua LIGADO, controlado pela flag existente
-- **Agente de IA** (respostas automaticas a mensagens recebidas): DESLIGADO, controlado pela nova flag
+### Layout (Desktop)
+```text
++----------------------------+--------------------------------------------+
+|   Lista de Conversas       |   Cabecalho: Nome + foto + status          |
+|   (w-80, lateral)          |--------------------------------------------+
+|                            |                                            |
+|   [foto] Nome              |   Balao cinza (recebida)                   |
+|   Ultima mensagem...       |              Balao verde (enviada)         |
+|   Badge: 3 nao lidas       |                                            |
+|                            |   Balao cinza (recebida)                   |
+|   [foto] Nome              |              Balao verde (enviada)         |
+|   Ultima mensagem...       |                                            |
+|                            |--------------------------------------------+
+|   Busca por nome/telefone  |   [Input de mensagem]          [Enviar]    |
++----------------------------+--------------------------------------------+
+```
+
+### Layout (Mobile)
+- Mostra apenas a lista de conversas
+- Ao clicar em uma conversa, navega para a janela de chat (com botao voltar)
+
+## Detalhes da Implementacao
+
+### 1. Lista de Conversas (Lateral Esquerda)
+- Buscar telefones unicos de `whatsapp_conversas` e `whatsapp_mensagens`
+- Para cada telefone, buscar nome e foto do webhook mais recente (`ReceivedCallback`)
+- Ordenar por data da ultima mensagem (mais recente primeiro)
+- Campo de busca por nome ou telefone
+- Badge de mensagens nao lidas (mensagens recebidas apos a ultima visualizacao)
+
+### 2. Janela de Chat (Area Central)
+- Cabecalho com foto, nome e telefone do contato
+- Historico de mensagens unificado:
+  - De `whatsapp_conversas` (role: user = recebida, role: assistant = enviada pelo agente)
+  - De `whatsapp_mensagens` (enviadas pelo sistema/manual)
+- Baloes de mensagem:
+  - Recebidas: alinhadas a esquerda, fundo cinza claro
+  - Enviadas: alinhadas a direita, fundo verde (estilo WhatsApp)
+- Timestamps em cada mensagem
+- Suporte a imagens (exibir inline quando `imagem_url` presente)
+- Campo de input na parte inferior com botao de envio (usa a edge function `send-whatsapp-message` existente)
+
+### 3. Responsividade
+- Desktop: layout side-by-side com ResizablePanelGroup
+- Mobile (< 768px): estados alternados - lista OU chat, com botao voltar
+
+### 4. Funcionalidades
+- Envio de texto pelo input (chama `send-whatsapp-message`)
+- Visualizacao de imagens inline nos baloes
+- Indicador de audio (link para ouvir quando o tipo for audio)
+- Auto-scroll para ultima mensagem
+- Refetch periodico a cada 10 segundos para novas mensagens
 
 ## Secao Tecnica
 
-### Migracao SQL
-```sql
-INSERT INTO system_settings (key, value, description)
-VALUES ('whatsapp_agente_ia_ativo', 'false', 'Liga/desliga o Agente de IA do WhatsApp')
-ON CONFLICT (key) DO NOTHING;
-```
+### Arquivos a criar:
+- `src/components/admin/WhatsAppChat.tsx` - Componente principal do chat
 
-### Arquivo: `supabase/functions/whatsapp-webhook/index.ts`
-- Linha 217: trocar `eq("key", "whatsapp_auto_envio_ativo")` por `eq("key", "whatsapp_agente_ia_ativo")`
-- Linha 220: trocar `autoEnvioSetting` por `agenteIaSetting` (renomear variavel)
-- Mensagem de log: "Agente de IA desativado - flag independente"
+### Arquivos a modificar:
+- `src/pages/admin/WhatsAppPanel.tsx` - Adicionar nova aba "Conversas" com o componente WhatsAppChat
 
-### Arquivo: `src/pages/admin/WhatsAppPanel.tsx`
-- Adicionar estado `agenteIaAtivo` com query para a nova key
-- Adicionar switch "Agente de IA" na interface, similar ao switch existente de "Envio Automatico"
-- Handler de toggle fazendo upsert na key `whatsapp_agente_ia_ativo`
+### Consultas ao banco:
+1. **Lista de contatos**: Query unificada buscando telefones distintos de ambas tabelas, com nome/foto do webhook
+2. **Mensagens de um contato**: Buscar de `whatsapp_conversas` + `whatsapp_mensagens` filtrado pelo telefone, ordenado por data
+3. **Info do contato**: Buscar de `whatsapp_webhooks` WHERE evento = 'ReceivedCallback' AND telefone = X, para pegar foto e nome
 
+### Componentes UI utilizados:
+- ScrollArea (scroll do historico)
+- Avatar/AvatarImage/AvatarFallback (fotos dos contatos)
+- Input (campo de mensagem e busca)
+- Button (enviar)
+- Badge (nao lidas)
+- ResizablePanelGroup/ResizablePanel/ResizableHandle (layout desktop)
+- useIsMobile hook (responsividade)
+
+### Nao e necessaria migracao de banco - todas as tabelas e dados ja existem.
