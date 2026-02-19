@@ -211,14 +211,14 @@ Deno.serve(async (req) => {
     // Check if this is a received text message
     if (isReceivedMessage(payload)) {
       // Verificar se o agente está ativo
-      const { data: autoEnvioSetting } = await supabase
+      const { data: agenteIaSetting } = await supabase
         .from("system_settings")
         .select("value")
-        .eq("key", "whatsapp_auto_envio_ativo")
+        .eq("key", "whatsapp_agente_ia_ativo")
         .maybeSingle();
 
-      if (autoEnvioSetting?.value === "false") {
-        console.log("Agente de IA desativado - envio automático desligado");
+      if (agenteIaSetting?.value !== "true") {
+        console.log("Agente de IA desativado - flag independente");
       } else {
         const messageText = extractMessageText(payload);
         const senderPhone = extractPhone(payload);
