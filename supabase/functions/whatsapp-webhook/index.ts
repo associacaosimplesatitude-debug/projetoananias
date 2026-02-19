@@ -210,22 +210,47 @@ Deno.serve(async (req) => {
 
     // Check if this is a received text message
     if (isReceivedMessage(payload)) {
-      // Verificar se o agente está ativo
-      const { data: agenteIaSetting } = await supabase
-        .from("system_settings")
-        .select("value")
-        .eq("key", "whatsapp_agente_ia_ativo")
-        .maybeSingle();
+      const messageText = extractMessageText(payload);
+      const senderPhone = extractPhone(payload);
 
-      if (agenteIaSetting?.value !== "true") {
-        console.log("Agente de IA desativado - flag independente");
-      } else {
-        const messageText = extractMessageText(payload);
-        const senderPhone = extractPhone(payload);
+      if (messageText && senderPhone) {
+        console.log(`Received message from ${senderPhone}: ${messageText}`);
 
-        if (messageText && senderPhone) {
-          console.log(`Received message from ${senderPhone}: ${messageText}`);
+        // SEMPRE salvar mensagem recebida em whatsapp_conversas
+        // Look up client by phone for the cliente_id
+        const phoneSuffixes = [senderPhone, senderPhone.slice(-11), senderPhone.slice(-10)];
+        let clienteId = null;
+        for (const suffix of phoneSuffixes) {
+          const { data } = await supabase
+            .from("ebd_clientes")
+            .select("id")
+            .or(`telefone.ilike.%${suffix}`)
+            .limit(1)
+            .single();
+          if (data) {
+            clienteId = data.id;
+            break;
+          }
+        }
+
+        await supabase.from("whatsapp_conversas").insert({
+          telefone: senderPhone,
+          cliente_id: clienteId,
+          role: "user",
+          content: messageText,
+        });
+
+        // Verificar se o agente IA está ativo para processar com OpenAI
+        const { data: agenteIaSetting } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "whatsapp_agente_ia_ativo")
+          .maybeSingle();
+
+        if (agenteIaSetting?.value === "true") {
           await processIncomingMessage(supabase, senderPhone, messageText);
+        } else {
+          console.log("Agente de IA desativado - mensagem salva sem processamento IA");
         }
       }
     }
@@ -286,13 +311,7 @@ async function processIncomingMessage(
       .order("created_at", { ascending: false })
       .limit(10);
 
-    // 4. Save user message to history
-    await supabase.from("whatsapp_conversas").insert({
-      telefone: phone,
-      cliente_id: cliente?.id || null,
-      role: "user",
-      content: messageText,
-    });
+    // User message already saved before calling processIncomingMessage
 
     // 5. Build context for OpenAI
     const contextParts: string[] = [];
