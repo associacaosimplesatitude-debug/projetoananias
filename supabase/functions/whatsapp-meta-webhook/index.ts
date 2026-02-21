@@ -1,3 +1,6 @@
+// DEPRECATED: This function is inactive (404) due to edge function limit.
+// The Meta webhook is now handled inside whatsapp-webhook.
+// Keeping this file for reference only.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
