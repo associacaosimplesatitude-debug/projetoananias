@@ -214,6 +214,66 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // === META WHATSAPP WEBHOOK ROUTE ===
+  const url = new URL(req.url);
+  const pathSegments = url.pathname.split("/").filter(Boolean);
+  const lastSegment = pathSegments[pathSegments.length - 1];
+
+  if (lastSegment === "whatsapp-meta-webhook") {
+    // GET - Meta verification
+    if (req.method === "GET") {
+      const mode = url.searchParams.get("hub.mode");
+      const token = url.searchParams.get("hub.verify_token");
+      const challenge = url.searchParams.get("hub.challenge");
+
+      if (mode === "subscribe" && token === "MEU_VERIFY_TOKEN_123") {
+        console.log("Meta webhook verified successfully");
+        return new Response(challenge || "", {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "text/plain" },
+        });
+      }
+      return new Response("Forbidden", { status: 403, headers: corsHeaders });
+    }
+
+    // POST - Receive Meta events
+    if (req.method === "POST") {
+      try {
+        const body = await req.json();
+        console.log("Meta webhook event:", JSON.stringify(body));
+
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        );
+
+        const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+        const telefone = message?.from || body?.entry?.[0]?.changes?.[0]?.value?.metadata?.display_phone_number || null;
+        const messageId = message?.id || null;
+        const evento = body?.entry?.[0]?.changes?.[0]?.field || "meta_webhook";
+
+        await supabase.from("whatsapp_webhooks").insert({
+          evento,
+          telefone,
+          message_id: messageId,
+          payload: body,
+        });
+
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        console.error("Meta webhook error:", err);
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+  }
+  // === END META WEBHOOK ROUTE ===
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
