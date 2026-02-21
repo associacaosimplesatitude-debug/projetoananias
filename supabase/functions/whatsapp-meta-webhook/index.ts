@@ -40,9 +40,15 @@ Deno.serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
       );
 
+      const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+      const telefone = message?.from || body?.entry?.[0]?.changes?.[0]?.value?.metadata?.display_phone_number || null;
+      const messageId = message?.id || null;
+      const evento = body?.entry?.[0]?.changes?.[0]?.field || "meta_webhook";
+
       await supabase.from("whatsapp_webhooks").insert({
-        source: "meta",
-        event_type: body?.entry?.[0]?.changes?.[0]?.field || "unknown",
+        evento,
+        telefone,
+        message_id: messageId,
         payload: body,
       });
 
