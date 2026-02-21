@@ -1,59 +1,50 @@
 
 
-# Corrigir Modal "Visualizar Lead" - Limite de 1000 rows
+# Webhook para WhatsApp Cloud API (Meta)
 
-## Problema Identificado
+## O que sera feito
 
-A tabela `ebd_shopify_pedidos` possui **1520 registros** com telefone, mas o Supabase retorna no maximo **1000 por query**. O pedido da Jaqueline Leovani (#2368) esta fora desse corte, por isso o modal aparece vazio.
+Criar uma nova Edge Function chamada `whatsapp-meta-webhook` que servira como endpoint publico para a WhatsApp Cloud API da Meta.
 
-## Solucao
+A funcao existente `whatsapp-webhook` continuara funcionando normalmente para a Z-API. Esta sera uma funcao completamente separada.
 
-Substituir a abordagem de "buscar todos e filtrar em memoria" por queries mais inteligentes que usam filtros no banco.
+## Funcionalidade
 
-### Alteracoes em `LeadDetailModal.tsx`
+### GET - Verificacao do webhook
+- Le os parametros `hub.mode`, `hub.verify_token` e `hub.challenge` da URL
+- Se `hub.verify_token` for igual a `MEU_VERIFY_TOKEN_123`, retorna `hub.challenge` com status 200
+- Caso contrario, retorna 403
 
-**Estrategia: gerar variantes do telefone e usar filtro `in` no Supabase**
+### POST - Recebimento de eventos
+- Recebe o body JSON da Meta
+- Loga o payload completo no console
+- Salva o evento na tabela `whatsapp_webhooks` para auditoria
+- Retorna status 200 imediatamente
 
-Em vez de buscar TODOS os registros e filtrar no frontend, vamos:
+## URL final publica
 
-1. Gerar as variantes do telefone (com/sem 9o digito, com/sem prefixo 55, com/sem +)
-2. Usar `.in("customer_phone", variantes)` direto na query do Supabase
+A URL para cadastrar no Meta Developers sera:
 
-Variantes geradas para `554591482203`:
-- `554591482203`
-- `5545991482203`
-- `+554591482203`
-- `+5545991482203`
-- `4591482203`
-- `45991482203`
-
-Isso elimina o problema do limite de 1000 rows porque a query ja retorna apenas os registros relevantes.
-
-### Detalhes tecnicos
-
-```text
-Arquivo: src/components/admin/whatsapp/LeadDetailModal.tsx
-
-1. Nova funcao `generatePhoneFilters(phone)`:
-   - Recebe o telefone bruto
-   - Retorna array com todas as variantes possiveis:
-     - digits puro
-     - com/sem 55
-     - com/sem 9o digito  
-     - com/sem + na frente
-   - Remove duplicatas
-
-2. Query ebd_shopify_pedidos:
-   - DE: .select(...).not("customer_phone", "is", null) + filter em JS
-   - PARA: .select(...).in("customer_phone", phoneFilters)
-   
-3. Query ebd_leads_reativacao:
-   - DE: .select(...).not("telefone", "is", null) + filter em JS  
-   - PARA: .select(...).in("telefone", phoneFilters)
-
-4. Query ebd_clientes:
-   - DE: .select(...).not("telefone", "is", null) + filter em JS
-   - PARA: .select(...).in("telefone", phoneFilters)
+```
+https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-meta-webhook
 ```
 
-Essa mudanca resolve o problema de limite e tambem melhora a performance (busca apenas registros relevantes em vez de carregar centenas/milhares de registros).
+**Nota importante:** O dominio `gestaoebd.com.br` aponta para o frontend (Lovable). Edge Functions sao acessadas diretamente pela URL do backend, que e a URL acima. Esta e a URL que deve ser cadastrada no Meta Developers.
+
+## Detalhes tecnicos
+
+### Novo arquivo: `supabase/functions/whatsapp-meta-webhook/index.ts`
+
+- Metodo GET: parseia `req.url` para extrair query params, valida verify_token, retorna challenge
+- Metodo POST: faz `req.json()`, loga com `console.log`, insere em `whatsapp_webhooks`, retorna 200
+- CORS headers para permitir acesso publico
+- Sem autenticacao (verify_jwt = false)
+
+### Configuracao: `supabase/config.toml`
+
+Adicionar:
+```
+[functions.whatsapp-meta-webhook]
+verify_jwt = false
+```
+
