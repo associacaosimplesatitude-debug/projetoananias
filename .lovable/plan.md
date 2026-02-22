@@ -1,50 +1,75 @@
 
+# Corrigir endereço de entrega enviado ao Bling
 
-# Webhook para WhatsApp Cloud API (Meta)
+## Problema identificado
 
-## O que sera feito
+Quando uma proposta e aprovada para faturamento, a funcao `aprovar-faturamento` envia ao Bling o endereco **cadastral do cliente** (tabela `ebd_clientes`) em vez do endereco **de entrega aprovado na proposta** (campo `cliente_endereco` da tabela `vendedor_propostas`).
 
-Criar uma nova Edge Function chamada `whatsapp-meta-webhook` que servira como endpoint publico para a WhatsApp Cloud API da Meta.
+Exemplo concreto (pedido YAHWEH):
+- Endereco na proposta (correto): Rua Guilhermina de Araujo, 110 - CEP 23898-078
+- Endereco enviado ao Bling (errado): Rua Firmino Modesto, LT 12 - CEP 23898-039
 
-A funcao existente `whatsapp-webhook` continuara funcionando normalmente para a Z-API. Esta sera uma funcao completamente separada.
+## Solucao
 
-## Funcionalidade
-
-### GET - Verificacao do webhook
-- Le os parametros `hub.mode`, `hub.verify_token` e `hub.challenge` da URL
-- Se `hub.verify_token` for igual a `MEU_VERIFY_TOKEN_123`, retorna `hub.challenge` com status 200
-- Caso contrario, retorna 403
-
-### POST - Recebimento de eventos
-- Recebe o body JSON da Meta
-- Loga o payload completo no console
-- Salva o evento na tabela `whatsapp_webhooks` para auditoria
-- Retorna status 200 imediatamente
-
-## URL final publica
-
-A URL para cadastrar no Meta Developers sera:
-
-```
-https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-meta-webhook
-```
-
-**Nota importante:** O dominio `gestaoebd.com.br` aponta para o frontend (Lovable). Edge Functions sao acessadas diretamente pela URL do backend, que e a URL acima. Esta e a URL que deve ser cadastrada no Meta Developers.
+Alterar a funcao `aprovar-faturamento` para priorizar o endereco salvo na proposta (`proposta.cliente_endereco`), usando o endereco cadastral apenas como fallback.
 
 ## Detalhes tecnicos
 
-### Novo arquivo: `supabase/functions/whatsapp-meta-webhook/index.ts`
+### Arquivo: `supabase/functions/aprovar-faturamento/index.ts`
 
-- Metodo GET: parseia `req.url` para extrair query params, valida verify_token, retorna challenge
-- Metodo POST: faz `req.json()`, loga com `console.log`, insere em `whatsapp_webhooks`, retorna 200
-- CORS headers para permitir acesso publico
-- Sem autenticacao (verify_jwt = false)
+Na secao que monta o `endereco_entrega` (linhas 174-182), a logica sera alterada de:
 
-### Configuracao: `supabase/config.toml`
-
-Adicionar:
+```typescript
+// ANTES - sempre usa endereco do cadastro
+endereco_entrega: cliente.endereco_rua ? {
+  rua: cliente.endereco_rua,
+  numero: cliente.endereco_numero || 'S/N',
+  complemento: cliente.endereco_complemento || '',
+  bairro: cliente.endereco_bairro || '',
+  cep: cliente.endereco_cep || '',
+  cidade: cliente.endereco_cidade || '',
+  estado: cliente.endereco_estado || '',
+} : null,
 ```
-[functions.whatsapp-meta-webhook]
-verify_jwt = false
+
+Para:
+
+```typescript
+// DEPOIS - prioriza endereco da proposta
+const endProposta = proposta.cliente_endereco;
+endereco_entrega: endProposta?.rua ? {
+  rua: endProposta.rua,
+  numero: endProposta.numero || 'S/N',
+  complemento: endProposta.complemento || '',
+  bairro: endProposta.bairro || '',
+  cep: endProposta.cep || '',
+  cidade: endProposta.cidade || '',
+  estado: endProposta.estado || '',
+} : cliente.endereco_rua ? {
+  rua: cliente.endereco_rua,
+  numero: cliente.endereco_numero || 'S/N',
+  complemento: cliente.endereco_complemento || '',
+  bairro: cliente.endereco_bairro || '',
+  cep: cliente.endereco_cep || '',
+  cidade: cliente.endereco_cidade || '',
+  estado: cliente.endereco_estado || '',
+} : null,
 ```
 
+### Verificacao adicional
+
+Sera adicionado um log para facilitar a depuracao futura:
+
+```typescript
+console.log(`[APROVAR-FAT] Endereco entrega - Fonte: ${endProposta?.rua ? 'PROPOSTA' : 'CADASTRO'}`);
+```
+
+### Funcoes similares a verificar
+
+A mesma correcao pode ser necessaria em `mp-sync-payment-status` (linha 148), que tambem monta `endereco_entrega` a partir do cadastro do cliente. Sera corrigida no mesmo deploy.
+
+## Impacto
+
+- Todos os novos pedidos faturados passarao a usar o endereco correto da proposta
+- Pedidos ja enviados ao Bling (como o da YAHWEH) precisarao de correcao manual diretamente no Bling
+- Nenhuma alteracao no banco de dados e necessaria
