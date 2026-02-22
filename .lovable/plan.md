@@ -1,75 +1,42 @@
 
-# Corrigir endereço de entrega enviado ao Bling
+# Adicionar Card "PDV Balcao" ao Resumo de Vendas
 
-## Problema identificado
+## Problema
 
-Quando uma proposta e aprovada para faturamento, a funcao `aprovar-faturamento` envia ao Bling o endereco **cadastral do cliente** (tabela `ebd_clientes`) em vez do endereco **de entrega aprovado na proposta** (campo `cliente_endereco` da tabela `vendedor_propostas`).
+As vendas realizadas no balcao da loja Penha (tabela `vendas_balcao`) nao aparecem no dashboard de Resumo de Vendas. Essas vendas incluem pagamentos via cartao de credito, debito, dinheiro e PIX, mas nao estao sendo contabilizadas em nenhum card nem no Total Geral.
 
-Exemplo concreto (pedido YAHWEH):
-- Endereco na proposta (correto): Rua Guilhermina de Araujo, 110 - CEP 23898-078
-- Endereco enviado ao Bling (errado): Rua Firmino Modesto, LT 12 - CEP 23898-039
+Dados confirmados: existem diversas vendas na tabela `vendas_balcao` com status "finalizada", todas no polo "penha".
 
 ## Solucao
 
-Alterar a funcao `aprovar-faturamento` para priorizar o endereco salvo na proposta (`proposta.cliente_endereco`), usando o endereco cadastral apenas como fallback.
+### 1. Alterar a funcao RPC `get_sales_channel_totals` no banco de dados
 
-## Detalhes tecnicos
+Adicionar um novo campo `pdv_balcao` na funcao que agrega vendas da tabela `vendas_balcao` com `status = 'finalizada'` no periodo selecionado.
 
-### Arquivo: `supabase/functions/aprovar-faturamento/index.ts`
-
-Na secao que monta o `endereco_entrega` (linhas 174-182), a logica sera alterada de:
-
-```typescript
-// ANTES - sempre usa endereco do cadastro
-endereco_entrega: cliente.endereco_rua ? {
-  rua: cliente.endereco_rua,
-  numero: cliente.endereco_numero || 'S/N',
-  complemento: cliente.endereco_complemento || '',
-  bairro: cliente.endereco_bairro || '',
-  cep: cliente.endereco_cep || '',
-  cidade: cliente.endereco_cidade || '',
-  estado: cliente.endereco_estado || '',
-} : null,
+```sql
+'pdv_balcao', (
+  SELECT json_build_object(
+    'valor', COALESCE(SUM(valor_total), 0),
+    'qtd', COUNT(*)
+  )
+  FROM vendas_balcao
+  WHERE status = 'finalizada'
+    AND created_at >= v_start
+    AND created_at < v_end
+)
 ```
 
-Para:
+### 2. Alterar o componente `SalesChannelCards.tsx`
 
-```typescript
-// DEPOIS - prioriza endereco da proposta
-const endProposta = proposta.cliente_endereco;
-endereco_entrega: endProposta?.rua ? {
-  rua: endProposta.rua,
-  numero: endProposta.numero || 'S/N',
-  complemento: endProposta.complemento || '',
-  bairro: endProposta.bairro || '',
-  cep: endProposta.cep || '',
-  cidade: endProposta.cidade || '',
-  estado: endProposta.estado || '',
-} : cliente.endereco_rua ? {
-  rua: cliente.endereco_rua,
-  numero: cliente.endereco_numero || 'S/N',
-  complemento: cliente.endereco_complemento || '',
-  bairro: cliente.endereco_bairro || '',
-  cep: cliente.endereco_cep || '',
-  cidade: cliente.endereco_cidade || '',
-  estado: cliente.endereco_estado || '',
-} : null,
-```
+- Adicionar `pdv_balcao` ao tipo de retorno da query RPC (linha 187-201)
+- Adicionar os dados de PDV Balcao no `marketplaceData` (ou `periodMetrics`)
+- Incluir o valor do PDV Balcao no calculo do `totalGeral`
+- Adicionar um novo `StandardCard` para "PDV Balcao" com icone `Store` e cores distintas (ex: amber/laranja)
 
-### Verificacao adicional
+### Detalhes tecnicos
 
-Sera adicionado um log para facilitar a depuracao futura:
+**Migracao SQL:** Recriar a funcao `get_sales_channel_totals` adicionando o campo `pdv_balcao` no JSON de retorno.
 
-```typescript
-console.log(`[APROVAR-FAT] Endereco entrega - Fonte: ${endProposta?.rua ? 'PROPOSTA' : 'CADASTRO'}`);
-```
+**Frontend:** Adicionar o card entre os existentes, antes do TOTAL GERAL, e somar seu valor/quantidade no total geral.
 
-### Funcoes similares a verificar
-
-A mesma correcao pode ser necessaria em `mp-sync-payment-status` (linha 148), que tambem monta `endereco_entrega` a partir do cadastro do cliente. Sera corrigida no mesmo deploy.
-
-## Impacto
-
-- Todos os novos pedidos faturados passarao a usar o endereco correto da proposta
-- Pedidos ja enviados ao Bling (como o da YAHWEH) precisarao de correcao manual diretamente no Bling
-- Nenhuma alteracao no banco de dados e necessaria
+**Impacto:** Nenhuma quebra nos cards existentes. Apenas adicao de um novo canal de venda ao dashboard.
