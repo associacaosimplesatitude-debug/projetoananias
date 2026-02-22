@@ -171,15 +171,36 @@ serve(async (req) => {
           email: cliente.email_superintendente,
           telefone: cliente.telefone,
         },
-        endereco_entrega: cliente.endereco_rua ? {
-          rua: cliente.endereco_rua,
-          numero: cliente.endereco_numero || 'S/N',
-          complemento: cliente.endereco_complemento || '',
-          bairro: cliente.endereco_bairro || '',
-          cep: cliente.endereco_cep || '',
-          cidade: cliente.endereco_cidade || '',
-          estado: cliente.endereco_estado || '',
-        } : null,
+        // Priorizar endereço da proposta sobre o cadastral do cliente
+        endereco_entrega: (() => {
+          const endProposta = proposta.cliente_endereco as any;
+          if (endProposta?.rua) {
+            console.log(`[APROVAR-FAT] Endereco entrega - Fonte: PROPOSTA`);
+            return {
+              rua: endProposta.rua,
+              numero: endProposta.numero || 'S/N',
+              complemento: endProposta.complemento || '',
+              bairro: endProposta.bairro || '',
+              cep: endProposta.cep || '',
+              cidade: endProposta.cidade || '',
+              estado: endProposta.estado || '',
+            };
+          }
+          if (cliente.endereco_rua) {
+            console.log(`[APROVAR-FAT] Endereco entrega - Fonte: CADASTRO (fallback)`);
+            return {
+              rua: cliente.endereco_rua,
+              numero: cliente.endereco_numero || 'S/N',
+              complemento: cliente.endereco_complemento || '',
+              bairro: cliente.endereco_bairro || '',
+              cep: cliente.endereco_cep || '',
+              cidade: cliente.endereco_cidade || '',
+              estado: cliente.endereco_estado || '',
+            };
+          }
+          console.log(`[APROVAR-FAT] Endereco entrega - Nenhum endereço disponível`);
+          return null;
+        })(),
         itens,
         pedido_id: proposta.id,
         valor_frete: valorFrete,
