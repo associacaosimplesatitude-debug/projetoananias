@@ -145,6 +145,7 @@ serve(async (req) => {
           telefone: pedido.cliente_telefone || '',
         };
 
+        // Usar endereço do pedido MP (já vem correto da proposta/checkout)
         const endereco_entrega = {
           rua: pedido.endereco_rua,
           numero: pedido.endereco_numero,
@@ -154,6 +155,7 @@ serve(async (req) => {
           cidade: pedido.endereco_cidade,
           estado: pedido.endereco_estado,
         };
+        console.log(`[${requestId}] Endereco entrega:`, endereco_entrega);
 
         // Converter itens do JSON para formato Bling COM DESCONTO
         const items = pedido.items || [];
