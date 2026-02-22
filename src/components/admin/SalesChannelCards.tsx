@@ -514,7 +514,7 @@ export function SalesChannelCards({
 
           <StandardCard
             icon={<Store className="h-4 w-4 text-amber-600" />}
-            title="PDV Balcão"
+            title="Balcão Penha"
             value={formatCurrency(marketplaceData.pdvBalcao.valor)}
             periodLabel={`${marketplaceData.pdvBalcao.qtd} vendas`}
             colorClass="text-amber-700 dark:text-amber-300"
