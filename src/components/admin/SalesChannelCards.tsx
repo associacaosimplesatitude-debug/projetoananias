@@ -198,6 +198,7 @@ export function SalesChannelCards({
         propostas_advecs: { valor: number; qtd: number };
         propostas_revendedores: { valor: number; qtd: number };
         propostas_representantes: { valor: number; qtd: number };
+        pdv_balcao: { valor: number; qtd: number };
       };
     },
     staleTime: 30000, // Cache por 30 segundos
@@ -285,6 +286,10 @@ export function SalesChannelCards({
         valor: Number(channelTotals.propostas_representantes?.valor) || 0, 
         qtd: channelTotals.propostas_representantes?.qtd || 0 
       },
+      pdvBalcao: {
+        valor: Number(channelTotals.pdv_balcao?.valor) || 0,
+        qtd: channelTotals.pdv_balcao?.qtd || 0
+      },
     };
   }, [channelTotals]);
 
@@ -302,13 +307,14 @@ export function SalesChannelCards({
       marketplaceData.advecs.valor + 
       marketplaceData.revendedores.valor + 
       marketplaceData.atacado.valor + 
-      marketplaceData.representantes.valor;
+      marketplaceData.representantes.valor +
+      marketplaceData.pdvBalcao.valor;
     
     const qtdTotal = 
       periodMetrics.qtdOnline + 
-      periodMetrics.qtdIgrejasCNPJ +       // Igreja CNPJ individual
-      periodMetrics.qtdIgrejasCPF +         // Igreja CPF individual
-      periodMetrics.qtdLojistas +           // Lojistas individual
+      periodMetrics.qtdIgrejasCNPJ +
+      periodMetrics.qtdIgrejasCPF +
+      periodMetrics.qtdLojistas +
       periodMetrics.qtdPessoaFisica +
       marketplaceData.amazon.qtd + 
       marketplaceData.shopee.qtd + 
@@ -316,7 +322,8 @@ export function SalesChannelCards({
       marketplaceData.advecs.qtd + 
       marketplaceData.revendedores.qtd + 
       marketplaceData.atacado.qtd + 
-      marketplaceData.representantes.qtd;
+      marketplaceData.representantes.qtd +
+      marketplaceData.pdvBalcao.qtd;
     
     return { valorTotal, qtdTotal };
   }, [periodMetrics, marketplaceData]);
@@ -502,6 +509,16 @@ export function SalesChannelCards({
             colorClass="text-rose-700 dark:text-rose-300"
             borderColorClass="border-rose-200 dark:border-rose-800"
             bgClass="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
+          />
+
+          <StandardCard
+            icon={<Store className="h-4 w-4 text-amber-600" />}
+            title="PDV Balcão"
+            value={formatCurrency(marketplaceData.pdvBalcao.valor)}
+            periodLabel={`${marketplaceData.pdvBalcao.qtd} vendas`}
+            colorClass="text-amber-700 dark:text-amber-300"
+            borderColorClass="border-amber-200 dark:border-amber-800"
+            bgClass="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
           />
 
           <StandardCard
