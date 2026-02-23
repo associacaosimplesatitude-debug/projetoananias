@@ -1,42 +1,55 @@
 
-# Adicionar Card "PDV Balcao" ao Resumo de Vendas
 
-## Problema
+# Painel Google Ads no Admin Geral
 
-As vendas realizadas no balcao da loja Penha (tabela `vendas_balcao`) nao aparecem no dashboard de Resumo de Vendas. Essas vendas incluem pagamentos via cartao de credito, debito, dinheiro e PIX, mas nao estao sendo contabilizadas em nenhum card nem no Total Geral.
+## O que sera feito
 
-Dados confirmados: existem diversas vendas na tabela `vendas_balcao` com status "finalizada", todas no polo "penha".
+### 1. Adicionar credenciais Google Ads na pagina de Integracoes
 
-## Solucao
+A pagina `/admin/ebd/integracoes` (VendedorIntegracoes.tsx) ja gerencia credenciais Z-API via tabela `system_settings`. Vamos adicionar um segundo card nessa mesma pagina para as 5 credenciais do Google Ads:
 
-### 1. Alterar a funcao RPC `get_sales_channel_totals` no banco de dados
+- **Developer Token** (campo com mascara de senha)
+- **Client ID** (campo texto)
+- **Client Secret** (campo com mascara de senha)
+- **Refresh Token** (campo com mascara de senha)
+- **Customer ID** (campo texto, ex: 6403318992)
 
-Adicionar um novo campo `pdv_balcao` na funcao que agrega vendas da tabela `vendas_balcao` com `status = 'finalizada'` no periodo selecionado.
+Cada credencial sera salva como uma linha na tabela `system_settings` com as chaves:
+`google_ads_developer_token`, `google_ads_client_id`, `google_ads_client_secret`, `google_ads_refresh_token`, `google_ads_customer_id`
 
-```sql
-'pdv_balcao', (
-  SELECT json_build_object(
-    'valor', COALESCE(SUM(valor_total), 0),
-    'qtd', COUNT(*)
-  )
-  FROM vendas_balcao
-  WHERE status = 'finalizada'
-    AND created_at >= v_start
-    AND created_at < v_end
-)
-```
+### 2. Criar Edge Function `google-ads-data`
 
-### 2. Alterar o componente `SalesChannelCards.tsx`
+Funcao backend que le as credenciais da `system_settings` e consulta a API REST do Google Ads (v18). Acoes:
 
-- Adicionar `pdv_balcao` ao tipo de retorno da query RPC (linha 187-201)
-- Adicionar os dados de PDV Balcao no `marketplaceData` (ou `periodMetrics`)
-- Incluir o valor do PDV Balcao no calculo do `totalGeral`
-- Adicionar um novo `StandardCard` para "PDV Balcao" com icone `Store` e cores distintas (ex: amber/laranja)
+- **metrics** - Conversoes, cliques, CPC medio, custo (com filtro de datas)
+- **balance** - Saldo/fundos disponiveis da conta
+- **invoices** - Lista de documentos fiscais com links para download
 
-### Detalhes tecnicos
+### 3. Criar pagina GoogleAdsPanel.tsx
 
-**Migracao SQL:** Recriar a funcao `get_sales_channel_totals` adicionando o campo `pdv_balcao` no JSON de retorno.
+Nova pagina em `/admin/google-ads` (dentro do Admin Geral) com:
 
-**Frontend:** Adicionar o card entre os existentes, antes do TOTAL GERAL, e somar seu valor/quantidade no total geral.
+- Cards de metricas (Conversao, Cliques, CPC, Custo)
+- Card de saldo com alerta de saldo baixo
+- Botao "Adicionar Fundos" (abre pagina de billing do Google Ads)
+- Tabela de documentos/notas fiscais com botao de download
+- Filtro de periodo (data inicio/fim)
 
-**Impacto:** Nenhuma quebra nos cards existentes. Apenas adicao de um novo canal de venda ao dashboard.
+### 4. Adicionar rota e menu
+
+- Nova rota `/admin/google-ads` no App.tsx dentro do bloco Admin Geral
+- Novo item "Google Ads" no sidebar do AdminLayout.tsx (secao Configuracoes)
+
+## Detalhes tecnicos
+
+**Arquivos a criar:**
+- `supabase/functions/google-ads-data/index.ts` - Edge Function
+- `src/pages/admin/GoogleAdsPanel.tsx` - Pagina do painel
+
+**Arquivos a modificar:**
+- `src/pages/vendedor/VendedorIntegracoes.tsx` - Adicionar card de credenciais Google Ads
+- `src/components/admin/AdminLayout.tsx` - Adicionar item no menu lateral
+- `src/App.tsx` - Adicionar rota `/admin/google-ads`
+
+**Padrao seguido:** Mesmo padrao da Z-API - credenciais na `system_settings`, lidas pela Edge Function com `createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)`.
+
