@@ -1,35 +1,26 @@
 
+# Correcao CORS na Edge Function Google Ads
 
-# Melhorias no Painel Google Ads
+## Problema
 
-## Problemas identificados
+A Edge Function `google-ads-data` tem uma lista fixa de origens permitidas (allowedOrigins) que inclui apenas `gestaoebd.com.br` e `localhost:5173`. O preview do Lovable usa o dominio `*.lovableproject.com` e `*.lovable.app`, que estao sendo bloqueados pelo CORS, resultando em "Failed to fetch" em todas as 3 chamadas (metrics, balance, invoices).
 
-1. **Metricas nao aparecem automaticamente** - Os dados so carregam ao clicar em "Buscar Metricas" ou "Atualizar Tudo". Falta um `useEffect` para carregar automaticamente ao abrir a pagina.
+## Solucao
 
-2. **Visual dos cards nao corresponde ao Google Ads** - Atualmente os cards usam apenas uma borda lateral colorida. O screenshot de referencia mostra cards com **fundo colorido solido** (azul para Valor conv., vermelho para Cliques, cinza claro para CPC med. e Custo).
+Atualizar o CORS da Edge Function para usar `Access-Control-Allow-Origin: *` conforme o padrao recomendado para Edge Functions, em vez de uma lista fixa de origens.
 
-## Alteracoes planejadas
+## Arquivo a modificar
 
-### Arquivo: `src/pages/admin/GoogleAdsPanel.tsx`
+**`supabase/functions/google-ads-data/index.ts`** - Simplificar a funcao `getCorsHeaders` para retornar `*` no header `Access-Control-Allow-Origin`, seguindo o padrao padrao de CORS para Edge Functions:
 
-1. **Adicionar carregamento automatico** - Incluir `useEffect` que chama `fetchAll()` ao montar o componente, para que metricas, saldo e invoices aparecam imediatamente.
+```typescript
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+};
+```
 
-2. **Redesign dos cards de metricas** no estilo Google Ads:
-   - **Valor conv.** - Fundo azul (`bg-blue-600`), texto branco, valor grande
-   - **Cliques** - Fundo vermelho (`bg-red-600`), texto branco, valor grande
-   - **CPC med.** - Fundo cinza claro (`bg-gray-100`), texto escuro
-   - **Custo** - Fundo cinza claro (`bg-gray-100`), texto escuro
-   - Todos com layout: label pequeno no topo, valor grande embaixo (sem icones)
-   - Formato compacto em linha (similar ao screenshot)
+Remover a funcao `getCorsHeaders(req)` e usar o objeto `corsHeaders` diretamente em todas as respostas. A seguranca ja esta garantida pela validacao do token JWT do usuario no corpo da funcao.
 
-3. **Adicionar skeleton/loading** enquanto as metricas carregam na primeira vez, para o usuario ver que algo esta acontecendo.
-
-4. **Remover condicional `{metrics && ...}`** dos cards - em vez de esconder completamente, mostrar cards com skeleton ou valores zerados enquanto carrega.
-
-### Detalhes tecnicos
-
-- Adicionar `import { useEffect } from "react"` junto ao `useState`
-- Adicionar `import { Skeleton } from "@/components/ui/skeleton"`
-- `useEffect(() => { fetchAll(); }, [])` no componente
-- Trocar os 4 cards de metricas por divs com classes de fundo colorido solido
-- Formatar valores grandes com abreviacao (ex: 121 mil, 41,8 mil, R$ 27,5 mil)
+Apos a correcao, fazer redeploy da funcao.
