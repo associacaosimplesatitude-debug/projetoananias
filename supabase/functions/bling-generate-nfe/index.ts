@@ -1,4 +1,4 @@
-// v2 - deploy fix 2026-02-05
+// v3 - redeploy heranca simples 2026-02-23
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
