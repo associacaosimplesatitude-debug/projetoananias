@@ -1,6 +1,8 @@
-// v3 - redeploy heranca simples 2026-02-23
+// v4 - FORCE REBUILD 2026-02-23T23:45
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const DEPLOY_VERSION = 'v4-heranca-simples-2026-02-23';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -258,6 +260,7 @@ serve(async (req) => {
   }
 
   try {
+    console.log(`[BLING-NFE] ========== VERSÃO: ${DEPLOY_VERSION} ==========`);
     const { bling_order_id } = await req.json();
 
     if (!bling_order_id) {
