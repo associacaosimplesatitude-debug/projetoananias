@@ -1,26 +1,30 @@
 
-# Correcao CORS na Edge Function Google Ads
 
-## Problema
+# Correções no Painel Google Ads
 
-A Edge Function `google-ads-data` tem uma lista fixa de origens permitidas (allowedOrigins) que inclui apenas `gestaoebd.com.br` e `localhost:5173`. O preview do Lovable usa o dominio `*.lovableproject.com` e `*.lovable.app`, que estao sendo bloqueados pelo CORS, resultando em "Failed to fetch" em todas as 3 chamadas (metrics, balance, invoices).
+## Problemas identificados
 
-## Solucao
+### 1. Linha duplicada na Edge Function (bug critico)
+No arquivo `supabase/functions/google-ads-data/index.ts`, linha 77 tem um `return` duplicado que foi introduzido no ultimo edit. Isso pode causar comportamento inesperado.
 
-Atualizar o CORS da Edge Function para usar `Access-Control-Allow-Origin: *` conforme o padrao recomendado para Edge Functions, em vez de uma lista fixa de origens.
+### 2. Notas fiscais - busca apenas mes atual
+O painel busca invoices apenas do mes atual (fevereiro 2026), mas provavelmente nao existem notas para este mes ainda. Precisa permitir selecionar o mes/ano para buscar notas de meses anteriores.
 
-## Arquivo a modificar
+### 3. "Adicionar Fundos" nao funciona
+O botao usa `window.open()` que e bloqueado dentro do iframe do preview. Precisa usar uma tag `<a>` com `target="_blank"` e `rel="noopener noreferrer"` em vez de `window.open`.
 
-**`supabase/functions/google-ads-data/index.ts`** - Simplificar a funcao `getCorsHeaders` para retornar `*` no header `Access-Control-Allow-Origin`, seguindo o padrao padrao de CORS para Edge Functions:
+## Alteracoes
 
-```typescript
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-};
-```
+### Arquivo 1: `supabase/functions/google-ads-data/index.ts`
+- Remover a linha 77 duplicada (`return new Response(null, ...)`)
 
-Remover a funcao `getCorsHeaders(req)` e usar o objeto `corsHeaders` diretamente em todas as respostas. A seguranca ja esta garantida pela validacao do token JWT do usuario no corpo da funcao.
+### Arquivo 2: `src/pages/admin/GoogleAdsPanel.tsx`
 
-Apos a correcao, fazer redeploy da funcao.
+1. **Seletor de mes/ano para invoices**: Adicionar dois selects (mes e ano) na secao de Documentos Fiscais, permitindo buscar notas de qualquer mes. Default: mes anterior (janeiro 2026).
+
+2. **Corrigir botao "Adicionar Fundos"**: Trocar o `<Button onClick={window.open(...)}` por um `<a href="..." target="_blank">` estilizado como botao, para funcionar corretamente dentro de iframes.
+
+3. **Corrigir botoes de download PDF das notas**: Mesmo problema - trocar `window.open` por tags `<a>` com `target="_blank"`.
+
+4. **Buscar ultimo mes por padrao**: Alterar `fetchInvoices` para buscar o mes anterior por padrao (onde e mais provavel ter notas), com opcao de mudar.
+
