@@ -1,29 +1,35 @@
 
 
-# Correção: Atualizar versão da API do Google Ads
+# Melhorias no Painel Google Ads
 
-## Problema identificado
+## Problemas identificados
 
-O OAuth está funcionando corretamente (credenciais salvas estão OK), mas a API retorna **404 Not Found** porque a versão `v18` da Google Ads API foi descontinuada.
+1. **Metricas nao aparecem automaticamente** - Os dados so carregam ao clicar em "Buscar Metricas" ou "Atualizar Tudo". Falta um `useEffect` para carregar automaticamente ao abrir a pagina.
 
-A URL que está falhando:
-```
-https://googleads.googleapis.com/v18/customers/6403318992/googleAds:searchStream
-```
+2. **Visual dos cards nao corresponde ao Google Ads** - Atualmente os cards usam apenas uma borda lateral colorida. O screenshot de referencia mostra cards com **fundo colorido solido** (azul para Valor conv., vermelho para Cliques, cinza claro para CPC med. e Custo).
 
-## Correção
+## Alteracoes planejadas
 
-Atualizar todas as referências de `v18` para `v19` no arquivo `supabase/functions/google-ads-data/index.ts`:
+### Arquivo: `src/pages/admin/GoogleAdsPanel.tsx`
 
-1. **Linha 68** - URL do `searchStream` (usada para metrics e balance)
-2. **Linha ~180** - URL de invoices
+1. **Adicionar carregamento automatico** - Incluir `useEffect` que chama `fetchAll()` ao montar o componente, para que metricas, saldo e invoices aparecam imediatamente.
 
-Sao apenas 2 alteracoes de string no mesmo arquivo.
+2. **Redesign dos cards de metricas** no estilo Google Ads:
+   - **Valor conv.** - Fundo azul (`bg-blue-600`), texto branco, valor grande
+   - **Cliques** - Fundo vermelho (`bg-red-600`), texto branco, valor grande
+   - **CPC med.** - Fundo cinza claro (`bg-gray-100`), texto escuro
+   - **Custo** - Fundo cinza claro (`bg-gray-100`), texto escuro
+   - Todos com layout: label pequeno no topo, valor grande embaixo (sem icones)
+   - Formato compacto em linha (similar ao screenshot)
 
-## Arquivo a modificar
+3. **Adicionar skeleton/loading** enquanto as metricas carregam na primeira vez, para o usuario ver que algo esta acontecendo.
 
-- `supabase/functions/google-ads-data/index.ts` - Trocar `v18` por `v19` em todas as URLs da API
+4. **Remover condicional `{metrics && ...}`** dos cards - em vez de esconder completamente, mostrar cards com skeleton ou valores zerados enquanto carrega.
 
-## Apos a correção
+### Detalhes tecnicos
 
-Vou fazer deploy da Edge Function e testar novamente as 3 acoes: metrics, balance e invoices.
+- Adicionar `import { useEffect } from "react"` junto ao `useState`
+- Adicionar `import { Skeleton } from "@/components/ui/skeleton"`
+- `useEffect(() => { fetchAll(); }, [])` no componente
+- Trocar os 4 cards de metricas por divs com classes de fundo colorido solido
+- Formatar valores grandes com abreviacao (ex: 121 mil, 41,8 mil, R$ 27,5 mil)
