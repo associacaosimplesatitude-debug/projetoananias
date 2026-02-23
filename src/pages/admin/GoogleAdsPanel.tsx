@@ -9,6 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Loader2,
   Wallet,
   ExternalLink,
@@ -93,8 +100,16 @@ export default function GoogleAdsPanel() {
   const today = new Date().toISOString().split("T")[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
+  // Default to previous month for invoices
+  const prevMonth = new Date();
+  prevMonth.setMonth(prevMonth.getMonth() - 1);
+  const defaultInvoiceMonth = (prevMonth.getMonth() + 1).toString().padStart(2, "0");
+  const defaultInvoiceYear = prevMonth.getFullYear().toString();
+
   const [startDate, setStartDate] = useState(thirtyDaysAgo);
   const [endDate, setEndDate] = useState(today);
+  const [invoiceMonth, setInvoiceMonth] = useState(defaultInvoiceMonth);
+  const [invoiceYear, setInvoiceYear] = useState(defaultInvoiceYear);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [balance, setBalance] = useState<Balance | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -136,13 +151,12 @@ export default function GoogleAdsPanel() {
     }
   }
 
-  async function fetchInvoices() {
+  async function fetchInvoices(month?: string, year?: string) {
     setLoadingInvoices(true);
     try {
-      const now = new Date();
       const data = await callEdge("invoices", {
-        year: now.getFullYear().toString(),
-        month: (now.getMonth() + 1).toString().padStart(2, "0"),
+        year: year || invoiceYear,
+        month: month || invoiceMonth,
       });
       setInvoices(data || []);
     } catch {
@@ -295,14 +309,15 @@ export default function GoogleAdsPanel() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button
-              variant="outline"
-              onClick={() => window.open("https://ads.google.com/aw/billing/payments", "_blank")}
-              className="w-full"
+            <a
+              href="https://ads.google.com/aw/billing/payments"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background hover:bg-accent hover:text-accent-foreground"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
               Abrir Faturamento Google Ads
-            </Button>
+            </a>
           </CardContent>
         </Card>
       </div>
@@ -314,16 +329,55 @@ export default function GoogleAdsPanel() {
             <CardTitle className="flex items-center gap-2 text-base">
               <FileText className="h-5 w-5" /> Documentos Fiscais
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={fetchInvoices} disabled={loadingInvoices}>
-              {loadingInvoices ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </div>
+          <CardDescription>Selecione o mês e ano para buscar notas fiscais.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label>Mês</Label>
+              <Select value={invoiceMonth} onValueChange={setInvoiceMonth}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="01">Janeiro</SelectItem>
+                  <SelectItem value="02">Fevereiro</SelectItem>
+                  <SelectItem value="03">Março</SelectItem>
+                  <SelectItem value="04">Abril</SelectItem>
+                  <SelectItem value="05">Maio</SelectItem>
+                  <SelectItem value="06">Junho</SelectItem>
+                  <SelectItem value="07">Julho</SelectItem>
+                  <SelectItem value="08">Agosto</SelectItem>
+                  <SelectItem value="09">Setembro</SelectItem>
+                  <SelectItem value="10">Outubro</SelectItem>
+                  <SelectItem value="11">Novembro</SelectItem>
+                  <SelectItem value="12">Dezembro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Ano</Label>
+              <Select value={invoiceYear} onValueChange={setInvoiceYear}>
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2024, 2025, 2026].map((y) => (
+                    <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={() => fetchInvoices()} disabled={loadingInvoices} size="sm">
+              {loadingInvoices ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Buscar
             </Button>
           </div>
-          <CardDescription>Notas fiscais emitidas pelo Google Ads no mês atual.</CardDescription>
-        </CardHeader>
-        <CardContent>
+
           {invoices.length === 0 && !loadingInvoices ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Nenhum documento encontrado.
+              Nenhum documento encontrado para {invoiceMonth}/{invoiceYear}.
             </p>
           ) : (
             <Table>
@@ -345,9 +399,9 @@ export default function GoogleAdsPanel() {
                     <TableCell className="text-right font-medium">{fmt(inv.total)}</TableCell>
                     <TableCell className="text-right">
                       {inv.pdf_url ? (
-                        <Button size="sm" variant="ghost" onClick={() => window.open(inv.pdf_url!, "_blank")}>
+                        <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-accent">
                           <Download className="h-4 w-4" />
-                        </Button>
+                        </a>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}

@@ -74,7 +74,6 @@ async function queryGoogleAds(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
-    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
