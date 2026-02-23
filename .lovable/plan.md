@@ -1,88 +1,48 @@
 
 
-# Correção: Vincular NF-e ao Pedido de Venda (mostrar "V" laranja) nos pedidos Penha
+# Correção: Pedido Penha chegando como "Em aberto" e NF-e sem vínculo
 
-## Causa raiz
+## Causa raiz encontrada
 
-O fluxo atual do PDV Penha:
-1. `bling-create-order` cria o Pedido de Venda
-2. `bling-create-order` muda o status para "Atendido" via PATCH (linhas 2746-2773)
-3. Frontend chama `bling-generate-nfe`
-4. `bling-generate-nfe` tenta gerar NF-e, mas como o pedido ja esta "Atendido", a heranca simples (`{ idPedidoVenda }`) falha
-5. A funcao cria NF-e com payload completo manual -- o Bling cria uma NF-e avulsa SEM vinculo ao pedido
+O comentário no próprio código confirma: **"O POST não aceita situacao nesta conta, então usamos PATCH após criar"** (linha 2685). O Bling ignora o campo `situacao` enviado no payload de criação.
 
-Nos pedidos B2B: o status fica "Em andamento", a heranca funciona, e o "V" aparece.
+Para pedidos **Faturamento B2B**, existe um PATCH para "Em andamento" logo após a criação (linha 2687-2712). Para pedidos **Mercado Pago**, existe um PATCH para "Aprovado" (linha 2717-2745).
 
-## Solucao
+Porém, para pedidos **pagamento_loja (Penha)**, o antigo PATCH para "Atendido" foi removido (corretamente), mas **nenhum PATCH para "Em andamento" foi adicionado no lugar**. O pedido fica com status "Em aberto" (default do Bling), e a herança simples na geração de NF-e pode falhar porque o status não é o esperado.
 
-Mudar a ordem das operacoes: gerar a NF-e via heranca simples ANTES de mudar o status para "Atendido".
+## Solução
 
-### Alteracao 1: `supabase/functions/bling-create-order/index.ts`
+### Arquivo: `supabase/functions/bling-create-order/index.ts`
 
-Para pedidos `pagamento_loja` (PDV Penha), **nao** fazer o PATCH para "Atendido" dentro do `bling-create-order`. Em vez disso, retornar um flag `needs_atendido: true` na resposta para que o status seja atualizado depois da NF-e.
+Substituir o bloco de linhas 2748-2753 (que apenas loga que não vai aplicar "Atendido") por um PATCH para "Em andamento", seguindo o mesmo padrão usado para Faturamento B2B:
 
-- Linhas 2746-2773: Envolver o bloco do PATCH "Atendido" em uma condicao que verifica se deve pular (ex: se `skip_atendido_patch` for true no payload, ou simplesmente remover o PATCH para pagamento_loja)
-- Retornar `needs_atendido: true` junto com `bling_order_id` na resposta
-
-### Alteracao 2: `supabase/functions/bling-generate-nfe/index.ts`
-
-Mudar a estrategia de geracao para tentar heranca simples PRIMEIRO:
-
-1. **Primeiro**: Tentar POST `/nfe` com apenas `{ idPedidoVenda: orderId }` (heranca simples)
-2. **Se funcionar**: NF-e criada COM vinculo ao pedido (o "V" aparece)
-3. **Se falhar** (ex: pedido Atendido, dados incompletos): Fallback para payload completo manual (comportamento atual)
-4. **Apos gerar NF-e com sucesso**: Se recebeu flag ou detectou que e Penha, fazer PATCH do pedido para "Atendido"
-
-Isso significa mover a logica de PATCH "Atendido" para DEPOIS da geracao da NF-e.
-
-### Alteracao 3: `src/pages/vendedor/VendedorPDV.tsx`
-
-Apos chamar `bling-generate-nfe`, se a NF-e foi gerada com sucesso e o pedido ainda nao esta "Atendido", fazer uma chamada adicional para atualizar o status. Isso pode ser feito:
-- Passando o flag `needs_atendido` para `bling-generate-nfe` que cuidara do PATCH
-- Ou adicionando uma chamada separada no frontend
-
-### Detalhes tecnicos
-
-**Em `bling-generate-nfe`:**
 ```
-// NOVA ESTRATEGIA: Tentar heranca simples PRIMEIRO
-const simplePayload = { idPedidoVenda: orderId };
-const simpleResp = await fetch(createNfeUrl, {
-  method: 'POST',
-  headers: { 'Authorization': `Bearer ${accessToken}`, ... },
-  body: JSON.stringify(simplePayload),
-});
-
-if (simpleResp.ok) {
-  // Sucesso! NF-e vinculada ao pedido (V laranja)
-  createNfeData = await simpleResp.json();
-} else {
-  // Fallback: payload completo (sem vinculo, mas NF-e e gerada)
-  // ... codigo atual ...
-}
-
-// APOS GERAR NF-e: Atualizar pedido para "Atendido" se necessario
-if (isLojaPenha) {
-  await fetch(`/pedidos/vendas/${orderId}/situacoes/${situacaoAtendidoId}`, {
-    method: 'PATCH', ...
-  });
-}
-```
-
-**Em `bling-create-order`:**
-```
-// Remover ou condicionar o bloco de PATCH "Atendido" (linhas 2746-2773)
-// Para pagamento_loja, nao fazer PATCH aqui - sera feito apos NF-e
+// Antes (atual - apenas log, sem PATCH):
 if (createdOrderId && isPagamentoLoja && situacaoAtendidoId) {
-  // NAO fazer PATCH aqui - bling-generate-nfe fara apos gerar NF-e
-  console.log('[BLING] Status "Atendido" sera aplicado apos geracao da NF-e');
+  console.log('[BLING] Status "Atendido" NÃO será aplicado agora...');
+}
+
+// Depois (com PATCH para "Em andamento"):
+if (createdOrderId && isPagamentoLoja && situacaoEmAndamentoId) {
+  console.log('[BLING] Atualizando pedido para "Em andamento" - Pagamento Loja');
+  await sleep(400);
+  try {
+    const updateResp = await fetch(
+      `.../pedidos/vendas/${createdOrderId}/situacoes/${situacaoEmAndamentoId}`,
+      { method: 'PATCH', headers: { Authorization, Accept } }
+    );
+    if (updateResp.ok) {
+      console.log('[BLING] Status atualizado para "Em andamento" via PATCH');
+    } else {
+      console.warn('[BLING] Falha ao atualizar status via PATCH');
+    }
+  } catch (err) {
+    console.warn('[BLING] Erro ao atualizar status:', err);
+  }
 }
 ```
 
-## Resultado esperado
+Isso garante que o pedido esteja em "Em andamento" quando a `bling-generate-nfe` tentar a herança simples, permitindo que a NF-e seja vinculada ao pedido (o "V" laranja aparece).
 
-1. Pedido criado no Bling com status inicial (nao "Atendido")
-2. NF-e gerada via heranca simples -- vinculada ao pedido ("V" laranja aparece)
-3. Apos NF-e autorizada, pedido atualizado para "Atendido"
-4. Vendedor aparece na NF-e pois herda os dados do pedido de venda
+Após a correção, fazer redeploy da função `bling-create-order`.
 
