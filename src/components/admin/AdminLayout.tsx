@@ -20,6 +20,7 @@ import {
   Video,
   BookOpenText,
   Presentation,
+  BarChart3 as GoogleAdsIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -290,6 +291,14 @@ function AdminSidebar() {
                   <RouterNavLink to="/admin/apresentacao">
                     <Presentation className="h-4 w-4" />
                     <span>Apresentação</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/google-ads')}>
+                  <RouterNavLink to="/admin/google-ads">
+                    <GoogleAdsIcon className="h-4 w-4" />
+                    <span>Google Ads</span>
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

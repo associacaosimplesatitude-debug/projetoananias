@@ -182,6 +182,7 @@ import Tutoriais from "./pages/Tutoriais";
 import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
 import Apresentacao from "./pages/Apresentacao";
 import ApresentacaoScreenshots from "./pages/admin/ApresentacaoScreenshots";
+import GoogleAdsPanel from "./pages/admin/GoogleAdsPanel";
 
 // Public Pages
 import PropostaDigital from "./pages/PropostaDigital";
@@ -436,6 +437,7 @@ const App = () => (
                       <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
                       <Route path="tutoriais" element={<GestaoTutoriais />} />
                       <Route path="apresentacao" element={<ApresentacaoScreenshots />} />
+                      <Route path="google-ads" element={<GoogleAdsPanel />} />
                     </Route>
                     <Route
                       path="/admin/ebd"
