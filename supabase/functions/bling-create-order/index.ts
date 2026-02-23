@@ -2745,11 +2745,32 @@ serve(async (req) => {
       }
     }
 
-    // ✅ NÃO ATUALIZAR STATUS PARA "ATENDIDO" AQUI PARA PAGAMENTO NA LOJA
-    // CORREÇÃO: O status "Atendido" será aplicado APÓS a geração da NF-e (em bling-generate-nfe)
-    // para permitir que a herança simples funcione e vincule a NF-e ao pedido ("V" laranja)
-    if (createdOrderId && isPagamentoLoja && situacaoAtendidoId) {
-      console.log(`[BLING] ⏭️ Status "Atendido" NÃO será aplicado agora - será aplicado após NF-e para garantir vínculo (V laranja)`);
+    // ✅ CORREÇÃO: Para pagamento_loja (Penha), fazer PATCH para "Em andamento"
+    // O Bling ignora situacao no POST, então precisamos do PATCH igual ao B2B
+    // Isso garante que a herança simples funcione na geração de NF-e (V laranja)
+    if (createdOrderId && isPagamentoLoja && situacaoEmAndamentoId) {
+      console.log(`[BLING] 🔄 Atualizando pedido Penha para "Em andamento" (situação ID: ${situacaoEmAndamentoId})`);
+      await sleep(400);
+      try {
+        const updateStatusResponse = await fetch(
+          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoEmAndamentoId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+          }
+        );
+        if (updateStatusResponse.ok) {
+          console.log('[BLING] ✅ Status atualizado para "Em andamento" via PATCH - Pagamento Loja');
+        } else {
+          const updateResult = await updateStatusResponse.json();
+          console.warn('[BLING] ⚠️ Falha ao atualizar status para "Em andamento" (Penha):', updateResult);
+        }
+      } catch (statusError) {
+        console.warn('[BLING] ⚠️ Erro ao tentar atualizar status para Pagamento Loja:', statusError);
+      }
     }
 
     // DEBUG: conferir a situação que o Bling gravou de fato (algumas contas sobrescrevem por automação)
