@@ -1,21 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const allowedOrigins = [
-  "https://gestaoebd.com.br",
-  "https://www.gestaoebd.com.br",
-  "http://localhost:5173",
-];
-
-function getCorsHeaders(req: Request) {
-  const origin = req.headers.get("origin") || "";
-  const allowedOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Max-Age": "86400",
-  };
-}
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+};
 
 async function getAccessToken(refreshToken: string, clientId: string, clientSecret: string): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -83,8 +72,8 @@ async function queryGoogleAds(
 }
 
 Deno.serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers: corsHeaders });
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
