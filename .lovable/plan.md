@@ -1,27 +1,38 @@
 
-# Correção: Deploy da versão atualizada do bling-generate-nfe
 
-## Problema encontrado
+# Correção: Forçar deploy real do bling-generate-nfe
 
-A análise dos logs confirma que a **versão antiga** da Edge Function `bling-generate-nfe` ainda está rodando em produção. A evidência:
+## Problema
 
-- Os logs mostram "PASSO 2" e "PASSO 3", mas **nenhum "PASSO 1"** com "Herança simples"
-- O log mostra `Status criação (payload completo): 400` -- foi direto para payload completo manual
-- A NF-e 019275 foi criada **sem vínculo** ao pedido porque usou payload manual
+A versão com herança simples (PASSO 1) existe no código fonte mas **não está rodando em produção**. O deploy anterior mudou apenas o comentário de versão, o que pode não ter sido suficiente para forçar um rebuild.
 
-O código no arquivo já tem a lógica correta (herança simples nas linhas 405-443), mas o **deploy não foi aplicado** na última atualização.
+Evidência nos logs (23:37:33):
+- Nenhum log de "PASSO 1" ou "herança simples"
+- Foi direto para "Status criação (payload completo): 400"
+- A NF-e 19276 foi criada sem vínculo ao pedido
 
-## Solução
+## Solucao
 
-### Ação 1: Redeploiar a Edge Function
+### Acao 1: Modificar o codigo de forma substancial para forçar rebuild
 
-Forçar o redeploy de `bling-generate-nfe` para que a versão com herança simples entre em produção.
+Adicionar um timestamp de deploy como constante no inicio do arquivo e um log explicito no inicio da execucao para confirmar que a versao correta esta rodando:
 
-### Ação 2: Verificar via logs
+```typescript
+// v4 - FORCE REBUILD 2026-02-23T23:45
+const DEPLOY_VERSION = 'v4-heranca-simples-2026-02-23';
 
-Após o deploy, o próximo pedido Penha deve gerar logs com:
-- `PASSO 1: Tentando herança simples (idPedidoVenda: ...)` 
-- `Herança simples - Status: ...`
-- Se funcionar: `HERANÇA SIMPLES FUNCIONOU!`
+// No inicio do serve():
+console.log(`[BLING-NFE] ========== VERSÃO: ${DEPLOY_VERSION} ==========`);
+```
 
-Nenhuma alteração de código é necessária -- apenas o redeploy da função.
+### Acao 2: Deploy da funcao
+
+Fazer o deploy usando a ferramenta de deploy de Edge Functions.
+
+### Acao 3: Verificacao
+
+Apos o deploy, o proximo pedido deve mostrar nos logs:
+- `VERSÃO: v4-heranca-simples-2026-02-23`
+- `PASSO 1: Tentando herança simples`
+
+Se a heranca simples funcionar, o "V" laranja aparecera no Bling.
