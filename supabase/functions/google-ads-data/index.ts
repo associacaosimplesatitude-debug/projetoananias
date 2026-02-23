@@ -65,7 +65,7 @@ async function queryGoogleAds(
   query: string
 ) {
   const cid = customerId.replace(/-/g, "");
-  const url = `https://googleads.googleapis.com/v18/customers/${cid}/googleAds:searchStream`;
+  const url = `https://googleads.googleapis.com/v23/customers/${cid}/googleAds:searchStream`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
         if (bsRows.length > 0) {
           const billingSetupId = bsRows[0].billingSetup?.id;
           // Fetch invoices via REST
-          const invoiceUrl = `https://googleads.googleapis.com/v18/customers/${customerId}/invoices?billingSetup=customers/${customerId}/billingSetups/${billingSetupId}&issueYear=${y}&issueMonth=${getMonthEnum(m2)}`;
+          const invoiceUrl = `https://googleads.googleapis.com/v23/customers/${customerId}/invoices?billingSetup=customers/${customerId}/billingSetups/${billingSetupId}&issueYear=${y}&issueMonth=${getMonthEnum(m2)}`;
           const invoiceRes = await fetch(invoiceUrl, {
             headers: {
               "Authorization": `Bearer ${accessToken}`,
