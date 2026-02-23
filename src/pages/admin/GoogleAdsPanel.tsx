@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,19 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
   Loader2,
-  TrendingUp,
-  MousePointerClick,
-  DollarSign,
-  BarChart3,
   Wallet,
   ExternalLink,
   FileText,
   Download,
   AlertTriangle,
   RefreshCw,
+  BarChart3,
 } from "lucide-react";
 
 interface Metrics {
@@ -49,6 +47,48 @@ interface Invoice {
 
 const LOW_BALANCE_THRESHOLD = 50;
 
+function MetricCard({
+  label,
+  value,
+  subtitle,
+  variant,
+  loading,
+}: {
+  label: string;
+  value: string;
+  subtitle?: string;
+  variant: "blue" | "red" | "gray";
+  loading: boolean;
+}) {
+  const bg =
+    variant === "blue"
+      ? "bg-blue-600 text-white"
+      : variant === "red"
+        ? "bg-red-600 text-white"
+        : "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100";
+
+  const subtitleColor =
+    variant === "blue" || variant === "red"
+      ? "text-white/70"
+      : "text-muted-foreground";
+
+  return (
+    <div className={`rounded-xl p-4 ${bg}`}>
+      <p className={`text-xs font-medium uppercase tracking-wide ${variant === "blue" || variant === "red" ? "text-white/80" : "text-muted-foreground"}`}>
+        {label}
+      </p>
+      {loading ? (
+        <Skeleton className={`h-8 w-24 mt-1 ${variant === "blue" || variant === "red" ? "bg-white/20" : ""}`} />
+      ) : (
+        <>
+          <p className="text-2xl font-bold mt-1">{value}</p>
+          {subtitle && <p className={`text-xs mt-0.5 ${subtitleColor}`}>{subtitle}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function GoogleAdsPanel() {
   const today = new Date().toISOString().split("T")[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
@@ -61,6 +101,7 @@ export default function GoogleAdsPanel() {
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   async function callEdge(action: string, extra?: Record<string, string>) {
     const res = await supabase.functions.invoke("google-ads-data", {
@@ -113,10 +154,18 @@ export default function GoogleAdsPanel() {
 
   async function fetchAll() {
     await Promise.all([fetchMetrics(), fetchBalance(), fetchInvoices()]);
+    setInitialLoad(false);
   }
+
+  useEffect(() => {
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fmt = (v: number) =>
     v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const fmtNum = (v: number) => v.toLocaleString("pt-BR");
 
   return (
     <div className="space-y-6">
@@ -146,6 +195,36 @@ export default function GoogleAdsPanel() {
         </div>
       )}
 
+      {/* Metrics Cards - Google Ads style */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard
+          label="Valor conv."
+          value={metrics ? fmt(metrics.conversions_value) : "—"}
+          subtitle={metrics ? `${metrics.conversions.toFixed(0)} conversões` : undefined}
+          variant="blue"
+          loading={initialLoad && loadingMetrics}
+        />
+        <MetricCard
+          label="Cliques"
+          value={metrics ? fmtNum(metrics.clicks) : "—"}
+          subtitle={metrics ? `${fmtNum(metrics.impressions)} impressões` : undefined}
+          variant="red"
+          loading={initialLoad && loadingMetrics}
+        />
+        <MetricCard
+          label="CPC méd."
+          value={metrics ? fmt(metrics.average_cpc) : "—"}
+          variant="gray"
+          loading={initialLoad && loadingMetrics}
+        />
+        <MetricCard
+          label="Custo"
+          value={metrics ? fmt(metrics.cost) : "—"}
+          variant="gray"
+          loading={initialLoad && loadingMetrics}
+        />
+      </div>
+
       {/* Date filter */}
       <Card>
         <CardHeader>
@@ -169,57 +248,6 @@ export default function GoogleAdsPanel() {
         </CardContent>
       </Card>
 
-      {/* Metrics Cards */}
-      {metrics && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-blue-500">
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1">
-                <TrendingUp className="h-4 w-4" /> Valor Conversão
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{fmt(metrics.conversions_value)}</p>
-              <p className="text-xs text-muted-foreground">{metrics.conversions.toFixed(0)} conversões</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-red-500">
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1">
-                <MousePointerClick className="h-4 w-4" /> Cliques
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{metrics.clicks.toLocaleString("pt-BR")}</p>
-              <p className="text-xs text-muted-foreground">{metrics.impressions.toLocaleString("pt-BR")} impressões</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-amber-500">
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1">
-                <DollarSign className="h-4 w-4" /> CPC Médio
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{fmt(metrics.average_cpc)}</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-emerald-500">
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-1">
-                <DollarSign className="h-4 w-4" /> Custo Total
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{fmt(metrics.cost)}</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Balance + Add Funds */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
@@ -229,13 +257,8 @@ export default function GoogleAdsPanel() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {!balance && !loadingBalance && (
-              <Button variant="outline" onClick={fetchBalance}>
-                Verificar Saldo
-              </Button>
-            )}
             {loadingBalance && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-            {balance && (
+            {balance && !loadingBalance && (
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Limite aprovado</span>
@@ -255,6 +278,9 @@ export default function GoogleAdsPanel() {
                   {balance.status}
                 </Badge>
               </div>
+            )}
+            {!balance && !loadingBalance && (
+              <p className="text-sm text-muted-foreground">Nenhum dado de saldo disponível.</p>
             )}
           </CardContent>
         </Card>
@@ -297,7 +323,7 @@ export default function GoogleAdsPanel() {
         <CardContent>
           {invoices.length === 0 && !loadingInvoices ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Nenhum documento encontrado. Clique em atualizar para buscar.
+              Nenhum documento encontrado.
             </p>
           ) : (
             <Table>
