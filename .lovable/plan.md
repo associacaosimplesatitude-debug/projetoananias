@@ -1,38 +1,51 @@
 
 
-# Correção: Forçar deploy real do bling-generate-nfe
+# Solucao: Nova funcao leve para heranca simples (bypass do deploy travado)
 
 ## Problema
 
-A versão com herança simples (PASSO 1) existe no código fonte mas **não está rodando em produção**. O deploy anterior mudou apenas o comentário de versão, o que pode não ter sido suficiente para forçar um rebuild.
+O deploy da funcao `bling-generate-nfe` (1549 linhas) nao esta tomando efeito. Ja tentamos 3 vezes - o codigo fonte tem o PASSO 1 (heranca simples), mas os logs confirmam que a versao antiga continua rodando. A funcao possivelmente e grande demais para o bundler processar corretamente.
 
-Evidência nos logs (23:37:33):
-- Nenhum log de "PASSO 1" ou "herança simples"
-- Foi direto para "Status criação (payload completo): 400"
-- A NF-e 19276 foi criada sem vínculo ao pedido
+## Estrategia
 
-## Solucao
+Criar uma funcao nova e pequena (`bling-nfe-simple`) que faz APENAS a heranca simples. Atualizar o front-end para tentar esta funcao primeiro. Se funcionar, a NF-e ja vem vinculada ao pedido (icone "V" laranja). Se falhar, chama a funcao antiga como fallback.
 
-### Acao 1: Modificar o codigo de forma substancial para forçar rebuild
+## Passos
 
-Adicionar um timestamp de deploy como constante no inicio do arquivo e um log explicito no inicio da execucao para confirmar que a versao correta esta rodando:
+### 1. Criar funcao `supabase/functions/bling-nfe-simple/index.ts` (~100 linhas)
 
-```typescript
-// v4 - FORCE REBUILD 2026-02-23T23:45
-const DEPLOY_VERSION = 'v4-heranca-simples-2026-02-23';
+Funcao minima que:
+- Recebe `bling_order_id`
+- Busca token do Bling na tabela `bling_config`
+- Faz POST para `https://api.bling.com.br/Api/v3/nfe` com payload `{ idPedidoVenda: orderId }`
+- Se der 201/200 com ID, envia para SEFAZ via POST `nfe/{id}/envio`
+- Retorna sucesso com o ID da NF-e criada
 
-// No inicio do serve():
-console.log(`[BLING-NFE] ========== VERSÃO: ${DEPLOY_VERSION} ==========`);
+### 2. Adicionar configuracao no `supabase/config.toml`
+
+```toml
+[functions.bling-nfe-simple]
+verify_jwt = true
 ```
 
-### Acao 2: Deploy da funcao
+### 3. Atualizar front-end - `src/pages/vendedor/VendedorPDV.tsx`
 
-Fazer o deploy usando a ferramenta de deploy de Edge Functions.
+Trocar a chamada direta a `bling-generate-nfe` por:
+1. Tentar `bling-nfe-simple` primeiro
+2. Se falhar, chamar `bling-generate-nfe` como fallback
 
-### Acao 3: Verificacao
+### 4. Atualizar front-end - `src/components/shopify/VendaConcluidaDialog.tsx`
 
-Apos o deploy, o proximo pedido deve mostrar nos logs:
-- `VERSÃO: v4-heranca-simples-2026-02-23`
-- `PASSO 1: Tentando herança simples`
+Mesma logica de fallback.
 
-Se a heranca simples funcionar, o "V" laranja aparecera no Bling.
+### 5. Deploy da nova funcao
+
+Deploy automatico da `bling-nfe-simple`.
+
+## Por que isso resolve
+
+- Funcao nova e pequena, deploy confiavel
+- Heranca simples vincula a NF-e ao pedido automaticamente (icone "V")
+- Fallback garante que se a heranca simples falhar, o sistema ainda gera a nota pela funcao antiga
+- Nao depende de conseguir deploiar a funcao grande de 1549 linhas
+
