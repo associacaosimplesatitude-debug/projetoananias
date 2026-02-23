@@ -890,15 +890,17 @@ serve(async (req) => {
       console.log('[BLING] ⚠️ Situação "Aprovado" não encontrada, usando "Em andamento" como fallback para Mercado Pago');
     }
     
-    // ✅ REGRA: Pagamento na Loja → "Atendido" | Faturamento B2B → "Em andamento" | Outros → "Em aberto"
+    // ✅ REGRA: Pagamento na Loja → "Em andamento" (será atualizado para "Atendido" APÓS gerar NF-e)
+    // CORREÇÃO: Não usar "Atendido" como situação inicial para pagamento_loja,
+    // pois impede a herança simples na geração de NF-e (o "V" laranja não aparece)
     const situacaoInicialId = isPagamentoLoja 
-      ? situacaoAtendidoId  // Pagar na Loja (Glorinha) → "Atendido" (já foi pago)
+      ? (situacaoEmAndamentoId || situacaoEmAbertoId)  // Pagar na Loja → "Em andamento" (Atendido será após NF-e)
       : isFaturamentoPagamento 
         ? (situacaoEmAndamentoId || situacaoEmAbertoId)  // Faturamento → "Em andamento"
         : situacaoEmAbertoId;  // PIX/Cartão/Boleto → "Em aberto"
     
     console.log('[BLING] Situação inicial selecionada:', situacaoInicialId, 
-      isPagamentoLoja ? '(Pagamento na Loja → Atendido)' :
+      isPagamentoLoja ? '(Pagamento na Loja → Em andamento, Atendido será após NF-e)' :
       isFaturamentoPagamento ? '(Faturamento → Em andamento)' : '(Pagamento direto → Em aberto)');
     
     // ✅ NATUREZA DE OPERAÇÃO - SEMPRE retorna ID válido
@@ -2743,33 +2745,11 @@ serve(async (req) => {
       }
     }
 
-    // ✅ ATUALIZAR STATUS PARA "ATENDIDO" SE FOR PAGAMENTO NA LOJA (GLORINHA)
+    // ✅ NÃO ATUALIZAR STATUS PARA "ATENDIDO" AQUI PARA PAGAMENTO NA LOJA
+    // CORREÇÃO: O status "Atendido" será aplicado APÓS a geração da NF-e (em bling-generate-nfe)
+    // para permitir que a herança simples funcione e vincule a NF-e ao pedido ("V" laranja)
     if (createdOrderId && isPagamentoLoja && situacaoAtendidoId) {
-      console.log(`[BLING] Atualizando pedido ${createdOrderId} para "Atendido" (ID: ${situacaoAtendidoId}) via PATCH - Pagamento na Loja`);
-      
-      await sleep(400); // Respeitar rate limit
-      
-      try {
-        const updateStatusResponse = await fetch(
-          `https://www.bling.com.br/Api/v3/pedidos/vendas/${createdOrderId}/situacoes/${situacaoAtendidoId}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/json',
-            },
-          }
-        );
-        
-        if (updateStatusResponse.ok) {
-          console.log(`[BLING] ✅ Status atualizado para "Atendido" (ID: ${situacaoAtendidoId}) via PATCH - Pagamento na Loja`);
-        } else {
-          const updateResult = await updateStatusResponse.json();
-          console.warn(`[BLING] ⚠️ Falha ao atualizar status para Atendido via PATCH:`, updateResult);
-        }
-      } catch (statusError) {
-        console.warn('[BLING] ⚠️ Erro ao tentar atualizar status para Atendido:', statusError);
-      }
+      console.log(`[BLING] ⏭️ Status "Atendido" NÃO será aplicado agora - será aplicado após NF-e para garantir vínculo (V laranja)`);
     }
 
     // DEBUG: conferir a situação que o Bling gravou de fato (algumas contas sobrescrevem por automação)
@@ -2825,6 +2805,7 @@ serve(async (req) => {
         success: true, 
         bling_order_id: responseData.data?.id,
         bling_order_number: responseData.data?.numero,
+        needs_atendido: isPagamentoLoja, // Flag para bling-generate-nfe aplicar "Atendido" após NF-e
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
