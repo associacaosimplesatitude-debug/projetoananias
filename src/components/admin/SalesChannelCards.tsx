@@ -250,6 +250,7 @@ export function SalesChannelCards({
         revendedores: { valor: 0, qtd: 0 },
         atacado: { valor: 0, qtd: 0 },
         representantes: { valor: 0, qtd: 0 },
+        pdvBalcao: { valor: 0, qtd: 0 },
       };
     }
 
