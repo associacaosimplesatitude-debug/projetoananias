@@ -186,6 +186,8 @@ import GoogleAdsDashboard from "./pages/admin/GoogleAdsDashboard";
 import GoogleAdsFaturamento from "./pages/admin/GoogleAdsFaturamento";
 import GoogleAdsDocumentos from "./pages/admin/GoogleAdsDocumentos";
 import GoogleAdsIntegracoes from "./pages/admin/GoogleAdsIntegracoes";
+import GoogleNotasFiscais from "./pages/admin/GoogleNotasFiscais";
+import GoogleRecargas from "./pages/admin/GoogleRecargas";
 
 // Public Pages
 import PropostaDigital from "./pages/PropostaDigital";
@@ -481,6 +483,8 @@ const App = () => (
                       <Route path="google-ads-faturamento" element={<GoogleAdsFaturamento />} />
                       <Route path="google-ads-documentos" element={<GoogleAdsDocumentos />} />
                       <Route path="google-ads-integracoes" element={<GoogleAdsIntegracoes />} />
+                      <Route path="google/notas" element={<GoogleNotasFiscais />} />
+                      <Route path="google/recargas" element={<GoogleRecargas />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
