@@ -23,15 +23,27 @@ export interface ParsedQuiz {
 function preprocessText(text: string): string {
   let processed = text;
   
+  // Remover racional/explicação após resposta certa
+  processed = processed.replace(/\|\s*\*?Racional:?\*?\s*.*/gi, '');
+  
+  // Remover markdown: ###, **, *
+  processed = processed.replace(/#{1,6}\s*/g, '');
+  processed = processed.replace(/\*\*([^*]+)\*\*/g, '$1');
+  processed = processed.replace(/\*([^*]+)\*/g, '$1');
+  
+  // Normalizar bullets com opções: "* A)" → "A)"
+  processed = processed.replace(/^\*\s+([ABCD]\))/gm, '$1');
+  
+  // Remover bullets soltos (linhas que são apenas "* " ou "*" seguido de quebra)
+  processed = processed.replace(/^\*\s*$/gm, '');
+  
   // Adicionar quebra de linha antes de opções A), B), C), D)
-  // Usar lookbehind negativo para não quebrar se já estiver no início da linha
   processed = processed.replace(/\s+([ABCD]\))/g, '\n$1');
   
   // Adicionar quebra de linha antes de "Resposta Certa:" ou "Resposta certa:"
   processed = processed.replace(/\s+(Resposta\s*[Cc]erta:)/gi, '\n$1');
   
   // Adicionar quebra de linha antes de números de pergunta (1., 2., etc.)
-  // Mas não quebrar datas ou números no meio de frases
   processed = processed.replace(/\s+(\d{1,2})\.\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/g, '\n$1. ');
   
   // Separar título de "Nível:" se estiverem na mesma linha
