@@ -1,58 +1,42 @@
 
-
-# Corrigir Saldo Google Ads - Erro na Query account_budget
+# Corrigir Rota de Frete: retirada_penha virando Retira Matriz
 
 ## Problema
+Quando a proposta tem `metodo_frete = 'retirada_penha'`, o checkout converte para `'manual'`, que depois vira `'retirada'` (Matriz RJ). Resultado: pedido vai para deposito errado no Bling.
 
-A query GAQL para `account_budget` retorna erro 400 "INVALID_ARGUMENT". O recurso `account_budget` pode nao estar disponivel para todos os tipos de conta Google Ads, ou requer o `login_customer_id` (conta MCC). Como resultado, o saldo sempre mostra R$ 0,00.
+Cadeia: `retirada_penha` -> `manual` -> `retirada` -> Matriz RJ
 
-## Solucao
+## Correções (2 arquivos)
 
-Modificar `handleBalance` na edge function para usar uma abordagem mais robusta com fallback:
+### 1. `src/pages/ebd/CheckoutShopifyMP.tsx` (linha 526)
 
-### Arquivo: `supabase/functions/google-ads-dashboard/index.ts`
-
-**Estrategia em 3 niveis:**
-
-1. **Tentar `account_budget` sem WHERE** (a clausula WHERE pode ser a causa do erro):
-   ```text
-   SELECT account_budget.amount_micros, account_budget.status
-   FROM account_budget
-   ```
-   Filtrar por status APPROVED no codigo TypeScript.
-
-2. **Se falhar, tentar via `customer` (BillingSetup + custo mensal):**
-   Usar a billing info que ja funciona (action "billing" funciona sem erro). Buscar o custo total do mes e subtrair de um valor de referencia.
-
-3. **Se ambos falharem, fallback para calculo local:**
-   Somar as recargas com status CONFIRMADO da tabela `google_ads_topups` e subtrair o custo total do mes obtido pela API de metricas (que funciona corretamente).
-
-### Logica do fallback local:
+Enviar o `metodo_frete` original da proposta em vez do `shippingMethod` generico:
 
 ```text
-// Na edge function:
-1. Tentar account_budget sem WHERE clause
-2. Se erro, buscar custo do mes via metrics (que funciona)
-3. Buscar soma de topups CONFIRMADOS no banco
-4. balance = soma_topups - custo_total_gasto
+// DE:
+frete: {
+  metodo: shippingMethod,
+
+// PARA:
+frete: {
+  metodo: proposta?.metodo_frete || shippingMethod,
 ```
 
-Para o fallback funcionar, a edge function precisara ler da tabela `google_ads_topups` usando o supabase admin client.
+Isso preserva `retirada_penha`, `retirada_pe`, `retirada`, `free`, etc.
 
-### Alteracoes detalhadas:
+### 2. `supabase/functions/mp-sync-payment-status/index.ts` (linhas 124-131)
 
-1. **`handleBalance`**: Remover WHERE clause, adicionar try/catch com fallback
-2. Dentro do fallback: consultar `google_ads_topups` com status CONFIRMADO para soma dos depositos
-3. Consultar metricas de custo total (query que ja funciona)
-4. Retornar `depositos - custo_total` como saldo estimado
+Adicionar comentario de seguranca e manter a logica de fallback apenas para `'manual'`:
 
-### Arquivo: `src/pages/admin/GoogleRecargas.tsx`
+```text
+// Normalizar metodo_frete: 'manual' -> 'retirada' (apenas se nao for retirada especifica)
+let metodoFreteNormalizado = pedido.metodo_frete || 'pac';
+if (metodoFreteNormalizado === 'manual') {
+  if (pedido.valor_frete === 0 || pedido.valor_frete === null) {
+    metodoFreteNormalizado = 'retirada';
+  }
+}
+// Nao sobrescrever se ja for retirada especifica (retirada_penha, retirada_pe, etc.)
+```
 
-Nenhuma alteracao necessaria no frontend -- a query ja chama a edge function e exibe o resultado.
-
-## Resumo
-
-- Primeiro tenta buscar saldo real via `account_budget` (sem WHERE)
-- Se a API nao suportar, calcula saldo = recargas confirmadas - custo total gasto
-- O frontend continua funcionando sem alteracoes
-
+A correcao principal e no arquivo 1. Com o checkout enviando o valor correto, a normalizacao no webhook nao sera acionada porque o valor nunca mais chegara como `'manual'` quando for retirada especifica.
