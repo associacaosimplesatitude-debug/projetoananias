@@ -1,8 +1,6 @@
-// v4 - FORCE REBUILD 2026-02-23T23:45
+// v2 - deploy fix 2026-02-05
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const DEPLOY_VERSION = 'v4-heranca-simples-2026-02-23';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -260,7 +258,6 @@ serve(async (req) => {
   }
 
   try {
-    console.log(`[BLING-NFE] ========== VERSÃO: ${DEPLOY_VERSION} ==========`);
     const { bling_order_id } = await req.json();
 
     if (!bling_order_id) {
@@ -407,46 +404,11 @@ serve(async (req) => {
     console.log(`[BLING-NFE] DEBUG: pedido.totalProdutos =`, pedido?.totalProdutos);
 
     // =======================================================================
-    // PASSO 1: TENTAR HERANÇA SIMPLES PRIMEIRO (para vincular NF-e ao pedido - "V" laranja)
-    // Se falhar, fallback para payload completo manual
+    // PASSO 1: CRIAR NF-e via POST /nfe COM PAYLOAD COMPLETO
+    // Como a herança automática falha em pedidos "Atendido", montamos 
+    // a NF-e manualmente com os dados do pedido.
     // =======================================================================
-    console.log(`[BLING-NFE] PASSO 1: Tentando herança simples (idPedidoVenda: ${orderId})...`);
-
-    const createNfeUrl = 'https://api.bling.com.br/Api/v3/nfe';
-    
-    // TENTATIVA 1: Herança simples - vincula NF-e ao pedido automaticamente
-    const simplePayload = { idPedidoVenda: orderId };
-    const simpleResp = await fetch(createNfeUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(simplePayload),
-    });
-
-    const simpleData = await simpleResp.json();
-    console.log(`[BLING-NFE] Herança simples - Status: ${simpleResp.status}`);
-    console.log(`[BLING-NFE] Herança simples - Resposta:`, JSON.stringify(simpleData, null, 2));
-
-    let createNfeResp: Response;
-    let createNfeData: any;
-    let usedSimpleInheritance = false;
-
-    if (simpleResp.ok && simpleData?.data?.id) {
-      // SUCESSO com herança simples! NF-e vinculada ao pedido ("V" laranja aparece)
-      createNfeResp = simpleResp;
-      createNfeData = simpleData;
-      usedSimpleInheritance = true;
-      console.log(`[BLING-NFE] ✅ HERANÇA SIMPLES FUNCIONOU! NF-e vinculada ao pedido (V laranja). ID: ${simpleData.data.id}`);
-    } else {
-      // Herança simples falhou - usar payload completo como fallback
-      const simpleError = extractFiscalError(simpleData);
-      console.log(`[BLING-NFE] ⚠️ Herança simples falhou: ${simpleError}. Usando payload completo como fallback...`);
-      
-      // FALLBACK: Payload completo (comportamento original)
-      console.log(`[BLING-NFE] PASSO 1B: Criando NF-e com payload completo (fallback)...`);
+    console.log(`[BLING-NFE] PASSO 1: Criando NF-e com payload completo...`);
 
     const hoje = new Date().toISOString().split('T')[0]; // AAAA-MM-DD
 
@@ -869,7 +831,8 @@ serve(async (req) => {
 
     console.log(`[BLING-NFE] Payload NF-e FINAL:`, JSON.stringify(nfePayload, null, 2));
 
-    createNfeResp = await fetch(createNfeUrl, {
+    const createNfeUrl = 'https://api.bling.com.br/Api/v3/nfe';
+    let createNfeResp = await fetch(createNfeUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -879,7 +842,7 @@ serve(async (req) => {
       body: JSON.stringify(nfePayload),
     });
 
-    createNfeData = await createNfeResp.json();
+    let createNfeData = await createNfeResp.json();
     console.log(`[BLING-NFE] Status criação (payload completo): ${createNfeResp.status}`);
     console.log(`[BLING-NFE] Resposta criação:`, JSON.stringify(createNfeData, null, 2));
 
@@ -1044,7 +1007,6 @@ serve(async (req) => {
         }
       }
     }
-    } // END of else (fallback payload completo)
 
     // createNfeData já foi definido acima - usar diretamente
     console.log(`[BLING-NFE] Analisando resposta da criação de NF-e...`);
@@ -1057,30 +1019,6 @@ serve(async (req) => {
       nfeId = createNfeData.data.id;
       console.log(`[BLING-NFE] ✓ NF-e criada com sucesso! ID: ${nfeId}`);
       
-      // PASSO 1.5: Tentar vincular NF-e ao pedido via PUT (quando herança simples não foi usada)
-      if (!usedSimpleInheritance && nfeId) {
-        try {
-          console.log(`[BLING-NFE] PASSO 1.5: PUT /nfe/${nfeId} com idPedidoVenda=${orderId} para vincular...`);
-          const putLinkRes = await fetch(`https://api.bling.com.br/Api/v3/nfe/${nfeId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify({ idPedidoVenda: orderId }),
-          });
-          const putLinkData = await putLinkRes.json().catch(() => ({}));
-          console.log(`[BLING-NFE] PUT vinculação: status=${putLinkRes.status}`, JSON.stringify(putLinkData).substring(0, 300));
-          if (putLinkRes.ok) {
-            console.log(`[BLING-NFE] ✅ Vinculação via PUT bem-sucedida! Vínculo "V" deve aparecer.`);
-          } else {
-            console.log(`[BLING-NFE] ⚠️ PUT vinculação não aceito pelo Bling (NF-e continua válida)`);
-          }
-        } catch (putErr: any) {
-          console.log(`[BLING-NFE] ⚠️ Erro no PUT vinculação: ${putErr.message} (NF-e continua válida)`);
-        }
-      }
     } else if (createNfeResp.status === 409 || createNfeResp.status === 422) {
       // Possível duplicidade - NF-e já existe para este pedido
       const fiscalError = extractFiscalError(createNfeData);
@@ -1377,61 +1315,6 @@ serve(async (req) => {
           }
         }
         
-        // =======================================================================
-        // PASSO 4: ATUALIZAR PEDIDO PARA "ATENDIDO" (SE FOR LOJA PENHA / PAGAMENTO_LOJA)
-        // Isso é feito APÓS a NF-e ser autorizada para garantir o vínculo ("V" laranja)
-        // =======================================================================
-        if (isLojaPenha) {
-          console.log(`[BLING-NFE] PASSO 4: Atualizando pedido ${orderId} para "Atendido" (após NF-e autorizada)...`);
-          
-          try {
-            // Buscar situações para encontrar ID do "Atendido"
-            const situacoesUrl = 'https://api.bling.com.br/Api/v3/situacoes/modulos/98310';
-            const situacoesResp = await fetch(situacoesUrl, {
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Accept': 'application/json',
-              },
-            });
-            
-            let situacaoAtendidoId: number | null = null;
-            
-            if (situacoesResp.ok) {
-              const situacoesData = await situacoesResp.json();
-              const situacoes = Array.isArray(situacoesData?.data) ? situacoesData.data : [];
-              const atendido = situacoes.find((s: any) => s.nome?.toLowerCase() === 'atendido');
-              situacaoAtendidoId = atendido?.id || null;
-            }
-            
-            if (!situacaoAtendidoId) {
-              situacaoAtendidoId = 9; // Fallback hardcoded
-              console.log(`[BLING-NFE] ⚠️ Usando fallback para "Atendido": ID 9`);
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 400)); // Rate limit
-            
-            const patchResp = await fetch(
-              `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}/situacoes/${situacaoAtendidoId}`,
-              {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Accept': 'application/json',
-                },
-              }
-            );
-            
-            if (patchResp.ok) {
-              console.log(`[BLING-NFE] ✅ Pedido ${orderId} atualizado para "Atendido" com sucesso!`);
-            } else {
-              const patchResult = await patchResp.json().catch(() => ({}));
-              console.warn(`[BLING-NFE] ⚠️ Falha ao atualizar para "Atendido":`, patchResult);
-            }
-          } catch (patchError) {
-            console.warn('[BLING-NFE] ⚠️ Erro ao atualizar para "Atendido":', patchError);
-          }
-        }
-        
         return new Response(
           JSON.stringify({
             success: true,
@@ -1441,7 +1324,6 @@ serve(async (req) => {
             nfe_url: danfeUrl,
             nfe_pendente: false,
             stage: 'authorized',
-            used_simple_inheritance: usedSimpleInheritance,
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

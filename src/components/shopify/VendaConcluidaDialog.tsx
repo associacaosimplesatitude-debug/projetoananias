@@ -88,26 +88,9 @@ export function VendaConcluidaDialog({
       await new Promise(resolve => setTimeout(resolve, 500));
       setNfeStage('sending');
 
-      // Tentar herança simples primeiro, fallback para função completa
-      let data: any;
-      let error: any;
-
-      const simpleRes = await supabase.functions.invoke('bling-nfe-simple', {
+      const { data, error } = await supabase.functions.invoke('bling-generate-nfe', {
         body: { bling_order_id: blingOrderId }
       });
-
-      if (simpleRes.data?.success && simpleRes.data?.nfe_id) {
-        console.log(`[VendaConcluida] Herança simples OK: ${simpleRes.data.nfe_id}`);
-        data = simpleRes.data;
-        error = null;
-      } else {
-        console.warn(`[VendaConcluida] Herança simples falhou, fallback...`, simpleRes.data?.error);
-        const fallback = await supabase.functions.invoke('bling-generate-nfe', {
-          body: { bling_order_id: blingOrderId }
-        });
-        data = fallback.data;
-        error = fallback.error;
-      }
 
       if (error) throw error;
 

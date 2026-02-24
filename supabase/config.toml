@@ -296,6 +296,3 @@ verify_jwt = false
 
 [functions.whatsapp-meta-webhook]
 verify_jwt = false
-
-[functions.google-ads-data]
-verify_jwt = false

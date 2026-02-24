@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Eye, EyeOff, Save, Wifi, WifiOff, Loader2, Smartphone, BarChart3 } from "lucide-react";
+import { Eye, EyeOff, Save, Wifi, WifiOff, Loader2, Smartphone } from "lucide-react";
 
 export default function VendedorIntegracoes() {
   const [instanceId, setInstanceId] = useState("");
@@ -20,17 +20,6 @@ export default function VendedorIntegracoes() {
   const [deviceInfo, setDeviceInfo] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Google Ads states
-  const [gaDeveloperToken, setGaDeveloperToken] = useState("");
-  const [gaClientId, setGaClientId] = useState("");
-  const [gaClientSecret, setGaClientSecret] = useState("");
-  const [gaRefreshToken, setGaRefreshToken] = useState("");
-  const [gaCustomerId, setGaCustomerId] = useState("");
-  const [showGaDevToken, setShowGaDevToken] = useState(false);
-  const [showGaClientSecret, setShowGaClientSecret] = useState(false);
-  const [showGaRefreshToken, setShowGaRefreshToken] = useState(false);
-  const [savingGa, setSavingGa] = useState(false);
-
   useEffect(() => {
     loadCredentials();
   }, []);
@@ -40,11 +29,7 @@ export default function VendedorIntegracoes() {
       const { data, error } = await supabase
         .from("system_settings")
         .select("key, value")
-        .in("key", [
-          "zapi_instance_id", "zapi_token", "zapi_client_token",
-          "google_ads_developer_token", "google_ads_client_id", "google_ads_client_secret",
-          "google_ads_refresh_token", "google_ads_customer_id",
-        ]);
+        .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token"]);
 
       if (error) throw error;
 
@@ -54,11 +39,6 @@ export default function VendedorIntegracoes() {
       setInstanceId(map["zapi_instance_id"] || "");
       setToken(map["zapi_token"] || "");
       setClientToken(map["zapi_client_token"] || "");
-      setGaDeveloperToken(map["google_ads_developer_token"] || "");
-      setGaClientId(map["google_ads_client_id"] || "");
-      setGaClientSecret(map["google_ads_client_secret"] || "");
-      setGaRefreshToken(map["google_ads_refresh_token"] || "");
-      setGaCustomerId(map["google_ads_customer_id"] || "");
     } catch (err: unknown) {
       toast.error("Erro ao carregar credenciais");
     } finally {
@@ -242,102 +222,6 @@ export default function VendedorIntegracoes() {
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Google Ads Credentials Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Credenciais Google Ads
-          </CardTitle>
-          <CardDescription>
-            Configure as credenciais OAuth2 e Developer Token da sua conta Google Ads.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Developer Token</Label>
-            <div className="relative">
-              <Input
-                type={showGaDevToken ? "text" : "password"}
-                value={gaDeveloperToken}
-                onChange={(e) => setGaDeveloperToken(e.target.value)}
-                placeholder="Token de desenvolvedor"
-              />
-              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowGaDevToken(!showGaDevToken)}>
-                {showGaDevToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Client ID</Label>
-            <Input value={gaClientId} onChange={(e) => setGaClientId(e.target.value)} placeholder="Ex: 123456789.apps.googleusercontent.com" />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Client Secret</Label>
-            <div className="relative">
-              <Input
-                type={showGaClientSecret ? "text" : "password"}
-                value={gaClientSecret}
-                onChange={(e) => setGaClientSecret(e.target.value)}
-                placeholder="Client Secret"
-              />
-              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowGaClientSecret(!showGaClientSecret)}>
-                {showGaClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Refresh Token</Label>
-            <div className="relative">
-              <Input
-                type={showGaRefreshToken ? "text" : "password"}
-                value={gaRefreshToken}
-                onChange={(e) => setGaRefreshToken(e.target.value)}
-                placeholder="Refresh Token OAuth2"
-              />
-              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowGaRefreshToken(!showGaRefreshToken)}>
-                {showGaRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Customer ID</Label>
-            <Input value={gaCustomerId} onChange={(e) => setGaCustomerId(e.target.value)} placeholder="Ex: 6403318992 (sem traços)" />
-          </div>
-
-          <div className="pt-2">
-            <Button onClick={async () => {
-              setSavingGa(true);
-              try {
-                const keys = [
-                  { key: "google_ads_developer_token", value: gaDeveloperToken },
-                  { key: "google_ads_client_id", value: gaClientId },
-                  { key: "google_ads_client_secret", value: gaClientSecret },
-                  { key: "google_ads_refresh_token", value: gaRefreshToken },
-                  { key: "google_ads_customer_id", value: gaCustomerId },
-                ];
-                for (const { key, value } of keys) {
-                  const { error } = await supabase.from("system_settings").upsert({ key, value }, { onConflict: "key" });
-                  if (error) throw error;
-                }
-                toast.success("Credenciais Google Ads salvas com sucesso!");
-              } catch {
-                toast.error("Erro ao salvar credenciais Google Ads");
-              } finally {
-                setSavingGa(false);
-              }
-            }} disabled={savingGa}>
-              {savingGa ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              Salvar Credenciais Google Ads
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>

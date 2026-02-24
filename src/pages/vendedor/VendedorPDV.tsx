@@ -267,36 +267,24 @@ export default function VendedorPDV() {
       if (error) throw error;
 
       // [NOVO] Gerar NF-e automaticamente após criar pedido no Bling
-      // Tenta bling-nfe-simple (herança) primeiro, fallback para bling-generate-nfe
       let nfeResult: { nfe_numero?: string; status?: string } | null = null;
       if (blingData?.bling_order_id) {
-        console.log(`[PDV] Gerando NF-e para pedido Bling ${blingData.bling_order_id} (tentando herança simples)`);
+        console.log(`[PDV] Gerando NF-e para pedido Bling ${blingData.bling_order_id}`);
         
         try {
-          // Tentar função leve de herança simples primeiro
-          const simpleRes = await supabase.functions.invoke('bling-nfe-simple', {
+          const nfeResponse = await supabase.functions.invoke('bling-generate-nfe', {
             body: { bling_order_id: blingData.bling_order_id }
           });
 
-          if (simpleRes.data?.success && simpleRes.data?.nfe_id) {
-            console.log(`[PDV] NF-e criada por herança simples: ${simpleRes.data.nfe_id}`);
+          if (nfeResponse.data?.nfe_id) {
+            console.log(`[PDV] NF-e gerada com sucesso: ${nfeResponse.data.nfe_numero}`);
+            nfeResult = { nfe_numero: nfeResponse.data.nfe_numero, status: 'autorizada' };
+          } else if (nfeResponse.data?.nfe_pendente) {
+            console.log(`[PDV] NF-e em processamento, será atualizada via polling`);
             nfeResult = { status: 'processando' };
           } else {
-            console.warn(`[PDV] Herança simples falhou, tentando função completa...`, simpleRes.data?.error);
-            // Fallback para função completa
-            const nfeResponse = await supabase.functions.invoke('bling-generate-nfe', {
-              body: { bling_order_id: blingData.bling_order_id }
-            });
-
-            if (nfeResponse.data?.nfe_id) {
-              console.log(`[PDV] NF-e gerada (fallback): ${nfeResponse.data.nfe_numero}`);
-              nfeResult = { nfe_numero: nfeResponse.data.nfe_numero, status: 'autorizada' };
-            } else if (nfeResponse.data?.nfe_pendente) {
-              nfeResult = { status: 'processando' };
-            } else {
-              console.warn(`[PDV] Aviso ao gerar NF-e:`, nfeResponse.data?.fiscal_error || nfeResponse.error);
-              nfeResult = { status: 'erro' };
-            }
+            console.warn(`[PDV] Aviso ao gerar NF-e:`, nfeResponse.data?.fiscal_error || nfeResponse.error);
+            nfeResult = { status: 'erro' };
           }
         } catch (nfeError) {
           console.error(`[PDV] Erro ao gerar NF-e:`, nfeError);

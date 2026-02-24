@@ -1,39 +1,42 @@
 
+# Adicionar Card "PDV Balcao" ao Resumo de Vendas
 
-# Deletar registros de teste do painel do Antonio
+## Problema
 
-## Registros identificados
+As vendas realizadas no balcao da loja Penha (tabela `vendas_balcao`) nao aparecem no dashboard de Resumo de Vendas. Essas vendas incluem pagamentos via cartao de credito, debito, dinheiro e PIX, mas nao estao sendo contabilizadas em nenhum card nem no Total Geral.
 
-Todos os 7 registros estao na tabela `vendas_balcao`, vinculados ao vendedor **Antonio**:
+Dados confirmados: existem diversas vendas na tabela `vendas_balcao` com status "finalizada", todas no polo "penha".
 
-| NF-e   | Cliente                                      | Valor    |
-|--------|----------------------------------------------|----------|
-| 019280 | ADVEC JACUI                                  | R$ 8,39  |
-| 019279 | MARIA ELIANE GIMENEZ FLORES                  | R$ 8,39  |
-| 019278 | ADVEC PIABETA 2                              | R$ 8,39  |
-| 019277 | SANDRO ROGERIO DE ABREU                      | R$ 5,00  |
-| 019276 | ELENITA DA SILVA PEREIRA                     | R$ 9,00  |
-| 019275 | IGREJA METODISTA EM HONORIO GURGEL           | R$ 27,67 |
-| 019274 | IGREJA CRISTA PROJETO FAMILIA EM CRISTO...   | R$ 7,00  |
+## Solucao
 
-## Acao
+### 1. Alterar a funcao RPC `get_sales_channel_totals` no banco de dados
 
-Executar um DELETE na tabela `vendas_balcao` para remover esses 7 registros usando seus IDs.
+Adicionar um novo campo `pdv_balcao` na funcao que agrega vendas da tabela `vendas_balcao` com `status = 'finalizada'` no periodo selecionado.
 
-## Detalhes tecnicos
-
-```text
-DELETE FROM vendas_balcao
-WHERE id IN (
-  '850c258d-...', -- 019280 ADVEC JACUI
-  '08a13436-...', -- 019279 MARIA ELIANE
-  '92645e8e-...', -- 019278 ADVEC PIABETA 2
-  'a1eade0c-...', -- 019277 SANDRO ROGERIO
-  '3895a8aa-...', -- 019276 ELENITA
-  '8230a010-...', -- 019275 IGREJA METODISTA
-  'ff1d40e0-...'  -- 019274 IGREJA CRISTA
-);
+```sql
+'pdv_balcao', (
+  SELECT json_build_object(
+    'valor', COALESCE(SUM(valor_total), 0),
+    'qtd', COUNT(*)
+  )
+  FROM vendas_balcao
+  WHERE status = 'finalizada'
+    AND created_at >= v_start
+    AND created_at < v_end
+)
 ```
 
-Nao ha tabelas dependentes (sem itens ou registros filhos vinculados).
+### 2. Alterar o componente `SalesChannelCards.tsx`
 
+- Adicionar `pdv_balcao` ao tipo de retorno da query RPC (linha 187-201)
+- Adicionar os dados de PDV Balcao no `marketplaceData` (ou `periodMetrics`)
+- Incluir o valor do PDV Balcao no calculo do `totalGeral`
+- Adicionar um novo `StandardCard` para "PDV Balcao" com icone `Store` e cores distintas (ex: amber/laranja)
+
+### Detalhes tecnicos
+
+**Migracao SQL:** Recriar a funcao `get_sales_channel_totals` adicionando o campo `pdv_balcao` no JSON de retorno.
+
+**Frontend:** Adicionar o card entre os existentes, antes do TOTAL GERAL, e somar seu valor/quantidade no total geral.
+
+**Impacto:** Nenhuma quebra nos cards existentes. Apenas adicao de um novo canal de venda ao dashboard.
