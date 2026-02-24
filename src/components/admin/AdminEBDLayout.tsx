@@ -479,17 +479,18 @@ function AdminSidebar() {
                           </RouterNavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      {/* Dashboard - visível para todos */}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads', true)}>
+                          <RouterNavLink to="/admin/ebd/google-ads" end>
+                            <TrendingUp className="h-4 w-4" />
+                            <span>Dashboard</span>
+                          </RouterNavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                       {/* Google Ads sub-items - apenas admin/gerente_ebd */}
                       {!isFinanceiro && (
                         <>
-                          <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads', true)}>
-                              <RouterNavLink to="/admin/ebd/google-ads" end>
-                                <TrendingUp className="h-4 w-4" />
-                                <span>Dashboard</span>
-                              </RouterNavLink>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-faturamento')}>
                               <RouterNavLink to="/admin/ebd/google-ads-faturamento">

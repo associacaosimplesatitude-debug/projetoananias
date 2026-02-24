@@ -32,7 +32,7 @@ function getDateRange(period: string, customStart?: string, customEnd?: string) 
 }
 
 export default function GoogleAdsDashboard() {
-  const [period, setPeriod] = useState("today");
+  const [period, setPeriod] = useState("7d");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
