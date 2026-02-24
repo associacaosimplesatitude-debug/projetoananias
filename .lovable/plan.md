@@ -1,42 +1,41 @@
 
 
-# Corrigir Download de Notas Fiscais
+# Corrigir Download de Notas Fiscais - Bucket Not Found
 
 ## Problema
 
-O bucket de armazenamento `google_docs` esta configurado como **privado**, mas o codigo usa `getPublicUrl()` para gerar a URL do PDF. URLs publicas nao funcionam em buckets privados, resultando em erro ao tentar baixar o arquivo.
-
-## Solucao
-
-Alterar a funcao de download para usar `createSignedUrl()` que gera uma URL temporaria autenticada (valida por 1 hora), compativel com buckets privados.
+O `InvoiceUploadModal` salva no campo `pdf_url` a URL publica gerada por `getPublicUrl()`. Como o bucket `google_docs` e privado, essa URL retorna "Bucket not found". O `handleDownload` ja tenta extrair o path e gerar uma signed URL, mas o mais robusto e salvar diretamente o path do arquivo no banco.
 
 ## Alteracoes
 
-### 1. `src/pages/admin/GoogleNotasFiscais.tsx`
+### 1. `src/components/google/InvoiceUploadModal.tsx`
 
-Atualizar a funcao `handleDownload` para:
-- Extrair o caminho (path) do arquivo a partir da `pdf_url` armazenada
-- Usar `supabase.storage.from('google_docs').createSignedUrl(path, 3600)` para gerar uma URL assinada valida por 1 hora
-- Abrir a URL assinada em nova aba
-- Mostrar toast de erro caso a geracao da URL falhe
-
-### 2. `src/components/google/InvoiceUploadModal.tsx`
-
-Nenhuma alteracao necessaria no upload -- o upload funciona corretamente. Porem, a URL salva no banco via `getPublicUrl()` nao serve para download direto. Vamos manter a URL salva como referencia do path, e gerar a URL assinada somente no momento do download.
-
-## Detalhes tecnicos
-
-A funcao `handleDownload` passara de:
+Na linha 67-68, trocar:
 
 ```text
-window.open(invoice.pdf_url, "_blank")
+const { data: urlData } = supabase.storage.from('google_docs').getPublicUrl(path);
+pdfUrl = urlData.publicUrl;
 ```
 
-Para:
+Para salvar apenas o path relativo:
 
 ```text
-1. Extrair path do pdf_url (ex: "invoices/6403318992/2026-01/janeiro-2026.pdf")
-2. Chamar createSignedUrl(path, 3600)
-3. Abrir signedUrl em nova aba
+pdfUrl = path;
 ```
+
+Isso garante que o `pdf_url` no banco contem apenas o caminho do arquivo (ex: `invoices/6403318992/2026-12/dezembro-2025.pdf`), nao a URL publica.
+
+### 2. `src/pages/admin/GoogleNotasFiscais.tsx`
+
+Atualizar `handleDownload` para lidar com ambos os formatos (path antigo com URL publica e path novo direto):
+
+- Se `pdf_url` contem `object/public/google_docs/`, extrair o path via regex (compatibilidade com registros antigos)
+- Senao, usar `pdf_url` diretamente como path
+- Gerar signed URL com `createSignedUrl(path, 3600)`
+
+## Resumo
+
+- Registros novos: `pdf_url` salvara apenas o path relativo
+- Registros antigos: o download continuara funcionando extraindo o path da URL publica
+- Ambos os casos usam `createSignedUrl` para gerar URL temporaria autenticada
 
