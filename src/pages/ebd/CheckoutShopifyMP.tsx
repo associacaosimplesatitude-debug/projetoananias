@@ -523,7 +523,7 @@ export default function CheckoutShopifyMP() {
         estado: data.estado,
       },
       frete: {
-        metodo: shippingMethod,
+        metodo: proposta?.metodo_frete || shippingMethod,
         valor: shippingCost,
         prazo_dias: shippingMethod === 'sedex' ? sedexDays : pacDays,
       },
