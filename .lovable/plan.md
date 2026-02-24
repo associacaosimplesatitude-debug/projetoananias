@@ -1,29 +1,42 @@
 
 
-# Ajustes no Painel Financeiro Google
+# Corrigir Download de Notas Fiscais
 
-## 1. Dashboard visivel para o Financeiro
+## Problema
 
-**Arquivo:** `src/components/admin/AdminEBDLayout.tsx`
+O bucket de armazenamento `google_docs` esta configurado como **privado**, mas o codigo usa `getPublicUrl()` para gerar a URL do PDF. URLs publicas nao funcionam em buckets privados, resultando em erro ao tentar baixar o arquivo.
 
-Mover o item "Dashboard" (link para `/admin/ebd/google-ads`) de dentro do bloco `{!isFinanceiro && (...)}` para fora dele, junto com Notas Fiscais e Recargas, tornando-o visivel para todos os roles (admin, gerente_ebd e financeiro).
+## Solucao
 
-## 2. Periodo padrao: 7 dias
+Alterar a funcao de download para usar `createSignedUrl()` que gera uma URL temporaria autenticada (valida por 1 hora), compativel com buckets privados.
 
-**Arquivo:** `src/pages/admin/GoogleAdsDashboard.tsx`
+## Alteracoes
 
-Alterar o estado inicial de `period` de `"today"` para `"7d"`, para que ao abrir o dashboard os dados dos ultimos 7 dias sejam exibidos por padrao.
+### 1. `src/pages/admin/GoogleNotasFiscais.tsx`
 
-## 3. Card de Saldo Atual + Botao Adicionar Saldo na pagina de Recargas
+Atualizar a funcao `handleDownload` para:
+- Extrair o caminho (path) do arquivo a partir da `pdf_url` armazenada
+- Usar `supabase.storage.from('google_docs').createSignedUrl(path, 3600)` para gerar uma URL assinada valida por 1 hora
+- Abrir a URL assinada em nova aba
+- Mostrar toast de erro caso a geracao da URL falhe
 
-**Arquivo:** `src/pages/admin/GoogleRecargas.tsx`
+### 2. `src/components/google/InvoiceUploadModal.tsx`
 
-- Adicionar uma query que soma os valores das recargas com status `CONFIRMADO` na tabela `google_ads_topups` para calcular o saldo total
-- Exibir um Card grande e destacado no topo da pagina com o saldo atual formatado em R$
-- Dentro do card, colocar um botao "Adicionar Saldo" que abre o modal de solicitar recarga (`setRequestOpen(true)`)
+Nenhuma alteracao necessaria no upload -- o upload funciona corretamente. Porem, a URL salva no banco via `getPublicUrl()` nao serve para download direto. Vamos manter a URL salva como referencia do path, e gerar a URL assinada somente no momento do download.
 
-## Arquivos editados
+## Detalhes tecnicos
 
-1. `src/components/admin/AdminEBDLayout.tsx` -- mover Dashboard para fora do bloco isFinanceiro
-2. `src/pages/admin/GoogleAdsDashboard.tsx` -- mudar periodo padrao para 7d
-3. `src/pages/admin/GoogleRecargas.tsx` -- card de saldo + botao adicionar saldo
+A funcao `handleDownload` passara de:
+
+```text
+window.open(invoice.pdf_url, "_blank")
+```
+
+Para:
+
+```text
+1. Extrair path do pdf_url (ex: "invoices/6403318992/2026-01/janeiro-2026.pdf")
+2. Chamar createSignedUrl(path, 3600)
+3. Abrir signedUrl em nova aba
+```
+
