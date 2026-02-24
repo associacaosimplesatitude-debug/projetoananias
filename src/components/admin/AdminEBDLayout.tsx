@@ -58,6 +58,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useState } from "react";
+import { BarChart3 } from "lucide-react";
 
 function AdminSidebar() {
   const { role } = useAuth();
@@ -68,6 +69,9 @@ function AdminSidebar() {
 
   const [pedidosOpen, setPedidosOpen] = useState(
     location.pathname.includes('/admin/ebd/pedidos')
+  );
+  const [googleOpen, setGoogleOpen] = useState(
+    location.pathname.includes('/admin/ebd/google-ads')
   );
 
   // Query para contar clientes para atribuir
@@ -428,6 +432,72 @@ function AdminSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Google Ads - apenas para admin e gerente_ebd */}
+        {!isFinanceiro && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Google</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <Collapsible open={googleOpen} onOpenChange={setGoogleOpen} className="group/collapsible">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        isActive={location.pathname.includes('/admin/ebd/google-ads')}
+                        className="justify-between"
+                      >
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="h-4 w-4" />
+                          <span>Google Ads</span>
+                        </div>
+                        <ChevronDown className={cn(
+                          "h-4 w-4 transition-transform duration-200",
+                          googleOpen && "rotate-180"
+                        )} />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads', true)}>
+                            <RouterNavLink to="/admin/ebd/google-ads" end>
+                              <TrendingUp className="h-4 w-4" />
+                              <span>Dashboard</span>
+                            </RouterNavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-faturamento')}>
+                            <RouterNavLink to="/admin/ebd/google-ads-faturamento">
+                              <Wallet className="h-4 w-4" />
+                              <span>Faturamento</span>
+                            </RouterNavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-documentos')}>
+                            <RouterNavLink to="/admin/ebd/google-ads-documentos">
+                              <FileText className="h-4 w-4" />
+                              <span>Documentos</span>
+                            </RouterNavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-integracoes')}>
+                            <RouterNavLink to="/admin/ebd/google-ads-integracoes">
+                              <Settings className="h-4 w-4" />
+                              <span>Integrações</span>
+                            </RouterNavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

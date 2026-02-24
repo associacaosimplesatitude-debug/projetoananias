@@ -182,6 +182,10 @@ import Tutoriais from "./pages/Tutoriais";
 import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
 import Apresentacao from "./pages/Apresentacao";
 import ApresentacaoScreenshots from "./pages/admin/ApresentacaoScreenshots";
+import GoogleAdsDashboard from "./pages/admin/GoogleAdsDashboard";
+import GoogleAdsFaturamento from "./pages/admin/GoogleAdsFaturamento";
+import GoogleAdsDocumentos from "./pages/admin/GoogleAdsDocumentos";
+import GoogleAdsIntegracoes from "./pages/admin/GoogleAdsIntegracoes";
 
 // Public Pages
 import PropostaDigital from "./pages/PropostaDigital";
@@ -473,6 +477,10 @@ const App = () => (
                       <Route path="funil" element={<VendedorFunil isAdminView />} />
                       <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />
                       <Route path="integracoes" element={<VendedorIntegracoes />} />
+                      <Route path="google-ads" element={<GoogleAdsDashboard />} />
+                      <Route path="google-ads-faturamento" element={<GoogleAdsFaturamento />} />
+                      <Route path="google-ads-documentos" element={<GoogleAdsDocumentos />} />
+                      <Route path="google-ads-integracoes" element={<GoogleAdsIntegracoes />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
