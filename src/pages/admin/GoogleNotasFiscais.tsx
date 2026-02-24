@@ -150,10 +150,15 @@ export default function GoogleNotasFiscais() {
             </Button>
           )}
           {isAdmin && (
-            <Button onClick={handleCreatePending} disabled={creatingPending}>
-              {creatingPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-              Criar Pendência do Mês
-            </Button>
+            <>
+              <Button onClick={handleCreatePending} disabled={creatingPending}>
+                {creatingPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                Criar Pendência do Mês
+              </Button>
+              <Button variant="outline" onClick={() => { setSelectedInvoice(null); setUploadMode('create'); setUploadOpen(true); }}>
+                <Upload className="h-4 w-4 mr-2" /> Upload Nota
+              </Button>
+            </>
           )}
         </div>
       </div>

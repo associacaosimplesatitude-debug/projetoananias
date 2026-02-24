@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Loader2 } from "lucide-react";
@@ -17,17 +18,31 @@ interface InvoiceUploadModalProps {
   mode?: 'create' | 'replace';
 }
 
+const currentYear = new Date().getFullYear();
+const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
+const monthOptions = Array.from({ length: 12 }, (_, i) => ({
+  value: String(i + 1),
+  label: new Date(2000, i).toLocaleString("pt-BR", { month: "long" }),
+}));
+
 export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, onSuccess, mode = 'create' }: InvoiceUploadModalProps) {
+  const isNewInvoice = !invoice;
   const [invoiceNumber, setInvoiceNumber] = useState(invoice?.invoice_number || "");
   const [issueDate, setIssueDate] = useState(invoice?.issue_date || "");
   const [amount, setAmount] = useState(invoice?.amount?.toString() || "");
   const [notes, setNotes] = useState(invoice?.notes || "");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1));
+  const [selectedYear, setSelectedYear] = useState(String(currentYear));
 
   const handleSubmit = async () => {
-    if (!file && mode === 'create') {
+    if (!file && (isNewInvoice || mode === 'create')) {
       toast.error("Selecione um arquivo PDF");
+      return;
+    }
+    if (isNewInvoice && !customerId) {
+      toast.error("Configure o Customer ID nas Integrações do Google Ads");
       return;
     }
     setLoading(true);
@@ -38,9 +53,10 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
       let pdfUrl = invoice?.pdf_url || null;
       let pdfFilename = invoice?.pdf_filename || null;
 
+      const month = isNewInvoice ? parseInt(selectedMonth) : (invoice?.competencia_month || new Date().getMonth() + 1);
+      const year = isNewInvoice ? parseInt(selectedYear) : (invoice?.competencia_year || new Date().getFullYear());
+
       if (file) {
-        const month = invoice?.competencia_month || new Date().getMonth() + 1;
-        const year = invoice?.competencia_year || new Date().getFullYear();
         const path = `invoices/${customerId}/${year}-${String(month).padStart(2, '0')}/${file.name}`;
         
         const { error: uploadError } = await supabase.storage
@@ -53,7 +69,32 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
         pdfFilename = file.name;
       }
 
-      if (invoice?.id) {
+      if (isNewInvoice) {
+        // INSERT new record
+        const { error } = await supabase
+          .from('google_ads_invoices')
+          .insert({
+            competencia_month: month,
+            competencia_year: year,
+            customer_id: customerId,
+            invoice_number: invoiceNumber || null,
+            issue_date: issueDate || null,
+            amount: amount ? parseFloat(amount) : null,
+            notes: notes || null,
+            pdf_url: pdfUrl,
+            pdf_filename: pdfFilename,
+            status: 'EM_VALIDACAO',
+            created_by: user.id,
+          } as any);
+        if (error) {
+          if (error.code === '23505') {
+            toast.error("Já existe uma nota para esta competência");
+            return;
+          }
+          throw error;
+        }
+      } else {
+        // UPDATE existing record
         const { error } = await supabase
           .from('google_ads_invoices')
           .update({
@@ -70,7 +111,7 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
         if (error) throw error;
       }
 
-      toast.success(mode === 'replace' ? "Arquivo substituído com sucesso" : "Nota fiscal enviada com sucesso");
+      toast.success(isNewInvoice ? "Nota fiscal criada com sucesso" : mode === 'replace' ? "Arquivo substituído com sucesso" : "Nota fiscal enviada com sucesso");
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
@@ -84,9 +125,37 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{mode === 'replace' ? 'Substituir Arquivo' : 'Upload Nota Fiscal'}</DialogTitle>
+          <DialogTitle>
+            {isNewInvoice ? 'Upload Nota Fiscal' : mode === 'replace' ? 'Substituir Arquivo' : 'Upload Nota Fiscal'}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {isNewInvoice && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Mês</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {monthOptions.map(m => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Ano</Label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {yearOptions.map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           <div>
             <Label>Número da Nota</Label>
             <Input value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="Ex: 36031372" />
@@ -112,7 +181,7 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-            {mode === 'replace' ? 'Substituir' : 'Enviar'}
+            {isNewInvoice ? 'Criar e Enviar' : mode === 'replace' ? 'Substituir' : 'Enviar'}
           </Button>
         </DialogFooter>
       </DialogContent>
