@@ -1,24 +1,37 @@
 
 
-# Adicionar Botão "Editar" nas Notas Fiscais
+# Ajustes no Modulo Financeiro Google
 
-## O que será feito
+## 3 alteracoes solicitadas
 
-Adicionar um botão "Editar" (ícone de lápis) na coluna de Ações da tabela de Notas Fiscais, visível apenas para Admin, que abre o `InvoiceUploadModal` com os dados da nota pré-preenchidos para edição (número, data, valor, observação, e opcionalmente substituir o PDF).
+### 1. Notas Fiscais -- Trocar texto de status PENDENTE (financeiro)
 
-## Alterações
+**Arquivo:** `src/pages/admin/GoogleNotasFiscais.tsx`
 
-### 1. `src/pages/admin/GoogleNotasFiscais.tsx`
+- Linha 236: Alterar o texto "Aguardando anexo do Admin" para "Aguardando emissao do Google Ads"
 
-- Importar ícone `Pencil` do lucide-react
-- Adicionar botão "Editar" na coluna de Ações (Admin only), visível para qualquer status exceto CANCELADA
-- Ao clicar, abre o modal com `openUpload(inv, 'edit')` passando o invoice existente e um novo modo `'edit'`
-- Adicionar `'edit'` ao tipo do estado `uploadMode`
+### 2. Notas Fiscais -- Remover botao "Solicitar Nota" (financeiro)
 
-### 2. `src/components/google/InvoiceUploadModal.tsx`
+**Arquivo:** `src/pages/admin/GoogleNotasFiscais.tsx`
 
-- Aceitar modo `'edit'` além de `'create'` e `'replace'`
-- No modo `'edit'`: pré-preencher os campos com dados da nota existente, o PDF é opcional (só substitui se um novo arquivo for selecionado), e o status não muda ao salvar
-- Título do modal: "Editar Nota Fiscal"
-- Botão de submit: "Salvar"
+- Remover o bloco do botao "Solicitar Nota" (linhas 141-145) e a funcao `handleSolicitarNota` (linhas 130-132) que nao sao mais necessarios
+
+### 3. Recargas -- Simplificar modal de solicitacao
+
+**Arquivo:** `src/pages/admin/GoogleRecargas.tsx`
+
+No modal "Solicitar Recarga" (linhas 318-346):
+- Remover campo "Centro de Custo"
+- Remover campo "Observacao"
+- Adicionar campo "Data" (input type date, obrigatorio)
+- Remover estado `reqCostCenter` e `reqNote`
+- Adicionar estado `reqDate` (default: data de hoje)
+- No insert, trocar `cost_center` e `request_note` por `requested_at: reqDate`
+
+O modal ficara apenas com: **Valor (R$)** e **Data**.
+
+## Resumo tecnico dos arquivos editados
+
+1. `src/pages/admin/GoogleNotasFiscais.tsx` -- trocar texto + remover botao/funcao
+2. `src/pages/admin/GoogleRecargas.tsx` -- simplificar modal (remover 2 campos, adicionar 1)
 
