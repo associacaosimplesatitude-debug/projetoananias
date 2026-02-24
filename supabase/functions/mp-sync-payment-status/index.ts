@@ -121,12 +121,12 @@ serve(async (req) => {
     // 4. Pagamento aprovado - Atualizar status
     console.log(`[${requestId}] Pagamento APROVADO! Atualizando pedido e criando no Bling...`);
 
-    // Normalizar metodo_frete: 'manual' → 'retirada' (Matriz RJ)
+    // Normalizar metodo_frete: 'manual' → 'retirada' (apenas fallback genérico)
+    // Não sobrescrever se já for retirada específica (retirada_penha, retirada_pe, etc.)
     let metodoFreteNormalizado = pedido.metodo_frete || 'pac';
     if (metodoFreteNormalizado === 'manual') {
-      // Verificar se valor_frete é 0 (indica retirada)
       if (pedido.valor_frete === 0 || pedido.valor_frete === null) {
-        metodoFreteNormalizado = 'retirada'; // Matriz RJ por padrão
+        metodoFreteNormalizado = 'retirada';
       }
     }
     console.log(`[${requestId}] metodo_frete: ${pedido.metodo_frete} → normalizado: ${metodoFreteNormalizado}`);
