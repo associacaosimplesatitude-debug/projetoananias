@@ -71,7 +71,7 @@ function AdminSidebar() {
     location.pathname.includes('/admin/ebd/pedidos')
   );
   const [googleOpen, setGoogleOpen] = useState(
-    location.pathname.includes('/admin/ebd/google-ads')
+    location.pathname.includes('/admin/ebd/google-ads') || location.pathname.includes('/admin/ebd/google/')
   );
 
   // Query para contar clientes para atribuir
@@ -437,71 +437,92 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Google Ads - apenas para admin e gerente_ebd */}
-        {!isFinanceiro && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Google</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <Collapsible open={googleOpen} onOpenChange={setGoogleOpen} className="group/collapsible">
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton
-                        isActive={location.pathname.includes('/admin/ebd/google-ads')}
-                        className="justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <BarChart3 className="h-4 w-4" />
-                          <span>Google Ads</span>
-                        </div>
-                        <ChevronDown className={cn(
-                          "h-4 w-4 transition-transform duration-200",
-                          googleOpen && "rotate-180"
-                        )} />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads', true)}>
-                            <RouterNavLink to="/admin/ebd/google-ads" end>
-                              <TrendingUp className="h-4 w-4" />
-                              <span>Dashboard</span>
-                            </RouterNavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-faturamento')}>
-                            <RouterNavLink to="/admin/ebd/google-ads-faturamento">
-                              <Wallet className="h-4 w-4" />
-                              <span>Faturamento</span>
-                            </RouterNavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-documentos')}>
-                            <RouterNavLink to="/admin/ebd/google-ads-documentos">
-                              <FileText className="h-4 w-4" />
-                              <span>Documentos</span>
-                            </RouterNavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-integracoes')}>
-                            <RouterNavLink to="/admin/ebd/google-ads-integracoes">
-                              <Settings className="h-4 w-4" />
-                              <span>Integrações</span>
-                            </RouterNavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </Collapsible>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        {/* Google - visível para admin, gerente_ebd e financeiro */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Google</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <Collapsible open={googleOpen} onOpenChange={setGoogleOpen} className="group/collapsible">
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      isActive={location.pathname.includes('/admin/ebd/google-ads') || location.pathname.includes('/admin/ebd/google/')}
+                      className="justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        <span>Google</span>
+                      </div>
+                      <ChevronDown className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        googleOpen && "rotate-180"
+                      )} />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {/* Notas Fiscais - visível para todos */}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google/notas')}>
+                          <RouterNavLink to="/admin/ebd/google/notas">
+                            <FileText className="h-4 w-4" />
+                            <span>Notas Fiscais</span>
+                          </RouterNavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      {/* Recargas PIX - visível para todos */}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google/recargas')}>
+                          <RouterNavLink to="/admin/ebd/google/recargas">
+                            <Wallet className="h-4 w-4" />
+                            <span>Recargas (PIX)</span>
+                          </RouterNavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      {/* Google Ads sub-items - apenas admin/gerente_ebd */}
+                      {!isFinanceiro && (
+                        <>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads', true)}>
+                              <RouterNavLink to="/admin/ebd/google-ads" end>
+                                <TrendingUp className="h-4 w-4" />
+                                <span>Dashboard</span>
+                              </RouterNavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-faturamento')}>
+                              <RouterNavLink to="/admin/ebd/google-ads-faturamento">
+                                <Wallet className="h-4 w-4" />
+                                <span>Faturamento</span>
+                              </RouterNavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-documentos')}>
+                              <RouterNavLink to="/admin/ebd/google-ads-documentos">
+                                <FileText className="h-4 w-4" />
+                                <span>Documentos</span>
+                              </RouterNavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-integracoes')}>
+                              <RouterNavLink to="/admin/ebd/google-ads-integracoes">
+                                <Settings className="h-4 w-4" />
+                                <span>Integrações</span>
+                              </RouterNavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        </>
+                      )}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );

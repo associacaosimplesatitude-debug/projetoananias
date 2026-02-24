@@ -4389,6 +4389,132 @@ export type Database = {
           },
         ]
       }
+      google_ads_invoices: {
+        Row: {
+          amount: number | null
+          competencia_month: number
+          competencia_year: number
+          created_at: string | null
+          created_by: string | null
+          currency: string | null
+          customer_id: string
+          id: string
+          invoice_number: string | null
+          issue_date: string | null
+          notes: string | null
+          pdf_filename: string | null
+          pdf_url: string | null
+          status: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          amount?: number | null
+          competencia_month: number
+          competencia_year: number
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          customer_id: string
+          id?: string
+          invoice_number?: string | null
+          issue_date?: string | null
+          notes?: string | null
+          pdf_filename?: string | null
+          pdf_url?: string | null
+          status?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: number | null
+          competencia_month?: number
+          competencia_year?: number
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          customer_id?: string
+          id?: string
+          invoice_number?: string | null
+          issue_date?: string | null
+          notes?: string | null
+          pdf_filename?: string | null
+          pdf_url?: string | null
+          status?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      google_ads_topups: {
+        Row: {
+          cost_center: string | null
+          created_at: string | null
+          customer_id: string
+          id: string
+          paid_marked_at: string | null
+          paid_marked_by: string | null
+          payment_proof_filename: string | null
+          payment_proof_url: string | null
+          pix_code: string | null
+          pix_expires_at: string | null
+          pix_qr_url: string | null
+          provided_at: string | null
+          provided_by: string | null
+          request_note: string | null
+          requested_amount: number
+          requested_at: string | null
+          requested_by: string
+          status: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          cost_center?: string | null
+          created_at?: string | null
+          customer_id: string
+          id?: string
+          paid_marked_at?: string | null
+          paid_marked_by?: string | null
+          payment_proof_filename?: string | null
+          payment_proof_url?: string | null
+          pix_code?: string | null
+          pix_expires_at?: string | null
+          pix_qr_url?: string | null
+          provided_at?: string | null
+          provided_by?: string | null
+          request_note?: string | null
+          requested_amount: number
+          requested_at?: string | null
+          requested_by: string
+          status?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          cost_center?: string | null
+          created_at?: string | null
+          customer_id?: string
+          id?: string
+          paid_marked_at?: string | null
+          paid_marked_by?: string | null
+          payment_proof_filename?: string | null
+          payment_proof_url?: string | null
+          pix_code?: string | null
+          pix_expires_at?: string | null
+          pix_qr_url?: string | null
+          provided_at?: string | null
+          provided_by?: string | null
+          request_note?: string | null
+          requested_amount?: number
+          requested_at?: string | null
+          requested_by?: string
+          status?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       lancamentos_contabeis: {
         Row: {
           church_id: string
@@ -6216,6 +6342,7 @@ export type Database = {
         Returns: boolean
       }
       has_royalties_access: { Args: { _user_id: string }; Returns: boolean }
+      is_admin_geral: { Args: { _user_id: string }; Returns: boolean }
       is_ebd_superintendent: {
         Args: { _church_id: string; _user_id: string }
         Returns: boolean
@@ -6225,6 +6352,7 @@ export type Database = {
         Args: { _church_id: string; _user_id: string }
         Returns: boolean
       }
+      is_financeiro_or_admin: { Args: { _user_id: string }; Returns: boolean }
       is_royalties_autor: { Args: { _user_id: string }; Returns: boolean }
       is_vendedor: { Args: { _user_email: string }; Returns: boolean }
       recalcular_royalties_pendentes: {
