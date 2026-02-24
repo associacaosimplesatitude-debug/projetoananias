@@ -1,42 +1,60 @@
 
-# Corrigir Rota de Frete: retirada_penha virando Retira Matriz
+
+# Corrigir Parser de Quiz para Aceitar Formato Markdown
 
 ## Problema
-Quando a proposta tem `metodo_frete = 'retirada_penha'`, o checkout converte para `'manual'`, que depois vira `'retirada'` (Matriz RJ). Resultado: pedido vai para deposito errado no Bling.
+O `quizParser.ts` não reconhece o formato do texto colado pelo usuário. O texto usa formatação Markdown:
 
-Cadeia: `retirada_penha` -> `manual` -> `retirada` -> Matriz RJ
+- Opções: `* **A)** Texto da opção` (com bullet e bold)
+- Resposta: `**Resposta Certa: A** | *Racional:* ...`
+- Título: `### **Questionário: ...**`
+- Nível: `**Nível:** Médio | **Contexto:** Escola da Palavra`
 
-## Correções (2 arquivos)
+O parser atual espera:
+- Opções: `A) Texto da opção`
+- Resposta: `Resposta Certa: A`
+- Título: `Questionário: ...`
 
-### 1. `src/pages/ebd/CheckoutShopifyMP.tsx` (linha 526)
+Resultado: apenas algumas perguntas são detectadas (as que por acaso ficam no formato certo após o pré-processamento), e as opções ficam vazias → erro de validação.
 
-Enviar o `metodo_frete` original da proposta em vez do `shippingMethod` generico:
+## Solução
+
+### Arquivo: `src/lib/quizParser.ts`
+
+1. **Função `preprocessText`**: Adicionar limpeza de markdown antes do processamento:
+   - Remover `###`, `**`, `*` (bold/italic/headers)
+   - Normalizar bullets `* **A)**` → `A)`
+   - Remover `| *Racional:* ...` após a resposta certa (é conteúdo informativo, não faz parte do quiz)
+
+2. **Regex de detecção de opções** (linhas 120-123): Tornar mais flexíveis para capturar variações:
+   - `**A)**` → `A)`
+   - `* A)` → `A)`
+
+3. **Regex de título** (linha 56): Aceitar markdown no início (`### **Questionário:`)
+
+4. **Regex de nível/contexto** (linhas 69-78): Aceitar `**Nível:**` com asteriscos
+
+### Detalhes técnicos
+
+A limpeza de markdown na função `preprocessText` resolverá a maioria dos casos. Adicionar no início:
 
 ```text
-// DE:
-frete: {
-  metodo: shippingMethod,
+// Remover racional/explicação após resposta certa
+processed = processed.replace(/\|\s*\*?Racional:?\*?\s*.*/gi, '');
 
-// PARA:
-frete: {
-  metodo: proposta?.metodo_frete || shippingMethod,
+// Remover markdown: ###, **, *
+processed = processed.replace(/#{1,6}\s*/g, '');        // headers
+processed = processed.replace(/\*\*([^*]+)\*\*/g, '$1'); // bold
+processed = processed.replace(/\*([^*]+)\*/g, '$1');     // italic
+
+// Normalizar bullets com opções: "* A)" → "A)"
+processed = processed.replace(/^\*\s+([ABCD]\))/gm, '$1');
 ```
 
-Isso preserva `retirada_penha`, `retirada_pe`, `retirada`, `free`, etc.
+Isso garante que qualquer texto colado com markdown (do ChatGPT, Google Docs, etc.) será limpo antes do parsing.
 
-### 2. `supabase/functions/mp-sync-payment-status/index.ts` (linhas 124-131)
+## Resumo
+- 1 arquivo alterado: `src/lib/quizParser.ts`
+- Adição de limpeza de markdown na função `preprocessText`
+- Sem alteração na lógica de parsing, apenas normalização do input
 
-Adicionar comentario de seguranca e manter a logica de fallback apenas para `'manual'`:
-
-```text
-// Normalizar metodo_frete: 'manual' -> 'retirada' (apenas se nao for retirada especifica)
-let metodoFreteNormalizado = pedido.metodo_frete || 'pac';
-if (metodoFreteNormalizado === 'manual') {
-  if (pedido.valor_frete === 0 || pedido.valor_frete === null) {
-    metodoFreteNormalizado = 'retirada';
-  }
-}
-// Nao sobrescrever se ja for retirada especifica (retirada_penha, retirada_pe, etc.)
-```
-
-A correcao principal e no arquivo 1. Com o checkout enviando o valor correto, a normalizacao no webhook nao sera acionada porque o valor nunca mais chegara como `'manual'` quando for retirada especifica.
