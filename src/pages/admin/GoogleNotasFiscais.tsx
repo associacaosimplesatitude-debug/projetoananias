@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InvoiceUploadModal } from "@/components/google/InvoiceUploadModal";
-import { FileText, Upload, Download, CheckCircle, Plus, Loader2 } from "lucide-react";
+import { FileText, Upload, Download, CheckCircle, Plus, Loader2, Pencil } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   PENDENTE: "bg-yellow-100 text-yellow-800 border-yellow-300",
@@ -37,7 +37,7 @@ export default function GoogleNotasFiscais() {
   const [selectedMonth, setSelectedMonth] = useState("0");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
-  const [uploadMode, setUploadMode] = useState<'create' | 'replace'>('create');
+  const [uploadMode, setUploadMode] = useState<'create' | 'replace' | 'edit'>('create');
   const [creatingPending, setCreatingPending] = useState(false);
 
   const { data: settings } = useQuery({
@@ -121,7 +121,7 @@ export default function GoogleNotasFiscais() {
     window.open(invoice.pdf_url, "_blank");
   };
 
-  const openUpload = (invoice: any, mode: 'create' | 'replace') => {
+  const openUpload = (invoice: any, mode: 'create' | 'replace' | 'edit') => {
     setSelectedInvoice(invoice);
     setUploadMode(mode);
     setUploadOpen(true);
@@ -252,6 +252,11 @@ export default function GoogleNotasFiscais() {
                         {isAdmin && (inv.status === "GERADA" || inv.status === "EM_VALIDACAO") && (
                           <Button size="sm" variant="ghost" onClick={() => openUpload(inv, 'replace')}>
                             Substituir
+                          </Button>
+                        )}
+                        {isAdmin && inv.status !== "CANCELADA" && (
+                          <Button size="sm" variant="ghost" onClick={() => openUpload(inv, 'edit')}>
+                            <Pencil className="h-3 w-3 mr-1" /> Editar
                           </Button>
                         )}
                       </div>
