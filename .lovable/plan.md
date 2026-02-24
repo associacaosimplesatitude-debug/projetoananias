@@ -1,17 +1,17 @@
 
-# Adicionar Card "PDV Balcao" ao Resumo de Vendas
+
+# Adicionar Card "Balcao Penha" e Corrigir Erro de Build
 
 ## Problema
 
-As vendas realizadas no balcao da loja Penha (tabela `vendas_balcao`) nao aparecem no dashboard de Resumo de Vendas. Essas vendas incluem pagamentos via cartao de credito, debito, dinheiro e PIX, mas nao estao sendo contabilizadas em nenhum card nem no Total Geral.
-
-Dados confirmados: existem diversas vendas na tabela `vendas_balcao` com status "finalizada", todas no polo "penha".
+1. As vendas do balcao da loja Penha (tabela `vendas_balcao`) nao aparecem no dashboard de Resumo de Vendas -- nao existe card nem dados no RPC.
+2. Erro de build no arquivo `ebd-email-cron/index.ts` por uso de `npm:resend@4.0.0` incompativel com o ambiente Deno.
 
 ## Solucao
 
-### 1. Alterar a funcao RPC `get_sales_channel_totals` no banco de dados
+### 1. Migracao SQL -- Recriar a funcao `get_sales_channel_totals`
 
-Adicionar um novo campo `pdv_balcao` na funcao que agrega vendas da tabela `vendas_balcao` com `status = 'finalizada'` no periodo selecionado.
+Adicionar o campo `pdv_balcao` ao JSON de retorno da funcao RPC, agregando vendas da tabela `vendas_balcao` com `status = 'finalizada'`:
 
 ```sql
 'pdv_balcao', (
@@ -26,17 +26,38 @@ Adicionar um novo campo `pdv_balcao` na funcao que agrega vendas da tabela `vend
 )
 ```
 
-### 2. Alterar o componente `SalesChannelCards.tsx`
+### 2. Alterar `SalesChannelCards.tsx`
 
-- Adicionar `pdv_balcao` ao tipo de retorno da query RPC (linha 187-201)
-- Adicionar os dados de PDV Balcao no `marketplaceData` (ou `periodMetrics`)
-- Incluir o valor do PDV Balcao no calculo do `totalGeral`
-- Adicionar um novo `StandardCard` para "PDV Balcao" com icone `Store` e cores distintas (ex: amber/laranja)
+**Tipo de retorno da query (linhas 187-201):** Adicionar `pdv_balcao: { valor: number; qtd: number }` ao tipo.
 
-### Detalhes tecnicos
+**`marketplaceData` (linhas 242-289):** Adicionar campo `pdvBalcao` com valor padrao `{ valor: 0, qtd: 0 }` e preenchimento a partir de `channelTotals.pdv_balcao`.
 
-**Migracao SQL:** Recriar a funcao `get_sales_channel_totals` adicionando o campo `pdv_balcao` no JSON de retorno.
+**`totalGeral` (linhas 292-322):** Somar `marketplaceData.pdvBalcao.valor` e `.qtd` aos totais.
 
-**Frontend:** Adicionar o card entre os existentes, antes do TOTAL GERAL, e somar seu valor/quantidade no total geral.
+**Novo card (antes do TOTAL GERAL, antes da linha 507):** Adicionar um `StandardCard` com:
+- Titulo: "Balcao Penha"
+- Icone: `Store` em amber
+- Cores: amber/laranja (border-amber-200, bg from-amber-50 to-amber-100, text-amber-700)
 
-**Impacto:** Nenhuma quebra nos cards existentes. Apenas adicao de um novo canal de venda ao dashboard.
+### 3. Corrigir erro de build no `ebd-email-cron/index.ts`
+
+Alterar a linha 3 de:
+```typescript
+import { Resend } from "npm:resend@4.0.0";
+```
+Para:
+```typescript
+import { Resend } from "npm:resend@^4.0.0";
+```
+Ou usar a URL do esm.sh:
+```typescript
+import { Resend } from "https://esm.sh/resend@4.0.0";
+```
+
+## Impacto
+
+- Novo card "Balcao Penha" aparecera no dashboard com valores corretos
+- Total Geral passara a incluir vendas do balcao
+- Cards existentes nao serao afetados
+- Erro de build sera corrigido
+
