@@ -1,41 +1,45 @@
 
 
-# Corrigir Download de Notas Fiscais - Bucket Not Found
+# Correcoes: Download PDF + Solicitacao de Recarga
 
-## Problema
+## Problema 1: Download PDF bloqueado pelo navegador
 
-O `InvoiceUploadModal` salva no campo `pdf_url` a URL publica gerada por `getPublicUrl()`. Como o bucket `google_docs` e privado, essa URL retorna "Bucket not found". O `handleDownload` ja tenta extrair o path e gerar uma signed URL, mas o mais robusto e salvar diretamente o path do arquivo no banco.
+O `window.open(signedUrl)` abre uma nova aba com uma URL que contem "google" no path do arquivo. Extensoes de bloqueio de anuncios (como AdBlock) detectam isso e bloqueiam a pagina com "ERR_BLOCKED_BY_CLIENT".
 
-## Alteracoes
+**Solucao:** Em vez de abrir a URL em nova aba, fazer download via `fetch` + Blob, criando um link temporario de download que nao e interceptado por ad blockers.
 
-### 1. `src/components/google/InvoiceUploadModal.tsx`
+### Arquivo: `src/pages/admin/GoogleNotasFiscais.tsx`
 
-Na linha 67-68, trocar:
+Alterar `handleDownload` para:
+1. Gerar a signed URL normalmente
+2. Fazer `fetch(signedUrl)` para obter o conteudo como blob
+3. Criar um `URL.createObjectURL(blob)` e simular clique em link de download
+4. Revogar a URL temporaria apos o download
+
+## Problema 2: Financeiro nao consegue solicitar recarga
+
+A tabela `system_settings` tem RLS que permite leitura apenas para `admin` e `gerente_ebd`. O role `financeiro` nao consegue ler o `google_ads_customer_id`, resultando em `customerId` vazio e a mensagem "Configure o Customer ID".
+
+**Solucao:** Adicionar o role `financeiro` na policy de SELECT da tabela `system_settings`.
+
+### Migracao SQL
+
+Atualizar a policy `Admins can read system_settings` para incluir `financeiro`:
 
 ```text
-const { data: urlData } = supabase.storage.from('google_docs').getPublicUrl(path);
-pdfUrl = urlData.publicUrl;
+DROP POLICY "Admins can read system_settings" ON system_settings;
+CREATE POLICY "Authorized roles can read system_settings" ON system_settings
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM user_roles
+      WHERE user_roles.user_id = auth.uid()
+      AND user_roles.role IN ('admin', 'gerente_ebd', 'financeiro')
+    )
+  );
 ```
 
-Para salvar apenas o path relativo:
+## Resumo de alteracoes
 
-```text
-pdfUrl = path;
-```
-
-Isso garante que o `pdf_url` no banco contem apenas o caminho do arquivo (ex: `invoices/6403318992/2026-12/dezembro-2025.pdf`), nao a URL publica.
-
-### 2. `src/pages/admin/GoogleNotasFiscais.tsx`
-
-Atualizar `handleDownload` para lidar com ambos os formatos (path antigo com URL publica e path novo direto):
-
-- Se `pdf_url` contem `object/public/google_docs/`, extrair o path via regex (compatibilidade com registros antigos)
-- Senao, usar `pdf_url` diretamente como path
-- Gerar signed URL com `createSignedUrl(path, 3600)`
-
-## Resumo
-
-- Registros novos: `pdf_url` salvara apenas o path relativo
-- Registros antigos: o download continuara funcionando extraindo o path da URL publica
-- Ambos os casos usam `createSignedUrl` para gerar URL temporaria autenticada
+1. `src/pages/admin/GoogleNotasFiscais.tsx` -- download via blob em vez de window.open
+2. Migracao SQL -- adicionar financeiro na policy de leitura de system_settings
 
