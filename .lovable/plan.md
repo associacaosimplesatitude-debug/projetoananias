@@ -1,72 +1,74 @@
 
-# Correção: Herança simples enriquecida para Penha
 
-## Problema real
+# Vincular NF-e ao pedido Penha apos criacao
 
-A herança simples pura (`{ idPedidoVenda: orderId }`) funciona para Matriz (configuração padrão do Bling), mas falha para Penha com erro "A nota deve ter ao menos um item". Isso acontece porque o Bling não consegue resolver automaticamente a configuração fiscal de filiais (série, natureza de operação, loja) ao usar apenas o ID do pedido.
+## Situacao atual
 
-O fallback `bling-generate-nfe` cria a NF-e com payload completo (e inclui `idPedidoVenda`), mas esse método **não** gera o vínculo "V" laranja - apenas a herança pura faz isso.
+- A NF-e para Penha **esta sendo criada e autorizada com sucesso** pelo fallback `bling-generate-nfe`
+- O problema e exclusivamente o **vinculo "V" laranja** entre a NF-e e o pedido de venda no Bling
+- A heranca simples (que cria o vinculo) nao funciona para Penha porque o Bling nao resolve itens/contato automaticamente para filiais
+- O payload completo inclui `idPedidoVenda` mas o Bling **ignora** esse campo quando os itens sao enviados manualmente
 
-## Solução
+## Estrategia: PUT para vincular apos criacao
 
-Modificar `bling-nfe-simple` para:
+Adicionar um passo extra no `bling-nfe-simple`: apos o fallback `bling-generate-nfe` criar a NF-e com sucesso, fazer um `PUT /nfe/{nfeId}` com `{ idPedidoVenda: orderId }` para tentar forcar o vinculo. Adicionalmente, tambem modificar o proprio `bling-generate-nfe` para tentar o PUT de vinculacao apos a criacao quando a heranca simples falhou.
 
-1. **Buscar os dados do pedido** no Bling antes de criar a NF-e (GET no pedido)
-2. **Detectar se é Penha** (pelo ID da loja: 205891152)
-3. **Enriquecer o payload de herança** com os campos fiscais necessários para Penha:
-   - `serie: 1`
-   - `naturezaOperacao: { id: ... }` (PF ou PJ conforme o documento do contato)
-   - `loja: { id: 205891152 }`
-4. Para pedidos não-Penha, manter a herança pura (`{ idPedidoVenda }`)
+## Passos
 
-## Detalhes técnicos
+### 1. Modificar `supabase/functions/bling-nfe-simple/index.ts`
 
-### Arquivo: `supabase/functions/bling-nfe-simple/index.ts`
+Quando a heranca simples falhar para Penha e o frontend chamar o fallback, o `bling-nfe-simple` atualmente retorna erro e o frontend chama `bling-generate-nfe`. Nao ha como vincular aqui pois o `bling-nfe-simple` nao sabe o ID da NF-e criada pelo fallback.
 
-Adicionar antes da criação da NF-e:
+A solucao e: **mover a logica de payload completo para DENTRO do `bling-nfe-simple`** para Penha, e apos criar a NF-e, tentar um `PUT` para vincular. Assim:
 
-```typescript
-// Constantes fiscais Penha
-const LOJA_PENHA_ID = 205891152;
-const SERIE_PENHA = 1;
-const NATUREZA_PENHA_PF_ID = 15108893128;
-const NATUREZA_PENHA_PJ_ID = 15108893188;
+1. Tentar heranca simples (funciona para Matriz)
+2. Se falhar e for Penha: construir payload completo minimo (itens + contato do pedido) e criar a NF-e
+3. Apos criar com sucesso: fazer `PUT /nfe/{nfeId}` com `{ idPedidoVenda: orderId }` para tentar vincular
+4. Enviar para SEFAZ
 
-// Buscar dados do pedido para detectar loja
-const orderRes = await fetch(
-  `https://api.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}`,
-  { headers: { Authorization: `Bearer ${accessToken}` } }
-);
-const orderData = await orderRes.json();
-const pedido = orderData?.data;
+### 2. Modificar `supabase/functions/bling-generate-nfe/index.ts`
 
-const isLojaPenha = pedido?.loja?.id === LOJA_PENHA_ID;
+Adicionar apos a criacao da NF-e (quando `usedSimpleInheritance === false`):
 
-// Montar payload
-let nfePayload: any = { idPedidoVenda: bling_order_id };
+```text
+// PASSO 1.5: Tentar vincular via PUT
+PUT /nfe/{nfeId} com { idPedidoVenda: orderId }
+```
 
-if (isLojaPenha) {
-  const doc = pedido?.contato?.numeroDocumento?.replace(/\D/g, '') || '';
-  const tipoPessoa = doc.length > 11 ? 'J' : 'F';
-  // PJ sem IE usa natureza PF (mesmo truque fiscal do bling-generate-nfe)
-  const naturezaId = tipoPessoa === 'J' 
-    ? NATUREZA_PENHA_PF_ID  // truque fiscal: PJ sem IE usa PF
-    : NATUREZA_PENHA_PF_ID;
-  
-  nfePayload.serie = SERIE_PENHA;
-  nfePayload.naturezaOperacao = { id: naturezaId };
-  nfePayload.loja = { id: LOJA_PENHA_ID };
+Se o PUT aceitar o campo, o vinculo "V" aparecera. Se nao aceitar, nao prejudica nada.
+
+### 3. Deploy das duas funcoes
+
+## Detalhes tecnicos
+
+### Payload completo minimo para Penha no `bling-nfe-simple`
+
+```text
+{
+  tipo: 1,
+  dataOperacao: "YYYY-MM-DD",
+  dataEmissao: "YYYY-MM-DD",
+  contato: { id, nome, tipoPessoa, numeroDocumento, endereco, indicadorie: 9 },
+  itens: [{ codigo, descricao, unidade, quantidade, valor, tipo: "P", origem: 0 }],
+  serie: 1,
+  naturezaOperacao: { id: 15108893128 },
+  loja: { id: 205891152 }
 }
 ```
 
-Isso mantém o `idPedidoVenda` (que cria o vínculo "V") mas adiciona os campos fiscais que o Bling precisa para processar corretamente pedidos de filiais.
+Os dados sao extraidos do pedido buscado via GET, sem necessidade de logica complexa.
 
-### Deploy
+### PUT de vinculacao (tentativa)
 
-Redeploy automático da função `bling-nfe-simple` após a correção.
+```text
+PUT https://api.bling.com.br/Api/v3/nfe/{nfeId}
+Body: { idPedidoVenda: orderId }
+```
 
-### Resultado esperado
+Se o Bling aceitar, o vinculo "V" aparece. Se retornar erro ou ignorar, a NF-e ja esta criada e autorizada -- nenhum dano.
 
-- Pedidos Penha: herança enriquecida com serie/natureza/loja -> NF-e criada COM vínculo "V"
-- Pedidos Matriz: herança pura (sem alteração) -> continua funcionando
-- Se falhar, o fallback `bling-generate-nfe` continua disponível
+## Resultado esperado
+
+- Penha: NF-e criada com payload completo + PUT para vincular -> possivel vinculo "V"
+- Matriz: heranca simples continua funcionando -> vinculo "V" garantido
+- Se o PUT nao vincular, a nota continua emitida corretamente (so sem o icone "V")
