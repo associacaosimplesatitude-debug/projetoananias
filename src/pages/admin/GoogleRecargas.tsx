@@ -52,17 +52,21 @@ export default function GoogleRecargas() {
   const [reqDate, setReqDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [reqLoading, setReqLoading] = useState(false);
 
-  // Query para calcular saldo (soma das recargas CONFIRMADO)
-  const { data: saldo = 0 } = useQuery({
+  // Query para buscar saldo real do Google Ads via API
+  const { data: saldo = 0, isLoading: saldoLoading } = useQuery({
     queryKey: ["google-ads-saldo"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("google_ads_topups")
-        .select("requested_amount")
-        .eq("status", "CONFIRMADO");
-      if (error) throw error;
-      return (data || []).reduce((sum: number, t: any) => sum + (t.requested_amount || 0), 0);
+      const { data, error } = await supabase.functions.invoke("google-ads-dashboard", {
+        body: { action: "balance" },
+      });
+      if (error) {
+        console.error("Erro ao buscar saldo Google Ads:", error);
+        return 0;
+      }
+      return data?.balance ?? 0;
     },
+    retry: 1,
+    staleTime: 60_000,
   });
 
   const { data: settings } = useQuery({
@@ -206,8 +210,10 @@ export default function GoogleRecargas() {
       <Card className="bg-primary text-primary-foreground border-0">
         <CardContent className="pt-6 pb-6 flex items-center justify-between">
           <div>
-            <p className="text-sm opacity-80">Saldo Atual</p>
-            <p className="text-4xl font-bold mt-1">{formatCurrency(saldo)}</p>
+            <p className="text-sm opacity-80">Saldo Atual (Google Ads)</p>
+            <p className="text-4xl font-bold mt-1">
+              {saldoLoading ? <Loader2 className="h-8 w-8 animate-spin inline" /> : formatCurrency(saldo)}
+            </p>
           </div>
           <Button variant="secondary" size="lg" onClick={() => setRequestOpen(true)}>
             <Plus className="h-5 w-5 mr-2" /> Adicionar Saldo
