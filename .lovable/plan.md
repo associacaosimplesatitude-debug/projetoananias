@@ -1,53 +1,24 @@
 
 
-# Adicionar Upload Direto de Notas de Meses Anteriores
+# Adicionar Botão "Editar" nas Notas Fiscais
 
-## Problema
+## O que será feito
 
-Atualmente, o botao "Criar Pendencia do Mes" so cria registro para o mes atual. O Admin precisa subir notas de meses anteriores (como mostrado na imagem: julho/2025 a janeiro/2026) diretamente, sem precisar primeiro criar uma pendencia e depois fazer upload.
+Adicionar um botão "Editar" (ícone de lápis) na coluna de Ações da tabela de Notas Fiscais, visível apenas para Admin, que abre o `InvoiceUploadModal` com os dados da nota pré-preenchidos para edição (número, data, valor, observação, e opcionalmente substituir o PDF).
 
-## Solucao
-
-Adicionar um botao "Upload Nota" (separado do "Criar Pendencia") que abre o modal de upload permitindo selecionar mes/ano livremente. Ao enviar, o sistema cria o registro na tabela `google_ads_invoices` com os dados preenchidos e o PDF, ja no status `EM_VALIDACAO` (ou `GERADA` direto, a criterio do Admin).
-
-## Alteracoes
+## Alterações
 
 ### 1. `src/pages/admin/GoogleNotasFiscais.tsx`
 
-- Adicionar botao "Upload Nota" ao lado do "Criar Pendencia do Mes" (somente Admin)
-- Ao clicar, abrir o `InvoiceUploadModal` em modo `'create_new'` sem invoice pre-existente (invoice = null)
-- O modal criara um novo registro diretamente na tabela
+- Importar ícone `Pencil` do lucide-react
+- Adicionar botão "Editar" na coluna de Ações (Admin only), visível para qualquer status exceto CANCELADA
+- Ao clicar, abre o modal com `openUpload(inv, 'edit')` passando o invoice existente e um novo modo `'edit'`
+- Adicionar `'edit'` ao tipo do estado `uploadMode`
 
 ### 2. `src/components/google/InvoiceUploadModal.tsx`
 
-- Adicionar dois campos novos no modal: **Mes** e **Ano** (selects), visiveis quando `invoice` e null (modo criacao de nova nota)
-- Quando `invoice` e null, o submit faz `INSERT` em `google_ads_invoices` (em vez de UPDATE)
-- O insert inclui: competencia_month, competencia_year, customer_id, invoice_number, issue_date, amount, notes, pdf_url, pdf_filename, status `EM_VALIDACAO`, created_by
-- Quando `invoice` existe, comportamento atual permanece (UPDATE)
-
-### Detalhes tecnicos
-
-**InvoiceUploadModal** -- novos campos condicionais:
-
-```text
-Se invoice == null:
-  - Mostrar Select "Mes" (1-12) 
-  - Mostrar Select "Ano" (ultimos 5 anos)
-  - No submit: INSERT na tabela google_ads_invoices
-Senao:
-  - Manter comportamento atual (UPDATE)
-```
-
-**GoogleNotasFiscais** -- novo botao:
-
-```text
-[Criar Pendencia do Mes]  [Upload Nota]
-                              |
-                    abre modal com invoice=null, mode='create'
-```
-
-## Arquivos a editar
-
-1. `src/pages/admin/GoogleNotasFiscais.tsx` -- adicionar botao "Upload Nota"
-2. `src/components/google/InvoiceUploadModal.tsx` -- adicionar campos mes/ano e logica de INSERT
+- Aceitar modo `'edit'` além de `'create'` e `'replace'`
+- No modo `'edit'`: pré-preencher os campos com dados da nota existente, o PDF é opcional (só substitui se um novo arquivo for selecionado), e o status não muda ao salvar
+- Título do modal: "Editar Nota Fiscal"
+- Botão de submit: "Salvar"
 
