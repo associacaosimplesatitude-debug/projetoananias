@@ -209,6 +209,57 @@ async function handleBilling(creds: GoogleAdsCredentials) {
   }
 }
 
+async function handleBalance(creds: GoogleAdsCredentials) {
+  const accessToken = await refreshAccessToken(creds);
+
+  // Get approved account budgets
+  const budgetQuery = `
+    SELECT account_budget.amount_micros, account_budget.status
+    FROM account_budget
+    WHERE account_budget.status = 'APPROVED'
+  `;
+
+  try {
+    const budgetResult = await gaqlQuery(creds, accessToken, budgetQuery);
+    const budgets = budgetResult?.[0]?.results || [];
+
+    let totalBudgetMicros = 0;
+    for (const b of budgets) {
+      totalBudgetMicros += Number(b.accountBudget?.amountMicros || 0);
+    }
+
+    // Get total cost ever
+    const costQuery = `
+      SELECT metrics.cost_micros
+      FROM customer
+      WHERE segments.date BETWEEN '2020-01-01' AND '${new Date().toISOString().split("T")[0]}'
+    `;
+    const costResult = await gaqlQuery(creds, accessToken, costQuery);
+    const costRows = costResult?.[0]?.results || [];
+
+    let totalCostMicros = 0;
+    for (const r of costRows) {
+      totalCostMicros += Number(r.metrics?.costMicros || 0);
+    }
+
+    const balance = (totalBudgetMicros - totalCostMicros) / 1_000_000;
+
+    return {
+      balance: Math.max(balance, 0),
+      budget_total: totalBudgetMicros / 1_000_000,
+      cost_total: totalCostMicros / 1_000_000,
+      customer_id: creds.customer_id,
+    };
+  } catch (e) {
+    console.error("Balance error:", e);
+    return {
+      balance: 0,
+      customer_id: creds.customer_id,
+      error: e.message,
+    };
+  }
+}
+
 async function handleInvoices(creds: GoogleAdsCredentials, year: number, month: number) {
   const accessToken = await refreshAccessToken(creds);
   const headers = buildHeaders(creds, accessToken);
@@ -295,6 +346,9 @@ serve(async (req) => {
         break;
       case "billing":
         result = await handleBilling(creds);
+        break;
+      case "balance":
+        result = await handleBalance(creds);
         break;
       case "invoices":
         result = await handleInvoices(creds, year || new Date().getFullYear(), month || new Date().getMonth() + 1);
