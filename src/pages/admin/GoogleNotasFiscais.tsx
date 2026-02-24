@@ -130,7 +130,19 @@ export default function GoogleNotasFiscais() {
         .from("google_docs")
         .createSignedUrl(path, 3600);
       if (error || !data?.signedUrl) throw error || new Error("Falha ao gerar URL");
-      window.open(data.signedUrl, "_blank");
+      
+      // Download via fetch+blob to avoid ad blocker interference
+      const response = await fetch(data.signedUrl);
+      if (!response.ok) throw new Error("Falha ao baixar arquivo");
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = invoice.invoice_number ? `NF-${invoice.invoice_number}.pdf` : "nota-fiscal.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
     } catch (err: any) {
       toast.error("Erro ao baixar PDF: " + (err.message || "tente novamente"));
     }
