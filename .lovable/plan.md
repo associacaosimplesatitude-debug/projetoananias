@@ -1,104 +1,192 @@
 
-# Modulo Google Ads -- 4 Paginas + Edge Function + Menu Lateral
+# Modulo Google (Financeiro) -- Notas Fiscais e Recargas PIX
 
-## O que sera criado
+## Visao Geral
+
+Criar um novo modulo de gestao financeira do Google Ads dentro do sistema EBD. O fluxo e offline: Admin gera/baixa documentos no Google Ads e sobe no sistema; Financeiro acompanha e baixa. Sem integracao direta com API do Google Ads para notas/pagamentos.
+
+Dois perfis: **Admin** (acesso total) e **Financeiro** (visualizacao + acoes limitadas).
+
+## Estrutura de Rotas
 
 ```text
-Menu lateral (AdminEBDLayout.tsx)
-  |
-  +-- Google (novo grupo, com submenu colapsavel)
-       |-- Dashboard       (/admin/ebd/google-ads)
-       |-- Faturamento      (/admin/ebd/google-ads-faturamento)
-       |-- Documentos       (/admin/ebd/google-ads-documentos)
-       +-- Integracoes      (/admin/ebd/google-ads-integracoes)
+Admin EBD (sidebar existente):
+  Google (grupo existente, adicionar 2 sub-itens)
+    +-- Notas Fiscais    /admin/ebd/google/notas
+    +-- Recargas (PIX)   /admin/ebd/google/recargas
+
+(Os 4 sub-itens existentes de Google Ads permanecem)
 ```
 
-## Ajustes solicitados (ja incorporados)
+O financeiro ja tem acesso ao AdminEBDLayout (rota `/admin/ebd` permite `allowFinanceiro`). Os novos itens de menu serao visiveis para admin e financeiro.
 
-1. **Documentos/Invoices -- fallback**: Se a API nao retornar invoices, a pagina mostrara uma mensagem amigavel ("Nenhuma nota fiscal encontrada para esta conta") com link direto para o painel de faturamento do Google Ads.
+## Banco de Dados -- 2 Tabelas + 1 Bucket
 
-2. **Customer ID correto**: Todas as chamadas usarao o `google_ads_customer_id` (conta anunciante, ex: 6403318992) como parametro `customers/{customerId}`, nunca o MCC.
+### Tabela `google_ads_invoices`
 
-3. **Suporte a MCC**: Novo campo opcional `google_ads_login_customer_id` na tela de Integracoes. Quando preenchido, a Edge Function enviara o header `login-customer-id` nas chamadas a API do Google Ads, permitindo gerenciar contas via MCC.
+| Campo | Tipo | Detalhes |
+|---|---|---|
+| id | uuid PK | default gen_random_uuid() |
+| competencia_month | int | NOT NULL, 1-12 |
+| competencia_year | int | NOT NULL |
+| customer_id | text | NOT NULL |
+| invoice_number | text | nullable |
+| issue_date | date | nullable |
+| amount | numeric(12,2) | nullable |
+| currency | text | default 'BRL' |
+| status | text | NOT NULL, default 'PENDENTE' |
+| pdf_url | text | nullable |
+| pdf_filename | text | nullable |
+| notes | text | nullable |
+| created_by | uuid | nullable |
+| updated_by | uuid | nullable |
+| created_at | timestamptz | default now() |
+| updated_at | timestamptz | default now() |
 
-## Detalhes tecnicos
+Constraint UNIQUE: `(competencia_month, competencia_year, customer_id)`
 
-### 1. Edge Function: `google-ads-dashboard`
+Trigger: `updated_at = now()` on UPDATE.
 
-**Arquivo:** `supabase/functions/google-ads-dashboard/index.ts`
+### Tabela `google_ads_topups`
 
-Acoes suportadas:
-- `validate` -- testa credenciais e retorna status
-- `metrics` -- busca metricas via GAQL (conversions_value, clicks, average_cpc, cost_micros)
-- `billing` -- busca resumo de faturamento (billing setup)
-- `invoices` -- busca notas fiscais
+| Campo | Tipo | Detalhes |
+|---|---|---|
+| id | uuid PK | default gen_random_uuid() |
+| customer_id | text | NOT NULL |
+| requested_by | uuid | NOT NULL |
+| requested_amount | numeric(12,2) | NOT NULL |
+| requested_at | timestamptz | default now() |
+| cost_center | text | nullable |
+| request_note | text | nullable |
+| pix_code | text | nullable |
+| pix_qr_url | text | nullable |
+| pix_expires_at | timestamptz | nullable |
+| provided_by | uuid | nullable |
+| provided_at | timestamptz | nullable |
+| paid_marked_by | uuid | nullable |
+| paid_marked_at | timestamptz | nullable |
+| payment_proof_url | text | nullable |
+| payment_proof_filename | text | nullable |
+| status | text | NOT NULL, default 'SOLICITADA' |
+| created_at | timestamptz | default now() |
+| updated_at | timestamptz | default now() |
+| updated_by | uuid | nullable |
 
-Fluxo:
-1. Valida autorizacao do usuario
-2. Le credenciais de `system_settings` (incluindo `google_ads_login_customer_id` opcional)
-3. Obtem `access_token` via OAuth2 refresh
-4. Faz chamadas a `googleads.googleapis.com/v23/customers/{customerId}`
-5. Se `login_customer_id` existir, adiciona header `login-customer-id`
-6. Retorna dados formatados ou erro estruturado
+Trigger: `updated_at = now()` on UPDATE.
 
-### 2. Pagina Integracoes
+### Storage Bucket: `google_docs`
 
-**Arquivo:** `src/pages/admin/GoogleAdsIntegracoes.tsx`
+Politicas:
+- Admin pode INSERT e SELECT em qualquer path
+- Financeiro pode SELECT em qualquer path e INSERT apenas em `topups/*/comprovante*`
 
-- 6 campos: Developer Token, Client ID, Client Secret, Refresh Token, Customer ID, Login Customer ID (MCC - opcional)
-- Toggle mostrar/ocultar para campos sensiveis
-- Botao "Salvar Credenciais" com toast de confirmacao ou erro
-- Botao "Testar Conexao" com status visual (verde/vermelho/amarelo)
-- Segue padrao do `VendedorIntegracoes.tsx` para salvar na `system_settings`
+### RLS
 
-### 3. Pagina Dashboard
+**google_ads_invoices:**
+- Admin: ALL (select, insert, update, delete)
+- Financeiro: SELECT only
 
-**Arquivo:** `src/pages/admin/GoogleAdsDashboard.tsx`
+**google_ads_topups:**
+- Admin: ALL
+- Financeiro: SELECT all; INSERT (criar solicitacao); UPDATE restrito (apenas campos `paid_marked_by`, `paid_marked_at`, `payment_proof_url`, `payment_proof_filename`, `status` e somente quando status anterior permite)
 
-- 4 scorecards: Valor Conversao (azul), Cliques (vermelho), CPC Medio (cinza), Custo (cinza)
-- Filtros de periodo: Hoje, Ontem, 7 dias, 30 dias, Mes atual, Personalizado
-- Conversao de `cost_micros` dividindo por 1.000.000
-- Carrega dados automaticamente ao abrir
+Helper function `is_admin_geral(uid)` retorna true se role = 'admin'.
+Helper function `is_financeiro(uid)` retorna true se role in ('admin', 'financeiro').
 
-### 4. Pagina Faturamento
+## Arquivos a Criar (4)
 
-**Arquivo:** `src/pages/admin/GoogleAdsFaturamento.tsx`
+### 1. `src/pages/admin/GoogleNotasFiscais.tsx`
 
-- Cards com fundos disponiveis, ultimo pagamento, custo liquido, pagamentos do mes
-- Botao "Adicionar Fundos" redireciona para pagina de faturamento do Google Ads (nova aba)
+Pagina unificada para Admin e Financeiro. Detecta role via `useAuth()`.
 
-### 5. Pagina Documentos
+**Financeiro ve:**
+- Tabela com competencia, valor, status (badge colorido), botao Baixar PDF (quando GERADA)
+- Quando PENDENTE: texto "Aguardando anexo do Admin"
+- Filtros: Ano, Mes
+- Botao "Solicitar Nota" (gera toast e pode criar notificacao simples)
 
-**Arquivo:** `src/pages/admin/GoogleAdsDocumentos.tsx`
+**Admin ve tudo acima +:**
+- Botao "Upload Nota Fiscal" (abre modal com: numero da nota, data emissao, valor, upload PDF, observacao)
+- Botao "Aprovar e Liberar" (muda status para GERADA)
+- Botao "Substituir arquivo"
+- Botao "Criar pendencia do mes atual" (cria registro PENDENTE para o customer_id configurado)
 
-- Tabela: Data, Numero, Valor, Baixar PDF
-- Filtros: Mes, Ano, Personalizado
-- **Fallback**: Se API nao retornar invoices, mostra card com mensagem e link para o Google Ads
-- Botao "Baixar selecionadas"
+### 2. `src/pages/admin/GoogleRecargas.tsx`
 
-### 6. Alteracoes em arquivos existentes
+Pagina unificada para Admin e Financeiro.
 
-**`AdminEBDLayout.tsx`:** Novo grupo "Google" no sidebar com submenu colapsavel e 4 sub-itens. Visivel apenas para admin e gerente_ebd.
+**Financeiro ve:**
+- Botao "Solicitar Recarga" no topo (modal: valor, centro de custo, observacao)
+- Tabela: data, valor, status, acoes
+- Quando PIX_DISPONIVEL: mostrar pix_code (mascarado com botao mostrar), botao "Copiar PIX", botao "Marcar como Pago" (com upload de comprovante opcional)
+- Quando PAGO_EM_CONFERENCIA: "Aguardando confirmacao do Admin"
+- Quando CONFIRMADO: ver historico
 
-**`App.tsx`:** 4 novas rotas lazy dentro do bloco `/admin/ebd`:
-- `google-ads` -> GoogleAdsDashboard
-- `google-ads-faturamento` -> GoogleAdsFaturamento
-- `google-ads-documentos` -> GoogleAdsDocumentos
-- `google-ads-integracoes` -> GoogleAdsIntegracoes
+**Admin ve tudo acima +:**
+- Quando AGUARDANDO_CODIGO_PIX: botao "Inserir PIX" (modal: pix_code, expiracao, upload QR)
+- Quando PAGO_EM_CONFERENCIA: botao "Confirmar"
+- Botao "Cancelar"
+- Filtros: status, periodo, customer_id
 
-## Arquivos a criar (5)
+### 3. `src/components/google/InvoiceUploadModal.tsx`
 
-1. `src/pages/admin/GoogleAdsIntegracoes.tsx`
-2. `src/pages/admin/GoogleAdsDashboard.tsx`
-3. `src/pages/admin/GoogleAdsFaturamento.tsx`
-4. `src/pages/admin/GoogleAdsDocumentos.tsx`
-5. `supabase/functions/google-ads-dashboard/index.ts`
+Modal reutilizavel para upload de nota fiscal (campos: numero, data, valor, arquivo PDF, observacao). Faz upload para storage bucket `google_docs` no path `invoices/{customer_id}/{year}-{month}/`.
 
-## Arquivos a editar (2)
+### 4. `src/components/google/TopupPixModal.tsx`
 
-1. `src/components/admin/AdminEBDLayout.tsx`
-2. `src/App.tsx`
+Modal reutilizavel para inserir codigo PIX (campos: pix_code, expiracao, upload QR opcional).
 
-## Nenhuma migracao SQL necessaria
+## Arquivos a Editar (2)
 
-A tabela `system_settings` ja existe com RLS para admin/gerente_ebd, e as credenciais do Google Ads ja estao cadastradas nela.
+### `src/components/admin/AdminEBDLayout.tsx`
+
+No grupo "Google" existente (linhas 440-504), adicionar 2 novos sub-itens dentro do Collapsible:
+- "Notas Fiscais" -> `/admin/ebd/google/notas` (icone FileText)
+- "Recargas (PIX)" -> `/admin/ebd/google/recargas` (icone Wallet)
+
+Remover a condicao `!isFinanceiro` do grupo Google para que o financeiro tambem veja o menu. Os sub-itens de Google Ads (Dashboard, Faturamento, Documentos, Integracoes) continuam visiveis apenas para admin/gerente_ebd dentro do submenu, controlados por condicional no render.
+
+Atualizar o estado `googleOpen` para tambem detectar `/admin/ebd/google/`.
+
+### `src/App.tsx`
+
+Adicionar imports e 2 novas rotas dentro do bloco `/admin/ebd`:
+- `google/notas` -> GoogleNotasFiscais
+- `google/recargas` -> GoogleRecargas
+
+## Migracao SQL
+
+Uma unica migracao com:
+1. CREATE TABLE `google_ads_invoices` com constraint UNIQUE
+2. CREATE TABLE `google_ads_topups`
+3. Triggers de `updated_at` para ambas
+4. Helper functions `is_admin_geral` e `is_financeiro_or_admin`
+5. RLS policies para ambas as tabelas
+6. CREATE storage bucket `google_docs`
+7. Storage policies
+
+## Fluxo de Status
+
+### Notas Fiscais
+```text
+PENDENTE -> EM_VALIDACAO (Admin faz upload) -> GERADA (Admin aprova)
+                                             -> SUBSTITUIDA (Admin substitui arquivo)
+                                             -> CANCELADA
+```
+
+### Recargas
+```text
+SOLICITADA -> AGUARDANDO_CODIGO_PIX (automatico ao criar)
+           -> PIX_DISPONIVEL (Admin insere PIX)
+           -> AGUARDANDO_PAGAMENTO
+           -> PAGO_EM_CONFERENCIA (Financeiro marca como pago)
+           -> CONFIRMADO (Admin confirma)
+           -> CANCELADO / EXPIRADO
+```
+
+## Seguranca
+
+- Upload de PDF e insercao de PIX: apenas Admin (verificado via role no frontend + RLS no backend)
+- Financeiro pode apenas: criar solicitacao de recarga, marcar como pago, anexar comprovante, baixar PDFs liberados
+- Todas as acoes registram `created_by`/`updated_by` para auditoria
+- Storage bucket com politicas especificas por role
