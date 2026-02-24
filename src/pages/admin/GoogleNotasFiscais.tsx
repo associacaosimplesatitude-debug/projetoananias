@@ -127,9 +127,6 @@ export default function GoogleNotasFiscais() {
     setUploadOpen(true);
   };
 
-  const handleSolicitarNota = () => {
-    toast.success("Solicitação de nota fiscal enviada ao Admin");
-  };
 
   return (
     <div className="space-y-6">
@@ -144,11 +141,6 @@ export default function GoogleNotasFiscais() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {!isAdmin && (
-            <Button variant="outline" onClick={handleSolicitarNota}>
-              Solicitar Nota
-            </Button>
-          )}
           {isAdmin && (
             <>
               <Button onClick={handleCreatePending} disabled={creatingPending}>
@@ -237,7 +229,7 @@ export default function GoogleNotasFiscais() {
                           </Button>
                         )}
                         {inv.status === "PENDENTE" && !isAdmin && (
-                          <span className="text-xs text-muted-foreground">Aguardando anexo do Admin</span>
+                          <span className="text-xs text-muted-foreground">Aguardando emissão do Google Ads</span>
                         )}
                         {isAdmin && inv.status === "PENDENTE" && (
                           <Button size="sm" variant="outline" onClick={() => openUpload(inv, 'create')}>

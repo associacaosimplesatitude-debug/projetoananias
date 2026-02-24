@@ -11,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { TopupPixModal } from "@/components/google/TopupPixModal";
 import { Wallet, Plus, Copy, Eye, EyeOff, CheckCircle, XCircle, Upload, Loader2 } from "lucide-react";
 
@@ -50,8 +49,7 @@ export default function GoogleRecargas() {
 
   // Request form
   const [reqAmount, setReqAmount] = useState("");
-  const [reqCostCenter, setReqCostCenter] = useState("");
-  const [reqNote, setReqNote] = useState("");
+  const [reqDate, setReqDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [reqLoading, setReqLoading] = useState(false);
 
   const { data: settings } = useQuery({
@@ -103,16 +101,14 @@ export default function GoogleRecargas() {
         customer_id: customerId,
         requested_by: user?.id,
         requested_amount: parseFloat(reqAmount),
-        cost_center: reqCostCenter || null,
-        request_note: reqNote || null,
+        requested_at: reqDate,
         status: "AGUARDANDO_CODIGO_PIX",
       } as any);
       if (error) throw error;
       toast.success("Recarga solicitada! Código PIX disponível em até 3 horas.");
       setRequestOpen(false);
       setReqAmount("");
-      setReqCostCenter("");
-      setReqNote("");
+      setReqDate(new Date().toISOString().split("T")[0]);
       refresh();
     } catch (err: any) {
       toast.error(err.message);
@@ -327,12 +323,8 @@ export default function GoogleRecargas() {
               <Input type="number" step="0.01" value={reqAmount} onChange={e => setReqAmount(e.target.value)} placeholder="0.00" />
             </div>
             <div>
-              <Label>Centro de Custo (opcional)</Label>
-              <Input value={reqCostCenter} onChange={e => setReqCostCenter(e.target.value)} />
-            </div>
-            <div>
-              <Label>Observação (opcional)</Label>
-              <Textarea value={reqNote} onChange={e => setReqNote(e.target.value)} />
+              <Label>Data *</Label>
+              <Input type="date" value={reqDate} onChange={e => setReqDate(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
