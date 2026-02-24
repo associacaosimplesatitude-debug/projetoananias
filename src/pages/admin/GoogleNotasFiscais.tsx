@@ -119,10 +119,12 @@ export default function GoogleNotasFiscais() {
   const handleDownload = async (invoice: any) => {
     if (!invoice.pdf_url) return;
     try {
-      // Extract path from the stored public URL
-      const url = new URL(invoice.pdf_url);
-      const match = url.pathname.match(/\/object\/public\/google_docs\/(.+)$/);
-      const path = match ? match[1] : invoice.pdf_url;
+      // Support both old format (full public URL) and new format (relative path)
+      let path = invoice.pdf_url;
+      const publicMatch = invoice.pdf_url.match(/\/object\/public\/google_docs\/(.+)$/);
+      if (publicMatch) {
+        path = decodeURIComponent(publicMatch[1]);
+      }
       
       const { data, error } = await supabase.storage
         .from("google_docs")

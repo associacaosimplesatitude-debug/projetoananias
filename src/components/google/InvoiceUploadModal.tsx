@@ -64,8 +64,7 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
           .upload(path, file, { upsert: true });
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage.from('google_docs').getPublicUrl(path);
-        pdfUrl = urlData.publicUrl;
+        pdfUrl = path;
         pdfFilename = file.name;
       }
 
