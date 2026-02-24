@@ -73,14 +73,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Buscar config do Bling (tentar penha primeiro, depois padrão)
-    let tableName = 'bling_config_penha';
+    // Conta unificada - todas as filiais usam o mesmo token OAuth
+    const tableName = 'bling_config';
     let { data: config } = await supabase.from(tableName).select('*').limit(1).single();
-    if (!config) {
-      tableName = 'bling_config';
-      const res = await supabase.from(tableName).select('*').limit(1).single();
-      config = res.data;
-    }
     if (!config?.access_token) {
       throw new Error('Configuração do Bling não encontrada');
     }
