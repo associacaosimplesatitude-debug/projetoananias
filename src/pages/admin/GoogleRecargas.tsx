@@ -52,6 +52,19 @@ export default function GoogleRecargas() {
   const [reqDate, setReqDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [reqLoading, setReqLoading] = useState(false);
 
+  // Query para calcular saldo (soma das recargas CONFIRMADO)
+  const { data: saldo = 0 } = useQuery({
+    queryKey: ["google-ads-saldo"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("google_ads_topups")
+        .select("requested_amount")
+        .eq("status", "CONFIRMADO");
+      if (error) throw error;
+      return (data || []).reduce((sum: number, t: any) => sum + (t.requested_amount || 0), 0);
+    },
+  });
+
   const { data: settings } = useQuery({
     queryKey: ["system-settings-customer-id-topups"],
     queryFn: async () => {
@@ -189,6 +202,19 @@ export default function GoogleRecargas() {
 
   return (
     <div className="space-y-6">
+      {/* Saldo Card */}
+      <Card className="bg-primary text-primary-foreground border-0">
+        <CardContent className="pt-6 pb-6 flex items-center justify-between">
+          <div>
+            <p className="text-sm opacity-80">Saldo Atual</p>
+            <p className="text-4xl font-bold mt-1">{formatCurrency(saldo)}</p>
+          </div>
+          <Button variant="secondary" size="lg" onClick={() => setRequestOpen(true)}>
+            <Plus className="h-5 w-5 mr-2" /> Adicionar Saldo
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -197,9 +223,6 @@ export default function GoogleRecargas() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Solicitações de recarga via PIX</p>
         </div>
-        <Button onClick={() => setRequestOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Solicitar Recarga
-        </Button>
       </div>
 
       {/* Filters */}
