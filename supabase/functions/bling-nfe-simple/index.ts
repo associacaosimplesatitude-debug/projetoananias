@@ -1,7 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const DEPLOY_VERSION = 'v1-simple-2026-02-23';
+const DEPLOY_VERSION = 'v2-enriched-penha-2026-02-24';
+
+// Constantes fiscais Penha
+const LOJA_PENHA_ID = 205891152;
+const SERIE_PENHA = 1;
+const NATUREZA_PENHA_PF_ID = 15108893128;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -87,15 +92,37 @@ serve(async (req) => {
       accessToken = await refreshBlingToken(supabase, config, tableName);
     }
 
-    // PASSO 1: Criar NF-e por herança simples (vincula ao pedido - ícone "V")
-    console.log(`[SIMPLE] PASSO 1: Herança simples para pedido ${bling_order_id}`);
+    // Buscar dados do pedido para detectar loja
+    console.log(`[SIMPLE] Buscando dados do pedido ${bling_order_id}...`);
+    const orderRes = await fetch(
+      `https://api.bling.com.br/Api/v3/pedidos/vendas/${bling_order_id}`,
+      { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    );
+    const orderData = await orderRes.json();
+    const pedido = orderData?.data;
+    const isLojaPenha = pedido?.loja?.id === LOJA_PENHA_ID;
+    console.log(`[SIMPLE] Loja do pedido: ${pedido?.loja?.id}, isPenha: ${isLojaPenha}`);
+
+    // Montar payload - herança enriquecida para Penha
+    let nfePayload: any = { idPedidoVenda: bling_order_id };
+    if (isLojaPenha) {
+      const doc = pedido?.contato?.numeroDocumento?.replace(/\D/g, '') || '';
+      console.log(`[SIMPLE] Penha detectada. Doc contato: ${doc.length > 11 ? 'PJ' : 'PF'}`);
+      nfePayload.serie = SERIE_PENHA;
+      nfePayload.naturezaOperacao = { id: NATUREZA_PENHA_PF_ID };
+      nfePayload.loja = { id: LOJA_PENHA_ID };
+    }
+
+    // PASSO 1: Criar NF-e por herança (vincula ao pedido - ícone "V")
+    console.log(`[SIMPLE] PASSO 1: Herança ${isLojaPenha ? 'enriquecida (Penha)' : 'simples'} para pedido ${bling_order_id}`);
+    console.log(`[SIMPLE] Payload:`, JSON.stringify(nfePayload));
     const createRes = await fetch('https://api.bling.com.br/Api/v3/nfe', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ idPedidoVenda: bling_order_id }),
+      body: JSON.stringify(nfePayload),
     });
 
     const createData = await createRes.json();
