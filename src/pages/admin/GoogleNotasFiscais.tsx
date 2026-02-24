@@ -118,7 +118,20 @@ export default function GoogleNotasFiscais() {
 
   const handleDownload = async (invoice: any) => {
     if (!invoice.pdf_url) return;
-    window.open(invoice.pdf_url, "_blank");
+    try {
+      // Extract path from the stored public URL
+      const url = new URL(invoice.pdf_url);
+      const match = url.pathname.match(/\/object\/public\/google_docs\/(.+)$/);
+      const path = match ? match[1] : invoice.pdf_url;
+      
+      const { data, error } = await supabase.storage
+        .from("google_docs")
+        .createSignedUrl(path, 3600);
+      if (error || !data?.signedUrl) throw error || new Error("Falha ao gerar URL");
+      window.open(data.signedUrl, "_blank");
+    } catch (err: any) {
+      toast.error("Erro ao baixar PDF: " + (err.message || "tente novamente"));
+    }
   };
 
   const openUpload = (invoice: any, mode: 'create' | 'replace' | 'edit') => {
