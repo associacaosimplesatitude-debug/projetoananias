@@ -1057,6 +1057,30 @@ serve(async (req) => {
       nfeId = createNfeData.data.id;
       console.log(`[BLING-NFE] ✓ NF-e criada com sucesso! ID: ${nfeId}`);
       
+      // PASSO 1.5: Tentar vincular NF-e ao pedido via PUT (quando herança simples não foi usada)
+      if (!usedSimpleInheritance && nfeId) {
+        try {
+          console.log(`[BLING-NFE] PASSO 1.5: PUT /nfe/${nfeId} com idPedidoVenda=${orderId} para vincular...`);
+          const putLinkRes = await fetch(`https://api.bling.com.br/Api/v3/nfe/${nfeId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({ idPedidoVenda: orderId }),
+          });
+          const putLinkData = await putLinkRes.json().catch(() => ({}));
+          console.log(`[BLING-NFE] PUT vinculação: status=${putLinkRes.status}`, JSON.stringify(putLinkData).substring(0, 300));
+          if (putLinkRes.ok) {
+            console.log(`[BLING-NFE] ✅ Vinculação via PUT bem-sucedida! Vínculo "V" deve aparecer.`);
+          } else {
+            console.log(`[BLING-NFE] ⚠️ PUT vinculação não aceito pelo Bling (NF-e continua válida)`);
+          }
+        } catch (putErr: any) {
+          console.log(`[BLING-NFE] ⚠️ Erro no PUT vinculação: ${putErr.message} (NF-e continua válida)`);
+        }
+      }
     } else if (createNfeResp.status === 409 || createNfeResp.status === 422) {
       // Possível duplicidade - NF-e já existe para este pedido
       const fiscalError = extractFiscalError(createNfeData);
