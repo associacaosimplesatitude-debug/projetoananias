@@ -15,7 +15,7 @@ interface InvoiceUploadModalProps {
   invoice?: any;
   customerId: string;
   onSuccess: () => void;
-  mode?: 'create' | 'replace';
+  mode?: 'create' | 'replace' | 'edit';
 }
 
 const currentYear = new Date().getFullYear();
@@ -37,7 +37,7 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
 
   const handleSubmit = async () => {
-    if (!file && (isNewInvoice || mode === 'create')) {
+    if (!file && isNewInvoice) {
       toast.error("Selecione um arquivo PDF");
       return;
     }
@@ -104,14 +104,14 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
             notes: notes || null,
             pdf_url: pdfUrl,
             pdf_filename: pdfFilename,
-            status: mode === 'replace' ? 'GERADA' : 'EM_VALIDACAO',
+            ...(mode !== 'edit' ? { status: mode === 'replace' ? 'GERADA' : 'EM_VALIDACAO' } : {}),
             updated_by: user.id,
           } as any)
           .eq('id', invoice.id);
         if (error) throw error;
       }
 
-      toast.success(isNewInvoice ? "Nota fiscal criada com sucesso" : mode === 'replace' ? "Arquivo substituído com sucesso" : "Nota fiscal enviada com sucesso");
+      toast.success(isNewInvoice ? "Nota fiscal criada com sucesso" : mode === 'edit' ? "Nota fiscal atualizada com sucesso" : mode === 'replace' ? "Arquivo substituído com sucesso" : "Nota fiscal enviada com sucesso");
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
@@ -126,7 +126,7 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isNewInvoice ? 'Upload Nota Fiscal' : mode === 'replace' ? 'Substituir Arquivo' : 'Upload Nota Fiscal'}
+            {isNewInvoice ? 'Upload Nota Fiscal' : mode === 'edit' ? 'Editar Nota Fiscal' : mode === 'replace' ? 'Substituir Arquivo' : 'Upload Nota Fiscal'}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
@@ -181,7 +181,7 @@ export function InvoiceUploadModal({ open, onOpenChange, invoice, customerId, on
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-            {isNewInvoice ? 'Criar e Enviar' : mode === 'replace' ? 'Substituir' : 'Enviar'}
+            {isNewInvoice ? 'Criar e Enviar' : mode === 'edit' ? 'Salvar' : mode === 'replace' ? 'Substituir' : 'Enviar'}
           </Button>
         </DialogFooter>
       </DialogContent>
