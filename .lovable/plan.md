@@ -1,60 +1,53 @@
 
 
-# Corrigir Parser de Quiz para Aceitar Formato Markdown
+## Plano: Enviar pedido ADVEC ao Bling + Coluna Bling no painel + Correção definitiva
 
-## Problema
-O `quizParser.ts` não reconhece o formato do texto colado pelo usuário. O texto usa formatação Markdown:
+### 1. Enviar pedido ADVEC EST GUERENGUE CURICICA ao Bling
 
-- Opções: `* **A)** Texto da opção` (com bullet e bold)
-- Resposta: `**Resposta Certa: A** | *Racional:* ...`
-- Título: `### **Questionário: ...**`
-- Nível: `**Nível:** Médio | **Contexto:** Escola da Palavra`
+Chamar a edge function `mp-sync-orphan-order` com o `pedido_id: 2dd7dccf-bdd9-48cb-9ce1-21b58d5cbb6c`. Esta função já existe e faz exatamente isso:
+- Busca dados completos do cliente (CPF/CNPJ)
+- Chama `bling-create-order` com itens, endereço, vendedora
+- Atualiza `bling_order_id` no registro MP
+- Cria comissão para Elaine Ribeiro (se não existir)
 
-O parser atual espera:
-- Opções: `A) Texto da opção`
-- Resposta: `Resposta Certa: A`
-- Título: `Questionário: ...`
+### 2. Adicionar coluna "Bling" na tabela de Pedidos Confirmados
 
-Resultado: apenas algumas perguntas são detectadas (as que por acaso ficam no formato certo após o pré-processamento), e as opções ficam vazias → erro de validação.
+**Arquivo: `src/components/admin/AdminPedidosTab.tsx`**
 
-## Solução
+- Adicionar `bling_order_id: string | null` na interface `ShopifyPedido` (linha ~77)
+- Adicionar coluna "Bling" no `TableHeader` (entre "Vendedor" e "Rastreio", linha ~776)
+- Adicionar célula no `TableBody` (~linha 828):
+  - Badge verde com ID se `bling_order_id` preenchido
+  - Badge vermelha "Não enviado" se null e pedido pago/faturado
+  - "-" para pendentes
 
-### Arquivo: `src/lib/quizParser.ts`
+A query `select("*, vendedor:vendedores(nome)")` já retorna `bling_order_id` pois é `SELECT *`.
 
-1. **Função `preprocessText`**: Adicionar limpeza de markdown antes do processamento:
-   - Remover `###`, `**`, `*` (bold/italic/headers)
-   - Normalizar bullets `* **A)**` → `A)`
-   - Remover `| *Racional:* ...` após a resposta certa (é conteúdo informativo, não faz parte do quiz)
+### 3. Corrigir bug definitivo no `mp-sync-payment-status`
 
-2. **Regex de detecção de opções** (linhas 120-123): Tornar mais flexíveis para capturar variações:
-   - `**A)**` → `A)`
-   - `* A)` → `A)`
+**Arquivo: `supabase/functions/mp-sync-payment-status/index.ts`**
 
-3. **Regex de título** (linha 56): Aceitar markdown no início (`### **Questionário:`)
+O problema: quando `bling-create-order` falha silenciosamente (timeout, erro 500, token OAuth expirado), o fluxo continua e marca o pedido como PAGO mas sem `bling_order_id`. Não há retry.
 
-4. **Regex de nível/contexto** (linhas 69-78): Aceitar `**Nível:**` com asteriscos
+**Correção:**
+- Após falha na chamada ao Bling, **não marcar como PAGO** — usar status intermediário `PAGO_SEM_BLING`
+- Adicionar retry: se falhar, tentar novamente 1x após 2 segundos
+- Se ainda falhar, registrar `sync_error` no pedido para visibilidade no painel
+- Adicionar campo `sync_error` e `sync_retries` no update do pedido
+
+**Arquivo: `src/components/admin/AdminPedidosTab.tsx`** (complemento)
+- Na coluna Bling, pedidos com `sync_error` mostram badge amarela "Erro sync" com botão de retry manual
 
 ### Detalhes técnicos
 
-A limpeza de markdown na função `preprocessText` resolverá a maioria dos casos. Adicionar no início:
-
 ```text
-// Remover racional/explicação após resposta certa
-processed = processed.replace(/\|\s*\*?Racional:?\*?\s*.*/gi, '');
+Fluxo atual (com bug):
+  MP aprova → chama bling-create-order → FALHA SILENCIOSA → marca PAGO sem bling_order_id
 
-// Remover markdown: ###, **, *
-processed = processed.replace(/#{1,6}\s*/g, '');        // headers
-processed = processed.replace(/\*\*([^*]+)\*\*/g, '$1'); // bold
-processed = processed.replace(/\*([^*]+)\*/g, '$1');     // italic
-
-// Normalizar bullets com opções: "* A)" → "A)"
-processed = processed.replace(/^\*\s+([ABCD]\))/gm, '$1');
+Fluxo corrigido:
+  MP aprova → chama bling-create-order → FALHA → retry 1x → FALHA
+    → marca PAGO mas salva sync_error → visível no painel com botão retry
 ```
 
-Isso garante que qualquer texto colado com markdown (do ChatGPT, Google Docs, etc.) será limpo antes do parsing.
-
-## Resumo
-- 1 arquivo alterado: `src/lib/quizParser.ts`
-- Adição de limpeza de markdown na função `preprocessText`
-- Sem alteração na lógica de parsing, apenas normalização do input
+A migração de banco adiciona `sync_error TEXT` e `sync_retries INT DEFAULT 0` à tabela `ebd_shopify_pedidos_mercadopago`.
 
