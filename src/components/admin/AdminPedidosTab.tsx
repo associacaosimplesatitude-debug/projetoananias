@@ -75,6 +75,8 @@ interface ShopifyPedido {
   url_rastreio: string | null;
   vendedor?: { nome: string } | null;
   comissao_aprovada?: boolean | null;
+  bling_order_id: number | null;
+  sync_error?: string | null;
 }
 
 interface AdminPedidosTabProps {
@@ -773,6 +775,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                   <TableHead>Para Meta</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Vendedor</TableHead>
+                  <TableHead>Bling</TableHead>
                   <TableHead>Rastreio</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -825,6 +828,23 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                       </TableCell>
                       <TableCell>
                         {vendedorNome || 'E-commerce'}
+                      </TableCell>
+                      <TableCell>
+                        {pedido.bling_order_id ? (
+                          <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">
+                            {pedido.bling_order_id}
+                          </Badge>
+                        ) : pedido.sync_error ? (
+                          <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs">
+                            Erro sync
+                          </Badge>
+                        ) : (pedido.status_pagamento === 'paid' || pedido.status_pagamento === 'Pago' || pedido.status_pagamento === 'Faturado') ? (
+                          <Badge variant="destructive" className="text-xs">
+                            Não enviado
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {(() => {

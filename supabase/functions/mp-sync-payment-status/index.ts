@@ -131,111 +131,123 @@ serve(async (req) => {
     }
     console.log(`[${requestId}] metodo_frete: ${pedido.metodo_frete} → normalizado: ${metodoFreteNormalizado}`);
 
-    // 5. Criar pedido no Bling
+    // 5. Criar pedido no Bling (com retry)
     let blingOrderId = null;
+    let syncError: string | null = null;
+    let syncRetries = pedido.sync_retries || 0;
 
-    if (!pedido.bling_order_id) {
-      try {
-        const cliente = {
-          id: pedido.cliente_id || null, // IMPORTANTE: ID do cliente no sistema para buscar CPF/CNPJ do banco
-          nome: pedido.cliente_nome?.split(' ')[0] || 'Cliente',
-          sobrenome: pedido.cliente_nome?.split(' ').slice(1).join(' ') || '',
-          cpf_cnpj: pedido.cliente_cpf_cnpj || '',
-          email: pedido.cliente_email || '',
-          telefone: pedido.cliente_telefone || '',
+    const attemptBlingCreate = async (): Promise<string | null> => {
+      const cliente = {
+        id: pedido.cliente_id || null,
+        nome: pedido.cliente_nome?.split(' ')[0] || 'Cliente',
+        sobrenome: pedido.cliente_nome?.split(' ').slice(1).join(' ') || '',
+        cpf_cnpj: pedido.cliente_cpf_cnpj || '',
+        email: pedido.cliente_email || '',
+        telefone: pedido.cliente_telefone || '',
+      };
+
+      const endereco_entrega = {
+        rua: pedido.endereco_rua,
+        numero: pedido.endereco_numero,
+        complemento: pedido.endereco_complemento,
+        bairro: pedido.endereco_bairro,
+        cep: pedido.endereco_cep,
+        cidade: pedido.endereco_cidade,
+        estado: pedido.endereco_estado,
+      };
+
+      const items = pedido.items || [];
+      const itensBling = items.map((item: any) => {
+        const precoOriginal = Number(parseFloat(item.price || '0').toFixed(2));
+        const descontoPercentual = item.descontoItem ?? 0;
+        const precoComDesconto = Number((precoOriginal * (1 - descontoPercentual / 100)).toFixed(2));
+        return {
+          codigo: item.sku || item.variantId || '0',
+          descricao: item.title || 'Produto Shopify',
+          unidade: 'UN',
+          quantidade: item.quantity || 1,
+          preco_cheio: precoOriginal,
+          valor: precoComDesconto,
+          desconto_percentual: descontoPercentual,
         };
+      });
 
-        // Usar endereço do pedido MP (já vem correto da proposta/checkout)
-        const endereco_entrega = {
-          rua: pedido.endereco_rua,
-          numero: pedido.endereco_numero,
-          complemento: pedido.endereco_complemento,
-          bairro: pedido.endereco_bairro,
-          cep: pedido.endereco_cep,
-          cidade: pedido.endereco_cidade,
-          estado: pedido.endereco_estado,
-        };
-        console.log(`[${requestId}] Endereco entrega:`, endereco_entrega);
+      const paymentTypeMap: { [key: string]: string } = {
+        'pix': 'pix', 'card': 'card', 'boleto': 'boleto',
+        'credit_card': 'card', 'debit_card': 'card',
+        'account_money': 'pix', 'bank_transfer': 'pix', 'ticket': 'boleto',
+      };
+      const formaPagamento = paymentTypeMap[payment.payment_type_id] || paymentTypeMap[pedido.payment_method] || 'pix';
 
-        // Converter itens do JSON para formato Bling COM DESCONTO
-        const items = pedido.items || [];
-        const itensBling = items.map((item: any) => {
-          const precoOriginal = Number(parseFloat(item.price || '0').toFixed(2));
-          const descontoPercentual = item.descontoItem ?? 0;
-          const precoComDesconto = Number((precoOriginal * (1 - descontoPercentual / 100)).toFixed(2));
-          
-          return {
-            codigo: item.sku || item.variantId || '0',
-            descricao: item.title || 'Produto Shopify',
-            unidade: 'UN',
-            quantidade: item.quantity || 1,
-            preco_cheio: precoOriginal,           // Preço original (lista)
-            valor: precoComDesconto,               // Preço com desconto aplicado
-            desconto_percentual: descontoPercentual, // Percentual de desconto
-          };
-        });
+      console.log(`[${requestId}] Enviando para Bling:`, {
+        cliente_id: pedido.cliente_id,
+        cliente_nome: cliente.nome,
+        metodo_frete: metodoFreteNormalizado,
+        forma_pagamento: formaPagamento,
+        itens_count: itensBling.length,
+      });
 
-        const paymentTypeMap: { [key: string]: string } = {
-          'pix': 'pix',
-          'card': 'card',
-          'boleto': 'boleto',
-          'credit_card': 'card',
-          'debit_card': 'card',
-          'account_money': 'pix',
-          'bank_transfer': 'pix',
-          'ticket': 'boleto',
-        };
-        const formaPagamento = paymentTypeMap[payment.payment_type_id] || paymentTypeMap[pedido.payment_method] || 'pix';
-
-        console.log(`[${requestId}] Enviando para Bling:`, {
+      const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({
+          cliente,
           cliente_id: pedido.cliente_id,
-          cliente_nome: cliente.nome,
-          cliente_cpf_cnpj: cliente.cpf_cnpj,
+          endereco_entrega,
+          itens: itensBling,
+          pedido_id: pedido.id.slice(0, 8).toUpperCase(),
+          valor_frete: pedido.valor_frete || 0,
           metodo_frete: metodoFreteNormalizado,
           forma_pagamento: formaPagamento,
-          itens_count: itensBling.length,
-        });
+          valor_produtos: pedido.valor_produtos || 0,
+          valor_total: pedido.valor_total || 0,
+          vendedor_email: pedido.vendedor_email,
+          vendedor_nome: pedido.vendedor_nome,
+          vendedor_id: pedido.vendedor_id,
+          origem: 'shopify_mercadopago',
+        }),
+      });
 
-        const blingResponse = await fetch(`${supabaseUrl}/functions/v1/bling-create-order`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({
-            cliente,
-            cliente_id: pedido.cliente_id, // Passar cliente_id também no root para garantir
-            endereco_entrega,
-            itens: itensBling,
-            pedido_id: pedido.id.slice(0, 8).toUpperCase(),
-            valor_frete: pedido.valor_frete || 0,
-            metodo_frete: metodoFreteNormalizado, // Normalizado!
-            forma_pagamento: formaPagamento,
-            valor_produtos: pedido.valor_produtos || 0,
-            valor_total: pedido.valor_total || 0,
-            // Dados do vendedor
-            vendedor_email: pedido.vendedor_email,
-            vendedor_nome: pedido.vendedor_nome,
-            vendedor_id: pedido.vendedor_id,
-            // Identificador de origem
-            origem: 'shopify_mercadopago',
-          }),
-        });
-
-        if (blingResponse.ok) {
-          const blingData = await blingResponse.json();
-          console.log(`[${requestId}] Resposta do Bling:`, blingData);
-          
-          if (blingData.bling_order_id) {
-            blingOrderId = blingData.bling_order_id;
-            console.log(`[${requestId}] ✅ Pedido criado no Bling: ${blingOrderId}`);
-          }
-        } else {
-          const errorText = await blingResponse.text();
-          console.error(`[${requestId}] Erro ao criar pedido no Bling:`, errorText);
+      if (blingResponse.ok) {
+        const blingData = await blingResponse.json();
+        if (blingData.bling_order_id) {
+          return blingData.bling_order_id;
         }
-      } catch (blingError) {
-        console.error(`[${requestId}] Erro ao chamar bling-create-order:`, blingError);
+      } else {
+        const errorText = await blingResponse.text();
+        throw new Error(`Bling HTTP ${blingResponse.status}: ${errorText.slice(0, 200)}`);
+      }
+      return null;
+    };
+
+    if (!pedido.bling_order_id) {
+      // Tentativa 1
+      try {
+        blingOrderId = await attemptBlingCreate();
+        if (blingOrderId) {
+          console.log(`[${requestId}] ✅ Pedido criado no Bling (1ª tentativa): ${blingOrderId}`);
+          syncError = null;
+        }
+      } catch (err1) {
+        console.error(`[${requestId}] ❌ Falha 1ª tentativa Bling:`, err1);
+        syncRetries++;
+
+        // Tentativa 2 após 2s
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          blingOrderId = await attemptBlingCreate();
+          if (blingOrderId) {
+            console.log(`[${requestId}] ✅ Pedido criado no Bling (2ª tentativa): ${blingOrderId}`);
+            syncError = null;
+          }
+        } catch (err2) {
+          console.error(`[${requestId}] ❌ Falha 2ª tentativa Bling:`, err2);
+          syncRetries++;
+          syncError = err2 instanceof Error ? err2.message : 'Erro desconhecido ao criar pedido no Bling';
+        }
       }
     }
 
@@ -247,7 +259,9 @@ serve(async (req) => {
         payment_status: 'approved',
         bling_order_id: blingOrderId || pedido.bling_order_id,
         bling_created_at: blingOrderId ? new Date().toISOString() : pedido.bling_created_at,
-        metodo_frete: metodoFreteNormalizado, // Salvar o valor normalizado
+        metodo_frete: metodoFreteNormalizado,
+        sync_error: syncError,
+        sync_retries: syncRetries,
         updated_at: new Date().toISOString(),
       })
       .eq('id', pedido.id);
