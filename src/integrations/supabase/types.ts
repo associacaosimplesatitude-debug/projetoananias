@@ -3962,6 +3962,8 @@ export type Database = {
           proposta_id: string | null
           proposta_token: string | null
           status: string | null
+          sync_error: string | null
+          sync_retries: number | null
           updated_at: string
           valor_desconto: number | null
           valor_frete: number | null
@@ -3999,6 +4001,8 @@ export type Database = {
           proposta_id?: string | null
           proposta_token?: string | null
           status?: string | null
+          sync_error?: string | null
+          sync_retries?: number | null
           updated_at?: string
           valor_desconto?: number | null
           valor_frete?: number | null
@@ -4036,6 +4040,8 @@ export type Database = {
           proposta_id?: string | null
           proposta_token?: string | null
           status?: string | null
+          sync_error?: string | null
+          sync_retries?: number | null
           updated_at?: string
           valor_desconto?: number | null
           valor_frete?: number | null
