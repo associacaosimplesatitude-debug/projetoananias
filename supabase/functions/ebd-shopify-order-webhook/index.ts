@@ -333,44 +333,8 @@ serve(async (req) => {
         }
       }
       
-      // Método 3: Buscar cliente por nome (fuzzy match)
-      if (!finalVendedorId && order.customer) {
-        const customerName = `${order.customer.first_name} ${order.customer.last_name}`.trim().toLowerCase();
-        console.log("Buscando por nome do cliente:", customerName);
-        
-        const { data: clientes, error: nameError } = await supabase
-          .from("ebd_clientes")
-          .select("id, vendedor_id, nome_igreja, nome_superintendente")
-          .not("vendedor_id", "is", null);
-        
-        if (nameError) {
-          console.error("Error fetching clientes for name matching:", nameError);
-        } else if (clientes && clientes.length > 0) {
-          const matchingCliente = clientes.find(c => {
-            const nomeIgreja = c.nome_igreja?.toLowerCase()?.trim();
-            const nomeSuperintendente = c.nome_superintendente?.toLowerCase()?.trim();
-            
-            return (
-              (nomeIgreja && nomeIgreja.length > 2 && (
-                nomeIgreja.includes(customerName) || customerName.includes(nomeIgreja)
-              )) ||
-              (nomeSuperintendente && nomeSuperintendente.length > 2 && (
-                nomeSuperintendente.includes(customerName) || customerName.includes(nomeSuperintendente)
-              ))
-            );
-          });
-          
-          if (matchingCliente?.vendedor_id) {
-            finalVendedorId = matchingCliente.vendedor_id;
-            if (!clienteId) clienteId = matchingCliente.id;
-            console.log("✅ Vendedor herdado do cliente por NOME:", {
-              cliente: matchingCliente.nome_igreja,
-              vendedor_id: finalVendedorId
-            });
-          }
-        }
-      }
-      
+      // Método 3 REMOVIDO: Não fazer match por nome (fuzzy) para evitar vincular igrejas diferentes
+      // Match permitido apenas por email exato (Método 1) ou CPF/CNPJ exato (Método 2)
       if (!finalVendedorId) {
         console.log("❌ Nenhum vendedor encontrado para herança automática");
       }
