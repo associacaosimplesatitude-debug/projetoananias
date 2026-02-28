@@ -1,19 +1,15 @@
 
 
-## Correção: Excluir pedidos faturados da aba E-commerce
-
-### Problema
-Pedidos B2B faturados criam automaticamente um registro em `ebd_shopify_pedidos` com `order_number` começando com `BLING-`. Isso faz com que apareçam na aba E-commerce indevidamente.
+## Plano: Adicionar coluna Bling na aba Faturados B2B
 
 ### Alteração
 
-**Arquivo**: `src/components/admin/AdminPedidosTab.tsx` (linha ~563)
+**Arquivo**: `src/components/admin/AdminPedidosTab.tsx`
 
-No filtro `filteredShopifyPedidos`, adicionar no início do `.filter()`:
+1. **Header** (linha ~986): Adicionar `<TableHead>Bling</TableHead>` entre "Status" e "Vendedor"
 
-```typescript
-if (pedido.order_number?.startsWith('BLING-')) return false;
-```
-
-Isso exclui pedidos originados do faturamento B2B, que já aparecem na aba "Faturados B2B".
+2. **Body** (linha ~1014, após a célula de Status): Adicionar célula com badge Bling:
+   - Se `proposta.bling_order_id` existe → badge verde com o ID
+   - Se `proposta.sync_error` → badge amarelo "Erro sync"
+   - Senão → badge azul "Enviado" (propostas faturadas são enviadas ao Bling automaticamente)
 
