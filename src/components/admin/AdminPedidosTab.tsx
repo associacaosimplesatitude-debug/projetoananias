@@ -1194,7 +1194,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                               ) : pedido.sync_error ? (
                                 <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs">Erro sync</Badge>
                               ) : (pedido.status_pagamento === 'paid' || pedido.status_pagamento === 'Pago' || pedido.status_pagamento === 'Faturado') ? (
-                                <Badge variant="destructive" className="text-xs">Não enviado</Badge>
+                                <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs">Enviado</Badge>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
                               )}
