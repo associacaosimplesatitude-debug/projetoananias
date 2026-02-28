@@ -561,6 +561,8 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
   // Filter Shopify orders
   const filteredShopifyPedidos = useMemo(() => {
     return shopifyPedidos.filter(pedido => {
+      // Exclude B2B invoiced orders - they belong in the Faturados tab
+      if (pedido.order_number?.startsWith('BLING-')) return false;
       if (!matchesFilters(
         pedido.created_at,
         pedido.customer_name || clienteMap[pedido.cliente_id || '']?.nome || '',
