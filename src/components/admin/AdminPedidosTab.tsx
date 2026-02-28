@@ -983,6 +983,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                         <TableHead>Valor Total</TableHead>
                         <TableHead>Para Meta</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Bling</TableHead>
                         <TableHead>Vendedor</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
@@ -1011,6 +1012,21 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
                             </TableCell>
                             <TableCell>
                               <Badge className="bg-green-500 hover:bg-green-600">Faturado</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {(proposta as any).bling_order_id ? (
+                                <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">
+                                  Bling: {(proposta as any).bling_order_id}
+                                </Badge>
+                              ) : (proposta as any).sync_error ? (
+                                <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs">
+                                  Erro sync
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs">
+                                  Enviado
+                                </Badge>
+                              )}
                             </TableCell>
                             <TableCell>{proposta.vendedor?.nome || 'E-commerce'}</TableCell>
                             <TableCell className="text-right">
