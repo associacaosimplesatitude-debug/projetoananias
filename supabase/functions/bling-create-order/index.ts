@@ -1101,7 +1101,7 @@ serve(async (req) => {
     if (contatoSistemaId) {
       const { data, error } = await supabase
         .from('ebd_clientes')
-        .select('cpf, cnpj, possui_cnpj, nome_igreja, telefone, email_superintendente, nome_responsavel')
+        .select('cpf, cnpj, possui_cnpj, nome_igreja, telefone, email_superintendente, nome_responsavel, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_estado')
         .eq('id', contatoSistemaId)
         .maybeSingle();
 
@@ -1147,11 +1147,48 @@ serve(async (req) => {
       throw new Error('Nome do cliente é obrigatório');
     }
 
-    // 2) Sanitizar endereço - NÚMERO nunca pode ficar vazio
-    const enderecoNumero = (endereco_entrega?.numero || '').toString().trim() || 'S/N';
-    const enderecoCep = (endereco_entrega?.cep || '').replace(/\D/g, '');
+    // 2) Construir billingAddress (cadastral) e shippingAddress (entrega) INDEPENDENTES
+    const shippingAddress = {
+      endereco: endereco_entrega?.rua || '',
+      numero: (endereco_entrega?.numero || '').toString().trim() || 'S/N',
+      complemento: endereco_entrega?.complemento || '',
+      bairro: endereco_entrega?.bairro || '',
+      cep: (endereco_entrega?.cep || '').replace(/\D/g, ''),
+      municipio: endereco_entrega?.cidade || '',
+      uf: (endereco_entrega?.estado || '').toUpperCase(),
+      pais: 'Brasil',
+    };
 
-    console.log(`[CONTATO] Endereço: rua="${endereco_entrega?.rua}" numero="${enderecoNumero}" cep="${enderecoCep}"`);
+    // Verificar se cliente tem endereço cadastral completo
+    const temEnderecoCadastral = Boolean(
+      clienteDb?.endereco_rua && clienteDb?.endereco_cep && clienteDb?.endereco_cidade && clienteDb?.endereco_estado
+    );
+
+    let billingAddress: any;
+    let usouFallback = false;
+
+    if (temEnderecoCadastral) {
+      billingAddress = {
+        endereco: clienteDb.endereco_rua,
+        numero: (clienteDb.endereco_numero || '').toString().trim() || 'S/N',
+        complemento: clienteDb.endereco_complemento || '',
+        bairro: clienteDb.endereco_bairro || '',
+        cep: (clienteDb.endereco_cep || '').replace(/\D/g, ''),
+        municipio: clienteDb.endereco_cidade,
+        uf: (clienteDb.endereco_estado || '').toUpperCase(),
+        pais: 'Brasil',
+      };
+    } else {
+      // Fase de transição: logar warning e usar endereco_entrega como fallback
+      console.warn(`[ENDERECO_WARN] Cliente CNPJ sem endereço principal completo. contatoId=${contatoSistemaId} tipoPessoa=${tipoPessoa}. Usando endereco_entrega como fallback temporário.`);
+      billingAddress = { ...shippingAddress };
+      usouFallback = true;
+    }
+
+    console.log(`[ENDERECO_AUDIT] billing_cep=${billingAddress.cep} shipping_cep=${shippingAddress.cep} separados=${billingAddress.cep !== shippingAddress.cep} fallback=${usouFallback}`);
+
+    console.log(`[CONTATO] Endereço billing: rua="${billingAddress.endereco}" numero="${billingAddress.numero}" cep="${billingAddress.cep}"`);
+    console.log(`[CONTATO] Endereço shipping: rua="${shippingAddress.endereco}" numero="${shippingAddress.numero}" cep="${shippingAddress.cep}"`);
 
     // 3) Montar payload do contato com todos os campos obrigatórios
     const contatoPayloadCompleto: any = {
@@ -1163,17 +1200,24 @@ serve(async (req) => {
       situacao: 'A',
       endereco: {
         geral: {
-          endereco: endereco_entrega?.rua || '',
-          numero: enderecoNumero,
-          complemento: endereco_entrega?.complemento || '',
-          bairro: endereco_entrega?.bairro || '',
-          cep: enderecoCep,
-          municipio: endereco_entrega?.cidade || '',
-          uf: (endereco_entrega?.estado || '').toUpperCase(),
-          pais: 'Brasil',
+          endereco: billingAddress.endereco,
+          numero: billingAddress.numero,
+          complemento: billingAddress.complemento,
+          bairro: billingAddress.bairro,
+          cep: billingAddress.cep,
+          municipio: billingAddress.municipio,
+          uf: billingAddress.uf,
+          pais: billingAddress.pais,
         },
       },
     };
+
+    // ASSERT de integridade: se CEPs são diferentes, garantir que não houve sobrescrita
+    if (billingAddress.cep && shippingAddress.cep && billingAddress.cep !== shippingAddress.cep) {
+      if (contatoPayloadCompleto.endereco.geral.cep !== billingAddress.cep) {
+        throw new Error(`BUG_ENDERECO: CEP do contato sobrescrito pelo CEP de entrega. Esperado=${billingAddress.cep} Encontrado=${contatoPayloadCompleto.endereco.geral.cep}`);
+      }
+    }
 
     // IE para pessoa jurídica (se fornecido)
     if (tipoPessoa === 'J' && cliente.ie) {
