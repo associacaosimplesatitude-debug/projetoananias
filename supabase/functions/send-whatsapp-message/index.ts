@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
     const getPhoneNumbersFromBusiness = async (wabaId: string) => {
       const response = await fetch(
-        `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
+        `https://graph.facebook.com/v22.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
         {
           method: "GET",
           headers: {
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     };
 
     const validatePhoneNumberId = async (id: string) => {
-      const response = await fetch(`https://graph.facebook.com/v21.0/${id}?fields=id,display_phone_number,verified_name`, {
+      const response = await fetch(`https://graph.facebook.com/v22.0/${id}?fields=id,display_phone_number,verified_name`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
     }
 
     const formattedPhone = formatPhone(telefone);
-    const graphUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+    const graphUrl = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
 
     let graphPayload: Record<string, unknown>;
 
