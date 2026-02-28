@@ -6,6 +6,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function formatPhone(phone: string): string {
+  let cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("0")) cleaned = cleaned.slice(1);
+  if (!cleaned.startsWith("55")) cleaned = "55" + cleaned;
+  return cleaned;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -16,7 +23,6 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Validate auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Não autorizado" }), {
@@ -35,7 +41,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { tipo_mensagem, telefone, nome, mensagem, imagem_url, title, footer, buttonActions } = body;
+    const { tipo_mensagem, telefone, nome, mensagem, imagem_url } = body;
 
     if (!telefone || !mensagem) {
       return new Response(JSON.stringify({ error: "Telefone e mensagem são obrigatórios" }), {
@@ -44,11 +50,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch Z-API credentials from system_settings
+    // Fetch Meta WhatsApp credentials from system_settings
     const { data: settings, error: settingsError } = await supabase
       .from("system_settings")
       .select("key, value")
-      .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token"]);
+      .in("key", ["whatsapp_phone_number_id", "whatsapp_access_token"]);
 
     if (settingsError) throw settingsError;
 
@@ -57,12 +63,10 @@ Deno.serve(async (req) => {
       settingsMap[s.key] = s.value;
     });
 
-    const instanceId = settingsMap["zapi_instance_id"];
-    const zapiToken = settingsMap["zapi_token"];
-    const clientToken = settingsMap["zapi_client_token"];
+    const phoneNumberId = settingsMap["whatsapp_phone_number_id"];
+    const accessToken = settingsMap["whatsapp_access_token"];
 
-    if (!instanceId || !zapiToken || !clientToken) {
-      // Log the attempt
+    if (!phoneNumberId || !accessToken) {
       await supabase.from("whatsapp_mensagens").insert({
         tipo_mensagem: tipo_mensagem || "manual",
         telefone_destino: telefone,
@@ -70,42 +74,49 @@ Deno.serve(async (req) => {
         mensagem,
         imagem_url: imagem_url || null,
         status: "erro",
-        erro_detalhes: "Credenciais Z-API não configuradas",
+        erro_detalhes: "Credenciais da API Oficial do WhatsApp (Meta) não configuradas",
         enviado_por: user.id,
       });
 
       return new Response(
-        JSON.stringify({ error: "Credenciais Z-API não configuradas. Configure na aba Credenciais." }),
+        JSON.stringify({ error: "Credenciais da API Oficial do WhatsApp não configuradas. Configure na aba Integrações." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
+    const formattedPhone = formatPhone(telefone);
+    const graphUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
 
-    let zapiPayload: Record<string, unknown>;
-    let zapiEndpoint: string;
+    let graphPayload: Record<string, unknown>;
 
     if (imagem_url) {
-      zapiEndpoint = `${baseUrl}/send-image`;
-      zapiPayload = { phone: telefone, image: imagem_url, caption: mensagem };
+      graphPayload = {
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: "image",
+        image: { link: imagem_url, caption: mensagem },
+      };
     } else {
-      zapiEndpoint = `${baseUrl}/send-text`;
-      zapiPayload = { phone: telefone, message: mensagem };
+      graphPayload = {
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: "text",
+        text: { body: mensagem },
+      };
     }
 
-    const zapiResponse = await fetch(zapiEndpoint, {
+    const graphResponse = await fetch(graphUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Client-Token": clientToken,
+        Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(zapiPayload),
+      body: JSON.stringify(graphPayload),
     });
 
-    const zapiResult = await zapiResponse.json();
-    const isSuccess = zapiResponse.ok;
+    const graphResult = await graphResponse.json();
+    const isSuccess = graphResponse.ok;
 
-    // Log message with payload and response
     await supabase.from("whatsapp_mensagens").insert({
       tipo_mensagem: tipo_mensagem || "manual",
       telefone_destino: telefone,
@@ -113,21 +124,21 @@ Deno.serve(async (req) => {
       mensagem,
       imagem_url: imagem_url || null,
       status: isSuccess ? "enviado" : "erro",
-      erro_detalhes: isSuccess ? null : JSON.stringify(zapiResult),
+      erro_detalhes: isSuccess ? null : JSON.stringify(graphResult),
       enviado_por: user.id,
-      payload_enviado: zapiPayload,
-      resposta_recebida: zapiResult,
+      payload_enviado: graphPayload,
+      resposta_recebida: graphResult,
     });
 
     if (!isSuccess) {
       return new Response(
-        JSON.stringify({ error: "Erro ao enviar via Z-API", details: zapiResult }),
+        JSON.stringify({ error: "Erro ao enviar via API Meta", details: graphResult }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
-      JSON.stringify({ success: true, data: zapiResult }),
+      JSON.stringify({ success: true, data: graphResult }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
