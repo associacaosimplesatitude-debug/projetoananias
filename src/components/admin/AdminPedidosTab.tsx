@@ -642,22 +642,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     return proposta.valor_total * (1 - (proposta.desconto_percentual || 0) / 100);
   };
 
-  const allLoading = isLoading || isLoadingFaturadas || isLoadingMP || isLoadingBalcao;
-
-  if (allLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
-        </div>
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
-  }
-
-  // ===== Render helper: Unified "Todos" table =====
+  // ===== Unified "Todos" data (must be before early return) =====
   type UnifiedOrder = {
     id: string;
     canal: string;
@@ -714,6 +699,21 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
     items.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
     return items;
   }, [filteredShopifyPedidos, filteredPropostas, filteredMercadoPago, filteredBalcao, clienteMap, vendedores]);
+
+  const allLoading = isLoading || isLoadingFaturadas || isLoadingMP || isLoadingBalcao;
+
+  if (allLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
 
   const getCanalBadge = (canal: string) => {
     switch (canal) {
