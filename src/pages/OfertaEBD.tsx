@@ -162,13 +162,9 @@ const OfertaEBD = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src={logoGestaoEBD} alt="Gestão EBD" className="h-10 md:h-12" />
-            <div className="h-8 w-px bg-gray-300" />
-            <img src={logoCentralGospel} alt="Central Gospel Editora" className="h-8 md:h-10" />
-          </div>
+          <img src={logoCentralGospel} alt="Central Gospel Editora" className="h-10 md:h-12" />
           <Button
             onClick={() => setModalOpen(true)}
             className="bg-[#FFC107] hover:bg-[#FFB300] text-black font-bold"
