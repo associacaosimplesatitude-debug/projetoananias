@@ -205,6 +205,16 @@ Deno.serve(async (req) => {
       resposta_recebida: graphResult,
     });
 
+    // Also save to whatsapp_conversas so sent messages appear in the chat timeline
+    if (isSuccess) {
+      await supabase.from("whatsapp_conversas").insert({
+        telefone: formattedPhone,
+        role: "assistant",
+        content: mensagem,
+        imagem_url: imagem_url || null,
+      });
+    }
+
     if (!isSuccess) {
       return new Response(
         JSON.stringify({ error: "Erro ao enviar via API Meta", details: graphResult }),
