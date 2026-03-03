@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import {
   Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight
+  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -258,6 +258,20 @@ export default function WhatsAppCampaigns() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // --- Delete campaign ---
+  const deleteCampaignMutation = useMutation({
+    mutationFn: async (campanhaId: string) => {
+      await supabase.from("whatsapp_campanha_destinatarios").delete().eq("campanha_id", campanhaId);
+      const { error } = await supabase.from("whatsapp_campanhas").delete().eq("id", campanhaId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-campanhas"] });
+      toast.success("Campanha excluída com sucesso!");
+    },
+    onError: (err: Error) => toast.error("Erro ao excluir: " + err.message),
+  });
+
   // --- Send campaign ---
   const sendCampaignMutation = useMutation({
     mutationFn: async (campanhaId: string) => {
@@ -359,7 +373,25 @@ export default function WhatsAppCampaigns() {
                         {format(new Date(c.created_at), "dd/MM/yyyy HH:mm")}
                       </p>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex items-center gap-2">
+                      {c.status === "rascunho" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm("Tem certeza que deseja excluir esta campanha?")) {
+                              deleteCampaignMutation.mutate(c.id);
+                            }
+                          }}
+                          disabled={deleteCampaignMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
                   </CardContent>
                 </Card>
               );
