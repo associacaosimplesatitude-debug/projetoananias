@@ -82,12 +82,16 @@ async function searchOrdersPaginated(
   let pagesProcessed = 0;
   let done = false;
 
+  console.log("Token usado:", accessToken.substring(0, 10) + "...");
+
   while (pagesProcessed < MAX_PAGES_PER_CALL) {
     // Check execution time limit
     if (Date.now() - startTime > MAX_EXECUTION_MS) {
       console.log(`Timeout defensivo atingido na página ${page}`);
       return { contacts, next_page: page, done: false, partial: true, seen_phones: Array.from(seenPhones) };
     }
+
+    console.log("Buscando pedidos com parâmetros:", { loja_id, data_inicial, data_final, page });
 
     const params = new URLSearchParams({
       dataInicial: data_inicial,
@@ -107,9 +111,15 @@ async function searchOrdersPaginated(
     if (!res.ok) {
       if (res.status === 429) {
         await sleep(2000);
-        continue; // retry same page, don't increment
+        continue;
       }
-      throw new Error(`Erro na API do Bling: ${res.status}`);
+      const errorBody = await res.text().catch(() => "");
+      console.error("===== ERRO BLING =====");
+      console.error("Status:", res.status);
+      console.error("URL:", url);
+      console.error("Resposta:", errorBody);
+      console.error("======================");
+      throw new Error(`Erro Bling ${res.status}: ${errorBody}`);
     }
 
     const json = await res.json();
