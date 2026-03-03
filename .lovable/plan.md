@@ -1,20 +1,12 @@
 
 
-## Alterar filtro de data na página Atribuir Clientes
+## Problema
 
-Mudança simples em **1 arquivo**:
+A página `/admin/ebd/pedidos-igrejas` (`PedidosOnline.tsx`) executa automaticamente a sincronização com o Shopify ao carregar (linhas 237-243). Quando a edge function `ebd-shopify-sync-orders` falha (retorna non-2xx), o toast de erro "Falha ao sincronizar pedidos" aparece imediatamente.
 
-**Arquivo:** `src/pages/shopify/PedidosOnline.tsx` — linha 296
+## Correção
 
-**De:**
-```typescript
-.gte("created_at", "2025-12-01T00:00:00.000Z")
-```
+Remover o `useEffect` de auto-sync (linhas 236-243) em `src/pages/shopify/PedidosOnline.tsx`. O botão "Sincronizar Pedidos" continuará disponível para sincronização manual quando necessário.
 
-**Para:**
-```typescript
-.gte("created_at", "2026-01-01T00:00:00.000Z")
-```
-
-Isso fará a página `/admin/ebd/pedidos-igrejas` exibir apenas pedidos a partir de 1º de janeiro de 2026.
+Também remover o state `hasAutoSynced` (linha 145) que não será mais usado.
 
