@@ -13,8 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
-import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2, Filter, Users, Phone, MessagesSquare } from "lucide-react";
+import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, Settings, ChevronDown, ChevronRight, Webhook, Activity, Smartphone, Loader2, Filter, Users, Phone, MessagesSquare, FileText } from "lucide-react";
 import WhatsAppChat from "@/components/admin/WhatsAppChat";
+import WhatsAppTemplatesList from "@/components/admin/WhatsAppTemplatesList";
 import { format } from "date-fns";
 
 const MESSAGE_TYPES = [
@@ -867,6 +868,10 @@ export default function WhatsAppPanel() {
             <MessageSquare className="h-4 w-4" />
             Enviar Mensagem
           </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Templates
+          </TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2">
             <Webhook className="h-4 w-4" />
             Webhooks
@@ -887,6 +892,10 @@ export default function WhatsAppPanel() {
 
         <TabsContent value="enviar">
           <SendMessageTab />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <WhatsAppTemplatesList />
         </TabsContent>
 
         <TabsContent value="webhooks">

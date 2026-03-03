@@ -6244,6 +6244,63 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_templates: {
+        Row: {
+          botoes: Json | null
+          cabecalho_texto: string | null
+          cabecalho_tipo: string | null
+          categoria: string
+          corpo: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          idioma: string
+          meta_rejection_reason: string | null
+          meta_template_id: string | null
+          nome: string
+          rodape: string | null
+          status: string
+          updated_at: string | null
+          variaveis_usadas: string[] | null
+        }
+        Insert: {
+          botoes?: Json | null
+          cabecalho_texto?: string | null
+          cabecalho_tipo?: string | null
+          categoria?: string
+          corpo: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          idioma?: string
+          meta_rejection_reason?: string | null
+          meta_template_id?: string | null
+          nome: string
+          rodape?: string | null
+          status?: string
+          updated_at?: string | null
+          variaveis_usadas?: string[] | null
+        }
+        Update: {
+          botoes?: Json | null
+          cabecalho_texto?: string | null
+          cabecalho_tipo?: string | null
+          categoria?: string
+          corpo?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          idioma?: string
+          meta_rejection_reason?: string | null
+          meta_template_id?: string | null
+          nome?: string
+          rodape?: string | null
+          status?: string
+          updated_at?: string | null
+          variaveis_usadas?: string[] | null
+        }
+        Relationships: []
+      }
       whatsapp_webhooks: {
         Row: {
           created_at: string
