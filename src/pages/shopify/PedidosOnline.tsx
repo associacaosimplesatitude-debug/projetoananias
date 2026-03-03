@@ -142,7 +142,7 @@ export default function PedidosOnline() {
     to: Date | undefined;
   }>({ from: undefined, to: undefined });
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [hasAutoSynced, setHasAutoSynced] = useState(false);
+  
   const [selectedPedido, setSelectedPedido] = useState<ShopifyPedido | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -233,14 +233,6 @@ export default function PedidosOnline() {
     },
   });
 
-  // Auto-sync once when entering the page with default filter ("Todos")
-  useEffect(() => {
-    if (dateFilter !== "all") return;
-    if (hasAutoSynced) return;
-    setHasAutoSynced(true);
-    syncOrdersMutation.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFilter, hasAutoSynced]);
 
   // Realtime subscription for automatic updates
   useEffect(() => {
