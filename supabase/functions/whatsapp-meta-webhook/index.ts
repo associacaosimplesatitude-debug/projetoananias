@@ -1,6 +1,4 @@
-// DEPRECATED: This function is inactive (404) due to edge function limit.
-// The Meta webhook is now handled inside whatsapp-webhook.
-// Keeping this file for reference only.
+// Legacy endpoint - forwards all requests to whatsapp-webhook for unified handling
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -9,53 +7,67 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+async function getVerifyToken(): Promise<string> {
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "whatsapp_verify_token")
+      .maybeSingle();
+    if (data?.value) return data.value;
+  } catch { /* ignore */ }
+  return "centralgospel123";
+}
+
 Deno.serve(async (req) => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // GET - Webhook verification (Meta challenge)
+  // GET - Meta verification challenge
   if (req.method === "GET") {
     const url = new URL(req.url);
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    if (mode === "subscribe" && token === "MEU_VERIFY_TOKEN_123") {
-      console.log("[whatsapp-meta-webhook] Verification OK");
-      return new Response(challenge, { status: 200, headers: corsHeaders });
+    if (mode === "subscribe" && token && challenge) {
+      const expectedToken = await getVerifyToken();
+      if (token === expectedToken) {
+        console.log("[whatsapp-meta-webhook] Verification OK (legacy endpoint)");
+        return new Response(challenge, { status: 200, headers: corsHeaders });
+      }
+      console.log("[whatsapp-meta-webhook] Verification FAILED");
+      return new Response("Forbidden", { status: 403, headers: corsHeaders });
     }
-
-    console.log("[whatsapp-meta-webhook] Verification FAILED", { mode, token });
-    return new Response("Forbidden", { status: 403, headers: corsHeaders });
   }
 
-  // POST - Receive events
+  // POST - Forward to main webhook handler via internal call
   if (req.method === "POST") {
     try {
       const body = await req.json();
-      console.log("[whatsapp-meta-webhook] Event received:", JSON.stringify(body));
+      console.log("[whatsapp-meta-webhook] Forwarding to main handler");
 
-      // Save to whatsapp_webhooks for auditing
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
+      // Call the main whatsapp-webhook function
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-      const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-      const telefone = message?.from || body?.entry?.[0]?.changes?.[0]?.value?.metadata?.display_phone_number || null;
-      const messageId = message?.id || null;
-      const evento = body?.entry?.[0]?.changes?.[0]?.field || "meta_webhook";
-
-      await supabase.from("whatsapp_webhooks").insert({
-        evento,
-        telefone,
-        message_id: messageId,
-        payload: body,
+      const res = await fetch(`${supabaseUrl}/functions/v1/whatsapp-webhook`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${serviceKey}`,
+        },
+        body: JSON.stringify(body),
       });
 
-      return new Response(JSON.stringify({ success: true }), {
+      const result = await res.json().catch(() => ({ success: true }));
+
+      return new Response(JSON.stringify(result), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

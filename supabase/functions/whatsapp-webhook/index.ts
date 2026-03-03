@@ -136,29 +136,22 @@ const OPENAI_TOOLS = [
 ];
 
 function normalizePhone(phone: string): string {
-  // Remove tudo que não é número
   return phone.replace(/\D/g, "");
 }
 
 function isReceivedMessage(payload: Record<string, unknown>): boolean {
-  // Z-API sends received messages with these patterns
   const event = payload.event as string | undefined;
   const type = payload.type as string | undefined;
   const isFromMe = payload.fromMe as boolean | undefined;
   
   if (isFromMe === true) return false;
-  
   if (event === "received" || type === "ReceivedCallback") return true;
-  
-  // Check for text message content
   if (payload.text && typeof (payload.text as Record<string, unknown>).message === "string") return true;
   if (payload.body && typeof payload.body === "string" && !isFromMe) return true;
   
-  // Check for image message
   const image = payload.image as Record<string, unknown> | undefined;
   if (image && (image.imageUrl || image.caption)) return true;
   
-  // Check for audio message
   const audio = payload.audio as Record<string, unknown> | undefined;
   if (audio && (audio.audioUrl || audio.url)) return true;
   
@@ -166,19 +159,13 @@ function isReceivedMessage(payload: Record<string, unknown>): boolean {
 }
 
 function extractMessageText(payload: Record<string, unknown>): string | null {
-  // Try different Z-API payload structures
   const text = payload.text as Record<string, unknown> | undefined;
   if (text?.message && typeof text.message === "string") return text.message;
-  
   if (payload.body && typeof payload.body === "string") return payload.body as string;
-  
   const message = payload.message as Record<string, unknown> | undefined;
   if (message?.body && typeof message.body === "string") return message.body as string;
-
-  // Image with caption
   const image = payload.image as Record<string, unknown> | undefined;
   if (image?.caption && typeof image.caption === "string") return image.caption;
-  
   return null;
 }
 
@@ -199,63 +186,69 @@ function extractAudioUrl(payload: Record<string, unknown>): string | null {
 function extractPhone(payload: Record<string, unknown>): string | null {
   const phone = payload.phone as string | undefined;
   if (phone) return normalizePhone(phone);
-  
   const from = payload.from as string | undefined;
   if (from) return normalizePhone(from);
-  
   const chatId = payload.chatId as string | undefined;
   if (chatId) return normalizePhone(chatId.replace("@c.us", "").replace("@g.us", ""));
-  
   return null;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+// ── Detect if a payload is from Meta (entry[].changes[] structure) ──
+function isMetaPayload(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  return Array.isArray(b.entry) && (b.entry as unknown[]).length > 0;
+}
 
-  // === META WHATSAPP WEBHOOK ROUTE ===
-  const url = new URL(req.url);
-  const pathSegments = url.pathname.split("/").filter(Boolean);
-  const lastSegment = pathSegments[pathSegments.length - 1];
+// ── Get verify token from system_settings (with fallback) ──
+async function getVerifyToken(supabase: ReturnType<typeof createClient>): Promise<string> {
+  try {
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "whatsapp_verify_token")
+      .maybeSingle();
+    if (data?.value) return data.value;
+  } catch { /* ignore */ }
+  return "centralgospel123"; // fallback
+}
 
-  if (lastSegment === "whatsapp-meta-webhook") {
-    // GET - Meta verification
-    if (req.method === "GET") {
-      const mode = url.searchParams.get("hub.mode");
-      const token = url.searchParams.get("hub.verify_token");
-      const challenge = url.searchParams.get("hub.challenge");
+// ── Process Meta webhook POST payload ──
+async function handleMetaPost(
+  supabase: ReturnType<typeof createClient>,
+  body: Record<string, unknown>
+) {
+  const entries = (body.entry || []) as Array<Record<string, unknown>>;
 
-      if (mode === "subscribe" && token === "centralgospel123") {
-        console.log("Meta webhook verified successfully");
-        return new Response(challenge || "", {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "text/plain" },
+  for (const entry of entries) {
+    const changes = (entry.changes || []) as Array<Record<string, unknown>>;
+
+    for (const change of changes) {
+      const value = change.value as Record<string, unknown> | undefined;
+      if (!value) continue;
+
+      const evento = (change.field as string) || "meta_webhook";
+      const messages = (value.messages || []) as Array<Record<string, unknown>>;
+      const statuses = (value.statuses || []) as Array<Record<string, unknown>>;
+
+      // Save statuses for auditing
+      for (const status of statuses) {
+        const recipientId = status.recipient_id as string | undefined;
+        const statusMessageId = status.id as string | undefined;
+        await supabase.from("whatsapp_webhooks").insert({
+          evento: "meta_status",
+          telefone: recipientId || null,
+          message_id: statusMessageId || null,
+          payload: body,
         });
       }
-      return new Response("Forbidden", { status: 403, headers: corsHeaders });
-    }
 
-    // POST - Receive Meta events
-    if (req.method === "POST") {
-      try {
-        const body = await req.json();
-        console.log("Meta webhook event:", JSON.stringify(body));
+      // Process each incoming message
+      for (const message of messages) {
+        const telefone = (message.from as string) || null;
+        const messageId = (message.id as string) || null;
 
-        const supabase = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-        );
-
-        const entry = body?.entry?.[0];
-        const changes = entry?.changes?.[0];
-        const value = changes?.value;
-        const message = value?.messages?.[0];
-        const telefone = message?.from || value?.metadata?.display_phone_number || null;
-        const messageId = message?.id || null;
-        const evento = changes?.field || "meta_webhook";
-
-        // Always save raw webhook for auditing
+        // Audit log
         await supabase.from("whatsapp_webhooks").insert({
           evento,
           telefone,
@@ -263,130 +256,56 @@ Deno.serve(async (req) => {
           payload: body,
         });
 
-        // Process incoming messages and save to whatsapp_conversas
-        if (message && telefone) {
-          const senderPhone = normalizePhone(telefone);
-          let contentToSave: string | null = null;
-          let imageUrl: string | null = null;
-          let audioUrl: string | null = null;
+        if (!telefone) continue;
+        const senderPhone = normalizePhone(telefone);
 
-          // Extract text
-          if (message.type === "text" && message.text?.body) {
-            contentToSave = message.text.body;
-          }
-          // Extract image
-          else if (message.type === "image") {
-            imageUrl = message.image?.id ? `meta-media:${message.image.id}` : null;
-            contentToSave = message.image?.caption || "[Imagem]";
-          }
-          // Extract audio
-          else if (message.type === "audio" || message.type === "voice") {
-            audioUrl = message.audio?.id ? `meta-media:${message.audio.id}` : null;
-            contentToSave = "[Áudio]";
-          }
-          // Extract button response
-          else if (message.type === "button") {
-            contentToSave = message.button?.text || message.button?.payload || "[Botão]";
-          }
-          // Extract interactive response
-          else if (message.type === "interactive") {
-            contentToSave = message.interactive?.button_reply?.title 
-              || message.interactive?.list_reply?.title 
-              || "[Interação]";
-          }
+        let contentToSave: string | null = null;
+        let imageUrl: string | null = null;
+        let audioUrl: string | null = null;
 
-          if (contentToSave && senderPhone) {
-            console.log(`[Meta] Received from ${senderPhone}: ${contentToSave}`);
+        const msgType = message.type as string;
 
-            // Look up client by phone variants
-            const phoneSuffixes = [senderPhone, senderPhone.slice(-11), senderPhone.slice(-10)];
-            let clienteId = null;
-            for (const suffix of phoneSuffixes) {
-              const { data } = await supabase
-                .from("ebd_clientes")
-                .select("id")
-                .or(`telefone.ilike.%${suffix}`)
-                .limit(1)
-                .single();
-              if (data) {
-                clienteId = data.id;
-                break;
-              }
-            }
-
-            // Save to whatsapp_conversas
-            await supabase.from("whatsapp_conversas").insert({
-              telefone: senderPhone,
-              cliente_id: clienteId,
-              role: "user",
-              content: contentToSave,
-              imagem_url: imageUrl,
-              audio_url: audioUrl,
-            });
-
-            // Check if AI agent is active
-            const { data: agenteIaSetting } = await supabase
-              .from("system_settings")
-              .select("value")
-              .eq("key", "whatsapp_agente_ia_ativo")
-              .maybeSingle();
-
-            if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]" && contentToSave !== "[Áudio]") {
-              await processIncomingMessage(supabase, senderPhone, contentToSave);
-            } else {
-              console.log("[Meta] Agente de IA desativado - mensagem salva sem processamento IA");
-            }
-          }
+        if (msgType === "text") {
+          const textObj = message.text as Record<string, unknown> | undefined;
+          contentToSave = (textObj?.body as string) || null;
+        } else if (msgType === "image") {
+          const imgObj = message.image as Record<string, unknown> | undefined;
+          imageUrl = imgObj?.id ? `meta-media:${imgObj.id}` : null;
+          contentToSave = (imgObj?.caption as string) || "[Imagem]";
+        } else if (msgType === "audio" || msgType === "voice") {
+          const audObj = message.audio as Record<string, unknown> | undefined;
+          audioUrl = audObj?.id ? `meta-media:${audObj.id}` : null;
+          contentToSave = "[Áudio]";
+        } else if (msgType === "button") {
+          const btnObj = message.button as Record<string, unknown> | undefined;
+          contentToSave = (btnObj?.text as string) || (btnObj?.payload as string) || "[Botão]";
+        } else if (msgType === "interactive") {
+          const intObj = message.interactive as Record<string, unknown> | undefined;
+          const btnReply = intObj?.button_reply as Record<string, unknown> | undefined;
+          const listReply = intObj?.list_reply as Record<string, unknown> | undefined;
+          contentToSave = (btnReply?.title as string) || (listReply?.title as string) || "[Interação]";
+        } else if (msgType === "sticker") {
+          contentToSave = "[Sticker]";
+        } else if (msgType === "video") {
+          contentToSave = "[Vídeo]";
+        } else if (msgType === "document") {
+          contentToSave = "[Documento]";
+        } else if (msgType === "location") {
+          contentToSave = "[Localização]";
+        } else if (msgType === "contacts") {
+          contentToSave = "[Contato]";
+        } else if (msgType === "reaction") {
+          // Reactions don't need to be saved as messages
+          continue;
+        } else {
+          contentToSave = `[${msgType || "Mensagem"}]`;
         }
 
-        return new Response(JSON.stringify({ success: true }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      } catch (err) {
-        console.error("Meta webhook error:", err);
-        return new Response(JSON.stringify({ success: true }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
-  }
-  // === END META WEBHOOK ROUTE ===
+        if (!contentToSave || !senderPhone) continue;
 
-  try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+        console.log(`[Meta] Received from ${senderPhone}: ${contentToSave}`);
 
-    const payload = await req.json();
-
-    // Extract common fields for logging
-    const evento = payload.event || payload.type || payload.status || "unknown";
-    const telefone = payload.phone || payload.from || payload.chatId || null;
-    const messageId = payload.messageId || payload.id?.id || payload.ids?.[0] || null;
-
-    // Always log the webhook
-    await supabase.from("whatsapp_webhooks").insert({
-      evento,
-      payload,
-      telefone,
-      message_id: messageId,
-    });
-
-    // Check if this is a received text message
-    if (isReceivedMessage(payload)) {
-      const messageText = extractMessageText(payload);
-      const imageUrl = extractImageUrl(payload);
-      const audioUrl = extractAudioUrl(payload);
-      const senderPhone = extractPhone(payload);
-
-      if ((messageText || imageUrl || audioUrl) && senderPhone) {
-        const contentToSave = messageText || (imageUrl ? "[Imagem]" : (audioUrl ? "[Áudio]" : ""));
-        console.log(`Received message from ${senderPhone}: ${contentToSave}${imageUrl ? " [com imagem]" : ""}${audioUrl ? " [com áudio]" : ""}`);
-
-        // SEMPRE salvar mensagem recebida em whatsapp_conversas
-        // Look up client by phone for the cliente_id
+        // Look up client by phone variants
         const phoneSuffixes = [senderPhone, senderPhone.slice(-11), senderPhone.slice(-10)];
         let clienteId = null;
         for (const suffix of phoneSuffixes) {
@@ -402,6 +321,7 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Save to whatsapp_conversas
         await supabase.from("whatsapp_conversas").insert({
           telefone: senderPhone,
           cliente_id: clienteId,
@@ -411,32 +331,159 @@ Deno.serve(async (req) => {
           audio_url: audioUrl,
         });
 
-        // Verificar se o agente IA está ativo para processar com OpenAI
+        // Check if AI agent is active
         const { data: agenteIaSetting } = await supabase
           .from("system_settings")
           .select("value")
           .eq("key", "whatsapp_agente_ia_ativo")
           .maybeSingle();
 
-        if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]" && contentToSave !== "[Áudio]") {
+        if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]" && contentToSave !== "[Áudio]" && !contentToSave.startsWith("[")) {
           await processIncomingMessage(supabase, senderPhone, contentToSave);
         } else {
-          console.log("Agente de IA desativado - mensagem salva sem processamento IA");
+          console.log("[Meta] Agente de IA desativado ou tipo não-texto - mensagem salva sem processamento IA");
         }
       }
-    }
 
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("Webhook error:", error);
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+      // If no messages and no statuses, still audit the raw event
+      if (messages.length === 0 && statuses.length === 0) {
+        await supabase.from("whatsapp_webhooks").insert({
+          evento,
+          telefone: null,
+          message_id: null,
+          payload: body,
+        });
+      }
+    }
   }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const url = new URL(req.url);
+
+  // ── GET: Meta verification (works on ANY path) ──
+  if (req.method === "GET") {
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge");
+
+    if (mode === "subscribe" && token && challenge) {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      const expectedToken = await getVerifyToken(supabase);
+
+      if (token === expectedToken) {
+        console.log("[Webhook] Meta verification OK");
+        return new Response(challenge, {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "text/plain" },
+        });
+      }
+      console.log("[Webhook] Meta verification FAILED - token mismatch:", token, "expected:", expectedToken);
+      return new Response("Forbidden", { status: 403, headers: corsHeaders });
+    }
+  }
+
+  // ── POST: handle incoming events ──
+  if (req.method === "POST") {
+    try {
+      const body = await req.json();
+
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+
+      // ── Detect Meta payload by structure (not by URL path) ──
+      if (isMetaPayload(body)) {
+        console.log("[Webhook] Meta payload detected, processing...");
+        await handleMetaPost(supabase, body);
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ── Z-API / legacy payload ──
+      const evento = body.event || body.type || body.status || "unknown";
+      const telefone = body.phone || body.from || body.chatId || null;
+      const messageId = body.messageId || body.id?.id || body.ids?.[0] || null;
+
+      await supabase.from("whatsapp_webhooks").insert({
+        evento,
+        payload: body,
+        telefone,
+        message_id: messageId,
+      });
+
+      if (isReceivedMessage(body)) {
+        const messageText = extractMessageText(body);
+        const imageUrl = extractImageUrl(body);
+        const audioUrl = extractAudioUrl(body);
+        const senderPhone = extractPhone(body);
+
+        if ((messageText || imageUrl || audioUrl) && senderPhone) {
+          const contentToSave = messageText || (imageUrl ? "[Imagem]" : (audioUrl ? "[Áudio]" : ""));
+          console.log(`Received message from ${senderPhone}: ${contentToSave}`);
+
+          const phoneSuffixes = [senderPhone, senderPhone.slice(-11), senderPhone.slice(-10)];
+          let clienteId = null;
+          for (const suffix of phoneSuffixes) {
+            const { data } = await supabase
+              .from("ebd_clientes")
+              .select("id")
+              .or(`telefone.ilike.%${suffix}`)
+              .limit(1)
+              .single();
+            if (data) {
+              clienteId = data.id;
+              break;
+            }
+          }
+
+          await supabase.from("whatsapp_conversas").insert({
+            telefone: senderPhone,
+            cliente_id: clienteId,
+            role: "user",
+            content: contentToSave,
+            imagem_url: imageUrl,
+            audio_url: audioUrl,
+          });
+
+          const { data: agenteIaSetting } = await supabase
+            .from("system_settings")
+            .select("value")
+            .eq("key", "whatsapp_agente_ia_ativo")
+            .maybeSingle();
+
+          if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]" && contentToSave !== "[Áudio]") {
+            await processIncomingMessage(supabase, senderPhone, contentToSave);
+          } else {
+            console.log("Agente de IA desativado - mensagem salva sem processamento IA");
+          }
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("Webhook error:", error);
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  return new Response("OK", { status: 200, headers: corsHeaders });
 });
 
 async function processIncomingMessage(
@@ -445,7 +492,6 @@ async function processIncomingMessage(
   messageText: string
 ) {
   try {
-    // 1. Look up client by phone (try multiple formats)
     const phoneSuffixes = [phone, phone.slice(-11), phone.slice(-10)];
     let cliente = null;
 
@@ -463,7 +509,6 @@ async function processIncomingMessage(
       }
     }
 
-    // 2. Get funil tracking if client found
     let tracking = null;
     if (cliente) {
       const { data } = await supabase
@@ -474,7 +519,6 @@ async function processIncomingMessage(
       tracking = data;
     }
 
-    // 3. Get conversation history (last 10 messages)
     const { data: historico } = await supabase
       .from("whatsapp_conversas")
       .select("role, content")
@@ -482,9 +526,6 @@ async function processIncomingMessage(
       .order("created_at", { ascending: false })
       .limit(10);
 
-    // User message already saved before calling processIncomingMessage
-
-    // 5. Build context for OpenAI
     const contextParts: string[] = [];
     if (cliente) {
       contextParts.push(`Cliente: ${cliente.nome_igreja}`);
@@ -505,24 +546,19 @@ async function processIncomingMessage(
 
     const contextMessage = `\n\n--- CONTEXTO DO CLIENTE ---\n${contextParts.join("\n")}`;
 
-    // Build messages array
     const messages: Array<{ role: string; content: string }> = [
       { role: "system", content: SYSTEM_PROMPT + contextMessage },
     ];
 
-    // Add conversation history (reversed to chronological order)
     if (historico && historico.length > 0) {
       const reversed = [...historico].reverse();
-      // Skip the last one since it's the current message we just saved
       for (const msg of reversed.slice(0, -1)) {
         messages.push({ role: msg.role, content: msg.content });
       }
     }
 
-    // Add current user message
     messages.push({ role: "user", content: messageText });
 
-    // 6. Call OpenAI
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
       console.error("OPENAI_API_KEY not configured");
@@ -559,7 +595,6 @@ async function processIncomingMessage(
       return;
     }
 
-    // 7. Process the response
     let responseText = "";
     let toolUsed = null;
 
@@ -584,10 +619,8 @@ async function processIncomingMessage(
       responseText = "Olá! Sou o assistente da Central Gospel. Como posso ajudar você hoje? 📚";
     }
 
-    // 8. Send response via Z-API
     await sendZApiMessage(supabase, phone, responseText);
 
-    // 9. Save assistant response to history
     await supabase.from("whatsapp_conversas").insert({
       telefone: phone,
       cliente_id: cliente?.id || null,
@@ -619,7 +652,6 @@ async function handleEnviarCredenciais(
     return `Olá! Identificamos sua igreja *${nomeIgreja}* no sistema, mas as credenciais ainda não foram configuradas. Nossa equipe vai preparar seu acesso e enviar em breve! 🙏`;
   }
 
-  // Update tracking to phase 2 if applicable
   if (cliente.id) {
     await supabase
       .from("funil_posv_tracking")
@@ -649,7 +681,6 @@ async function sendZApiMessage(
   message: string
 ) {
   try {
-    // Get Z-API credentials
     const { data: settings } = await supabase
       .from("system_settings")
       .select("key, value")
@@ -682,7 +713,6 @@ async function sendZApiMessage(
 
     const zapiResult = await zapiResponse.json();
 
-    // Log the message
     await supabase.from("whatsapp_mensagens").insert({
       tipo_mensagem: "agente_ia",
       telefone_destino: phone,
