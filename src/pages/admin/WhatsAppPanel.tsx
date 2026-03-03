@@ -51,15 +51,16 @@ function JsonBlock({ data, label }: { data: unknown; label: string }) {
 
 function CredentialsTab() {
   const queryClient = useQueryClient();
-  const [showToken, setShowToken] = useState(false);
-  const [showClientToken, setShowClientToken] = useState(false);
-  const [instanceId, setInstanceId] = useState("");
-  const [token, setToken] = useState("");
-  const [clientToken, setClientToken] = useState("");
-  const [statusResult, setStatusResult] = useState<any>(null);
-  const [deviceResult, setDeviceResult] = useState<any>(null);
-  const [loadingStatus, setLoadingStatus] = useState(false);
-  const [loadingDevice, setLoadingDevice] = useState(false);
+  const [showAccessToken, setShowAccessToken] = useState(false);
+  const [phoneNumberId, setPhoneNumberId] = useState("");
+  const [businessAccountId, setBusinessAccountId] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [verifyToken, setVerifyToken] = useState("");
+  const [testNumber, setTestNumber] = useState("");
+  const [connectionResult, setConnectionResult] = useState<any>(null);
+  const [sendResult, setSendResult] = useState<any>(null);
+  const [loadingConnection, setLoadingConnection] = useState(false);
+  const [loadingSend, setLoadingSend] = useState(false);
 
   // Auto envio toggle
   const [autoEnvio, setAutoEnvio] = useState(true);
@@ -69,13 +70,15 @@ function CredentialsTab() {
   const [agenteIa, setAgenteIa] = useState(false);
   const [loadingAgenteIa, setLoadingAgenteIa] = useState(false);
 
+  const WEBHOOK_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-webhook/whatsapp-meta-webhook";
+
   const { data: settings, isLoading } = useQuery({
-    queryKey: ["system-settings-zapi"],
+    queryKey: ["system-settings-whatsapp-meta"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("system_settings")
         .select("key, value")
-        .in("key", ["zapi_instance_id", "zapi_token", "zapi_client_token"]);
+        .in("key", ["whatsapp_phone_number_id", "whatsapp_business_account_id", "whatsapp_access_token", "whatsapp_verify_token"]);
       if (error) throw error;
       const map: Record<string, string> = {};
       (data || []).forEach((s) => { map[s.key] = s.value; });
@@ -109,13 +112,14 @@ function CredentialsTab() {
     },
   });
 
-  useState(() => {
+  useEffect(() => {
     if (settings) {
-      setInstanceId(settings["zapi_instance_id"] || "");
-      setToken(settings["zapi_token"] || "");
-      setClientToken(settings["zapi_client_token"] || "");
+      setPhoneNumberId(settings["whatsapp_phone_number_id"] || "");
+      setBusinessAccountId(settings["whatsapp_business_account_id"] || "");
+      setAccessToken(settings["whatsapp_access_token"] || "");
+      setVerifyToken(settings["whatsapp_verify_token"] || "");
     }
-  });
+  }, [settings]);
 
   useEffect(() => {
     if (autoEnvioSetting !== undefined) setAutoEnvio(autoEnvioSetting);
@@ -125,17 +129,15 @@ function CredentialsTab() {
     if (agenteIaSetting !== undefined) setAgenteIa(agenteIaSetting);
   }, [agenteIaSetting]);
 
-  const currentInstanceId = instanceId || settings?.["zapi_instance_id"] || "";
-  const currentToken = token || settings?.["zapi_token"] || "";
-  const currentClientToken = clientToken || settings?.["zapi_client_token"] || "";
-  const isConfigured = !!(settings?.["zapi_instance_id"] && settings?.["zapi_token"] && settings?.["zapi_client_token"]);
+  const isConfigured = !!(phoneNumberId && businessAccountId && accessToken);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const entries = [
-        { key: "zapi_instance_id", value: currentInstanceId, description: "Z-API ID da Instância" },
-        { key: "zapi_token", value: currentToken, description: "Z-API Token da Instância" },
-        { key: "zapi_client_token", value: currentClientToken, description: "Z-API Token de Segurança da Conta" },
+        { key: "whatsapp_phone_number_id", value: phoneNumberId, description: "Meta WhatsApp Phone Number ID" },
+        { key: "whatsapp_business_account_id", value: businessAccountId, description: "Meta WhatsApp Business Account ID" },
+        { key: "whatsapp_access_token", value: accessToken, description: "Meta WhatsApp Access Token" },
+        { key: "whatsapp_verify_token", value: verifyToken, description: "Meta WhatsApp Verify Token" },
       ];
       for (const entry of entries) {
         const { error } = await supabase
@@ -144,25 +146,42 @@ function CredentialsTab() {
         if (error) throw error;
       }
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["system-settings-zapi"] }); toast.success("Credenciais salvas com sucesso!"); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["system-settings-whatsapp-meta"] }); toast.success("Credenciais salvas com sucesso!"); },
     onError: (err: Error) => { toast.error("Erro ao salvar: " + err.message); },
   });
 
-  const fetchInstanceInfo = async (action: "status" | "device") => {
-    const setLoading = action === "status" ? setLoadingStatus : setLoadingDevice;
-    const setResult = action === "status" ? setStatusResult : setDeviceResult;
-    setLoading(true);
-    setResult(null);
+  const testConnection = async () => {
+    setLoadingConnection(true);
+    setConnectionResult(null);
     try {
-      const response = await supabase.functions.invoke("zapi-instance-info", { body: { action } });
+      const response = await supabase.functions.invoke("whatsapp-meta-test", {
+        body: { action: "test_connection", business_account_id: businessAccountId, access_token: accessToken },
+      });
       if (response.error) throw new Error(response.error.message);
-      if (response.data?.error) throw new Error(response.data.error);
-      setResult(response.data?.data);
+      setConnectionResult(response.data);
     } catch (err: any) {
-      toast.error(`Erro ao buscar ${action}: ${err.message}`);
-      setResult({ error: err.message });
+      toast.error("Erro ao testar conexão: " + err.message);
+      setConnectionResult({ success: false, error: err.message });
     } finally {
-      setLoading(false);
+      setLoadingConnection(false);
+    }
+  };
+
+  const testSend = async () => {
+    if (!testNumber) { toast.error("Informe o número de teste"); return; }
+    setLoadingSend(true);
+    setSendResult(null);
+    try {
+      const response = await supabase.functions.invoke("whatsapp-meta-test", {
+        body: { action: "test_send", phone_number_id: phoneNumberId, access_token: accessToken, test_number: testNumber },
+      });
+      if (response.error) throw new Error(response.error.message);
+      setSendResult(response.data);
+    } catch (err: any) {
+      toast.error("Erro ao enviar teste: " + err.message);
+      setSendResult({ success: false, error: err.message });
+    } finally {
+      setLoadingSend(false);
     }
   };
 
@@ -198,8 +217,12 @@ function CredentialsTab() {
     }
   };
 
-  if (isLoading) return <div className="flex items-center justify-center p-8 text-muted-foreground">Carregando...</div>;
+  const copyWebhookUrl = () => {
+    navigator.clipboard.writeText(WEBHOOK_URL);
+    toast.success("URL do Webhook copiada!");
+  };
 
+  if (isLoading) return <div className="flex items-center justify-center p-8 text-muted-foreground">Carregando...</div>;
 
   return (
     <div className="space-y-4">
@@ -231,8 +254,8 @@ function CredentialsTab() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">Credenciais Z-API</CardTitle>
-              <CardDescription>Configure as credenciais da sua instância Z-API para envio de mensagens WhatsApp.</CardDescription>
+              <CardTitle className="text-lg">Credenciais API Oficial Meta</CardTitle>
+              <CardDescription>Configure as credenciais da API Oficial do WhatsApp Business (Meta Cloud API).</CardDescription>
             </div>
             <Badge variant={isConfigured ? "default" : "destructive"} className="gap-1">
               {isConfigured ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
@@ -241,26 +264,34 @@ function CredentialsTab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="instance-id">ID da Instância</Label>
-            <Input id="instance-id" placeholder="Ex: 3C7A..." value={currentInstanceId} onChange={(e) => setInstanceId(e.target.value)} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="phone-number-id">Phone Number ID</Label>
+              <Input id="phone-number-id" placeholder="Ex: 1050166738160490" value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="business-account-id">WhatsApp Business Account ID</Label>
+              <Input id="business-account-id" placeholder="Ex: 925435919846260" value={businessAccountId} onChange={(e) => setBusinessAccountId(e.target.value)} />
+            </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="zapi-token">Token da Instância</Label>
+            <Label htmlFor="access-token">Access Token</Label>
             <div className="relative">
-              <Input id="zapi-token" type={showToken ? "text" : "password"} placeholder="Token da instância Z-API" value={currentToken} onChange={(e) => setToken(e.target.value)} className="pr-10" />
-              <button type="button" onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              <Input id="access-token" type={showAccessToken ? "text" : "password"} placeholder="EAAaJ7mIEXVMBQ..." value={accessToken} onChange={(e) => setAccessToken(e.target.value)} className="pr-10 font-mono text-xs" />
+              <button type="button" onClick={() => setShowAccessToken(!showAccessToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showAccessToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="client-token">Token de Segurança da Conta</Label>
-            <div className="relative">
-              <Input id="client-token" type={showClientToken ? "text" : "password"} placeholder="Token de segurança da conta" value={currentClientToken} onChange={(e) => setClientToken(e.target.value)} className="pr-10" />
-              <button type="button" onClick={() => setShowClientToken(!showClientToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                {showClientToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+            <Label htmlFor="verify-token">Verify Token (Webhook)</Label>
+            <Input id="verify-token" placeholder="centralgospel123" value={verifyToken} onChange={(e) => setVerifyToken(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>URL do Webhook (copie para o Meta Developers)</Label>
+            <div className="flex gap-2">
+              <Input value={WEBHOOK_URL} readOnly className="font-mono text-xs bg-muted" />
+              <Button variant="outline" size="sm" onClick={copyWebhookUrl}>Copiar</Button>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -268,67 +299,76 @@ function CredentialsTab() {
               <Save className="h-4 w-4" />
               {saveMutation.isPending ? "Salvando..." : "Salvar Credenciais"}
             </Button>
-            <Button variant="outline" onClick={() => fetchInstanceInfo("status")} disabled={loadingStatus || !isConfigured} className="gap-2">
-              {loadingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
-              Verificar Status
+            <Button variant="outline" onClick={testConnection} disabled={loadingConnection || !isConfigured} className="gap-2">
+              {loadingConnection ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
+              Testar Conexão
             </Button>
-            <Button variant="outline" onClick={() => fetchInstanceInfo("device")} disabled={loadingDevice || !isConfigured} className="gap-2">
-              {loadingDevice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
-              Dados do Celular
+          </div>
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="test-number">Número para Teste</Label>
+              <Input id="test-number" placeholder="21999999999" value={testNumber} onChange={(e) => setTestNumber(e.target.value)} />
+            </div>
+            <Button variant="outline" onClick={testSend} disabled={loadingSend || !isConfigured || !testNumber} className="gap-2">
+              {loadingSend ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Enviar Teste
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {statusResult && (
+      {connectionResult && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              Status da Instância
+              Resultado da Conexão
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {!statusResult.error && (
-              <div className="flex flex-wrap gap-3">
-                <Badge variant={statusResult.connected ? "default" : "destructive"}>
-                  {statusResult.connected ? "Conectado" : "Desconectado"}
-                </Badge>
-                {statusResult.smartPhoneConnected !== undefined && (
-                  <Badge variant={statusResult.smartPhoneConnected ? "default" : "secondary"}>
-                    Celular: {statusResult.smartPhoneConnected ? "Online" : "Offline"}
-                  </Badge>
-                )}
-                {statusResult.session && (
-                  <Badge variant="outline">Sessão: {statusResult.session}</Badge>
-                )}
+            <Badge variant={connectionResult.success ? "default" : "destructive"}>
+              {connectionResult.success ? "✅ Conexão OK" : "❌ Falha na conexão"}
+            </Badge>
+            {connectionResult.error && (
+              <p className="text-sm text-destructive">{connectionResult.error}</p>
+            )}
+            {connectionResult.phone_numbers && (
+              <div className="space-y-2">
+                <span className="text-sm font-semibold">Números encontrados:</span>
+                <div className="space-y-1">
+                  {connectionResult.phone_numbers.map((p: any) => (
+                    <div key={p.id} className="flex flex-wrap gap-2 items-center text-sm">
+                      <Badge variant="outline">📞 {p.display_phone_number}</Badge>
+                      <Badge variant="secondary">👤 {p.verified_name}</Badge>
+                      <Badge variant="secondary">⭐ {p.quality_rating}</Badge>
+                      <span className="text-xs text-muted-foreground">ID: {p.id}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-            <JsonBlock data={statusResult} label="📋 Resposta completa" />
+            {connectionResult.details && <JsonBlock data={connectionResult.details} label="📋 Detalhes do erro" />}
           </CardContent>
         </Card>
       )}
 
-      {deviceResult && (
+      {sendResult && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Smartphone className="h-5 w-5" />
-              Dados do Celular
+              <Send className="h-5 w-5" />
+              Resultado do Envio de Teste
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {!deviceResult.error && (
-              <div className="flex flex-wrap gap-3 items-center">
-                {deviceResult.imgUrl && (
-                  <img src={deviceResult.imgUrl} alt="Foto do perfil" className="h-10 w-10 rounded-full object-cover" />
-                )}
-                {deviceResult.phone && <Badge variant="outline">📞 {deviceResult.phone}</Badge>}
-                {deviceResult.name && <Badge variant="outline">👤 {deviceResult.name}</Badge>}
-                {deviceResult.device?.device_model && <Badge variant="secondary">📱 {deviceResult.device.device_model}</Badge>}
-              </div>
+            <Badge variant={sendResult.success ? "default" : "destructive"}>
+              {sendResult.success ? "✅ Mensagem enviada" : "❌ Falha no envio"}
+            </Badge>
+            {sendResult.error && (
+              <p className="text-sm text-destructive">{sendResult.error}</p>
             )}
-            <JsonBlock data={deviceResult} label="📋 Resposta completa" />
+            {sendResult.data && <JsonBlock data={sendResult.data} label="📋 Resposta da API" />}
+            {sendResult.details && <JsonBlock data={sendResult.details} label="📋 Detalhes do erro" />}
           </CardContent>
         </Card>
       )}
@@ -741,7 +781,7 @@ export default function WhatsAppPanel() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">WhatsApp</h1>
-        <p className="text-muted-foreground">Envie mensagens via WhatsApp usando a Z-API.</p>
+        <p className="text-muted-foreground">Envie mensagens via WhatsApp usando a API Oficial Meta.</p>
       </div>
 
       <Tabs defaultValue="conversas" className="w-full">
@@ -764,7 +804,7 @@ export default function WhatsAppPanel() {
           </TabsTrigger>
           <TabsTrigger value="credenciais" className="gap-2">
             <Settings className="h-4 w-4" />
-            Credenciais Z-API
+            Credenciais API
           </TabsTrigger>
         </TabsList>
 
