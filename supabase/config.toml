@@ -296,3 +296,6 @@ verify_jwt = false
 
 [functions.whatsapp-meta-webhook]
 verify_jwt = false
+
+[functions.bling-search-campaign-audience]
+verify_jwt = false
