@@ -131,13 +131,15 @@ export default function WhatsAppCampaigns() {
     setSearchProgress("Iniciando busca...");
     try {
       const allContacts: any[] = [];
-      const seenPhones = new Set<string>();
       let nextPage: number | null = 1;
+      let nextContactIndex: number = 0;
       let seenPhonesArr: string[] = [];
       let retries = 0;
+      let staleIterations = 0;
+      let lastCursorKey = "";
 
       while (nextPage !== null) {
-        setSearchProgress(`Buscando página ${nextPage}… (${allContacts.length} contatos até agora)`);
+        setSearchProgress(`Buscando página ${nextPage} (pos ${nextContactIndex})… (${allContacts.length} contatos)`);
 
         const { data, error } = await supabase.functions.invoke("bling-search-campaign-audience", {
           body: {
@@ -145,12 +147,12 @@ export default function WhatsAppCampaigns() {
             data_inicial: filters.dateFrom,
             data_final: filters.dateTo,
             start_page: nextPage,
+            start_contact_index: nextContactIndex,
             seen_phones: seenPhonesArr,
           },
         });
 
         if (error) {
-          // Transient error — retry up to 2 times
           if (retries < 2) {
             retries++;
             setSearchProgress(`Falha temporária, tentando novamente (${retries}/2)…`);
@@ -161,7 +163,7 @@ export default function WhatsAppCampaigns() {
         }
         if (data?.error) throw new Error(data.error);
 
-        retries = 0; // reset on success
+        retries = 0;
 
         const contacts = (data?.contacts || []).map((c: any) => ({
           cliente_id: null as any,
@@ -174,10 +176,25 @@ export default function WhatsAppCampaigns() {
         allContacts.push(...contacts);
         seenPhonesArr = data?.seen_phones || [];
 
+        // Anti-loop fail-safe: detect stale cursor
+        const cursorKey = `${data?.next_page}:${data?.next_contact_index ?? 0}`;
+        if (contacts.length === 0 && cursorKey === lastCursorKey) {
+          staleIterations++;
+          if (staleIterations >= 3) {
+            console.warn("Busca sem progresso detectada, interrompendo.");
+            toast.warning("Busca interrompida: sem progresso após múltiplas tentativas.");
+            break;
+          }
+        } else {
+          staleIterations = 0;
+        }
+        lastCursorKey = cursorKey;
+
         if (data?.done) {
           nextPage = null;
         } else {
-          nextPage = data?.next_page || null;
+          nextPage = data?.next_page ?? null;
+          nextContactIndex = data?.next_contact_index ?? 0;
         }
       }
 
