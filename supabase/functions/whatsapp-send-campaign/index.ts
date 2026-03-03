@@ -103,16 +103,23 @@ serve(async (req) => {
         if (!phone.startsWith("55")) phone = "55" + phone;
 
         // Build template components (variables)
-        const variables = template?.variaveis_usadas || [];
+        // variaveis_usadas stores names without braces e.g. ["primeiro_nome", "data_pedido"]
+        const variables: string[] = template?.variaveis_usadas || [];
         const varValues: string[] = [];
         for (const v of variables) {
-          switch (v) {
-            case "{{nome_completo}}": varValues.push(dest.nome || "Cliente"); break;
-            case "{{primeiro_nome}}": varValues.push((dest.nome || "Cliente").split(" ")[0]); break;
-            case "{{email}}": varValues.push(dest.email || ""); break;
-            case "{{cpf}}": varValues.push(dest.tipo_documento === "cpf" ? "CPF" : ""); break;
-            case "{{cnpj}}": varValues.push(dest.tipo_documento === "cnpj" ? "CNPJ" : ""); break;
-            default: varValues.push(""); break;
+          // Normalize: remove {{ }} if present
+          const key = v.replace(/\{\{|\}\}/g, "").trim();
+          switch (key) {
+            case "nome_completo": varValues.push(dest.nome || "Cliente"); break;
+            case "primeiro_nome": varValues.push((dest.nome || "Cliente").split(" ")[0]); break;
+            case "email": varValues.push(dest.email || "-"); break;
+            case "cpf": varValues.push(dest.tipo_documento === "cpf" ? "CPF" : "-"); break;
+            case "cnpj": varValues.push(dest.tipo_documento === "cnpj" ? "CNPJ" : "-"); break;
+            case "data_pedido": varValues.push(dest.data_pedido || "-"); break;
+            case "produtos_pedido": varValues.push(dest.produtos_pedido || "seus produtos"); break;
+            case "valor_pedido": varValues.push(dest.valor_pedido || "-"); break;
+            case "categoria_produtos": varValues.push(dest.categoria_produtos || "-"); break;
+            default: varValues.push("-"); break;
           }
         }
 
