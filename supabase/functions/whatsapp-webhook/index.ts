@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
       const token = url.searchParams.get("hub.verify_token");
       const challenge = url.searchParams.get("hub.challenge");
 
-      if (mode === "subscribe" && token === "MEU_VERIFY_TOKEN_123") {
+      if (mode === "subscribe" && token === "centralgospel123") {
         console.log("Meta webhook verified successfully");
         return new Response(challenge || "", {
           status: 200,
@@ -247,17 +247,97 @@ Deno.serve(async (req) => {
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
         );
 
-        const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-        const telefone = message?.from || body?.entry?.[0]?.changes?.[0]?.value?.metadata?.display_phone_number || null;
+        const entry = body?.entry?.[0];
+        const changes = entry?.changes?.[0];
+        const value = changes?.value;
+        const message = value?.messages?.[0];
+        const telefone = message?.from || value?.metadata?.display_phone_number || null;
         const messageId = message?.id || null;
-        const evento = body?.entry?.[0]?.changes?.[0]?.field || "meta_webhook";
+        const evento = changes?.field || "meta_webhook";
 
+        // Always save raw webhook for auditing
         await supabase.from("whatsapp_webhooks").insert({
           evento,
           telefone,
           message_id: messageId,
           payload: body,
         });
+
+        // Process incoming messages and save to whatsapp_conversas
+        if (message && telefone) {
+          const senderPhone = normalizePhone(telefone);
+          let contentToSave: string | null = null;
+          let imageUrl: string | null = null;
+          let audioUrl: string | null = null;
+
+          // Extract text
+          if (message.type === "text" && message.text?.body) {
+            contentToSave = message.text.body;
+          }
+          // Extract image
+          else if (message.type === "image") {
+            imageUrl = message.image?.id ? `meta-media:${message.image.id}` : null;
+            contentToSave = message.image?.caption || "[Imagem]";
+          }
+          // Extract audio
+          else if (message.type === "audio" || message.type === "voice") {
+            audioUrl = message.audio?.id ? `meta-media:${message.audio.id}` : null;
+            contentToSave = "[Áudio]";
+          }
+          // Extract button response
+          else if (message.type === "button") {
+            contentToSave = message.button?.text || message.button?.payload || "[Botão]";
+          }
+          // Extract interactive response
+          else if (message.type === "interactive") {
+            contentToSave = message.interactive?.button_reply?.title 
+              || message.interactive?.list_reply?.title 
+              || "[Interação]";
+          }
+
+          if (contentToSave && senderPhone) {
+            console.log(`[Meta] Received from ${senderPhone}: ${contentToSave}`);
+
+            // Look up client by phone variants
+            const phoneSuffixes = [senderPhone, senderPhone.slice(-11), senderPhone.slice(-10)];
+            let clienteId = null;
+            for (const suffix of phoneSuffixes) {
+              const { data } = await supabase
+                .from("ebd_clientes")
+                .select("id")
+                .or(`telefone.ilike.%${suffix}`)
+                .limit(1)
+                .single();
+              if (data) {
+                clienteId = data.id;
+                break;
+              }
+            }
+
+            // Save to whatsapp_conversas
+            await supabase.from("whatsapp_conversas").insert({
+              telefone: senderPhone,
+              cliente_id: clienteId,
+              role: "user",
+              content: contentToSave,
+              imagem_url: imageUrl,
+              audio_url: audioUrl,
+            });
+
+            // Check if AI agent is active
+            const { data: agenteIaSetting } = await supabase
+              .from("system_settings")
+              .select("value")
+              .eq("key", "whatsapp_agente_ia_ativo")
+              .maybeSingle();
+
+            if (agenteIaSetting?.value === "true" && contentToSave && contentToSave !== "[Imagem]" && contentToSave !== "[Áudio]") {
+              await processIncomingMessage(supabase, senderPhone, contentToSave);
+            } else {
+              console.log("[Meta] Agente de IA desativado - mensagem salva sem processamento IA");
+            }
+          }
+        }
 
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
