@@ -444,6 +444,7 @@ const App = () => (
                       <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
                       <Route path="tutoriais" element={<GestaoTutoriais />} />
                       <Route path="apresentacao" element={<ApresentacaoScreenshots />} />
+                      <Route path="whatsapp" element={<WhatsAppPanel />} />
                     </Route>
                     <Route
                       path="/admin/ebd"
@@ -477,7 +478,6 @@ const App = () => (
                       <Route path="shopify" element={<ShopifyIntegration />} />
                       <Route path="conteudo-biblico" element={<AdminEBDConteudoBiblico />} />
                       <Route path="usuarios" element={<EBDSystemUsers />} />
-                      <Route path="whatsapp" element={<WhatsAppPanel />} />
                       <Route path="funil" element={<VendedorFunil isAdminView />} />
                       <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />
                       <Route path="integracoes" element={<VendedorIntegracoes />} />
