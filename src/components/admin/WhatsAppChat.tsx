@@ -34,17 +34,32 @@ function normalizePhone(phone: string): string {
   return digits;
 }
 
-// Generate phone variants for matching (with and without 9th digit)
+// Generate phone variants for matching (with and without 9th digit, with and without country code)
 function phoneVariants(phone: string): string[] {
   const base = normalizePhone(phone);
-  const variants = [base];
+  const variants = new Set<string>();
+  variants.add(base);
+  // With country code
+  variants.add("55" + base);
+  // Without country code
+  if (base.startsWith("55") && base.length >= 12) {
+    variants.add(base.slice(2));
+  }
+  // 9th digit variants
   if (base.length === 10) {
-    variants.push(base.slice(0, 2) + "9" + base.slice(2));
+    const with9 = base.slice(0, 2) + "9" + base.slice(2);
+    variants.add(with9);
+    variants.add("55" + with9);
   }
   if (base.length === 11 && base[2] === "9") {
-    variants.push(base.slice(0, 2) + base.slice(3));
+    const without9 = base.slice(0, 2) + base.slice(3);
+    variants.add(without9);
+    variants.add("55" + without9);
   }
-  return variants;
+  // Also add the original raw phone (in case it has + or formatting)
+  const raw = phone.replace(/\D/g, "");
+  variants.add(raw);
+  return Array.from(variants);
 }
 
 // Types
@@ -189,11 +204,13 @@ function ChatWindow({
     queryKey: ["whatsapp-chat-messages", phone],
     queryFn: async () => {
       const allMessages: ChatMessage[] = [];
+      const variants = phoneVariants(phone);
 
+      // Fetch received messages from whatsapp_conversas (try all phone variants)
       const { data: conversas } = await supabase
         .from("whatsapp_conversas")
         .select("id, role, content, created_at, imagem_url, audio_url")
-        .eq("telefone", phone)
+        .in("telefone", variants)
         .order("created_at", { ascending: true });
 
       (conversas || []).forEach((c: any) => {
@@ -208,10 +225,11 @@ function ChatWindow({
         });
       });
 
+      // Fetch sent messages from whatsapp_mensagens (try all phone variants)
       const { data: mensagens } = await supabase
         .from("whatsapp_mensagens")
         .select("id, mensagem, imagem_url, tipo_mensagem, status, created_at")
-        .eq("telefone_destino", phone)
+        .in("telefone_destino", variants)
         .order("created_at", { ascending: true });
 
       (mensagens || []).forEach((m: any) => {
@@ -495,21 +513,25 @@ export default function WhatsAppChat() {
       });
 
       (mensagens || []).forEach((m: any) => {
-        const phone = m.telefone_destino;
-        if (!phone) return;
-        if (!phoneMap[phone]) {
-          phoneMap[phone] = {
-            nome: m.nome_destino || phone,
+        const msgPhone = m.telefone_destino;
+        if (!msgPhone) return;
+        // Try to find existing entry via phone variants
+        const variants = phoneVariants(msgPhone);
+        const existingKey = variants.find((v) => phoneMap[v]);
+        const key = existingKey || msgPhone;
+        if (!phoneMap[key]) {
+          phoneMap[key] = {
+            nome: m.nome_destino || msgPhone,
             ultimaMensagem: m.mensagem?.substring(0, 60) || "",
             ultimaData: m.created_at,
           };
         } else {
-          if (m.nome_destino && phoneMap[phone].nome === phone) {
-            phoneMap[phone].nome = m.nome_destino;
+          if (m.nome_destino && phoneMap[key].nome === key) {
+            phoneMap[key].nome = m.nome_destino;
           }
-          if (new Date(m.created_at) > new Date(phoneMap[phone].ultimaData)) {
-            phoneMap[phone].ultimaMensagem = m.mensagem?.substring(0, 60) || "";
-            phoneMap[phone].ultimaData = m.created_at;
+          if (new Date(m.created_at) > new Date(phoneMap[key].ultimaData)) {
+            phoneMap[key].ultimaMensagem = m.mensagem?.substring(0, 60) || "";
+            phoneMap[key].ultimaData = m.created_at;
           }
         }
       });
