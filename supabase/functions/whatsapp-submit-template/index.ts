@@ -1,0 +1,258 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+const NAMED_VARS = [
+  "nome_completo", "primeiro_nome", "produtos_pedido", "data_pedido",
+  "valor_pedido", "categoria_produtos", "cpf", "cnpj",
+];
+
+function mapVariablesToPositional(corpo: string): { mappedBody: string; mapping: Record<string, number>; examples: string[] } {
+  const mapping: Record<string, number> = {};
+  const examples: string[] = [];
+  let position = 1;
+
+  const exampleValues: Record<string, string> = {
+    nome_completo: "João da Silva",
+    primeiro_nome: "João",
+    produtos_pedido: "Revista EBD Adultos",
+    data_pedido: "15/03/2026",
+    valor_pedido: "R$ 149,90",
+    categoria_produtos: "Revistas EBD",
+    cpf: "123.456.789-00",
+    cnpj: "12.345.678/0001-90",
+  };
+
+  let mappedBody = corpo;
+
+  // Find all variables used in order
+  const usedVars: string[] = [];
+  const regex = /\{\{(\w+)\}\}/g;
+  let match;
+  while ((match = regex.exec(corpo)) !== null) {
+    const varName = match[1];
+    if (NAMED_VARS.includes(varName) && !usedVars.includes(varName)) {
+      usedVars.push(varName);
+    }
+  }
+
+  // Map each unique variable to a position
+  for (const varName of usedVars) {
+    mapping[varName] = position;
+    examples.push(exampleValues[varName] || varName);
+    mappedBody = mappedBody.replace(new RegExp(`\\{\\{${varName}\\}\\}`, "g"), `{{${position}}}`);
+    position++;
+  }
+
+  return { mappedBody, mapping, examples };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    // Auth check
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Não autorizado" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !user) {
+      return new Response(JSON.stringify({ error: "Não autorizado" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = await req.json();
+    const { action, template_id } = body;
+
+    // Get Meta credentials from system_settings
+    const { data: settings } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["whatsapp_access_token", "whatsapp_business_account_id"]);
+
+    const settingsMap: Record<string, string> = {};
+    (settings || []).forEach((s: any) => { settingsMap[s.key] = s.value; });
+
+    const accessToken = settingsMap["whatsapp_access_token"];
+    const wabaId = settingsMap["whatsapp_business_account_id"];
+
+    if (!accessToken || !wabaId) {
+      return new Response(JSON.stringify({ error: "Credenciais WhatsApp não configuradas. Configure em Credenciais API." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ============ SUBMIT ============
+    if (action === "submit") {
+      const { data: template, error: fetchErr } = await supabase
+        .from("whatsapp_templates")
+        .select("*")
+        .eq("id", template_id)
+        .single();
+
+      if (fetchErr || !template) {
+        return new Response(JSON.stringify({ error: "Template não encontrado" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { mappedBody, mapping, examples } = mapVariablesToPositional(template.corpo);
+
+      // Build Meta payload
+      const components: any[] = [];
+
+      // Body component
+      const bodyComponent: any = { type: "BODY", text: mappedBody };
+      if (examples.length > 0) {
+        bodyComponent.example = { body_text: [examples] };
+      }
+      components.push(bodyComponent);
+
+      // Footer
+      if (template.rodape) {
+        components.push({ type: "FOOTER", text: template.rodape });
+      }
+
+      // Buttons
+      const botoes = typeof template.botoes === "string" ? JSON.parse(template.botoes) : (template.botoes || []);
+      if (botoes.length > 0) {
+        const buttons = botoes.map((btn: any) => {
+          if (btn.tipo === "URL") {
+            return { type: "URL", text: btn.texto, url: btn.url };
+          }
+          return { type: "QUICK_REPLY", text: btn.texto };
+        });
+        components.push({ type: "BUTTONS", buttons });
+      }
+
+      const metaPayload = {
+        name: template.nome,
+        language: template.idioma,
+        category: template.categoria,
+        components,
+      };
+
+      console.log("[submit-template] Payload:", JSON.stringify(metaPayload));
+
+      const metaRes = await fetch(`https://graph.facebook.com/v22.0/${wabaId}/message_templates`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(metaPayload),
+      });
+
+      const metaData = await metaRes.json();
+      console.log("[submit-template] Meta response:", metaRes.status, JSON.stringify(metaData));
+
+      if (!metaRes.ok) {
+        const errMsg = metaData?.error?.message || "Erro desconhecido ao submeter template";
+        return new Response(JSON.stringify({ error: errMsg, details: metaData?.error }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Update template with Meta ID and status
+      await supabase.from("whatsapp_templates").update({
+        meta_template_id: metaData.id,
+        status: "PENDENTE",
+      }).eq("id", template_id);
+
+      return new Response(JSON.stringify({
+        success: true,
+        meta_template_id: metaData.id,
+        status: metaData.status,
+      }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ============ CHECK STATUS ============
+    if (action === "check_status") {
+      const { data: template, error: fetchErr } = await supabase
+        .from("whatsapp_templates")
+        .select("*")
+        .eq("id", template_id)
+        .single();
+
+      if (fetchErr || !template) {
+        return new Response(JSON.stringify({ error: "Template não encontrado" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!template.meta_template_id) {
+        return new Response(JSON.stringify({ error: "Template ainda não foi enviado ao Meta" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const metaRes = await fetch(
+        `https://graph.facebook.com/v22.0/${template.meta_template_id}?fields=status,rejected_reason,quality_score`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const metaData = await metaRes.json();
+      console.log("[check-status] Meta:", metaRes.status, JSON.stringify(metaData));
+
+      if (!metaRes.ok) {
+        return new Response(JSON.stringify({ error: metaData?.error?.message || "Erro ao consultar Meta" }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Map Meta status to our status
+      let newStatus = template.status;
+      let rejectionReason = template.meta_rejection_reason;
+
+      const metaStatus = (metaData.status || "").toUpperCase();
+      if (metaStatus === "APPROVED") {
+        newStatus = "APROVADO";
+      } else if (metaStatus === "REJECTED") {
+        newStatus = "REJEITADO";
+        rejectionReason = metaData.rejected_reason || "Motivo não informado pelo Meta";
+      } else if (metaStatus === "PENDING" || metaStatus === "IN_REVIEW") {
+        newStatus = "PENDENTE";
+      }
+
+      await supabase.from("whatsapp_templates").update({
+        status: newStatus,
+        meta_rejection_reason: rejectionReason,
+      }).eq("id", template_id);
+
+      return new Response(JSON.stringify({
+        success: true,
+        status: newStatus,
+        meta_status: metaData.status,
+        rejection_reason: rejectionReason,
+      }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "Action inválida" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("[whatsapp-submit-template] Error:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
