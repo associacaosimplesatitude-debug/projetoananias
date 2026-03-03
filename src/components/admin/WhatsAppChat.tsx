@@ -232,7 +232,22 @@ function ChatWindow({
         .in("telefone_destino", variants)
         .order("created_at", { ascending: true });
 
+      // Build a set of existing sent messages from conversas to deduplicate
+      const conversaSentKeys = new Set<string>();
+      (conversas || []).forEach((c: any) => {
+        if (c.role === "assistant" || c.role === "system") {
+          // Key by content + minute-level timestamp to catch duplicates
+          const minuteKey = c.created_at?.substring(0, 16) || "";
+          conversaSentKeys.add(`${minuteKey}|${(c.content || "").substring(0, 80)}`);
+        }
+      });
+
       (mensagens || []).forEach((m: any) => {
+        // Skip if this sent message already exists in whatsapp_conversas (avoid duplicates)
+        const minuteKey = m.created_at?.substring(0, 16) || "";
+        const dedupKey = `${minuteKey}|${(m.mensagem || "").substring(0, 80)}`;
+        if (conversaSentKeys.has(dedupKey)) return;
+
         allMessages.push({
           id: m.id,
           content: m.mensagem,
