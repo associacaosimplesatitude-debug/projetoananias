@@ -1,41 +1,38 @@
 
 
-## Plano: Melhorar diagnóstico de erros na Edge Function `bling-search-campaign-audience`
+## Diagnóstico
 
-Alterações **apenas** no arquivo `supabase/functions/bling-search-campaign-audience/index.ts`:
+Os logs confirmam que:
+- A API do Bling **retorna pedidos** (páginas 1 e 2 têm dados, página 3 vazia = `done`)
+- Mas **0 contatos são extraídos** de todos os pedidos
 
-### 1. Logar token utilizado (primeiros 10 chars)
-Na função `searchOrdersPaginated`, logo no início, adicionar:
-```
-console.log("Token usado:", accessToken.substring(0, 10) + "...");
-```
+O código atual acessa `pedido.contato` — mas na API Bling v3 `/pedidos/vendas`, o campo do cliente é provavelmente `pedido.contato` com estrutura diferente ou outro nome (ex: `pedido.cliente`, `pedido.contato.id` sem dados inline).
 
-### 2. Logar parâmetros antes de cada requisição
-Antes do `fetch`, adicionar:
-```
-console.log("Buscando pedidos com parâmetros:", { loja_id, data_inicial, data_final, page });
-```
+**O problema não é de conexão — é de mapeamento de dados.**
 
-### 3. Capturar body do erro do Bling
-Substituir o bloco `if (!res.ok)` (linhas 107-113) para capturar e logar o body da resposta de erro:
+## Plano
+
+### 1. Adicionar log do primeiro pedido retornado
+
+No arquivo `supabase/functions/bling-search-campaign-audience/index.ts`, logo após `const pedidos = json.data || [];`, adicionar:
+
 ```typescript
-if (!res.ok) {
-  if (res.status === 429) {
-    await sleep(2000);
-    continue;
-  }
-  const errorBody = await res.text().catch(() => "");
-  console.error("===== ERRO BLING =====");
-  console.error("Status:", res.status);
-  console.error("URL:", url);
-  console.error("Resposta:", errorBody);
-  console.error("======================");
-  throw new Error(`Erro Bling ${res.status}: ${errorBody}`);
+if (pedidos.length > 0 && page <= 2) {
+  console.log("=== AMOSTRA PEDIDO (página " + page + ") ===");
+  console.log(JSON.stringify(pedidos[0], null, 2));
+  console.log("=== FIM AMOSTRA ===");
 }
 ```
 
-### 4. Após deploy
-Invocar a função com uma busca real para capturar os logs e mostrar a resposta do Bling.
+Isso logará a estrutura completa do primeiro pedido, revelando exatamente onde estão os dados do contato.
 
-Nenhuma outra lógica será alterada.
+### 2. Deploy e teste
+
+Redeployar a função, executar uma busca, e ler os logs para ver a estrutura real do pedido Bling v3.
+
+### 3. Corrigir mapeamento
+
+Com base na estrutura real, ajustar o acesso aos campos (ex: `pedido.contato.nome` → campo correto).
+
+**Nenhuma lógica será alterada além do log de diagnóstico no passo 1. A correção do mapeamento só será feita após confirmar a estrutura.**
 
