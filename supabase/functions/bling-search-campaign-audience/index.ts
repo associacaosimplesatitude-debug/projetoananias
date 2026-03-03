@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,6 +8,8 @@ const corsHeaders = {
 
 const BLING_API_BASE = "https://www.bling.com.br/Api/v3";
 const RATE_LIMIT_MS = 350;
+const MAX_PAGES_PER_CALL = 3;
+const MAX_EXECUTION_MS = 15000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -65,41 +67,28 @@ function normalizePhone(phone: string): string {
   return (phone || "").replace(/[\s\-\(\)\+]/g, "").replace(/^55/, "");
 }
 
-async function listLojas(accessToken: string) {
-  // Fetch recent orders to discover unique loja IDs
-  const lojaIds = new Set<number>();
-  let page = 1;
-  
-  // Scan up to 3 pages to find all lojas
-  for (let p = 1; p <= 3; p++) {
-    const res = await fetch(`${BLING_API_BASE}/pedidos/vendas?pagina=${p}&limite=100`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!res.ok) break;
-    const json = await res.json();
-    const pedidos = json.data || [];
-    if (pedidos.length === 0) break;
-    for (const pedido of pedidos) {
-      if (pedido.loja?.id) lojaIds.add(pedido.loja.id);
-    }
-    if (pedidos.length < 100) break;
-    await sleep(RATE_LIMIT_MS);
-  }
-
-  // Return unique lojas (IDs only — names come from order context)
-  return Array.from(lojaIds).map(id => ({
-    id: String(id),
-    descricao: String(id), // UI will map to readable name
-  }));
-}
-
-async function searchOrders(accessToken: string, loja_id: string | null, data_inicial: string, data_final: string) {
-  const seenPhones = new Set<string>();
+async function searchOrdersPaginated(
+  accessToken: string,
+  loja_id: string | null,
+  data_inicial: string,
+  data_final: string,
+  start_page: number,
+  seen_phones: string[],
+) {
+  const startTime = Date.now();
+  const seenPhones = new Set<string>(seen_phones);
   const contacts: Contact[] = [];
-  let page = 1;
-  let hasMore = true;
+  let page = start_page;
+  let pagesProcessed = 0;
+  let done = false;
 
-  while (hasMore) {
+  while (pagesProcessed < MAX_PAGES_PER_CALL) {
+    // Check execution time limit
+    if (Date.now() - startTime > MAX_EXECUTION_MS) {
+      console.log(`Timeout defensivo atingido na página ${page}`);
+      return { contacts, next_page: page, done: false, partial: true, seen_phones: Array.from(seenPhones) };
+    }
+
     const params = new URLSearchParams({
       dataInicial: data_inicial,
       dataFinal: data_final,
@@ -118,7 +107,7 @@ async function searchOrders(accessToken: string, loja_id: string | null, data_in
     if (!res.ok) {
       if (res.status === 429) {
         await sleep(2000);
-        continue;
+        continue; // retry same page, don't increment
       }
       throw new Error(`Erro na API do Bling: ${res.status}`);
     }
@@ -127,7 +116,7 @@ async function searchOrders(accessToken: string, loja_id: string | null, data_in
     const pedidos = json.data || [];
 
     if (pedidos.length === 0) {
-      hasMore = false;
+      done = true;
       break;
     }
 
@@ -149,14 +138,22 @@ async function searchOrders(accessToken: string, loja_id: string | null, data_in
     }
 
     if (pedidos.length < 100) {
-      hasMore = false;
-    } else {
-      page++;
-      await sleep(RATE_LIMIT_MS);
+      done = true;
+      break;
     }
+
+    page++;
+    pagesProcessed++;
+    await sleep(RATE_LIMIT_MS);
   }
 
-  return contacts;
+  return {
+    contacts,
+    next_page: done ? null : page + 1,
+    done,
+    partial: !done,
+    seen_phones: Array.from(seenPhones),
+  };
 }
 
 serve(async (req) => {
@@ -182,16 +179,15 @@ serve(async (req) => {
 
     const accessToken = await getValidToken(supabase);
 
-    // Action: list stores
+    // Action: list stores (kept for backwards compat)
     if (action === "listar_lojas") {
-      const lojas = await listLojas(accessToken);
-      return new Response(JSON.stringify({ lojas }), {
+      return new Response(JSON.stringify({ lojas: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Action: search orders (default)
-    const { loja_id, data_inicial, data_final } = body;
+    // Action: search orders with pagination
+    const { loja_id, data_inicial, data_final, start_page, seen_phones } = body;
     if (!data_inicial || !data_final) {
       return new Response(JSON.stringify({ error: "data_inicial e data_final são obrigatórios" }), {
         status: 400,
@@ -199,10 +195,18 @@ serve(async (req) => {
       });
     }
 
-    const contacts = await searchOrders(accessToken, loja_id, data_inicial, data_final);
-    console.log(`Total de contatos únicos: ${contacts.length}`);
+    const result = await searchOrdersPaginated(
+      accessToken,
+      loja_id,
+      data_inicial,
+      data_final,
+      start_page || 1,
+      seen_phones || [],
+    );
 
-    return new Response(JSON.stringify({ contacts, total: contacts.length }), {
+    console.log(`Contatos nesta chamada: ${result.contacts.length}, done: ${result.done}, next_page: ${result.next_page}`);
+
+    return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
