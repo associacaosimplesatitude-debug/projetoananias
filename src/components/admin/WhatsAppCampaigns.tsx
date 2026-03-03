@@ -120,39 +120,75 @@ export default function WhatsAppCampaigns() {
   );
 
 
-  // --- Audience search ---
+  // --- Audience search (incremental pagination) ---
+  const [searchProgress, setSearchProgress] = useState("");
   const searchAudience = async () => {
     if (!filters.dateFrom || !filters.dateTo) {
       toast.error("Selecione o período da última compra");
       return;
     }
     setLoadingAudience(true);
+    setSearchProgress("Iniciando busca...");
     try {
-      const { data, error } = await supabase.functions.invoke("bling-search-campaign-audience", {
-        body: {
-          loja_id: filters.canalBling === "todos" ? null : filters.canalBling || null,
-          data_inicial: filters.dateFrom,
-          data_final: filters.dateTo,
-        },
-      });
+      const allContacts: any[] = [];
+      const seenPhones = new Set<string>();
+      let nextPage: number | null = 1;
+      let seenPhonesArr: string[] = [];
+      let retries = 0;
 
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
+      while (nextPage !== null) {
+        setSearchProgress(`Buscando página ${nextPage}… (${allContacts.length} contatos até agora)`);
 
-      const blingContacts = (data?.contacts || []).map((c: any) => ({
-        cliente_id: null as any,
-        nome: c.nome || "",
-        telefone: c.telefone || "",
-        email: c.email || "",
-        tipo_documento: c.tipo_documento || "indefinido",
-      }));
+        const { data, error } = await supabase.functions.invoke("bling-search-campaign-audience", {
+          body: {
+            loja_id: filters.canalBling === "todos" ? null : filters.canalBling || null,
+            data_inicial: filters.dateFrom,
+            data_final: filters.dateTo,
+            start_page: nextPage,
+            seen_phones: seenPhonesArr,
+          },
+        });
 
-      setRecipients(blingContacts);
-      if (blingContacts.length === 0) toast.info("Nenhum destinatário encontrado com esses filtros.");
+        if (error) {
+          // Transient error — retry up to 2 times
+          if (retries < 2) {
+            retries++;
+            setSearchProgress(`Falha temporária, tentando novamente (${retries}/2)…`);
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+          throw new Error("Falha de conexão após 2 tentativas. Tente novamente.");
+        }
+        if (data?.error) throw new Error(data.error);
+
+        retries = 0; // reset on success
+
+        const contacts = (data?.contacts || []).map((c: any) => ({
+          cliente_id: null as any,
+          nome: c.nome || "",
+          telefone: c.telefone || "",
+          email: c.email || "",
+          tipo_documento: c.tipo_documento || "indefinido",
+        }));
+
+        allContacts.push(...contacts);
+        seenPhonesArr = data?.seen_phones || [];
+
+        if (data?.done) {
+          nextPage = null;
+        } else {
+          nextPage = data?.next_page || null;
+        }
+      }
+
+      setRecipients(allContacts);
+      if (allContacts.length === 0) toast.info("Nenhum destinatário encontrado com esses filtros.");
+      else toast.success(`${allContacts.length} contatos encontrados!`);
     } catch (err: any) {
       toast.error("Erro ao buscar público: " + err.message);
     } finally {
       setLoadingAudience(false);
+      setSearchProgress("");
     }
   };
 
@@ -359,7 +395,7 @@ export default function WhatsAppCampaigns() {
 
             <Button onClick={searchAudience} disabled={loadingAudience} className="gap-2">
               {loadingAudience ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-              Buscar Público
+              {loadingAudience && searchProgress ? searchProgress : "Buscar Público"}
             </Button>
           </CardContent>
         </Card>
