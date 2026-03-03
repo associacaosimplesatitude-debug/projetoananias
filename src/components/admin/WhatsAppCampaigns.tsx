@@ -74,6 +74,8 @@ export default function WhatsAppCampaigns() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [campaignName, setCampaignName] = useState("");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [reuseCampaignId, setReuseCampaignId] = useState<string | null>(null);
+  const [loadingReuse, setLoadingReuse] = useState(false);
 
   // --- Queries ---
   const { data: campaigns, isLoading: loadingCampaigns } = useQuery({
@@ -87,6 +89,21 @@ export default function WhatsAppCampaigns() {
       return data;
     },
     enabled: step === "list" || step === "funnel",
+  });
+
+  // Campaigns with audience for reuse
+  const { data: campaignsWithAudience } = useQuery({
+    queryKey: ["whatsapp-campanhas-com-publico"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("whatsapp_campanhas")
+        .select("id, nome, total_publico, created_at")
+        .gt("total_publico", 0)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: step === "segmentation",
   });
 
   const { data: approvedTemplates } = useQuery({
@@ -302,6 +319,43 @@ export default function WhatsAppCampaigns() {
     setSelectedTemplateId(null);
     setCampaignName("");
     setFilters({ dateFrom: "", dateTo: "", canalBling: "205391854" });
+    setReuseCampaignId(null);
+  };
+
+  // --- Load audience from existing campaign ---
+  const loadAudienceFromCampaign = async () => {
+    if (!reuseCampaignId) {
+      toast.error("Selecione uma campanha");
+      return;
+    }
+    setLoadingReuse(true);
+    try {
+      const { data, error } = await supabase
+        .from("whatsapp_campanha_destinatarios")
+        .select("*")
+        .eq("campanha_id", reuseCampaignId);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        toast.info("Nenhum destinatário encontrado nesta campanha.");
+        return;
+      }
+      const mapped: Recipient[] = data.map((d: any) => ({
+        cliente_id: d.cliente_id || null,
+        nome: d.nome || "",
+        telefone: d.telefone || "",
+        email: d.email || "",
+        tipo_documento: d.tipo_documento || "indefinido",
+        data_pedido: d.data_pedido || undefined,
+        produtos_pedido: d.produtos_pedido || undefined,
+        valor_pedido: d.valor_pedido || undefined,
+      }));
+      setRecipients(mapped);
+      toast.success(`${mapped.length} destinatários carregados da campanha anterior!`);
+    } catch (err: any) {
+      toast.error("Erro ao carregar público: " + err.message);
+    } finally {
+      setLoadingReuse(false);
+    }
   };
 
   // --- Funnel calculations ---
@@ -415,6 +469,43 @@ export default function WhatsAppCampaigns() {
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={resetFlow}><ArrowLeft className="h-4 w-4" /></Button>
           <h2 className="text-lg font-semibold">Etapa 1: Segmentação do Público</h2>
+        </div>
+
+        {/* Reuse existing audience */}
+        {campaignsWithAudience && campaignsWithAudience.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Usar público de campanha existente</CardTitle>
+              <CardDescription>Carregue os destinatários de uma campanha anterior sem precisar buscar no Bling</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <Select value={reuseCampaignId || ""} onValueChange={(v) => setReuseCampaignId(v)}>
+                    <SelectTrigger><SelectValue placeholder="Selecione uma campanha" /></SelectTrigger>
+                    <SelectContent>
+                      {campaignsWithAudience.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome} ({c.total_publico} contatos — {format(new Date(c.created_at), "dd/MM/yyyy")})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={loadAudienceFromCampaign} disabled={loadingReuse || !reuseCampaignId} className="gap-2">
+                  {loadingReuse ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                  Carregar Público
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-sm text-muted-foreground font-medium">OU</span>
+          <div className="flex-1 h-px bg-border" />
         </div>
 
         <Card>
