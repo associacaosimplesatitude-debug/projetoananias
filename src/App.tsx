@@ -65,6 +65,7 @@ import { RoyaltiesProtectedRoute } from "@/components/royalties/RoyaltiesProtect
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
+import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
 import NotFound from "./pages/NotFound";
 import DashboardRedirect from "./components/DashboardRedirect";
 
@@ -221,6 +222,7 @@ const App = () => (
               <Route path="/livro/:slug" element={<LivroLandingPage />} />
               <Route path="/oferta-ebd" element={<OfertaEBD />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
+              <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
             <Route
               path="/*"
               element={
