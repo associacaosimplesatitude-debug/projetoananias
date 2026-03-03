@@ -1,65 +1,77 @@
 
-Objetivo: encerrar o erro persistente da integração WhatsApp com diagnóstico definitivo (não só “tentativa e erro”) e guiar a correção correta no Meta.
 
-Diagnóstico consolidado (com evidência):
-- Eu validei no backend com os mesmos dados salvos (Phone Number ID 1043748032148428, WABA ID 900583089532590 e token atual) e o retorno foi consistente:
-  - `GET /{phone_number_id}` → erro `100 / subcode 33`
-  - `GET /{waba_id}/phone_numbers` → erro `100 / subcode 33`
-  - `POST /{phone_number_id}/messages` → erro `100 / subcode 33`
-- Isso prova que o problema não está no frontend nem no payload do painel; é bloqueio de acesso no lado Meta (token/asset-contexto).
-- Também há um segundo bloqueio visível nos prints: “Nenhuma forma de pagamento válida” (isso impacta envio para clientes fora da janela gratuita, depois que o acesso ao objeto for resolvido).
+## Plano: Área de Criação de Templates WhatsApp com Submissão ao Meta
 
-Do I know what the issue is?
-- Sim: o token atual está válido em formato, mas sem acesso efetivo ao objeto WhatsApp (Phone Number/WABA) no contexto usado pela Graph API, apesar das permissões aparentes na UI.
+### Resumo
+Criar aba "Templates" no painel WhatsApp para criação, gerenciamento e submissão de templates de mensagem à API Meta para aprovação. Os templates usam variáveis dinâmicas do sistema (nome, produtos, data, valor, etc.) e são enviados ao Meta via Graph API, ficando com status PENDING até aprovação/rejeição.
 
-Plano de implementação (código + operação):
-1) Fortalecer diagnóstico da edge function `whatsapp-meta-test`
-- Arquivo: `supabase/functions/whatsapp-meta-test/index.ts`
-- Adicionar trilha de diagnóstico em `test_connection`:
-  - Etapa A: validar token contra endpoint básico (`/me`) e retornar status claro.
-  - Etapa B: testar acesso ao WABA e ao Phone Number separadamente, retornando qual falhou.
-  - Etapa C: classificar `100/33` em causa provável objetiva:
-    - token sem vínculo efetivo ao ativo,
-    - app/contexto diferente do WABA,
-    - permissão não propagada para aquele asset.
-- Resposta estruturada nova:
-  - `checks.token_valid`
-  - `checks.waba_access`
-  - `checks.phone_access`
-  - `probable_cause`
-  - `next_steps` (checklist acionável)
-- Manter CORS e auth como estão (já corretos).
+### 1. Migração — tabela `whatsapp_templates`
 
-2) Melhorar UX do painel de credenciais para eliminar ambiguidade
-- Arquivo: `src/pages/admin/WhatsAppPanel.tsx`
-- Exibir resultado por etapas (Token / WABA / Phone) em vez de erro único.
-- Mostrar ações objetivas quando vier `100/33`:
-  - confirmar ativo WABA no mesmo Business do app,
-  - regenerar token no mesmo app e mesmo System User após salvar permissões,
-  - conferir que o Phone Number pertence ao WABA informado.
-- Adicionar botão “Diagnóstico avançado” reutilizando `test_connection` com render detalhado do `checks`.
+```sql
+CREATE TABLE public.whatsapp_templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome text NOT NULL,
+  categoria text NOT NULL DEFAULT 'MARKETING', -- MARKETING, UTILITY, AUTHENTICATION
+  idioma text NOT NULL DEFAULT 'pt_BR',
+  corpo text NOT NULL,
+  cabecalho_tipo text, -- TEXT, IMAGE, VIDEO, DOCUMENT, null
+  cabecalho_texto text,
+  rodape text,
+  botoes jsonb DEFAULT '[]',
+  variaveis_usadas text[] DEFAULT '{}',
+  status text NOT NULL DEFAULT 'RASCUNHO', -- RASCUNHO, PENDENTE, APROVADO, REJEITADO
+  meta_template_id text,
+  meta_rejection_reason text,
+  created_by uuid REFERENCES auth.users(id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.whatsapp_templates ENABLE ROW LEVEL SECURITY;
+-- RLS: authenticated can CRUD
+```
 
-3) Checklist operacional Meta (fora do código, mas obrigatório para fechar)
-- No Meta Business: garantir que o System User esteja atribuído ao ativo WABA correto (não só ao App).
-- Gerar token novamente no mesmo app conectado ao produto WhatsApp.
-- Confirmar que o Phone Number ID exibido no WhatsApp Manager pertence ao mesmo WABA ID.
-- Resolver aviso de pagamento (“Adicionar forma de pagamento”) para permitir envios a clientes fora da janela grátis.
+### 2. Edge Function `whatsapp-submit-template`
+- Recebe template do banco, monta payload no formato da API Meta Message Templates (`POST /v22.0/{WABA_ID}/message_templates`)
+- Mapeia variáveis `{{1}}`, `{{2}}` etc. conforme posição no corpo
+- Categorias: MARKETING, UTILITY, AUTHENTICATION
+- Envia para Meta e salva `meta_template_id` + status `PENDENTE`
+- Action `check_status`: consulta status do template no Meta e atualiza (APPROVED → APROVADO, REJECTED → REJEITADO com motivo)
 
-4) Validação final ponta a ponta (critério de aceite)
-- Teste 1: “Testar Conexão” deve retornar:
-  - `token_valid: true`
-  - `waba_access: true`
-  - `phone_access: true`
-- Teste 2: “Enviar Teste” para número WhatsApp válido deve retornar sucesso sem `100/33`.
-- Teste 3: validar no histórico/insights do WhatsApp Manager que a mensagem entrou como enviada.
+### 3. Componente `WhatsAppTemplateCreator.tsx`
+Formulário com:
+- **Nome** (snake_case automático)
+- **Categoria** (select: Marketing, Utilidade, Autenticação)
+- **Idioma** (pt_BR padrão)
+- **Corpo** com inserção de variáveis via botões clicáveis:
+  - `{{nome_completo}}`, `{{primeiro_nome}}`, `{{produtos_pedido}}`, `{{data_pedido}}`, `{{valor_pedido}}`, `{{categoria_produtos}}`, `{{cpf}}`, `{{cnpj}}`
+- **Rodapé** (opcional)
+- **Botões** (até 3: Quick Reply ou URL com texto + link)
+- **Preview** ao vivo estilo balão WhatsApp (fundo verde claro, substituindo variáveis por dados fictícios)
+- Botões: "Salvar Rascunho" e "Enviar para Aprovação Meta"
 
-Detalhes técnicos (resumo):
-- Não haverá mudança de banco nem de RLS.
-- A correção principal é de observabilidade + diagnóstico preciso no backend function e UI.
-- O erro atual é de autorização de objeto no provedor externo (Meta), não de sintaxe de request nem de CORS local.
+### 4. Componente `WhatsAppTemplatesList.tsx`
+- Tabela: Nome, Categoria, Status (badge colorido), Data
+- Ações: Editar (só rascunho), Duplicar, Excluir (só rascunho), Verificar Status (PENDENTE)
+- Filtro por status
 
-Sequência de execução (após sua confirmação):
-1. Implementar melhorias em `whatsapp-meta-test`.
-2. Atualizar render de diagnóstico no `WhatsAppPanel`.
-3. Reexecutar testes de conexão/envio.
-4. Te devolver relatório “antes/depois” com os retornos reais.
+### 5. Integração no `WhatsAppPanel.tsx`
+- Nova aba "Templates" com ícone `FileText` entre "Enviar Mensagem" e "Webhooks"
+
+### 6. Fluxo de status
+```text
+RASCUNHO → [Enviar p/ Meta] → PENDENTE → [Meta aprova] → APROVADO
+                                        → [Meta rejeita] → REJEITADO (com motivo)
+```
+- Botão "Verificar Status" na lista consulta a API Meta e atualiza o status no banco
+- Templates APROVADOS ficam disponíveis para uso no envio de mensagens
+
+### Variáveis → Mapeamento Meta
+As variáveis nomeadas (`{{nome_completo}}`) são convertidas para variáveis posicionais (`{{1}}`, `{{2}}`) no momento da submissão ao Meta, com o mapeamento salvo no banco para uso posterior no envio.
+
+### Arquivos a criar/editar
+- **Migração**: tabela `whatsapp_templates`
+- **Novo**: `src/components/admin/WhatsAppTemplateCreator.tsx`
+- **Novo**: `src/components/admin/WhatsAppTemplatesList.tsx`
+- **Novo**: `supabase/functions/whatsapp-submit-template/index.ts`
+- **Editar**: `src/pages/admin/WhatsAppPanel.tsx` (adicionar aba Templates)
+
