@@ -1,35 +1,50 @@
 
+Diagnóstico confirmado (com evidência):
+- O erro não é mais só CORS. Há falhas intermitentes de gateway na função:
+  - `OPTIONS 502/504` e `POST 502` para `bling-search-campaign-audience` (logs de analytics), com `function_id` nulo em parte das falhas.
+  - Também existem chamadas `POST 200`, ou seja: comportamento instável (ora responde, ora cai).
+- No front, a chamada está correta (`supabase.functions.invoke` com body válido e token).
+- A função atual ainda pode ficar longa para intervalos com muitos pedidos (loop sem limite de páginas), o que aumenta chance de timeout/502.
 
-## Problema
+Plano de correção (implementação):
 
-A listagem de canais chama a edge function `bling-search-campaign-audience` com `action: "listar_lojas"`, que faz scan de até 3 páginas de pedidos na API do Bling para descobrir IDs de lojas. Isso demora ~3-5 segundos com rate limiting, e o browser está dando timeout ("Failed to fetch").
+1) Endurecer a Edge Function para estabilidade de runtime
+- Arquivo: `supabase/functions/bling-search-campaign-audience/index.ts`
+- Trocar import de `@supabase/supabase-js` de `esm.sh` para `npm:@supabase/supabase-js@2` (mesmo padrão das funções estáveis do projeto).
+- Manter CORS atual e padronizar preflight para resposta imediata consistente.
+- Adicionar timeout defensivo por execução (ex.: `MAX_EXECUTION_MS`) e limite de páginas por chamada (ex.: `MAX_PAGES_PER_CALL`), retornando payload parcial com:
+  - `contacts`
+  - `next_page` (ou `null`)
+  - `done` (boolean)
+  - `partial` (boolean)
+- Continuar deduplicação por telefone normalmente dentro de cada chamada.
 
-Meu teste direto confirmou que a função **funciona** e retorna 6 lojas — mas o browser desconecta antes.
+2) Transformar busca em paginação incremental no front (sem estourar gateway)
+- Arquivo: `src/components/admin/WhatsAppCampaigns.tsx`
+- Em vez de 1 chamada longa:
+  - loop de chamadas curtas para a função (ex.: blocos de 3–5 páginas por request),
+  - merge/deduplicação no cliente,
+  - progress feedback para usuário (“Buscando página X…”).
+- Encerrar quando `done=true`.
+- Se receber resposta parcial por limite de execução, continuar automaticamente da `next_page`.
+- Resultado: elimina requisição única longa (principal causa prática de “Failed to send request to the Edge Function”).
 
-## Solução
+3) Resiliência de UX
+- Melhorar mensagem de erro de segmentação:
+  - distinguir “falha transitória de conexão” de “erro de regra/dados”.
+  - botão de “tentar novamente do ponto onde parou” usando `next_page`.
+- Manter canais fixos no front (já aplicado) para não depender de chamada extra.
 
-Não há necessidade de chamar a API do Bling para listar lojas — são lojas fixas. Vou **remover a chamada à edge function** e usar a lista hardcoded diretamente no front-end.
+4) Verificação após implementação
+- Teste real no `/admin/whatsapp` com o mesmo intervalo que falhava (nov/2025).
+- Confirmar no network:
+  - múltiplos POST curtos com status 200,
+  - ausência de POST único longo.
+- Confirmar no backend:
+  - sem novos 502/504 para esse fluxo durante a segmentação.
+- Validar que a lista final de destinatários aparece e segue para criação da campanha sem erro.
 
-### Alterações em `src/components/admin/WhatsAppCampaigns.tsx`
-
-1. **Remover** o `useEffect` que chama `listar_lojas` (linhas 122-142)
-2. **Remover** `loadingChannels` state
-3. **Inicializar** `blingChannels` diretamente com os dados do `BLING_STORE_NAMES`:
-
-```text
-ID          | Nome
-205391854   | E-COMMERCE
-204728077   | ECG SHOPEE
-204732507   | MERCADO LIVRE
-205441191   | ATACADO
-205797806   | PEDIDOS MATRIZ
-205891152   | PEDIDOS PENHA
-205882190   | PEDIDOS PERNAMBUCO
-```
-
-4. O Select carregará instantaneamente com todos os 7 canais, sem esperar API.
-
-### Edge Function
-
-Manter o `action: "listar_lojas"` na edge function por compatibilidade, mas o front-end não o usará mais.
-
+Impacto esperado:
+- Remove instabilidade percebida pelo usuário (“continua com problema”).
+- Busca de público deixa de depender de uma chamada longa suscetível a timeout/gateway.
+- Fluxo fica previsível mesmo com alto volume de pedidos.
