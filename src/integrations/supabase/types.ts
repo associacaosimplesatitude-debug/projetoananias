@@ -6155,6 +6155,122 @@ export type Database = {
           },
         ]
       }
+      whatsapp_campanha_destinatarios: {
+        Row: {
+          campanha_id: string
+          cliente_id: string | null
+          cliques_botoes: Json | null
+          comprou: boolean | null
+          created_at: string
+          email: string | null
+          enviado_em: string | null
+          id: string
+          nome: string | null
+          status_envio: string
+          telefone: string | null
+          tipo_documento: string | null
+          valor_compra: number | null
+          visitou_link: boolean | null
+        }
+        Insert: {
+          campanha_id: string
+          cliente_id?: string | null
+          cliques_botoes?: Json | null
+          comprou?: boolean | null
+          created_at?: string
+          email?: string | null
+          enviado_em?: string | null
+          id?: string
+          nome?: string | null
+          status_envio?: string
+          telefone?: string | null
+          tipo_documento?: string | null
+          valor_compra?: number | null
+          visitou_link?: boolean | null
+        }
+        Update: {
+          campanha_id?: string
+          cliente_id?: string | null
+          cliques_botoes?: Json | null
+          comprou?: boolean | null
+          created_at?: string
+          email?: string | null
+          enviado_em?: string | null
+          id?: string
+          nome?: string | null
+          status_envio?: string
+          telefone?: string | null
+          tipo_documento?: string | null
+          valor_compra?: number | null
+          visitou_link?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_campanha_destinatarios_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_campanha_destinatarios_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_campanhas: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          filtros_publico: Json | null
+          id: string
+          nome: string
+          status: string
+          template_id: string | null
+          total_enviados: number
+          total_erros: number
+          total_publico: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          filtros_publico?: Json | null
+          id?: string
+          nome: string
+          status?: string
+          template_id?: string | null
+          total_enviados?: number
+          total_erros?: number
+          total_publico?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          filtros_publico?: Json | null
+          id?: string
+          nome?: string
+          status?: string
+          template_id?: string | null
+          total_enviados?: number
+          total_erros?: number
+          total_publico?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_campanhas_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_conversas: {
         Row: {
           audio_url: string | null
