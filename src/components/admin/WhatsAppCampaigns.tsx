@@ -63,8 +63,9 @@ export default function WhatsAppCampaigns() {
     dateTo: "",
     canalBling: "todos",
   });
-  const [blingChannels, setBlingChannels] = useState<BlingChannel[]>([]);
-  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [blingChannels] = useState<BlingChannel[]>(
+    Object.entries(BLING_STORE_NAMES).map(([id, descricao]) => ({ id, descricao }))
+  );
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loadingAudience, setLoadingAudience] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -118,28 +119,6 @@ export default function WhatsAppCampaigns() {
     [campaigns, selectedCampaignId]
   );
 
-  // --- Load Bling channels ---
-  useEffect(() => {
-    const loadChannels = async () => {
-      setLoadingChannels(true);
-      try {
-        const { data, error } = await supabase.functions.invoke("bling-search-campaign-audience", {
-          body: { action: "listar_lojas" },
-        });
-        if (!error && data?.lojas) {
-          setBlingChannels(data.lojas.map((l: any) => ({
-            ...l,
-            descricao: BLING_STORE_NAMES[l.id] || `Canal ${l.id}`,
-          })));
-        }
-      } catch (err) {
-        console.error("Erro ao carregar canais:", err);
-      } finally {
-        setLoadingChannels(false);
-      }
-    };
-    loadChannels();
-  }, []);
 
   // --- Audience search ---
   const searchAudience = async () => {
@@ -373,7 +352,7 @@ export default function WhatsAppCampaigns() {
                   {blingChannels.map((ch) => (
                     <SelectItem key={ch.id} value={ch.id}>{ch.descricao}</SelectItem>
                   ))}
-                  {loadingChannels && <SelectItem value="_loading" disabled>Carregando...</SelectItem>}
+                  
                 </SelectContent>
               </Select>
             </div>
