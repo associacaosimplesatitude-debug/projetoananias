@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
@@ -19,17 +18,22 @@ import { format } from "date-fns";
 
 type Step = "list" | "segmentation" | "template" | "funnel";
 
+const BLING_CHANNELS = [
+  { id: "", label: "Todos os Canais" },
+  { id: "205391854", label: "E-COMMERCE (Shopify)" },
+  { id: "204728077", label: "SHOPEE" },
+  { id: "204732507", label: "MERCADO LIVRE" },
+  { id: "205441191", label: "ATACADO" },
+];
+
 interface Filters {
   dateFrom: string;
   dateTo: string;
-  tipoDoc: "ambos" | "cpf" | "cnpj";
-  canalShopify: boolean;
-  canalMercadoPago: boolean;
-  canalFaturadosB2B: boolean;
+  canalBling: string;
 }
 
 interface Recipient {
-  cliente_id: string;
+  cliente_id: string | null;
   nome: string;
   telefone: string;
   email: string;
@@ -49,10 +53,7 @@ export default function WhatsAppCampaigns() {
   const [filters, setFilters] = useState<Filters>({
     dateFrom: "",
     dateTo: "",
-    tipoDoc: "ambos",
-    canalShopify: true,
-    canalMercadoPago: true,
-    canalFaturadosB2B: true,
+    canalBling: "205391854",
   });
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loadingAudience, setLoadingAudience] = useState(false);
@@ -115,134 +116,27 @@ export default function WhatsAppCampaigns() {
     }
     setLoadingAudience(true);
     try {
-      const allRecipients: Recipient[] = [];
-      const seenPhones = new Set<string>();
+      const { data, error } = await supabase.functions.invoke("bling-search-campaign-audience", {
+        body: {
+          loja_id: filters.canalBling === "todos" ? null : filters.canalBling || null,
+          data_inicial: filters.dateFrom,
+          data_final: filters.dateTo,
+        },
+      });
 
-      // Normaliza telefone removendo +55, espaços, parênteses, hífens
-      const normalizePhone = (phone: string) =>
-        phone.replace(/[\s\-\(\)\+]/g, "").replace(/^55/, "");
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
 
-      const addRecipient = (r: Recipient) => {
-        const normalized = normalizePhone(r.telefone || "");
-        if (normalized && !seenPhones.has(normalized)) {
-          if (
-            filters.tipoDoc === "ambos" ||
-            r.tipo_documento === filters.tipoDoc ||
-            r.tipo_documento === "indefinido"
-          ) {
-            seenPhones.add(normalized);
-            allRecipients.push({ ...r, telefone: r.telefone });
-          }
-        }
-      };
+      const blingContacts = (data?.contacts || []).map((c: any) => ({
+        cliente_id: null as any,
+        nome: c.nome || "",
+        telefone: c.telefone || "",
+        email: c.email || "",
+        tipo_documento: c.tipo_documento || "indefinido",
+      }));
 
-      // Shopify channel — usa dados diretos do pedido + enriquece com ebd_clientes quando possível
-      if (filters.canalShopify) {
-        const { data } = await supabase
-          .from("ebd_shopify_pedidos")
-          .select("cliente_id, customer_name, customer_phone, customer_email")
-          .gte("created_at", filters.dateFrom)
-          .lte("created_at", filters.dateTo)
-          .in("status_pagamento", ["paid", "Pago", "Faturado"]);
-
-        if (data) {
-          // Buscar dados de ebd_clientes para pedidos com cliente_id
-          const clienteIds = [...new Set(data.map((d: any) => d.cliente_id).filter(Boolean))];
-          let clientesMap: Record<string, any> = {};
-          if (clienteIds.length > 0) {
-            const { data: clientes } = await supabase
-              .from("ebd_clientes")
-              .select("id, nome_igreja, telefone, email_superintendente, cpf, cnpj")
-              .in("id", clienteIds);
-            (clientes || []).forEach((c: any) => {
-              clientesMap[c.id] = c;
-            });
-          }
-
-          // Iterar cada pedido e usar dados diretos, enriquecendo com cliente quando disponível
-          data.forEach((pedido: any) => {
-            const cliente = pedido.cliente_id ? clientesMap[pedido.cliente_id] : null;
-
-            const nome = cliente?.nome_igreja || pedido.customer_name || "";
-            const telefone = cliente?.telefone || pedido.customer_phone || "";
-            const email = cliente?.email_superintendente || pedido.customer_email || "";
-            const tipoDoc = cliente
-              ? (cliente.cnpj ? "cnpj" : "cpf")
-              : "indefinido";
-
-            addRecipient({
-              cliente_id: pedido.cliente_id || "",
-              nome,
-              telefone,
-              email,
-              tipo_documento: tipoDoc,
-            });
-          });
-        }
-      }
-
-      // Mercado Pago channel
-      if (filters.canalMercadoPago) {
-        const { data } = await supabase
-          .from("ebd_shopify_pedidos_mercadopago")
-          .select("cliente_id")
-          .gte("created_at", filters.dateFrom)
-          .lte("created_at", filters.dateTo)
-          .eq("status", "PAGO");
-
-        if (data) {
-          const clienteIds = [...new Set(data.map((d: any) => d.cliente_id).filter(Boolean))];
-          if (clienteIds.length > 0) {
-            const { data: clientes } = await supabase
-              .from("ebd_clientes")
-              .select("id, nome_igreja, telefone, email_superintendente, cpf, cnpj")
-              .in("id", clienteIds);
-
-            (clientes || []).forEach((c: any) => {
-              addRecipient({
-                cliente_id: c.id,
-                nome: c.nome_igreja,
-                telefone: c.telefone || "",
-                email: c.email_superintendente || "",
-                tipo_documento: c.cnpj ? "cnpj" : "cpf",
-              });
-            });
-          }
-        }
-      }
-
-      // Faturados B2B channel (propostas)
-      if (filters.canalFaturadosB2B) {
-        const { data } = await supabase
-          .from("vendedor_propostas")
-          .select("cliente_id")
-          .gte("created_at", filters.dateFrom)
-          .lte("created_at", filters.dateTo)
-          .in("status", ["FATURADO", "PAGO"]);
-
-        if (data) {
-          const clienteIds = [...new Set(data.map((d: any) => d.cliente_id).filter(Boolean))];
-          if (clienteIds.length > 0) {
-            const { data: clientes } = await supabase
-              .from("ebd_clientes")
-              .select("id, nome_igreja, telefone, email_superintendente, cpf, cnpj")
-              .in("id", clienteIds);
-
-            (clientes || []).forEach((c: any) => {
-              addRecipient({
-                cliente_id: c.id,
-                nome: c.nome_igreja,
-                telefone: c.telefone || "",
-                email: c.email_superintendente || "",
-                tipo_documento: c.cnpj ? "cnpj" : "cpf",
-              });
-            });
-          }
-        }
-      }
-
-      setRecipients(allRecipients);
-      if (allRecipients.length === 0) toast.info("Nenhum destinatário encontrado com esses filtros.");
+      setRecipients(blingContacts);
+      if (blingContacts.length === 0) toast.info("Nenhum destinatário encontrado com esses filtros.");
     } catch (err: any) {
       toast.error("Erro ao buscar público: " + err.message);
     } finally {
@@ -274,7 +168,7 @@ export default function WhatsAppCampaigns() {
       // Insert recipients in batches of 100
       const batch = recipients.map((r) => ({
         campanha_id: campanha.id,
-        cliente_id: r.cliente_id,
+        cliente_id: r.cliente_id || null,
         telefone: r.telefone,
         nome: r.nome,
         email: r.email,
@@ -322,7 +216,7 @@ export default function WhatsAppCampaigns() {
     setRecipients([]);
     setSelectedTemplateId(null);
     setCampaignName("");
-    setFilters({ dateFrom: "", dateTo: "", tipoDoc: "ambos", canalShopify: true, canalMercadoPago: true, canalFaturadosB2B: true });
+    setFilters({ dateFrom: "", dateTo: "", canalBling: "205391854" });
   };
 
   // --- Funnel calculations ---
@@ -438,33 +332,15 @@ export default function WhatsAppCampaigns() {
             </div>
 
             <div className="space-y-2">
-              <Label>Tipo de Documento</Label>
-              <Select value={filters.tipoDoc} onValueChange={(v: any) => setFilters({ ...filters, tipoDoc: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Label>Canal de Venda (Bling)</Label>
+              <Select value={filters.canalBling} onValueChange={(v) => setFilters({ ...filters, canalBling: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione o canal" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ambos">Ambos (CPF + CNPJ)</SelectItem>
-                  <SelectItem value="cpf">Apenas CPF</SelectItem>
-                  <SelectItem value="cnpj">Apenas CNPJ</SelectItem>
+                  {BLING_CHANNELS.map((ch) => (
+                    <SelectItem key={ch.id} value={ch.id || "todos"}>{ch.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Canais de Venda</Label>
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={filters.canalShopify} onCheckedChange={(c) => setFilters({ ...filters, canalShopify: !!c })} />
-                  Shopify
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={filters.canalMercadoPago} onCheckedChange={(c) => setFilters({ ...filters, canalMercadoPago: !!c })} />
-                  Mercado Pago
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={filters.canalFaturadosB2B} onCheckedChange={(c) => setFilters({ ...filters, canalFaturadosB2B: !!c })} />
-                  Faturados B2B
-                </label>
-              </div>
             </div>
 
             <Button onClick={searchAudience} disabled={loadingAudience} className="gap-2">
