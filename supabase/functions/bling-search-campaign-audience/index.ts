@@ -61,6 +61,9 @@ interface Contact {
   email: string;
   tipo_documento: string;
   documento: string;
+  data_pedido: string;
+  produtos_pedido: string;
+  valor_pedido: string;
 }
 
 function normalizePhone(phone: string): string {
@@ -157,16 +160,20 @@ async function searchOrdersPaginated(
       break;
     }
 
-    // Collect unique contact IDs from this page
-    const contactIdsToFetch: { contactId: number; nome: string; tipoPessoa: string; numeroDocumento: string }[] = [];
+    // Collect unique contact IDs from this page, keeping the latest order data per contact
+    const contactIdsToFetch: { contactId: number; nome: string; tipoPessoa: string; numeroDocumento: string; dataPedido: string; valorPedido: string }[] = [];
     for (const pedido of pedidos) {
       const contato = pedido.contato;
       if (!contato || !contato.id) continue;
+      const dataPedido = pedido.data || "";
+      const valorPedido = pedido.totalProdutos != null ? String(pedido.totalProdutos) : (pedido.total != null ? String(pedido.total) : "");
       contactIdsToFetch.push({
         contactId: contato.id,
         nome: contato.nome || "",
         tipoPessoa: contato.tipoPessoa || "F",
         numeroDocumento: contato.numeroDocumento || "",
+        dataPedido,
+        valorPedido,
       });
     }
 
@@ -206,6 +213,9 @@ async function searchOrdersPaginated(
           email: details.email,
           tipo_documento: item.tipoPessoa === "J" ? "cnpj" : "cpf",
           documento: item.numeroDocumento,
+          data_pedido: item.dataPedido,
+          produtos_pedido: "seus produtos",
+          valor_pedido: item.valorPedido,
         });
       }
     }

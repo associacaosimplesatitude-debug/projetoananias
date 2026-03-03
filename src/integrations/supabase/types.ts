@@ -6162,14 +6162,17 @@ export type Database = {
           cliques_botoes: Json | null
           comprou: boolean | null
           created_at: string
+          data_pedido: string | null
           email: string | null
           enviado_em: string | null
           id: string
           nome: string | null
+          produtos_pedido: string | null
           status_envio: string
           telefone: string | null
           tipo_documento: string | null
           valor_compra: number | null
+          valor_pedido: string | null
           visitou_link: boolean | null
         }
         Insert: {
@@ -6178,14 +6181,17 @@ export type Database = {
           cliques_botoes?: Json | null
           comprou?: boolean | null
           created_at?: string
+          data_pedido?: string | null
           email?: string | null
           enviado_em?: string | null
           id?: string
           nome?: string | null
+          produtos_pedido?: string | null
           status_envio?: string
           telefone?: string | null
           tipo_documento?: string | null
           valor_compra?: number | null
+          valor_pedido?: string | null
           visitou_link?: boolean | null
         }
         Update: {
@@ -6194,14 +6200,17 @@ export type Database = {
           cliques_botoes?: Json | null
           comprou?: boolean | null
           created_at?: string
+          data_pedido?: string | null
           email?: string | null
           enviado_em?: string | null
           id?: string
           nome?: string | null
+          produtos_pedido?: string | null
           status_envio?: string
           telefone?: string | null
           tipo_documento?: string | null
           valor_compra?: number | null
+          valor_pedido?: string | null
           visitou_link?: boolean | null
         }
         Relationships: [

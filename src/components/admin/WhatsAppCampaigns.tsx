@@ -46,6 +46,9 @@ interface Recipient {
   telefone: string;
   email: string;
   tipo_documento: string;
+  data_pedido?: string;
+  produtos_pedido?: string;
+  valor_pedido?: string;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -238,6 +241,9 @@ export default function WhatsAppCampaigns() {
         nome: r.nome,
         email: r.email,
         tipo_documento: r.tipo_documento,
+        data_pedido: r.data_pedido || null,
+        produtos_pedido: r.produtos_pedido || null,
+        valor_pedido: r.valor_pedido || null,
       }));
 
       for (let i = 0; i < batch.length; i += 100) {
