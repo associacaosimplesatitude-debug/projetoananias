@@ -71,15 +71,54 @@ Deno.serve(async (req) => {
 
     // ============ ACTION: test_connection ============
     if (action === "test_connection") {
-      if (!business_account_id) {
+      if (!phone_number_id && !business_account_id) {
         return new Response(
-          JSON.stringify({ success: false, error: "WhatsApp Business Account ID é obrigatório para testar conexão" }),
+          JSON.stringify({ success: false, error: "Phone Number ID ou Business Account ID é obrigatório para testar conexão" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const endpoint = `https://graph.facebook.com/v22.0/${business_account_id}/phone_numbers?fields=id,display_phone_number,verified_name`;
-      console.log("[test_connection] GET", endpoint);
+      // Strategy: query phone_number_id directly (works with whatsapp_business_messaging)
+      if (phone_number_id) {
+        const endpoint = `https://graph.facebook.com/v22.0/${phone_number_id}?fields=display_phone_number,verified_name,quality_rating`;
+        console.log("[test_connection] GET (direct phone)", endpoint);
+
+        const res = await fetch(endpoint, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+        const data = await res.json();
+        console.log("[test_connection] status:", res.status, "body:", JSON.stringify(data));
+
+        if (!res.ok || !data?.display_phone_number) {
+          const metaError = data?.error || {};
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: diagnosticMessage(metaError),
+              details: metaError,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            phone_numbers: [{
+              id: phone_number_id,
+              display_phone_number: data.display_phone_number,
+              verified_name: data.verified_name || "N/A",
+              quality_rating: data.quality_rating || "N/A",
+            }],
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Fallback: list via WABA (requires whatsapp_business_management)
+      const endpoint = `https://graph.facebook.com/v22.0/${business_account_id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating`;
+      console.log("[test_connection] GET (WABA fallback)", endpoint);
 
       const listRes = await fetch(endpoint, {
         method: "GET",
@@ -100,34 +139,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Fetch details for each phone number (quality_rating)
-      const phoneNumbers = [];
-      for (const phone of listData.data) {
-        const detailEndpoint = `https://graph.facebook.com/v22.0/${phone.id}?fields=display_phone_number,verified_name,quality_rating`;
-        console.log("[test_connection] GET detail", detailEndpoint);
-        const detailRes = await fetch(detailEndpoint, {
-          method: "GET",
-          headers: { Authorization: `Bearer ${access_token}` },
-        });
-        const detailData = await detailRes.json();
-        console.log("[test_connection] detail status:", detailRes.status, "body:", JSON.stringify(detailData));
-
-        if (detailRes.ok && detailData?.display_phone_number) {
-          phoneNumbers.push({
-            id: phone.id,
-            display_phone_number: detailData.display_phone_number,
-            verified_name: detailData.verified_name || "N/A",
-            quality_rating: detailData.quality_rating || "N/A",
-          });
-        } else {
-          phoneNumbers.push({
-            id: phone.id,
-            display_phone_number: phone.display_phone_number || "N/A",
-            verified_name: phone.verified_name || "N/A",
-            quality_rating: "N/A",
-          });
-        }
-      }
+      const phoneNumbers = listData.data.map((phone: any) => ({
+        id: phone.id,
+        display_phone_number: phone.display_phone_number || "N/A",
+        verified_name: phone.verified_name || "N/A",
+        quality_rating: phone.quality_rating || "N/A",
+      }));
 
       return new Response(
         JSON.stringify({ success: true, phone_numbers: phoneNumbers }),
