@@ -1,57 +1,27 @@
 
 
-## Plano: Segmentação via Bling (busca direta por canal e data)
+## Diagnóstico
 
-### Conceito
+A Edge Function **funcionou** (encontrou 197 contatos), mas **demorou ~2,5 minutos** e o navegador desconectou antes de receber a resposta ("connection closed before message completed"). O problema principal é que a função faz `GET /contatos/{id}` individual para cada pedido sem telefone, o que consome muito tempo.
 
-Substituir a segmentação atual (que consulta tabelas locais Shopify/MP/B2B) por uma busca direta na API do Bling. O fluxo será:
+Além disso, os **IDs dos canais estão incorretos/hardcoded**. A lista real do Bling (conforme a imagem) é diferente.
 
-1. Selecionar o **canal** (loja do Bling) — ex: E-COMMERCE, Shopee, Mercado Livre, Atacado
-2. Selecionar o **período** (data inicial e final)
-3. Clicar "Buscar Público" → chama o Bling, traz todos os pedidos com dados do contato (nome, telefone, CPF/CNPJ)
-4. Deduplicação por telefone, exibe os destinatários para seguir com a campanha
+## Plano de Correção
 
-### Implementação
+### 1. Atualizar Edge Function `bling-search-campaign-audience`
 
-#### 1. Nova Edge Function: `bling-search-campaign-audience`
+- **Remover** as chamadas individuais a `GET /contatos/{id}` — usar apenas os dados que já vêm no campo `contato` do pedido (nome, documento). Isso reduz o tempo de ~2,5 min para ~10 segundos.
+- **Buscar lojas dinamicamente** via `GET /Api/v3/lojas` quando o `loja_id` for `"listar"`, retornando a lista de canais disponíveis para o Select da UI.
+- Manter a paginação e deduplicação por telefone existentes.
 
-- Recebe: `{ loja_id, data_inicial, data_final }`
-- Pagina `GET /pedidos/vendas?idLoja={loja_id}&dataInicial={data_inicial}&dataFinal={data_final}&limite=100&pagina=N`
-- Para cada pedido, extrai o contato (nome, telefone, CPF/CNPJ, email) do campo `contato` do pedido
-- Se telefone não vier no pedido, faz `GET /contatos/{contato.id}` para buscar detalhes
-- Retorna lista deduplicada de destinatários com: nome, telefone, email, tipo_documento (cpf/cnpj), documento
-- Usa token OAuth da tabela `bling_config` com refresh automático (mesma lógica existente)
-- Rate limiting de 350ms entre chamadas
+### 2. Atualizar UI `WhatsAppCampaigns.tsx`
 
-#### 2. Atualizar UI: `WhatsAppCampaigns.tsx` — Tela de Segmentação
-
-- Substituir os checkboxes de canais (Shopify/MP/B2B) por um **Select de Canal Bling**:
-  - E-COMMERCE (205391854)
-  - Shopee (204728077)
-  - Mercado Livre (204732507)
-  - Atacado (205441191)
-  - Todos (sem filtro de loja)
-- Manter os campos de data inicial/final
-- Remover filtro de tipo de documento (virá direto do Bling)
-- Ao clicar "Buscar Público", chama a nova edge function em vez de consultar tabelas locais
-- Corrigir o bug de UUID: `cliente_id: null` quando não houver vínculo local (esses destinatários vêm do Bling, não têm cliente_id local)
-
-#### 3. Ajuste na criação de campanha
-
-- O campo `cliente_id` no insert de destinatários será `null` para contatos vindos do Bling
-- Os dados de nome/telefone/email já vêm preenchidos diretamente do Bling
-
-### Lojas Bling conhecidas
-
-```text
-ID          | Canal
-205391854   | E-COMMERCE (Shopify)
-204728077   | SHOPEE
-204732507   | MERCADO LIVRE
-205441191   | ATACADO
-```
+- **Remover** o array `BLING_CHANNELS` hardcoded.
+- **Carregar dinamicamente** as lojas do Bling via a mesma edge function (com action `"listar_lojas"`), populando o Select com os nomes e IDs reais (E-COMMERCE, PEDIDOS MATRIZ, PEDIDOS PENHA, ECG SHOPEE, etc.).
+- Adicionar opção "Todos os Canais" no topo.
 
 ### Resultado
 
-A segmentação fica simples: escolhe o canal, o período, busca no Bling. Todos os pedidos daquele canal com dados completos do contato (nome, telefone, documento).
+- Busca rápida (~10s em vez de 2,5 min) sem timeout
+- Canais sempre atualizados com o que existe no Bling
 
