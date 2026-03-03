@@ -37,6 +37,7 @@ import revista1 from '@/assets/ofertas/revista-1.png';
 import revista2 from '@/assets/ofertas/revista-2.webp';
 import revista3 from '@/assets/ofertas/revista-3.webp';
 import revista4 from '@/assets/ofertas/revista-4.webp';
+import logoCentralGospel from '@/assets/ofertas/logo-central-gospel.png';
 
 const OfertaEBD = () => {
   const navigate = useNavigate();
@@ -163,7 +164,11 @@ const OfertaEBD = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <img src={logoGestaoEBD} alt="Gestão EBD" className="h-12 md:h-14" />
+          <div className="flex items-center gap-4">
+            <img src={logoGestaoEBD} alt="Gestão EBD" className="h-10 md:h-12" />
+            <div className="h-8 w-px bg-gray-300" />
+            <img src={logoCentralGospel} alt="Central Gospel Editora" className="h-8 md:h-10" />
+          </div>
           <Button
             onClick={() => setModalOpen(true)}
             className="bg-[#FFC107] hover:bg-[#FFB300] text-black font-bold"
@@ -370,9 +375,13 @@ const OfertaEBD = () => {
       {/* Footer */}
       <footer className="py-8 bg-gray-900 text-center">
         <div className="container mx-auto px-4">
-          <img src={logoGestaoEBD} alt="Gestão EBD" className="h-8 mx-auto mb-4" />
+          <div className="flex items-center justify-center gap-6 mb-4">
+            <img src={logoGestaoEBD} alt="Gestão EBD" className="h-8" />
+            <div className="h-6 w-px bg-gray-700" />
+            <img src={logoCentralGospel} alt="Central Gospel Editora" className="h-7 brightness-200" />
+          </div>
           <p className="text-gray-500 text-sm">
-            © {new Date().getFullYear()} Gestão EBD. Todos os direitos reservados.
+            © {new Date().getFullYear()} Gestão EBD — Material oficial Central Gospel Editora. Todos os direitos reservados.
           </p>
         </div>
       </footer>
