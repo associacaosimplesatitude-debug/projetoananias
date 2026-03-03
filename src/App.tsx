@@ -178,6 +178,7 @@ import PedidosIgrejaCNPJ from "./pages/shopify/PedidosIgrejaCNPJ";
 import EBDLogin from "./pages/EBDLogin";
 import AutorLogin from "./pages/AutorLogin";
 import LandingEBD from "./pages/LandingEBD";
+import OfertaEBD from "./pages/OfertaEBD";
 import Tutoriais from "./pages/Tutoriais";
 import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
 import Apresentacao from "./pages/Apresentacao";
@@ -218,6 +219,7 @@ const App = () => (
               <Route path="/ebd/checkout-shopify-mp" element={<EBDCheckoutShopifyMP />} />
               <Route path="/cadastro-aluno/:churchId" element={<CadastroAlunoPublico />} />
               <Route path="/livro/:slug" element={<LivroLandingPage />} />
+              <Route path="/oferta-ebd" element={<OfertaEBD />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
             <Route
               path="/*"
