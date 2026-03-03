@@ -1,19 +1,31 @@
 
 
-## Plano: Mover WhatsApp para o painel Admin geral
+## Plano: Corrigir segmentação de público para usar dados diretos dos pedidos
 
-O menu e rota do WhatsApp estão atualmente no `/admin/ebd` (AdminEBDLayout). O objetivo é movê-lo para `/admin` (AdminLayout).
+### Problema
+A segmentação atual busca pedidos → extrai `cliente_id` → busca dados em `ebd_clientes`. Porém, **207 de 210 pedidos** de novembro 2025 não têm `cliente_id` preenchido, resultando em apenas 3 destinatários.
 
-### Alterações
+Os dados de contato (`customer_name`, `customer_phone`, `customer_email`) já existem diretamente nos pedidos.
 
-**1. Editar `src/App.tsx`**
-- Remover `<Route path="whatsapp" element={<WhatsAppPanel />} />` de dentro de `/admin/ebd`
-- Adicionar `<Route path="whatsapp" element={<WhatsAppPanel />} />` dentro de `/admin`
-- Rota final: `/admin/whatsapp`
+### Solução
+Alterar `searchAudience()` em `WhatsAppCampaigns.tsx` para:
 
-**2. Editar `src/components/admin/AdminLayout.tsx`**
-- Adicionar item "WhatsApp" no sidebar com ícone `MessageSquare` e link para `/admin/whatsapp`
+1. **Canal Shopify**: Buscar `customer_name`, `customer_phone`, `customer_email` diretamente de `ebd_shopify_pedidos`. Se tiver `cliente_id`, enriquecer com dados de `ebd_clientes` (CPF/CNPJ). Se não tiver, usar os dados diretos do pedido e marcar tipo_documento como "indefinido" (incluído em ambos).
 
-**3. Editar `src/components/admin/AdminEBDLayout.tsx`**
-- Remover o item "WhatsApp" do sidebar (linhas ~411-417)
+2. **Deduplicação por telefone**: Normalizar telefones (remover +55, espaços) antes de deduplicar, para evitar duplicatas por formatação.
+
+3. **Canal Mercado Pago e B2B**: Manter lógica atual (esses canais têm `cliente_id` preenchido), mas adicionar fallback similar.
+
+### Alteração
+
+**Arquivo**: `src/components/admin/WhatsAppCampaigns.tsx`
+- Reescrever o bloco Shopify (linhas 131-158) para:
+  - Buscar campos `customer_name, customer_phone, customer_email, cliente_id` diretos
+  - Para registros com `cliente_id`, buscar CPF/CNPJ de `ebd_clientes`
+  - Para registros sem `cliente_id`, usar dados diretos do pedido
+  - Deduplicar por telefone normalizado
+- Adicionar filtro "Tipo de Documento" = "ambos" para incluir registros sem CPF/CNPJ definido
+
+### Resultado esperado
+De ~3 destinatários para ~195 clientes únicos em novembro 2025.
 
