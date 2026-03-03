@@ -116,6 +116,17 @@ Deno.serve(async (req) => {
       // Build Meta payload
       const components: any[] = [];
 
+      // Header component
+      if (template.cabecalho_tipo === "TEXT" && template.cabecalho_texto) {
+        components.push({ type: "HEADER", format: "TEXT", text: template.cabecalho_texto });
+      } else if (template.cabecalho_tipo === "IMAGE" && template.cabecalho_midia_url) {
+        components.push({
+          type: "HEADER",
+          format: "IMAGE",
+          example: { header_handle: [template.cabecalho_midia_url] },
+        });
+      }
+
       // Body component
       const bodyComponent: any = { type: "BODY", text: mappedBody };
       if (examples.length > 0) {

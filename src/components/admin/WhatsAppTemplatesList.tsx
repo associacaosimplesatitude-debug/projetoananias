@@ -105,6 +105,9 @@ export default function WhatsAppTemplatesList() {
       rodape: template.rodape || "",
       botoes: typeof template.botoes === "string" ? JSON.parse(template.botoes) : template.botoes || [],
       status: template.status,
+      cabecalho_tipo: template.cabecalho_tipo || "NONE",
+      cabecalho_texto: template.cabecalho_texto || "",
+      cabecalho_midia_url: template.cabecalho_midia_url || "",
     });
     setShowCreator(true);
   };

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Save, Send, Plus, Trash2, X } from "lucide-react";
+import { Save, Send, Plus, Trash2, X, Upload, ImageIcon, Info } from "lucide-react";
 
 const CATEGORIAS = [
   { value: "MARKETING", label: "Marketing" },
@@ -28,6 +28,12 @@ const VARIAVEIS = [
   { key: "cnpj", label: "CNPJ", example: "12.345.678/0001-90" },
 ];
 
+const HEADER_TYPES = [
+  { value: "NONE", label: "Nenhum" },
+  { value: "TEXT", label: "Texto" },
+  { value: "IMAGE", label: "Imagem" },
+];
+
 interface TemplateButton {
   tipo: "QUICK_REPLY" | "URL";
   texto: string;
@@ -43,6 +49,9 @@ interface TemplateData {
   rodape: string;
   botoes: TemplateButton[];
   status?: string;
+  cabecalho_tipo?: string | null;
+  cabecalho_texto?: string | null;
+  cabecalho_midia_url?: string | null;
 }
 
 interface WhatsAppTemplateCreatorProps {
@@ -53,6 +62,7 @@ interface WhatsAppTemplateCreatorProps {
 export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: WhatsAppTemplateCreatorProps) {
   const queryClient = useQueryClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [nome, setNome] = useState(editingTemplate?.nome || "");
   const [categoria, setCategoria] = useState(editingTemplate?.categoria || "MARKETING");
@@ -61,6 +71,11 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
   const [botoes, setBotoes] = useState<TemplateButton[]>(
     (editingTemplate?.botoes as TemplateButton[]) || []
   );
+  const [cabecalhoTipo, setCabecalhoTipo] = useState(editingTemplate?.cabecalho_tipo || "NONE");
+  const [cabecalhoTexto, setCabecalhoTexto] = useState(editingTemplate?.cabecalho_texto || "");
+  const [cabecalhoMidiaUrl, setCabecalhoMidiaUrl] = useState(editingTemplate?.cabecalho_midia_url || "");
+  const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(editingTemplate?.cabecalho_midia_url || null);
 
   const toSnakeCase = (str: string) =>
     str.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
@@ -81,6 +96,53 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
     } else {
       setCorpo((prev) => prev + tag);
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate type
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      toast.error("Formato inválido. Use JPEG ou PNG.");
+      return;
+    }
+
+    // Validate size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Imagem muito grande. Máximo permitido: 5 MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const fileName = `template-header-${Date.now()}.${ext}`;
+
+      const { data, error } = await supabase.storage
+        .from("whatsapp-media")
+        .upload(fileName, file, { upsert: true });
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from("whatsapp-media")
+        .getPublicUrl(data.path);
+
+      setCabecalhoMidiaUrl(urlData.publicUrl);
+      setImagePreview(urlData.publicUrl);
+      toast.success("Imagem enviada!");
+    } catch (err: any) {
+      toast.error("Erro ao enviar imagem: " + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeImage = () => {
+    setCabecalhoMidiaUrl("");
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const addButton = () => {
@@ -111,19 +173,24 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
     return text;
   };
 
+  const buildPayload = async (status: string) => ({
+    nome: toSnakeCase(nome),
+    categoria,
+    idioma: "pt_BR",
+    corpo,
+    rodape: rodape || null,
+    botoes: JSON.stringify(botoes),
+    variaveis_usadas: getUsedVariables(),
+    cabecalho_tipo: cabecalhoTipo === "NONE" ? null : cabecalhoTipo,
+    cabecalho_texto: cabecalhoTipo === "TEXT" ? cabecalhoTexto : null,
+    cabecalho_midia_url: cabecalhoTipo === "IMAGE" ? cabecalhoMidiaUrl : null,
+    status,
+    created_by: (await supabase.auth.getUser()).data.user?.id,
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (status: string) => {
-      const payload = {
-        nome: toSnakeCase(nome),
-        categoria,
-        idioma: "pt_BR",
-        corpo,
-        rodape: rodape || null,
-        botoes: JSON.stringify(botoes),
-        variaveis_usadas: getUsedVariables(),
-        status,
-        created_by: (await supabase.auth.getUser()).data.user?.id,
-      };
+      const payload = await buildPayload(status);
 
       if (editingTemplate?.id) {
         const { error } = await supabase
@@ -142,9 +209,9 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
         return data.id;
       }
     },
-    onSuccess: (id, status) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-templates"] });
-      toast.success(status === "RASCUNHO" ? "Rascunho salvo!" : "Template salvo!");
+      toast.success("Rascunho salvo!");
       if (onClose) onClose();
     },
     onError: (err: Error) => toast.error("Erro: " + err.message),
@@ -152,18 +219,7 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
 
   const submitToMeta = useMutation({
     mutationFn: async () => {
-      // First save as draft, then submit
-      const payload = {
-        nome: toSnakeCase(nome),
-        categoria,
-        idioma: "pt_BR",
-        corpo,
-        rodape: rodape || null,
-        botoes: JSON.stringify(botoes),
-        variaveis_usadas: getUsedVariables(),
-        status: "RASCUNHO",
-        created_by: (await supabase.auth.getUser()).data.user?.id,
-      };
+      const payload = await buildPayload("RASCUNHO");
 
       let templateId = editingTemplate?.id;
       if (templateId) {
@@ -175,7 +231,6 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
         templateId = data.id;
       }
 
-      // Submit to Meta via edge function
       const response = await supabase.functions.invoke("whatsapp-submit-template", {
         body: { action: "submit", template_id: templateId },
       });
@@ -239,6 +294,94 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
               </Select>
             </div>
           </div>
+
+          {/* Header Type */}
+          <div className="space-y-2">
+            <Label>Cabeçalho</Label>
+            <Select value={cabecalhoTipo} onValueChange={setCabecalhoTipo}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {HEADER_TYPES.map((h) => (
+                  <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Header Text */}
+          {cabecalhoTipo === "TEXT" && (
+            <div className="space-y-2">
+              <Label>Texto do Cabeçalho</Label>
+              <Input
+                placeholder="Ex: Novidades da EBD"
+                value={cabecalhoTexto}
+                onChange={(e) => setCabecalhoTexto(e.target.value)}
+                maxLength={60}
+              />
+              <p className="text-xs text-muted-foreground">Máx. 60 caracteres</p>
+            </div>
+          )}
+
+          {/* Header Image */}
+          {cabecalhoTipo === "IMAGE" && (
+            <div className="space-y-3">
+              <Label>Imagem do Cabeçalho</Label>
+              <div className="flex items-start gap-2 p-3 rounded-md bg-muted/50 border border-dashed">
+                <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong>Requisitos do Meta:</strong></p>
+                  <p>• Formato: <strong>JPEG</strong> ou <strong>PNG</strong></p>
+                  <p>• Tamanho máximo: <strong>5 MB</strong></p>
+                  <p>• Dimensões recomendadas: <strong>800 × 800 px</strong></p>
+                </div>
+              </div>
+
+              {imagePreview ? (
+                <div className="relative inline-block">
+                  <img
+                    src={imagePreview}
+                    alt="Header preview"
+                    className="w-full max-w-[200px] h-auto rounded-md border"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute -top-2 -right-2 h-6 w-6"
+                    onClick={removeImage}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="gap-2"
+                  >
+                    {uploading ? (
+                      <>Enviando...</>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4" />
+                        Enviar Imagem
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Variables */}
           <div className="space-y-2">
@@ -356,14 +499,37 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
           <div className="bg-[#e5ddd5] rounded-lg p-4 min-h-[300px]">
             <div className="max-w-[320px] mx-auto space-y-2">
               {/* Message bubble */}
-              <div className="bg-[#dcf8c6] rounded-lg p-3 shadow-sm relative">
-                <p className="text-sm whitespace-pre-wrap break-words text-gray-800">
-                  {getPreviewText() || "Seu template aparecerá aqui..."}
-                </p>
-                {rodape && (
-                  <p className="text-xs text-gray-500 mt-2 border-t pt-1">{rodape}</p>
+              <div className="bg-[#dcf8c6] rounded-lg shadow-sm relative overflow-hidden">
+                {/* Header image preview */}
+                {cabecalhoTipo === "IMAGE" && imagePreview && (
+                  <img
+                    src={imagePreview}
+                    alt="Header"
+                    className="w-full h-auto"
+                  />
                 )}
-                <span className="text-[10px] text-gray-500 float-right mt-1">12:00</span>
+
+                {/* Header image placeholder */}
+                {cabecalhoTipo === "IMAGE" && !imagePreview && (
+                  <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                    <ImageIcon className="h-10 w-10 text-gray-400" />
+                  </div>
+                )}
+
+                <div className="p-3">
+                  {/* Header text */}
+                  {cabecalhoTipo === "TEXT" && cabecalhoTexto && (
+                    <p className="text-sm font-bold text-gray-800 mb-1">{cabecalhoTexto}</p>
+                  )}
+
+                  <p className="text-sm whitespace-pre-wrap break-words text-gray-800">
+                    {getPreviewText() || "Seu template aparecerá aqui..."}
+                  </p>
+                  {rodape && (
+                    <p className="text-xs text-gray-500 mt-2 border-t pt-1">{rodape}</p>
+                  )}
+                  <span className="text-[10px] text-gray-500 float-right mt-1">12:00</span>
+                </div>
               </div>
 
               {/* Buttons preview */}

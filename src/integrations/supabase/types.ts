@@ -6247,6 +6247,7 @@ export type Database = {
       whatsapp_templates: {
         Row: {
           botoes: Json | null
+          cabecalho_midia_url: string | null
           cabecalho_texto: string | null
           cabecalho_tipo: string | null
           categoria: string
@@ -6265,6 +6266,7 @@ export type Database = {
         }
         Insert: {
           botoes?: Json | null
+          cabecalho_midia_url?: string | null
           cabecalho_texto?: string | null
           cabecalho_tipo?: string | null
           categoria?: string
@@ -6283,6 +6285,7 @@ export type Database = {
         }
         Update: {
           botoes?: Json | null
+          cabecalho_midia_url?: string | null
           cabecalho_texto?: string | null
           cabecalho_tipo?: string | null
           categoria?: string
