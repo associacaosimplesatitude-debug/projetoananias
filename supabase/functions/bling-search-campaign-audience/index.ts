@@ -67,6 +67,25 @@ function normalizePhone(phone: string): string {
   return (phone || "").replace(/[\s\-\(\)\+]/g, "").replace(/^55/, "");
 }
 
+async function fetchContactDetails(accessToken: string, contactId: number): Promise<{ telefone: string; celular: string; email: string } | null> {
+  const url = `${BLING_API_BASE}/contatos/${contactId}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    if (res.status === 429) return null; // will be retried
+    console.error(`Erro ao buscar contato ${contactId}: ${res.status}`);
+    return null;
+  }
+  const json = await res.json();
+  const data = json.data;
+  return {
+    telefone: data?.telefone || "",
+    celular: data?.celular || "",
+    email: data?.email || "",
+  };
+}
+
 async function searchOrdersPaginated(
   accessToken: string,
   loja_id: string | null,
@@ -85,7 +104,6 @@ async function searchOrdersPaginated(
   console.log("Token usado:", accessToken.substring(0, 10) + "...");
 
   while (pagesProcessed < MAX_PAGES_PER_CALL) {
-    // Check execution time limit
     if (Date.now() - startTime > MAX_EXECUTION_MS) {
       console.log(`Timeout defensivo atingido na página ${page}`);
       return { contacts, next_page: page, done: false, partial: true, seen_phones: Array.from(seenPhones) };
@@ -125,25 +143,55 @@ async function searchOrdersPaginated(
     const json = await res.json();
     const pedidos = json.data || [];
 
+    if (pedidos.length > 0 && page <= 2) {
+      console.log("=== AMOSTRA PEDIDO (página " + page + ") ===");
+      console.log(JSON.stringify(pedidos[0], null, 2));
+      console.log("=== FIM AMOSTRA ===");
+    }
+
     if (pedidos.length === 0) {
       done = true;
       break;
     }
 
+    // Collect unique contact IDs from this page
+    const contactIdsToFetch: { contactId: number; nome: string; tipoPessoa: string; numeroDocumento: string }[] = [];
     for (const pedido of pedidos) {
       const contato = pedido.contato;
-      if (!contato) continue;
+      if (!contato || !contato.id) continue;
+      contactIdsToFetch.push({
+        contactId: contato.id,
+        nome: contato.nome || "",
+        tipoPessoa: contato.tipoPessoa || "F",
+        numeroDocumento: contato.numeroDocumento || "",
+      });
+    }
 
-      const nome = contato.nome || "";
-      const telefone = contato.telefone || contato.celular || "";
-      const email = contato.email || "";
-      const tipoDoc = contato.tipoPessoa === "J" ? "cnpj" : "cpf";
-      const documento = contato.numeroDocumento || "";
+    // Fetch contact details (with rate limiting)
+    const seenContactIds = new Set<number>();
+    for (const item of contactIdsToFetch) {
+      if (Date.now() - startTime > MAX_EXECUTION_MS) {
+        console.log("Timeout durante busca de contatos individuais");
+        return { contacts, next_page: page, done: false, partial: true, seen_phones: Array.from(seenPhones) };
+      }
+      if (seenContactIds.has(item.contactId)) continue;
+      seenContactIds.add(item.contactId);
 
+      await sleep(RATE_LIMIT_MS);
+      const details = await fetchContactDetails(accessToken, item.contactId);
+      if (!details) continue;
+
+      const telefone = details.celular || details.telefone || "";
       const normalizedPhone = normalizePhone(telefone);
       if (normalizedPhone && !seenPhones.has(normalizedPhone)) {
         seenPhones.add(normalizedPhone);
-        contacts.push({ nome, telefone, email, tipo_documento: tipoDoc, documento });
+        contacts.push({
+          nome: item.nome,
+          telefone,
+          email: details.email,
+          tipo_documento: item.tipoPessoa === "J" ? "cnpj" : "cpf",
+          documento: item.numeroDocumento,
+        });
       }
     }
 
@@ -156,6 +204,8 @@ async function searchOrdersPaginated(
     pagesProcessed++;
     await sleep(RATE_LIMIT_MS);
   }
+
+  console.log(`Contatos extraídos nesta chamada: ${contacts.length}`);
 
   return {
     contacts,
