@@ -409,14 +409,6 @@ function AdminSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/whatsapp')}>
-                    <RouterNavLink to="/admin/ebd/whatsapp">
-                      <MessageSquare className="h-4 w-4" />
-                      <span>WhatsApp</span>
-                    </RouterNavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/admin/ebd/emails-ebd')}>
                     <RouterNavLink to="/admin/ebd/emails-ebd">
                       <Mail className="h-4 w-4" />

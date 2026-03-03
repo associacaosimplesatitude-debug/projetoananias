@@ -20,6 +20,7 @@ import {
   Video,
   BookOpenText,
   Presentation,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -261,6 +262,14 @@ function AdminSidebar() {
           <SidebarGroupLabel>Configurações</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/whatsapp')}>
+                  <RouterNavLink to="/admin/whatsapp">
+                    <MessageSquare className="h-4 w-4" />
+                    <span>WhatsApp</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive('/admin/branding')}>
                   <RouterNavLink to="/admin/branding">
