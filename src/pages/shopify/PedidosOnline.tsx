@@ -293,7 +293,7 @@ export default function PedidosOnline() {
         `
         )
         .neq("status_pagamento", "Faturado")
-        .gte("created_at", "2025-12-01T00:00:00.000Z")
+        .gte("created_at", "2026-01-01T00:00:00.000Z")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
