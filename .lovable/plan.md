@@ -1,43 +1,47 @@
 
 
-## Plano: Corrigir e melhorar validação da integração WhatsApp Meta Cloud API
+## Plano: Substituir credenciais Z-API por API Oficial do WhatsApp na tela /admin/ebd/whatsapp
 
-### 1. Reescrever edge function `whatsapp-meta-test`
+### Contexto
 
-**Arquivo**: `supabase/functions/whatsapp-meta-test/index.ts`
+A tela `/admin/ebd/whatsapp` (arquivo `WhatsAppPanel.tsx`) ainda exibe a aba "Credenciais Z-API" com campos de Instance ID, Token e Client Token da Z-API. O sistema já migrou para a API Oficial da Meta, e as credenciais corretas já estão salvas no banco:
 
-Aceitar um campo `action` no body para distinguir entre:
+- **Phone Number ID**: `1050166738160490` (+55 21 99606-0743, Central Gospel)
+- **WABA ID**: precisa ser atualizado para `925435919846260` (conforme screenshot da Meta)
+- **Access Token**: `EAAaJ7mIEXVMBQ...` (gerado pelo System User `61568132410994`)
+- **Verify Token**: `centralgospel123`
 
-- **`action: "test_connection"`**: Usa `GET https://graph.facebook.com/v22.0/{WABA_ID}/phone_numbers` para validar conexão. Retorna lista de números disponíveis. Depois busca detalhes de cada número via `GET .../{phone_id}?fields=display_phone_number,verified_name,quality_rating`.
+### Alterações
 
-- **`action: "test_send"`**: Envia `POST https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages` com mensagem de teste para o número informado.
+#### 1. Reescrever `CredentialsTab` em `WhatsAppPanel.tsx`
 
-Inclui diagnóstico de erros: mapeia mensagens da Meta ("Unsupported get request", "Missing permissions", "Template does not exist") para mensagens amigáveis em português.
+Substituir completamente a seção de credenciais Z-API por campos da API Oficial Meta:
 
-### 2. Atualizar `send-whatsapp-message` para v22.0
+- **Phone Number ID** (pré-preenchido: `1050166738160490`)
+- **WhatsApp Business Account ID** (pré-preenchido: `925435919846260`)
+- **Access Token** (campo password, pré-preenchido do banco)
+- **Verify Token** (pré-preenchido do banco)
+- **URL do Webhook** (read-only, copiável)
+- Validação: Phone Number ID e WABA ID numéricos, Access Token iniciando com `EAA`
+- Botões: **Salvar Credenciais**, **Testar Conexão** (usa edge function `whatsapp-meta-test` action `test_connection`), **Testar Envio** (campo de número + botão)
+- Exibir status da conexão, números encontrados, diagnóstico de erros em português
+- Manter toggles de **Envio Automático** e **Agente de IA**
 
-**Arquivo**: `supabase/functions/send-whatsapp-message/index.ts`
+#### 2. Atualizar referências Z-API
 
-- Trocar `v21.0` por `v22.0` em todas as URLs da Graph API.
+- Trocar título "WhatsApp" / subtítulo de "Z-API" para "API Oficial Meta"
+- Renomear aba "Credenciais Z-API" para "Credenciais API"
+- Remover toda lógica de `zapi_instance_id`, `zapi_token`, `zapi_client_token`
+- Remover chamadas à edge function `zapi-instance-info`
 
-### 3. Refatorar página de Integrações
+#### 3. Corrigir WABA ID no banco
 
-**Arquivo**: `src/pages/vendedor/VendedorIntegracoes.tsx`
-
-- **Validação antes de salvar**: Phone Number ID numérico, WABA ID numérico, Access Token iniciando com `EAA`, nenhum campo vazio. Botão "Salvar" desabilitado se inválido.
-
-- **Testar Conexão**: Chama `whatsapp-meta-test` com `action: "test_connection"` passando `business_account_id` e `access_token`. Exibe lista de números encontrados com nome verificado e quality rating.
-
-- **Novo botão "Testar Envio"**: Campo para número de teste + botão. Chama `whatsapp-meta-test` com `action: "test_send"`, passando `phone_number_id`, `access_token` e `test_number`. Exibe resultado (sucesso/erro com diagnóstico).
-
-- **Diagnóstico de erros**: Exibe mensagens traduzidas baseadas no tipo de erro retornado pela Meta.
-
-- **Logs no console**: `console.log` com endpoint, status HTTP e body de resposta em cada operação.
+- Atualizar `whatsapp_business_account_id` de `1437089197463918` para `925435919846260` (ID correto da conta "Central Gospel" conforme screenshot)
 
 ### Detalhes técnicos
 
-- A validação de conexão usa `WABA_ID/phone_numbers` (não GET direto no phone_number_id)
-- O teste de envio usa `POST {phone_number_id}/messages` (v22.0)
-- Os detalhes do número são buscados via `GET {phone_number_id}?fields=display_phone_number,verified_name,quality_rating` apenas após confirmar que o ID é válido via listagem do WABA
-- Mapeamento de erros no edge function e exibição formatada no frontend
+- A `CredentialsTab` carregará as 4 chaves da Meta de `system_settings` (`whatsapp_phone_number_id`, `whatsapp_business_account_id`, `whatsapp_access_token`, `whatsapp_verify_token`)
+- Testar Conexão chama `supabase.functions.invoke("whatsapp-meta-test", { body: { action: "test_connection", business_account_id, access_token } })`
+- Testar Envio chama `supabase.functions.invoke("whatsapp-meta-test", { body: { action: "test_send", phone_number_id, access_token, test_number } })`
+- Webhook URL: `https://nccyrvfnvjngfyfvgnww.supabase.co/functions/v1/whatsapp-webhook/whatsapp-meta-webhook`
 
