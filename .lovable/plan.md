@@ -1,38 +1,58 @@
 
+Diagnóstico correto do problema (com base no código + tráfego):
+- O fluxo está preso porque a função retorna repetidamente `partial: true`, `done: false`, `next_page: 1`.
+- No frontend, o loop `while (nextPage !== null)` continua chamando sempre `start_page: 1`.
+- Isso gera ciclo infinito de busca e o botão fica em “Buscando página 1…”.
+- Há também um bug de cursor no retorno final da função: após incrementar `page` no loop, ela retorna `next_page: page + 1`, o que pode pular páginas quando não há timeout.
 
-## Diagnóstico
+Plano de implementação (focado em destravar sem perder dados):
 
-Os logs confirmam que:
-- A API do Bling **retorna pedidos** (páginas 1 e 2 têm dados, página 3 vazia = `done`)
-- Mas **0 contatos são extraídos** de todos os pedidos
+1) Ajustar contrato de paginação da função para suportar progresso dentro da mesma página
+- Arquivo: `supabase/functions/bling-search-campaign-audience/index.ts`
+- Adicionar cursor de item de contato:
+  - Request: `start_contact_index` (default 0)
+  - Response: `next_contact_index`
+- Quando estourar `MAX_EXECUTION_MS` durante `/contatos/{id}`:
+  - retornar `next_page: page` (mesma página)
+  - retornar `next_contact_index` com o índice exato de onde parar
+  - manter `partial: true`, `done: false`
+- Assim, a próxima chamada continua do ponto exato, sem reprocessar tudo da página.
 
-O código atual acessa `pedido.contato` — mas na API Bling v3 `/pedidos/vendas`, o campo do cliente é provavelmente `pedido.contato` com estrutura diferente ou outro nome (ex: `pedido.cliente`, `pedido.contato.id` sem dados inline).
+2) Corrigir avanço de página e retorno de cursor
+- Na função, corrigir cálculo de `next_page` para não pular página:
+  - retornar o próximo valor real de `page` (sem `+1` extra no final)
+- Garantir coerência:
+  - se página terminou e ainda há mais: `next_page = page + 1`, `next_contact_index = 0`
+  - se terminou tudo: `done = true`, `next_page = null`
 
-**O problema não é de conexão — é de mapeamento de dados.**
+3) Atualizar loop do frontend para usar os dois cursores
+- Arquivo: `src/components/admin/WhatsAppCampaigns.tsx`
+- Além de `nextPage`, controlar `nextContactIndex`.
+- Enviar ambos no body (`start_page`, `start_contact_index`).
+- Ler ambos da resposta.
+- Atualizar progresso no botão com página + posição para transparência.
 
-## Plano
+4) Adicionar proteção anti-loop no frontend (fail-safe)
+- Se o backend devolver o mesmo par (`next_page`, `next_contact_index`) por N iterações consecutivas sem novos contatos:
+  - interromper o loop
+  - mostrar erro claro (“busca sem progresso, interrompida para segurança”)
+- Isso evita travamento infinito mesmo em cenários inesperados.
 
-### 1. Adicionar log do primeiro pedido retornado
+5) Manter diagnóstico detalhado já existente
+- Preservar logs:
+  - token parcial
+  - parâmetros da requisição
+  - erro completo do Bling (`status`, `url`, `body`)
+- Acrescentar log do cursor (`page`, `contact_index`) para rastrear retomadas.
 
-No arquivo `supabase/functions/bling-search-campaign-audience/index.ts`, logo após `const pedidos = json.data || [];`, adicionar:
+Detalhes técnicos (resumo):
+- Problema principal: cursor incompleto (apenas página) + timeout no meio do processamento por contato.
+- Solução técnica: cursor composto (`page` + `contact_index`) com retomada determinística.
+- Benefício: elimina ciclo infinito, evita reprocessamento caro, mantém cobertura completa dos destinatários.
 
-```typescript
-if (pedidos.length > 0 && page <= 2) {
-  console.log("=== AMOSTRA PEDIDO (página " + page + ") ===");
-  console.log(JSON.stringify(pedidos[0], null, 2));
-  console.log("=== FIM AMOSTRA ===");
-}
-```
-
-Isso logará a estrutura completa do primeiro pedido, revelando exatamente onde estão os dados do contato.
-
-### 2. Deploy e teste
-
-Redeployar a função, executar uma busca, e ler os logs para ver a estrutura real do pedido Bling v3.
-
-### 3. Corrigir mapeamento
-
-Com base na estrutura real, ajustar o acesso aos campos (ex: `pedido.contato.nome` → campo correto).
-
-**Nenhuma lógica será alterada além do log de diagnóstico no passo 1. A correção do mapeamento só será feita após confirmar a estrutura.**
-
+Validação após implementação:
+1. Executar busca no mesmo filtro que trava hoje.
+2. Confirmar no network que `start_contact_index` evolui entre chamadas.
+3. Confirmar que o botão sai de “Buscando...” e termina com sucesso.
+4. Confirmar que `done: true` chega ao final e que a contagem de destinatários cresce até estabilizar.
+5. Confirmar ausência de repetição infinita de requests idênticos.
