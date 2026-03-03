@@ -322,16 +322,73 @@ function CredentialsTab() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              Resultado da Conexão
+              Diagnóstico da Conexão
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             <Badge variant={connectionResult.success ? "default" : "destructive"}>
               {connectionResult.success ? "✅ Conexão OK" : "❌ Falha na conexão"}
             </Badge>
-            {connectionResult.error && (
-              <p className="text-sm text-destructive">{connectionResult.error}</p>
+
+            {/* Step-by-step checks */}
+            {connectionResult.checks && (
+              <div className="space-y-2">
+                <span className="text-sm font-semibold">Verificações por etapa:</span>
+                <div className="grid gap-2">
+                  {[
+                    { key: "token_valid", label: "Token válido", icon: "🔑" },
+                    { key: "waba_access", label: "Acesso ao WABA", icon: "🏢" },
+                    { key: "phone_access", label: "Acesso ao Phone Number", icon: "📞" },
+                  ].map(({ key, label, icon }) => (
+                    <div key={key} className="flex items-center gap-2 text-sm">
+                      {connectionResult.checks[key] ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      )}
+                      <span>{icon} {label}</span>
+                      <Badge variant={connectionResult.checks[key] ? "default" : "destructive"} className="text-xs">
+                        {connectionResult.checks[key] ? "OK" : "FALHA"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
+
+            {/* Token scopes */}
+            {connectionResult.token_scopes?.length > 0 && (
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-muted-foreground">Permissões do token:</span>
+                <div className="flex flex-wrap gap-1">
+                  {connectionResult.token_scopes.map((s: string) => (
+                    <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Probable cause */}
+            {connectionResult.probable_cause && !connectionResult.success && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 space-y-2">
+                <span className="text-sm font-semibold text-destructive">🔍 Causa provável:</span>
+                <p className="text-sm">{connectionResult.probable_cause}</p>
+              </div>
+            )}
+
+            {/* Next steps */}
+            {connectionResult.next_steps?.length > 0 && !connectionResult.success && (
+              <div className="bg-muted rounded-md p-3 space-y-2">
+                <span className="text-sm font-semibold">📋 Próximos passos:</span>
+                <ol className="list-decimal list-inside space-y-1 text-sm">
+                  {connectionResult.next_steps.map((step: string, i: number) => (
+                    <li key={i}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {/* Phone numbers (success) */}
             {connectionResult.phone_numbers && (
               <div className="space-y-2">
                 <span className="text-sm font-semibold">Números encontrados:</span>
@@ -347,7 +404,19 @@ function CredentialsTab() {
                 </div>
               </div>
             )}
-            {connectionResult.details && <JsonBlock data={connectionResult.details} label="📋 Detalhes do erro" />}
+
+            {/* Raw diagnostics (collapsible) */}
+            {connectionResult.raw_diagnostics && (
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                  <ChevronRight className="h-3 w-3" />
+                  Diagnóstico técnico detalhado
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <JsonBlock data={connectionResult.raw_diagnostics} label="📋 Raw diagnostics" />
+                </CollapsibleContent>
+              </Collapsible>
+            )}
           </CardContent>
         </Card>
       )}
