@@ -93,6 +93,7 @@ async function searchOrdersPaginated(
   data_final: string,
   start_page: number,
   seen_phones: string[],
+  start_contact_index: number = 0,
 ) {
   const startTime = Date.now();
   const seenPhones = new Set<string>(seen_phones);
@@ -100,13 +101,15 @@ async function searchOrdersPaginated(
   let page = start_page;
   let pagesProcessed = 0;
   let done = false;
+  let currentContactIndex = 0;
 
   console.log("Token usado:", accessToken.substring(0, 10) + "...");
+  console.log(`Cursor inicial: page=${page}, contact_index=${start_contact_index}`);
 
   while (pagesProcessed < MAX_PAGES_PER_CALL) {
     if (Date.now() - startTime > MAX_EXECUTION_MS) {
-      console.log(`Timeout defensivo atingido na página ${page}`);
-      return { contacts, next_page: page, done: false, partial: true, seen_phones: Array.from(seenPhones) };
+      console.log(`Timeout defensivo atingido na página ${page}, contact_index=${currentContactIndex}`);
+      return { contacts, next_page: page, next_contact_index: currentContactIndex, done: false, partial: true, seen_phones: Array.from(seenPhones) };
     }
 
     console.log("Buscando pedidos com parâmetros:", { loja_id, data_inicial, data_final, page });
@@ -167,16 +170,28 @@ async function searchOrdersPaginated(
       });
     }
 
-    // Fetch contact details (with rate limiting)
+    // Deduplicate contact IDs preserving order
+    const uniqueContacts: typeof contactIdsToFetch = [];
     const seenContactIds = new Set<number>();
     for (const item of contactIdsToFetch) {
-      if (Date.now() - startTime > MAX_EXECUTION_MS) {
-        console.log("Timeout durante busca de contatos individuais");
-        return { contacts, next_page: page, done: false, partial: true, seen_phones: Array.from(seenPhones) };
+      if (!seenContactIds.has(item.contactId)) {
+        seenContactIds.add(item.contactId);
+        uniqueContacts.push(item);
       }
-      if (seenContactIds.has(item.contactId)) continue;
-      seenContactIds.add(item.contactId);
+    }
 
+    // Determine starting index (only applies to first page if resuming)
+    const startIdx = (pagesProcessed === 0 && start_contact_index > 0) ? start_contact_index : 0;
+
+    // Fetch contact details (with rate limiting), starting from cursor
+    for (let i = startIdx; i < uniqueContacts.length; i++) {
+      if (Date.now() - startTime > MAX_EXECUTION_MS) {
+        currentContactIndex = i;
+        console.log(`Timeout durante contatos: page=${page}, contact_index=${i}/${uniqueContacts.length}`);
+        return { contacts, next_page: page, next_contact_index: currentContactIndex, done: false, partial: true, seen_phones: Array.from(seenPhones) };
+      }
+
+      const item = uniqueContacts[i];
       await sleep(RATE_LIMIT_MS);
       const details = await fetchContactDetails(accessToken, item.contactId);
       if (!details) continue;
@@ -210,6 +225,7 @@ async function searchOrdersPaginated(
   return {
     contacts,
     next_page: done ? null : page + 1,
+    next_contact_index: 0,
     done,
     partial: !done,
     seen_phones: Array.from(seenPhones),
@@ -247,7 +263,7 @@ serve(async (req) => {
     }
 
     // Action: search orders with pagination
-    const { loja_id, data_inicial, data_final, start_page, seen_phones } = body;
+    const { loja_id, data_inicial, data_final, start_page, seen_phones, start_contact_index } = body;
     if (!data_inicial || !data_final) {
       return new Response(JSON.stringify({ error: "data_inicial e data_final são obrigatórios" }), {
         status: 400,
@@ -262,6 +278,7 @@ serve(async (req) => {
       data_final,
       start_page || 1,
       seen_phones || [],
+      start_contact_index || 0,
     );
 
     console.log(`Contatos nesta chamada: ${result.contacts.length}, done: ${result.done}, next_page: ${result.next_page}`);
