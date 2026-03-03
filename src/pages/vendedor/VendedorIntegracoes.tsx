@@ -32,6 +32,7 @@ export default function VendedorIntegracoes() {
   const [loading, setLoading] = useState(true);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [showZapiLegacy, setShowZapiLegacy] = useState(false);
+  const [lastWebhookAt, setLastWebhookAt] = useState<string | null>(null);
 
   // Z-API legacy fields
   const [instanceId, setInstanceId] = useState("");
@@ -56,6 +57,7 @@ export default function VendedorIntegracoes() {
 
   useEffect(() => {
     loadCredentials();
+    loadLastWebhook();
   }, []);
 
   async function loadCredentials() {
@@ -87,6 +89,20 @@ export default function VendedorIntegracoes() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadLastWebhook() {
+    try {
+      const { data } = await supabase
+        .from("whatsapp_webhooks")
+        .select("created_at, evento")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setLastWebhookAt(data.created_at);
+      }
+    } catch { /* ignore */ }
   }
 
   async function saveCredentials() {
@@ -309,6 +325,16 @@ export default function VendedorIntegracoes() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">Cole esta URL no campo Callback URL do seu app Meta</p>
+            {lastWebhookAt && (
+              <p className="text-xs text-muted-foreground mt-1">
+                📡 Último webhook recebido em: <strong>{new Date(lastWebhookAt).toLocaleString("pt-BR")}</strong>
+              </p>
+            )}
+            {!lastWebhookAt && (
+              <p className="text-xs text-destructive mt-1">
+                ⚠️ Nenhum webhook recebido ainda. Verifique a configuração no Meta.
+              </p>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">
