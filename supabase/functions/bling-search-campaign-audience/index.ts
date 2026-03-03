@@ -25,7 +25,6 @@ async function getValidToken(supabase: any): Promise<string> {
     return config.access_token;
   }
 
-  // Refresh token
   if (!config.refresh_token) throw new Error("Refresh token não disponível");
   const credentials = btoa(`${config.client_id}:${config.client_secret}`);
   const tokenRes = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
@@ -66,6 +65,100 @@ function normalizePhone(phone: string): string {
   return (phone || "").replace(/[\s\-\(\)\+]/g, "").replace(/^55/, "");
 }
 
+async function listLojas(accessToken: string) {
+  // Fetch recent orders to discover unique loja IDs
+  const lojaIds = new Set<number>();
+  let page = 1;
+  
+  // Scan up to 3 pages to find all lojas
+  for (let p = 1; p <= 3; p++) {
+    const res = await fetch(`${BLING_API_BASE}/pedidos/vendas?pagina=${p}&limite=100`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) break;
+    const json = await res.json();
+    const pedidos = json.data || [];
+    if (pedidos.length === 0) break;
+    for (const pedido of pedidos) {
+      if (pedido.loja?.id) lojaIds.add(pedido.loja.id);
+    }
+    if (pedidos.length < 100) break;
+    await sleep(RATE_LIMIT_MS);
+  }
+
+  // Return unique lojas (IDs only — names come from order context)
+  return Array.from(lojaIds).map(id => ({
+    id: String(id),
+    descricao: String(id), // UI will map to readable name
+  }));
+}
+
+async function searchOrders(accessToken: string, loja_id: string | null, data_inicial: string, data_final: string) {
+  const seenPhones = new Set<string>();
+  const contacts: Contact[] = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const params = new URLSearchParams({
+      dataInicial: data_inicial,
+      dataFinal: data_final,
+      limite: "100",
+      pagina: String(page),
+    });
+    if (loja_id) params.set("idLoja", loja_id);
+
+    const url = `${BLING_API_BASE}/pedidos/vendas?${params}`;
+    console.log(`Página ${page}: ${url}`);
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      if (res.status === 429) {
+        await sleep(2000);
+        continue;
+      }
+      throw new Error(`Erro na API do Bling: ${res.status}`);
+    }
+
+    const json = await res.json();
+    const pedidos = json.data || [];
+
+    if (pedidos.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    for (const pedido of pedidos) {
+      const contato = pedido.contato;
+      if (!contato) continue;
+
+      const nome = contato.nome || "";
+      const telefone = contato.telefone || contato.celular || "";
+      const email = contato.email || "";
+      const tipoDoc = contato.tipoPessoa === "J" ? "cnpj" : "cpf";
+      const documento = contato.numeroDocumento || "";
+
+      const normalizedPhone = normalizePhone(telefone);
+      if (normalizedPhone && !seenPhones.has(normalizedPhone)) {
+        seenPhones.add(normalizedPhone);
+        contacts.push({ nome, telefone, email, tipo_documento: tipoDoc, documento });
+      }
+    }
+
+    if (pedidos.length < 100) {
+      hasMore = false;
+    } else {
+      page++;
+      await sleep(RATE_LIMIT_MS);
+    }
+  }
+
+  return contacts;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -76,7 +169,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Validate auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Não autorizado" }), {
@@ -85,7 +177,21 @@ serve(async (req) => {
       });
     }
 
-    const { loja_id, data_inicial, data_final } = await req.json();
+    const body = await req.json();
+    const { action } = body;
+
+    const accessToken = await getValidToken(supabase);
+
+    // Action: list stores
+    if (action === "listar_lojas") {
+      const lojas = await listLojas(accessToken);
+      return new Response(JSON.stringify({ lojas }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Action: search orders (default)
+    const { loja_id, data_inicial, data_final } = body;
     if (!data_inicial || !data_final) {
       return new Response(JSON.stringify({ error: "data_inicial e data_final são obrigatórios" }), {
         status: 400,
@@ -93,120 +199,8 @@ serve(async (req) => {
       });
     }
 
-    const accessToken = await getValidToken(supabase);
-    const seenPhones = new Set<string>();
-    const contacts: Contact[] = [];
-    let page = 1;
-    let hasMore = true;
-
-    while (hasMore) {
-      const params = new URLSearchParams({
-        dataInicial: data_inicial,
-        dataFinal: data_final,
-        limite: "100",
-        pagina: String(page),
-      });
-      if (loja_id) params.set("idLoja", String(loja_id));
-
-      const url = `${BLING_API_BASE}/pedidos/vendas?${params}`;
-      console.log(`Buscando página ${page}: ${url}`);
-
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        console.error(`Erro Bling API (${res.status}):`, errBody);
-        if (res.status === 429) {
-          // Rate limited, wait and retry
-          await sleep(2000);
-          continue;
-        }
-        throw new Error(`Erro na API do Bling: ${res.status}`);
-      }
-
-      const json = await res.json();
-      const pedidos = json.data || [];
-
-      if (pedidos.length === 0) {
-        hasMore = false;
-        break;
-      }
-
-      // Process each order's contact
-      for (const pedido of pedidos) {
-        const contato = pedido.contato;
-        if (!contato) continue;
-
-        let telefone = "";
-        let nome = contato.nome || "";
-        let email = "";
-        let tipoDoc = "";
-        let documento = "";
-
-        // Extract document info
-        if (contato.tipoPessoa === "J") {
-          tipoDoc = "cnpj";
-          documento = contato.numeroDocumento || "";
-        } else {
-          tipoDoc = "cpf";
-          documento = contato.numeroDocumento || "";
-        }
-
-        // Try to get phone from contato
-        if (contato.telefone) {
-          telefone = contato.telefone;
-        } else if (contato.celular) {
-          telefone = contato.celular;
-        }
-
-        // Try to get email
-        email = contato.email || "";
-
-        // If no phone, fetch contact details
-        if (!telefone && contato.id) {
-          await sleep(RATE_LIMIT_MS);
-          try {
-            const contactRes = await fetch(`${BLING_API_BASE}/contatos/${contato.id}`, {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-            if (contactRes.ok) {
-              const contactData = await contactRes.json();
-              const detail = contactData.data;
-              if (detail) {
-                telefone = detail.celular || detail.telefone || "";
-                if (!email) email = detail.email || "";
-                if (!nome) nome = detail.nome || "";
-                if (!documento && detail.numeroDocumento) {
-                  documento = detail.numeroDocumento;
-                  tipoDoc = detail.tipoPessoa === "J" ? "cnpj" : "cpf";
-                }
-              }
-            }
-          } catch (e) {
-            console.error(`Erro ao buscar contato ${contato.id}:`, e);
-          }
-        }
-
-        // Deduplicate by phone
-        const normalizedPhone = normalizePhone(telefone);
-        if (normalizedPhone && !seenPhones.has(normalizedPhone)) {
-          seenPhones.add(normalizedPhone);
-          contacts.push({ nome, telefone, email, tipo_documento: tipoDoc, documento });
-        }
-      }
-
-      // Check if there are more pages
-      if (pedidos.length < 100) {
-        hasMore = false;
-      } else {
-        page++;
-        await sleep(RATE_LIMIT_MS);
-      }
-    }
-
-    console.log(`Total de contatos únicos encontrados: ${contacts.length}`);
+    const contacts = await searchOrders(accessToken, loja_id, data_inicial, data_final);
+    console.log(`Total de contatos únicos: ${contacts.length}`);
 
     return new Response(JSON.stringify({ contacts, total: contacts.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
