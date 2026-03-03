@@ -118,16 +118,25 @@ export default function WhatsAppCampaigns() {
       const allRecipients: Recipient[] = [];
       const seenPhones = new Set<string>();
 
+      // Normaliza telefone removendo +55, espaços, parênteses, hífens
+      const normalizePhone = (phone: string) =>
+        phone.replace(/[\s\-\(\)\+]/g, "").replace(/^55/, "");
+
       const addRecipient = (r: Recipient) => {
-        if (r.telefone && !seenPhones.has(r.telefone)) {
-          if (filters.tipoDoc === "ambos" || r.tipo_documento === filters.tipoDoc) {
-            seenPhones.add(r.telefone);
-            allRecipients.push(r);
+        const normalized = normalizePhone(r.telefone || "");
+        if (normalized && !seenPhones.has(normalized)) {
+          if (
+            filters.tipoDoc === "ambos" ||
+            r.tipo_documento === filters.tipoDoc ||
+            r.tipo_documento === "indefinido"
+          ) {
+            seenPhones.add(normalized);
+            allRecipients.push({ ...r, telefone: r.telefone });
           }
         }
       };
 
-      // Shopify channel
+      // Shopify channel — usa dados diretos do pedido + enriquece com ebd_clientes quando possível
       if (filters.canalShopify) {
         const { data } = await supabase
           .from("ebd_shopify_pedidos")
@@ -137,23 +146,38 @@ export default function WhatsAppCampaigns() {
           .in("status_pagamento", ["paid", "Pago", "Faturado"]);
 
         if (data) {
+          // Buscar dados de ebd_clientes para pedidos com cliente_id
           const clienteIds = [...new Set(data.map((d: any) => d.cliente_id).filter(Boolean))];
+          let clientesMap: Record<string, any> = {};
           if (clienteIds.length > 0) {
             const { data: clientes } = await supabase
               .from("ebd_clientes")
               .select("id, nome_igreja, telefone, email_superintendente, cpf, cnpj")
               .in("id", clienteIds);
-
             (clientes || []).forEach((c: any) => {
-              addRecipient({
-                cliente_id: c.id,
-                nome: c.nome_igreja,
-                telefone: c.telefone || "",
-                email: c.email_superintendente || "",
-                tipo_documento: c.cnpj ? "cnpj" : "cpf",
-              });
+              clientesMap[c.id] = c;
             });
           }
+
+          // Iterar cada pedido e usar dados diretos, enriquecendo com cliente quando disponível
+          data.forEach((pedido: any) => {
+            const cliente = pedido.cliente_id ? clientesMap[pedido.cliente_id] : null;
+
+            const nome = cliente?.nome_igreja || pedido.customer_name || "";
+            const telefone = cliente?.telefone || pedido.customer_phone || "";
+            const email = cliente?.email_superintendente || pedido.customer_email || "";
+            const tipoDoc = cliente
+              ? (cliente.cnpj ? "cnpj" : "cpf")
+              : "indefinido";
+
+            addRecipient({
+              cliente_id: pedido.cliente_id || "",
+              nome,
+              telefone,
+              email,
+              tipo_documento: tipoDoc,
+            });
+          });
         }
       }
 
