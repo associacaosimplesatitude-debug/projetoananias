@@ -155,7 +155,7 @@ function CredentialsTab() {
     setConnectionResult(null);
     try {
       const response = await supabase.functions.invoke("whatsapp-meta-test", {
-        body: { action: "test_connection", business_account_id: businessAccountId, access_token: accessToken },
+        body: { action: "test_connection", business_account_id: businessAccountId, phone_number_id: phoneNumberId, access_token: accessToken },
       });
       if (response.error) throw new Error(response.error.message);
       setConnectionResult(response.data);
