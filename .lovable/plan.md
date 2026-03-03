@@ -1,29 +1,29 @@
 
 
-## Plano: Reutilizar público salvo de campanhas existentes
+## Plano: Corrigir recebimento de mensagens via Meta webhook e exibição em conversas
 
-### Problema
-O público já está salvo na tabela `whatsapp_campanha_destinatarios`, mas ao criar uma nova campanha, o usuário é obrigado a buscar novamente no Bling. Não há opção de reaproveitar o público de uma campanha anterior.
+### Diagnóstico
 
-### Solução
-Adicionar um botão "Usar público de campanha existente" na etapa de segmentação que permite selecionar uma campanha anterior e carregar seus destinatários diretamente do banco.
+Identifiquei **dois problemas**:
 
-### Alteração no arquivo `src/components/admin/WhatsAppCampaigns.tsx`
+1. **O webhook Meta NÃO salva mensagens recebidas em `whatsapp_conversas`**. O handler da rota `whatsapp-meta-webhook` (linhas 240-273 do `whatsapp-webhook/index.ts`) apenas salva o payload bruto em `whatsapp_webhooks`, mas **não extrai o texto da mensagem e não insere em `whatsapp_conversas`**. Por isso, respostas dos clientes via Meta Cloud API nunca aparecem no chat do painel.
 
-1. **Na etapa "segmentation"**, adicionar uma seção acima dos filtros de busca com:
-   - Um `Select` listando campanhas existentes que possuam destinatários (`total_publico > 0`)
-   - Um botão "Carregar Público" que busca os destinatários da campanha selecionada via `whatsapp_campanha_destinatarios`
-   - Ao carregar, popula o state `recipients` com os dados, permitindo seguir para a etapa de template normalmente
+2. **Token de verificação inconsistente**. O código usa `"MEU_VERIFY_TOKEN_123"` mas a configuração documentada menciona `"centralgospel123"`. Se o webhook no Meta Developers estiver configurado com um token diferente, as mensagens nunca chegarão.
 
-2. **Lógica de carregamento**:
-   - Query: `SELECT * FROM whatsapp_campanha_destinatarios WHERE campanha_id = X`
-   - Mapear os campos para o formato `Recipient` já existente
-   - Exibir toast com quantidade carregada
+### Alterações
 
-3. **UI**: Separar visualmente com um divisor "OU" entre "Usar público existente" e "Buscar novo público no Bling"
+**Arquivo: `supabase/functions/whatsapp-webhook/index.ts`**
+
+Na seção do Meta webhook (POST, linhas 240-273), adicionar a mesma lógica de persistência que já existe para Z-API:
+
+1. Extrair `message.text.body` (texto), `message.image` (imagem), `message.audio` (áudio) do payload Meta
+2. Inserir em `whatsapp_conversas` com `role: "user"`, `telefone`, `content`, `imagem_url`, `audio_url`
+3. Buscar `cliente_id` por variantes de telefone (mesma lógica já usada no path Z-API)
+4. Opcionalmente acionar o Agente de IA se ativo
+5. Corrigir o verify token para `"centralgospel123"` (conforme configurado no Meta Developers)
 
 ### Resumo
-- Apenas 1 arquivo alterado: `WhatsAppCampaigns.tsx`
-- Sem migração de banco necessária (dados já estão salvos)
-- O público carregado segue o mesmo fluxo de criação de campanha
+- 1 arquivo alterado: `supabase/functions/whatsapp-webhook/index.ts`
+- Sem migração de banco
+- Redeploy automático da edge function
 
