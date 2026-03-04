@@ -67,6 +67,127 @@ interface VendaHoje {
   hora: string;
 }
 
+const VENDAS_TABS = [
+  { key: "todos", label: "Todos" },
+  { key: "faturados", label: "Faturados B2B", match: (c: string) => !["E-commerce CG", "Mercado Pago", "PDV Balcão", "Amazon", "Shopee", "Mercado Livre"].includes(c) && !c.includes("Marketplace") },
+  { key: "mercadopago", label: "Mercado Pago", match: (c: string) => c === "Mercado Pago" },
+  { key: "ecommerce", label: "E-commerce", match: (c: string) => c === "E-commerce CG" || c === "E-commerce" },
+  { key: "balcao", label: "Balcão Penha", match: (c: string) => c === "PDV Balcão" },
+  { key: "marketplace", label: "Marketplaces", match: (c: string) => ["Amazon", "Shopee", "Mercado Livre"].includes(c) || c.includes("Marketplace") },
+] as const;
+
+function VendasHojeTable({ vendas }: { vendas: VendaHoje[] }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Hora</TableHead>
+          <TableHead>Vendedor</TableHead>
+          <TableHead>Canal</TableHead>
+          <TableHead>Cliente</TableHead>
+          <TableHead className="text-right">Valor</TableHead>
+          <TableHead className="text-right">Comissão (3%)</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {vendas.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              Nenhuma venda registrada hoje
+            </TableCell>
+          </TableRow>
+        ) : (
+          vendas.map((v, i) => (
+            <TableRow key={i}>
+              <TableCell className="text-xs text-muted-foreground">{v.hora ? format(new Date(v.hora), "HH:mm") : "—"}</TableCell>
+              <TableCell>{v.vendedor}</TableCell>
+              <TableCell><Badge variant="outline">{v.canal}</Badge></TableCell>
+              <TableCell className="max-w-[200px] truncate">{v.cliente}</TableCell>
+              <TableCell className="text-right">{formatCurrency(v.valor)}</TableCell>
+              <TableCell className="text-right font-medium text-primary">{formatCurrency(v.comissao)}</TableCell>
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  );
+}
+
+function VendasHojeSummary({ vendas }: { vendas: VendaHoje[] }) {
+  return (
+    <div className="flex items-center gap-4 mb-4">
+      <Badge variant="outline" className="text-sm">
+        {vendas.length} venda{vendas.length !== 1 ? "s" : ""}
+      </Badge>
+      <span className="text-sm font-medium">
+        Total: {formatCurrency(vendas.reduce((s, v) => s + v.valor, 0))}
+      </span>
+      <span className="text-sm text-primary font-medium">
+        Comissão: {formatCurrency(vendas.reduce((s, v) => s + v.comissao, 0))}
+      </span>
+    </div>
+  );
+}
+
+function VendasHojeTabs({ vendas, isLoading }: { vendas: VendaHoje[]; isLoading: boolean }) {
+  const [activeTab, setActiveTab] = useState("todos");
+
+  const filteredVendas = useMemo(() => {
+    if (activeTab === "todos") return vendas;
+    const tab = VENDAS_TABS.find(t => t.key === activeTab);
+    if (!tab || !("match" in tab)) return vendas;
+    return vendas.filter(v => (tab as any).match(v.canal));
+  }, [vendas, activeTab]);
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, { qtd: number; valor: number }> = {};
+    VENDAS_TABS.forEach(t => { counts[t.key] = { qtd: 0, valor: 0 }; });
+    counts["todos"] = { qtd: vendas.length, valor: vendas.reduce((s, v) => s + v.valor, 0) };
+    vendas.forEach(v => {
+      VENDAS_TABS.forEach(t => {
+        if (t.key !== "todos" && "match" in t && (t as any).match(v.canal)) {
+          counts[t.key].qtd++;
+          counts[t.key].valor += v.valor;
+        }
+      });
+    });
+    return counts;
+  }, [vendas]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShoppingCart className="h-5 w-5" />
+          Vendas de Hoje
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-4 flex-wrap h-auto gap-1">
+              {VENDAS_TABS.map(t => (
+                <TabsTrigger key={t.key} value={t.key} className="text-xs">
+                  {t.label}
+                  {tabCounts[t.key]?.qtd > 0 && (
+                    <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                      {tabCounts[t.key].qtd}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <VendasHojeSummary vendas={filteredVendas} />
+            <VendasHojeTable vendas={filteredVendas} />
+          </Tabs>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ComissaoAlfaMarketing() {
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
