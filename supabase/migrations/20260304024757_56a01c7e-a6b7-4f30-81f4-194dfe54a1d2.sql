@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_campanhas ADD COLUMN IF NOT EXISTS total_visitas_pagina integer DEFAULT 0;
