@@ -1,52 +1,16 @@
 
 
-## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
+## Problema
 
-### Situação Confirmada
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-| Item | Status |
-|---|---|
-| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
-| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
-| Respostas de clientes existem | 8 respostas únicas |
-| Respostas chegando no webhook | **NÃO** |
-| Teste simulado (botão "Teste" do Meta) | Funciona |
-| Código do webhook | Correto, sem alterações necessárias |
+## Solução
 
-### Causa Raiz
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-No Meta Developers, existem **dois níveis** de configuração de webhook:
-
-1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
-2. **WABA-level webhook subscription** — recebe mensagens reais de produção
-
-O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
-
-### Ação Necessária (no Meta Developers, não no código)
-
-No painel Meta Developers, vá em:
-
-```text
-WhatsApp > Configuração > Webhook
-```
-
-Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
-
-Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
-
-Alternativamente, verifique via a API:
-
-```text
-GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
-```
-
-Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
-
-```text
-POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
-```
-
-### Resumo
-
-Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 
