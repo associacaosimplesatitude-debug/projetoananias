@@ -127,6 +127,9 @@ export default function ComissaoAlfaMarketing() {
         grouped[key].valor_comissao += Number(r.valor_comissao);
         if (r.status === "pendente") grouped[key].status = "pendente";
         if (grouped[key].status !== "pendente" && r.status === "liberada") grouped[key].status = "liberada";
+      });
+      return Object.values(grouped);
+    },
   });
 
   // Vendas de Hoje
