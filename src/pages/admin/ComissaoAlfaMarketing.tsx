@@ -805,65 +805,7 @@ export default function ComissaoAlfaMarketing() {
       </Card>
 
       {/* Vendas de Hoje */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Vendas de Hoje
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoadingHoje ? (
-            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-          ) : (
-            <>
-              <div className="flex items-center gap-4 mb-4">
-                <Badge variant="outline" className="text-sm">
-                  {(vendasHoje || []).length} venda{(vendasHoje || []).length !== 1 ? "s" : ""}
-                </Badge>
-                <span className="text-sm font-medium">
-                  Total: {formatCurrency((vendasHoje || []).reduce((s, v) => s + v.valor, 0))}
-                </span>
-                <span className="text-sm text-primary font-medium">
-                  Comissão: {formatCurrency((vendasHoje || []).reduce((s, v) => s + v.comissao, 0))}
-                </span>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hora</TableHead>
-                    <TableHead>Vendedor</TableHead>
-                    <TableHead>Canal</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead className="text-right">Comissão (3%)</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(vendasHoje || []).length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        Nenhuma venda registrada hoje
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (vendasHoje || []).map((v, i) => (
-                      <TableRow key={i}>
-                        <TableCell className="text-xs text-muted-foreground">{v.hora ? format(new Date(v.hora), "HH:mm") : "—"}</TableCell>
-                        <TableCell>{v.vendedor}</TableCell>
-                        <TableCell><Badge variant="outline">{v.canal}</Badge></TableCell>
-                        <TableCell className="max-w-[200px] truncate">{v.cliente}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(v.valor)}</TableCell>
-                        <TableCell className="text-right font-medium text-primary">{formatCurrency(v.comissao)}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <VendasHojeTabs vendas={vendasHoje || []} isLoading={isLoadingHoje} />
     </div>
   );
 }
