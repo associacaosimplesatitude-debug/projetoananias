@@ -57,6 +57,14 @@ interface OrderDetail {
   nf_url?: string;
 }
 
+interface VendaHoje {
+  vendedor: string;
+  canal: string;
+  cliente: string;
+  valor: number;
+  comissao: number;
+}
+
 export default function ComissaoAlfaMarketing() {
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
