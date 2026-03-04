@@ -825,6 +825,7 @@ export default function ComissaoAlfaMarketing() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Hora</TableHead>
                     <TableHead>Vendedor</TableHead>
                     <TableHead>Canal</TableHead>
                     <TableHead>Cliente</TableHead>
@@ -835,13 +836,14 @@ export default function ComissaoAlfaMarketing() {
                 <TableBody>
                   {(vendasHoje || []).length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                         Nenhuma venda registrada hoje
                       </TableCell>
                     </TableRow>
                   ) : (
                     (vendasHoje || []).map((v, i) => (
                       <TableRow key={i}>
+                        <TableCell className="text-xs text-muted-foreground">{v.hora ? format(new Date(v.hora), "HH:mm") : "—"}</TableCell>
                         <TableCell>{v.vendedor}</TableCell>
                         <TableCell><Badge variant="outline">{v.canal}</Badge></TableCell>
                         <TableCell className="max-w-[200px] truncate">{v.cliente}</TableCell>
