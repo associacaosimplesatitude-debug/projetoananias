@@ -1,30 +1,52 @@
 
 
-## Plano: Seção "Vendas de Hoje" na Comissão AlfaMarketing
+## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
 
-### O que será feito
-Adicionar uma nova seção **"Vendas de Hoje"** logo abaixo do Histórico de Comissões. Essa seção mostra todas as vendas realizadas no dia atual, com colunas: **Vendedor**, **Canal**, **Valor**, **Comissão (3%)**.
+### Situação Confirmada
 
-### Mudanças Técnicas
+| Item | Status |
+|---|---|
+| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
+| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
+| Respostas de clientes existem | 8 respostas únicas |
+| Respostas chegando no webhook | **NÃO** |
+| Teste simulado (botão "Teste" do Meta) | Funciona |
+| Código do webhook | Correto, sem alterações necessárias |
 
-**Arquivo: `src/pages/admin/ComissaoAlfaMarketing.tsx`**
+### Causa Raiz
 
-1. **Nova query `vendas-hoje`**: Buscar vendas do dia (00:00 até agora) em todas as tabelas de vendas:
-   - `ebd_shopify_pedidos` (B2B) — tem `vendedor_id`, buscar nome no `vendedores`
-   - `ebd_shopify_pedidos_mercadopago` — tem `vendedor_nome` direto
-   - `ebd_shopify_pedidos_cg` (E-commerce) — tem `vendedor_id`, buscar nome
-   - `vendedor_propostas` — tem `vendedor_nome` direto
-   - `vendas_balcao` — tem `vendedor_id`, buscar nome
-   - `bling_marketplace_pedidos` (ADVECS, Atacado) — sem vendedor, exibir "—"
+No Meta Developers, existem **dois níveis** de configuração de webhook:
 
-2. **Buscar nomes de vendedores**: Fazer um fetch único na tabela `vendedores` (id, nome) e mapear por ID para evitar N+1 queries.
+1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
+2. **WABA-level webhook subscription** — recebe mensagens reais de produção
 
-3. **Nova seção UI**: Card com tabela contendo colunas:
-   - Vendedor (nome)
-   - Canal (B2B, Mercado Pago, E-commerce CG, PDV Balcão, ADVECS, etc.)
-   - Cliente
-   - Valor
-   - Comissão (3%)
+O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
 
-4. **Posição**: Após o card "Histórico de Comissões" (depois da linha 615).
+### Ação Necessária (no Meta Developers, não no código)
+
+No painel Meta Developers, vá em:
+
+```text
+WhatsApp > Configuração > Webhook
+```
+
+Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
+
+Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
+
+Alternativamente, verifique via a API:
+
+```text
+GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
+
+```text
+POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+### Resumo
+
+Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
 

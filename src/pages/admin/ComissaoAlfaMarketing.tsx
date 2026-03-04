@@ -1,14 +1,14 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, DollarSign, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, DollarSign, CheckCircle2, Clock, Loader2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 
 const COMMISSION_RATE = 0.03;
@@ -55,6 +55,14 @@ interface OrderDetail {
   status: string;
   nf_numero?: string;
   nf_url?: string;
+}
+
+interface VendaHoje {
+  vendedor: string;
+  canal: string;
+  cliente: string;
+  valor: number;
+  comissao: number;
 }
 
 export default function ComissaoAlfaMarketing() {
@@ -123,6 +131,119 @@ export default function ComissaoAlfaMarketing() {
       return Object.values(grouped);
     },
   });
+
+  // Vendas de Hoje
+  const todayStart = startOfDay(new Date()).toISOString();
+  const todayEnd = new Date().toISOString();
+
+  const { data: vendasHoje, isLoading: isLoadingHoje } = useQuery({
+    queryKey: ["vendas-hoje", todayStart],
+    queryFn: async () => {
+      // Fetch vendedores map
+      const { data: vendedores } = await supabase.from("vendedores").select("id, nome");
+      const vendMap: Record<string, string> = {};
+      (vendedores || []).forEach((v: any) => { vendMap[v.id] = v.nome; });
+
+      const vendas: VendaHoje[] = [];
+
+      // B2B
+      const { data: sp } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("customer_name, valor_total, vendedor_id")
+        .in("status_pagamento", ["Pago", "paid", "Faturado"])
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (sp || []).forEach((o: any) => vendas.push({
+        vendedor: vendMap[o.vendedor_id] || "—",
+        canal: "B2B",
+        cliente: o.customer_name || "—",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      // Mercado Pago
+      const { data: mp } = await supabase
+        .from("ebd_shopify_pedidos_mercadopago")
+        .select("cliente_nome, valor_total, vendedor_nome")
+        .eq("status", "PAGO")
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (mp || []).forEach((o: any) => vendas.push({
+        vendedor: o.vendedor_nome || "—",
+        canal: "Mercado Pago",
+        cliente: o.cliente_nome || "—",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      // E-commerce CG
+      const { data: cg } = await supabase
+        .from("ebd_shopify_pedidos_cg")
+        .select("customer_name, valor_total, vendedor_id")
+        .in("status_pagamento", ["paid", "Pago", "Faturado"])
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (cg || []).forEach((o: any) => vendas.push({
+        vendedor: vendMap[o.vendedor_id] || "—",
+        canal: "E-commerce CG",
+        cliente: o.customer_name || "—",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      // Propostas
+      const { data: props } = await supabase
+        .from("vendedor_propostas")
+        .select("cliente_nome, valor_total, valor_frete, vendedor_nome")
+        .in("status", ["FATURADO", "PAGO"])
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (props || []).forEach((o: any) => {
+        const val = (o.valor_total || 0) - (o.valor_frete || 0);
+        vendas.push({
+          vendedor: o.vendedor_nome || "—",
+          canal: "Proposta B2B",
+          cliente: o.cliente_nome || "—",
+          valor: val,
+          comissao: val * COMMISSION_RATE,
+        });
+      });
+
+      // PDV Balcão
+      const { data: pdv } = await supabase
+        .from("vendas_balcao")
+        .select("cliente_nome, valor_total, vendedor_id")
+        .eq("status", "finalizada")
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (pdv || []).forEach((o: any) => vendas.push({
+        vendedor: vendMap[o.vendedor_id] || "—",
+        canal: "PDV Balcão",
+        cliente: o.cliente_nome || "Balcão",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      // Marketplaces
+      const { data: bl } = await supabase
+        .from("bling_marketplace_pedidos")
+        .select("customer_name, valor_total, marketplace")
+        .gte("order_date", todayStart)
+        .lte("order_date", todayEnd);
+      (bl || []).forEach((o: any) => vendas.push({
+        vendedor: "—",
+        canal: o.marketplace || "Marketplace",
+        cliente: o.customer_name || "—",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      return vendas;
+    },
+    refetchInterval: 60000, // refresh every minute
+  });
+
+
 
   // Drill-down: fetch orders for selected channel
   const { data: orderDetails, isLoading: isLoadingOrders } = useQuery({
@@ -611,6 +732,65 @@ export default function ComissaoAlfaMarketing() {
               )}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      {/* Vendas de Hoje */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Vendas de Hoje
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoadingHoje ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <>
+              <div className="flex items-center gap-4 mb-4">
+                <Badge variant="outline" className="text-sm">
+                  {(vendasHoje || []).length} venda{(vendasHoje || []).length !== 1 ? "s" : ""}
+                </Badge>
+                <span className="text-sm font-medium">
+                  Total: {formatCurrency((vendasHoje || []).reduce((s, v) => s + v.valor, 0))}
+                </span>
+                <span className="text-sm text-primary font-medium">
+                  Comissão: {formatCurrency((vendasHoje || []).reduce((s, v) => s + v.comissao, 0))}
+                </span>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendedor</TableHead>
+                    <TableHead>Canal</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="text-right">Comissão (3%)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(vendasHoje || []).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        Nenhuma venda registrada hoje
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (vendasHoje || []).map((v, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{v.vendedor}</TableCell>
+                        <TableCell><Badge variant="outline">{v.canal}</Badge></TableCell>
+                        <TableCell className="max-w-[200px] truncate">{v.cliente}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(v.valor)}</TableCell>
+                        <TableCell className="text-right font-medium text-primary">{formatCurrency(v.comissao)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
