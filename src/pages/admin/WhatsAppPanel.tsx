@@ -626,7 +626,7 @@ function WebhooksTab() {
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">Webhooks Recebidos</CardTitle>
-        <CardDescription>Últimos 100 eventos recebidos da Z-API. Atualiza a cada 10s.</CardDescription>
+        <CardDescription>Últimos 100 eventos recebidos da API Oficial Meta. Atualiza a cada 10s.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -638,38 +638,47 @@ function WebhooksTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Evento</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>Message ID</TableHead>
+                   <TableHead className="w-8"></TableHead>
+                   <TableHead>Data</TableHead>
+                   <TableHead>Evento</TableHead>
+                   <TableHead>Remetente</TableHead>
+                   <TableHead>Conteúdo</TableHead>
+                   <TableHead>Telefone</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {webhooks.map((wh: any) => (
-                  <Collapsible key={wh.id} open={expandedRow === wh.id} onOpenChange={(open) => setExpandedRow(open ? wh.id : null)} asChild>
-                    <>
-                      <CollapsibleTrigger asChild>
-                        <TableRow className="cursor-pointer">
-                          <TableCell className="p-2">
-                            {expandedRow === wh.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          </TableCell>
-                          <TableCell className="text-xs">{format(new Date(wh.created_at), "dd/MM/yyyy HH:mm:ss")}</TableCell>
-                          <TableCell><Badge variant="outline" className="text-xs">{wh.evento}</Badge></TableCell>
-                          <TableCell className="font-mono text-xs">{wh.telefone || "-"}</TableCell>
-                          <TableCell className="font-mono text-xs max-w-[200px] truncate">{wh.message_id || "-"}</TableCell>
-                        </TableRow>
+                {webhooks.map((wh: any) => {
+                  const change = wh.payload?.entry?.[0]?.changes?.[0]?.value;
+                  const contactName = change?.contacts?.[0]?.profile?.name || "-";
+                  const msgText = change?.messages?.[0]?.text?.body
+                    || (change?.messages?.[0]?.type ? `[${change.messages[0].type}]` : null)
+                    || (change?.statuses?.[0]?.status ? `Status: ${change.statuses[0].status}` : "-");
+                  return (
+                   <Collapsible key={wh.id} open={expandedRow === wh.id} onOpenChange={(open) => setExpandedRow(open ? wh.id : null)} asChild>
+                     <>
+                       <CollapsibleTrigger asChild>
+                         <TableRow className="cursor-pointer">
+                           <TableCell className="p-2">
+                             {expandedRow === wh.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                           </TableCell>
+                           <TableCell className="text-xs">{format(new Date(wh.created_at), "dd/MM/yyyy HH:mm:ss")}</TableCell>
+                           <TableCell><Badge variant="outline" className="text-xs">{wh.evento}</Badge></TableCell>
+                           <TableCell className="text-xs">{contactName}</TableCell>
+                           <TableCell className="text-xs max-w-[250px] truncate">{msgText}</TableCell>
+                           <TableCell className="font-mono text-xs">{wh.telefone || "-"}</TableCell>
+                         </TableRow>
                       </CollapsibleTrigger>
                       <CollapsibleContent asChild>
                         <tr>
-                          <td colSpan={5} className="p-4 bg-muted/30 border-b">
-                            <JsonBlock data={wh.payload} label="📋 Payload Completo" />
-                          </td>
-                        </tr>
+                           <td colSpan={6} className="p-4 bg-muted/30 border-b">
+                             <JsonBlock data={wh.payload} label="📋 Payload Meta" />
+                           </td>
+                         </tr>
                       </CollapsibleContent>
                     </>
-                  </Collapsible>
-                ))}
+                   </Collapsible>
+                  );
+                 })}
               </TableBody>
             </Table>
           </div>
