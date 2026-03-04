@@ -161,7 +161,7 @@ export default function ComissaoAlfaMarketing() {
         // Also MP
         const { data: mp } = await supabase
           .from("ebd_shopify_pedidos_mercadopago")
-          .select("customer_name, valor_total, created_at, status, cliente_id")
+          .select("cliente_nome, valor_total, created_at, status, cliente_id")
           .eq("status", "PAGO")
           .gte("created_at", startDate)
           .lte("created_at", endDate);
@@ -175,7 +175,7 @@ export default function ComissaoAlfaMarketing() {
               .single();
             if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
               orders.push({
-                cliente: cl.nome_igreja || o.customer_name || "—",
+                cliente: cl.nome_igreja || o.cliente_nome || "—",
                 tipo: cl.tipo_cliente || "—",
                 data: o.created_at,
                 valor: o.valor_total || 0,
