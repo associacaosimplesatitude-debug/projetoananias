@@ -127,7 +127,118 @@ export default function ComissaoAlfaMarketing() {
         grouped[key].valor_comissao += Number(r.valor_comissao);
         if (r.status === "pendente") grouped[key].status = "pendente";
         if (grouped[key].status !== "pendente" && r.status === "liberada") grouped[key].status = "liberada";
+  });
+
+  // Vendas de Hoje
+  const todayStart = startOfDay(new Date()).toISOString();
+  const todayEnd = new Date().toISOString();
+
+  const { data: vendasHoje, isLoading: isLoadingHoje } = useQuery({
+    queryKey: ["vendas-hoje", todayStart],
+    queryFn: async () => {
+      // Fetch vendedores map
+      const { data: vendedores } = await supabase.from("vendedores").select("id, nome");
+      const vendMap: Record<string, string> = {};
+      (vendedores || []).forEach((v: any) => { vendMap[v.id] = v.nome; });
+
+      const vendas: VendaHoje[] = [];
+
+      // B2B
+      const { data: sp } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("customer_name, valor_total, vendedor_id")
+        .in("status_pagamento", ["Pago", "paid", "Faturado"])
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (sp || []).forEach((o: any) => vendas.push({
+        vendedor: vendMap[o.vendedor_id] || "—",
+        canal: "B2B",
+        cliente: o.customer_name || "—",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      // Mercado Pago
+      const { data: mp } = await supabase
+        .from("ebd_shopify_pedidos_mercadopago")
+        .select("cliente_nome, valor_total, vendedor_nome")
+        .eq("status", "PAGO")
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (mp || []).forEach((o: any) => vendas.push({
+        vendedor: o.vendedor_nome || "—",
+        canal: "Mercado Pago",
+        cliente: o.cliente_nome || "—",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      // E-commerce CG
+      const { data: cg } = await supabase
+        .from("ebd_shopify_pedidos_cg")
+        .select("customer_name, valor_total, vendedor_id")
+        .in("status_pagamento", ["paid", "Pago", "Faturado"])
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (cg || []).forEach((o: any) => vendas.push({
+        vendedor: vendMap[o.vendedor_id] || "—",
+        canal: "E-commerce CG",
+        cliente: o.customer_name || "—",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      // Propostas
+      const { data: props } = await supabase
+        .from("vendedor_propostas")
+        .select("cliente_nome, valor_total, valor_frete, vendedor_nome")
+        .in("status", ["FATURADO", "PAGO"])
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (props || []).forEach((o: any) => {
+        const val = (o.valor_total || 0) - (o.valor_frete || 0);
+        vendas.push({
+          vendedor: o.vendedor_nome || "—",
+          canal: "Proposta B2B",
+          cliente: o.cliente_nome || "—",
+          valor: val,
+          comissao: val * COMMISSION_RATE,
+        });
       });
+
+      // PDV Balcão
+      const { data: pdv } = await supabase
+        .from("vendas_balcao")
+        .select("cliente_nome, valor_total, vendedor_id")
+        .eq("status", "finalizada")
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (pdv || []).forEach((o: any) => vendas.push({
+        vendedor: vendMap[o.vendedor_id] || "—",
+        canal: "PDV Balcão",
+        cliente: o.cliente_nome || "Balcão",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      // Marketplaces
+      const { data: bl } = await supabase
+        .from("bling_marketplace_pedidos")
+        .select("customer_name, valor_total, marketplace")
+        .gte("order_date", todayStart)
+        .lte("order_date", todayEnd);
+      (bl || []).forEach((o: any) => vendas.push({
+        vendedor: "—",
+        canal: o.marketplace || "Marketplace",
+        cliente: o.customer_name || "—",
+        valor: o.valor_total || 0,
+        comissao: (o.valor_total || 0) * COMMISSION_RATE,
+      }));
+
+      return vendas;
+    },
+    refetchInterval: 60000, // refresh every minute
+  });
       return Object.values(grouped);
     },
   });
