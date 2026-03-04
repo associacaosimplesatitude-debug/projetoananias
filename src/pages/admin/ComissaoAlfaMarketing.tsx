@@ -444,22 +444,21 @@ export default function ComissaoAlfaMarketing() {
       </div>
 
       {/* Total Card */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <DollarSign className="h-5 w-5" />
-            Total do Mês
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="border-2 border-primary bg-primary/5">
+        <CardContent className="pt-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Faturamento Bruto</p>
-              <p className="text-2xl font-bold">{formatCurrency(totalBruto)}</p>
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-full bg-primary/10">
+                <DollarSign className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Vendas do Mês</p>
+                <p className="text-3xl font-extrabold">{formatCurrency(totalBruto)}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Comissão (3%)</p>
-              <p className="text-2xl font-bold text-primary">{formatCurrency(totalComissao)}</p>
+            <div className="border-l-2 border-primary/30 pl-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Comissão AlfaMarketing (3%)</p>
+              <p className="text-3xl font-extrabold text-primary">{formatCurrency(totalComissao)}</p>
             </div>
             <div className="flex items-center gap-2">
               {getStatusBadge(currentMonthStatus)}
