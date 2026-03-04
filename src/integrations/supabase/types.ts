@@ -6242,6 +6242,7 @@ export type Database = {
           total_enviados: number
           total_erros: number
           total_publico: number
+          total_visitas_pagina: number | null
           updated_at: string
         }
         Insert: {
@@ -6255,6 +6256,7 @@ export type Database = {
           total_enviados?: number
           total_erros?: number
           total_publico?: number
+          total_visitas_pagina?: number | null
           updated_at?: string
         }
         Update: {
@@ -6268,6 +6270,7 @@ export type Database = {
           total_enviados?: number
           total_erros?: number
           total_publico?: number
+          total_visitas_pagina?: number | null
           updated_at?: string
         }
         Relationships: [

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,20 @@ const OfertaEBD = () => {
     comoConheceu: '',
   });
 
+  // Registrar visita à página para tracking de campanha WhatsApp
+  useEffect(() => {
+    const trackVisit = async () => {
+      try {
+        await supabase.functions.invoke('whatsapp-campaign-tracker', {
+          body: { page: '/oferta-ebd' },
+        });
+      } catch (e) {
+        // Silently fail - tracking shouldn't break the page
+      }
+    };
+    trackVisit();
+  }, []);
+
   const opcoesComoConheceu = [
     'WhatsApp',
     'Google',
@@ -97,6 +111,15 @@ const OfertaEBD = () => {
         toast.info('Você já possui uma conta! Faça login para acessar o painel.');
         navigate('/login/ebd');
         return;
+      }
+
+      // Marcar visita do destinatário da campanha pelo telefone
+      try {
+        await supabase.functions.invoke('whatsapp-campaign-tracker', {
+          body: { telefone: formData.telefone },
+        });
+      } catch (e) {
+        // Silently fail
       }
 
       toast.success('Conta criada com sucesso! Faça login para acessar o painel.');
