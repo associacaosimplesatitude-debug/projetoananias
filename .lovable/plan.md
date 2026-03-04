@@ -1,52 +1,26 @@
 
 
-## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
+## Problema: Classificação incorreta no "Vendas de Hoje"
 
-### Situação Confirmada
+O "Vendas de Hoje" rotula **todos** os pedidos de `ebd_shopify_pedidos` como "B2B", mas essa tabela contém pedidos de diversos canais (Igreja CNPJ, Igreja CPF, ADVECS, Pessoa Física, Revendedores, etc.). "Ariel Alves" é uma venda e-commerce (aparece em `ebd_shopify_pedidos_cg`), mas como também está em `ebd_shopify_pedidos`, aparece duplicada e rotulada como "B2B".
 
-| Item | Status |
-|---|---|
-| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
-| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
-| Respostas de clientes existem | 8 respostas únicas |
-| Respostas chegando no webhook | **NÃO** |
-| Teste simulado (botão "Teste" do Meta) | Funciona |
-| Código do webhook | Correto, sem alterações necessárias |
+### Solução
 
-### Causa Raiz
+**Arquivo: `src/pages/admin/ComissaoAlfaMarketing.tsx`** — Reescrever a seção "Vendas de Hoje" (linhas 149-239):
 
-No Meta Developers, existem **dois níveis** de configuração de webhook:
+1. **Para `ebd_shopify_pedidos`**: Fazer join com `ebd_clientes` (via `customer_email`) para obter `tipo_cliente` e classificar corretamente cada pedido no canal real (Igreja CNPJ, Igreja CPF, ADVECS, Pessoa Física, Revendedor, Representante, Lojista). Pedidos sem match em `ebd_clientes` ficam como "B2B".
 
-1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
-2. **WABA-level webhook subscription** — recebe mensagens reais de produção
+2. **Evitar duplicatas com CG**: Filtrar pedidos de `ebd_shopify_pedidos` que já existem em `ebd_shopify_pedidos_cg` (mesmos cliente+valor no mesmo dia), ou alternativamente, excluir os que têm prefixo "BLING-" (shadow records).
 
-O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
+3. **Lógica de classificação por `tipo_cliente`**:
+   - Contém "ADVEC" → canal "ADVECS"
+   - Contém "IGREJA" + "CNPJ" → canal "Igreja CNPJ"
+   - Contém "IGREJA" + "CPF" → canal "Igreja CPF"
+   - Contém "LOJISTA" → canal "Lojistas"
+   - Contém "PESSOA" ou "FISICA" → canal "Pessoa Física"
+   - Contém "REVENDEDOR" → canal "Revendedores"
+   - Contém "REPRESENTANTE" → canal "Representantes"
+   - Outros → "B2B"
 
-### Ação Necessária (no Meta Developers, não no código)
-
-No painel Meta Developers, vá em:
-
-```text
-WhatsApp > Configuração > Webhook
-```
-
-Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
-
-Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
-
-Alternativamente, verifique via a API:
-
-```text
-GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
-```
-
-Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
-
-```text
-POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
-```
-
-### Resumo
-
-Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
+4. **Propostas (`vendedor_propostas`)**: Classificar também por `tipo_cliente` do cliente em `ebd_clientes` em vez de rotular tudo como "Proposta B2B".
 
