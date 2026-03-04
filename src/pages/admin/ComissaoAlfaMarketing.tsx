@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, DollarSign, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, DollarSign, CheckCircle2, Clock, Loader2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 
 const COMMISSION_RATE = 0.03;
