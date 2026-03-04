@@ -73,7 +73,7 @@ export default function ComissaoAlfaMarketing() {
         p_end_date: endDate,
       });
       if (error) throw error;
-      return data as ChannelTotals;
+      return data as unknown as ChannelTotals;
     },
   });
 
