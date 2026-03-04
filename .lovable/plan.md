@@ -1,33 +1,52 @@
 
 
-## Problema
+## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
 
-A seção "Vendas de Hoje" não busca dados da tabela `ebd_shopify_pedidos_mercadopago`. Os pedidos Mercado Pago (como Assembleia de Deus Una, KATIA CILENE de Souza, Igreja Cristã Evangélica Ministério de Cristo) aparecem nos "Pedidos Confirmados" na aba Mercado Pago, mas não aparecem no card de "Vendas de Hoje" porque essa fonte de dados simplesmente não é consultada.
+### Situação Confirmada
 
-As 5 fontes atuais são:
-1. `ebd_shopify_pedidos_cg` (E-commerce CG)
-2. `ebd_shopify_pedidos` (Shopify B2B)
-3. `vendedor_propostas` (Propostas/Faturados)
-4. `vendas_balcao` (PDV Balcão)
-5. `bling_marketplace_pedidos` (Marketplaces)
+| Item | Status |
+|---|---|
+| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
+| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
+| Respostas de clientes existem | 8 respostas únicas |
+| Respostas chegando no webhook | **NÃO** |
+| Teste simulado (botão "Teste" do Meta) | Funciona |
+| Código do webhook | Correto, sem alterações necessárias |
 
-Falta a 6a fonte: **`ebd_shopify_pedidos_mercadopago`** (Mercado Pago).
+### Causa Raiz
 
----
+No Meta Developers, existem **dois níveis** de configuração de webhook:
 
-## Solução
+1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
+2. **WABA-level webhook subscription** — recebe mensagens reais de produção
 
-**Arquivo: `src/pages/admin/ComissaoAlfaMarketing.tsx`**
+O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
 
-Adicionar query à tabela `ebd_shopify_pedidos_mercadopago` na função `vendas-hoje`, entre as queries de Propostas e PDV Balcão:
+### Ação Necessária (no Meta Developers, não no código)
 
-- Select: `cliente_nome, valor_total, created_at, status, cliente_id, vendedor_id`
-- Filtro: `status = 'PAGO'`, `created_at` entre `todayStart` e `todayEnd`
-- Para cada pedido MP:
-  - Resolver cliente via `clienteMap` usando `cliente_id`
-  - Resolver vendedor via `resolveVendedor`
-  - Canal: "Mercado Pago"
-  - Calcular comissão: `valor * COMMISSION_RATE`
+No painel Meta Developers, vá em:
 
-Isso alinha o "Vendas de Hoje" com as mesmas 6 fontes do "Pedidos Confirmados", garantindo que todos os pedidos do dia apareçam.
+```text
+WhatsApp > Configuração > Webhook
+```
+
+Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
+
+Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
+
+Alternativamente, verifique via a API:
+
+```text
+GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
+
+```text
+POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+### Resumo
+
+Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
 
