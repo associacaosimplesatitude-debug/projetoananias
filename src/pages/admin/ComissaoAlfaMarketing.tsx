@@ -135,27 +135,30 @@ export default function ComissaoAlfaMarketing() {
       const fetchShopifyByTipo = async (tipoFilter: string) => {
         const { data: sp } = await supabase
           .from("ebd_shopify_pedidos")
-          .select("customer_name, valor_total, created_at, status_pagamento, cliente_id")
+          .select("customer_name, valor_total, created_at, status_pagamento, cliente_id, nota_fiscal_numero, nota_fiscal_url, status_nfe")
           .in("status_pagamento", ["Pago", "paid", "Faturado"])
           .gte("created_at", startDate)
           .lte("created_at", endDate);
-        if (!sp) return;
-        for (const o of sp) {
-          if (o.cliente_id) {
-            const { data: cl } = await supabase
-              .from("ebd_clientes")
-              .select("tipo_cliente, nome_igreja")
-              .eq("id", o.cliente_id)
-              .single();
-            if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
-              orders.push({
-                cliente: cl.nome_igreja || o.customer_name || "—",
-                tipo: cl.tipo_cliente || "—",
-                data: o.created_at,
-                valor: o.valor_total || 0,
-                comissao: (o.valor_total || 0) * COMMISSION_RATE,
-                status: o.status_pagamento || "—",
-              });
+        if (sp) {
+          for (const o of sp) {
+            if (o.cliente_id) {
+              const { data: cl } = await supabase
+                .from("ebd_clientes")
+                .select("tipo_cliente, nome_igreja")
+                .eq("id", o.cliente_id)
+                .single();
+              if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
+                orders.push({
+                  cliente: cl.nome_igreja || o.customer_name || "—",
+                  tipo: cl.tipo_cliente || "—",
+                  data: o.created_at,
+                  valor: o.valor_total || 0,
+                  comissao: (o.valor_total || 0) * COMMISSION_RATE,
+                  status: o.status_pagamento || "—",
+                  nf_numero: o.nota_fiscal_numero || undefined,
+                  nf_url: o.nota_fiscal_url || undefined,
+                });
+              }
             }
           }
         }
@@ -166,23 +169,57 @@ export default function ComissaoAlfaMarketing() {
           .eq("status", "PAGO")
           .gte("created_at", startDate)
           .lte("created_at", endDate);
-        if (!mp) return;
-        for (const o of mp) {
-          if (o.cliente_id) {
-            const { data: cl } = await supabase
-              .from("ebd_clientes")
-              .select("tipo_cliente, nome_igreja")
-              .eq("id", o.cliente_id)
-              .single();
-            if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
-              orders.push({
-                cliente: cl.nome_igreja || o.cliente_nome || "—",
-                tipo: cl.tipo_cliente || "—",
-                data: o.created_at,
-                valor: o.valor_total || 0,
-                comissao: (o.valor_total || 0) * COMMISSION_RATE,
-                status: o.status || "—",
-              });
+        if (mp) {
+          for (const o of mp) {
+            if (o.cliente_id) {
+              const { data: cl } = await supabase
+                .from("ebd_clientes")
+                .select("tipo_cliente, nome_igreja")
+                .eq("id", o.cliente_id)
+                .single();
+              if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
+                orders.push({
+                  cliente: cl.nome_igreja || o.cliente_nome || "—",
+                  tipo: cl.tipo_cliente || "—",
+                  data: o.created_at,
+                  valor: o.valor_total || 0,
+                  comissao: (o.valor_total || 0) * COMMISSION_RATE,
+                  status: o.status || "—",
+                });
+              }
+            }
+          }
+        }
+      };
+
+      const fetchPropostasByTipo = async (tipoFilter: string) => {
+        const { data: props } = await supabase
+          .from("vendedor_propostas")
+          .select("cliente_nome, cliente_id, valor_total, valor_frete, created_at, status, link_danfe")
+          .in("status", ["FATURADO", "PAGO"])
+          .gte("created_at", startDate)
+          .lte("created_at", endDate)
+          .limit(500);
+        if (props) {
+          for (const p of props) {
+            if (p.cliente_id) {
+              const { data: cl } = await supabase
+                .from("ebd_clientes")
+                .select("tipo_cliente, nome_igreja")
+                .eq("id", p.cliente_id)
+                .single();
+              if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
+                const valor = (p.valor_total || 0) - (p.valor_frete || 0);
+                orders.push({
+                  cliente: cl.nome_igreja || p.cliente_nome || "—",
+                  tipo: cl.tipo_cliente || "—",
+                  data: p.created_at,
+                  valor,
+                  comissao: valor * COMMISSION_RATE,
+                  status: p.status || "—",
+                  nf_url: p.link_danfe || undefined,
+                });
+              }
             }
           }
         }
@@ -192,7 +229,7 @@ export default function ComissaoAlfaMarketing() {
         case "b2b_faturado": {
           const { data: sp } = await supabase
             .from("ebd_shopify_pedidos")
-            .select("customer_name, valor_total, created_at, status_pagamento")
+            .select("customer_name, valor_total, created_at, status_pagamento, nota_fiscal_numero, nota_fiscal_url")
             .in("status_pagamento", ["Pago", "paid", "Faturado"])
             .gte("created_at", startDate)
             .lte("created_at", endDate)
@@ -201,6 +238,8 @@ export default function ComissaoAlfaMarketing() {
             cliente: o.customer_name || "—", tipo: "B2B", data: o.created_at,
             valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
             status: o.status_pagamento || "—",
+            nf_numero: o.nota_fiscal_numero || undefined,
+            nf_url: o.nota_fiscal_url || undefined,
           }));
           const { data: mp } = await supabase
             .from("ebd_shopify_pedidos_mercadopago")
@@ -279,7 +318,6 @@ export default function ComissaoAlfaMarketing() {
         }
         case "igreja_cnpj":
           await fetchShopifyByTipo("IGREJA");
-          // filter only CNPJ
           const cnpjOnly = orders.filter(o => o.tipo.toUpperCase().includes("CNPJ"));
           orders.length = 0;
           orders.push(...cnpjOnly);
@@ -295,15 +333,25 @@ export default function ComissaoAlfaMarketing() {
           break;
         case "pessoa_fisica":
           await fetchShopifyByTipo("PESSOA");
-          // also try PF
+          await fetchShopifyByTipo("FISICA");
           await fetchShopifyByTipo("PF");
-          // deduplicate
+          // deduplicate by cliente+data+valor
+          const seen = new Set<string>();
+          const unique: OrderDetail[] = [];
+          for (const o of orders) {
+            const key = `${o.cliente}|${o.data}|${o.valor}`;
+            if (!seen.has(key)) { seen.add(key); unique.push(o); }
+          }
+          orders.length = 0;
+          orders.push(...unique);
           break;
         case "revendedores":
           await fetchShopifyByTipo("REVENDEDOR");
+          await fetchPropostasByTipo("REVENDEDOR");
           break;
         case "representantes":
           await fetchShopifyByTipo("REPRESENTANTE");
+          await fetchPropostasByTipo("REPRESENTANTE");
           break;
       }
 
