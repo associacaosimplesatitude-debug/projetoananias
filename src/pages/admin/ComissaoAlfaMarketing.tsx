@@ -269,6 +269,25 @@ export default function ComissaoAlfaMarketing() {
         hora: o.created_at || "",
       }));
 
+      // Mercado Pago
+      const { data: mp } = await supabase
+        .from("ebd_shopify_pedidos_mercadopago")
+        .select("cliente_nome, valor_total, created_at, status, cliente_id, vendedor_id, vendedor_email")
+        .eq("status", "PAGO")
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      (mp || []).forEach((o: any) => {
+        const clienteInfo = resolveCliente(o.cliente_id, o.vendedor_email);
+        vendas.push({
+          vendedor: resolveVendedor(o.vendedor_id, clienteInfo),
+          canal: "Mercado Pago",
+          cliente: o.cliente_nome || clienteInfo?.nome || "—",
+          valor: o.valor_total || 0,
+          comissao: (o.valor_total || 0) * COMMISSION_RATE,
+          hora: o.created_at || "",
+        });
+      });
+
       // Marketplaces
       const { data: bl } = await supabase
         .from("bling_marketplace_pedidos")
