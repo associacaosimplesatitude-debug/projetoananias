@@ -63,6 +63,7 @@ interface VendaHoje {
   cliente: string;
   valor: number;
   comissao: number;
+  hora: string;
 }
 
 export default function ComissaoAlfaMarketing() {
