@@ -242,9 +242,8 @@ export default function ComissaoAlfaMarketing() {
     },
     refetchInterval: 60000, // refresh every minute
   });
-      return Object.values(grouped);
-    },
-  });
+
+
 
   // Drill-down: fetch orders for selected channel
   const { data: orderDetails, isLoading: isLoadingOrders } = useQuery({
