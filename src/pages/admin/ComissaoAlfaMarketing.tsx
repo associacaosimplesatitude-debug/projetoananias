@@ -53,7 +53,8 @@ interface OrderDetail {
   valor: number;
   comissao: number;
   status: string;
-  nf?: string;
+  nf_numero?: string;
+  nf_url?: string;
 }
 
 export default function ComissaoAlfaMarketing() {
