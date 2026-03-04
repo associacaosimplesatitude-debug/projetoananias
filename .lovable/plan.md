@@ -1,22 +1,52 @@
 
 
-## Problemas Identificados
+## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
 
-### 1. Duplicação E-commerce
-Pedidos como "Miriam Candido" aparecem **duas vezes**: uma vez em `ebd_shopify_pedidos` (rotulado "B2B") e outra em `ebd_shopify_pedidos_cg` (rotulado "E-commerce CG"). O código busca ambas as tabelas sem deduplicar.
+### Situação Confirmada
 
-### 2. B2B sem vendedor
-Pedidos em `ebd_shopify_pedidos` que não têm `cliente_id` nem `vendedor_id` e cujo `customer_email` não bate com nenhum `email_superintendente` em `ebd_clientes` caem no fallback: canal "B2B", vendedor "—". Muitos desses são na verdade pedidos e-commerce que existem em ambas as tabelas.
+| Item | Status |
+|---|---|
+| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
+| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
+| Respostas de clientes existem | 8 respostas únicas |
+| Respostas chegando no webhook | **NÃO** |
+| Teste simulado (botão "Teste" do Meta) | Funciona |
+| Código do webhook | Correto, sem alterações necessárias |
 
----
+### Causa Raiz
 
-## Solução
+No Meta Developers, existem **dois níveis** de configuração de webhook:
 
-**Arquivo: `src/pages/admin/ComissaoAlfaMarketing.tsx`**
+1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
+2. **WABA-level webhook subscription** — recebe mensagens reais de produção
 
-1. **Buscar E-commerce CG primeiro** e coletar os `customer_email` (lowercase) num `Set`.
+O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
 
-2. **Ao processar `ebd_shopify_pedidos`**, pular qualquer pedido cujo `customer_email` já esteja no Set de CG (mesmo dia = já deduplicado pelo filtro de data). Isso elimina duplicatas.
+### Ação Necessária (no Meta Developers, não no código)
 
-3. Resultado: pedidos e-commerce aparecem apenas uma vez como "E-commerce CG", e os pedidos genuínos B2B continuam aparecendo normalmente com seus vendedores.
+No painel Meta Developers, vá em:
+
+```text
+WhatsApp > Configuração > Webhook
+```
+
+Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
+
+Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
+
+Alternativamente, verifique via a API:
+
+```text
+GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
+
+```text
+POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+### Resumo
+
+Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
 
