@@ -1,52 +1,30 @@
 
 
-## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
+## Correções na Comissão AlfaMarketing
 
-### Situação Confirmada
+### Problema 1: Card "Total do Mês" sem valor total de vendas e comissão destacados
+O card Total existe mas precisa ser mais claro, mostrando o valor total de vendas e a comissão separadamente com destaque visual. Atualmente já mostra, mas vou verificar se está renderizando corretamente — o card está no código (linhas 398-435). Na verdade o card já existe e mostra ambos. O problema pode ser visual. Vou adicionar mais destaque.
 
-| Item | Status |
-|---|---|
-| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
-| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
-| Respostas de clientes existem | 8 respostas únicas |
-| Respostas chegando no webhook | **NÃO** |
-| Teste simulado (botão "Teste" do Meta) | Funciona |
-| Código do webhook | Correto, sem alterações necessárias |
+**Ação**: Verificar se o card Total está visível e melhorar destaque visual se necessário.
 
-### Causa Raiz
+### Problema 2: Lista de pedidos sem link das Notas Fiscais
+A tabela do drill-down não inclui coluna de NF. A tabela `ebd_shopify_pedidos` tem campos `nota_fiscal_numero`, `nota_fiscal_url` e `status_nfe`, mas o select das queries não busca esses campos e a interface `OrderDetail` tem `nf` opcional que nunca é preenchido.
 
-No Meta Developers, existem **dois níveis** de configuração de webhook:
+**Ação**:
+- Adicionar `nota_fiscal_numero, nota_fiscal_url, status_nfe` ao select de `ebd_shopify_pedidos` em todos os cases do drill-down
+- Adicionar coluna "NF" na tabela do dialog com link clicável para `nota_fiscal_url`
+- Para `vendas_balcao` e `bling_marketplace_pedidos` também buscar campos de NF equivalentes
 
-1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
-2. **WABA-level webhook subscription** — recebe mensagens reais de produção
+### Problema 3: Pessoa Física, Revendedores e Representantes sem lista de pedidos
+O `fetchShopifyByTipo` funciona, mas:
+- **Revendedores e Representantes**: O RPC soma dados de `vendedor_propostas` (propostas faturadas/pagas) mas o drill-down só busca em `ebd_shopify_pedidos` e `ebd_shopify_pedidos_mercadopago`. Falta buscar também na tabela `vendedor_propostas` com join em `ebd_clientes`.
+- **Pessoa Física**: O filtro "PESSOA" pode não bater com o valor real do `tipo_cliente`. Precisa também buscar "FISICA" e "PF" no mesmo loop, mas o mais provável é que o `tipo_cliente` real seja algo como "Pessoa Física" (com acento) e a comparação `.toUpperCase().includes("PESSOA")` deveria funcionar. Preciso verificar se existem dados.
 
-O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
+**Ação**:
+- Nos cases `revendedores` e `representantes`, adicionar query à tabela `vendedor_propostas` com join em `ebd_clientes` filtrando por `tipo_cliente`
+- No case `pessoa_fisica`, garantir que busca por "PESSOA", "FISICA" e "PF" sem duplicatas
+- Garantir que o `fetchShopifyByTipo` também inclui os campos de NF
 
-### Ação Necessária (no Meta Developers, não no código)
-
-No painel Meta Developers, vá em:
-
-```text
-WhatsApp > Configuração > Webhook
-```
-
-Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
-
-Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
-
-Alternativamente, verifique via a API:
-
-```text
-GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
-```
-
-Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
-
-```text
-POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
-```
-
-### Resumo
-
-Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
+### Arquivo modificado
+`src/pages/admin/ComissaoAlfaMarketing.tsx`
 
