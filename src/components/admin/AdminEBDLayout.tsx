@@ -29,6 +29,7 @@ import {
   MessageSquare,
   Filter,
   Mail,
+  DollarSign,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -264,6 +265,16 @@ function AdminSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {isAdmin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/comissao-alfamarketing')}>
+                      <RouterNavLink to="/admin/ebd/comissao-alfamarketing">
+                        <DollarSign className="h-4 w-4" />
+                        <span>Comissão AlfaMarketing</span>
+                      </RouterNavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive('/royalties')}>
                     <RouterNavLink to="/royalties">

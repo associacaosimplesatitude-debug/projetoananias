@@ -974,6 +974,42 @@ export type Database = {
         }
         Relationships: []
       }
+      comissoes_alfamarketing: {
+        Row: {
+          canal: string
+          created_at: string
+          id: string
+          mes_referencia: string
+          pago_em: string | null
+          status: string
+          updated_at: string
+          valor_bruto: number
+          valor_comissao: number
+        }
+        Insert: {
+          canal: string
+          created_at?: string
+          id?: string
+          mes_referencia: string
+          pago_em?: string | null
+          status?: string
+          updated_at?: string
+          valor_bruto?: number
+          valor_comissao?: number
+        }
+        Update: {
+          canal?: string
+          created_at?: string
+          id?: string
+          mes_referencia?: string
+          pago_em?: string | null
+          status?: string
+          updated_at?: string
+          valor_bruto?: number
+          valor_comissao?: number
+        }
+        Relationships: []
+      }
       comissoes_config: {
         Row: {
           ativo: boolean | null

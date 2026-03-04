@@ -1,65 +1,52 @@
 
 
-## Plano: Comissão ALFAMARKETING (3% do faturamento bruto total)
+## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
+
+### Situação Confirmada
+
+| Item | Status |
+|---|---|
+| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
+| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
+| Respostas de clientes existem | 8 respostas únicas |
+| Respostas chegando no webhook | **NÃO** |
+| Teste simulado (botão "Teste" do Meta) | Funciona |
+| Código do webhook | Correto, sem alterações necessárias |
+
+### Causa Raiz
+
+No Meta Developers, existem **dois níveis** de configuração de webhook:
+
+1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
+2. **WABA-level webhook subscription** — recebe mensagens reais de produção
+
+O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
+
+### Ação Necessária (no Meta Developers, não no código)
+
+No painel Meta Developers, vá em:
+
+```text
+WhatsApp > Configuração > Webhook
+```
+
+Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
+
+Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
+
+Alternativamente, verifique via a API:
+
+```text
+GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
+
+```text
+POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
 
 ### Resumo
 
-Criar uma nova página/menu **"Comissão AlfaMarketing"** dentro do painel admin, acessível **apenas para admin geral** (`role === 'admin'`). Essa página calcula 3% sobre o valor bruto de todos os canais de venda do sistema, com controle de período mensal, status de pagamento e detalhamento por canal.
-
-### Canais de Faturamento (fontes de dados)
-
-| Canal | Tabela | Filtro |
-|---|---|---|
-| B2B Faturado (Shopify Draft) | `ebd_shopify_pedidos` | status_pagamento IN ('Pago','paid','Faturado') |
-| Mercado Pago | `ebd_shopify_pedidos_mercadopago` | status = 'PAGO' |
-| E-commerce (Central Gospel) | `ebd_shopify_pedidos_cg` | status_pagamento IN ('paid','Pago','Faturado') |
-| Propostas Vendedores | `vendedor_propostas` | status IN ('FATURADO','PAGO') |
-| PDV Balcão | `vendas_balcao` | status = 'finalizada' |
-| ADVECS | `bling_marketplace_pedidos` | marketplace = 'ADVECS' |
-| Atacado | `bling_marketplace_pedidos` | marketplace = 'ATACADO' |
-| Amazon | `bling_marketplace_pedidos` | marketplace = 'AMAZON' |
-| Shopee | `bling_marketplace_pedidos` | marketplace = 'SHOPEE' |
-| Mercado Livre | `bling_marketplace_pedidos` | marketplace = 'MERCADO_LIVRE' |
-
-### Regra de Negócio da Comissão
-
-- **Percentual**: 3% do valor bruto
-- **Período**: Mês calendário (dia 01 ao último dia)
-- **Liberação**: Pedidos faturados em parcelas — a comissão de 3% sobre o valor total da parcela fica **pendente** até que a parcela seja paga. Quando paga, a comissão é **liberada**.
-- Para pedidos à vista (e-commerce, marketplaces, balcão), a comissão é liberada imediatamente.
-- Campo **"Comissão Paga"**: permite marcar como paga com data de pagamento.
-
-### Estrutura da Página
-
-1. **Filtro de período** (date picker mês/ano) — padrão: mês atual (dia 01 a último dia)
-2. **Cards por canal** — cada canal mostra:
-   - Valor bruto faturado no período
-   - Comissão (3%)
-   - Status (pendente / liberada / paga)
-3. **Card Total** — soma de todos os canais
-4. **Tabela de comissões por mês** — histórico com colunas:
-   - Mês referência
-   - Valor bruto total
-   - Comissão (3%)
-   - Status (Pendente → Liberada → Paga)
-   - Data pagamento
-   - Ação: marcar como paga
-
-### Mudanças Técnicas
-
-1. **Tabela no banco**: `comissoes_alfamarketing`
-   - `id`, `mes_referencia` (date), `canal` (text), `valor_bruto` (numeric), `valor_comissao` (numeric), `status` (text: pendente/liberada/paga), `pago_em` (timestamptz), `created_at`, `updated_at`
-   - RLS: apenas admin pode ler/escrever
-
-2. **Nova página**: `src/pages/admin/ComissaoAlfaMarketing.tsx`
-   - Consulta direta às tabelas de vendas agrupando por canal e período
-   - Cards visuais por canal + total
-   - Tabela de histórico mensal
-   - Botão "Marcar como Paga"
-
-3. **Rota**: `/admin/ebd/comissao-alfamarketing` no `App.tsx`
-
-4. **Menu lateral**: Novo item em `AdminEBDLayout.tsx`, visível **apenas para `isAdmin`**, no grupo Financeiro
-
-5. **Sem alteração** em `GestaoComissoes.tsx` — é uma página separada
+Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
 
