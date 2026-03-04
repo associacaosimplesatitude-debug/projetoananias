@@ -213,8 +213,8 @@ export default function ComissaoAlfaMarketing() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "paga": return <Badge className="bg-green-600">Paga</Badge>;
-      case "liberada": return <Badge className="bg-blue-600">Liberada</Badge>;
+      case "paga": return <Badge className="bg-primary text-primary-foreground">Paga</Badge>;
+      case "liberada": return <Badge className="bg-accent text-accent-foreground">Liberada</Badge>;
       case "pendente": return <Badge variant="secondary">Pendente</Badge>;
       default: return <Badge variant="outline">—</Badge>;
     }
