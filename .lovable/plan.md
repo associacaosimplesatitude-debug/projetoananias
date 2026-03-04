@@ -1,33 +1,52 @@
 
 
-## Problemas Identificados
+## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
 
-1. **Canal "B2B" sem vendedor**: Quando `ebd_shopify_pedidos` tem `cliente_id = null` e `vendedor_id = null`, o sistema não consegue classificar o canal nem o vendedor. Precisa fazer fallback buscando o cliente pelo `customer_email` na tabela `ebd_clientes` para resolver tanto o `tipo_cliente` (canal correto) quanto o `vendedor_id` (nome do vendedor).
+### Situação Confirmada
 
-2. **Ordenação**: Não há campo de horário sendo buscado nem ordenação — os pedidos aparecem na ordem em que são processados, não por horário. Precisa incluir `created_at` e ordenar do mais recente para o mais antigo.
+| Item | Status |
+|---|---|
+| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
+| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
+| Respostas de clientes existem | 8 respostas únicas |
+| Respostas chegando no webhook | **NÃO** |
+| Teste simulado (botão "Teste" do Meta) | Funciona |
+| Código do webhook | Correto, sem alterações necessárias |
 
----
+### Causa Raiz
 
-## Solução
+No Meta Developers, existem **dois níveis** de configuração de webhook:
 
-**Arquivo: `src/pages/admin/ComissaoAlfaMarketing.tsx`**
+1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
+2. **WABA-level webhook subscription** — recebe mensagens reais de produção
 
-### 1. Adicionar `hora` à interface `VendaHoje`
-- Novo campo `hora: string` para armazenar o timestamp e permitir ordenação.
+O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
 
-### 2. Buscar `created_at` em todas as queries de vendas
-- Adicionar `created_at` ao select de cada tabela (Shopify, MP, CG, Propostas, PDV, Marketplaces).
+### Ação Necessária (no Meta Developers, não no código)
 
-### 3. Criar mapa de clientes por email
-- Além do `clienteMap` por ID, criar um `clienteEmailMap` indexado por `email_superintendente` (lowercase/trim).
-- Quando `cliente_id` é null no Shopify, buscar pelo `customer_email` no `clienteEmailMap` para obter `tipo_cliente` e `vendedor_id`.
+No painel Meta Developers, vá em:
 
-### 4. Resolver vendedor via cliente
-- Se `vendedor_id` do pedido é null mas o cliente em `ebd_clientes` tem `vendedor_id`, usar esse vendedor do mapa.
+```text
+WhatsApp > Configuração > Webhook
+```
 
-### 5. Ordenar por hora (mais recente primeiro)
-- Após agregar todas as vendas, fazer `vendas.sort()` por `hora` descendente.
+Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
 
-### 6. Exibir hora na tabela
-- Adicionar coluna "Hora" na tabela de Vendas de Hoje mostrando apenas HH:mm.
+Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
+
+Alternativamente, verifique via a API:
+
+```text
+GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
+
+```text
+POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
+```
+
+### Resumo
+
+Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
 
