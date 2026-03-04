@@ -7,114 +7,85 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, DollarSign, CheckCircle2, Clock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const COMMISSION_RATE = 0.03;
 
-interface ChannelData {
-  canal: string;
-  label: string;
-  valor_bruto: number;
+interface ChannelTotals {
+  ecommerce: { valor: number; qtd: number };
+  igreja_cnpj: { valor: number; qtd: number };
+  igreja_cpf: { valor: number; qtd: number };
+  lojistas: { valor: number; qtd: number };
+  pessoa_fisica: { valor: number; qtd: number };
+  igrejas_total: { valor: number; qtd: number };
+  advecs: { valor: number; qtd: number };
+  atacado: { valor: number; qtd: number };
+  propostas_advecs: { valor: number; qtd: number };
+  propostas_revendedores: { valor: number; qtd: number };
+  propostas_representantes: { valor: number; qtd: number };
+  pdv_balcao: { valor: number; qtd: number };
 }
 
-const CHANNEL_CONFIG: { key: string; label: string }[] = [
-  { key: "b2b_faturado", label: "B2B Faturado (Shopify Draft)" },
-  { key: "mercado_pago", label: "Mercado Pago" },
-  { key: "ecommerce_cg", label: "E-commerce (Central Gospel)" },
-  { key: "propostas", label: "Propostas Vendedores" },
-  { key: "pdv_balcao", label: "PDV Balcão" },
-  { key: "advecs", label: "ADVECS" },
-  { key: "atacado", label: "Atacado" },
-  { key: "amazon", label: "Amazon" },
-  { key: "shopee", label: "Shopee" },
-  { key: "mercado_livre", label: "Mercado Livre" },
+const CHANNEL_CONFIG: { key: string; label: string; rpcKey: keyof ChannelTotals }[] = [
+  { key: "b2b_faturado", label: "B2B Faturado (Igrejas Total)", rpcKey: "igrejas_total" },
+  { key: "ecommerce_cg", label: "E-commerce (Central Gospel)", rpcKey: "ecommerce" },
+  { key: "pdv_balcao", label: "PDV Balcão", rpcKey: "pdv_balcao" },
+  { key: "advecs", label: "ADVECS", rpcKey: "advecs" },
+  { key: "atacado", label: "Atacado", rpcKey: "atacado" },
+  { key: "igreja_cnpj", label: "Igreja CNPJ", rpcKey: "igreja_cnpj" },
+  { key: "igreja_cpf", label: "Igreja CPF", rpcKey: "igreja_cpf" },
+  { key: "lojistas", label: "Lojistas", rpcKey: "lojistas" },
+  { key: "pessoa_fisica", label: "Pessoa Física", rpcKey: "pessoa_fisica" },
+  { key: "revendedores", label: "Revendedores", rpcKey: "propostas_revendedores" },
+  { key: "representantes", label: "Representantes", rpcKey: "propostas_representantes" },
 ];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
+interface OrderDetail {
+  cliente: string;
+  tipo: string;
+  data: string;
+  valor: number;
+  comissao: number;
+  status: string;
+  nf?: string;
+}
+
 export default function ComissaoAlfaMarketing() {
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
 
   const startDate = startOfMonth(currentDate).toISOString();
   const endDate = endOfMonth(currentDate).toISOString();
 
-  // Fetch live channel data
-  const { data: channelData, isLoading } = useQuery({
-    queryKey: ["alfamarketing-channels", startDate, endDate],
+  // Fetch channel totals via RPC (same as main dashboard)
+  const { data: channelTotals, isLoading } = useQuery({
+    queryKey: ["alfamarketing-rpc", startDate, endDate],
     queryFn: async () => {
-      const results: ChannelData[] = [];
-
-      // B2B Faturado
-      const { data: b2b } = await supabase
-        .from("ebd_shopify_pedidos")
-        .select("valor_total")
-        .in("status_pagamento", ["Pago", "paid", "Faturado"])
-        .gte("created_at", startDate)
-        .lte("created_at", endDate);
-      results.push({ canal: "b2b_faturado", label: "B2B Faturado", valor_bruto: (b2b || []).reduce((s, r) => s + (r.valor_total || 0), 0) });
-
-      // Mercado Pago
-      const { data: mp } = await supabase
-        .from("ebd_shopify_pedidos_mercadopago")
-        .select("valor_total")
-        .eq("status", "PAGO")
-        .gte("created_at", startDate)
-        .lte("created_at", endDate);
-      results.push({ canal: "mercado_pago", label: "Mercado Pago", valor_bruto: (mp || []).reduce((s, r) => s + (r.valor_total || 0), 0) });
-
-      // E-commerce CG
-      const { data: cg } = await supabase
-        .from("ebd_shopify_pedidos_cg")
-        .select("valor_total")
-        .in("status_pagamento", ["paid", "Pago", "Faturado"])
-        .gte("created_at", startDate)
-        .lte("created_at", endDate);
-      results.push({ canal: "ecommerce_cg", label: "E-commerce CG", valor_bruto: (cg || []).reduce((s, r) => s + (r.valor_total || 0), 0) });
-
-      // Propostas Vendedores
-      const { data: prop } = await supabase
-        .from("vendedor_propostas")
-        .select("valor_total")
-        .in("status", ["FATURADO", "PAGO"])
-        .gte("created_at", startDate)
-        .lte("created_at", endDate);
-      results.push({ canal: "propostas", label: "Propostas", valor_bruto: (prop || []).reduce((s, r) => s + (r.valor_total || 0), 0) });
-
-      // PDV Balcão
-      const { data: pdv } = await supabase
-        .from("vendas_balcao")
-        .select("valor_total")
-        .eq("status", "finalizada")
-        .gte("created_at", startDate)
-        .lte("created_at", endDate);
-      results.push({ canal: "pdv_balcao", label: "PDV Balcão", valor_bruto: (pdv || []).reduce((s, r) => s + (r.valor_total || 0), 0) });
-
-      // Marketplaces via bling
-      const marketplaces = [
-        { key: "advecs", filter: "ADVECS", label: "ADVECS" },
-        { key: "atacado", filter: "ATACADO", label: "Atacado" },
-        { key: "amazon", filter: "AMAZON", label: "Amazon" },
-        { key: "shopee", filter: "SHOPEE", label: "Shopee" },
-        { key: "mercado_livre", filter: "MERCADO_LIVRE", label: "Mercado Livre" },
-      ];
-
-      for (const m of marketplaces) {
-        const { data: mkt } = await supabase
-          .from("bling_marketplace_pedidos")
-          .select("valor_total")
-          .eq("marketplace", m.filter)
-          .gte("order_date", startDate)
-          .lte("order_date", endDate);
-        results.push({ canal: m.key, label: m.label, valor_bruto: (mkt || []).reduce((s, r) => s + (r.valor_total || 0), 0) });
-      }
-
-      return results;
+      const { data, error } = await supabase.rpc("get_sales_channel_totals", {
+        p_start_date: startDate,
+        p_end_date: endDate,
+      });
+      if (error) throw error;
+      return data as unknown as ChannelTotals;
     },
   });
+
+  // Build channel data from RPC results
+  const channelData = useMemo(() => {
+    if (!channelTotals) return [];
+    return CHANNEL_CONFIG.map((cfg) => {
+      const rpcData = channelTotals[cfg.rpcKey];
+      const valor = Number(rpcData?.valor) || 0;
+      return { canal: cfg.key, label: cfg.label, valor_bruto: valor };
+    });
+  }, [channelTotals]);
 
   // Fetch saved commission records
   const { data: savedRecords } = useQuery({
@@ -137,8 +108,6 @@ export default function ComissaoAlfaMarketing() {
         .from("comissoes_alfamarketing")
         .select("*")
         .order("mes_referencia", { ascending: false });
-      
-      // Group by mes_referencia
       const grouped: Record<string, { mes: string; valor_bruto: number; valor_comissao: number; status: string; pago_em: string | null }> = {};
       (data || []).forEach((r: any) => {
         const key = r.mes_referencia;
@@ -147,7 +116,6 @@ export default function ComissaoAlfaMarketing() {
         }
         grouped[key].valor_bruto += Number(r.valor_bruto);
         grouped[key].valor_comissao += Number(r.valor_comissao);
-        // Status: if any is pendente, overall is pendente; if all paga, overall paga
         if (r.status === "pendente") grouped[key].status = "pendente";
         if (grouped[key].status !== "pendente" && r.status === "liberada") grouped[key].status = "liberada";
       });
@@ -155,10 +123,196 @@ export default function ComissaoAlfaMarketing() {
     },
   });
 
-  const totalBruto = useMemo(() => (channelData || []).reduce((s, c) => s + c.valor_bruto, 0), [channelData]);
+  // Drill-down: fetch orders for selected channel
+  const { data: orderDetails, isLoading: isLoadingOrders } = useQuery({
+    queryKey: ["alfamarketing-orders", selectedChannel, startDate, endDate],
+    enabled: !!selectedChannel,
+    queryFn: async () => {
+      if (!selectedChannel) return [];
+      const orders: OrderDetail[] = [];
+
+      const fetchShopifyByTipo = async (tipoFilter: string) => {
+        const { data: sp } = await supabase
+          .from("ebd_shopify_pedidos")
+          .select("customer_name, valor_total, created_at, status_pagamento, cliente_id")
+          .in("status_pagamento", ["Pago", "paid", "Faturado"])
+          .gte("created_at", startDate)
+          .lte("created_at", endDate);
+        if (!sp) return;
+        for (const o of sp) {
+          if (o.cliente_id) {
+            const { data: cl } = await supabase
+              .from("ebd_clientes")
+              .select("tipo_cliente, nome_igreja")
+              .eq("id", o.cliente_id)
+              .single();
+            if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
+              orders.push({
+                cliente: cl.nome_igreja || o.customer_name || "—",
+                tipo: cl.tipo_cliente || "—",
+                data: o.created_at,
+                valor: o.valor_total || 0,
+                comissao: (o.valor_total || 0) * COMMISSION_RATE,
+                status: o.status_pagamento || "—",
+              });
+            }
+          }
+        }
+        // Also MP
+        const { data: mp } = await supabase
+          .from("ebd_shopify_pedidos_mercadopago")
+          .select("cliente_nome, valor_total, created_at, status, cliente_id")
+          .eq("status", "PAGO")
+          .gte("created_at", startDate)
+          .lte("created_at", endDate);
+        if (!mp) return;
+        for (const o of mp) {
+          if (o.cliente_id) {
+            const { data: cl } = await supabase
+              .from("ebd_clientes")
+              .select("tipo_cliente, nome_igreja")
+              .eq("id", o.cliente_id)
+              .single();
+            if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
+              orders.push({
+                cliente: cl.nome_igreja || o.cliente_nome || "—",
+                tipo: cl.tipo_cliente || "—",
+                data: o.created_at,
+                valor: o.valor_total || 0,
+                comissao: (o.valor_total || 0) * COMMISSION_RATE,
+                status: o.status || "—",
+              });
+            }
+          }
+        }
+      };
+
+      switch (selectedChannel) {
+        case "b2b_faturado": {
+          const { data: sp } = await supabase
+            .from("ebd_shopify_pedidos")
+            .select("customer_name, valor_total, created_at, status_pagamento")
+            .in("status_pagamento", ["Pago", "paid", "Faturado"])
+            .gte("created_at", startDate)
+            .lte("created_at", endDate)
+            .limit(500);
+          (sp || []).forEach((o) => orders.push({
+            cliente: o.customer_name || "—", tipo: "B2B", data: o.created_at,
+            valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
+            status: o.status_pagamento || "—",
+          }));
+          const { data: mp } = await supabase
+            .from("ebd_shopify_pedidos_mercadopago")
+            .select("cliente_nome, valor_total, created_at, status")
+            .eq("status", "PAGO")
+            .gte("created_at", startDate)
+            .lte("created_at", endDate)
+            .limit(500);
+          (mp || []).forEach((o) => orders.push({
+            cliente: o.cliente_nome || "—", tipo: "Mercado Pago", data: o.created_at,
+            valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
+            status: o.status || "—",
+          }));
+          break;
+        }
+        case "ecommerce_cg": {
+          const { data: cg } = await supabase
+            .from("ebd_shopify_pedidos_cg")
+            .select("customer_name, valor_total, created_at, status_pagamento")
+            .in("status_pagamento", ["paid", "Pago", "Faturado"])
+            .gte("created_at", startDate)
+            .lte("created_at", endDate)
+            .limit(500);
+          (cg || []).forEach((o) => orders.push({
+            cliente: o.customer_name || "—", tipo: "E-commerce CG", data: o.created_at,
+            valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
+            status: o.status_pagamento || "—",
+          }));
+          break;
+        }
+        case "pdv_balcao": {
+          const { data: pdv } = await supabase
+            .from("vendas_balcao")
+            .select("cliente_nome, valor_total, created_at, status")
+            .eq("status", "finalizada")
+            .gte("created_at", startDate)
+            .lte("created_at", endDate)
+            .limit(500);
+          (pdv || []).forEach((o: any) => orders.push({
+            cliente: o.cliente_nome || "Balcão", tipo: "PDV", data: o.created_at,
+            valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
+            status: o.status || "—",
+          }));
+          break;
+        }
+        case "advecs": {
+          const { data: bl } = await supabase
+            .from("bling_marketplace_pedidos")
+            .select("customer_name, valor_total, order_date, status_pagamento")
+            .eq("marketplace", "ADVECS")
+            .gte("order_date", startDate)
+            .lte("order_date", endDate)
+            .limit(500);
+          (bl || []).forEach((o) => orders.push({
+            cliente: o.customer_name || "—", tipo: "ADVECS Bling", data: o.order_date || "",
+            valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
+            status: o.status_pagamento || "—",
+          }));
+          await fetchShopifyByTipo("ADVEC");
+          break;
+        }
+        case "atacado": {
+          const { data: bl } = await supabase
+            .from("bling_marketplace_pedidos")
+            .select("customer_name, valor_total, order_date, status_pagamento")
+            .eq("marketplace", "ATACADO")
+            .gte("order_date", startDate)
+            .lte("order_date", endDate)
+            .limit(500);
+          (bl || []).forEach((o) => orders.push({
+            cliente: o.customer_name || "—", tipo: "Atacado", data: o.order_date || "",
+            valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
+            status: o.status_pagamento || "—",
+          }));
+          break;
+        }
+        case "igreja_cnpj":
+          await fetchShopifyByTipo("IGREJA");
+          // filter only CNPJ
+          const cnpjOnly = orders.filter(o => o.tipo.toUpperCase().includes("CNPJ"));
+          orders.length = 0;
+          orders.push(...cnpjOnly);
+          break;
+        case "igreja_cpf":
+          await fetchShopifyByTipo("IGREJA");
+          const cpfOnly = orders.filter(o => o.tipo.toUpperCase().includes("CPF"));
+          orders.length = 0;
+          orders.push(...cpfOnly);
+          break;
+        case "lojistas":
+          await fetchShopifyByTipo("LOJISTA");
+          break;
+        case "pessoa_fisica":
+          await fetchShopifyByTipo("PESSOA");
+          // also try PF
+          await fetchShopifyByTipo("PF");
+          // deduplicate
+          break;
+        case "revendedores":
+          await fetchShopifyByTipo("REVENDEDOR");
+          break;
+        case "representantes":
+          await fetchShopifyByTipo("REPRESENTANTE");
+          break;
+      }
+
+      return orders.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+    },
+  });
+
+  const totalBruto = useMemo(() => channelData.reduce((s, c) => s + c.valor_bruto, 0), [channelData]);
   const totalComissao = totalBruto * COMMISSION_RATE;
 
-  // Get status for current month from saved records
   const currentMonthStatus = useMemo(() => {
     if (!savedRecords || savedRecords.length === 0) return "nao_salvo";
     const statuses = savedRecords.map((r: any) => r.status);
@@ -173,11 +327,10 @@ export default function ComissaoAlfaMarketing() {
     return paid ? (paid as any).pago_em : null;
   }, [savedRecords]);
 
-  // Save/update commission records for current month
   const saveMutation = useMutation({
     mutationFn: async () => {
       const mesRef = format(currentDate, "yyyy-MM-01");
-      for (const ch of channelData || []) {
+      for (const ch of channelData) {
         const comissao = ch.valor_bruto * COMMISSION_RATE;
         await supabase.from("comissoes_alfamarketing").upsert({
           mes_referencia: mesRef,
@@ -196,7 +349,6 @@ export default function ComissaoAlfaMarketing() {
     },
   });
 
-  // Mark as paid
   const payMutation = useMutation({
     mutationFn: async (mesRef: string) => {
       await supabase
@@ -219,6 +371,8 @@ export default function ComissaoAlfaMarketing() {
       default: return <Badge variant="outline">—</Badge>;
     }
   };
+
+  const selectedLabel = CHANNEL_CONFIG.find(c => c.key === selectedChannel)?.label || "";
 
   return (
     <div className="space-y-6">
@@ -249,7 +403,7 @@ export default function ComissaoAlfaMarketing() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Faturamento Bruto</p>
               <p className="text-2xl font-bold">{formatCurrency(totalBruto)}</p>
@@ -284,23 +438,67 @@ export default function ComissaoAlfaMarketing() {
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          {(channelData || []).map((ch) => {
-            const cfg = CHANNEL_CONFIG.find((c) => c.key === ch.canal);
-            return (
-              <Card key={ch.canal}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">{cfg?.label || ch.canal}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-lg font-bold">{formatCurrency(ch.valor_bruto)}</p>
-                  <p className="text-sm text-primary font-medium">{formatCurrency(ch.valor_bruto * COMMISSION_RATE)}</p>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {channelData.map((ch) => (
+            <Card
+              key={ch.canal}
+              className="cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => setSelectedChannel(ch.canal)}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">{ch.label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-lg font-bold">{formatCurrency(ch.valor_bruto)}</p>
+                <p className="text-sm text-primary font-medium">{formatCurrency(ch.valor_bruto * COMMISSION_RATE)}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
+
+      {/* Drill-down Dialog */}
+      <Dialog open={!!selectedChannel} onOpenChange={(open) => !open && setSelectedChannel(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Pedidos — {selectedLabel}</DialogTitle>
+          </DialogHeader>
+          {isLoadingOrders ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Comissão (3%)</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(!orderDetails || orderDetails.length === 0) ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum pedido encontrado</TableCell>
+                  </TableRow>
+                ) : (
+                  orderDetails.map((o, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="max-w-[200px] truncate">{o.cliente}</TableCell>
+                      <TableCell>{o.tipo}</TableCell>
+                      <TableCell>{o.data ? format(new Date(o.data), "dd/MM/yyyy") : "—"}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(o.valor)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(o.comissao)}</TableCell>
+                      <TableCell>{o.status}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* History Table */}
       <Card>
