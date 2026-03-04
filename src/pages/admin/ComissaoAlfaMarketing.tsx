@@ -160,38 +160,60 @@ export default function ComissaoAlfaMarketing() {
         return "B2B";
       };
 
-      // Fetch clientes map for tipo_cliente lookup
-      const { data: clientes } = await supabase.from("ebd_clientes").select("id, tipo_cliente, nome_igreja");
-      const clienteMap: Record<string, { tipo: string; nome: string }> = {};
+      // Fetch clientes map for tipo_cliente lookup (by id AND by email)
+      const { data: clientes } = await supabase.from("ebd_clientes").select("id, tipo_cliente, nome_igreja, email_superintendente, vendedor_id");
+      const clienteMap: Record<string, { tipo: string; nome: string; vendedor_id: string | null }> = {};
+      const clienteEmailMap: Record<string, { tipo: string; nome: string; vendedor_id: string | null }> = {};
       (clientes || []).forEach((c: any) => {
-        clienteMap[c.id] = { tipo: c.tipo_cliente || "", nome: c.nome_igreja || "" };
+        clienteMap[c.id] = { tipo: c.tipo_cliente || "", nome: c.nome_igreja || "", vendedor_id: c.vendedor_id || null };
+        if (c.email_superintendente) {
+          clienteEmailMap[c.email_superintendente.toLowerCase().trim()] = { tipo: c.tipo_cliente || "", nome: c.nome_igreja || "", vendedor_id: c.vendedor_id || null };
+        }
       });
+
+      // Helper to resolve cliente info with email fallback
+      const resolveCliente = (cliente_id: string | null, customer_email: string | null) => {
+        if (cliente_id && clienteMap[cliente_id]) return clienteMap[cliente_id];
+        if (customer_email) {
+          const emailKey = customer_email.toLowerCase().trim();
+          if (clienteEmailMap[emailKey]) return clienteEmailMap[emailKey];
+        }
+        return null;
+      };
+
+      // Helper to resolve vendedor with fallback from cliente
+      const resolveVendedor = (vendedor_id: string | null, clienteInfo: { vendedor_id: string | null } | null) => {
+        if (vendedor_id && vendMap[vendedor_id]) return vendMap[vendedor_id];
+        if (clienteInfo?.vendedor_id && vendMap[clienteInfo.vendedor_id]) return vendMap[clienteInfo.vendedor_id];
+        return "—";
+      };
 
       // Shopify pedidos (B2B) - exclude BLING- shadow records
       const { data: sp } = await supabase
         .from("ebd_shopify_pedidos")
-        .select("customer_name, valor_total, vendedor_id, cliente_id, order_number")
+        .select("customer_name, valor_total, vendedor_id, cliente_id, order_number, customer_email, created_at")
         .in("status_pagamento", ["Pago", "paid", "Faturado"])
         .gte("created_at", todayStart)
         .lte("created_at", todayEnd);
       (sp || []).forEach((o: any) => {
         // Skip BLING- shadow records (duplicates from propostas)
         if (o.order_number && String(o.order_number).startsWith("BLING-")) return;
-        const clienteInfo = o.cliente_id ? clienteMap[o.cliente_id] : null;
+        const clienteInfo = resolveCliente(o.cliente_id, o.customer_email);
         const canal = clienteInfo ? classifyCanal(clienteInfo.tipo) : "B2B";
         vendas.push({
-          vendedor: vendMap[o.vendedor_id] || "—",
+          vendedor: resolveVendedor(o.vendedor_id, clienteInfo),
           canal,
           cliente: clienteInfo?.nome || o.customer_name || "—",
           valor: o.valor_total || 0,
           comissao: (o.valor_total || 0) * COMMISSION_RATE,
+          hora: o.created_at || "",
         });
       });
 
       // Mercado Pago
       const { data: mp } = await supabase
         .from("ebd_shopify_pedidos_mercadopago")
-        .select("cliente_nome, valor_total, vendedor_nome, cliente_id")
+        .select("cliente_nome, valor_total, vendedor_nome, cliente_id, created_at")
         .eq("status", "PAGO")
         .gte("created_at", todayStart)
         .lte("created_at", todayEnd);
@@ -199,18 +221,19 @@ export default function ComissaoAlfaMarketing() {
         const clienteInfo = o.cliente_id ? clienteMap[o.cliente_id] : null;
         const canal = clienteInfo ? classifyCanal(clienteInfo.tipo) + " (MP)" : "Mercado Pago";
         vendas.push({
-          vendedor: o.vendedor_nome || "—",
+          vendedor: o.vendedor_nome || resolveVendedor(null, clienteInfo),
           canal,
           cliente: clienteInfo?.nome || o.cliente_nome || "—",
           valor: o.valor_total || 0,
           comissao: (o.valor_total || 0) * COMMISSION_RATE,
+          hora: o.created_at || "",
         });
       });
 
       // E-commerce CG
       const { data: cg } = await supabase
         .from("ebd_shopify_pedidos_cg")
-        .select("customer_name, valor_total, vendedor_id")
+        .select("customer_name, valor_total, vendedor_id, created_at")
         .in("status_pagamento", ["paid", "Pago", "Faturado"])
         .gte("created_at", todayStart)
         .lte("created_at", todayEnd);
@@ -220,12 +243,13 @@ export default function ComissaoAlfaMarketing() {
         cliente: o.customer_name || "—",
         valor: o.valor_total || 0,
         comissao: (o.valor_total || 0) * COMMISSION_RATE,
+        hora: o.created_at || "",
       }));
 
       // Propostas - classify by tipo_cliente
       const { data: props } = await supabase
         .from("vendedor_propostas")
-        .select("cliente_nome, valor_total, valor_frete, vendedor_nome, cliente_id")
+        .select("cliente_nome, valor_total, valor_frete, vendedor_nome, cliente_id, created_at")
         .in("status", ["FATURADO", "PAGO"])
         .gte("created_at", todayStart)
         .lte("created_at", todayEnd);
@@ -239,13 +263,14 @@ export default function ComissaoAlfaMarketing() {
           cliente: clienteInfo?.nome || o.cliente_nome || "—",
           valor: val,
           comissao: val * COMMISSION_RATE,
+          hora: o.created_at || "",
         });
       });
 
       // PDV Balcão
       const { data: pdv } = await supabase
         .from("vendas_balcao")
-        .select("cliente_nome, valor_total, vendedor_id")
+        .select("cliente_nome, valor_total, vendedor_id, created_at")
         .eq("status", "finalizada")
         .gte("created_at", todayStart)
         .lte("created_at", todayEnd);
@@ -255,12 +280,13 @@ export default function ComissaoAlfaMarketing() {
         cliente: o.cliente_nome || "Balcão",
         valor: o.valor_total || 0,
         comissao: (o.valor_total || 0) * COMMISSION_RATE,
+        hora: o.created_at || "",
       }));
 
       // Marketplaces
       const { data: bl } = await supabase
         .from("bling_marketplace_pedidos")
-        .select("customer_name, valor_total, marketplace")
+        .select("customer_name, valor_total, marketplace, created_at")
         .gte("order_date", todayStart)
         .lte("order_date", todayEnd);
       (bl || []).forEach((o: any) => vendas.push({
@@ -269,7 +295,11 @@ export default function ComissaoAlfaMarketing() {
         cliente: o.customer_name || "—",
         valor: o.valor_total || 0,
         comissao: (o.valor_total || 0) * COMMISSION_RATE,
+        hora: o.created_at || "",
       }));
+
+      // Sort by time descending (most recent first)
+      vendas.sort((a, b) => new Date(b.hora).getTime() - new Date(a.hora).getTime());
 
       return vendas;
     },
