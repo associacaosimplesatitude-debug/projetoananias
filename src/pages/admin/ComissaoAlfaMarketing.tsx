@@ -188,7 +188,27 @@ export default function ComissaoAlfaMarketing() {
         return "—";
       };
 
-      // Shopify pedidos (B2B) - exclude BLING- shadow records
+      // E-commerce CG — processed FIRST to build dedup set
+      const { data: cg } = await supabase
+        .from("ebd_shopify_pedidos_cg")
+        .select("customer_name, valor_total, vendedor_id, customer_email, created_at")
+        .in("status_pagamento", ["paid", "Pago", "Faturado"])
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
+      const cgEmailSet = new Set<string>();
+      (cg || []).forEach((o: any) => {
+        if (o.customer_email) cgEmailSet.add(o.customer_email.toLowerCase().trim());
+        vendas.push({
+          vendedor: vendMap[o.vendedor_id] || "—",
+          canal: "E-commerce CG",
+          cliente: o.customer_name || "—",
+          valor: o.valor_total || 0,
+          comissao: (o.valor_total || 0) * COMMISSION_RATE,
+          hora: o.created_at || "",
+        });
+      });
+
+      // Shopify pedidos (B2B) - exclude BLING- shadow records AND e-commerce duplicates
       const { data: sp } = await supabase
         .from("ebd_shopify_pedidos")
         .select("customer_name, valor_total, vendedor_id, cliente_id, order_number, customer_email, created_at")
@@ -198,6 +218,8 @@ export default function ComissaoAlfaMarketing() {
       (sp || []).forEach((o: any) => {
         // Skip BLING- shadow records (duplicates from propostas)
         if (o.order_number && String(o.order_number).startsWith("BLING-")) return;
+        // Skip if already counted in E-commerce CG (dedup by email)
+        if (o.customer_email && cgEmailSet.has(o.customer_email.toLowerCase().trim())) return;
         const clienteInfo = resolveCliente(o.cliente_id, o.customer_email);
         const canal = clienteInfo ? classifyCanal(clienteInfo.tipo) : "B2B";
         vendas.push({
@@ -209,42 +231,6 @@ export default function ComissaoAlfaMarketing() {
           hora: o.created_at || "",
         });
       });
-
-      // Mercado Pago
-      const { data: mp } = await supabase
-        .from("ebd_shopify_pedidos_mercadopago")
-        .select("cliente_nome, valor_total, vendedor_nome, cliente_id, created_at")
-        .eq("status", "PAGO")
-        .gte("created_at", todayStart)
-        .lte("created_at", todayEnd);
-      (mp || []).forEach((o: any) => {
-        const clienteInfo = o.cliente_id ? clienteMap[o.cliente_id] : null;
-        const canal = clienteInfo ? classifyCanal(clienteInfo.tipo) + " (MP)" : "Mercado Pago";
-        vendas.push({
-          vendedor: o.vendedor_nome || resolveVendedor(null, clienteInfo),
-          canal,
-          cliente: clienteInfo?.nome || o.cliente_nome || "—",
-          valor: o.valor_total || 0,
-          comissao: (o.valor_total || 0) * COMMISSION_RATE,
-          hora: o.created_at || "",
-        });
-      });
-
-      // E-commerce CG
-      const { data: cg } = await supabase
-        .from("ebd_shopify_pedidos_cg")
-        .select("customer_name, valor_total, vendedor_id, created_at")
-        .in("status_pagamento", ["paid", "Pago", "Faturado"])
-        .gte("created_at", todayStart)
-        .lte("created_at", todayEnd);
-      (cg || []).forEach((o: any) => vendas.push({
-        vendedor: vendMap[o.vendedor_id] || "—",
-        canal: "E-commerce CG",
-        cliente: o.customer_name || "—",
-        valor: o.valor_total || 0,
-        comissao: (o.valor_total || 0) * COMMISSION_RATE,
-        hora: o.created_at || "",
-      }));
 
       // Propostas - classify by tipo_cliente
       const { data: props } = await supabase
