@@ -203,13 +203,13 @@ export default function ComissaoAlfaMarketing() {
           }));
           const { data: mp } = await supabase
             .from("ebd_shopify_pedidos_mercadopago")
-            .select("customer_name, valor_total, created_at, status")
+            .select("cliente_nome, valor_total, created_at, status")
             .eq("status", "PAGO")
             .gte("created_at", startDate)
             .lte("created_at", endDate)
             .limit(500);
           (mp || []).forEach((o) => orders.push({
-            cliente: o.customer_name || "—", tipo: "Mercado Pago", data: o.created_at,
+            cliente: o.cliente_nome || "—", tipo: "Mercado Pago", data: o.created_at,
             valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
             status: o.status || "—",
           }));
