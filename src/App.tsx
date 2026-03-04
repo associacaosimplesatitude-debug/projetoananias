@@ -461,6 +461,7 @@ const App = () => (
                       <Route path="propostas" element={<AdminEBDPropostasPage />} />
                       <Route path="aprovacao-faturamento" element={<AprovacaoFaturamento />} />
                       <Route path="comissoes" element={<GestaoComissoes />} />
+                      <Route path="comissao-alfamarketing" element={<ComissaoAlfaMarketing />} />
                       <Route path="pedidos-igrejas" element={<PedidosOnline />} />
                       <Route path="pedidos-online" element={<PedidosCentralGospel />} />
                       <Route path="pedidos-igreja-cpf" element={<PedidosIgrejaCPF />} />
