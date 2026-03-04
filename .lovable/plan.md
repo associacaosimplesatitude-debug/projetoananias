@@ -1,52 +1,44 @@
 
 
-## Diagnóstico Final — Mensagens Reais Não Entregues pelo Meta
+## Correções na Comissão AlfaMarketing
 
-### Situação Confirmada
+### Problemas Identificados
 
-| Item | Status |
-|---|---|
-| Número registrado e ativo na Cloud API | OK (campanha enviou 67 msgs) |
-| Campanha entregue e lida | OK (66 entregues, 41 lidas) |
-| Respostas de clientes existem | 8 respostas únicas |
-| Respostas chegando no webhook | **NÃO** |
-| Teste simulado (botão "Teste" do Meta) | Funciona |
-| Código do webhook | Correto, sem alterações necessárias |
+1. **Propostas Vendedores duplicando B2B**: Propostas com status FATURADO/PAGO já viram pedidos na `ebd_shopify_pedidos` (B2B Faturado). Estão sendo contados duas vezes. Remover o card "Propostas Vendedores".
 
-### Causa Raiz
+2. **ADVECS zerado**: A página só consulta `bling_marketplace_pedidos` com marketplace='ADVECS', mas o dashboard real soma também pedidos de `ebd_shopify_pedidos` e `ebd_shopify_pedidos_mercadopago` onde o `tipo_cliente` do cliente contém 'ADVEC'. Precisa replicar a mesma lógica do RPC `get_sales_channel_totals`.
 
-No Meta Developers, existem **dois níveis** de configuração de webhook:
+3. **Canais faltando**: Pessoa Física, Representantes, Igreja CNPJ, Igreja CPF, Revendedores, Lojistas — todos existem no dashboard de vendas mas não na página de comissão.
 
-1. **App-level webhook** (Configuração > Webhooks) — recebe apenas payloads do botão "Teste"
-2. **WABA-level webhook subscription** — recebe mensagens reais de produção
+4. **Remover Amazon, Shopee, Mercado Livre**: AlfaMarketing não recebe comissão desses canais.
 
-O botão "Teste" funciona porque usa o app-level. As mensagens reais (incluindo as 8 respostas da campanha) precisam que o **WABA esteja inscrito no webhook do app**.
+5. **Cards clicáveis com lista de pedidos**: Ao clicar num card, abrir dialog/tabela com detalhes dos pedidos (Cliente, Tipo, Data, Valor Compra, Comissão 3%, Status, NF) — similar ao que já existe na gestão de comissões.
 
-### Ação Necessária (no Meta Developers, não no código)
+### Mudanças Técnicas
 
-No painel Meta Developers, vá em:
+**Arquivo: `src/pages/admin/ComissaoAlfaMarketing.tsx`** (reescrever as queries)
 
-```text
-WhatsApp > Configuração > Webhook
-```
+**Canais corretos** (sem Amazon, Shopee, ML, sem Propostas):
+- **B2B Faturado**: `ebd_shopify_pedidos` (status_pagamento IN Pago/paid/Faturado)
+- **Mercado Pago**: `ebd_shopify_pedidos_mercadopago` (status = PAGO)
+- **E-commerce CG**: `ebd_shopify_pedidos_cg` (status_pagamento IN paid/Pago/Faturado)
+- **PDV Balcão**: `vendas_balcao` (status = finalizada)
+- **ADVECS**: `bling_marketplace_pedidos` WHERE marketplace='ADVECS' + `ebd_shopify_pedidos` JOIN `ebd_clientes` WHERE tipo_cliente LIKE '%ADVEC%' + `ebd_shopify_pedidos_mercadopago` JOIN `ebd_clientes` WHERE tipo_cliente LIKE '%ADVEC%' + `vendedor_propostas` JOIN `ebd_clientes` WHERE tipo_cliente = 'Igreja' (propostas_advecs)
+- **Atacado**: `bling_marketplace_pedidos` WHERE marketplace='ATACADO'
+- **Igreja CNPJ**: `ebd_shopify_pedidos` + `ebd_shopify_pedidos_mercadopago` JOIN `ebd_clientes` WHERE tipo_cliente LIKE '%IGREJA%CNPJ%'
+- **Igreja CPF**: mesma lógica com '%IGREJA%CPF%'
+- **Lojistas**: mesma lógica com '%LOJISTA%'
+- **Pessoa Física**: mesma lógica com '%PESSOA%' ou '%FISICA%' ou '%PF%'
+- **Revendedores**: `vendedor_propostas` + shopify + MP JOIN ebd_clientes WHERE tipo_cliente LIKE '%REVENDEDOR%'
+- **Representantes**: mesma lógica com '%REPRESENTANTE%'
 
-Verifique se abaixo do campo "URL de retorno de chamada" existe uma seção chamada **"Webhooks de conta do WhatsApp Business"** ou **"WhatsApp Business Account webhooks"**. 
+**Nova funcionalidade — Dialog de detalhes por canal**:
+- Criar estado `selectedChannel` para abrir dialog
+- Ao clicar no card, abrir dialog que faz query dos pedidos individuais do canal
+- Tabela com colunas: Cliente, Tipo, Data, Valor Compra, Comissão (3%), Status, NF
+- Buscar dados das tabelas correspondentes ao canal selecionado, incluindo join com `ebd_clientes` para nome
 
-Se essa seção mostra que o WABA `925435919846260` **não está inscrito**, clique em **"Gerenciar"** ou **"Manage"** e inscreva-o.
+**Usar RPC `get_sales_channel_totals`**: Em vez de fazer 12+ queries manuais, reutilizar a RPC existente que já calcula tudo corretamente. Isso garante que os valores batam com o dashboard de vendas. A query de totais fica uma única chamada RPC.
 
-Alternativamente, verifique via a API:
-
-```text
-GET https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
-```
-
-Se retornar uma lista vazia ou sem o app correto, é necessário inscrever:
-
-```text
-POST https://graph.facebook.com/v22.0/925435919846260/subscribed_apps
-```
-
-### Resumo
-
-Nenhuma alteração de código é necessária. O webhook está funcional e pronto. A ação é vincular o WABA ao webhook do app no painel da Meta para que mensagens reais de produção sejam entregues.
+**Arquivo: `comissoes_alfamarketing` table**: Atualizar os canais salvos (remover amazon/shopee/ml/propostas, adicionar os novos canais).
 
