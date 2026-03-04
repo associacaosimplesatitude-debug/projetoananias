@@ -523,12 +523,13 @@ export default function ComissaoAlfaMarketing() {
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead className="text-right">Comissão (3%)</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>NF</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(!orderDetails || orderDetails.length === 0) ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum pedido encontrado</TableCell>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum pedido encontrado</TableCell>
                   </TableRow>
                 ) : (
                   orderDetails.map((o, i) => (
@@ -539,6 +540,17 @@ export default function ComissaoAlfaMarketing() {
                       <TableCell className="text-right">{formatCurrency(o.valor)}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(o.comissao)}</TableCell>
                       <TableCell>{o.status}</TableCell>
+                      <TableCell>
+                        {o.nf_url ? (
+                          <a href={o.nf_url} target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">
+                            {o.nf_numero || "Ver NF"}
+                          </a>
+                        ) : o.nf_numero ? (
+                          <span className="text-xs">{o.nf_numero}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
