@@ -146,35 +146,65 @@ export default function ComissaoAlfaMarketing() {
 
       const vendas: VendaHoje[] = [];
 
-      // B2B
+      // Helper to classify tipo_cliente into canal
+      const classifyCanal = (tipo: string | null): string => {
+        const t = (tipo || "").toUpperCase();
+        if (t.includes("ADVEC")) return "ADVECS";
+        if (t.includes("IGREJA") && t.includes("CNPJ")) return "Igreja CNPJ";
+        if (t.includes("IGREJA") && t.includes("CPF")) return "Igreja CPF";
+        if (t.includes("LOJISTA")) return "Lojistas";
+        if (t.includes("PESSOA") || t.includes("FISICA") || t.includes("PF")) return "Pessoa Física";
+        if (t.includes("REVENDEDOR")) return "Revendedores";
+        if (t.includes("REPRESENTANTE")) return "Representantes";
+        return "B2B";
+      };
+
+      // Fetch clientes map for tipo_cliente lookup
+      const { data: clientes } = await supabase.from("ebd_clientes").select("id, tipo_cliente, nome_igreja");
+      const clienteMap: Record<string, { tipo: string; nome: string }> = {};
+      (clientes || []).forEach((c: any) => {
+        clienteMap[c.id] = { tipo: c.tipo_cliente || "", nome: c.nome_igreja || "" };
+      });
+
+      // Shopify pedidos (B2B) - exclude BLING- shadow records
       const { data: sp } = await supabase
         .from("ebd_shopify_pedidos")
-        .select("customer_name, valor_total, vendedor_id")
+        .select("customer_name, valor_total, vendedor_id, cliente_id, order_number")
         .in("status_pagamento", ["Pago", "paid", "Faturado"])
         .gte("created_at", todayStart)
         .lte("created_at", todayEnd);
-      (sp || []).forEach((o: any) => vendas.push({
-        vendedor: vendMap[o.vendedor_id] || "—",
-        canal: "B2B",
-        cliente: o.customer_name || "—",
-        valor: o.valor_total || 0,
-        comissao: (o.valor_total || 0) * COMMISSION_RATE,
-      }));
+      (sp || []).forEach((o: any) => {
+        // Skip BLING- shadow records (duplicates from propostas)
+        if (o.order_number && String(o.order_number).startsWith("BLING-")) return;
+        const clienteInfo = o.cliente_id ? clienteMap[o.cliente_id] : null;
+        const canal = clienteInfo ? classifyCanal(clienteInfo.tipo) : "B2B";
+        vendas.push({
+          vendedor: vendMap[o.vendedor_id] || "—",
+          canal,
+          cliente: clienteInfo?.nome || o.customer_name || "—",
+          valor: o.valor_total || 0,
+          comissao: (o.valor_total || 0) * COMMISSION_RATE,
+        });
+      });
 
       // Mercado Pago
       const { data: mp } = await supabase
         .from("ebd_shopify_pedidos_mercadopago")
-        .select("cliente_nome, valor_total, vendedor_nome")
+        .select("cliente_nome, valor_total, vendedor_nome, cliente_id")
         .eq("status", "PAGO")
         .gte("created_at", todayStart)
         .lte("created_at", todayEnd);
-      (mp || []).forEach((o: any) => vendas.push({
-        vendedor: o.vendedor_nome || "—",
-        canal: "Mercado Pago",
-        cliente: o.cliente_nome || "—",
-        valor: o.valor_total || 0,
-        comissao: (o.valor_total || 0) * COMMISSION_RATE,
-      }));
+      (mp || []).forEach((o: any) => {
+        const clienteInfo = o.cliente_id ? clienteMap[o.cliente_id] : null;
+        const canal = clienteInfo ? classifyCanal(clienteInfo.tipo) + " (MP)" : "Mercado Pago";
+        vendas.push({
+          vendedor: o.vendedor_nome || "—",
+          canal,
+          cliente: clienteInfo?.nome || o.cliente_nome || "—",
+          valor: o.valor_total || 0,
+          comissao: (o.valor_total || 0) * COMMISSION_RATE,
+        });
+      });
 
       // E-commerce CG
       const { data: cg } = await supabase
@@ -191,19 +221,21 @@ export default function ComissaoAlfaMarketing() {
         comissao: (o.valor_total || 0) * COMMISSION_RATE,
       }));
 
-      // Propostas
+      // Propostas - classify by tipo_cliente
       const { data: props } = await supabase
         .from("vendedor_propostas")
-        .select("cliente_nome, valor_total, valor_frete, vendedor_nome")
+        .select("cliente_nome, valor_total, valor_frete, vendedor_nome, cliente_id")
         .in("status", ["FATURADO", "PAGO"])
         .gte("created_at", todayStart)
         .lte("created_at", todayEnd);
       (props || []).forEach((o: any) => {
         const val = (o.valor_total || 0) - (o.valor_frete || 0);
+        const clienteInfo = o.cliente_id ? clienteMap[o.cliente_id] : null;
+        const canal = clienteInfo ? classifyCanal(clienteInfo.tipo) : "Proposta B2B";
         vendas.push({
           vendedor: o.vendedor_nome || "—",
-          canal: "Proposta B2B",
-          cliente: o.cliente_nome || "—",
+          canal,
+          cliente: clienteInfo?.nome || o.cliente_nome || "—",
           valor: val,
           comissao: val * COMMISSION_RATE,
         });
