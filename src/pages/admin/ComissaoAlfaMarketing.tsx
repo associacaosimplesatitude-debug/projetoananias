@@ -53,7 +53,8 @@ interface OrderDetail {
   valor: number;
   comissao: number;
   status: string;
-  nf?: string;
+  nf_numero?: string;
+  nf_url?: string;
 }
 
 export default function ComissaoAlfaMarketing() {
@@ -134,27 +135,30 @@ export default function ComissaoAlfaMarketing() {
       const fetchShopifyByTipo = async (tipoFilter: string) => {
         const { data: sp } = await supabase
           .from("ebd_shopify_pedidos")
-          .select("customer_name, valor_total, created_at, status_pagamento, cliente_id")
+          .select("customer_name, valor_total, created_at, status_pagamento, cliente_id, nota_fiscal_numero, nota_fiscal_url, status_nfe")
           .in("status_pagamento", ["Pago", "paid", "Faturado"])
           .gte("created_at", startDate)
           .lte("created_at", endDate);
-        if (!sp) return;
-        for (const o of sp) {
-          if (o.cliente_id) {
-            const { data: cl } = await supabase
-              .from("ebd_clientes")
-              .select("tipo_cliente, nome_igreja")
-              .eq("id", o.cliente_id)
-              .single();
-            if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
-              orders.push({
-                cliente: cl.nome_igreja || o.customer_name || "—",
-                tipo: cl.tipo_cliente || "—",
-                data: o.created_at,
-                valor: o.valor_total || 0,
-                comissao: (o.valor_total || 0) * COMMISSION_RATE,
-                status: o.status_pagamento || "—",
-              });
+        if (sp) {
+          for (const o of sp) {
+            if (o.cliente_id) {
+              const { data: cl } = await supabase
+                .from("ebd_clientes")
+                .select("tipo_cliente, nome_igreja")
+                .eq("id", o.cliente_id)
+                .single();
+              if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
+                orders.push({
+                  cliente: cl.nome_igreja || o.customer_name || "—",
+                  tipo: cl.tipo_cliente || "—",
+                  data: o.created_at,
+                  valor: o.valor_total || 0,
+                  comissao: (o.valor_total || 0) * COMMISSION_RATE,
+                  status: o.status_pagamento || "—",
+                  nf_numero: o.nota_fiscal_numero || undefined,
+                  nf_url: o.nota_fiscal_url || undefined,
+                });
+              }
             }
           }
         }
@@ -165,23 +169,57 @@ export default function ComissaoAlfaMarketing() {
           .eq("status", "PAGO")
           .gte("created_at", startDate)
           .lte("created_at", endDate);
-        if (!mp) return;
-        for (const o of mp) {
-          if (o.cliente_id) {
-            const { data: cl } = await supabase
-              .from("ebd_clientes")
-              .select("tipo_cliente, nome_igreja")
-              .eq("id", o.cliente_id)
-              .single();
-            if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
-              orders.push({
-                cliente: cl.nome_igreja || o.cliente_nome || "—",
-                tipo: cl.tipo_cliente || "—",
-                data: o.created_at,
-                valor: o.valor_total || 0,
-                comissao: (o.valor_total || 0) * COMMISSION_RATE,
-                status: o.status || "—",
-              });
+        if (mp) {
+          for (const o of mp) {
+            if (o.cliente_id) {
+              const { data: cl } = await supabase
+                .from("ebd_clientes")
+                .select("tipo_cliente, nome_igreja")
+                .eq("id", o.cliente_id)
+                .single();
+              if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
+                orders.push({
+                  cliente: cl.nome_igreja || o.cliente_nome || "—",
+                  tipo: cl.tipo_cliente || "—",
+                  data: o.created_at,
+                  valor: o.valor_total || 0,
+                  comissao: (o.valor_total || 0) * COMMISSION_RATE,
+                  status: o.status || "—",
+                });
+              }
+            }
+          }
+        }
+      };
+
+      const fetchPropostasByTipo = async (tipoFilter: string) => {
+        const { data: props } = await supabase
+          .from("vendedor_propostas")
+          .select("cliente_nome, cliente_id, valor_total, valor_frete, created_at, status, link_danfe")
+          .in("status", ["FATURADO", "PAGO"])
+          .gte("created_at", startDate)
+          .lte("created_at", endDate)
+          .limit(500);
+        if (props) {
+          for (const p of props) {
+            if (p.cliente_id) {
+              const { data: cl } = await supabase
+                .from("ebd_clientes")
+                .select("tipo_cliente, nome_igreja")
+                .eq("id", p.cliente_id)
+                .single();
+              if (cl && (cl.tipo_cliente || "").toUpperCase().includes(tipoFilter)) {
+                const valor = (p.valor_total || 0) - (p.valor_frete || 0);
+                orders.push({
+                  cliente: cl.nome_igreja || p.cliente_nome || "—",
+                  tipo: cl.tipo_cliente || "—",
+                  data: p.created_at,
+                  valor,
+                  comissao: valor * COMMISSION_RATE,
+                  status: p.status || "—",
+                  nf_url: p.link_danfe || undefined,
+                });
+              }
             }
           }
         }
@@ -191,7 +229,7 @@ export default function ComissaoAlfaMarketing() {
         case "b2b_faturado": {
           const { data: sp } = await supabase
             .from("ebd_shopify_pedidos")
-            .select("customer_name, valor_total, created_at, status_pagamento")
+            .select("customer_name, valor_total, created_at, status_pagamento, nota_fiscal_numero, nota_fiscal_url")
             .in("status_pagamento", ["Pago", "paid", "Faturado"])
             .gte("created_at", startDate)
             .lte("created_at", endDate)
@@ -200,6 +238,8 @@ export default function ComissaoAlfaMarketing() {
             cliente: o.customer_name || "—", tipo: "B2B", data: o.created_at,
             valor: o.valor_total || 0, comissao: (o.valor_total || 0) * COMMISSION_RATE,
             status: o.status_pagamento || "—",
+            nf_numero: o.nota_fiscal_numero || undefined,
+            nf_url: o.nota_fiscal_url || undefined,
           }));
           const { data: mp } = await supabase
             .from("ebd_shopify_pedidos_mercadopago")
@@ -278,7 +318,6 @@ export default function ComissaoAlfaMarketing() {
         }
         case "igreja_cnpj":
           await fetchShopifyByTipo("IGREJA");
-          // filter only CNPJ
           const cnpjOnly = orders.filter(o => o.tipo.toUpperCase().includes("CNPJ"));
           orders.length = 0;
           orders.push(...cnpjOnly);
@@ -294,15 +333,25 @@ export default function ComissaoAlfaMarketing() {
           break;
         case "pessoa_fisica":
           await fetchShopifyByTipo("PESSOA");
-          // also try PF
+          await fetchShopifyByTipo("FISICA");
           await fetchShopifyByTipo("PF");
-          // deduplicate
+          // deduplicate by cliente+data+valor
+          const seen = new Set<string>();
+          const unique: OrderDetail[] = [];
+          for (const o of orders) {
+            const key = `${o.cliente}|${o.data}|${o.valor}`;
+            if (!seen.has(key)) { seen.add(key); unique.push(o); }
+          }
+          orders.length = 0;
+          orders.push(...unique);
           break;
         case "revendedores":
           await fetchShopifyByTipo("REVENDEDOR");
+          await fetchPropostasByTipo("REVENDEDOR");
           break;
         case "representantes":
           await fetchShopifyByTipo("REPRESENTANTE");
+          await fetchPropostasByTipo("REPRESENTANTE");
           break;
       }
 
@@ -395,22 +444,21 @@ export default function ComissaoAlfaMarketing() {
       </div>
 
       {/* Total Card */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <DollarSign className="h-5 w-5" />
-            Total do Mês
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="border-2 border-primary bg-primary/5">
+        <CardContent className="pt-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Faturamento Bruto</p>
-              <p className="text-2xl font-bold">{formatCurrency(totalBruto)}</p>
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-full bg-primary/10">
+                <DollarSign className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Vendas do Mês</p>
+                <p className="text-3xl font-extrabold">{formatCurrency(totalBruto)}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Comissão (3%)</p>
-              <p className="text-2xl font-bold text-primary">{formatCurrency(totalComissao)}</p>
+            <div className="border-l-2 border-primary/30 pl-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Comissão AlfaMarketing (3%)</p>
+              <p className="text-3xl font-extrabold text-primary">{formatCurrency(totalComissao)}</p>
             </div>
             <div className="flex items-center gap-2">
               {getStatusBadge(currentMonthStatus)}
@@ -475,12 +523,13 @@ export default function ComissaoAlfaMarketing() {
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead className="text-right">Comissão (3%)</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>NF</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(!orderDetails || orderDetails.length === 0) ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum pedido encontrado</TableCell>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum pedido encontrado</TableCell>
                   </TableRow>
                 ) : (
                   orderDetails.map((o, i) => (
@@ -491,6 +540,17 @@ export default function ComissaoAlfaMarketing() {
                       <TableCell className="text-right">{formatCurrency(o.valor)}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(o.comissao)}</TableCell>
                       <TableCell>{o.status}</TableCell>
+                      <TableCell>
+                        {o.nf_url ? (
+                          <a href={o.nf_url} target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">
+                            {o.nf_numero || "Ver NF"}
+                          </a>
+                        ) : o.nf_numero ? (
+                          <span className="text-xs">{o.nf_numero}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
