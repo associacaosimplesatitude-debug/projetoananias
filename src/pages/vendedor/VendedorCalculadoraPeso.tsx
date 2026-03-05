@@ -985,7 +985,11 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                                 <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.variantId, -1)}>
                                   <Minus className="h-3 w-3" />
                                 </Button>
-                                <span className="w-6 text-center text-xs">{item.quantity}</span>
+                                <CartQuantityField
+                                  value={item.quantity}
+                                  onCommit={(next) => setQuantidadeDireta(item.variantId, next)}
+                                  className="w-10 h-6 text-center text-xs px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
                                 <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.variantId, 1)}>
                                   <Plus className="h-3 w-3" />
                                 </Button>
