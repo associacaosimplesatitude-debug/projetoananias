@@ -9,10 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Scale, Plus, Minus, Trash2, Search, Package, Truck, 
   MapPin, Copy, Save, Clock, CheckCircle2, CheckCircle,
-  Building2, User, Percent, Rocket, Pencil, RefreshCw
+  Building2, User, Percent, Rocket, Pencil, RefreshCw, ChevronsUpDown, Check
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useVendedor } from "@/hooks/useVendedor";
@@ -96,6 +99,7 @@ export default function VendedorCalculadoraPeso() {
   const [clienteSelecionado, setClienteSelecionado] = useState<string>("");
   const [activeTab, setActiveTab] = useState("novo");
   const [localColeta, setLocalColeta] = useState<LocalColeta>('matriz');
+  const [clienteSearchOpen, setClienteSearchOpen] = useState(false);
   
   // Estados para modais
   const [freteDialogOpen, setFreteDialogOpen] = useState(false);
@@ -356,6 +360,18 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
   const removerProduto = useCallback((variantId: string) => {
     setCarrinho(prev => prev.filter(item => item.variantId !== variantId));
   }, []);
+
+  const setQuantidadeDireta = useCallback((variantId: string, quantidade: number) => {
+    if (quantidade <= 0) {
+      removerProduto(variantId);
+      return;
+    }
+    setCarrinho(prev =>
+      prev.map(item =>
+        item.variantId === variantId ? { ...item, quantity: quantidade } : item
+      )
+    );
+  }, [removerProduto]);
 
   const limparCarrinho = useCallback(() => {
     setCarrinho([]);
@@ -733,23 +749,53 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={clienteSelecionado} onValueChange={setClienteSelecionado}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um cliente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <span className="flex items-center gap-2">
-                        {c.nome_igreja}
-                        {c.tipo_cliente && (
-                          <Badge variant="outline" className="text-xs">{c.tipo_cliente}</Badge>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={clienteSearchOpen} onOpenChange={setClienteSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={clienteSearchOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {clienteSelecionado
+                      ? (() => {
+                          const c = clientes?.find(c => c.id === clienteSelecionado);
+                          return c ? (
+                            <span className="flex items-center gap-2 truncate">
+                              {c.nome_igreja}
+                              {c.tipo_cliente && <Badge variant="outline" className="text-xs">{c.tipo_cliente}</Badge>}
+                            </span>
+                          ) : "Selecione um cliente...";
+                        })()
+                      : "Selecione um cliente..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar cliente pelo nome..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                      {clientes?.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={c.nome_igreja}
+                          onSelect={() => {
+                            setClienteSelecionado(c.id === clienteSelecionado ? "" : c.id);
+                            setClienteSearchOpen(false);
+                          }}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${clienteSelecionado === c.id ? "opacity-100" : "opacity-0"}`} />
+                          <span className="flex items-center gap-2">
+                            {c.nome_igreja}
+                            {c.tipo_cliente && <Badge variant="outline" className="text-xs">{c.tipo_cliente}</Badge>}
+                          </span>
+                        </CommandItem>
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
 
               {cliente && (
                 <div className="mt-4 p-4 bg-muted/50 rounded-lg">
@@ -939,7 +985,11 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
                                 <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.variantId, -1)}>
                                   <Minus className="h-3 w-3" />
                                 </Button>
-                                <span className="w-6 text-center text-xs">{item.quantity}</span>
+                                <CartQuantityField
+                                  value={item.quantity}
+                                  onCommit={(next) => setQuantidadeDireta(item.variantId, next)}
+                                  className="w-10 h-6 text-center text-xs px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
                                 <Button size="icon" variant="outline" className="h-6 w-6" onClick={() => alterarQuantidade(item.variantId, 1)}>
                                   <Plus className="h-3 w-3" />
                                 </Button>
