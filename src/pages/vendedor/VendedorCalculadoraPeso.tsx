@@ -99,6 +99,7 @@ export default function VendedorCalculadoraPeso() {
   const [clienteSelecionado, setClienteSelecionado] = useState<string>("");
   const [activeTab, setActiveTab] = useState("novo");
   const [localColeta, setLocalColeta] = useState<LocalColeta>('matriz');
+  const [clienteSearchOpen, setClienteSearchOpen] = useState(false);
   
   // Estados para modais
   const [freteDialogOpen, setFreteDialogOpen] = useState(false);
