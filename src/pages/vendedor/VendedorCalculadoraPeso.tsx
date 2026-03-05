@@ -9,10 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Scale, Plus, Minus, Trash2, Search, Package, Truck, 
   MapPin, Copy, Save, Clock, CheckCircle2, CheckCircle,
-  Building2, User, Percent, Rocket, Pencil, RefreshCw
+  Building2, User, Percent, Rocket, Pencil, RefreshCw, ChevronsUpDown, Check
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { CartQuantityField } from "@/components/shopify/CartQuantityField";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useVendedor } from "@/hooks/useVendedor";
