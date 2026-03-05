@@ -296,6 +296,14 @@ function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/implementacoes')}>
+                  <RouterNavLink to="/admin/implementacoes">
+                    <Rocket className="h-4 w-4" />
+                    <span>Implementações</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive('/admin/apresentacao')}>
                   <RouterNavLink to="/admin/apresentacao">
                     <Presentation className="h-4 w-4" />

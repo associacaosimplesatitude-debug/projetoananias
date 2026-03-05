@@ -448,6 +448,7 @@ const App = () => (
                       <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
                       <Route path="tutoriais" element={<GestaoTutoriais />} />
                       <Route path="apresentacao" element={<ApresentacaoScreenshots />} />
+                      <Route path="implementacoes" element={<Implementacoes />} />
                       <Route path="whatsapp" element={<WhatsAppPanel />} />
                     </Route>
                     <Route
