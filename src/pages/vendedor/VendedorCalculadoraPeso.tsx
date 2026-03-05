@@ -749,23 +749,53 @@ ${vendedor?.nome || '[Nome do Vendedor]'}`;
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={clienteSelecionado} onValueChange={setClienteSelecionado}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um cliente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <span className="flex items-center gap-2">
-                        {c.nome_igreja}
-                        {c.tipo_cliente && (
-                          <Badge variant="outline" className="text-xs">{c.tipo_cliente}</Badge>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={clienteSearchOpen} onOpenChange={setClienteSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={clienteSearchOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {clienteSelecionado
+                      ? (() => {
+                          const c = clientes?.find(c => c.id === clienteSelecionado);
+                          return c ? (
+                            <span className="flex items-center gap-2 truncate">
+                              {c.nome_igreja}
+                              {c.tipo_cliente && <Badge variant="outline" className="text-xs">{c.tipo_cliente}</Badge>}
+                            </span>
+                          ) : "Selecione um cliente...";
+                        })()
+                      : "Selecione um cliente..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar cliente pelo nome..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                      {clientes?.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={c.nome_igreja}
+                          onSelect={() => {
+                            setClienteSelecionado(c.id === clienteSelecionado ? "" : c.id);
+                            setClienteSearchOpen(false);
+                          }}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${clienteSelecionado === c.id ? "opacity-100" : "opacity-0"}`} />
+                          <span className="flex items-center gap-2">
+                            {c.nome_igreja}
+                            {c.tipo_cliente && <Badge variant="outline" className="text-xs">{c.tipo_cliente}</Badge>}
+                          </span>
+                        </CommandItem>
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
 
               {cliente && (
                 <div className="mt-4 p-4 bg-muted/50 rounded-lg">
