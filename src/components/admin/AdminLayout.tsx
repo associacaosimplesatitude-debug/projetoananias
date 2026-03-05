@@ -21,6 +21,7 @@ import {
   BookOpenText,
   Presentation,
   MessageSquare,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
@@ -291,6 +292,14 @@ function AdminSidebar() {
                   <RouterNavLink to="/royalties">
                     <BookOpenText className="h-4 w-4" />
                     <span>Royalties</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/implementacoes')}>
+                  <RouterNavLink to="/admin/implementacoes">
+                    <Rocket className="h-4 w-4" />
+                    <span>Implementações</span>
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

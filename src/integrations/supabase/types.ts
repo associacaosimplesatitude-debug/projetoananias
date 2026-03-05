@@ -5485,6 +5485,33 @@ export type Database = {
         }
         Relationships: []
       }
+      system_implementations: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          implemented_at: string
+          title: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          implemented_at: string
+          title: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          implemented_at?: string
+          title?: string
+        }
+        Relationships: []
+      }
       system_settings: {
         Row: {
           created_at: string
