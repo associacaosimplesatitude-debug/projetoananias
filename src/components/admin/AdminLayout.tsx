@@ -21,6 +21,7 @@ import {
   BookOpenText,
   Presentation,
   MessageSquare,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserProfileDropdown } from "@/components/layout/UserProfileDropdown";
