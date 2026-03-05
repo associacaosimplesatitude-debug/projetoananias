@@ -397,59 +397,29 @@ export default function VendedorPedidosPage() {
     setProcessingPropostaId(proposta.id);
 
     try {
-      // Build cliente object from proposta
-      const cliente = proposta.cliente || {
-        id: proposta.cliente_id || '',
-        nome_igreja: proposta.cliente_nome,
-        cnpj: proposta.cliente_cnpj || '',
-        email_superintendente: null,
-        telefone: null,
-        nome_responsavel: proposta.cliente_nome,
-        endereco_cep: proposta.cliente_endereco?.cep || null,
-        endereco_rua: proposta.cliente_endereco?.rua || null,
-        endereco_numero: proposta.cliente_endereco?.numero || null,
-        endereco_bairro: proposta.cliente_endereco?.bairro || null,
-        endereco_cidade: proposta.cliente_endereco?.cidade || null,
-        endereco_estado: proposta.cliente_endereco?.estado || null,
-        pode_faturar: false,
-      };
+      // Gerar link de checkout interno do Mercado Pago (sem Shopify)
+      const checkoutUrl = `https://gestaoebd.com.br/ebd/checkout-shopify-mp?proposta=${proposta.token}`;
 
-      // Use all saved values from the accepted proposal
-      const { data, error } = await supabase.functions.invoke('ebd-shopify-order-create', {
-        body: {
-          cliente,
-          vendedor_id: vendedor?.id,
-          vendedor_nome: proposta.vendedor_nome || vendedor?.nome,
-          items: proposta.itens,
-          valor_frete: (proposta.valor_frete || 0).toString(),
-          metodo_frete: proposta.metodo_frete || 'COMBINAR',
-          desconto_percentual: (proposta.desconto_percentual || 0).toString(),
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      // Update proposta status to AGUARDANDO_PAGAMENTO and save payment_link
-      const cartUrl = data?.cartUrl || data?.invoiceUrl;
       await supabase
         .from("vendedor_propostas")
         .update({ 
           status: "AGUARDANDO_PAGAMENTO",
-          payment_link: cartUrl 
+          payment_link: checkoutUrl 
         })
         .eq("id", proposta.id);
 
-      if (cartUrl) {
-        toast.success("Link de pagamento gerado com sucesso!");
-        window.open(cartUrl, '_blank');
-        refetch();
-      } else {
-        throw new Error("Resposta inesperada do servidor");
+      try {
+        await navigator.clipboard.writeText(checkoutUrl);
+        toast.success("Link de pagamento copiado para a área de transferência!", {
+          description: "Envie o link ao cliente para ele efetuar o pagamento via Mercado Pago.",
+        });
+      } catch {
+        toast.success("Link de pagamento gerado com sucesso!", {
+          description: checkoutUrl,
+        });
       }
+
+      refetch();
     } catch (error: unknown) {
       console.error("Erro ao gerar link de pagamento:", error);
       toast.error("Erro ao gerar link de pagamento", {
