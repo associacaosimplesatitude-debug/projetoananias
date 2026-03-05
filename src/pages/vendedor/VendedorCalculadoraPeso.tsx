@@ -361,6 +361,18 @@ ${enderecoEntrega?.completo || 'Endereço não cadastrado'}
     setCarrinho(prev => prev.filter(item => item.variantId !== variantId));
   }, []);
 
+  const setQuantidadeDireta = useCallback((variantId: string, quantidade: number) => {
+    if (quantidade <= 0) {
+      removerProduto(variantId);
+      return;
+    }
+    setCarrinho(prev =>
+      prev.map(item =>
+        item.variantId === variantId ? { ...item, quantity: quantidade } : item
+      )
+    );
+  }, [removerProduto]);
+
   const limparCarrinho = useCallback(() => {
     setCarrinho([]);
   }, []);
