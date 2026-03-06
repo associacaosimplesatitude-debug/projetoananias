@@ -887,6 +887,10 @@ export default function WhatsAppPanel() {
             <Target className="h-4 w-4" />
             Campanhas
           </TabsTrigger>
+          <TabsTrigger value="publicos" className="gap-2">
+            <Users className="h-4 w-4" />
+            Públicos
+          </TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2">
             <Webhook className="h-4 w-4" />
             Webhooks
