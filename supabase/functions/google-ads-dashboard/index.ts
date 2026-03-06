@@ -214,7 +214,7 @@ async function handleBalance(creds: GoogleAdsCredentials) {
 
   // Get approved account budgets
   const budgetQuery = `
-    SELECT account_budget.amount_micros, account_budget.status
+    SELECT account_budget.approved_spending_limit_micros, account_budget.approved_spending_limit_type, account_budget.status
     FROM account_budget
     WHERE account_budget.status = 'APPROVED'
   `;
@@ -224,8 +224,14 @@ async function handleBalance(creds: GoogleAdsCredentials) {
     const budgets = budgetResult?.[0]?.results || [];
 
     let totalBudgetMicros = 0;
+    let hasInfinite = false;
     for (const b of budgets) {
-      totalBudgetMicros += Number(b.accountBudget?.amountMicros || 0);
+      const limitType = b.accountBudget?.approvedSpendingLimitType;
+      if (limitType === "INFINITE") {
+        hasInfinite = true;
+      } else {
+        totalBudgetMicros += Number(b.accountBudget?.approvedSpendingLimitMicros || 0);
+      }
     }
 
     // Get total cost ever
@@ -242,12 +248,15 @@ async function handleBalance(creds: GoogleAdsCredentials) {
       totalCostMicros += Number(r.metrics?.costMicros || 0);
     }
 
-    const balance = (totalBudgetMicros - totalCostMicros) / 1_000_000;
+    const balance = hasInfinite && totalBudgetMicros === 0
+      ? null
+      : (totalBudgetMicros - totalCostMicros) / 1_000_000;
 
     return {
-      balance: Math.max(balance, 0),
-      budget_total: totalBudgetMicros / 1_000_000,
+      balance: balance !== null ? Math.max(balance, 0) : null,
+      budget_total: hasInfinite ? null : totalBudgetMicros / 1_000_000,
       cost_total: totalCostMicros / 1_000_000,
+      has_infinite_budget: hasInfinite,
       customer_id: creds.customer_id,
     };
   } catch (e) {
