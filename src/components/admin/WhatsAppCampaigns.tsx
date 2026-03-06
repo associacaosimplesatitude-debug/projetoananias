@@ -12,19 +12,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ptBR } from "date-fns/locale";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
 import {
   Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2
+  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag
 } from "lucide-react";
 import { format } from "date-fns";
 
