@@ -17,6 +17,7 @@ import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, S
 import WhatsAppChat from "@/components/admin/WhatsAppChat";
 import WhatsAppTemplatesList from "@/components/admin/WhatsAppTemplatesList";
 import WhatsAppCampaigns from "@/components/admin/WhatsAppCampaigns";
+import WhatsAppPublicos from "@/components/admin/WhatsAppPublicos";
 import { format } from "date-fns";
 
 const MESSAGE_TYPES = [
@@ -886,6 +887,10 @@ export default function WhatsAppPanel() {
             <Target className="h-4 w-4" />
             Campanhas
           </TabsTrigger>
+          <TabsTrigger value="publicos" className="gap-2">
+            <Users className="h-4 w-4" />
+            Públicos
+          </TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2">
             <Webhook className="h-4 w-4" />
             Webhooks
@@ -914,6 +919,10 @@ export default function WhatsAppPanel() {
 
         <TabsContent value="campanhas">
           <WhatsAppCampaigns />
+        </TabsContent>
+
+        <TabsContent value="publicos">
+          <WhatsAppPublicos />
         </TabsContent>
 
         <TabsContent value="webhooks">
