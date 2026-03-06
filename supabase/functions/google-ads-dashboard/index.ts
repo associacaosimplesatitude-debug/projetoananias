@@ -212,50 +212,70 @@ async function handleBilling(creds: GoogleAdsCredentials) {
 async function handleBalance(creds: GoogleAdsCredentials) {
   const accessToken = await refreshAccessToken(creds);
 
-  // Get approved account budgets
+  // Para contas pré-pagas, o saldo correto é do orçamento/budget atual:
+  // limite aprovado (ou ajustado) - valor já consumido (amount_served_micros)
   const budgetQuery = `
-    SELECT account_budget.approved_spending_limit_micros, account_budget.approved_spending_limit_type, account_budget.status
+    SELECT
+      account_budget.id,
+      account_budget.name,
+      account_budget.status,
+      account_budget.approved_start_date_time,
+      account_budget.approved_spending_limit_type,
+      account_budget.approved_spending_limit_micros,
+      account_budget.adjusted_spending_limit_micros,
+      account_budget.amount_served_micros
     FROM account_budget
     WHERE account_budget.status = 'APPROVED'
+    ORDER BY account_budget.approved_start_date_time DESC
+    LIMIT 50
   `;
 
   try {
     const budgetResult = await gaqlQuery(creds, accessToken, budgetQuery);
     const budgets = budgetResult?.[0]?.results || [];
 
-    let totalBudgetMicros = 0;
-    let hasInfinite = false;
-    for (const b of budgets) {
-      const limitType = b.accountBudget?.approvedSpendingLimitType;
-      if (limitType === "INFINITE") {
-        hasInfinite = true;
-      } else {
-        totalBudgetMicros += Number(b.accountBudget?.approvedSpendingLimitMicros || 0);
-      }
+    const parsedBudgets = budgets.map((b: any) => {
+      const accountBudget = b.accountBudget || {};
+      const limitType = accountBudget.approvedSpendingLimitType;
+      const isInfinite = limitType === "INFINITE";
+
+      const approvedLimitMicros = Number(accountBudget.approvedSpendingLimitMicros || 0);
+      const adjustedLimitMicros = Number(accountBudget.adjustedSpendingLimitMicros || 0);
+      const limitMicros = adjustedLimitMicros > 0 ? adjustedLimitMicros : approvedLimitMicros;
+      const servedMicros = Number(accountBudget.amountServedMicros || 0);
+
+      return {
+        id: accountBudget.id,
+        name: accountBudget.name,
+        start: accountBudget.approvedStartDateTime,
+        isInfinite,
+        limitMicros,
+        servedMicros,
+        remainingMicros: limitMicros - servedMicros,
+      };
+    });
+
+    const finiteBudgets = parsedBudgets.filter((b: any) => !b.isInfinite && b.limitMicros > 0);
+    const currentBudget = finiteBudgets[0] || null;
+
+    if (currentBudget) {
+      return {
+        balance: Math.max(currentBudget.remainingMicros / 1_000_000, 0),
+        budget_total: currentBudget.limitMicros / 1_000_000,
+        cost_total: currentBudget.servedMicros / 1_000_000,
+        has_infinite_budget: false,
+        budget_id: currentBudget.id,
+        budget_name: currentBudget.name,
+        customer_id: creds.customer_id,
+      };
     }
 
-    // Get total cost ever
-    const costQuery = `
-      SELECT metrics.cost_micros
-      FROM customer
-      WHERE segments.date BETWEEN '2020-01-01' AND '${new Date().toISOString().split("T")[0]}'
-    `;
-    const costResult = await gaqlQuery(creds, accessToken, costQuery);
-    const costRows = costResult?.[0]?.results || [];
-
-    let totalCostMicros = 0;
-    for (const r of costRows) {
-      totalCostMicros += Number(r.metrics?.costMicros || 0);
-    }
-
-    const balance = hasInfinite && totalBudgetMicros === 0
-      ? null
-      : (totalBudgetMicros - totalCostMicros) / 1_000_000;
+    const hasInfinite = parsedBudgets.some((b: any) => b.isInfinite);
 
     return {
-      balance: balance !== null ? Math.max(balance, 0) : null,
-      budget_total: hasInfinite ? null : totalBudgetMicros / 1_000_000,
-      cost_total: totalCostMicros / 1_000_000,
+      balance: hasInfinite ? null : 0,
+      budget_total: hasInfinite ? null : 0,
+      cost_total: 0,
       has_infinite_budget: hasInfinite,
       customer_id: creds.customer_id,
     };
