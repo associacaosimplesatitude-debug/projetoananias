@@ -145,8 +145,10 @@ export default function WhatsAppPublicos() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              {c.tem_desconto ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Sim</Badge>
+                              {c.tem_desconto && c.percentual_desconto ? (
+                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+                                  {c.percentual_desconto}%
+                                </Badge>
                               ) : (
                                 <Badge variant="outline" className="text-xs">Não</Badge>
                               )}
