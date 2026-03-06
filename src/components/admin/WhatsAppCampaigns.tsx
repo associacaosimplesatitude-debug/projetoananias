@@ -23,6 +23,15 @@ interface BlingChannel {
   descricao: string;
 }
 
+interface PublicoMesOption {
+  mes: string;
+  label: string;
+  total_contatos: number;
+  com_desconto: number;
+  sem_desconto: number;
+  contatos: any[];
+}
+
 // Known Bling store ID to name mapping
 const BLING_STORE_NAMES: Record<string, string> = {
   "205391854": "E-COMMERCE",

@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronDown, ChevronRight, Users, Calendar, Phone, Mail } from "lucide-react";
+import { ChevronDown, ChevronRight, Users, Calendar, Phone, Mail, Tag } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -19,11 +19,14 @@ interface Contato {
   order_number: string;
   vendedor_id: string | null;
   produtos: string;
+  tem_desconto: boolean;
 }
 
 interface PublicoMes {
   mes: string;
   total_contatos: number;
+  com_desconto: number;
+  sem_desconto: number;
   contatos: Contato[];
 }
 
@@ -96,9 +99,18 @@ export default function WhatsAppPublicos() {
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">{formatMes(pub.mes)}</span>
                   </div>
-                  <Badge variant="secondary" className="text-sm">
-                    {pub.total_contatos} contato{pub.total_contatos !== 1 ? "s" : ""}
-                  </Badge>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <Badge variant="secondary" className="text-sm">
+                      {pub.total_contatos} contato{pub.total_contatos !== 1 ? "s" : ""}
+                    </Badge>
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+                      <Tag className="h-3 w-3 mr-1" />
+                      {pub.com_desconto} com desconto
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {pub.sem_desconto} sem desconto
+                    </Badge>
+                  </div>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="border border-t-0 rounded-b-lg overflow-hidden">
@@ -108,6 +120,7 @@ export default function WhatsAppPublicos() {
                           <TableHead>Nome</TableHead>
                           <TableHead>Email</TableHead>
                           <TableHead>Telefone</TableHead>
+                          <TableHead>Desconto</TableHead>
                           <TableHead>Pedido</TableHead>
                           <TableHead>Valor</TableHead>
                           <TableHead>Data</TableHead>
@@ -129,6 +142,13 @@ export default function WhatsAppPublicos() {
                                 <Phone className="h-3 w-3" />
                                 {c.customer_phone || "-"}
                               </span>
+                            </TableCell>
+                            <TableCell>
+                              {c.tem_desconto ? (
+                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Sim</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">Não</Badge>
+                              )}
                             </TableCell>
                             <TableCell className="text-xs">{c.order_number || "-"}</TableCell>
                             <TableCell className="text-xs font-medium">
