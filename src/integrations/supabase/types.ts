@@ -6575,6 +6575,7 @@ export type Database = {
         Args: { p_vendedor_id?: string }
         Returns: Json
       }
+      get_publicos_revistas_por_mes: { Args: never; Returns: Json }
       get_sales_channel_totals: {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: Json
