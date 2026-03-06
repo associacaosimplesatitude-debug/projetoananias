@@ -8,7 +8,7 @@ const corsHeaders = {
 
 const SHOPIFY_STORE_DOMAIN = "kgg1pq-6r.myshopify.com";
 const SHOPIFY_API_VERSION = "2025-07";
-const BATCH_LIMIT = 50; // pedidos por execução
+const BATCH_LIMIT = 15; // pedidos por execução
 const DELAY_MS = 500; // delay entre chamadas Shopify
 
 type ShopifyLineItem = {
