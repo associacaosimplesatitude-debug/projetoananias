@@ -8,8 +8,8 @@ const corsHeaders = {
 
 const SHOPIFY_STORE_DOMAIN = "kgg1pq-6r.myshopify.com";
 const SHOPIFY_API_VERSION = "2025-07";
-const BATCH_LIMIT = 15; // pedidos por execução
-const DELAY_MS = 500; // delay entre chamadas Shopify
+const BATCH_LIMIT = 30; // pedidos por execução
+const DELAY_MS = 200; // delay entre chamadas Shopify (404s são rápidos)
 
 type ShopifyLineItem = {
   id: number;
@@ -50,21 +50,9 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 1. Buscar IDs de pedidos que JÁ têm itens
-    const { data: idsComItensData } = await supabase
-      .from("ebd_shopify_pedidos_itens")
-      .select("pedido_id");
-    
-    const idsComItens = new Set((idsComItensData || []).map((i) => i.pedido_id));
-
-    // 2. Buscar todos pedidos pagos com shopify_order_id
-    const { data: todosPedidos, error: fetchError } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select("id, shopify_order_id, customer_name, order_number")
-      .eq("status_pagamento", "paid")
-      .not("shopify_order_id", "is", null)
-      .order("created_at", { ascending: true })
-      .limit(1000);
+    // 1. Usar RPC com LEFT JOIN para encontrar pedidos sem itens (sem limite de 1000 rows)
+    const { data: pedidosParaSync, error: fetchError } = await supabase
+      .rpc("get_pedidos_sem_itens", { p_limit: BATCH_LIMIT });
 
     if (fetchError) {
       return new Response(JSON.stringify({ error: "Erro ao buscar pedidos", details: fetchError.message }), {
@@ -72,11 +60,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // 3. Filtrar apenas os sem itens e limitar ao batch
-    const pedidosParaSync = (todosPedidos || [])
-      .filter((p) => !idsComItens.has(p.id))
-      .slice(0, BATCH_LIMIT);
 
     if (pedidosParaSync.length === 0) {
       return new Response(JSON.stringify({ 
@@ -92,6 +75,7 @@ serve(async (req) => {
 
     let successCount = 0;
     let failCount = 0;
+    let skippedCount = 0;
     const failures: { order_id: number; error: string }[] = [];
 
     for (const pedido of pedidosParaSync) {
@@ -109,8 +93,22 @@ serve(async (req) => {
         if (!resp.ok) {
           const text = await resp.text();
           console.error(`Failed order ${pedido.shopify_order_id}: ${resp.status}`);
-          failures.push({ order_id: pedido.shopify_order_id, error: `HTTP ${resp.status}: ${text.substring(0, 100)}` });
-          failCount++;
+          
+          // Se 404, o pedido foi deletado no Shopify - marcar com item placeholder
+          if (resp.status === 404) {
+            await supabase.from("ebd_shopify_pedidos_itens").upsert({
+              pedido_id: pedido.id,
+              shopify_line_item_id: 0,
+              product_title: "[Pedido removido do Shopify]",
+              quantity: 0,
+              price: 0,
+              total_discount: 0,
+            }, { onConflict: "pedido_id,shopify_line_item_id", ignoreDuplicates: false });
+            skippedCount++;
+          } else {
+            failures.push({ order_id: pedido.shopify_order_id, error: `HTTP ${resp.status}: ${text.substring(0, 100)}` });
+            failCount++;
+          }
           await delay(DELAY_MS);
           continue;
         }
@@ -156,26 +154,19 @@ serve(async (req) => {
       }
     }
 
-    // 3. Verificar quantos ainda faltam
-    const { count: totalPagos } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select("id", { count: "exact", head: true })
-      .eq("status_pagamento", "paid")
-      .not("shopify_order_id", "is", null);
-
-    const { count: totalComItens } = await supabase
-      .from("ebd_shopify_pedidos_itens")
-      .select("pedido_id", { count: "exact", head: true });
+    // 3. Verificar quantos ainda faltam usando RPC
+    const { data: remainingData } = await supabase
+      .rpc("get_pedidos_sem_itens", { p_limit: 1000 });
+    const remaining = remainingData?.length || 0;
 
     return new Response(JSON.stringify({
       success: true,
       batch_processed: pedidosParaSync.length,
       success_count: successCount,
       fail_count: failCount,
+      skipped_deleted: skippedCount,
       failures: failures.length > 0 ? failures : undefined,
-      remaining_estimate: (totalPagos || 0) - (totalComItens || 0),
-      total_orders: totalPagos,
-      total_with_items: totalComItens,
+      remaining,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

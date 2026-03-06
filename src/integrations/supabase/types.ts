@@ -6548,6 +6548,13 @@ export type Database = {
         Args: { p_limit?: number; p_stage?: string; p_vendedor_id?: string }
         Returns: Json
       }
+      get_pedidos_sem_itens: {
+        Args: { p_limit?: number }
+        Returns: {
+          id: string
+          shopify_order_id: number
+        }[]
+      }
       get_primeira_compra_funil_count: {
         Args: { p_vendedor_id?: string }
         Returns: number
