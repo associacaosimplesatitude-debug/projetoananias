@@ -17,6 +17,7 @@ import { Send, Eye, EyeOff, Save, CheckCircle2, XCircle, Clock, MessageSquare, S
 import WhatsAppChat from "@/components/admin/WhatsAppChat";
 import WhatsAppTemplatesList from "@/components/admin/WhatsAppTemplatesList";
 import WhatsAppCampaigns from "@/components/admin/WhatsAppCampaigns";
+import WhatsAppPublicos from "@/components/admin/WhatsAppPublicos";
 import { format } from "date-fns";
 
 const MESSAGE_TYPES = [
