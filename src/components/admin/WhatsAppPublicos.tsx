@@ -20,6 +20,7 @@ interface Contato {
   vendedor_id: string | null;
   produtos: string;
   tem_desconto: boolean;
+  percentual_desconto: number | null;
 }
 
 interface PublicoMes {
