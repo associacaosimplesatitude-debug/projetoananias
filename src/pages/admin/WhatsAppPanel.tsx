@@ -921,6 +921,10 @@ export default function WhatsAppPanel() {
           <WhatsAppCampaigns />
         </TabsContent>
 
+        <TabsContent value="publicos">
+          <WhatsAppPublicos />
+        </TabsContent>
+
         <TabsContent value="webhooks">
           <WebhooksTab />
         </TabsContent>
