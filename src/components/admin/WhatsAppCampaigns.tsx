@@ -85,6 +85,10 @@ export default function WhatsAppCampaigns() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [reuseCampaignId, setReuseCampaignId] = useState<string | null>(null);
   const [loadingReuse, setLoadingReuse] = useState(false);
+  // Público de revistas state
+  const [selectedPublicoMeses, setSelectedPublicoMeses] = useState<Set<string>>(new Set());
+  const [publicoDescontoFilter, setPublicoDescontoFilter] = useState<"todos" | "com_desconto" | "sem_desconto">("todos");
+  const [loadingPublico, setLoadingPublico] = useState(false);
 
   // --- Queries ---
   const { data: campaigns, isLoading: loadingCampaigns } = useQuery({
