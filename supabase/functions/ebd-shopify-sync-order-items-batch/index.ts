@@ -75,6 +75,7 @@ serve(async (req) => {
 
     let successCount = 0;
     let failCount = 0;
+    let skippedCount = 0;
     const failures: { order_id: number; error: string }[] = [];
 
     for (const pedido of pedidosParaSync) {
