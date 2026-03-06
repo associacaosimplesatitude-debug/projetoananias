@@ -1,16 +1,16 @@
 
 
-## Problema
+## Plano: Corrigir query de saldo do Google Ads
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+### Problema
+A Edge Function `google-ads-dashboard` usa o campo `account_budget.amount_micros` que não existe na API v23. O campo correto é `account_budget.approved_spending_limit_micros`.
 
-## Solução
+### Correção
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+**Editar:** `supabase/functions/google-ads-dashboard/index.ts`
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+Na função `handleBalance`, alterar:
+1. A query GAQL de `account_budget.amount_micros` para `account_budget.approved_spending_limit_micros, account_budget.approved_spending_limit_type`
+2. O parsing do resultado para usar `approvedSpendingLimitMicros` em vez de `amountMicros`
+3. Tratar o caso em que `approved_spending_limit_type` é `INFINITE` (sem limite definido) — nesse caso, calcular saldo baseado apenas no custo acumulado ou retornar um indicador
 
