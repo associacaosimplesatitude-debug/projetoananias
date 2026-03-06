@@ -50,14 +50,21 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 1. Buscar pedidos pagos sem itens
-    const { data: pedidosSemItens, error: fetchError } = await supabase
+    // 1. Buscar IDs de pedidos que JÁ têm itens
+    const { data: idsComItensData } = await supabase
+      .from("ebd_shopify_pedidos_itens")
+      .select("pedido_id");
+    
+    const idsComItens = new Set((idsComItensData || []).map((i) => i.pedido_id));
+
+    // 2. Buscar todos pedidos pagos com shopify_order_id
+    const { data: todosPedidos, error: fetchError } = await supabase
       .from("ebd_shopify_pedidos")
       .select("id, shopify_order_id, customer_name, order_number")
       .eq("status_pagamento", "paid")
       .not("shopify_order_id", "is", null)
       .order("created_at", { ascending: true })
-      .limit(BATCH_LIMIT);
+      .limit(1000);
 
     if (fetchError) {
       return new Response(JSON.stringify({ error: "Erro ao buscar pedidos", details: fetchError.message }), {
@@ -66,28 +73,15 @@ serve(async (req) => {
       });
     }
 
-    if (!pedidosSemItens || pedidosSemItens.length === 0) {
-      return new Response(JSON.stringify({ success: true, message: "Nenhum pedido para processar", processed: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 2. Filtrar apenas os que NÃO têm itens
-    const pedidoIds = pedidosSemItens.map((p) => p.id);
-    const { data: pedidosComItens } = await supabase
-      .from("ebd_shopify_pedidos_itens")
-      .select("pedido_id")
-      .in("pedido_id", pedidoIds);
-
-    const idsComItens = new Set((pedidosComItens || []).map((i) => i.pedido_id));
-    const pedidosParaSync = pedidosSemItens.filter((p) => !idsComItens.has(p.id));
+    // 3. Filtrar apenas os sem itens e limitar ao batch
+    const pedidosParaSync = (todosPedidos || [])
+      .filter((p) => !idsComItens.has(p.id))
+      .slice(0, BATCH_LIMIT);
 
     if (pedidosParaSync.length === 0) {
-      // Tentar próximo lote — buscar com offset
       return new Response(JSON.stringify({ 
         success: true, 
-        message: "Lote atual já sincronizado, execute novamente para próximo lote",
-        checked: pedidosSemItens.length,
+        message: "Todos os pedidos já têm itens sincronizados!",
         synced: 0 
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
