@@ -588,6 +588,85 @@ export default function WhatsAppCampaigns() {
           </Card>
         )}
 
+        {/* Público de Revistas */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-sm text-muted-foreground font-medium">OU</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
+        {publicosRevistas && publicosRevistas.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Usar Público de Revistas
+              </CardTitle>
+              <CardDescription>Selecione meses e filtre por desconto para carregar contatos de compradores de revistas</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Meses</Label>
+                <div className="flex flex-wrap gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={selectedPublicoMeses.has("todos")}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedPublicoMeses(new Set(["todos"]));
+                        } else {
+                          setSelectedPublicoMeses(new Set());
+                        }
+                      }}
+                    />
+                    <span className="text-sm font-medium">Todos os meses</span>
+                  </label>
+                  {publicosRevistas.map((p) => {
+                    const mesLabel = format(new Date(p.mes), "MMMM yyyy", { locale: ptBR }).replace(/^\w/, (c) => c.toUpperCase());
+                    return (
+                      <label key={p.mes} className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                          checked={selectedPublicoMeses.has(p.mes) || selectedPublicoMeses.has("todos")}
+                          disabled={selectedPublicoMeses.has("todos")}
+                          onCheckedChange={(checked) => {
+                            setSelectedPublicoMeses((prev) => {
+                              const next = new Set(prev);
+                              if (checked) next.add(p.mes);
+                              else next.delete(p.mes);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="text-sm">{mesLabel} ({p.total_contatos})</span>
+                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">{p.com_desconto}</Badge>
+                        <Badge variant="outline" className="text-xs">{p.sem_desconto}</Badge>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="space-y-2 flex-1">
+                  <Label>Filtrar por desconto</Label>
+                  <Select value={publicoDescontoFilter} onValueChange={(v: any) => setPublicoDescontoFilter(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="com_desconto">Com Desconto</SelectItem>
+                      <SelectItem value="sem_desconto">Sem Desconto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={loadPublicoRevistas} disabled={loadingPublico || selectedPublicoMeses.size === 0} className="gap-2">
+                  {loadingPublico ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                  Carregar Público
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-border" />
