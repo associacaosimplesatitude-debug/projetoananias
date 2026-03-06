@@ -10,9 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ptBR } from "date-fns/locale";
 import {
   Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2
+  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -21,6 +23,15 @@ type Step = "list" | "segmentation" | "template" | "funnel";
 interface BlingChannel {
   id: string;
   descricao: string;
+}
+
+interface PublicoMesOption {
+  mes: string;
+  label: string;
+  total_contatos: number;
+  com_desconto: number;
+  sem_desconto: number;
+  contatos: any[];
 }
 
 // Known Bling store ID to name mapping
@@ -76,6 +87,10 @@ export default function WhatsAppCampaigns() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [reuseCampaignId, setReuseCampaignId] = useState<string | null>(null);
   const [loadingReuse, setLoadingReuse] = useState(false);
+  // Público de revistas state
+  const [selectedPublicoMeses, setSelectedPublicoMeses] = useState<Set<string>>(new Set());
+  const [publicoDescontoFilter, setPublicoDescontoFilter] = useState<"todos" | "com_desconto" | "sem_desconto">("todos");
+  const [loadingPublico, setLoadingPublico] = useState(false);
 
   // --- Queries ---
   const { data: campaigns, isLoading: loadingCampaigns } = useQuery({
@@ -102,6 +117,17 @@ export default function WhatsAppCampaigns() {
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
+    },
+    enabled: step === "segmentation",
+  });
+
+  // Públicos de revistas query
+  const { data: publicosRevistas } = useQuery({
+    queryKey: ["publicos-revistas-campanhas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_publicos_revistas_por_mes");
+      if (error) throw error;
+      return (data as unknown as PublicoMesOption[]) || [];
     },
     enabled: step === "segmentation",
   });
@@ -320,6 +346,67 @@ export default function WhatsAppCampaigns() {
     setCampaignName("");
     setFilters({ dateFrom: "", dateTo: "", canalBling: "205391854" });
     setReuseCampaignId(null);
+    setSelectedPublicoMeses(new Set());
+    setPublicoDescontoFilter("todos");
+  };
+
+  // --- Load audience from públicos de revistas ---
+  const loadPublicoRevistas = async () => {
+    if (selectedPublicoMeses.size === 0) {
+      toast.error("Selecione pelo menos um mês");
+      return;
+    }
+    if (!publicosRevistas) return;
+    setLoadingPublico(true);
+    try {
+      const selectedMeses = selectedPublicoMeses.has("todos")
+        ? publicosRevistas
+        : publicosRevistas.filter((p) => selectedPublicoMeses.has(p.mes));
+
+      const seenEmails = new Set<string>();
+      const newRecipients: Recipient[] = [];
+
+      for (const pub of selectedMeses) {
+        for (const c of pub.contatos) {
+          // Apply discount filter
+          if (publicoDescontoFilter === "com_desconto" && !c.tem_desconto) continue;
+          if (publicoDescontoFilter === "sem_desconto" && c.tem_desconto) continue;
+
+          const emailKey = (c.customer_email || "").toLowerCase().trim();
+          if (emailKey && seenEmails.has(emailKey)) continue;
+          if (emailKey) seenEmails.add(emailKey);
+
+          newRecipients.push({
+            cliente_id: null,
+            nome: c.customer_name || "",
+            telefone: c.customer_phone || "",
+            email: c.customer_email || "",
+            tipo_documento: "revista",
+            data_pedido: c.data_pedido || undefined,
+            produtos_pedido: c.produtos || "seus produtos",
+            valor_pedido: c.valor_total ? String(c.valor_total) : undefined,
+          });
+        }
+      }
+
+      // Merge with existing recipients (dedup by email)
+      const existingEmails = new Set(recipients.map((r) => r.email.toLowerCase().trim()).filter(Boolean));
+      const merged = [...recipients];
+      for (const r of newRecipients) {
+        const key = r.email.toLowerCase().trim();
+        if (!key || !existingEmails.has(key)) {
+          merged.push(r);
+          if (key) existingEmails.add(key);
+        }
+      }
+
+      setRecipients(merged);
+      toast.success(`${newRecipients.length} contatos carregados do público de revistas!`);
+    } catch (err: any) {
+      toast.error("Erro ao carregar público: " + err.message);
+    } finally {
+      setLoadingPublico(false);
+    }
   };
 
   // --- Load audience from existing campaign ---
@@ -494,6 +581,85 @@ export default function WhatsAppCampaigns() {
                 </div>
                 <Button onClick={loadAudienceFromCampaign} disabled={loadingReuse || !reuseCampaignId} className="gap-2">
                   {loadingReuse ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                  Carregar Público
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Público de Revistas */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-sm text-muted-foreground font-medium">OU</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
+        {publicosRevistas && publicosRevistas.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Usar Público de Revistas
+              </CardTitle>
+              <CardDescription>Selecione meses e filtre por desconto para carregar contatos de compradores de revistas</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Meses</Label>
+                <div className="flex flex-wrap gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={selectedPublicoMeses.has("todos")}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedPublicoMeses(new Set(["todos"]));
+                        } else {
+                          setSelectedPublicoMeses(new Set());
+                        }
+                      }}
+                    />
+                    <span className="text-sm font-medium">Todos os meses</span>
+                  </label>
+                  {publicosRevistas.map((p) => {
+                    const mesLabel = format(new Date(p.mes), "MMMM yyyy", { locale: ptBR }).replace(/^\w/, (c) => c.toUpperCase());
+                    return (
+                      <label key={p.mes} className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                          checked={selectedPublicoMeses.has(p.mes) || selectedPublicoMeses.has("todos")}
+                          disabled={selectedPublicoMeses.has("todos")}
+                          onCheckedChange={(checked) => {
+                            setSelectedPublicoMeses((prev) => {
+                              const next = new Set(prev);
+                              if (checked) next.add(p.mes);
+                              else next.delete(p.mes);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="text-sm">{mesLabel} ({p.total_contatos})</span>
+                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">{p.com_desconto}</Badge>
+                        <Badge variant="outline" className="text-xs">{p.sem_desconto}</Badge>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="space-y-2 flex-1">
+                  <Label>Filtrar por desconto</Label>
+                  <Select value={publicoDescontoFilter} onValueChange={(v: any) => setPublicoDescontoFilter(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="com_desconto">Com Desconto</SelectItem>
+                      <SelectItem value="sem_desconto">Sem Desconto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={loadPublicoRevistas} disabled={loadingPublico || selectedPublicoMeses.size === 0} className="gap-2">
+                  {loadingPublico ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
                   Carregar Público
                 </Button>
               </div>
