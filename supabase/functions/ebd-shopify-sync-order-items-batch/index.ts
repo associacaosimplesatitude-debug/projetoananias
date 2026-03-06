@@ -154,26 +154,19 @@ serve(async (req) => {
       }
     }
 
-    // 3. Verificar quantos ainda faltam
-    const { count: totalPagos } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select("id", { count: "exact", head: true })
-      .eq("status_pagamento", "paid")
-      .not("shopify_order_id", "is", null);
-
-    const { count: totalComItens } = await supabase
-      .from("ebd_shopify_pedidos_itens")
-      .select("pedido_id", { count: "exact", head: true });
+    // 3. Verificar quantos ainda faltam usando RPC
+    const { data: remainingData } = await supabase
+      .rpc("get_pedidos_sem_itens", { p_limit: 1000 });
+    const remaining = remainingData?.length || 0;
 
     return new Response(JSON.stringify({
       success: true,
       batch_processed: pedidosParaSync.length,
       success_count: successCount,
       fail_count: failCount,
+      skipped_deleted: skippedCount,
       failures: failures.length > 0 ? failures : undefined,
-      remaining_estimate: (totalPagos || 0) - (totalComItens || 0),
-      total_orders: totalPagos,
-      total_with_items: totalComItens,
+      remaining,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
