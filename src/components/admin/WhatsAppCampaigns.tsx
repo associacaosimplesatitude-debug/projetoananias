@@ -119,6 +119,17 @@ export default function WhatsAppCampaigns() {
     enabled: step === "segmentation",
   });
 
+  // Públicos de revistas query
+  const { data: publicosRevistas } = useQuery({
+    queryKey: ["publicos-revistas-campanhas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_publicos_revistas_por_mes");
+      if (error) throw error;
+      return (data as unknown as PublicoMesOption[]) || [];
+    },
+    enabled: step === "segmentation",
+  });
+
   const { data: approvedTemplates } = useQuery({
     queryKey: ["whatsapp-templates-approved"],
     queryFn: async () => {
