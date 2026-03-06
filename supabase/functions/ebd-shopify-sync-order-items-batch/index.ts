@@ -92,8 +92,22 @@ serve(async (req) => {
         if (!resp.ok) {
           const text = await resp.text();
           console.error(`Failed order ${pedido.shopify_order_id}: ${resp.status}`);
-          failures.push({ order_id: pedido.shopify_order_id, error: `HTTP ${resp.status}: ${text.substring(0, 100)}` });
-          failCount++;
+          
+          // Se 404, o pedido foi deletado no Shopify - marcar com item placeholder
+          if (resp.status === 404) {
+            await supabase.from("ebd_shopify_pedidos_itens").upsert({
+              pedido_id: pedido.id,
+              shopify_line_item_id: 0,
+              product_title: "[Pedido removido do Shopify]",
+              quantity: 0,
+              price: 0,
+              total_discount: 0,
+            }, { onConflict: "pedido_id,shopify_line_item_id", ignoreDuplicates: false });
+            skippedCount++;
+          } else {
+            failures.push({ order_id: pedido.shopify_order_id, error: `HTTP ${resp.status}: ${text.substring(0, 100)}` });
+            failCount++;
+          }
           await delay(DELAY_MS);
           continue;
         }
