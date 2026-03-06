@@ -344,6 +344,67 @@ export default function WhatsAppCampaigns() {
     setCampaignName("");
     setFilters({ dateFrom: "", dateTo: "", canalBling: "205391854" });
     setReuseCampaignId(null);
+    setSelectedPublicoMeses(new Set());
+    setPublicoDescontoFilter("todos");
+  };
+
+  // --- Load audience from públicos de revistas ---
+  const loadPublicoRevistas = async () => {
+    if (selectedPublicoMeses.size === 0) {
+      toast.error("Selecione pelo menos um mês");
+      return;
+    }
+    if (!publicosRevistas) return;
+    setLoadingPublico(true);
+    try {
+      const selectedMeses = selectedPublicoMeses.has("todos")
+        ? publicosRevistas
+        : publicosRevistas.filter((p) => selectedPublicoMeses.has(p.mes));
+
+      const seenEmails = new Set<string>();
+      const newRecipients: Recipient[] = [];
+
+      for (const pub of selectedMeses) {
+        for (const c of pub.contatos) {
+          // Apply discount filter
+          if (publicoDescontoFilter === "com_desconto" && !c.tem_desconto) continue;
+          if (publicoDescontoFilter === "sem_desconto" && c.tem_desconto) continue;
+
+          const emailKey = (c.customer_email || "").toLowerCase().trim();
+          if (emailKey && seenEmails.has(emailKey)) continue;
+          if (emailKey) seenEmails.add(emailKey);
+
+          newRecipients.push({
+            cliente_id: null,
+            nome: c.customer_name || "",
+            telefone: c.customer_phone || "",
+            email: c.customer_email || "",
+            tipo_documento: "revista",
+            data_pedido: c.data_pedido || undefined,
+            produtos_pedido: c.produtos || "seus produtos",
+            valor_pedido: c.valor_total ? String(c.valor_total) : undefined,
+          });
+        }
+      }
+
+      // Merge with existing recipients (dedup by email)
+      const existingEmails = new Set(recipients.map((r) => r.email.toLowerCase().trim()).filter(Boolean));
+      const merged = [...recipients];
+      for (const r of newRecipients) {
+        const key = r.email.toLowerCase().trim();
+        if (!key || !existingEmails.has(key)) {
+          merged.push(r);
+          if (key) existingEmails.add(key);
+        }
+      }
+
+      setRecipients(merged);
+      toast.success(`${newRecipients.length} contatos carregados do público de revistas!`);
+    } catch (err: any) {
+      toast.error("Erro ao carregar público: " + err.message);
+    } finally {
+      setLoadingPublico(false);
+    }
   };
 
   // --- Load audience from existing campaign ---
