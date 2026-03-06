@@ -50,21 +50,9 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 1. Buscar IDs de pedidos que JÁ têm itens
-    const { data: idsComItensData } = await supabase
-      .from("ebd_shopify_pedidos_itens")
-      .select("pedido_id");
-    
-    const idsComItens = new Set((idsComItensData || []).map((i) => i.pedido_id));
-
-    // 2. Buscar todos pedidos pagos com shopify_order_id
-    const { data: todosPedidos, error: fetchError } = await supabase
-      .from("ebd_shopify_pedidos")
-      .select("id, shopify_order_id, customer_name, order_number")
-      .eq("status_pagamento", "paid")
-      .not("shopify_order_id", "is", null)
-      .order("created_at", { ascending: true })
-      .limit(1000);
+    // 1. Usar RPC com LEFT JOIN para encontrar pedidos sem itens (sem limite de 1000 rows)
+    const { data: pedidosParaSync, error: fetchError } = await supabase
+      .rpc("get_pedidos_sem_itens", { p_limit: BATCH_LIMIT });
 
     if (fetchError) {
       return new Response(JSON.stringify({ error: "Erro ao buscar pedidos", details: fetchError.message }), {
@@ -72,11 +60,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // 3. Filtrar apenas os sem itens e limitar ao batch
-    const pedidosParaSync = (todosPedidos || [])
-      .filter((p) => !idsComItens.has(p.id))
-      .slice(0, BATCH_LIMIT);
 
     if (pedidosParaSync.length === 0) {
       return new Response(JSON.stringify({ 
