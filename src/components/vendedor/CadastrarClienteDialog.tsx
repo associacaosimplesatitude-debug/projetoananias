@@ -459,6 +459,13 @@ export function CadastrarClienteDialog({
       return;
     }
 
+    // Validar documento antes de salvar
+    const erroDoc = validarDocumento(formData.documento, formData.possui_cnpj);
+    if (erroDoc) {
+      toast.error(erroDoc);
+      return;
+    }
+
     // Validate email TLD
     if (!validateEmailTLD(formData.email_superintendente)) {
       toast.error("Email parece ter erro de digitação. Verifique o domínio (.com, .com.br, etc)");
