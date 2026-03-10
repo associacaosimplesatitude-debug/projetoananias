@@ -389,14 +389,20 @@ export default function AprovacaoFaturamento() {
                   <div className="flex flex-col gap-2 min-w-[140px]">
                     <Button
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700"
+                      className={proposta.documento_invalido ? "" : "bg-green-600 hover:bg-green-700"}
+                      variant={proposta.documento_invalido ? "outline" : "default"}
                       onClick={() => handleAprovar(proposta)}
                       disabled={processingPropostaId === proposta.id}
                     >
                       {processingPropostaId === proposta.id ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                          Processando...
+                          {proposta.documento_invalido ? "Revalidando..." : "Processando..."}
+                        </>
+                      ) : proposta.documento_invalido ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Revalidar
                         </>
                       ) : (
                         <>
