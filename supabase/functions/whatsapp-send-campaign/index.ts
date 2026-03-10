@@ -247,18 +247,15 @@ serve(async (req) => {
           });
         }
 
-        // Add dynamic URL button components
-        botoes.forEach((btn: any, idx: number) => {
-          if (btn.tipo === "URL" && btn.url_dinamica) {
-            const token = linkOferta ? linkOferta.split("/").pop() : "";
-            components.push({
-              type: "button",
-              sub_type: "url",
-              index: String(idx),
-              parameters: [{ type: "text", text: token }],
-            });
-          }
-        });
+        // Add dynamic URL button components - ALWAYS when hasUrlDinamica
+        if (hasUrlDinamica) {
+          components.push({
+            type: "button",
+            sub_type: "url",
+            index: 0,
+            parameters: [{ type: "text", text: linkToken }],
+          });
+        }
 
         const payload = {
           messaging_product: "whatsapp",
