@@ -99,8 +99,14 @@ serve(async (req) => {
     const templateLang = template?.idioma || "pt_BR";
     const variables: string[] = template?.variaveis_usadas || [];
 
-    // Check if template uses link_oferta variable
-    const usesLinkOferta = variables.some(
+    // Parse botoes once before the loop
+    const botoes = typeof template?.botoes === 'string'
+      ? JSON.parse(template.botoes)
+      : (template?.botoes || []);
+
+    // Check if template uses link_oferta variable OR has dynamic URL buttons
+    const hasUrlDinamica = botoes.some((b: any) => b.url_dinamica === true);
+    const usesLinkOferta = hasUrlDinamica || variables.some(
       (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_oferta"
     );
 
