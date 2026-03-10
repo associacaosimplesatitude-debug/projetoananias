@@ -45,7 +45,7 @@ export default function AdminDashboard() {
       .select('token')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (error || !data?.token) {
       toast.error('Nenhum link de campanha encontrado.');
