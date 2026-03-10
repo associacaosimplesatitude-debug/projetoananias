@@ -147,37 +147,35 @@ export default function AprovacaoFaturamento() {
 
     try {
       console.log(`[APROVAR] Iniciando aprovação atômica para proposta: ${proposta.id}`);
-      console.log(`[APROVAR] Cliente: ${proposta.cliente_nome}`);
-      console.log(`[APROVAR] Prazo: ${proposta.prazo_faturamento_selecionado || '30'} dias`);
 
-      // Chamar edge function atômica
       const { data, error } = await supabase.functions.invoke("aprovar-faturamento", {
-        body: {
-          proposta_id: proposta.id,
-        },
+        body: { proposta_id: proposta.id },
       });
 
-      // Verificar erro da chamada
       if (error) {
         console.error("[APROVAR] ❌ Erro na chamada:", error);
         throw new Error(error.message || "Erro ao chamar função de aprovação");
       }
 
-      // Verificar resposta
       if (!data?.success) {
-        console.error("[APROVAR] ❌ Erro retornado:", data?.error);
+        // Verificar se é erro de documento inválido
+        if (data?.error_code === 'DOCUMENTO_INVALIDO') {
+          toast.error("⚠️ CNPJ/CPF INVÁLIDO", {
+            description: data.error,
+            duration: 10000,
+          });
+          // Atualizar lista para mostrar o banner
+          refetch();
+          return;
+        }
         throw new Error(data?.error || "Erro desconhecido na aprovação");
       }
-
-      // SUCESSO - A edge function executou todas as etapas
-      console.log("[APROVAR] ✅ Aprovação concluída com sucesso:", data);
 
       toast.success("Pedido aprovado com sucesso!", {
         description: `Bling: ${data.bling_order_number || data.bling_order_id} • ${data.parcelas_criadas} parcela(s) de comissão criada(s)`,
         duration: 6000,
       });
 
-      // Invalidar todas as queries relacionadas
       queryClient.invalidateQueries({ queryKey: ["propostas-aguardando-aprovacao"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-propostas"] });
@@ -190,21 +188,11 @@ export default function AprovacaoFaturamento() {
 
     } catch (error: unknown) {
       console.error("[APROVAR] ❌ Erro ao aprovar:", error);
-      
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      const isStockError = errorMessage.toLowerCase().includes("estoque insuficiente");
-      
-      if (isStockError) {
-        toast.error("Erro de estoque no Bling", {
-          description: errorMessage,
-          duration: 10000,
-        });
-      } else {
-        toast.error("Erro ao aprovar pedido", {
-          description: errorMessage,
-          duration: 8000,
-        });
-      }
+      toast.error("Erro ao aprovar pedido", {
+        description: errorMessage,
+        duration: 8000,
+      });
     } finally {
       setProcessingPropostaId(null);
     }
