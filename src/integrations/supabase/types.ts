@@ -5885,6 +5885,8 @@ export type Database = {
           confirmado_em: string | null
           created_at: string
           desconto_percentual: number | null
+          documento_invalido: boolean | null
+          documento_invalido_motivo: string | null
           frete_definido_por: string | null
           frete_observacao: string | null
           frete_prazo_estimado: string | null
@@ -5922,6 +5924,8 @@ export type Database = {
           confirmado_em?: string | null
           created_at?: string
           desconto_percentual?: number | null
+          documento_invalido?: boolean | null
+          documento_invalido_motivo?: string | null
           frete_definido_por?: string | null
           frete_observacao?: string | null
           frete_prazo_estimado?: string | null
@@ -5959,6 +5963,8 @@ export type Database = {
           confirmado_em?: string | null
           created_at?: string
           desconto_percentual?: number | null
+          documento_invalido?: boolean | null
+          documento_invalido_motivo?: string | null
           frete_definido_por?: string | null
           frete_observacao?: string | null
           frete_prazo_estimado?: string | null

@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle, XCircle, Clock, Loader2, Search, FileText, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Loader2, Search, FileText, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -83,6 +83,8 @@ interface Proposta {
   frete_prazo_estimado?: string | null;
   bling_order_id?: number | null;
   bling_order_number?: string | null;
+  documento_invalido?: boolean | null;
+  documento_invalido_motivo?: string | null;
 }
 
 export default function AprovacaoFaturamento() {
@@ -145,37 +147,35 @@ export default function AprovacaoFaturamento() {
 
     try {
       console.log(`[APROVAR] Iniciando aprovação atômica para proposta: ${proposta.id}`);
-      console.log(`[APROVAR] Cliente: ${proposta.cliente_nome}`);
-      console.log(`[APROVAR] Prazo: ${proposta.prazo_faturamento_selecionado || '30'} dias`);
 
-      // Chamar edge function atômica
       const { data, error } = await supabase.functions.invoke("aprovar-faturamento", {
-        body: {
-          proposta_id: proposta.id,
-        },
+        body: { proposta_id: proposta.id },
       });
 
-      // Verificar erro da chamada
       if (error) {
         console.error("[APROVAR] ❌ Erro na chamada:", error);
         throw new Error(error.message || "Erro ao chamar função de aprovação");
       }
 
-      // Verificar resposta
       if (!data?.success) {
-        console.error("[APROVAR] ❌ Erro retornado:", data?.error);
+        // Verificar se é erro de documento inválido
+        if (data?.error_code === 'DOCUMENTO_INVALIDO') {
+          toast.error("⚠️ CNPJ/CPF INVÁLIDO", {
+            description: data.error,
+            duration: 10000,
+          });
+          // Atualizar lista para mostrar o banner
+          refetch();
+          return;
+        }
         throw new Error(data?.error || "Erro desconhecido na aprovação");
       }
-
-      // SUCESSO - A edge function executou todas as etapas
-      console.log("[APROVAR] ✅ Aprovação concluída com sucesso:", data);
 
       toast.success("Pedido aprovado com sucesso!", {
         description: `Bling: ${data.bling_order_number || data.bling_order_id} • ${data.parcelas_criadas} parcela(s) de comissão criada(s)`,
         duration: 6000,
       });
 
-      // Invalidar todas as queries relacionadas
       queryClient.invalidateQueries({ queryKey: ["propostas-aguardando-aprovacao"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-propostas-faturadas"] });
       queryClient.invalidateQueries({ queryKey: ["vendedor-propostas"] });
@@ -188,21 +188,11 @@ export default function AprovacaoFaturamento() {
 
     } catch (error: unknown) {
       console.error("[APROVAR] ❌ Erro ao aprovar:", error);
-      
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      const isStockError = errorMessage.toLowerCase().includes("estoque insuficiente");
-      
-      if (isStockError) {
-        toast.error("Erro de estoque no Bling", {
-          description: errorMessage,
-          duration: 10000,
-        });
-      } else {
-        toast.error("Erro ao aprovar pedido", {
-          description: errorMessage,
-          duration: 8000,
-        });
-      }
+      toast.error("Erro ao aprovar pedido", {
+        description: errorMessage,
+        duration: 8000,
+      });
     } finally {
       setProcessingPropostaId(null);
     }
@@ -302,15 +292,31 @@ export default function AprovacaoFaturamento() {
       ) : (
         <div className="space-y-4">
           {filteredPropostas?.map((proposta) => (
-            <Card key={proposta.id}>
+            <Card key={proposta.id} className={proposta.documento_invalido ? "border-destructive border-2" : ""}>
               <CardContent className="p-4">
+                {/* Banner de documento inválido */}
+                {proposta.documento_invalido && (
+                  <div className="mb-3 p-3 rounded-md bg-destructive/10 border border-destructive flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                    <div>
+                      <p className="font-bold text-destructive text-sm">⚠️ CNPJ/CPF INVÁLIDO — Aguardando correção pelo vendedor</p>
+                      <p className="text-xs text-destructive/80">{proposta.documento_invalido_motivo}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-lg">{proposta.cliente_nome}</span>
-                      <Badge variant="outline" className="border-orange-500 text-orange-600">
-                        <Clock className="w-3 h-3 mr-1" /> Aguardando Aprovação
-                      </Badge>
+                      {proposta.documento_invalido ? (
+                        <Badge variant="destructive">
+                          <AlertTriangle className="w-3 h-3 mr-1" /> Doc. Inválido
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-orange-500 text-orange-600">
+                          <Clock className="w-3 h-3 mr-1" /> Aguardando Aprovação
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="text-xs">
                         B2B • {formatPrazo(proposta.prazo_faturamento_selecionado)}
                       </Badge>
@@ -383,14 +389,20 @@ export default function AprovacaoFaturamento() {
                   <div className="flex flex-col gap-2 min-w-[140px]">
                     <Button
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700"
+                      className={proposta.documento_invalido ? "" : "bg-green-600 hover:bg-green-700"}
+                      variant={proposta.documento_invalido ? "outline" : "default"}
                       onClick={() => handleAprovar(proposta)}
                       disabled={processingPropostaId === proposta.id}
                     >
                       {processingPropostaId === proposta.id ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                          Processando...
+                          {proposta.documento_invalido ? "Revalidando..." : "Processando..."}
+                        </>
+                      ) : proposta.documento_invalido ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Revalidar
                         </>
                       ) : (
                         <>
