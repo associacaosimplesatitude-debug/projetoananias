@@ -65,6 +65,10 @@ import { RoyaltiesAdminLayout } from "@/components/royalties/RoyaltiesAdminLayou
 import { AutorLayout } from "@/components/royalties/AutorLayout";
 import { RoyaltiesProtectedRoute } from "@/components/royalties/RoyaltiesProtectedRoute";
 import BlingIntegration from "./pages/admin/BlingIntegration";
+import RevistasDigitais from "./pages/admin/RevistasDigitais";
+import RevistasAssinaturas from "./pages/admin/RevistasAssinaturas";
+import AlunoRevistaVirtual from "./pages/ebd/aluno/AlunoRevistaVirtual";
+import RevistaLeitor from "./pages/ebd/aluno/RevistaLeitor";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
