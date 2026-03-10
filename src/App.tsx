@@ -387,6 +387,8 @@ const App = () => (
                       <Route path="desafio-biblico/:desafioId/jogar" element={<EBDDesafioLiderPlay />} />
                       <Route path="desafio-biblico/:desafioId/acompanhar" element={<EBDDesafioAcompanhamento />} />
                       <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
+                      <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
+                      <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
                     </Route>
 
                     {/* Aluno Module Routes with Sidebar Layout */}
