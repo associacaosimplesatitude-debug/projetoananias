@@ -55,6 +55,7 @@ import AdminEBDClientes from "./pages/admin/AdminEBDClientes";
 import TransferRequests from "./pages/admin/TransferRequests";
 import EBDSystemUsers from "./pages/admin/EBDSystemUsers";
 import WhatsAppPanel from "./pages/admin/WhatsAppPanel";
+import CampaignTracking from "./pages/admin/CampaignTracking";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
