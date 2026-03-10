@@ -385,7 +385,18 @@ export function CadastrarClienteDialog({
           tipo_cliente: isRepresentante ? "REPRESENTANTE" : (clienteBling.tipo_pessoa === 'F' ? 'PESSOA FÍSICA' : 'ADVECS'),
         }));
         
-        toast.success('Cliente encontrado no Bling! Dados preenchidos automaticamente.');
+        // Validar documento vindo do Bling
+        const docBling = formData.possui_cnpj 
+          ? (clienteBling.cnpj || clienteBling.cpf_cnpj || documentoLimpo)
+          : (clienteBling.cpf || clienteBling.cpf_cnpj || documentoLimpo);
+        const erroBling = validarDocumento(docBling, formData.possui_cnpj);
+        if (erroBling) {
+          setDocumentoErro(erroBling);
+          toast.warning('Cliente encontrado no Bling, mas o documento é inválido. Corrija antes de salvar.');
+        } else {
+          setDocumentoErro(null);
+          toast.success('Cliente encontrado no Bling! Dados preenchidos automaticamente.');
+        }
       } else {
         console.log('Cliente não encontrado no Bling');
         setBlingClienteEncontrado(false);
