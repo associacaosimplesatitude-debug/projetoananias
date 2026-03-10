@@ -4891,6 +4891,219 @@ export type Database = {
           },
         ]
       }
+      revista_acessos: {
+        Row: {
+          cliente_id: string
+          created_at: string | null
+          device_info: Json | null
+          evento: string
+          id: string
+          licao_id: string | null
+          revista_id: string | null
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string | null
+          device_info?: Json | null
+          evento: string
+          id?: string
+          licao_id?: string | null
+          revista_id?: string | null
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string | null
+          device_info?: Json | null
+          evento?: string
+          id?: string
+          licao_id?: string | null
+          revista_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_acessos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_acessos_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_acessos_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revista_assinaturas: {
+        Row: {
+          cliente_id: string
+          created_at: string | null
+          expira_em: string | null
+          id: string
+          inicio_em: string | null
+          plano: string | null
+          revista_id: string
+          status: string | null
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string | null
+          expira_em?: string | null
+          id?: string
+          inicio_em?: string | null
+          plano?: string | null
+          revista_id: string
+          status?: string | null
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string | null
+          expira_em?: string | null
+          id?: string
+          inicio_em?: string | null
+          plano?: string | null
+          revista_id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_assinaturas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_assinaturas_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revista_licoes: {
+        Row: {
+          created_at: string | null
+          id: string
+          numero: number
+          paginas: string[] | null
+          revista_id: string
+          titulo: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          numero: number
+          paginas?: string[] | null
+          revista_id: string
+          titulo?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          numero?: number
+          paginas?: string[] | null
+          revista_id?: string
+          titulo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_licoes_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revista_progresso: {
+        Row: {
+          cliente_id: string
+          concluida: boolean | null
+          id: string
+          licao_id: string
+          pagina_atual: number | null
+          tempo_leitura_segundos: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          cliente_id: string
+          concluida?: boolean | null
+          id?: string
+          licao_id: string
+          pagina_atual?: number | null
+          tempo_leitura_segundos?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          cliente_id?: string
+          concluida?: boolean | null
+          id?: string
+          licao_id?: string
+          pagina_atual?: number | null
+          tempo_leitura_segundos?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_progresso_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_progresso_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revistas_digitais: {
+        Row: {
+          ativo: boolean | null
+          capa_url: string | null
+          created_at: string | null
+          id: string
+          tipo: string
+          titulo: string
+          total_licoes: number | null
+          trimestre: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          capa_url?: string | null
+          created_at?: string | null
+          id?: string
+          tipo?: string
+          titulo: string
+          total_licoes?: number | null
+          trimestre?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          capa_url?: string | null
+          created_at?: string | null
+          id?: string
+          tipo?: string
+          titulo?: string
+          total_licoes?: number | null
+          trimestre?: string | null
+        }
+        Relationships: []
+      }
       royalties_affiliate_clicks: {
         Row: {
           affiliate_link_id: string
