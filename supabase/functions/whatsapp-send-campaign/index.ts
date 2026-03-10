@@ -99,16 +99,22 @@ serve(async (req) => {
     const templateLang = template?.idioma || "pt_BR";
     const variables: string[] = template?.variaveis_usadas || [];
 
-    // Parse botoes once before the loop
-    const botoes = typeof template?.botoes === 'string'
-      ? JSON.parse(template.botoes)
-      : (template?.botoes || []);
+    // Parse botoes once before the loop (robust)
+    const botoes = (() => {
+      try {
+        const raw = template?.botoes;
+        if (!raw) return [];
+        return typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch { return []; }
+    })();
 
-    // Check if template uses link_oferta variable OR has dynamic URL buttons
-    const hasUrlDinamica = botoes.some((b: any) => b.url_dinamica === true);
+    const hasUrlDinamica = botoes.some((b: any) => b.tipo === 'URL' && b.url_dinamica === true);
     const usesLinkOferta = hasUrlDinamica || variables.some(
       (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_oferta"
     );
+
+    console.log("[send-campaign] botoes:", JSON.stringify(botoes));
+    console.log("[send-campaign] hasUrlDinamica:", hasUrlDinamica, "usesLinkOferta:", usesLinkOferta);
 
     let enviados = 0;
     let erros = 0;
