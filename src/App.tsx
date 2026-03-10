@@ -65,6 +65,10 @@ import { RoyaltiesAdminLayout } from "@/components/royalties/RoyaltiesAdminLayou
 import { AutorLayout } from "@/components/royalties/AutorLayout";
 import { RoyaltiesProtectedRoute } from "@/components/royalties/RoyaltiesProtectedRoute";
 import BlingIntegration from "./pages/admin/BlingIntegration";
+import RevistasDigitais from "./pages/admin/RevistasDigitais";
+import RevistasAssinaturas from "./pages/admin/RevistasAssinaturas";
+import AlunoRevistaVirtual from "./pages/ebd/aluno/AlunoRevistaVirtual";
+import RevistaLeitor from "./pages/ebd/aluno/RevistaLeitor";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
@@ -400,6 +404,8 @@ const App = () => (
                       <Route path="leituras" element={<AlunoLeiturasPage />} />
                       <Route path="perfil" element={<AlunoPerfilPage />} />
                       <Route path="quiz/:quizId" element={<AlunoQuizPage />} />
+                      <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
+                      <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
                     </Route>
 
                     {/* Professor Module Routes with Sidebar Layout */}
@@ -418,6 +424,8 @@ const App = () => (
                       <Route path="lancamentos" element={<ProfessorLancamentos />} />
                       <Route path="quizzes" element={<ProfessorQuizzes />} />
                       <Route path="relatorios" element={<ProfessorRelatorios />} />
+                      <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
+                      <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
                     </Route>
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
@@ -487,6 +495,8 @@ const App = () => (
                       <Route path="tutoriais" element={<Tutoriais />} />
                       <Route path="shopify" element={<ShopifyIntegration />} />
                       <Route path="conteudo-biblico" element={<AdminEBDConteudoBiblico />} />
+                      <Route path="revistas-digitais" element={<RevistasDigitais />} />
+                      <Route path="revistas-assinaturas" element={<RevistasAssinaturas />} />
                       <Route path="usuarios" element={<EBDSystemUsers />} />
                       <Route path="funil" element={<VendedorFunil isAdminView />} />
                       <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />
