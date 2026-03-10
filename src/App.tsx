@@ -224,6 +224,7 @@ const App = () => (
               <Route path="/cadastro-aluno/:churchId" element={<CadastroAlunoPublico />} />
               <Route path="/livro/:slug" element={<LivroLandingPage />} />
               <Route path="/oferta-ebd" element={<OfertaEBD />} />
+              <Route path="/oferta/:token" element={<OfertaPersonalizada />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
               <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
             <Route
