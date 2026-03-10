@@ -1,22 +1,16 @@
 
 
-## Plano: Botão "Corrigir CNPJ" abre modal de edição do cliente
+## Problema
 
-### Problema
-No painel do vendedor, o banner de documento inválido não tem ação direta para corrigir o CNPJ. O botão "Editar" abre o modal da proposta, não o cadastro do cliente.
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-### Solução
-Adicionar um botão "Corrigir CNPJ" no banner de documento inválido que abre o `CadastrarClienteDialog` com o cliente pré-carregado para edição. O vendedor corrige apenas o documento e salva.
+## Solução
 
-### Mudanças
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-**Arquivo: `src/pages/vendedor/VendedorPedidosPage.tsx`**
-
-1. Importar `CadastrarClienteDialog`
-2. Adicionar estados para controlar o dialog de edição do cliente:
-   - `clienteParaCorrigir` — dados do cliente para editar
-   - `showCorrigirClienteDialog` — controle de visibilidade
-3. Criar função `handleCorrigirDocumento(proposta)` que busca os dados do cliente via `proposta.cliente_id` na tabela `ebd_clientes` e abre o `CadastrarClienteDialog` com `clienteParaEditar`
-4. No banner de documento inválido (linhas 631-638), adicionar botão "Corrigir CNPJ/CPF" que chama `handleCorrigirDocumento`
-5. Renderizar o `CadastrarClienteDialog` no final do componente com `clienteParaEditar={clienteParaCorrigir}` e `onSuccess` que faz refetch das propostas
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 
