@@ -392,6 +392,22 @@ function AdminSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revistas-digitais')}>
+                        <RouterNavLink to="/admin/ebd/revistas-digitais">
+                          <BookOpen className="h-4 w-4" />
+                          <span>Revistas Digitais</span>
+                        </RouterNavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revistas-assinaturas')}>
+                        <RouterNavLink to="/admin/ebd/revistas-assinaturas">
+                          <BookOpen className="h-4 w-4" />
+                          <span>Assinaturas Revistas</span>
+                        </RouterNavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={isActive('/admin/ebd/shopify')}>
                         <RouterNavLink to="/admin/ebd/shopify">
                           <Store className="h-4 w-4" />

@@ -11,6 +11,7 @@ const menuItems = [
   { path: "/ebd/aluno/turma", label: "Minha Turma", icon: Users },
   { path: "/ebd/aluno/aulas", label: "Aulas", icon: BookOpen },
   { path: "/ebd/aluno/leituras", label: "Leitura", icon: Calendar },
+  { path: "/ebd/aluno/revista-virtual", label: "Revista Virtual", icon: BookOpen },
   { path: "/ebd/aluno/perfil", label: "Perfil", icon: User },
 ];
 

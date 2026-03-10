@@ -41,6 +41,7 @@ function ProfessorSidebar() {
     { path: "/ebd/professor/lancamentos", label: "Lançamentos", icon: ClipboardList },
     { path: "/ebd/professor/quizzes", label: "Quizzes", icon: Trophy },
     { path: "/ebd/professor/relatorios", label: "Relatórios", icon: BarChart3 },
+    { path: "/ebd/professor/revista-virtual", label: "Revista Virtual", icon: BookOpen },
     { path: "/tutoriais", label: "Tutoriais", icon: Video },
   ];
 
