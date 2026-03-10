@@ -128,6 +128,7 @@ serve(async (req) => {
 
         // --- Generate personalized link if template uses link_oferta ---
         let linkOferta = "";
+        let linkToken = "";
         let linkRecord: any = null;
 
         if (usesLinkOferta) {
