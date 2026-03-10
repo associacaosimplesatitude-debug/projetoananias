@@ -454,12 +454,32 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
                   className="flex-1"
                 />
                 {btn.tipo === "URL" && (
-                  <Input
-                    placeholder="https://..."
-                    value={btn.url || ""}
-                    onChange={(e) => updateButton(idx, "url", e.target.value)}
-                    className="flex-1"
-                  />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder={btn.url_dinamica ? "https://gestaoebd.com.br/oferta/" : "https://..."}
+                        value={btn.url || ""}
+                        onChange={(e) => updateButton(idx, "url", e.target.value)}
+                        className="flex-1"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`url-dinamica-${idx}`}
+                        checked={btn.url_dinamica || false}
+                        onCheckedChange={(checked) => updateButton(idx, "url_dinamica", !!checked)}
+                      />
+                      <label htmlFor={`url-dinamica-${idx}`} className="text-xs text-muted-foreground cursor-pointer">
+                        URL Dinâmica (sufixo automático com token do cliente)
+                      </label>
+                    </div>
+                    {btn.url_dinamica && (
+                      <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded flex items-center gap-1">
+                        <Info className="h-3 w-3 shrink-0" />
+                        O token será adicionado automaticamente ao final da URL no envio.
+                      </p>
+                    )}
+                  </div>
                 )}
                 <Button variant="ghost" size="icon" onClick={() => removeButton(idx)} className="h-10 w-10 shrink-0">
                   <Trash2 className="h-4 w-4 text-destructive" />
