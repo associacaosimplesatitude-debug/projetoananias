@@ -191,6 +191,7 @@ export function CadastrarClienteDialog({
   }>({ open: false, nomeVendedor: "", nomeCliente: "", clienteId: null, vendedorAtualId: null });
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
+  const [documentoErro, setDocumentoErro] = useState<string | null>(null);
 
   const isEditMode = !!clienteParaEditar;
 
