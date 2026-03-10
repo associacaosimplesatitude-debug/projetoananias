@@ -554,7 +554,6 @@ export default function WhatsAppCampaigns() {
                       )}
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    </div>
                   </CardContent>
                 </Card>
               );
