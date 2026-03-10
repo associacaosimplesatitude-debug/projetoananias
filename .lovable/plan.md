@@ -1,16 +1,31 @@
 
 
-## Problema
+## Plano: Criar usuário de teste completo para Revista Virtual
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+O cliente `Igreja Teste - Revista Virtual` existe no banco mas não tem usuário auth. Para testar, preciso:
 
-## Solução
+### 1. Criar usuário auth via Edge Function `create-auth-user-direct`
+- Email: `teste@revistas.com`
+- Senha: `Teste123!`
+- Isso cria o usuário no auth e o profile
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+### 2. Atribuir role `client` na tabela `user_roles`
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+### 3. Vincular o `superintendente_user_id` no registro `ebd_clientes`
+- O componente `AlunoRevistaVirtual` busca o cliente pelo `email_superintendente` do usuário logado
+- Precisa que `ebd_clientes.email_superintendente = 'teste@revistas.com'` (já está)
+- Precisa que `ebd_clientes.superintendente_user_id` aponte para o user_id criado
+
+### Execução
+Uma única migração SQL que:
+1. Chama a Edge Function via `net.http_post` OU insere diretamente — na verdade, o melhor é usar a Edge Function `create-auth-user-direct` via curl/invoke
+
+**Abordagem mais simples:** Invocar a edge function `create-auth-user-direct` pelo frontend/admin existente, ou executar via migração com `extensions.http`.
+
+**Melhor abordagem:** Usar o tool de curl para chamar a edge function diretamente, criando o usuário, e depois executar uma migração SQL para vincular o `user_id` e atribuir a role.
+
+### Credenciais de teste
+- **Email:** `teste@revistas.com`
+- **Senha:** `Teste123!`
+- **Role:** `client`
 
