@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { categorizarProduto } from "@/constants/categoriasShopify";
 import { isClienteRepresentante, type DescontosCategoriaRepresentante } from "@/lib/descontosShopify";
 import { EditarPropostaDialog } from "@/components/vendedor/EditarPropostaDialog";
+import { CadastrarClienteDialog } from "@/components/vendedor/CadastrarClienteDialog";
 
 interface PropostaItem {
   variantId: string;
