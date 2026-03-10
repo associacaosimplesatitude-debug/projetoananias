@@ -71,6 +71,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 };
 
 export default function WhatsAppCampaigns() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>("list");
   const [filters, setFilters] = useState<Filters>({
