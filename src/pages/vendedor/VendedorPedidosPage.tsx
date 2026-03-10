@@ -78,6 +78,10 @@ export default function VendedorPedidosPage() {
   const [isSyncingStatus, setIsSyncingStatus] = useState(false);
   const hasSyncedRef = useRef(false);
   
+  // Estados para corrigir documento do cliente
+  const [clienteParaCorrigir, setClienteParaCorrigir] = useState<any>(null);
+  const [showCorrigirClienteDialog, setShowCorrigirClienteDialog] = useState(false);
+
   // Estados para editar proposta
   const [editarPropostaDialogOpen, setEditarPropostaDialogOpen] = useState(false);
   const [propostaParaEditar, setPropostaParaEditar] = useState<Proposta | null>(null);
