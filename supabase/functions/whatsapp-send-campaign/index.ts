@@ -213,6 +213,20 @@ serve(async (req) => {
         }
 
         const components: any[] = [];
+
+        // Add header component if template has IMAGE header
+        if (template?.cabecalho_tipo === "IMAGE" && template?.cabecalho_midia_url) {
+          components.push({
+            type: "header",
+            parameters: [
+              {
+                type: "image",
+                image: { link: template.cabecalho_midia_url },
+              },
+            ],
+          });
+        }
+
         if (varValues.length > 0) {
           components.push({
             type: "body",
