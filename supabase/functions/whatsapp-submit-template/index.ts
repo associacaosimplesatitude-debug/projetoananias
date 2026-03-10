@@ -51,6 +51,51 @@ function mapVariablesToPositional(corpo: string): { mappedBody: string; mapping:
   return { mappedBody, mapping, examples };
 }
 
+async function uploadImageToMeta(imageUrl: string, accessToken: string): Promise<string> {
+  console.log("[upload-image] Downloading image from:", imageUrl);
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) {
+    throw new Error(`Falha ao baixar imagem: ${imgRes.status}`);
+  }
+  const imgBuffer = await imgRes.arrayBuffer();
+  const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+  const fileLength = imgBuffer.byteLength;
+
+  console.log("[upload-image] Creating upload session, type:", contentType, "size:", fileLength);
+  const sessionRes = await fetch(
+    `https://graph.facebook.com/v22.0/app/uploads?file_type=${encodeURIComponent(contentType)}&file_length=${fileLength}&access_token=${accessToken}`,
+    { method: "POST" }
+  );
+  const sessionData = await sessionRes.json();
+  console.log("[upload-image] Session response:", JSON.stringify(sessionData));
+
+  if (!sessionData.id) {
+    throw new Error(`Falha ao criar sessão de upload: ${JSON.stringify(sessionData)}`);
+  }
+
+  console.log("[upload-image] Uploading file to session:", sessionData.id);
+  const uploadRes = await fetch(
+    `https://graph.facebook.com/v22.0/${sessionData.id}`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `OAuth ${accessToken}`,
+        "file_offset": "0",
+        "Content-Type": contentType,
+      },
+      body: new Uint8Array(imgBuffer),
+    }
+  );
+  const uploadData = await uploadRes.json();
+  console.log("[upload-image] Upload response:", JSON.stringify(uploadData));
+
+  if (!uploadData.h) {
+    throw new Error(`Falha no upload da imagem: ${JSON.stringify(uploadData)}`);
+  }
+
+  return uploadData.h;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -120,10 +165,11 @@ Deno.serve(async (req) => {
       if (template.cabecalho_tipo === "TEXT" && template.cabecalho_texto) {
         components.push({ type: "HEADER", format: "TEXT", text: template.cabecalho_texto });
       } else if (template.cabecalho_tipo === "IMAGE" && template.cabecalho_midia_url) {
+        const imageHandle = await uploadImageToMeta(template.cabecalho_midia_url, accessToken);
         components.push({
           type: "HEADER",
           format: "IMAGE",
-          example: { header_handle: [template.cabecalho_midia_url] },
+          example: { header_handle: [imageHandle] },
         });
       }
 
