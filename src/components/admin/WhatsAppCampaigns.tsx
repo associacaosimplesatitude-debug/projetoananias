@@ -523,6 +523,19 @@ export default function WhatsAppCampaigns() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {c.status === "enviada" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs h-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/whatsapp/campanhas/${c.id}/rastreamento`);
+                          }}
+                        >
+                          <BarChart3 className="h-3.5 w-3.5" /> Rastreamento
+                        </Button>
+                      )}
                       {c.status === "rascunho" && (
                         <Button
                           variant="ghost"
@@ -540,6 +553,7 @@ export default function WhatsAppCampaigns() {
                         </Button>
                       )}
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
                     </div>
                   </CardContent>
                 </Card>
