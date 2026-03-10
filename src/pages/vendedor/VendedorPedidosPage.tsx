@@ -66,6 +66,9 @@ interface Proposta {
   frete_transportadora?: string | null;
   frete_observacao?: string | null;
   frete_prazo_estimado?: string | null;
+  // Campos de documento inválido
+  documento_invalido?: boolean | null;
+  documento_invalido_motivo?: string | null;
 }
 
 export default function VendedorPedidosPage() {
