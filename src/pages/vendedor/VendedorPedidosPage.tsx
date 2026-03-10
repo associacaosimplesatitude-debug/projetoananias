@@ -776,6 +776,24 @@ export default function VendedorPedidosPage() {
           setEditarPropostaDialogOpen(false);
         }}
       />
+
+      {vendedor && (
+        <CadastrarClienteDialog
+          open={showCorrigirClienteDialog}
+          onOpenChange={(open) => {
+            setShowCorrigirClienteDialog(open);
+            if (!open) setClienteParaCorrigir(null);
+          }}
+          vendedorId={vendedor.id}
+          clienteParaEditar={clienteParaCorrigir}
+          onSuccess={() => {
+            refetch();
+            setShowCorrigirClienteDialog(false);
+            setClienteParaCorrigir(null);
+            toast.success("Documento atualizado! A proposta será reavaliada pelo financeiro.");
+          }}
+        />
+      )}
     </div>
   );
 }
