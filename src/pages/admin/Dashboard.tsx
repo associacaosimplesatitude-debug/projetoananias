@@ -190,7 +190,13 @@ export default function AdminDashboard() {
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Painel Administrativo</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold">Painel Administrativo</h1>
+          <Button variant="outline" size="sm" onClick={handleTestarLandingPage}>
+            <ExternalLink className="mr-1 h-4 w-4" />
+            🔍 Testar Landing Page
+          </Button>
+        </div>
       
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
