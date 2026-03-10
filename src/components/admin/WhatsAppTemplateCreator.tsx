@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -38,6 +39,7 @@ interface TemplateButton {
   tipo: "QUICK_REPLY" | "URL";
   texto: string;
   url?: string;
+  url_dinamica?: boolean;
 }
 
 interface TemplateData {
@@ -154,7 +156,7 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
     setBotoes(botoes.filter((_, i) => i !== idx));
   };
 
-  const updateButton = (idx: number, field: string, value: string) => {
+  const updateButton = (idx: number, field: string, value: string | boolean) => {
     const updated = [...botoes];
     (updated[idx] as any)[field] = value;
     setBotoes(updated);
@@ -452,12 +454,32 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
                   className="flex-1"
                 />
                 {btn.tipo === "URL" && (
-                  <Input
-                    placeholder="https://..."
-                    value={btn.url || ""}
-                    onChange={(e) => updateButton(idx, "url", e.target.value)}
-                    className="flex-1"
-                  />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder={btn.url_dinamica ? "https://gestaoebd.com.br/oferta/" : "https://..."}
+                        value={btn.url || ""}
+                        onChange={(e) => updateButton(idx, "url", e.target.value)}
+                        className="flex-1"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`url-dinamica-${idx}`}
+                        checked={btn.url_dinamica || false}
+                        onCheckedChange={(checked) => updateButton(idx, "url_dinamica", !!checked)}
+                      />
+                      <label htmlFor={`url-dinamica-${idx}`} className="text-xs text-muted-foreground cursor-pointer">
+                        URL Dinâmica (sufixo automático com token do cliente)
+                      </label>
+                    </div>
+                    {btn.url_dinamica && (
+                      <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded flex items-center gap-1">
+                        <Info className="h-3 w-3 shrink-0" />
+                        O token será adicionado automaticamente ao final da URL no envio.
+                      </p>
+                    )}
+                  </div>
                 )}
                 <Button variant="ghost" size="icon" onClick={() => removeButton(idx)} className="h-10 w-10 shrink-0">
                   <Trash2 className="h-4 w-4 text-destructive" />
@@ -541,6 +563,9 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
                       className="bg-white rounded-lg p-2 text-center text-sm text-primary font-medium shadow-sm border"
                     >
                       {btn.texto || "Botão"}
+                      {btn.tipo === "URL" && btn.url_dinamica && (
+                        <span className="block text-[10px] text-muted-foreground mt-0.5">🔗 URL Dinâmica</span>
+                      )}
                     </div>
                   ))}
                 </div>
