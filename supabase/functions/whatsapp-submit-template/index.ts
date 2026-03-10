@@ -144,6 +144,11 @@ Deno.serve(async (req) => {
       if (botoes.length > 0) {
         const buttons = botoes.map((btn: any) => {
           if (btn.tipo === "URL") {
+            if (btn.url_dinamica) {
+              // Dynamic URL: use base URL + {{1}} placeholder for Meta
+              const baseUrl = btn.url || "https://gestaoebd.com.br/oferta/";
+              return { type: "URL", text: btn.texto, url: `${baseUrl.replace(/\/+$/, "")}/{{1}}`, example: [`${baseUrl.replace(/\/+$/, "")}/exemplo-token`] };
+            }
             return { type: "URL", text: btn.texto, url: btn.url };
           }
           return { type: "QUICK_REPLY", text: btn.texto };
