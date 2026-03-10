@@ -635,11 +635,36 @@ export default function VendedorPedidosPage() {
                     {proposta.documento_invalido && (
                       <div className="mb-3 p-3 rounded-md bg-destructive/10 border border-destructive flex items-start gap-2">
                         <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-                        <div>
+                        <div className="flex-1">
                           <p className="font-bold text-destructive text-sm">⚠️ CNPJ/CPF INVÁLIDO — Corrija no cadastro do cliente</p>
                           <p className="text-xs text-destructive/80 mt-0.5">{proposta.documento_invalido_motivo}</p>
                           <p className="text-xs text-muted-foreground mt-1">Corrija o documento no cadastro do cliente para liberar a aprovação pelo financeiro.</p>
                         </div>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="shrink-0"
+                          onClick={async () => {
+                            if (!proposta.cliente_id) {
+                              toast.error("Cliente não vinculado à proposta");
+                              return;
+                            }
+                            const { data: cliente, error } = await supabase
+                              .from("ebd_clientes")
+                              .select("id, tipo_cliente, nome_igreja, nome_responsavel, email_superintendente, telefone, possui_cnpj, cnpj, cpf, endereco_cep, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, senha_temporaria, pode_faturar, status_ativacao_ebd, superintendente_user_id, bling_cliente_id")
+                              .eq("id", proposta.cliente_id)
+                              .single();
+                            if (error || !cliente) {
+                              toast.error("Erro ao carregar dados do cliente");
+                              return;
+                            }
+                            setClienteParaCorrigir(cliente);
+                            setShowCorrigirClienteDialog(true);
+                          }}
+                        >
+                          <Pencil className="w-3 h-3 mr-1" />
+                          Corrigir CNPJ/CPF
+                        </Button>
                       </div>
                     )}
                     <div className="flex items-center justify-between">
