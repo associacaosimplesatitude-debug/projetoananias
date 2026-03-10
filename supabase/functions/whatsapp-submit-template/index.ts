@@ -165,10 +165,11 @@ Deno.serve(async (req) => {
       if (template.cabecalho_tipo === "TEXT" && template.cabecalho_texto) {
         components.push({ type: "HEADER", format: "TEXT", text: template.cabecalho_texto });
       } else if (template.cabecalho_tipo === "IMAGE" && template.cabecalho_midia_url) {
+        const imageHandle = await uploadImageToMeta(template.cabecalho_midia_url, accessToken);
         components.push({
           type: "HEADER",
           format: "IMAGE",
-          example: { header_handle: [template.cabecalho_midia_url] },
+          example: { header_handle: [imageHandle] },
         });
       }
 
