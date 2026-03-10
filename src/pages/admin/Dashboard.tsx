@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Users, AlertTriangle } from 'lucide-react';
+import { DollarSign, Users, AlertTriangle, ExternalLink } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-
+import { toast } from 'sonner';
 
 interface FunnelData {
   stage: string;
@@ -38,6 +38,21 @@ export default function AdminDashboard() {
     fetchFunnelData();
     fetchRevenueData();
   }, []);
+
+  const handleTestarLandingPage = async () => {
+    const { data, error } = await supabase
+      .from('campaign_links')
+      .select('token')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data?.token) {
+      toast.error('Nenhum link de campanha encontrado.');
+      return;
+    }
+    window.open(`/oferta/${data.token}`, '_blank');
+  };
 
   const fetchStats = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -175,7 +190,13 @@ export default function AdminDashboard() {
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Painel Administrativo</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold">Painel Administrativo</h1>
+          <Button variant="outline" size="sm" onClick={handleTestarLandingPage}>
+            <ExternalLink className="mr-1 h-4 w-4" />
+            🔍 Testar Landing Page
+          </Button>
+        </div>
       
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
