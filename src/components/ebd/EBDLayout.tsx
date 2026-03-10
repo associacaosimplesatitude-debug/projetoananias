@@ -136,6 +136,14 @@ function EBDSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/ebd/revista-virtual')}>
+                    <RouterNavLink to="/ebd/revista-virtual" onClick={() => setOpenMobile(false)}>
+                      <BookOpen className="h-4 w-4" />
+                      <span>Revista Virtual</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
