@@ -83,6 +83,8 @@ interface Proposta {
   frete_prazo_estimado?: string | null;
   bling_order_id?: number | null;
   bling_order_number?: string | null;
+  documento_invalido?: boolean | null;
+  documento_invalido_motivo?: string | null;
 }
 
 export default function AprovacaoFaturamento() {

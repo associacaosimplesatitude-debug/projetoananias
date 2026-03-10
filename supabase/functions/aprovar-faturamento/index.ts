@@ -81,6 +81,99 @@ serve(async (req) => {
       prazo: proposta.prazo_faturamento_selecionado,
     });
 
+    // ============ VALIDAÇÃO DE CNPJ/CPF ============
+    console.log(`[APROVAR-FAT] Validando documento do cliente...`);
+    
+    const cliente_data = proposta.cliente || {};
+    const documento = (cliente_data.cnpj || cliente_data.cpf || proposta.cliente_cnpj || '').replace(/[^0-9]/g, '');
+    
+    const validarCPF = (cpf: string): boolean => {
+      if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
+      let soma = 0;
+      for (let i = 0; i < 9; i++) soma += parseInt(cpf[i]) * (10 - i);
+      let resto = (soma * 10) % 11;
+      if (resto === 10) resto = 0;
+      if (resto !== parseInt(cpf[9])) return false;
+      soma = 0;
+      for (let i = 0; i < 10; i++) soma += parseInt(cpf[i]) * (11 - i);
+      resto = (soma * 10) % 11;
+      if (resto === 10) resto = 0;
+      return resto === parseInt(cpf[10]);
+    };
+
+    const validarCNPJ = (cnpj: string): boolean => {
+      if (cnpj.length !== 14 || /^(\d)\1+$/.test(cnpj)) return false;
+      const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      let soma = 0;
+      for (let i = 0; i < 12; i++) soma += parseInt(cnpj[i]) * pesos1[i];
+      let resto = soma % 11;
+      const dig1 = resto < 2 ? 0 : 11 - resto;
+      if (parseInt(cnpj[12]) !== dig1) return false;
+      soma = 0;
+      for (let i = 0; i < 13; i++) soma += parseInt(cnpj[i]) * pesos2[i];
+      resto = soma % 11;
+      const dig2 = resto < 2 ? 0 : 11 - resto;
+      return parseInt(cnpj[13]) === dig2;
+    };
+
+    let documentoValido = false;
+    let documentoTipo = '';
+    
+    if (!documento || documento.length === 0) {
+      documentoValido = false;
+      documentoTipo = 'ausente';
+    } else if (documento.length === 11) {
+      documentoValido = validarCPF(documento);
+      documentoTipo = 'CPF';
+    } else if (documento.length === 14) {
+      documentoValido = validarCNPJ(documento);
+      documentoTipo = 'CNPJ';
+    } else {
+      documentoValido = false;
+      documentoTipo = `tamanho inválido (${documento.length} dígitos)`;
+    }
+
+    if (!documentoValido) {
+      const motivo = documentoTipo === 'ausente' 
+        ? 'Cliente sem CPF/CNPJ cadastrado'
+        : `${documentoTipo} inválido: ${documento.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')}`;
+      
+      console.error(`[APROVAR-FAT] ❌ Documento inválido: ${motivo}`);
+      
+      // Salvar flag na proposta
+      await supabase
+        .from('vendedor_propostas')
+        .update({
+          documento_invalido: true,
+          documento_invalido_motivo: motivo,
+        })
+        .eq('id', proposta_id);
+
+      return new Response(JSON.stringify({
+        success: false,
+        error_code: 'DOCUMENTO_INVALIDO',
+        error: motivo,
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Documento válido — limpar flag se existia
+    if (proposta.documento_invalido) {
+      console.log(`[APROVAR-FAT] ✅ Documento agora é válido, limpando flag anterior`);
+      await supabase
+        .from('vendedor_propostas')
+        .update({
+          documento_invalido: false,
+          documento_invalido_motivo: null,
+        })
+        .eq('id', proposta_id);
+    }
+
+    console.log(`[APROVAR-FAT] ✅ Documento válido: ${documentoTipo} ${documento}`);
+
     // ============ PASSO 2: Buscar dados do vendedor (incluindo gerente) ============
     console.log(`[APROVAR-FAT] [2/7] Buscando vendedor...`);
     
