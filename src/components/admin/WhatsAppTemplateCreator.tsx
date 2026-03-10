@@ -156,7 +156,7 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
     setBotoes(botoes.filter((_, i) => i !== idx));
   };
 
-  const updateButton = (idx: number, field: string, value: string) => {
+  const updateButton = (idx: number, field: string, value: string | boolean) => {
     const updated = [...botoes];
     (updated[idx] as any)[field] = value;
     setBotoes(updated);
