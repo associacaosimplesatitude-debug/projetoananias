@@ -404,6 +404,8 @@ const App = () => (
                       <Route path="leituras" element={<AlunoLeiturasPage />} />
                       <Route path="perfil" element={<AlunoPerfilPage />} />
                       <Route path="quiz/:quizId" element={<AlunoQuizPage />} />
+                      <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
+                      <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
                     </Route>
 
                     {/* Professor Module Routes with Sidebar Layout */}
