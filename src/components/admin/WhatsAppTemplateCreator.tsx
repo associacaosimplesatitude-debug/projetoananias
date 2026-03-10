@@ -563,6 +563,9 @@ export default function WhatsAppTemplateCreator({ editingTemplate, onClose }: Wh
                       className="bg-white rounded-lg p-2 text-center text-sm text-primary font-medium shadow-sm border"
                     >
                       {btn.texto || "Botão"}
+                      {btn.tipo === "URL" && btn.url_dinamica && (
+                        <span className="block text-[10px] text-muted-foreground mt-0.5">🔗 URL Dinâmica</span>
+                      )}
                     </div>
                   ))}
                 </div>
