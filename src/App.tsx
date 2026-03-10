@@ -181,6 +181,7 @@ import EBDLogin from "./pages/EBDLogin";
 import AutorLogin from "./pages/AutorLogin";
 import LandingEBD from "./pages/LandingEBD";
 import OfertaEBD from "./pages/OfertaEBD";
+import OfertaPersonalizada from "./pages/OfertaPersonalizada";
 import Tutoriais from "./pages/Tutoriais";
 import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
 import Apresentacao from "./pages/Apresentacao";
