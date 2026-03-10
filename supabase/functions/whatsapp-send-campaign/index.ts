@@ -180,7 +180,7 @@ serve(async (req) => {
             : [];
 
           // Generate token and insert campaign_link
-          const linkToken = crypto.randomUUID();
+          linkToken = crypto.randomUUID();
           const { data: insertedLink } = await supabase
             .from("campaign_links")
             .insert({
