@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText, RefreshCw, XCircle, Pencil } from "lucide-react";
+import { Copy, CheckCircle, Clock, ExternalLink, Loader2, CreditCard, FileText, RefreshCw, XCircle, Pencil, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
