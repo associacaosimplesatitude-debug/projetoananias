@@ -729,6 +729,7 @@ export function CadastrarClienteDialog({
                               possui_cnpj: !usarCpf,
                               documento: "" // Limpa o documento ao trocar o tipo
                             }));
+                            setDocumentoErro(null);
                             // Resetar busca do Bling
                             setBlingClienteEncontrado(false);
                             setBlingClienteId(null);
