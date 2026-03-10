@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ptBR } from "date-fns/locale";
 import {
   Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag
+  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -70,6 +71,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 };
 
 export default function WhatsAppCampaigns() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>("list");
   const [filters, setFilters] = useState<Filters>({
@@ -521,6 +523,19 @@ export default function WhatsAppCampaigns() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {c.status === "enviada" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs h-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/whatsapp/campanhas/${c.id}/rastreamento`);
+                          }}
+                        >
+                          <BarChart3 className="h-3.5 w-3.5" /> Rastreamento
+                        </Button>
+                      )}
                       {c.status === "rascunho" && (
                         <Button
                           variant="ghost"
