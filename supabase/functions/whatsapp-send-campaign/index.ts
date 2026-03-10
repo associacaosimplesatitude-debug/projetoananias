@@ -7,6 +7,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function calcularDesconto(temDesconto: boolean, percentualAtual: number): number {
+  if (!temDesconto) return 20;
+  if (percentualAtual < 30) return percentualAtual + 5;
+  return percentualAtual;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -91,6 +97,12 @@ serve(async (req) => {
     const template = campanha.whatsapp_templates;
     const templateName = template?.nome;
     const templateLang = template?.idioma || "pt_BR";
+    const variables: string[] = template?.variaveis_usadas || [];
+
+    // Check if template uses link_oferta variable
+    const usesLinkOferta = variables.some(
+      (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_oferta"
+    );
 
     let enviados = 0;
     let erros = 0;
@@ -102,12 +114,88 @@ serve(async (req) => {
         if (phone.startsWith("0")) phone = phone.substring(1);
         if (!phone.startsWith("55")) phone = "55" + phone;
 
+        // --- Generate personalized link if template uses link_oferta ---
+        let linkOferta = "";
+        let linkRecord: any = null;
+
+        if (usesLinkOferta) {
+          // Lookup client data from ebd_clientes by email or cliente_id
+          let clienteData: any = null;
+          const destEmail = (dest.email || "").trim().toLowerCase();
+          const destClienteId = dest.cliente_id;
+
+          if (destClienteId) {
+            const { data } = await supabase
+              .from("ebd_clientes")
+              .select("id, nome_igreja, email_superintendente, senha_temporaria, telefone")
+              .eq("id", destClienteId)
+              .single();
+            clienteData = data;
+          } else if (destEmail) {
+            const { data } = await supabase
+              .from("ebd_clientes")
+              .select("id, nome_igreja, email_superintendente, senha_temporaria, telefone")
+              .ilike("email_superintendente", destEmail)
+              .limit(1)
+              .single();
+            clienteData = data;
+          }
+
+          // Fetch discount info
+          let temDesconto = false;
+          let percentualDesconto = 0;
+          if (clienteData?.id) {
+            const { data: descontoData } = await supabase
+              .from("ebd_descontos_categoria_representante")
+              .select("percentual_desconto")
+              .eq("cliente_id", clienteData.id)
+              .eq("categoria", "revistas")
+              .limit(1)
+              .single();
+            if (descontoData) {
+              temDesconto = true;
+              percentualDesconto = Number(descontoData.percentual_desconto) || 0;
+            }
+          }
+
+          const finalDiscount = calcularDesconto(temDesconto, percentualDesconto);
+
+          // Parse last_products from dest metadata
+          const produtosPedido = dest.produtos_pedido || "seus produtos";
+          const lastProducts = produtosPedido !== "seus produtos"
+            ? produtosPedido.split(",").map((p: string) => p.trim())
+            : [];
+
+          // Generate token and insert campaign_link
+          const linkToken = crypto.randomUUID();
+          const { data: insertedLink } = await supabase
+            .from("campaign_links")
+            .insert({
+              token: linkToken,
+              campaign_id: campanha_id,
+              customer_name: dest.nome || clienteData?.nome_igreja || "Cliente",
+              customer_email: destEmail || clienteData?.email_superintendente || null,
+              customer_phone: dest.telefone || clienteData?.telefone || null,
+              last_order_date: dest.data_pedido || null,
+              last_products: lastProducts.length > 0 ? lastProducts : null,
+              last_order_value: dest.valor_pedido ? Number(dest.valor_pedido) : null,
+              has_discount: temDesconto,
+              discount_percentage: temDesconto ? percentualDesconto : null,
+              final_discount: finalDiscount,
+              access_email: clienteData?.email_superintendente || destEmail || null,
+              access_password: clienteData?.senha_temporaria || null,
+              panel_url: "https://gestaoebd.com.br/vendedor",
+            })
+            .select("id")
+            .single();
+
+          linkRecord = insertedLink;
+          linkOferta = `https://gestaoebd.com.br/oferta/${linkToken}`;
+        }
+
         // Build template components (variables)
-        // variaveis_usadas stores names without braces e.g. ["primeiro_nome", "data_pedido"]
-        const variables: string[] = template?.variaveis_usadas || [];
         const varValues: string[] = [];
         for (const v of variables) {
-          // Normalize: remove {{ }} if present
           const key = v.replace(/\{\{|\}\}/g, "").trim();
           switch (key) {
             case "nome_completo": varValues.push(dest.nome || "Cliente"); break;
@@ -119,6 +207,7 @@ serve(async (req) => {
             case "produtos_pedido": varValues.push(dest.produtos_pedido || "seus produtos"); break;
             case "valor_pedido": varValues.push(dest.valor_pedido || "-"); break;
             case "categoria_produtos": varValues.push(dest.categoria_produtos || "-"); break;
+            case "link_oferta": varValues.push(linkOferta || "-"); break;
             default: varValues.push("-"); break;
           }
         }
@@ -162,6 +251,16 @@ serve(async (req) => {
             enviado_em: new Date().toISOString(),
           }).eq("id", dest.id);
           enviados++;
+
+          // Register message_sent event if link was generated
+          if (linkRecord?.id) {
+            await supabase.from("campaign_events").insert({
+              link_id: linkRecord.id,
+              campaign_id: campanha_id,
+              event_type: "message_sent",
+              event_data: { phone, template: templateName },
+            });
+          }
         } else {
           console.error(`Erro envio para ${phone}:`, resBody);
           await supabase.from("whatsapp_campanha_destinatarios").update({
