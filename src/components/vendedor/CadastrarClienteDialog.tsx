@@ -90,6 +90,7 @@ const getSuggestedEmail = (email: string): string | null => {
   return null;
 };
 
+import { validateCPF, validateCNPJ, cleanDocument } from "@/lib/royaltiesValidators";
 import { DescontosCategoriaSection } from "./DescontosCategoriaSection";
 import { TransferRequestDialog } from "./TransferRequestDialog";
 interface Cliente {
