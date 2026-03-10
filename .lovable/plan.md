@@ -1,67 +1,16 @@
 
 
-## Plano: Correção robusta do erro 131008 (botão dinâmico)
+## Problema
 
-### Problema
-O erro persiste porque:
-1. O parse de `botoes` pode falhar silenciosamente
-2. O `linkToken` é declarado dentro do bloco `usesLinkOferta` mas referenciado fora dele na montagem do botão
-3. O `index` do botão é passado como `String(idx)` mas a Meta espera um número
-4. A condição `btn.url_dinamica` pode não coincidir se o campo tiver valor diferente
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-### Alterações no arquivo `supabase/functions/whatsapp-send-campaign/index.ts`
+## Solução
 
-**1. Linhas 102-111** — Substituir parse de botões por versão robusta com try/catch:
-```typescript
-const botoes = (() => {
-  try {
-    const raw = template?.botoes;
-    if (!raw) return [];
-    return typeof raw === 'string' ? JSON.parse(raw) : raw;
-  } catch { return []; }
-})();
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-const hasUrlDinamica = botoes.some((b: any) => b.tipo === 'URL' && b.url_dinamica === true);
-const usesLinkOferta = hasUrlDinamica || variables.some(
-  (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_oferta"
-);
-
-console.log("[send-campaign] botoes:", JSON.stringify(botoes));
-console.log("[send-campaign] hasUrlDinamica:", hasUrlDinamica, "usesLinkOferta:", usesLinkOferta);
-```
-
-**2. Linhas 124-125** — Mover `linkToken` para escopo acessível e garantir geração sempre:
-```typescript
-let linkOferta = "";
-let linkToken = "";
-let linkRecord: any = null;
-```
-
-**3. Linha 176** — Atribuir ao `linkToken` do escopo externo:
-```typescript
-linkToken = crypto.randomUUID();
-```
-
-**4. Linhas 243-254** — Substituir montagem do botão para usar `hasUrlDinamica` sem condição extra, com `index` numérico e usando `linkToken` diretamente:
-```typescript
-// Add dynamic URL button components - ALWAYS when hasUrlDinamica
-if (hasUrlDinamica) {
-  components.push({
-    type: "button",
-    sub_type: "url",
-    index: 0,
-    parameters: [{ type: "text", text: linkToken }],
-  });
-}
-```
-
-**5. Antes do fetch (linha 256)** — Adicionar log do payload:
-```typescript
-console.log("[send-campaign] Payload para", phone, ":", JSON.stringify(payload, null, 2));
-```
-
-### Resultado
-- `linkToken` sempre disponível quando `usesLinkOferta` é true
-- Botão dinâmico sempre incluído quando template tem URL dinâmica
-- Log detalhado para confirmar payload correto antes do envio
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 

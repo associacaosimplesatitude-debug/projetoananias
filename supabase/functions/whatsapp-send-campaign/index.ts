@@ -99,16 +99,22 @@ serve(async (req) => {
     const templateLang = template?.idioma || "pt_BR";
     const variables: string[] = template?.variaveis_usadas || [];
 
-    // Parse botoes once before the loop
-    const botoes = typeof template?.botoes === 'string'
-      ? JSON.parse(template.botoes)
-      : (template?.botoes || []);
+    // Parse botoes once before the loop (robust)
+    const botoes = (() => {
+      try {
+        const raw = template?.botoes;
+        if (!raw) return [];
+        return typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch { return []; }
+    })();
 
-    // Check if template uses link_oferta variable OR has dynamic URL buttons
-    const hasUrlDinamica = botoes.some((b: any) => b.url_dinamica === true);
+    const hasUrlDinamica = botoes.some((b: any) => b.tipo === 'URL' && b.url_dinamica === true);
     const usesLinkOferta = hasUrlDinamica || variables.some(
       (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_oferta"
     );
+
+    console.log("[send-campaign] botoes:", JSON.stringify(botoes));
+    console.log("[send-campaign] hasUrlDinamica:", hasUrlDinamica, "usesLinkOferta:", usesLinkOferta);
 
     let enviados = 0;
     let erros = 0;
@@ -122,6 +128,7 @@ serve(async (req) => {
 
         // --- Generate personalized link if template uses link_oferta ---
         let linkOferta = "";
+        let linkToken = "";
         let linkRecord: any = null;
 
         if (usesLinkOferta) {
@@ -173,7 +180,7 @@ serve(async (req) => {
             : [];
 
           // Generate token and insert campaign_link
-          const linkToken = crypto.randomUUID();
+          linkToken = crypto.randomUUID();
           const { data: insertedLink } = await supabase
             .from("campaign_links")
             .insert({
@@ -240,18 +247,15 @@ serve(async (req) => {
           });
         }
 
-        // Add dynamic URL button components
-        botoes.forEach((btn: any, idx: number) => {
-          if (btn.tipo === "URL" && btn.url_dinamica) {
-            const token = linkOferta ? linkOferta.split("/").pop() : "";
-            components.push({
-              type: "button",
-              sub_type: "url",
-              index: String(idx),
-              parameters: [{ type: "text", text: token }],
-            });
-          }
-        });
+        // Add dynamic URL button components - ALWAYS when hasUrlDinamica
+        if (hasUrlDinamica) {
+          components.push({
+            type: "button",
+            sub_type: "url",
+            index: 0,
+            parameters: [{ type: "text", text: linkToken }],
+          });
+        }
 
         const payload = {
           messaging_product: "whatsapp",
@@ -263,6 +267,8 @@ serve(async (req) => {
             ...(components.length > 0 ? { components } : {}),
           },
         };
+
+        console.log("[send-campaign] Payload para", phone, ":", JSON.stringify(payload, null, 2));
 
         const res = await fetch(
           `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
