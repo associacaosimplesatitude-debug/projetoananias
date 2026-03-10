@@ -154,6 +154,27 @@ export default function AprovacaoFaturamento() {
 
       if (error) {
         console.error("[APROVAR] ❌ Erro na chamada:", error);
+        
+        // Tentar extrair corpo da resposta para erros HTTP (como DOCUMENTO_INVALIDO)
+        if (error.context && typeof error.context.json === 'function') {
+          try {
+            const errorBody = await error.context.json();
+            if (errorBody?.error_code === 'DOCUMENTO_INVALIDO') {
+              toast.error("⚠️ CNPJ/CPF INVÁLIDO", {
+                description: errorBody.error,
+                duration: 10000,
+              });
+              refetch();
+              return;
+            }
+            throw new Error(errorBody?.error || error.message || "Erro ao aprovar");
+          } catch (jsonErr) {
+            if (jsonErr instanceof Error && jsonErr.message !== error.message) {
+              throw jsonErr;
+            }
+          }
+        }
+        
         throw new Error(error.message || "Erro ao chamar função de aprovação");
       }
 
