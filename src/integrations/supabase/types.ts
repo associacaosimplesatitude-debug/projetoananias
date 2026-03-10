@@ -5073,30 +5073,42 @@ export type Database = {
       }
       revistas_digitais: {
         Row: {
+          ano_publicacao: number | null
           ativo: boolean | null
+          autor: string | null
           capa_url: string | null
           created_at: string | null
+          descricao: string | null
           id: string
+          status_publicacao: string | null
           tipo: string
           titulo: string
           total_licoes: number | null
           trimestre: string | null
         }
         Insert: {
+          ano_publicacao?: number | null
           ativo?: boolean | null
+          autor?: string | null
           capa_url?: string | null
           created_at?: string | null
+          descricao?: string | null
           id?: string
+          status_publicacao?: string | null
           tipo?: string
           titulo: string
           total_licoes?: number | null
           trimestre?: string | null
         }
         Update: {
+          ano_publicacao?: number | null
           ativo?: boolean | null
+          autor?: string | null
           capa_url?: string | null
           created_at?: string | null
+          descricao?: string | null
           id?: string
+          status_publicacao?: string | null
           tipo?: string
           titulo?: string
           total_licoes?: number | null
