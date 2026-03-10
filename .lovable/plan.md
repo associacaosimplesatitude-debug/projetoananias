@@ -1,33 +1,16 @@
 
 
-## Plano: Validação de CPF/CNPJ no cadastro de clientes
+## Problema
 
-### Problema
-Clientes são cadastrados com CNPJ/CPF inválido (tanto manualmente pelo vendedor quanto importados do Bling), e o erro só aparece na hora de faturar.
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-### Solução
-Adicionar validação matemática de CPF/CNPJ em dois momentos no `CadastrarClienteDialog`:
+## Solução
 
-**1. Validação em tempo real (feedback visual)**
-- Quando o documento está completo (11 ou 14 dígitos), rodar `validateCPF`/`validateCNPJ` do `royaltiesValidators.ts`
-- Se inválido, mostrar mensagem de erro vermelha abaixo do campo: "CPF inválido" ou "CNPJ inválido"
-- Borda vermelha no input
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-**2. Bloqueio no submit**
-- No `handleSubmit`, antes de salvar, validar o documento
-- Se inválido, mostrar `toast.error` e impedir o cadastro/edição
-- Funciona tanto para cadastro novo quanto edição
-
-**3. Dados vindos do Bling**
-- Após preencher com dados do Bling (linha ~357), validar o documento retornado
-- Se inválido, mostrar aviso amarelo: "⚠️ CNPJ importado do Bling é inválido — corrija antes de salvar"
-- Não bloqueia o preenchimento, mas bloqueia o submit
-
-### Arquivo modificado
-`src/components/vendedor/CadastrarClienteDialog.tsx`
-- Importar `validateCPF`, `validateCNPJ` de `@/lib/royaltiesValidators`
-- Adicionar estado `documentoErro` para feedback visual
-- Validar no `handleDocumentoChange` e após retorno do Bling
-- Validar no `handleSubmit` antes de prosseguir
-- Renderizar erro abaixo do campo de documento
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 

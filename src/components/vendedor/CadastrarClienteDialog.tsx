@@ -90,6 +90,7 @@ const getSuggestedEmail = (email: string): string | null => {
   return null;
 };
 
+import { validateCPF, validateCNPJ, cleanDocument } from "@/lib/royaltiesValidators";
 import { DescontosCategoriaSection } from "./DescontosCategoriaSection";
 import { TransferRequestDialog } from "./TransferRequestDialog";
 interface Cliente {
@@ -190,6 +191,7 @@ export function CadastrarClienteDialog({
   }>({ open: false, nomeVendedor: "", nomeCliente: "", clienteId: null, vendedorAtualId: null });
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
+  const [documentoErro, setDocumentoErro] = useState<string | null>(null);
 
   const isEditMode = !!clienteParaEditar;
 
@@ -310,9 +312,21 @@ export function CadastrarClienteDialog({
     }
   };
 
+  const validarDocumento = (doc: string, isCnpj: boolean): string | null => {
+    const limpo = cleanDocument(doc);
+    if (!limpo) return null;
+    const tamanhoEsperado = isCnpj ? 14 : 11;
+    if (limpo.length < tamanhoEsperado) return null; // ainda digitando
+    if (isCnpj) {
+      return validateCNPJ(limpo) ? null : "CNPJ inválido — verifique os dígitos";
+    }
+    return validateCPF(limpo) ? null : "CPF inválido — verifique os dígitos";
+  };
+
   const handleDocumentoChange = (value: string) => {
     const formatted = formData.possui_cnpj ? formatCNPJ(value) : formatCPF(value);
     setFormData({ ...formData, documento: formatted });
+    setDocumentoErro(validarDocumento(formatted, formData.possui_cnpj));
     
     // Reset Bling status when document changes
     if (formatted !== documentoJaBuscado) {
@@ -371,7 +385,18 @@ export function CadastrarClienteDialog({
           tipo_cliente: isRepresentante ? "REPRESENTANTE" : (clienteBling.tipo_pessoa === 'F' ? 'PESSOA FÍSICA' : 'ADVECS'),
         }));
         
-        toast.success('Cliente encontrado no Bling! Dados preenchidos automaticamente.');
+        // Validar documento vindo do Bling
+        const docBling = formData.possui_cnpj 
+          ? (clienteBling.cnpj || clienteBling.cpf_cnpj || documentoLimpo)
+          : (clienteBling.cpf || clienteBling.cpf_cnpj || documentoLimpo);
+        const erroBling = validarDocumento(docBling, formData.possui_cnpj);
+        if (erroBling) {
+          setDocumentoErro(erroBling);
+          toast.warning('Cliente encontrado no Bling, mas o documento é inválido. Corrija antes de salvar.');
+        } else {
+          setDocumentoErro(null);
+          toast.success('Cliente encontrado no Bling! Dados preenchidos automaticamente.');
+        }
       } else {
         console.log('Cliente não encontrado no Bling');
         setBlingClienteEncontrado(false);
@@ -431,6 +456,13 @@ export function CadastrarClienteDialog({
     
     if (!formData.nome_igreja || !formData.documento || !formData.email_superintendente) {
       toast.error("Nome, Documento e E-mail são obrigatórios");
+      return;
+    }
+
+    // Validar documento antes de salvar
+    const erroDoc = validarDocumento(formData.documento, formData.possui_cnpj);
+    if (erroDoc) {
+      toast.error(erroDoc);
       return;
     }
 
@@ -697,6 +729,7 @@ export function CadastrarClienteDialog({
                               possui_cnpj: !usarCpf,
                               documento: "" // Limpa o documento ao trocar o tipo
                             }));
+                            setDocumentoErro(null);
                             // Resetar busca do Bling
                             setBlingClienteEncontrado(false);
                             setBlingClienteId(null);
@@ -713,19 +746,25 @@ export function CadastrarClienteDialog({
                       onChange={(e) => handleDocumentoChange(e.target.value)}
                       placeholder={formData.possui_cnpj ? "00.000.000/0000-00" : "000.000.000-00"}
                       required
-                      className={blingClienteEncontrado ? "border-green-500 pr-10" : ""}
+                      className={documentoErro ? "border-destructive pr-10" : blingClienteEncontrado ? "border-green-500 pr-10" : ""}
                     />
                     {loadingBling && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
-                    {blingClienteEncontrado && !loadingBling && (
+                    {blingClienteEncontrado && !loadingBling && !documentoErro && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <CheckCircle2 className="h-4 w-4 text-green-500" />
                       </div>
                     )}
                   </div>
+                  {documentoErro && (
+                    <p className="text-sm text-destructive flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {documentoErro}
+                    </p>
+                  )}
                 </div>
 
                 {/* Feedback de busca no Bling */}
