@@ -745,19 +745,25 @@ export function CadastrarClienteDialog({
                       onChange={(e) => handleDocumentoChange(e.target.value)}
                       placeholder={formData.possui_cnpj ? "00.000.000/0000-00" : "000.000.000-00"}
                       required
-                      className={blingClienteEncontrado ? "border-green-500 pr-10" : ""}
+                      className={documentoErro ? "border-destructive pr-10" : blingClienteEncontrado ? "border-green-500 pr-10" : ""}
                     />
                     {loadingBling && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
-                    {blingClienteEncontrado && !loadingBling && (
+                    {blingClienteEncontrado && !loadingBling && !documentoErro && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <CheckCircle2 className="h-4 w-4 text-green-500" />
                       </div>
                     )}
                   </div>
+                  {documentoErro && (
+                    <p className="text-sm text-destructive flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {documentoErro}
+                    </p>
+                  )}
                 </div>
 
                 {/* Feedback de busca no Bling */}
