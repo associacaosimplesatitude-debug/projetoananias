@@ -241,17 +241,13 @@ serve(async (req) => {
         }
 
         // Add dynamic URL button components
-        const botoes = typeof template?.botoes === 'string'
-          ? JSON.parse(template.botoes)
-          : (template?.botoes || []);
-
         botoes.forEach((btn: any, idx: number) => {
-          if (btn.tipo === "URL" && btn.url_dinamica && linkOferta) {
-            const token = linkOferta.split("/").pop();
+          if (btn.tipo === "URL" && btn.url_dinamica) {
+            const token = linkOferta ? linkOferta.split("/").pop() : "";
             components.push({
               type: "button",
               sub_type: "url",
-              index: idx,
+              index: String(idx),
               parameters: [{ type: "text", text: token }],
             });
           }
