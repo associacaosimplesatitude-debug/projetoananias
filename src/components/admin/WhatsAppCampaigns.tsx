@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ptBR } from "date-fns/locale";
 import {
   Users, ArrowRight, ArrowLeft, Send, Loader2, Target, MessageSquare,
-  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag
+  MousePointerClick, Eye, ShoppingCart, DollarSign, Plus, ChevronRight, Trash2, Tag, BarChart3
 } from "lucide-react";
 import { format } from "date-fns";
 
