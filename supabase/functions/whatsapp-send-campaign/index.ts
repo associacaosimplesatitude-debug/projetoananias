@@ -268,6 +268,8 @@ serve(async (req) => {
           },
         };
 
+        console.log("[send-campaign] Payload para", phone, ":", JSON.stringify(payload, null, 2));
+
         const res = await fetch(
           `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
           {
