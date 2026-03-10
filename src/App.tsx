@@ -424,6 +424,8 @@ const App = () => (
                       <Route path="lancamentos" element={<ProfessorLancamentos />} />
                       <Route path="quizzes" element={<ProfessorQuizzes />} />
                       <Route path="relatorios" element={<ProfessorRelatorios />} />
+                      <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
+                      <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
                     </Route>
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
