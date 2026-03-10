@@ -1,38 +1,16 @@
 
 
-## Diagnóstico
+## Problema
 
-O erro **131008** "Button at index 0 of type Url requires a parameter" ocorre porque:
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-1. O template `revista_ebd_oferta_sem_desconto` tem um **botão URL dinâmico** (`url_dinamica: true`)
-2. Mas suas `variaveis_usadas` são apenas `[primeiro_nome, data_pedido]` — **não inclui `link_oferta`**
-3. A lógica atual só gera o link quando `usesLinkOferta` é true (baseado em `variaveis_usadas`)
-4. Como `linkOferta` fica vazio, a condição `btn.url_dinamica && linkOferta` na linha 243 é false
-5. O componente de botão nunca é adicionado, mas Meta exige o parâmetro
+## Solução
 
-## Plano de Correção
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-### Arquivo: `supabase/functions/whatsapp-send-campaign/index.ts`
-
-**Alterar a detecção de `usesLinkOferta`** para também verificar se o template tem botões com `url_dinamica: true`:
-
-```typescript
-// Antes (só checa variaveis_usadas):
-const usesLinkOferta = variables.some(v => ... === "link_oferta");
-
-// Depois (também checa botões dinâmicos):
-const botoes = typeof template?.botoes === 'string' 
-  ? JSON.parse(template.botoes) : (template?.botoes || []);
-const hasUrlDinamica = botoes.some((b: any) => b.url_dinamica === true);
-const usesLinkOferta = hasUrlDinamica || variables.some(v => ... === "link_oferta");
-```
-
-**Mover o parse de `botoes`** para antes do loop de destinatários (evitar re-parse dentro do loop).
-
-**Remover a condição `&& linkOferta`** na adição do botão (linha 243), pois após a correção acima, `linkOferta` sempre estará preenchido quando há botão dinâmico.
-
-### Resultado
-- Links de oferta serão gerados para todos os destinatários quando o template tiver botão dinâmico
-- O componente `button` será corretamente incluído no payload
-- Meta aceitará o envio
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 

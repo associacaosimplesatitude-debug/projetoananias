@@ -99,8 +99,14 @@ serve(async (req) => {
     const templateLang = template?.idioma || "pt_BR";
     const variables: string[] = template?.variaveis_usadas || [];
 
-    // Check if template uses link_oferta variable
-    const usesLinkOferta = variables.some(
+    // Parse botoes once before the loop
+    const botoes = typeof template?.botoes === 'string'
+      ? JSON.parse(template.botoes)
+      : (template?.botoes || []);
+
+    // Check if template uses link_oferta variable OR has dynamic URL buttons
+    const hasUrlDinamica = botoes.some((b: any) => b.url_dinamica === true);
+    const usesLinkOferta = hasUrlDinamica || variables.some(
       (v: string) => v.replace(/\{\{|\}\}/g, "").trim() === "link_oferta"
     );
 
@@ -235,17 +241,13 @@ serve(async (req) => {
         }
 
         // Add dynamic URL button components
-        const botoes = typeof template?.botoes === 'string'
-          ? JSON.parse(template.botoes)
-          : (template?.botoes || []);
-
         botoes.forEach((btn: any, idx: number) => {
-          if (btn.tipo === "URL" && btn.url_dinamica && linkOferta) {
-            const token = linkOferta.split("/").pop();
+          if (btn.tipo === "URL" && btn.url_dinamica) {
+            const token = linkOferta ? linkOferta.split("/").pop() : "";
             components.push({
               type: "button",
               sub_type: "url",
-              index: idx,
+              index: String(idx),
               parameters: [{ type: "text", text: token }],
             });
           }
