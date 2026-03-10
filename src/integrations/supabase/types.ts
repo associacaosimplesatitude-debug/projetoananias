@@ -637,6 +637,122 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_events: {
+        Row: {
+          campaign_id: string | null
+          created_at: string | null
+          event_data: Json | null
+          event_type: string
+          id: string
+          ip_address: string | null
+          link_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string | null
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          link_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string | null
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          link_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_events_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_links: {
+        Row: {
+          access_email: string | null
+          access_password: string | null
+          campaign_id: string | null
+          created_at: string | null
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          discount_percentage: number | null
+          final_discount: number | null
+          first_accessed_at: string | null
+          has_discount: boolean | null
+          id: string
+          last_order_date: string | null
+          last_order_value: number | null
+          last_products: string[] | null
+          panel_url: string | null
+          token: string
+        }
+        Insert: {
+          access_email?: string | null
+          access_password?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount_percentage?: number | null
+          final_discount?: number | null
+          first_accessed_at?: string | null
+          has_discount?: boolean | null
+          id?: string
+          last_order_date?: string | null
+          last_order_value?: number | null
+          last_products?: string[] | null
+          panel_url?: string | null
+          token?: string
+        }
+        Update: {
+          access_email?: string | null
+          access_password?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount_percentage?: number | null
+          final_discount?: number | null
+          first_accessed_at?: string | null
+          has_discount?: boolean | null
+          id?: string
+          last_order_date?: string | null
+          last_order_value?: number | null
+          last_products?: string[] | null
+          panel_url?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_links_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_campanhas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       church_documents: {
         Row: {
           church_id: string
@@ -6310,7 +6426,12 @@ export type Database = {
           template_id: string | null
           total_enviados: number
           total_erros: number
+          total_link_clicks: number | null
+          total_page_views: number | null
+          total_panel_accesses: number | null
           total_publico: number
+          total_purchases: number | null
+          total_revenue: number | null
           total_visitas_pagina: number | null
           updated_at: string
         }
@@ -6324,7 +6445,12 @@ export type Database = {
           template_id?: string | null
           total_enviados?: number
           total_erros?: number
+          total_link_clicks?: number | null
+          total_page_views?: number | null
+          total_panel_accesses?: number | null
           total_publico?: number
+          total_purchases?: number | null
+          total_revenue?: number | null
           total_visitas_pagina?: number | null
           updated_at?: string
         }
@@ -6338,7 +6464,12 @@ export type Database = {
           template_id?: string | null
           total_enviados?: number
           total_erros?: number
+          total_link_clicks?: number | null
+          total_page_views?: number | null
+          total_panel_accesses?: number | null
           total_publico?: number
+          total_purchases?: number | null
+          total_revenue?: number | null
           total_visitas_pagina?: number | null
           updated_at?: string
         }

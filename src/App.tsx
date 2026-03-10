@@ -181,6 +181,7 @@ import EBDLogin from "./pages/EBDLogin";
 import AutorLogin from "./pages/AutorLogin";
 import LandingEBD from "./pages/LandingEBD";
 import OfertaEBD from "./pages/OfertaEBD";
+import OfertaPersonalizada from "./pages/OfertaPersonalizada";
 import Tutoriais from "./pages/Tutoriais";
 import GestaoTutoriais from "./pages/admin/GestaoTutoriais";
 import Apresentacao from "./pages/Apresentacao";
@@ -223,6 +224,7 @@ const App = () => (
               <Route path="/cadastro-aluno/:churchId" element={<CadastroAlunoPublico />} />
               <Route path="/livro/:slug" element={<LivroLandingPage />} />
               <Route path="/oferta-ebd" element={<OfertaEBD />} />
+              <Route path="/oferta/:token" element={<OfertaPersonalizada />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
               <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
             <Route
