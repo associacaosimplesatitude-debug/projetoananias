@@ -39,6 +39,21 @@ export default function AdminDashboard() {
     fetchRevenueData();
   }, []);
 
+  const handleTestarLandingPage = async () => {
+    const { data, error } = await supabase
+      .from('campaign_links')
+      .select('token')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data?.token) {
+      toast.error('Nenhum link de campanha encontrado.');
+      return;
+    }
+    window.open(`/oferta/${data.token}`, '_blank');
+  };
+
   const fetchStats = async () => {
     const today = new Date().toISOString().split('T')[0];
     
