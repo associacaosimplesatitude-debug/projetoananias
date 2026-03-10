@@ -39,6 +39,7 @@ interface TemplateButton {
   tipo: "QUICK_REPLY" | "URL";
   texto: string;
   url?: string;
+  url_dinamica?: boolean;
 }
 
 interface TemplateData {
