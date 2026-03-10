@@ -312,9 +312,21 @@ export function CadastrarClienteDialog({
     }
   };
 
+  const validarDocumento = (doc: string, isCnpj: boolean): string | null => {
+    const limpo = cleanDocument(doc);
+    if (!limpo) return null;
+    const tamanhoEsperado = isCnpj ? 14 : 11;
+    if (limpo.length < tamanhoEsperado) return null; // ainda digitando
+    if (isCnpj) {
+      return validateCNPJ(limpo) ? null : "CNPJ inválido — verifique os dígitos";
+    }
+    return validateCPF(limpo) ? null : "CPF inválido — verifique os dígitos";
+  };
+
   const handleDocumentoChange = (value: string) => {
     const formatted = formData.possui_cnpj ? formatCNPJ(value) : formatCPF(value);
     setFormData({ ...formData, documento: formatted });
+    setDocumentoErro(validarDocumento(formatted, formData.possui_cnpj));
     
     // Reset Bling status when document changes
     if (formatted !== documentoJaBuscado) {
