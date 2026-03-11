@@ -68,9 +68,46 @@ export default function AlunoRevistaVirtual() {
     enabled: !!user,
   });
 
-  const { data: assinatura } = useQuery({
-    queryKey: ["minha-assinatura", cliente?.id],
+  // Get subscription - try via license first, then direct subscription
+  const { data: licencaDetails } = useQuery({
+    queryKey: ["minha-licenca-details", licencaAluno?.licenca_id],
     queryFn: async () => {
+      if (!licencaAluno?.licenca_id) return null;
+      const { data } = await supabase
+        .from("revista_licencas")
+        .select("revista_aluno_id, revista_professor_id")
+        .eq("id", licencaAluno.licenca_id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!licencaAluno?.licenca_id,
+  });
+
+  // Determine which revista to show based on tipo_revista
+  const resolvedRevistaId = (() => {
+    if (licencaDetails) {
+      const tipo = (licencaAluno as any)?.tipo_revista || "aluno";
+      if (tipo === "professor" && licencaDetails.revista_professor_id) return licencaDetails.revista_professor_id;
+      if (licencaDetails.revista_aluno_id) return licencaDetails.revista_aluno_id;
+    }
+    return null;
+  })();
+
+  const { data: assinatura } = useQuery({
+    queryKey: ["minha-assinatura", cliente?.id, resolvedRevistaId],
+    queryFn: async () => {
+      // If we have a resolved revista from license, create a pseudo-subscription
+      if (resolvedRevistaId) {
+        const { data: revista } = await supabase
+          .from("revistas_digitais")
+          .select("*")
+          .eq("id", resolvedRevistaId)
+          .maybeSingle();
+        if (revista) {
+          return { revista_id: revista.id, revista, status: "ativa" } as any;
+        }
+      }
+      // Fallback to direct subscription
       if (!cliente?.id) return null;
       const { data } = await supabase
         .from("revista_assinaturas")
@@ -82,7 +119,7 @@ export default function AlunoRevistaVirtual() {
         .maybeSingle();
       return data;
     },
-    enabled: !!cliente?.id,
+    enabled: !!cliente?.id || !!resolvedRevistaId,
   });
 
   const { data: licoes } = useQuery({
