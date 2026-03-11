@@ -64,6 +64,9 @@ export default function RevistasDigitais() {
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
+  const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState("");
+  const pdfGlobalInputRef = useRef<HTMLInputElement>(null);
 
   // PDF worker
   if (typeof window !== "undefined") {
