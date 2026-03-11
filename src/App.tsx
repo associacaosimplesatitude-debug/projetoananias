@@ -135,6 +135,7 @@ import EBDDesafioLeituraRelatorio from "./pages/ebd/DesafioLeituraRelatorio";
 import EBDAlunoPerfil from "./pages/ebd/AlunoPerfil";
 import CadastroAlunoPublico from "./pages/ebd/CadastroAlunoPublico";
 import CadastroRevistaPublico from "./pages/ebd/CadastroRevistaPublico";
+import PagamentoRevistaPublico from "./pages/ebd/PagamentoRevistaPublico";
 
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
