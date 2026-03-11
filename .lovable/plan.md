@@ -1,24 +1,16 @@
 
 
-## Fix: Add missing UPDATE policy for revistas storage bucket
+## Problema
 
-### Root Cause
-The PDF upload code uses `supabase.storage.from("revistas").upload(path, blob, { upsert: true })`. When `upsert: true` is set and a file already exists, Supabase needs an **UPDATE** policy on `storage.objects`. Currently only INSERT and DELETE policies exist for the `revistas` bucket — no UPDATE.
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-### Solution
-Single SQL migration to add the missing UPDATE policy:
+## Solução
 
-```sql
-CREATE POLICY "Managers can update revistas files" ON storage.objects
-  FOR UPDATE TO authenticated
-  USING (bucket_id = 'revistas' AND public.can_manage_revistas(auth.uid()))
-  WITH CHECK (bucket_id = 'revistas' AND public.can_manage_revistas(auth.uid()));
-```
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-### Files
-| File | Change |
-|------|--------|
-| New SQL migration | Add UPDATE policy for `storage.objects` on `revistas` bucket |
-
-No code changes needed.
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 
