@@ -415,6 +415,7 @@ const App = () => (
                       <Route path="quiz/:quizId" element={<AlunoQuizPage />} />
                       <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
                       <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
+                      <Route path="revista/:revistaId/leitura-continua" element={<RevistaLeituraContinua />} />
                     </Route>
 
                     {/* Professor Module Routes with Sidebar Layout */}
