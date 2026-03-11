@@ -260,6 +260,62 @@ export default function RevistasDigitais() {
     uploadPagesMutation.mutate({ licaoId, licaoNumero, files });
   };
 
+  const handlePdfUpload = async (licaoId: string, licaoNumero: number, file: File) => {
+    if (file.type !== "application/pdf") { toast.error("Selecione um arquivo PDF"); return; }
+    setUploadingPdf(licaoId);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const urls: string[] = [];
+      const existing = licoes?.find(l => l.id === licaoId)?.paginas || [];
+      let ordem = existing.length;
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext("2d")!;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const blob = await new Promise<Blob>((resolve) =>
+          canvas.toBlob((b) => resolve(b!), "image/png", 0.9)
+        );
+        ordem++;
+        const path = `${managingLicoes!.id}/licao-${licaoNumero}/${ordem}.png`;
+        const { error } = await supabase.storage.from("revistas").upload(path, blob, { upsert: true });
+        if (error) throw error;
+        const { data } = supabase.storage.from("revistas").getPublicUrl(path);
+        urls.push(data.publicUrl);
+      }
+
+      await supabase.from("revista_licoes").update({ paginas: [...existing, ...urls] }).eq("id", licaoId);
+      queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
+      toast.success(`${pdf.numPages} páginas extraídas do PDF!`);
+    } catch (e: any) {
+      toast.error("Erro ao processar PDF: " + e.message);
+    } finally {
+      setUploadingPdf(null);
+    }
+  };
+
+  const handleGenerateQuiz = async (licaoId: string) => {
+    setGeneratingQuiz(licaoId);
+    try {
+      const { data, error } = await supabase.functions.invoke("gerar-quiz-revista", {
+        body: { licao_id: licaoId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Quiz gerado com sucesso!");
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao gerar quiz");
+    } finally {
+      setGeneratingQuiz(null);
+    }
+  };
+
   const removePageFromLicao = async (licaoId: string, pageUrl: string) => {
     const licao = licoes?.find(l => l.id === licaoId);
     if (!licao) return;
