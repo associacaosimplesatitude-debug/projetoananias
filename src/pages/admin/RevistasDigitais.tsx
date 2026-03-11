@@ -306,63 +306,14 @@ export default function RevistasDigitais() {
   const handleGlobalPdfUpload = async (file: File, revistaId: string) => {
     if (file.type !== "application/pdf") { toast.error("Selecione um arquivo PDF"); return; }
     setUploadingPdfGlobal(true);
-    setPdfProgress("Lendo PDF...");
+    setPdfProgress("Enviando PDF...");
     try {
-      // Buscar lições da revista
-      const { data: licoesRevista, error: licoesErr } = await supabase
-        .from("revista_licoes")
-        .select("*")
-        .eq("revista_id", revistaId)
-        .order("numero");
-      if (licoesErr) throw licoesErr;
-      if (!licoesRevista || licoesRevista.length === 0) throw new Error("Nenhuma lição encontrada");
-
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const totalPages = pdf.numPages;
-      const totalLicoes = licoesRevista.length;
-      const pagesPerLicao = Math.floor(totalPages / totalLicoes);
-      const remainder = totalPages % totalLicoes;
-
-      let pageIndex = 1;
-      for (let li = 0; li < totalLicoes; li++) {
-        const licao = licoesRevista[li];
-        const extraPage = li === totalLicoes - 1 ? remainder : 0;
-        const numPagesForThisLicao = pagesPerLicao + (li < remainder && pagesPerLicao > 0 ? 0 : 0) + (li === totalLicoes - 1 ? remainder - (pagesPerLicao > 0 ? 0 : 0) : 0);
-        // Simpler: distribute evenly, extras go to last
-        const count = li === totalLicoes - 1 ? totalPages - pageIndex + 1 : pagesPerLicao;
-        
-        setPdfProgress(`Processando lição ${li + 1}/${totalLicoes}...`);
-        const urls: string[] = [];
-
-        for (let p = 0; p < count && pageIndex <= totalPages; p++) {
-          setPdfProgress(`Página ${pageIndex}/${totalPages}`);
-          const page = await pdf.getPage(pageIndex);
-          const viewport = page.getViewport({ scale: 2 });
-          const canvas = document.createElement("canvas");
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext("2d")!;
-          await page.render({ canvasContext: ctx, viewport }).promise;
-
-          const blob = await new Promise<Blob>((resolve) =>
-            canvas.toBlob((b) => resolve(b!), "image/png", 0.9)
-          );
-          const path = `${revistaId}/licao-${licao.numero}/${p + 1}.png`;
-          const { error } = await supabase.storage.from("revistas").upload(path, blob, { upsert: true });
-          if (error) throw error;
-          const { data } = supabase.storage.from("revistas").getPublicUrl(path);
-          urls.push(data.publicUrl);
-          pageIndex++;
-        }
-
-        await supabase.from("revista_licoes").update({ paginas: urls }).eq("id", licao.id);
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
-      toast.success(`PDF processado: ${totalPages} páginas distribuídas em ${totalLicoes} lições!`);
+      const path = `${revistaId}/completo.pdf`;
+      const { error } = await supabase.storage.from("revistas").upload(path, file, { upsert: true, contentType: "application/pdf" });
+      if (error) throw error;
+      toast.success("PDF completo enviado com sucesso!");
     } catch (e: any) {
-      toast.error("Erro ao processar PDF: " + e.message);
+      toast.error("Erro ao enviar PDF: " + e.message);
     } finally {
       setUploadingPdfGlobal(false);
       setPdfProgress("");
