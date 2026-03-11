@@ -408,6 +408,14 @@ function AdminSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-licencas')}>
+                        <RouterNavLink to="/admin/ebd/revista-licencas">
+                          <Users className="h-4 w-4" />
+                          <span>Licenças Revistas</span>
+                        </RouterNavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={isActive('/admin/ebd/shopify')}>
                         <RouterNavLink to="/admin/ebd/shopify">
                           <Store className="h-4 w-4" />
