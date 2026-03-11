@@ -133,6 +133,7 @@ import EBDDesafioAcompanhamento from "./pages/ebd/DesafioAcompanhamento";
 import EBDDesafioLeituraRelatorio from "./pages/ebd/DesafioLeituraRelatorio";
 import EBDAlunoPerfil from "./pages/ebd/AlunoPerfil";
 import CadastroAlunoPublico from "./pages/ebd/CadastroAlunoPublico";
+import CadastroRevistaPublico from "./pages/ebd/CadastroRevistaPublico";
 
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
