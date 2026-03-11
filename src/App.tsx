@@ -233,6 +233,7 @@ const App = () => (
               <Route path="/ebd/checkout-shopify-mp" element={<EBDCheckoutShopifyMP />} />
               <Route path="/cadastro-aluno/:churchId" element={<CadastroAlunoPublico />} />
               <Route path="/cadastro/revista/:churchId" element={<CadastroRevistaPublico />} />
+              <Route path="/pagar/:codigo" element={<PagamentoRevistaPublico />} />
               <Route path="/livro/:slug" element={<LivroLandingPage />} />
               <Route path="/oferta-ebd" element={<OfertaEBD />} />
               <Route path="/oferta/:token" element={<OfertaPersonalizada />} />

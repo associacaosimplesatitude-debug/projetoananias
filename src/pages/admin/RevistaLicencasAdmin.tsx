@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Plus, Search, Filter, Users, CreditCard, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+
+function generateCodigoPagamento() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
 
 type LicencaRow = {
   id: string;
@@ -25,8 +31,14 @@ type LicencaRow = {
   created_at: string;
   superintendente_id: string;
   revista_id: string | null;
+  revista_aluno_id: string | null;
+  revista_professor_id: string | null;
+  pacote_id: string | null;
+  chave_pix: string | null;
+  codigo_pagamento: string | null;
   cliente?: { nome_igreja: string; email_superintendente: string | null } | null;
-  revista?: { titulo: string } | null;
+  revista_aluno?: { titulo: string } | null;
+  revista_professor?: { titulo: string } | null;
 };
 
 export default function RevistaLicencasAdmin() {
@@ -36,18 +48,20 @@ export default function RevistaLicencasAdmin() {
   const [filterPlano, setFilterPlano] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  // Form state for manual add
   const [formClienteId, setFormClienteId] = useState("");
   const [formPlano, setFormPlano] = useState("trimestral");
   const [formQtd, setFormQtd] = useState("10");
   const [formExpira, setFormExpira] = useState("");
+  const [formInicio, setFormInicio] = useState("");
+  const [formRevistaAlunoId, setFormRevistaAlunoId] = useState("");
+  const [formRevistaProfId, setFormRevistaProfId] = useState("");
 
   const { data: licencas = [], isLoading } = useQuery({
     queryKey: ["admin-revista-licencas", filterStatus, filterPlano],
     queryFn: async () => {
       let q = supabase
         .from("revista_licencas")
-        .select("*, cliente:ebd_clientes(nome_igreja, email_superintendente), revista:revistas_digitais(titulo)")
+        .select("*, cliente:ebd_clientes(nome_igreja, email_superintendente), revista_aluno:revistas_digitais!revista_licencas_revista_aluno_id_fkey(titulo), revista_professor:revistas_digitais!revista_licencas_revista_professor_id_fkey(titulo)")
         .order("created_at", { ascending: false });
       if (filterStatus !== "all") q = q.eq("status", filterStatus);
       if (filterPlano !== "all") q = q.eq("plano", filterPlano);
@@ -70,17 +84,34 @@ export default function RevistaLicencasAdmin() {
     },
   });
 
+  const { data: revistas = [] } = useQuery({
+    queryKey: ["revistas-digitais-select"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("revistas_digitais")
+        .select("id, titulo, tipo, trimestre")
+        .eq("ativo", true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const addMutation = useMutation({
     mutationFn: async () => {
+      const codigo = generateCodigoPagamento();
       const { error } = await supabase.from("revista_licencas").insert({
         superintendente_id: formClienteId,
         plano: formPlano,
         quantidade_total: parseInt(formQtd),
-        quantidade_usada: 0,
+        quantidade_usada: 1,
         status: "ativa",
-        inicio_em: new Date().toISOString().split("T")[0],
+        inicio_em: formInicio || new Date().toISOString().split("T")[0],
         expira_em: formExpira,
-      });
+        revista_aluno_id: formRevistaAlunoId || null,
+        revista_professor_id: formRevistaProfId || null,
+        codigo_pagamento: codigo,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -91,6 +122,9 @@ export default function RevistaLicencasAdmin() {
       setFormPlano("trimestral");
       setFormQtd("10");
       setFormExpira("");
+      setFormInicio("");
+      setFormRevistaAlunoId("");
+      setFormRevistaProfId("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -100,7 +134,8 @@ export default function RevistaLicencasAdmin() {
     const s = search.toLowerCase();
     return (
       l.cliente?.nome_igreja?.toLowerCase().includes(s) ||
-      l.cliente?.email_superintendente?.toLowerCase().includes(s)
+      l.cliente?.email_superintendente?.toLowerCase().includes(s) ||
+      l.codigo_pagamento?.toLowerCase().includes(s)
     );
   });
 
@@ -116,6 +151,9 @@ export default function RevistaLicencasAdmin() {
     }
   };
 
+  const revistasAluno = revistas.filter(r => r.tipo === "aluno");
+  const revistasProfessor = revistas.filter(r => r.tipo === "professor");
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -129,7 +167,6 @@ export default function RevistaLicencasAdmin() {
         </Button>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
@@ -168,12 +205,11 @@ export default function RevistaLicencasAdmin() {
         </Card>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por igreja ou email..."
+            placeholder="Buscar por igreja, email ou código..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -204,31 +240,32 @@ export default function RevistaLicencasAdmin() {
         </Select>
       </div>
 
-      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Igreja</TableHead>
+                <TableHead>Código</TableHead>
                 <TableHead>Plano</TableHead>
                 <TableHead>Licenças</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Início</TableHead>
                 <TableHead>Expiração</TableHead>
-                <TableHead>Revista</TableHead>
+                <TableHead>Revista Aluno</TableHead>
+                <TableHead>Revista Professor</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Carregando...
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Nenhuma licença encontrada
                   </TableCell>
                 </TableRow>
@@ -241,6 +278,11 @@ export default function RevistaLicencasAdmin() {
                         <p className="text-xs text-muted-foreground">{l.cliente?.email_superintendente}</p>
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {l.codigo_pagamento || "—"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="capitalize">{l.plano}</TableCell>
                     <TableCell>
                       {l.quantidade_usada}/{l.quantidade_total}
@@ -250,7 +292,8 @@ export default function RevistaLicencasAdmin() {
                     </TableCell>
                     <TableCell>{format(new Date(l.inicio_em), "dd/MM/yyyy")}</TableCell>
                     <TableCell>{format(new Date(l.expira_em), "dd/MM/yyyy")}</TableCell>
-                    <TableCell>{l.revista?.titulo || "—"}</TableCell>
+                    <TableCell>{l.revista_aluno?.titulo || "—"}</TableCell>
+                    <TableCell>{l.revista_professor?.titulo || "—"}</TableCell>
                   </TableRow>
                 ))
               )}
@@ -259,15 +302,14 @@ export default function RevistaLicencasAdmin() {
         </CardContent>
       </Card>
 
-      {/* Add License Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Adicionar Licença Manual</DialogTitle>
+            <DialogTitle>Adicionar Licença</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Igreja / Superintendente</Label>
+              <Label>Igreja / Superintendente *</Label>
               <Select value={formClienteId} onValueChange={setFormClienteId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione a igreja" />
@@ -281,26 +323,66 @@ export default function RevistaLicencasAdmin() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Plano</Label>
-              <Select value={formPlano} onValueChange={setFormPlano}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="trimestral">Trimestral</SelectItem>
-                  <SelectItem value="semestral">Semestral</SelectItem>
-                  <SelectItem value="anual">Anual</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Revista Aluno</Label>
+                <Select value={formRevistaAlunoId} onValueChange={setFormRevistaAlunoId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {revistasAluno.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.titulo} ({r.trimestre})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Revista Professor</Label>
+                <Select value={formRevistaProfId} onValueChange={setFormRevistaProfId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {revistasProfessor.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.titulo} ({r.trimestre})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div>
-              <Label>Quantidade de licenças</Label>
-              <Input type="number" value={formQtd} onChange={(e) => setFormQtd(e.target.value)} min="1" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Plano</Label>
+                <Select value={formPlano} onValueChange={setFormPlano}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trimestral">Trimestral</SelectItem>
+                    <SelectItem value="semestral">Semestral</SelectItem>
+                    <SelectItem value="anual">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Quantidade de licenças</Label>
+                <Input type="number" value={formQtd} onChange={(e) => setFormQtd(e.target.value)} min="1" />
+              </div>
             </div>
-            <div>
-              <Label>Data de expiração</Label>
-              <Input type="date" value={formExpira} onChange={(e) => setFormExpira(e.target.value)} />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Data de início</Label>
+                <Input type="date" value={formInicio} onChange={(e) => setFormInicio(e.target.value)} />
+              </div>
+              <div>
+                <Label>Data de expiração *</Label>
+                <Input type="date" value={formExpira} onChange={(e) => setFormExpira(e.target.value)} />
+              </div>
             </div>
           </div>
           <DialogFooter>
