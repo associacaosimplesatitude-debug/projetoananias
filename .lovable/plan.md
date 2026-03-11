@@ -1,21 +1,16 @@
 
 
-## Plano: Remover botão "Gerar Quiz IA" e inserir quiz manual nas 13 lições
+## Problema
 
-### Mudanças
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-**1. Remover botão "Gerar Quiz IA" das lições (`RevistasDigitais.tsx`)**
-- Remover o botão e o estado `generatingQuiz` / função `handleGenerateQuiz` da tela de gestão de lições
+## Solução
 
-**2. Inserir quiz nas 13 lições via banco de dados**
-- Inserir 13 registros na tabela `revista_licao_quiz` com as 5 perguntas de cada lição (formato JSON `perguntas`)
-- Cada pergunta segue o formato: `{ ordem, pergunta, opcao_a, opcao_b, opcao_c, resposta_correta }`
-- Mapeamento lição → licao_id:
-  - Lição 1 → `c654e6ec-...`
-  - Lição 2 → `b5116f22-...`
-  - ... até Lição 13 → `2c961b78-...`
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-### Resultado
-- O botão "Gerar Quiz IA" some do admin
-- Todas as 13 lições terão quiz disponível para os alunos responderem
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 

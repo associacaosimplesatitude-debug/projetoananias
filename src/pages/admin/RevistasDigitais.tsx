@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Sparkles, Loader2 } from "lucide-react";
+import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
 
@@ -63,7 +63,7 @@ export default function RevistasDigitais() {
   // Drag state for lesson pages
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
-  const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
+  
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
   const [pdfProgress, setPdfProgress] = useState("");
   const pdfGlobalInputRef = useRef<HTMLInputElement>(null);
@@ -328,21 +328,6 @@ export default function RevistasDigitais() {
     }
   };
 
-  const handleGenerateQuiz = async (licaoId: string) => {
-    setGeneratingQuiz(licaoId);
-    try {
-      const { data, error } = await supabase.functions.invoke("gerar-quiz-revista", {
-        body: { licao_id: licaoId },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success("Quiz gerado com sucesso!");
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao gerar quiz");
-    } finally {
-      setGeneratingQuiz(null);
-    }
-  };
 
   const removePageFromLicao = async (licaoId: string, pageUrl: string) => {
     const licao = licoes?.find(l => l.id === licaoId);
@@ -474,21 +459,6 @@ export default function RevistasDigitais() {
                       />
                     </div>
 
-                    {/* Action buttons */}
-                    <div className="flex gap-2">
-                      {licao.paginas.length > 0 && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1 text-xs"
-                          disabled={generatingQuiz === licao.id}
-                          onClick={() => handleGenerateQuiz(licao.id)}
-                        >
-                          {generatingQuiz === licao.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                          {generatingQuiz === licao.id ? "Gerando..." : "Gerar Quiz IA"}
-                        </Button>
-                      )}
-                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2">
