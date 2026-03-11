@@ -36,6 +36,23 @@ export default function AlunoRevistaVirtual() {
     enabled: !!user,
   });
 
+  // Check student license status
+  const { data: licencaAluno } = useQuery({
+    queryKey: ["minha-licenca-aluno", user?.id],
+    queryFn: async () => {
+      if (!user?.email) return null;
+      const { data } = await supabase
+        .from("revista_licenca_alunos")
+        .select("id, status, comprovante_url, troca_dispositivo_solicitada, created_at")
+        .eq("aluno_email", user.email.toLowerCase())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const { data: assinatura } = useQuery({
     queryKey: ["minha-assinatura", cliente?.id],
     queryFn: async () => {
