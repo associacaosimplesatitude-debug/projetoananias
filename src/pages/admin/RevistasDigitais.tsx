@@ -197,13 +197,21 @@ export default function RevistasDigitais() {
 
   const uploadPagesMutation = useMutation({
     mutationFn: async ({ licaoId, licaoNumero, files }: { licaoId: string; licaoNumero: number; files: File[] }) => {
+      // Buscar páginas atuais diretamente do banco (evita cache desatualizado)
+      const { data: freshData } = await supabase
+        .from("revista_licoes")
+        .select("paginas")
+        .eq("id", licaoId)
+        .single();
+      const existing = (freshData?.paginas as string[]) || [];
+
       const urls: string[] = [];
-      const existing = licoes?.find(l => l.id === licaoId)?.paginas || [];
       let ordem = existing.length;
       for (const file of files) {
         ordem++;
         const ext = file.name.split(".").pop() || "jpg";
-        const path = `${managingLicoes!.id}/licao-${licaoNumero}/${ordem}.${ext}`;
+        // Nome único com timestamp para evitar sobrescrita acidental
+        const path = `${managingLicoes!.id}/licao-${licaoNumero}/${Date.now()}-${ordem}.${ext}`;
         const { error } = await supabase.storage.from("revistas").upload(path, file, { upsert: true });
         if (error) throw error;
         const { data } = supabase.storage.from("revistas").getPublicUrl(path);
