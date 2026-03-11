@@ -445,6 +445,43 @@ export default function RevistasDigitais() {
                         onChange={(e) => handleLicaoFileUpload(licao.id, licao.numero, e)}
                       />
                     </div>
+
+                    {/* PDF upload button */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        disabled={uploadingPdf === licao.id}
+                        onClick={() => document.getElementById(`pdf-${licao.id}`)?.click()}
+                      >
+                        {uploadingPdf === licao.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                        {uploadingPdf === licao.id ? "Processando PDF..." : "Subir PDF"}
+                      </Button>
+                      <input
+                        id={`pdf-${licao.id}`}
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handlePdfUpload(licao.id, licao.numero, f);
+                          e.target.value = "";
+                        }}
+                      />
+                      {licao.paginas.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 text-xs"
+                          disabled={generatingQuiz === licao.id}
+                          onClick={() => handleGenerateQuiz(licao.id)}
+                        >
+                          {generatingQuiz === licao.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                          {generatingQuiz === licao.id ? "Gerando..." : "Gerar Quiz IA"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2">
