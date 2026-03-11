@@ -328,21 +328,6 @@ export default function RevistasDigitais() {
     }
   };
 
-  const handleGenerateQuiz = async (licaoId: string) => {
-    setGeneratingQuiz(licaoId);
-    try {
-      const { data, error } = await supabase.functions.invoke("gerar-quiz-revista", {
-        body: { licao_id: licaoId },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success("Quiz gerado com sucesso!");
-    } catch (e: any) {
-      toast.error(e.message || "Erro ao gerar quiz");
-    } finally {
-      setGeneratingQuiz(null);
-    }
-  };
 
   const removePageFromLicao = async (licaoId: string, pageUrl: string) => {
     const licao = licoes?.find(l => l.id === licaoId);
