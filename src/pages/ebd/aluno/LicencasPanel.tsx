@@ -153,6 +153,16 @@ export default function LicencasPanel() {
           .update({ quantidade_usada: activeLicenca.quantidade_usada + 1 })
           .eq("id", activeLicenca.id);
       }
+      // Send WhatsApp notifications based on status change
+      const aluno = alunos.find(a => a.id === id);
+      if (aluno && aluno.aluno_telefone) {
+        if (status === "ativo") {
+          const link = `${window.location.origin}/ebd/revista-virtual`;
+          notificarAcessoAprovado(aluno.aluno_telefone, aluno.aluno_nome, aluno.aluno_email || "", link);
+        } else if (status === "bloqueado") {
+          notificarAcessoRevogado(aluno.aluno_telefone, aluno.aluno_nome);
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Status atualizado");
