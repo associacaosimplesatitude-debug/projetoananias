@@ -436,6 +436,7 @@ const App = () => (
                       <Route path="relatorios" element={<ProfessorRelatorios />} />
                       <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
                       <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
+                      <Route path="revista/:revistaId/leitura-continua" element={<RevistaLeituraContinua />} />
                     </Route>
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
