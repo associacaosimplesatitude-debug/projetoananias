@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { notificarAlunoCadastrado, notificarAcessoAprovado, notificarTrocaDispositivoAprovada, notificarAcessoRevogado } from "@/lib/revistaWhatsappNotifications";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -119,6 +120,11 @@ export default function LicencasPanel() {
         status: "pendente",
       });
       if (error) throw error;
+      // Send WhatsApp notification to student
+      if (data.telefone) {
+        const link = `${window.location.origin}/cadastro/revista/${cliente.id}`;
+        notificarAlunoCadastrado(data.nome, data.telefone, link);
+      }
     },
     onSuccess: () => {
       toast.success("Aluno adicionado");
@@ -147,6 +153,16 @@ export default function LicencasPanel() {
           .update({ quantidade_usada: activeLicenca.quantidade_usada + 1 })
           .eq("id", activeLicenca.id);
       }
+      // Send WhatsApp notifications based on status change
+      const aluno = alunos.find(a => a.id === id);
+      if (aluno && aluno.aluno_telefone) {
+        if (status === "ativo") {
+          const link = `${window.location.origin}/ebd/revista-virtual`;
+          notificarAcessoAprovado(aluno.aluno_telefone, aluno.aluno_nome, aluno.aluno_email || "", link);
+        } else if (status === "bloqueado") {
+          notificarAcessoRevogado(aluno.aluno_telefone, aluno.aluno_nome);
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Status atualizado");
@@ -171,6 +187,11 @@ export default function LicencasPanel() {
         })
         .eq("id", id);
       if (error) throw error;
+      // Notify student about device swap approval
+      const aluno = alunos.find(a => a.id === id);
+      if (aluno?.aluno_telefone) {
+        notificarTrocaDispositivoAprovada(aluno.aluno_telefone, aluno.aluno_nome);
+      }
     },
     onSuccess: () => {
       toast.success("Dispositivo liberado para troca");
