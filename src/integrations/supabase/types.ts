@@ -5109,8 +5109,10 @@ export type Database = {
           device_token: string | null
           id: string
           licenca_id: string
+          senha_provisoria: string | null
           status: string
           superintendente_id: string
+          tipo_revista: string | null
           troca_dispositivo_solicitada: boolean
           troca_solicitada_em: string | null
           updated_at: string
@@ -5131,8 +5133,10 @@ export type Database = {
           device_token?: string | null
           id?: string
           licenca_id: string
+          senha_provisoria?: string | null
           status?: string
           superintendente_id: string
+          tipo_revista?: string | null
           troca_dispositivo_solicitada?: boolean
           troca_solicitada_em?: string | null
           updated_at?: string
@@ -5153,8 +5157,10 @@ export type Database = {
           device_token?: string | null
           id?: string
           licenca_id?: string
+          senha_provisoria?: string | null
           status?: string
           superintendente_id?: string
+          tipo_revista?: string | null
           troca_dispositivo_solicitada?: boolean
           troca_solicitada_em?: string | null
           updated_at?: string
@@ -5186,48 +5192,90 @@ export type Database = {
       }
       revista_licencas: {
         Row: {
+          chave_pix: string | null
+          codigo_pagamento: string | null
           created_at: string
           expira_em: string
           id: string
           inicio_em: string
+          link_pagamento: string | null
+          pacote_id: string | null
           plano: string
+          qrcode_url: string | null
           quantidade_total: number
           quantidade_usada: number
+          revista_aluno_id: string | null
           revista_id: string | null
+          revista_professor_id: string | null
           status: string
           superintendente_id: string
           updated_at: string
         }
         Insert: {
+          chave_pix?: string | null
+          codigo_pagamento?: string | null
           created_at?: string
           expira_em: string
           id?: string
           inicio_em?: string
+          link_pagamento?: string | null
+          pacote_id?: string | null
           plano?: string
+          qrcode_url?: string | null
           quantidade_total?: number
           quantidade_usada?: number
+          revista_aluno_id?: string | null
           revista_id?: string | null
+          revista_professor_id?: string | null
           status?: string
           superintendente_id: string
           updated_at?: string
         }
         Update: {
+          chave_pix?: string | null
+          codigo_pagamento?: string | null
           created_at?: string
           expira_em?: string
           id?: string
           inicio_em?: string
+          link_pagamento?: string | null
+          pacote_id?: string | null
           plano?: string
+          qrcode_url?: string | null
           quantidade_total?: number
           quantidade_usada?: number
+          revista_aluno_id?: string | null
           revista_id?: string | null
+          revista_professor_id?: string | null
           status?: string
           superintendente_id?: string
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "revista_licencas_pacote_id_fkey"
+            columns: ["pacote_id"]
+            isOneToOne: false
+            referencedRelation: "revista_planos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_licencas_revista_aluno_id_fkey"
+            columns: ["revista_aluno_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "revista_licencas_revista_id_fkey"
             columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_licencas_revista_professor_id_fkey"
+            columns: ["revista_professor_id"]
             isOneToOne: false
             referencedRelation: "revistas_digitais"
             referencedColumns: ["id"]

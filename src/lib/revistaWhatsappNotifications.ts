@@ -15,18 +15,21 @@ async function sendWhatsApp(telefone: string, nome: string, mensagem: string) {
   }
 }
 
-/** SE cadastrou aluno — notifica o aluno */
+/** SE cadastrou aluno — notifica o aluno com credenciais */
 export async function notificarAlunoCadastrado(
   nome: string,
   telefone: string,
-  link: string
+  link: string,
+  email?: string,
+  senhaProvisoria?: string
 ) {
   if (!telefone) return;
-  await sendWhatsApp(
-    telefone,
-    nome,
-    `Olá ${nome}! O seu Superintendente te cadastrou na Revista Virtual. Acesse ${link} para criar sua senha e enviar o comprovante de pagamento.`
-  );
+  let msg = `Olá ${nome}! O seu Superintendente te cadastrou na Revista Virtual.`;
+  if (email && senhaProvisoria) {
+    msg += `\n\nLogin: ${email}\nSenha: ${senhaProvisoria}`;
+  }
+  msg += `\n\nAcesse: ${link}`;
+  await sendWhatsApp(telefone, nome, msg);
 }
 
 /** Aluno enviou comprovante — notifica o SE */
@@ -43,19 +46,20 @@ export async function notificarComprovanteRecebido(
   );
 }
 
-/** SE aprovou acesso — notifica o aluno */
+/** SE aprovou acesso — notifica o aluno com credenciais */
 export async function notificarAcessoAprovado(
   telefone: string,
   nome: string,
   email: string,
-  link: string
+  link: string,
+  senhaProvisoria?: string
 ) {
   if (!telefone) return;
-  await sendWhatsApp(
-    telefone,
-    nome,
-    `✅ Seu acesso à Revista Virtual foi liberado!\nAcesse: ${link}\nLogin: ${email}`
-  );
+  let msg = `✅ Seu acesso à Revista Virtual foi liberado!\nAcesse: ${link}\nLogin: ${email}`;
+  if (senhaProvisoria) {
+    msg += `\nSenha: ${senhaProvisoria} (troque no primeiro acesso)`;
+  }
+  await sendWhatsApp(telefone, nome, msg);
 }
 
 /** SE aprovou troca de dispositivo — notifica o aluno */

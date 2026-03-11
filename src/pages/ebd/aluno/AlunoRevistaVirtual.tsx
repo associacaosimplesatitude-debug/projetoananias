@@ -42,24 +42,72 @@ export default function AlunoRevistaVirtual() {
   });
 
   const { data: licencaAluno } = useQuery({
-    queryKey: ["minha-licenca-aluno", user?.id],
+    queryKey: ["minha-licenca-aluno", user?.id, user?.email],
     queryFn: async () => {
-      if (!user?.email) return null;
-      const { data } = await supabase
+      if (!user) return null;
+      // Try by user_id first
+      const { data: byUserId } = await supabase
         .from("revista_licenca_alunos")
-        .select("id, status, comprovante_url, troca_dispositivo_solicitada, device_token, created_at")
+        .select("id, status, comprovante_url, troca_dispositivo_solicitada, device_token, tipo_revista, licenca_id, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (byUserId) return byUserId;
+      // Fallback by email
+      if (!user.email) return null;
+      const { data: byEmail } = await supabase
+        .from("revista_licenca_alunos")
+        .select("id, status, comprovante_url, troca_dispositivo_solicitada, device_token, tipo_revista, licenca_id, created_at")
         .eq("aluno_email", user.email.toLowerCase())
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      return data;
+      return byEmail;
     },
     enabled: !!user,
   });
 
-  const { data: assinatura } = useQuery({
-    queryKey: ["minha-assinatura", cliente?.id],
+  // Get subscription - try via license first, then direct subscription
+  const { data: licencaDetails } = useQuery({
+    queryKey: ["minha-licenca-details", licencaAluno?.licenca_id],
     queryFn: async () => {
+      if (!licencaAluno?.licenca_id) return null;
+      const { data } = await supabase
+        .from("revista_licencas")
+        .select("revista_aluno_id, revista_professor_id")
+        .eq("id", licencaAluno.licenca_id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!licencaAluno?.licenca_id,
+  });
+
+  // Determine which revista to show based on tipo_revista
+  const resolvedRevistaId = (() => {
+    if (licencaDetails) {
+      const tipo = (licencaAluno as any)?.tipo_revista || "aluno";
+      if (tipo === "professor" && licencaDetails.revista_professor_id) return licencaDetails.revista_professor_id;
+      if (licencaDetails.revista_aluno_id) return licencaDetails.revista_aluno_id;
+    }
+    return null;
+  })();
+
+  const { data: assinatura } = useQuery({
+    queryKey: ["minha-assinatura", cliente?.id, resolvedRevistaId],
+    queryFn: async () => {
+      // If we have a resolved revista from license, create a pseudo-subscription
+      if (resolvedRevistaId) {
+        const { data: revista } = await supabase
+          .from("revistas_digitais")
+          .select("*")
+          .eq("id", resolvedRevistaId)
+          .maybeSingle();
+        if (revista) {
+          return { revista_id: revista.id, revista, status: "ativa" } as any;
+        }
+      }
+      // Fallback to direct subscription
       if (!cliente?.id) return null;
       const { data } = await supabase
         .from("revista_assinaturas")
@@ -71,7 +119,7 @@ export default function AlunoRevistaVirtual() {
         .maybeSingle();
       return data;
     },
-    enabled: !!cliente?.id,
+    enabled: !!cliente?.id || !!resolvedRevistaId,
   });
 
   const { data: licoes } = useQuery({
