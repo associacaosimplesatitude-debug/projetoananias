@@ -62,6 +62,13 @@ export default function RevistasDigitais() {
 
   // Drag state for lesson pages
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
+  const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
+
+  // PDF worker
+  if (typeof window !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  }
 
   const { data: revistas, isLoading } = useQuery({
     queryKey: ["revistas-digitais"],
