@@ -4943,6 +4943,41 @@ export type Database = {
           },
         ]
       }
+      revista_acessos_bloqueados: {
+        Row: {
+          aluno_id: string
+          created_at: string
+          device_info_tentativa: Json | null
+          device_token_tentativa: string | null
+          id: string
+          ip_address: string | null
+        }
+        Insert: {
+          aluno_id: string
+          created_at?: string
+          device_info_tentativa?: Json | null
+          device_token_tentativa?: string | null
+          id?: string
+          ip_address?: string | null
+        }
+        Update: {
+          aluno_id?: string
+          created_at?: string
+          device_info_tentativa?: Json | null
+          device_token_tentativa?: string | null
+          id?: string
+          ip_address?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_acessos_bloqueados_aluno_id_fkey"
+            columns: ["aluno_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licenca_alunos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revista_assinaturas: {
         Row: {
           cliente_id: string
@@ -4991,6 +5026,154 @@ export type Database = {
           },
         ]
       }
+      revista_licenca_alunos: {
+        Row: {
+          aluno_email: string | null
+          aluno_nome: string
+          aluno_telefone: string | null
+          aluno_turma: string | null
+          aprovado_em: string | null
+          aprovado_por: string | null
+          comprovante_enviado_em: string | null
+          comprovante_url: string | null
+          created_at: string
+          device_autorizado_em: string | null
+          device_info: Json | null
+          device_token: string | null
+          id: string
+          licenca_id: string
+          status: string
+          superintendente_id: string
+          troca_dispositivo_solicitada: boolean
+          troca_solicitada_em: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          aluno_email?: string | null
+          aluno_nome: string
+          aluno_telefone?: string | null
+          aluno_turma?: string | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          comprovante_enviado_em?: string | null
+          comprovante_url?: string | null
+          created_at?: string
+          device_autorizado_em?: string | null
+          device_info?: Json | null
+          device_token?: string | null
+          id?: string
+          licenca_id: string
+          status?: string
+          superintendente_id: string
+          troca_dispositivo_solicitada?: boolean
+          troca_solicitada_em?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          aluno_email?: string | null
+          aluno_nome?: string
+          aluno_telefone?: string | null
+          aluno_turma?: string | null
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          comprovante_enviado_em?: string | null
+          comprovante_url?: string | null
+          created_at?: string
+          device_autorizado_em?: string | null
+          device_info?: Json | null
+          device_token?: string | null
+          id?: string
+          licenca_id?: string
+          status?: string
+          superintendente_id?: string
+          troca_dispositivo_solicitada?: boolean
+          troca_solicitada_em?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_licenca_alunos_aprovado_por_fkey"
+            columns: ["aprovado_por"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_licenca_alunos_licenca_id_fkey"
+            columns: ["licenca_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licencas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_licenca_alunos_superintendente_id_fkey"
+            columns: ["superintendente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revista_licencas: {
+        Row: {
+          created_at: string
+          expira_em: string
+          id: string
+          inicio_em: string
+          plano: string
+          quantidade_total: number
+          quantidade_usada: number
+          revista_id: string | null
+          status: string
+          superintendente_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expira_em: string
+          id?: string
+          inicio_em?: string
+          plano?: string
+          quantidade_total?: number
+          quantidade_usada?: number
+          revista_id?: string | null
+          status?: string
+          superintendente_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expira_em?: string
+          id?: string
+          inicio_em?: string
+          plano?: string
+          quantidade_total?: number
+          quantidade_usada?: number
+          revista_id?: string | null
+          status?: string
+          superintendente_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_licencas_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_licencas_superintendente_id_fkey"
+            columns: ["superintendente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revista_licoes: {
         Row: {
           created_at: string | null
@@ -5025,6 +5208,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      revista_planos: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          preco_anual: number
+          preco_semestral: number
+          preco_trimestral: number
+          quantidade_licencas: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          preco_anual?: number
+          preco_semestral?: number
+          preco_trimestral?: number
+          quantidade_licencas: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          preco_anual?: number
+          preco_semestral?: number
+          preco_trimestral?: number
+          quantidade_licencas?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       revista_progresso: {
         Row: {
