@@ -390,6 +390,7 @@ const App = () => (
                       <Route path="desafio-biblico/:desafioId/acompanhar" element={<EBDDesafioAcompanhamento />} />
                       <Route path="shopify-pedidos" element={<ShopifyPedidos />} />
                       <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
+                      <Route path="revista-virtual/licencas" element={<LicencasPanel />} />
                       <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
                     </Route>
 
