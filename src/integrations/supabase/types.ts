@@ -5026,6 +5026,73 @@ export type Database = {
           },
         ]
       }
+      revista_licao_quiz: {
+        Row: {
+          created_at: string | null
+          id: string
+          licao_id: string
+          perguntas: Json
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          licao_id: string
+          perguntas?: Json
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          licao_id?: string
+          perguntas?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_licao_quiz_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: true
+            referencedRelation: "revista_licoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revista_licao_quiz_respostas: {
+        Row: {
+          acertos: number | null
+          created_at: string | null
+          id: string
+          pontos_ganhos: number | null
+          quiz_id: string
+          respostas: Json
+          user_id: string
+        }
+        Insert: {
+          acertos?: number | null
+          created_at?: string | null
+          id?: string
+          pontos_ganhos?: number | null
+          quiz_id: string
+          respostas?: Json
+          user_id: string
+        }
+        Update: {
+          acertos?: number | null
+          created_at?: string | null
+          id?: string
+          pontos_ganhos?: number | null
+          quiz_id?: string
+          respostas?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_licao_quiz_respostas_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licao_quiz"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revista_licenca_alunos: {
         Row: {
           aluno_email: string | null

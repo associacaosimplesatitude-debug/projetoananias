@@ -302,3 +302,6 @@ verify_jwt = false
 
 [functions.ebd-shopify-sync-order-items-batch]
 verify_jwt = true
+
+[functions.gerar-quiz-revista]
+verify_jwt = false

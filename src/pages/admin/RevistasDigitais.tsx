@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus } from "lucide-react";
+import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import * as pdfjsLib from "pdfjs-dist";
 
 interface Revista {
   id: string;
@@ -61,6 +62,13 @@ export default function RevistasDigitais() {
 
   // Drag state for lesson pages
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
+  const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
+
+  // PDF worker
+  if (typeof window !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  }
 
   const { data: revistas, isLoading } = useQuery({
     queryKey: ["revistas-digitais"],
@@ -252,6 +260,62 @@ export default function RevistasDigitais() {
     uploadPagesMutation.mutate({ licaoId, licaoNumero, files });
   };
 
+  const handlePdfUpload = async (licaoId: string, licaoNumero: number, file: File) => {
+    if (file.type !== "application/pdf") { toast.error("Selecione um arquivo PDF"); return; }
+    setUploadingPdf(licaoId);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const urls: string[] = [];
+      const existing = licoes?.find(l => l.id === licaoId)?.paginas || [];
+      let ordem = existing.length;
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext("2d")!;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const blob = await new Promise<Blob>((resolve) =>
+          canvas.toBlob((b) => resolve(b!), "image/png", 0.9)
+        );
+        ordem++;
+        const path = `${managingLicoes!.id}/licao-${licaoNumero}/${ordem}.png`;
+        const { error } = await supabase.storage.from("revistas").upload(path, blob, { upsert: true });
+        if (error) throw error;
+        const { data } = supabase.storage.from("revistas").getPublicUrl(path);
+        urls.push(data.publicUrl);
+      }
+
+      await supabase.from("revista_licoes").update({ paginas: [...existing, ...urls] }).eq("id", licaoId);
+      queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
+      toast.success(`${pdf.numPages} páginas extraídas do PDF!`);
+    } catch (e: any) {
+      toast.error("Erro ao processar PDF: " + e.message);
+    } finally {
+      setUploadingPdf(null);
+    }
+  };
+
+  const handleGenerateQuiz = async (licaoId: string) => {
+    setGeneratingQuiz(licaoId);
+    try {
+      const { data, error } = await supabase.functions.invoke("gerar-quiz-revista", {
+        body: { licao_id: licaoId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Quiz gerado com sucesso!");
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao gerar quiz");
+    } finally {
+      setGeneratingQuiz(null);
+    }
+  };
+
   const removePageFromLicao = async (licaoId: string, pageUrl: string) => {
     const licao = licoes?.find(l => l.id === licaoId);
     if (!licao) return;
@@ -380,6 +444,43 @@ export default function RevistasDigitais() {
                         className="hidden"
                         onChange={(e) => handleLicaoFileUpload(licao.id, licao.numero, e)}
                       />
+                    </div>
+
+                    {/* PDF upload button */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-xs"
+                        disabled={uploadingPdf === licao.id}
+                        onClick={() => document.getElementById(`pdf-${licao.id}`)?.click()}
+                      >
+                        {uploadingPdf === licao.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                        {uploadingPdf === licao.id ? "Processando PDF..." : "Subir PDF"}
+                      </Button>
+                      <input
+                        id={`pdf-${licao.id}`}
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handlePdfUpload(licao.id, licao.numero, f);
+                          e.target.value = "";
+                        }}
+                      />
+                      {licao.paginas.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 text-xs"
+                          disabled={generatingQuiz === licao.id}
+                          onClick={() => handleGenerateQuiz(licao.id)}
+                        >
+                          {generatingQuiz === licao.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                          {generatingQuiz === licao.id ? "Gerando..." : "Gerar Quiz IA"}
+                        </Button>
+                      )}
                     </div>
                   </div>
 

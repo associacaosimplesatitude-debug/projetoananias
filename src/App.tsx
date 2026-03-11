@@ -71,6 +71,7 @@ import RevistaLicencasAdmin from "./pages/admin/RevistaLicencasAdmin";
 import LicencasPanel from "./pages/ebd/aluno/LicencasPanel";
 import AlunoRevistaVirtual from "./pages/ebd/aluno/AlunoRevistaVirtual";
 import RevistaLeitor from "./pages/ebd/aluno/RevistaLeitor";
+import RevistaLeituraContinua from "./pages/ebd/aluno/RevistaLeituraContinua";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
@@ -394,6 +395,7 @@ const App = () => (
                       <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
                       <Route path="revista-virtual/licencas" element={<LicencasPanel />} />
                       <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
+                      <Route path="revista/:revistaId/leitura-continua" element={<RevistaLeituraContinua />} />
                     </Route>
 
                     {/* Aluno Module Routes with Sidebar Layout */}
@@ -413,6 +415,7 @@ const App = () => (
                       <Route path="quiz/:quizId" element={<AlunoQuizPage />} />
                       <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
                       <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
+                      <Route path="revista/:revistaId/leitura-continua" element={<RevistaLeituraContinua />} />
                     </Route>
 
                     {/* Professor Module Routes with Sidebar Layout */}
@@ -433,6 +436,7 @@ const App = () => (
                       <Route path="relatorios" element={<ProfessorRelatorios />} />
                       <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
                       <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
+                      <Route path="revista/:revistaId/leitura-continua" element={<RevistaLeituraContinua />} />
                     </Route>
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />

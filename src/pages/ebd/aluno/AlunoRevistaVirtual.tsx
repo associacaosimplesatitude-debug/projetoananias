@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Lock, CheckCircle2, Clock, Circle, Play } from "lucide-react";
+import { BookOpen, Lock, CheckCircle2, Clock, Circle, Play, ScrollText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
 import { generateDeviceFingerprint, getDeviceInfo } from "@/lib/deviceFingerprint";
@@ -307,6 +307,17 @@ export default function AlunoRevistaVirtual() {
             </div>
           </CardContent>
         </Card>
+        <div className="flex items-center justify-between">
+          <div />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => navigate(`/ebd/revista/${assinatura.revista_id}/leitura-continua`)}
+          >
+            <ScrollText className="h-4 w-4" /> Leitura Contínua
+          </Button>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {licoes?.map((licao) => {
