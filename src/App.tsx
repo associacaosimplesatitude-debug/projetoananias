@@ -133,6 +133,7 @@ import EBDDesafioAcompanhamento from "./pages/ebd/DesafioAcompanhamento";
 import EBDDesafioLeituraRelatorio from "./pages/ebd/DesafioLeituraRelatorio";
 import EBDAlunoPerfil from "./pages/ebd/AlunoPerfil";
 import CadastroAlunoPublico from "./pages/ebd/CadastroAlunoPublico";
+import CadastroRevistaPublico from "./pages/ebd/CadastroRevistaPublico";
 
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
@@ -229,6 +230,7 @@ const App = () => (
               <Route path="/proposta/:token" element={<PropostaDigital />} />
               <Route path="/ebd/checkout-shopify-mp" element={<EBDCheckoutShopifyMP />} />
               <Route path="/cadastro-aluno/:churchId" element={<CadastroAlunoPublico />} />
+              <Route path="/cadastro/revista/:churchId" element={<CadastroRevistaPublico />} />
               <Route path="/livro/:slug" element={<LivroLandingPage />} />
               <Route path="/oferta-ebd" element={<OfertaEBD />} />
               <Route path="/oferta/:token" element={<OfertaPersonalizada />} />

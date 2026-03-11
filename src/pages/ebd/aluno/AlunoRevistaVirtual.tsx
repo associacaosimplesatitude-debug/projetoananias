@@ -36,6 +36,23 @@ export default function AlunoRevistaVirtual() {
     enabled: !!user,
   });
 
+  // Check student license status
+  const { data: licencaAluno } = useQuery({
+    queryKey: ["minha-licenca-aluno", user?.id],
+    queryFn: async () => {
+      if (!user?.email) return null;
+      const { data } = await supabase
+        .from("revista_licenca_alunos")
+        .select("id, status, comprovante_url, troca_dispositivo_solicitada, created_at")
+        .eq("aluno_email", user.email.toLowerCase())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const { data: assinatura } = useQuery({
     queryKey: ["minha-assinatura", cliente?.id],
     queryFn: async () => {
@@ -84,6 +101,77 @@ export default function AlunoRevistaVirtual() {
     },
     enabled: !!cliente?.id && !!licoes && licoes.length > 0,
   });
+
+  // Show license status timeline for students with pending/waiting status
+  if (!assinatura && licencaAluno && licencaAluno.status !== "ativo") {
+    const status = licencaAluno.status;
+    const cadastroDone = true;
+    const comprovanteDone = !!licencaAluno.comprovante_url;
+    const aprovado = status === "ativo";
+
+    return (
+      <div className="min-h-screen bg-[#f8f8f8]">
+        <div className="container mx-auto py-12 px-4">
+          <Card className="border border-border/40 shadow-sm max-w-lg mx-auto">
+            <CardContent className="py-12 text-center space-y-8">
+              <BookOpen className="mx-auto h-16 w-16 text-[#f97316]" />
+              <h2 className="text-2xl font-bold text-foreground">Revista Virtual</h2>
+
+              {/* Status Timeline */}
+              <div className="flex items-center justify-between px-2">
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-2xl">{cadastroDone ? "✅" : "⬜"}</span>
+                  <span className="text-[11px] font-medium text-foreground">Cadastro</span>
+                </div>
+                <div className={`flex-1 h-0.5 mx-1 ${cadastroDone ? "bg-green-400" : "bg-border"}`} />
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-2xl">{comprovanteDone ? "✅" : "🟡"}</span>
+                  <span className="text-[11px] font-medium text-foreground">Comprovante</span>
+                </div>
+                <div className={`flex-1 h-0.5 mx-1 ${comprovanteDone ? "bg-green-400" : "bg-border"}`} />
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-2xl">{status === "aguardando_aprovacao" ? "⏳" : aprovado ? "✅" : "⬜"}</span>
+                  <span className="text-[11px] font-medium text-foreground">Aprovação</span>
+                </div>
+                <div className={`flex-1 h-0.5 mx-1 ${aprovado ? "bg-green-400" : "bg-border"}`} />
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-2xl">{aprovado ? "✅" : "🔒"}</span>
+                  <span className="text-[11px] font-medium text-foreground">Acesso</span>
+                </div>
+              </div>
+
+              {status === "pendente" && (
+                <p className="text-muted-foreground text-sm">
+                  Seu cadastro foi realizado. Envie o comprovante de pagamento para liberar o acesso.
+                </p>
+              )}
+              {status === "aguardando_aprovacao" && (
+                <p className="text-muted-foreground text-sm">
+                  Seu comprovante foi recebido. Aguarde a aprovação do seu Superintendente.
+                </p>
+              )}
+              {status === "bloqueado" && (
+                <div className="space-y-2">
+                  <Badge variant="destructive">Acesso Bloqueado</Badge>
+                  <p className="text-muted-foreground text-sm">
+                    Seu acesso foi suspenso. Entre em contato com seu Superintendente.
+                  </p>
+                </div>
+              )}
+              {status === "expirado" && (
+                <div className="space-y-2">
+                  <Badge variant="secondary">Licença Expirada</Badge>
+                  <p className="text-muted-foreground text-sm">
+                    Sua licença expirou. Entre em contato com seu Superintendente para renovação.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (!assinatura) {
     return (
