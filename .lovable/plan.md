@@ -1,26 +1,16 @@
 
 
-## Plano: Restringir Revistas Digitais apenas para Admin
+## Problema
 
-### Situação atual
-- O **menu** já está oculto para `gerente_ebd` e `financeiro` (linhas 371 e 376 do `AdminEBDLayout.tsx`)
-- Porém a **rota** `/admin/ebd/revistas-digitais` ainda é acessível diretamente por qualquer role com acesso ao `/admin/ebd` (gerente_ebd, financeiro)
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-### Alteração
-**`src/App.tsx`** — Envolver as rotas `revistas-digitais` e `revistas-assinaturas` com um `ProtectedRoute` que exige `requireAdmin` **sem** `allowGerenteEbd` ou `allowFinanceiro`:
+## Solução
 
-```tsx
-<Route path="revistas-digitais" element={
-  <ProtectedRoute requireAdmin>
-    <RevistasDigitais />
-  </ProtectedRoute>
-} />
-<Route path="revistas-assinaturas" element={
-  <ProtectedRoute requireAdmin>
-    <RevistasAssinaturas />
-  </ProtectedRoute>
-} />
-```
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-Isso garante que mesmo acessando a URL diretamente, apenas o admin geral consegue visualizar a página.
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 
