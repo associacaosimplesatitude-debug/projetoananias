@@ -7183,6 +7183,7 @@ export type Database = {
         Args: { start_date: string }
         Returns: string
       }
+      can_manage_revistas: { Args: { _user_id: string }; Returns: boolean }
       execute_readonly_query: { Args: { sql_query: string }; Returns: Json }
       get_auth_email: { Args: never; Returns: string }
       get_autor_id_by_user: { Args: { _user_id: string }; Returns: string }

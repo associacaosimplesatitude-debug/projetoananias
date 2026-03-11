@@ -2,27 +2,15 @@
 
 ## Problema
 
-O erro "new row violates row-level security policy" ocorre porque as políticas de storage e das tabelas `revistas_digitais` e `revista_licoes` só permitem acesso para usuários com role `admin`. O usuário logado provavelmente tem role `gerente_ebd`, que não passa na verificação `is_admin_geral()`.
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
 ## Solução
 
-Criar uma migração SQL que:
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-1. Crie uma função `can_manage_revistas(uuid)` que retorna `true` se o usuário tem role `admin` OU `gerente_ebd`
-2. Atualize as políticas de storage (INSERT e DELETE no bucket `revistas`) para usar essa nova função
-3. Atualize as políticas das tabelas `revistas_digitais` e `revista_licoes` (FOR ALL) para usar a mesma função
-4. Atualize também as políticas das tabelas de quiz (`revista_licao_quiz`) para consistência
-
-### SQL resumido
-
-```sql
-CREATE FUNCTION can_manage_revistas(_user_id uuid) ...
-  -- checks user_roles for 'admin' or 'gerente_ebd'
-
-DROP POLICY "Admins can upload revistas files" ON storage.objects;
-CREATE POLICY "Managers can upload revistas files" ... WITH CHECK (can_manage_revistas(auth.uid()));
--- Same for DELETE, and for revistas_digitais/revista_licoes FOR ALL policies
-```
-
-Nenhuma alteração de código — apenas políticas de banco de dados.
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 
