@@ -67,6 +67,8 @@ import { RoyaltiesProtectedRoute } from "@/components/royalties/RoyaltiesProtect
 import BlingIntegration from "./pages/admin/BlingIntegration";
 import RevistasDigitais from "./pages/admin/RevistasDigitais";
 import RevistasAssinaturas from "./pages/admin/RevistasAssinaturas";
+import RevistaLicencasAdmin from "./pages/admin/RevistaLicencasAdmin";
+import LicencasPanel from "./pages/ebd/aluno/LicencasPanel";
 import AlunoRevistaVirtual from "./pages/ebd/aluno/AlunoRevistaVirtual";
 import RevistaLeitor from "./pages/ebd/aluno/RevistaLeitor";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
