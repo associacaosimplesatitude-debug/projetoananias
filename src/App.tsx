@@ -395,6 +395,7 @@ const App = () => (
                       <Route path="revista-virtual" element={<AlunoRevistaVirtual />} />
                       <Route path="revista-virtual/licencas" element={<LicencasPanel />} />
                       <Route path="revista/:revistaId/licao/:numero" element={<RevistaLeitor />} />
+                      <Route path="revista/:revistaId/leitura-continua" element={<RevistaLeituraContinua />} />
                     </Route>
 
                     {/* Aluno Module Routes with Sidebar Layout */}
