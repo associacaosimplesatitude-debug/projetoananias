@@ -689,6 +689,43 @@ export default function RevistasDigitais() {
                   Remover capa
                 </Button>
               )}
+
+              {/* PDF Completo */}
+              <div className="pt-2 border-t">
+                <Label className="text-xs">PDF Completo</Label>
+                <p className="text-[10px] text-muted-foreground mb-2">
+                  {editingRevista 
+                    ? "As páginas serão distribuídas entre as lições existentes" 
+                    : "Após salvar, as páginas serão distribuídas automaticamente"}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1 text-xs"
+                  disabled={uploadingPdfGlobal || (!editingRevista && !saveMutation.data)}
+                  onClick={(e) => { e.stopPropagation(); pdfGlobalInputRef.current?.click(); }}
+                >
+                  {uploadingPdfGlobal ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                  {uploadingPdfGlobal ? pdfProgress : "📄 Subir PDF"}
+                </Button>
+                <input
+                  ref={pdfGlobalInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const revId = editingRevista?.id;
+                    if (revId) {
+                      handleGlobalPdfUpload(f, revId);
+                    } else {
+                      toast.error("Salve a revista primeiro");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </div>
             </div>
           </div>
         </DialogContent>
