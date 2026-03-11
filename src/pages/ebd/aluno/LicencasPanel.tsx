@@ -120,6 +120,11 @@ export default function LicencasPanel() {
         status: "pendente",
       });
       if (error) throw error;
+      // Send WhatsApp notification to student
+      if (data.telefone) {
+        const link = `${window.location.origin}/cadastro/revista/${cliente.id}`;
+        notificarAlunoCadastrado(data.nome, data.telefone, link);
+      }
     },
     onSuccess: () => {
       toast.success("Aluno adicionado");
