@@ -41,7 +41,6 @@ export default function AlunoRevistaVirtual() {
     enabled: !!user,
   });
 
-  // Check student license status
   const { data: licencaAluno } = useQuery({
     queryKey: ["minha-licenca-aluno", user?.id],
     queryFn: async () => {
@@ -57,66 +56,6 @@ export default function AlunoRevistaVirtual() {
     },
     enabled: !!user,
   });
-
-  // Device fingerprint validation
-  useEffect(() => {
-    if (!licencaAluno || licencaAluno.status !== "ativo") {
-      setDeviceChecked(true);
-      return;
-    }
-
-    const checkDevice = async () => {
-      try {
-        const currentToken = await generateDeviceFingerprint();
-        const deviceInfo = getDeviceInfo();
-
-        if (licencaAluno.device_token && licencaAluno.device_token !== currentToken) {
-          // Different device — block and log
-          setDeviceBlocked(true);
-          await supabase.from("revista_acessos_bloqueados").insert({
-            aluno_id: licencaAluno.id,
-            device_token_tentativa: currentToken,
-            device_info_tentativa: deviceInfo,
-          });
-        } else if (!licencaAluno.device_token) {
-          // First access — register this device
-          await supabase
-            .from("revista_licenca_alunos")
-            .update({
-              device_token: currentToken,
-              device_info: deviceInfo,
-              device_autorizado_em: new Date().toISOString(),
-            })
-            .eq("id", licencaAluno.id);
-        }
-      } catch (err) {
-        console.error("Device check error:", err);
-      } finally {
-        setDeviceChecked(true);
-      }
-    };
-
-    checkDevice();
-  }, [licencaAluno]);
-
-  // Show device blocked screen
-  if (deviceChecked && deviceBlocked && licencaAluno) {
-    return (
-      <DeviceBloqueado
-        licencaAlunoId={licencaAluno.id}
-        trocaJaSolicitada={!!licencaAluno.troca_dispositivo_solicitada}
-      />
-    );
-  }
-
-  // Show license status timeline for students with pending/waiting status
-  if (!deviceChecked) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Verificando dispositivo...</p>
-      </div>
-    );
-  }
 
   const { data: assinatura } = useQuery({
     queryKey: ["minha-assinatura", cliente?.id],
@@ -167,6 +106,65 @@ export default function AlunoRevistaVirtual() {
     enabled: !!cliente?.id && !!licoes && licoes.length > 0,
   });
 
+  // Device fingerprint validation
+  useEffect(() => {
+    if (!licencaAluno || licencaAluno.status !== "ativo") {
+      setDeviceChecked(true);
+      return;
+    }
+
+    const checkDevice = async () => {
+      try {
+        const currentToken = await generateDeviceFingerprint();
+        const deviceInfo = getDeviceInfo();
+
+        if (licencaAluno.device_token && licencaAluno.device_token !== currentToken) {
+          setDeviceBlocked(true);
+          await supabase.from("revista_acessos_bloqueados").insert({
+            aluno_id: licencaAluno.id,
+            device_token_tentativa: currentToken,
+            device_info_tentativa: deviceInfo,
+          });
+        } else if (!licencaAluno.device_token) {
+          await supabase
+            .from("revista_licenca_alunos")
+            .update({
+              device_token: currentToken,
+              device_info: deviceInfo,
+              device_autorizado_em: new Date().toISOString(),
+            })
+            .eq("id", licencaAluno.id);
+        }
+      } catch (err) {
+        console.error("Device check error:", err);
+      } finally {
+        setDeviceChecked(true);
+      }
+    };
+
+    checkDevice();
+  }, [licencaAluno]);
+
+  // Loading device check
+  if (!deviceChecked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Verificando dispositivo...</p>
+      </div>
+    );
+  }
+
+  // Device blocked
+  if (deviceBlocked && licencaAluno) {
+    return (
+      <DeviceBloqueado
+        licencaAlunoId={licencaAluno.id}
+        trocaJaSolicitada={!!licencaAluno.troca_dispositivo_solicitada}
+      />
+    );
+  }
+
+  // License pending timeline
   if (!assinatura && licencaAluno && licencaAluno.status !== "ativo") {
     const status = licencaAluno.status;
     const cadastroDone = true;
@@ -180,7 +178,6 @@ export default function AlunoRevistaVirtual() {
             <CardContent className="py-12 text-center space-y-8">
               <BookOpen className="mx-auto h-16 w-16 text-primary" />
               <h2 className="text-2xl font-bold text-foreground">Revista Virtual</h2>
-
               <div className="flex items-center justify-between px-2">
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-2xl">{cadastroDone ? "✅" : "⬜"}</span>
@@ -202,7 +199,6 @@ export default function AlunoRevistaVirtual() {
                   <span className="text-[11px] font-medium text-foreground">Acesso</span>
                 </div>
               </div>
-
               {status === "pendente" && (
                 <p className="text-muted-foreground text-sm">
                   Seu cadastro foi realizado. Envie o comprovante de pagamento para liberar o acesso.
@@ -236,6 +232,7 @@ export default function AlunoRevistaVirtual() {
     );
   }
 
+  // No subscription
   if (!assinatura) {
     return (
       <div className="min-h-screen bg-background">
@@ -278,19 +275,13 @@ export default function AlunoRevistaVirtual() {
           </h1>
           <p className="text-muted-foreground mt-1">Acompanhe seu estudo bíblico trimestral</p>
         </div>
-
         <Separator />
-
         <Card className="border border-border/40 shadow-sm bg-card">
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row gap-6 items-start">
               <div className="relative flex-shrink-0">
                 {revista?.capa_url ? (
-                  <img
-                    src={revista.capa_url}
-                    alt={revista.titulo}
-                    className="w-[120px] h-[160px] object-cover rounded-xl shadow-md"
-                  />
+                  <img src={revista.capa_url} alt={revista.titulo} className="w-[120px] h-[160px] object-cover rounded-xl shadow-md" />
                 ) : (
                   <div className="w-[120px] h-[160px] rounded-xl shadow-md bg-muted flex items-center justify-center">
                     <BookOpen className="h-10 w-10 text-muted-foreground/40" />
@@ -324,16 +315,9 @@ export default function AlunoRevistaVirtual() {
             const thumbnail = paginas[0] || `https://placehold.co/400x550/1e293b/f97316?text=Li%C3%A7%C3%A3o+${licao.numero}`;
 
             return (
-              <Card
-                key={licao.id}
-                className="overflow-hidden border border-border/40 bg-card shadow-sm hover:shadow-md transition-shadow group"
-              >
+              <Card key={licao.id} className="overflow-hidden border border-border/40 bg-card shadow-sm hover:shadow-md transition-shadow group">
                 <div className="relative aspect-[3/4] bg-muted overflow-hidden">
-                  <img
-                    src={thumbnail}
-                    alt={`Lição ${licao.numero}`}
-                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
-                  />
+                  <img src={thumbnail} alt={`Lição ${licao.numero}`} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" />
                   <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground border-0 shadow text-[11px] px-2.5 py-0.5">
                     Lição {licao.numero}
                   </Badge>
@@ -356,20 +340,9 @@ export default function AlunoRevistaVirtual() {
                   </div>
                 </div>
                 <CardContent className="p-4 space-y-3">
-                  <p className="font-semibold text-sm text-foreground truncate">
-                    {licao.titulo || `Lição ${licao.numero}`}
-                  </p>
-                  <Button
-                    size="sm"
-                    className="w-full text-xs font-medium"
-                    onClick={() => {
-                      if (paginas.length > 0) {
-                        navigate(`/ebd/revista/${assinatura.revista_id}/licao/${licao.numero}`);
-                      }
-                    }}
-                  >
-                    <Play className="h-3.5 w-3.5 mr-1" />
-                    Ler Lição
+                  <p className="font-semibold text-sm text-foreground truncate">{licao.titulo || `Lição ${licao.numero}`}</p>
+                  <Button size="sm" className="w-full text-xs font-medium" onClick={() => { if (paginas.length > 0) navigate(`/ebd/revista/${assinatura.revista_id}/licao/${licao.numero}`); }}>
+                    <Play className="h-3.5 w-3.5 mr-1" /> Ler Lição
                   </Button>
                 </CardContent>
               </Card>
