@@ -1,16 +1,20 @@
 
 
-## Problema
+## Diagnóstico
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+A revista "Revista EBD N07" (id `503e5583-...`) existe no banco, e o usuário `teste@revistas.com` está vinculado à igreja "Igreja Teste - Revista Virtual" (id `b2c3d4e5-...`). Porém, **não existe nenhum registro em `revista_assinaturas`** conectando essa igreja a essa revista. O código atual em `AlunoRevistaVirtual.tsx` busca a assinatura ativa do cliente — sem ela, mostra "sem assinatura".
 
 ## Solução
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+Inserir um registro em `revista_assinaturas` vinculando a igreja de teste à revista recém-criada:
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+| Campo | Valor |
+|-------|-------|
+| `cliente_id` | `b2c3d4e5-f6a7-8901-bcde-f12345678901` (Igreja Teste) |
+| `revista_id` | `503e5583-2f3f-4b75-819e-bd241c590bc4` (Revista EBD N07) |
+| `status` | `ativa` |
+| `plano` | `trimestral` |
+| `inicio_em` | hoje |
+
+Isso é apenas uma inserção de dados — nenhuma alteração de código ou schema é necessária. O leitor já funciona corretamente, só faltava o vínculo no banco.
 
