@@ -1,16 +1,52 @@
 
 
-## Problema
+## Plano: Mover upload de PDF para o modal da revista
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+### Problema
+O upload de PDF está em cada lição individualmente, mas o PDF é um arquivo único da revista inteira. Deve ficar no modal de edição/criação da revista.
 
-## Solução
+### Solução
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+**Arquivo: `src/pages/admin/RevistasDigitais.tsx`**
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+1. **No modal da revista** (Dialog, linhas 522-647): Adicionar botão "Subir PDF Completo" abaixo do painel de capa. Ao selecionar o PDF:
+   - Renderiza todas as páginas via `pdfjs-dist`
+   - Distribui automaticamente as páginas entre as lições existentes (ex: PDF de 52 páginas ÷ 13 lições = 4 páginas por lição)
+   - Se for criação (nova revista), salva a revista primeiro, cria as lições, depois distribui
+   - Se for edição, distribui nas lições já existentes
+
+2. **Na gestão de lições** (linhas 449-471): Remover o botão "Subir PDF" de cada lição individual. Manter apenas o upload de imagens avulsas e o botão "Gerar Quiz IA".
+
+3. **Novo estado**: `pdfFile` e `uploadingPdfGlobal` no componente principal para controlar o upload global.
+
+4. **Nova função `handleGlobalPdfUpload`**: 
+   - Recebe o arquivo PDF e o ID da revista
+   - Busca as lições da revista
+   - Renderiza cada página do PDF como PNG
+   - Distribui páginas sequencialmente entre as lições (páginas extras vão para a última lição)
+   - Upload de cada imagem para `revistas/{revistaId}/licao-{n}/{ordem}.png`
+   - Atualiza o campo `paginas` de cada lição
+
+### Fluxo visual no modal
+
+```text
+┌─────────────────────────────────────────┐
+│  [Formulário]          [Capa da Revista]│
+│  Título...                  [imagem]    │
+│  Tipo / Trimestre          Remover capa │
+│  Descrição                              │
+│  ...                   ┌──────────────┐ │
+│                        │ PDF Completo │ │
+│  [Salvar Revista]      │ 📄 Subir PDF │ │
+│                        └──────────────┘ │
+└─────────────────────────────────────────┘
+```
+
+O botão de PDF fica no painel direito, abaixo da capa. Ao clicar, seleciona o arquivo. Após salvar a revista, as páginas do PDF são processadas e distribuídas.
+
+### Arquivos alterados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `RevistasDigitais.tsx` | Mover PDF upload para modal, remover de cada lição, nova função de distribuição |
 
