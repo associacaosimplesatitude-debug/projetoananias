@@ -42,17 +42,28 @@ export default function AlunoRevistaVirtual() {
   });
 
   const { data: licencaAluno } = useQuery({
-    queryKey: ["minha-licenca-aluno", user?.id],
+    queryKey: ["minha-licenca-aluno", user?.id, user?.email],
     queryFn: async () => {
-      if (!user?.email) return null;
-      const { data } = await supabase
+      if (!user) return null;
+      // Try by user_id first
+      const { data: byUserId } = await supabase
         .from("revista_licenca_alunos")
-        .select("id, status, comprovante_url, troca_dispositivo_solicitada, device_token, created_at")
+        .select("id, status, comprovante_url, troca_dispositivo_solicitada, device_token, tipo_revista, licenca_id, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (byUserId) return byUserId;
+      // Fallback by email
+      if (!user.email) return null;
+      const { data: byEmail } = await supabase
+        .from("revista_licenca_alunos")
+        .select("id, status, comprovante_url, troca_dispositivo_solicitada, device_token, tipo_revista, licenca_id, created_at")
         .eq("aluno_email", user.email.toLowerCase())
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      return data;
+      return byEmail;
     },
     enabled: !!user,
   });
