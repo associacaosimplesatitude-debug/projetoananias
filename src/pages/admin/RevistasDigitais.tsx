@@ -459,21 +459,6 @@ export default function RevistasDigitais() {
                       />
                     </div>
 
-                    {/* Action buttons */}
-                    <div className="flex gap-2">
-                      {licao.paginas.length > 0 && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1 text-xs"
-                          disabled={generatingQuiz === licao.id}
-                          onClick={() => handleGenerateQuiz(licao.id)}
-                        >
-                          {generatingQuiz === licao.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                          {generatingQuiz === licao.id ? "Gerando..." : "Gerar Quiz IA"}
-                        </Button>
-                      )}
-                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2">
