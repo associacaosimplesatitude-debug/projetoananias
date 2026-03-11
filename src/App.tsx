@@ -497,8 +497,8 @@ const App = () => (
                       <Route path="tutoriais" element={<Tutoriais />} />
                       <Route path="shopify" element={<ShopifyIntegration />} />
                       <Route path="conteudo-biblico" element={<AdminEBDConteudoBiblico />} />
-                      <Route path="revistas-digitais" element={<RevistasDigitais />} />
-                      <Route path="revistas-assinaturas" element={<RevistasAssinaturas />} />
+                      <Route path="revistas-digitais" element={<ProtectedRoute requireAdmin><RevistasDigitais /></ProtectedRoute>} />
+                      <Route path="revistas-assinaturas" element={<ProtectedRoute requireAdmin><RevistasAssinaturas /></ProtectedRoute>} />
                       <Route path="usuarios" element={<EBDSystemUsers />} />
                       <Route path="funil" element={<VendedorFunil isAdminView />} />
                       <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />
