@@ -187,6 +187,11 @@ export default function LicencasPanel() {
         })
         .eq("id", id);
       if (error) throw error;
+      // Notify student about device swap approval
+      const aluno = alunos.find(a => a.id === id);
+      if (aluno?.aluno_telefone) {
+        notificarTrocaDispositivoAprovada(aluno.aluno_telefone, aluno.aluno_nome);
+      }
     },
     onSuccess: () => {
       toast.success("Dispositivo liberado para troca");
