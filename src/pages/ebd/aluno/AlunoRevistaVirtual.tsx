@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,10 +9,14 @@ import { Progress } from "@/components/ui/progress";
 import { BookOpen, Lock, CheckCircle2, Clock, Circle, Play } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
+import { generateDeviceFingerprint, getDeviceInfo } from "@/lib/deviceFingerprint";
+import DeviceBloqueado from "./DeviceBloqueado";
 
 export default function AlunoRevistaVirtual() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [deviceBlocked, setDeviceBlocked] = useState(false);
+  const [deviceChecked, setDeviceChecked] = useState(false);
 
   const { data: cliente } = useQuery({
     queryKey: ["meu-cliente", user?.id],
@@ -43,7 +48,7 @@ export default function AlunoRevistaVirtual() {
       if (!user?.email) return null;
       const { data } = await supabase
         .from("revista_licenca_alunos")
-        .select("id, status, comprovante_url, troca_dispositivo_solicitada, created_at")
+        .select("id, status, comprovante_url, troca_dispositivo_solicitada, device_token, created_at")
         .eq("aluno_email", user.email.toLowerCase())
         .order("created_at", { ascending: false })
         .limit(1)
@@ -52,6 +57,66 @@ export default function AlunoRevistaVirtual() {
     },
     enabled: !!user,
   });
+
+  // Device fingerprint validation
+  useEffect(() => {
+    if (!licencaAluno || licencaAluno.status !== "ativo") {
+      setDeviceChecked(true);
+      return;
+    }
+
+    const checkDevice = async () => {
+      try {
+        const currentToken = await generateDeviceFingerprint();
+        const deviceInfo = getDeviceInfo();
+
+        if (licencaAluno.device_token && licencaAluno.device_token !== currentToken) {
+          // Different device — block and log
+          setDeviceBlocked(true);
+          await supabase.from("revista_acessos_bloqueados").insert({
+            aluno_id: licencaAluno.id,
+            device_token_tentativa: currentToken,
+            device_info_tentativa: deviceInfo,
+          });
+        } else if (!licencaAluno.device_token) {
+          // First access — register this device
+          await supabase
+            .from("revista_licenca_alunos")
+            .update({
+              device_token: currentToken,
+              device_info: deviceInfo,
+              device_autorizado_em: new Date().toISOString(),
+            })
+            .eq("id", licencaAluno.id);
+        }
+      } catch (err) {
+        console.error("Device check error:", err);
+      } finally {
+        setDeviceChecked(true);
+      }
+    };
+
+    checkDevice();
+  }, [licencaAluno]);
+
+  // Show device blocked screen
+  if (deviceChecked && deviceBlocked && licencaAluno) {
+    return (
+      <DeviceBloqueado
+        licencaAlunoId={licencaAluno.id}
+        trocaJaSolicitada={!!licencaAluno.troca_dispositivo_solicitada}
+      />
+    );
+  }
+
+  // Show license status timeline for students with pending/waiting status
+  if (!deviceChecked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Verificando dispositivo...</p>
+      </div>
+    );
+  }
 
   const { data: assinatura } = useQuery({
     queryKey: ["minha-assinatura", cliente?.id],
@@ -102,7 +167,6 @@ export default function AlunoRevistaVirtual() {
     enabled: !!cliente?.id && !!licoes && licoes.length > 0,
   });
 
-  // Show license status timeline for students with pending/waiting status
   if (!assinatura && licencaAluno && licencaAluno.status !== "ativo") {
     const status = licencaAluno.status;
     const cadastroDone = true;
@@ -110,14 +174,13 @@ export default function AlunoRevistaVirtual() {
     const aprovado = status === "ativo";
 
     return (
-      <div className="min-h-screen bg-[#f8f8f8]">
+      <div className="min-h-screen bg-background">
         <div className="container mx-auto py-12 px-4">
           <Card className="border border-border/40 shadow-sm max-w-lg mx-auto">
             <CardContent className="py-12 text-center space-y-8">
-              <BookOpen className="mx-auto h-16 w-16 text-[#f97316]" />
+              <BookOpen className="mx-auto h-16 w-16 text-primary" />
               <h2 className="text-2xl font-bold text-foreground">Revista Virtual</h2>
 
-              {/* Status Timeline */}
               <div className="flex items-center justify-between px-2">
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-2xl">{cadastroDone ? "✅" : "⬜"}</span>
@@ -175,7 +238,7 @@ export default function AlunoRevistaVirtual() {
 
   if (!assinatura) {
     return (
-      <div className="min-h-screen bg-[#f8f8f8]">
+      <div className="min-h-screen bg-background">
         <div className="container mx-auto py-12 px-4">
           <Card className="border border-border/40 shadow-sm">
             <CardContent className="py-16 text-center">
@@ -207,9 +270,8 @@ export default function AlunoRevistaVirtual() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f8f8]">
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto py-6 px-4 space-y-8">
-        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <span>📖</span> Revista Virtual
@@ -219,8 +281,7 @@ export default function AlunoRevistaVirtual() {
 
         <Separator />
 
-        {/* Revista Card */}
-        <Card className="border border-border/40 shadow-sm bg-white">
+        <Card className="border border-border/40 shadow-sm bg-card">
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row gap-6 items-start">
               <div className="relative flex-shrink-0">
@@ -235,7 +296,7 @@ export default function AlunoRevistaVirtual() {
                     <BookOpen className="h-10 w-10 text-muted-foreground/40" />
                   </div>
                 )}
-                <Badge className="absolute -top-2 -right-2 bg-[#f97316] text-white border-0 shadow-sm text-[10px] px-2">
+                <Badge className="absolute -top-2 -right-2 bg-primary text-primary-foreground border-0 shadow-sm text-[10px] px-2">
                   {revista?.tipo === "professor" ? "Professor" : "Aluno"}
                 </Badge>
               </div>
@@ -247,16 +308,15 @@ export default function AlunoRevistaVirtual() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm font-medium">
                     <span className="text-foreground">{concluidas} de {total} lições concluídas</span>
-                    <span className="text-[#f97316] font-semibold">{Math.round(progressPercent)}%</span>
+                    <span className="text-primary font-semibold">{Math.round(progressPercent)}%</span>
                   </div>
-                  <Progress value={progressPercent} className="h-2" indicatorClassName="bg-[#f97316]" />
+                  <Progress value={progressPercent} className="h-2" />
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Lições Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {licoes?.map((licao) => {
             const status = getLicaoStatus(licao.id);
@@ -266,7 +326,7 @@ export default function AlunoRevistaVirtual() {
             return (
               <Card
                 key={licao.id}
-                className="overflow-hidden border border-border/40 bg-white shadow-sm hover:shadow-md transition-shadow group"
+                className="overflow-hidden border border-border/40 bg-card shadow-sm hover:shadow-md transition-shadow group"
               >
                 <div className="relative aspect-[3/4] bg-muted overflow-hidden">
                   <img
@@ -274,7 +334,7 @@ export default function AlunoRevistaVirtual() {
                     alt={`Lição ${licao.numero}`}
                     className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                   />
-                  <Badge className="absolute top-2 left-2 bg-[#f97316] text-white border-0 shadow text-[11px] px-2.5 py-0.5">
+                  <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground border-0 shadow text-[11px] px-2.5 py-0.5">
                     Lição {licao.numero}
                   </Badge>
                   <div className="absolute top-2 right-2">
@@ -284,8 +344,8 @@ export default function AlunoRevistaVirtual() {
                       </div>
                     )}
                     {status === "em_andamento" && (
-                      <div className="h-7 w-7 rounded-full bg-[#f97316] flex items-center justify-center shadow">
-                        <Clock className="h-4 w-4 text-white" />
+                      <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center shadow">
+                        <Clock className="h-4 w-4 text-primary-foreground" />
                       </div>
                     )}
                     {status === "nao_lida" && (
@@ -301,7 +361,7 @@ export default function AlunoRevistaVirtual() {
                   </p>
                   <Button
                     size="sm"
-                    className="w-full bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-medium"
+                    className="w-full text-xs font-medium"
                     onClick={() => {
                       if (paginas.length > 0) {
                         navigate(`/ebd/revista/${assinatura.revista_id}/licao/${licao.numero}`);
