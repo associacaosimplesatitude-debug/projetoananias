@@ -382,7 +382,15 @@ export function CadastrarClienteDialog({
           nome_igreja: clienteBling.nome || clienteBling.fantasia || prev.nome_igreja,
           nome_responsavel: clienteBling.fantasia || prev.nome_responsavel,
           email_superintendente: clienteBling.email || prev.email_superintendente,
-          telefone: formatPhone(clienteBling.telefone || clienteBling.celular || prev.telefone),
+          telefone: (() => {
+            const telBling = clienteBling.telefone || clienteBling.celular || "";
+            if (telBling && !validateTelefone(telBling)) {
+              setTelefoneError("Telefone inválido no Bling — preencha manualmente");
+              return "";
+            }
+            setTelefoneError("");
+            return formatPhone(telBling || prev.telefone);
+          })(),
           endereco_cep: formatCEP(clienteBling.endereco_cep || prev.endereco_cep),
           endereco_rua: clienteBling.endereco_rua || prev.endereco_rua,
           endereco_numero: clienteBling.endereco_numero || prev.endereco_numero,
