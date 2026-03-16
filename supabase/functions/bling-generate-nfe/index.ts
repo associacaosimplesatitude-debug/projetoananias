@@ -13,6 +13,55 @@ const corsHeaders = {
 const LOJA_PENHA_ID = 205891152;
 const SERIE_PENHA = 1;  // Série 1 para TODAS as vendas da Penha (PF e PJ)
 
+// Helper: Mover pedido para "Atendido" no Bling após NF-e autorizada
+async function moverPedidoParaAtendido(orderId: number | string, accessToken: string): Promise<void> {
+  try {
+    // Buscar situações do módulo Vendas para descobrir ID do "Atendido"
+    const situacoesModuloUrl = 'https://www.bling.com.br/Api/v3/situacoes/modulos';
+    const situacoesModuloResp = await fetch(situacoesModuloUrl, {
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+    });
+    
+    let situacaoAtendidoId = 9; // fallback hardcoded
+    
+    if (situacoesModuloResp.ok) {
+      const modulosData = await situacoesModuloResp.json();
+      const modulos = Array.isArray(modulosData?.data) ? modulosData.data : [];
+      const moduloVendas = modulos.find((m: any) => 
+        (m?.nome || '').toLowerCase() === 'vendas'
+      );
+      
+      if (moduloVendas?.id) {
+        const situacoesUrl = `https://www.bling.com.br/Api/v3/situacoes/modulos/${moduloVendas.id}`;
+        const situacoesResp = await fetch(situacoesUrl, {
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+        });
+        
+        if (situacoesResp.ok) {
+          const situacoesData = await situacoesResp.json();
+          const situacoes = Array.isArray(situacoesData?.data) ? situacoesData.data : [];
+          const atendido = situacoes.find((s: any) => 
+            (s?.nome || '').toLowerCase().trim() === 'atendido'
+          );
+          if (atendido?.id) situacaoAtendidoId = atendido.id;
+        }
+      }
+    }
+
+    const patchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}/situacoes/${situacaoAtendidoId}`;
+    const patchResp = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+    console.log(`[BLING-NFE] PATCH pedido ${orderId} → Atendido (ID ${situacaoAtendidoId}): HTTP ${patchResp.status}`);
+  } catch (patchError) {
+    console.error(`[BLING-NFE] Falha ao mover pedido para Atendido:`, patchError);
+  }
+}
+
 // Natureza de Operação específicas para Penha
 const NATUREZA_PENHA_PF_ID = 15108893128; // "PENHA - Venda de mercadoria - PF"
 const NATUREZA_PENHA_PJ_ID = 15108893188; // "PENHA - Venda de mercadoria - PJ"
@@ -1141,6 +1190,7 @@ serve(async (req) => {
     const xmlInfProtCStat = typeof sefazXml === 'string'
       ? (sefazXml.match(/<infProt[\s\S]*?<cStat>(\d+)<\/cStat>/)?.[1] || null)
       : null;
+    const nfeAutorizadaSefaz = xmlInfProtCStat === '100';
     
     // ====== DIAGNÓSTICO: Extrair campos fiscais do XML para debug do erro 696 ======
     if (typeof sefazXml === 'string') {
@@ -1317,57 +1367,9 @@ serve(async (req) => {
           }
         }
         
-        // =====================================================================
-        // MOVER PEDIDO PARA "ATENDIDO" APÓS NF-e AUTORIZADA
-        // =====================================================================
+        // Mover pedido para "Atendido" (NF-e autorizada no polling)
         if (orderId) {
-          try {
-            // Buscar situações do módulo Vendas (ID 98310) para descobrir ID do "Atendido"
-            const situacoesModuloUrl = 'https://www.bling.com.br/Api/v3/situacoes/modulos';
-            const situacoesModuloResp = await fetch(situacoesModuloUrl, {
-              headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
-            });
-            
-            let situacaoAtendidoId = 9; // fallback hardcoded
-            
-            if (situacoesModuloResp.ok) {
-              const modulosData = await situacoesModuloResp.json();
-              const modulos = Array.isArray(modulosData?.data) ? modulosData.data : [];
-              const moduloVendas = modulos.find((m: any) => 
-                (m?.nome || '').toLowerCase() === 'vendas'
-              );
-              
-              if (moduloVendas?.id) {
-                const situacoesUrl = `https://www.bling.com.br/Api/v3/situacoes/modulos/${moduloVendas.id}`;
-                const situacoesResp = await fetch(situacoesUrl, {
-                  headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
-                });
-                
-                if (situacoesResp.ok) {
-                  const situacoesData = await situacoesResp.json();
-                  const situacoes = Array.isArray(situacoesData?.data) ? situacoesData.data : [];
-                  const atendido = situacoes.find((s: any) => 
-                    (s?.nome || '').toLowerCase().trim() === 'atendido'
-                  );
-                  if (atendido?.id) situacaoAtendidoId = atendido.id;
-                }
-              }
-            }
-
-            // PATCH endpoint correto do Bling v3: /pedidos/vendas/{id}/situacoes/{idSituacao}
-            const patchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}/situacoes/${situacaoAtendidoId}`;
-            const patchResp = await fetch(patchUrl, {
-              method: 'PATCH',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Accept': 'application/json',
-              },
-            });
-            console.log(`[BLING-NFE] PATCH pedido ${orderId} → Atendido (ID ${situacaoAtendidoId}): HTTP ${patchResp.status}`);
-          } catch (patchError) {
-            console.error(`[BLING-NFE] Falha ao mover pedido para Atendido:`, patchError);
-            // Não bloqueia o retorno — NF-e já foi autorizada com sucesso
-          }
+          await moverPedidoParaAtendido(orderId, accessToken);
         }
 
         return new Response(
@@ -1482,6 +1484,12 @@ serve(async (req) => {
         .from('ebd_shopify_pedidos')
         .update({ status_nfe: 'PROCESSANDO', nfe_id: nfeId })
         .eq('bling_order_id', orderId);
+    }
+
+    // Mesmo com polling expirado, se SEFAZ já autorizou (cStat 100), mover pedido para "Atendido"
+    if (orderId && nfeAutorizadaSefaz) {
+      console.log(`[BLING-NFE] Polling expirou mas SEFAZ autorizou (cStat 100) - movendo pedido ${orderId} para Atendido`);
+      await moverPedidoParaAtendido(orderId, accessToken);
     }
     
     return new Response(
