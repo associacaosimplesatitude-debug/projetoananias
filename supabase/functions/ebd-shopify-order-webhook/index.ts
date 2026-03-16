@@ -146,6 +146,21 @@ serve(async (req) => {
 
     // Parse the order payload
     const order: ShopifyOrder = await req.json();
+
+    // === FILTRO DE STATUS: Ignorar pedidos que NÃO são "paid" ===
+    if (order.financial_status !== "paid") {
+      console.log(`Pedido ignorado (status: ${order.financial_status}). Apenas pedidos 'paid' são processados.`);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          skipped: true,
+          reason: `financial_status=${order.financial_status}, only 'paid' is processed`,
+          order_id: order.id,
+          order_name: order.name,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     
     console.log("Order received:", {
       id: order.id,
