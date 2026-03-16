@@ -125,6 +125,7 @@ import EBDMyOrders from "./pages/ebd/MyOrders";
 import EBDOrderSuccess from "./pages/ebd/OrderSuccess";
 import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
 import EBDAdmin from "./pages/ebd/Admin";
+import RegistrarWebhook from "./pages/ebd/RegistrarWebhook";
 import EBDLancamentoManual from "./pages/ebd/LancamentoManual";
 import EBDClassroomForm from "./pages/ebd/ClassroomForm";
 import EBDAreaAluno from "./pages/ebd/AreaAluno";
@@ -489,6 +490,7 @@ const App = () => (
                       <Route path="aprovacao-faturamento" element={<AprovacaoFaturamento />} />
                       <Route path="comissoes" element={<GestaoComissoes />} />
                       <Route path="comissao-alfamarketing" element={<ComissaoAlfaMarketing />} />
+                      <Route path="registrar-webhook" element={<RegistrarWebhook />} />
                       <Route path="pedidos-igrejas" element={<PedidosOnline />} />
                       <Route path="pedidos-online" element={<PedidosCentralGospel />} />
                       <Route path="pedidos-igreja-cpf" element={<PedidosIgrejaCPF />} />
