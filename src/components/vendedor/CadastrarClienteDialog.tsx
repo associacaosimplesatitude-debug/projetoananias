@@ -955,9 +955,14 @@ export function CadastrarClienteDialog({
                 <Input
                   id="telefone"
                   value={formData.telefone}
-                  onChange={(e) => setFormData({ ...formData, telefone: formatPhone(e.target.value) })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, telefone: formatPhone(e.target.value) });
+                    setTelefoneError("");
+                  }}
                   placeholder="(00) 00000-0000"
+                  className={telefoneError ? "border-destructive" : ""}
                 />
+                {telefoneError && <p className="text-destructive text-sm">{telefoneError}</p>}
               </div>
 
               <Separator />
