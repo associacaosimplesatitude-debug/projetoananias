@@ -890,15 +890,16 @@ serve(async (req) => {
       console.log('[BLING] ⚠️ Situação "Aprovado" não encontrada, usando "Em andamento" como fallback para Mercado Pago');
     }
     
-    // ✅ REGRA: Pagamento na Loja → "Atendido" | Faturamento B2B → "Em andamento" | Outros → "Em aberto"
+    // ✅ REGRA: Pagamento na Loja → "Em andamento" (será movido para "Atendido" após NF-e autorizada)
+    // Faturamento B2B → "Em andamento" | Outros → "Em aberto"
     const situacaoInicialId = isPagamentoLoja 
-      ? situacaoAtendidoId  // Pagar na Loja (Glorinha) → "Atendido" (já foi pago)
+      ? (situacaoEmAndamentoId || situacaoEmAbertoId)  // Pagar na Loja → "Em andamento" (movido para "Atendido" após NF-e)
       : isFaturamentoPagamento 
         ? (situacaoEmAndamentoId || situacaoEmAbertoId)  // Faturamento → "Em andamento"
         : situacaoEmAbertoId;  // PIX/Cartão/Boleto → "Em aberto"
     
     console.log('[BLING] Situação inicial selecionada:', situacaoInicialId, 
-      isPagamentoLoja ? '(Pagamento na Loja → Atendido)' :
+      isPagamentoLoja ? '(Pagamento na Loja → Em andamento, será Atendido após NF-e)' :
       isFaturamentoPagamento ? '(Faturamento → Em andamento)' : '(Pagamento direto → Em aberto)');
     
     // ✅ NATUREZA DE OPERAÇÃO - SEMPRE retorna ID válido
