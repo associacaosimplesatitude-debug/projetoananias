@@ -1113,6 +1113,27 @@ serve(async (req) => {
       );
     }
 
+    // =====================================================================
+    // PUT para forçar vínculo NF-e ↔ Pedido no Bling
+    // =====================================================================
+    if (nfeId && orderId) {
+      try {
+        const linkResponse = await fetch(`https://api.bling.com.br/Api/v3/nfe/${nfeId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ idPedidoVenda: orderId }),
+        });
+        const linkStatus = linkResponse.status;
+        console.log(`[BLING-NFE] PUT vínculo NF-e ${nfeId} ↔ Pedido ${orderId}: HTTP ${linkStatus}`);
+      } catch (linkError) {
+        console.error(`[BLING-NFE] Falha no PUT de vínculo:`, linkError);
+        // Não bloqueia o fluxo — NF-e já foi criada
+      }
+    }
+
     // =======================================================================
     // PASSO 2: ENVIAR NF-e para SEFAZ via POST /nfe/{id}/enviar
     // =======================================================================
