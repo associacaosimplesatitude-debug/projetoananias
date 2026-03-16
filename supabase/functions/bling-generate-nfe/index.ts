@@ -1190,6 +1190,7 @@ serve(async (req) => {
     const xmlInfProtCStat = typeof sefazXml === 'string'
       ? (sefazXml.match(/<infProt[\s\S]*?<cStat>(\d+)<\/cStat>/)?.[1] || null)
       : null;
+    const nfeAutorizadaSefaz = xmlInfProtCStat === '100';
     
     // ====== DIAGNÓSTICO: Extrair campos fiscais do XML para debug do erro 696 ======
     if (typeof sefazXml === 'string') {
