@@ -489,6 +489,12 @@ export function CadastrarClienteDialog({
       return;
     }
 
+    // Validate phone if filled
+    if (formData.telefone && !validateTelefone(formData.telefone)) {
+      setTelefoneError("Telefone inválido — informe DDD + número (mínimo 10 dígitos)");
+      return;
+    }
+
     if (!formData.endereco_cep || !formData.endereco_numero) {
       toast.error("CEP e Número do endereço são obrigatórios");
       return;
