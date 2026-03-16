@@ -489,6 +489,7 @@ const App = () => (
                       <Route path="aprovacao-faturamento" element={<AprovacaoFaturamento />} />
                       <Route path="comissoes" element={<GestaoComissoes />} />
                       <Route path="comissao-alfamarketing" element={<ComissaoAlfaMarketing />} />
+                      <Route path="registrar-webhook" element={<RegistrarWebhook />} />
                       <Route path="pedidos-igrejas" element={<PedidosOnline />} />
                       <Route path="pedidos-online" element={<PedidosCentralGospel />} />
                       <Route path="pedidos-igreja-cpf" element={<PedidosIgrejaCPF />} />
