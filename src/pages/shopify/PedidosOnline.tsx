@@ -467,66 +467,67 @@ export default function PedidosOnline() {
           <p className="text-muted-foreground">Pedidos pagos finalizados via E-commerce</p>
         </div>
 
-        {canAccessAdminEBD && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => backfillDocumentsMutation.mutate()}
-              disabled={backfillDocumentsMutation.isPending || syncOrdersMutation.isPending || backfillItemsMutation.isPending}
-              className="gap-2"
-              title="Buscar CPF/CNPJ no Bling para pedidos sem documento"
-            >
-              {backfillDocumentsMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <IdCard className="h-4 w-4" />
-              )}
-              Backfill CPF/CNPJ
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => backfillItemsMutation.mutate()}
-              disabled={backfillItemsMutation.isPending || syncOrdersMutation.isPending || backfillDocumentsMutation.isPending}
-              className="gap-2"
-              title="Sincronizar itens de pedidos antigos"
-            >
-              {backfillItemsMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Package className="h-4 w-4" />
-              )}
-              Backfill Itens
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => syncOrdersMutation.mutate()}
-              disabled={syncOrdersMutation.isPending || backfillItemsMutation.isPending || backfillDocumentsMutation.isPending}
-              className="gap-2"
-            >
-              {syncOrdersMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Sincronizar Pedidos
-            </Button>
-          </div>
-        )}
-
-        <Button
-          variant="outline"
-          onClick={() => registerWebhookMutation.mutate()}
-          disabled={registerWebhookMutation.isPending}
-          className="gap-2"
-          title="Registrar webhook para receber pedidos automaticamente"
-        >
-          {registerWebhookMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <ExternalLink className="h-4 w-4" />
+        <div className="flex gap-2">
+          {canAccessAdminEBD && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => backfillDocumentsMutation.mutate()}
+                disabled={backfillDocumentsMutation.isPending || syncOrdersMutation.isPending || backfillItemsMutation.isPending}
+                className="gap-2"
+                title="Buscar CPF/CNPJ no Bling para pedidos sem documento"
+              >
+                {backfillDocumentsMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <IdCard className="h-4 w-4" />
+                )}
+                Backfill CPF/CNPJ
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => backfillItemsMutation.mutate()}
+                disabled={backfillItemsMutation.isPending || syncOrdersMutation.isPending || backfillDocumentsMutation.isPending}
+                className="gap-2"
+                title="Sincronizar itens de pedidos antigos"
+              >
+                {backfillItemsMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Package className="h-4 w-4" />
+                )}
+                Backfill Itens
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => syncOrdersMutation.mutate()}
+                disabled={syncOrdersMutation.isPending || backfillItemsMutation.isPending || backfillDocumentsMutation.isPending}
+                className="gap-2"
+              >
+                {syncOrdersMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Sincronizar Pedidos
+              </Button>
+            </>
           )}
-          Registrar Webhook
-        </Button>
+          <Button
+            variant="outline"
+            onClick={() => registerWebhookMutation.mutate()}
+            disabled={registerWebhookMutation.isPending}
+            className="gap-2"
+            title="Registrar webhook para receber pedidos automaticamente"
+          >
+            {registerWebhookMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ExternalLink className="h-4 w-4" />
+            )}
+            Registrar Webhook
+          </Button>
+        </div>
       </header>
 
       {/* Stats Cards */}
