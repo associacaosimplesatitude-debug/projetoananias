@@ -176,7 +176,28 @@ export default function PedidosOnline() {
     },
   });
 
-  const backfillItemsMutation = useMutation({
+  const registerWebhookMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("shopify-register-webhook", {
+        body: { topic: "orders/paid" },
+      });
+      if (error) throw error;
+      return data as { success?: boolean; message?: string; webhook_id?: number; topic?: string; error?: string };
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Webhook registrado", {
+        description: `Topic: ${data?.topic} | ID: ${data?.webhook_id}`,
+      });
+    },
+    onError: (err: any) => {
+      console.error("Falha ao registrar webhook", err);
+      toast.error("Falha ao registrar webhook", {
+        description: err?.context?.body?.error || err?.message || "Erro desconhecido",
+      });
+    },
+  });
+
+
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("ebd-shopify-backfill-items", {
         body: { batch_size: 50 },
