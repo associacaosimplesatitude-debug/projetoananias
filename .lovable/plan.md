@@ -1,31 +1,16 @@
 
 
-## Plano: Página de Erros de Sincronização Bling (MP)
+## Problema
 
-### 1. Criar página `src/pages/admin/BlingSyncErrors.tsx`
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-Nova página que:
-- Busca de `ebd_shopify_pedidos_mercadopago` com filtro `bling_order_id IS NULL AND sync_error IS NOT NULL AND status = 'PAGO'`
-- Exibe tabela com colunas: Pedido (id curto), Cliente (nome/email), Valor, Data, Tentativas, Erro, Ações
-- Botão vermelho "Reenviar" em cada linha que chama `supabase.functions.invoke('mp-sync-orphan-order', { body: { pedido_id: row.id } })`
-- Após reenvio: refetch da query. Se `bling_order_id` preenchido = badge verde "Sincronizado". Se novo `sync_error` = mostra erro atualizado
-- Usa `useQuery` + `useMutation` do tanstack/react-query
-- Exibe toast de sucesso/erro via sonner
+## Solução
 
-### 2. Adicionar rota em `src/App.tsx`
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-- Import do novo componente
-- Nova `<Route path="sync-errors" element={<BlingSyncErrors />} />` dentro do bloco `/admin/ebd`
-
-### 3. Adicionar item no menu lateral `src/components/admin/AdminEBDLayout.tsx`
-
-- Nova query para contar registros com erro de sync (`bling_order_id IS NULL AND sync_error IS NOT NULL AND status = 'PAGO'`)
-- Novo item de menu na seção "Operacional" com ícone `AlertTriangle` (vermelho via `text-red-500`)
-- Badge com contagem de erros, visível apenas quando `count > 0`
-- Link para `/admin/ebd/sync-errors`
-
-### Arquivos modificados
-- **Criado**: `src/pages/admin/BlingSyncErrors.tsx`
-- **Editado**: `src/App.tsx` (import + rota)
-- **Editado**: `src/components/admin/AdminEBDLayout.tsx` (query + item menu)
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 

@@ -30,6 +30,7 @@ import {
   Filter,
   Mail,
   DollarSign,
+  AlertTriangle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -111,6 +112,24 @@ function AdminSidebar() {
         .from("ebd_transfer_requests")
         .select("id", { count: "exact", head: true })
         .eq("status", "pendente");
+
+      if (error) throw error;
+      return count || 0;
+    },
+    staleTime: 1000 * 60 * 2,
+    enabled: !isFinanceiro,
+  });
+
+  // Query para contar erros de sync Bling
+  const { data: countSyncErrors = 0 } = useQuery({
+    queryKey: ["bling-sync-errors-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("ebd_shopify_pedidos_mercadopago")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "PAGO")
+        .is("bling_order_id", null)
+        .not("sync_error", "is", null);
 
       if (error) throw error;
       return count || 0;
@@ -302,6 +321,21 @@ function AdminSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {countSyncErrors > 0 && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/sync-errors')}>
+                      <RouterNavLink to="/admin/ebd/sync-errors">
+                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                        <span className="flex items-center gap-2">
+                          Erros Sync Bling
+                          <Badge variant="destructive" className="text-xs px-1.5 py-0.5 min-w-[20px] h-5">
+                            {countSyncErrors}
+                          </Badge>
+                        </span>
+                      </RouterNavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
