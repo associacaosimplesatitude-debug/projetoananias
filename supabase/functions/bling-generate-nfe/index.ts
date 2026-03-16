@@ -1113,26 +1113,7 @@ serve(async (req) => {
       );
     }
 
-    // =====================================================================
-    // PUT para forçar vínculo NF-e ↔ Pedido no Bling
-    // =====================================================================
-    if (nfeId && orderId) {
-      try {
-        const linkResponse = await fetch(`https://api.bling.com.br/Api/v3/nfe/${nfeId}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ idPedidoVenda: orderId }),
-        });
-        const linkStatus = linkResponse.status;
-        console.log(`[BLING-NFE] PUT vínculo NF-e ${nfeId} ↔ Pedido ${orderId}: HTTP ${linkStatus}`);
-      } catch (linkError) {
-        console.error(`[BLING-NFE] Falha no PUT de vínculo:`, linkError);
-        // Não bloqueia o fluxo — NF-e já foi criada
-      }
-    }
+    // (PUT de vínculo removido — não funciona na API v3 do Bling)
 
     // =======================================================================
     // PASSO 2: ENVIAR NF-e para SEFAZ via POST /nfe/{id}/enviar
@@ -1336,6 +1317,59 @@ serve(async (req) => {
           }
         }
         
+        // =====================================================================
+        // MOVER PEDIDO PARA "ATENDIDO" APÓS NF-e AUTORIZADA
+        // =====================================================================
+        if (orderId) {
+          try {
+            // Buscar situações do módulo Vendas (ID 98310) para descobrir ID do "Atendido"
+            const situacoesModuloUrl = 'https://www.bling.com.br/Api/v3/situacoes/modulos';
+            const situacoesModuloResp = await fetch(situacoesModuloUrl, {
+              headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+            });
+            
+            let situacaoAtendidoId = 9; // fallback hardcoded
+            
+            if (situacoesModuloResp.ok) {
+              const modulosData = await situacoesModuloResp.json();
+              const modulos = Array.isArray(modulosData?.data) ? modulosData.data : [];
+              const moduloVendas = modulos.find((m: any) => 
+                (m?.nome || '').toLowerCase() === 'vendas'
+              );
+              
+              if (moduloVendas?.id) {
+                const situacoesUrl = `https://www.bling.com.br/Api/v3/situacoes/modulos/${moduloVendas.id}`;
+                const situacoesResp = await fetch(situacoesUrl, {
+                  headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+                });
+                
+                if (situacoesResp.ok) {
+                  const situacoesData = await situacoesResp.json();
+                  const situacoes = Array.isArray(situacoesData?.data) ? situacoesData.data : [];
+                  const atendido = situacoes.find((s: any) => 
+                    (s?.nome || '').toLowerCase().trim() === 'atendido'
+                  );
+                  if (atendido?.id) situacaoAtendidoId = atendido.id;
+                }
+              }
+            }
+
+            // PATCH endpoint correto do Bling v3: /pedidos/vendas/{id}/situacoes/{idSituacao}
+            const patchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}/situacoes/${situacaoAtendidoId}`;
+            const patchResp = await fetch(patchUrl, {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept': 'application/json',
+              },
+            });
+            console.log(`[BLING-NFE] PATCH pedido ${orderId} → Atendido (ID ${situacaoAtendidoId}): HTTP ${patchResp.status}`);
+          } catch (patchError) {
+            console.error(`[BLING-NFE] Falha ao mover pedido para Atendido:`, patchError);
+            // Não bloqueia o retorno — NF-e já foi autorizada com sucesso
+          }
+        }
+
         return new Response(
           JSON.stringify({
             success: true,
