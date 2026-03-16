@@ -324,6 +324,14 @@ export function CadastrarClienteDialog({
     return validateCPF(limpo) ? null : "CPF inválido — verifique os dígitos";
   };
 
+  const validateTelefone = (telefone: string): boolean => {
+    const digits = telefone.replace(/\D/g, "");
+    if (digits.length === 0) return true;
+    if (digits.length < 10 || digits.length > 11) return false;
+    if (digits.substring(0, 2) === "00") return false;
+    return true;
+  };
+
   const handleDocumentoChange = (value: string) => {
     const formatted = formData.possui_cnpj ? formatCNPJ(value) : formatCPF(value);
     setFormData({ ...formData, documento: formatted });
