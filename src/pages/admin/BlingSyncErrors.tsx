@@ -92,13 +92,13 @@ export default function BlingSyncErrors() {
       <div className="flex items-center gap-3">
         <AlertTriangle className="h-6 w-6 text-destructive" />
         <div>
-          <h1 className="text-2xl font-bold">Erros de Sincronização Bling</h1>
+          <h1 className="text-2xl font-bold">Pedidos Pendentes de Sincronização Bling</h1>
           <p className="text-muted-foreground text-sm">
-            Pedidos Mercado Pago pagos que falharam ao sincronizar com o Bling
+            Pedidos Mercado Pago pagos que ainda não foram sincronizados com o Bling
           </p>
         </div>
         <Badge variant="destructive" className="ml-auto text-sm">
-          {errors.length} erro{errors.length !== 1 ? "s" : ""}
+          {errors.length} pendente{errors.length !== 1 ? "s" : ""}
         </Badge>
       </div>
 
