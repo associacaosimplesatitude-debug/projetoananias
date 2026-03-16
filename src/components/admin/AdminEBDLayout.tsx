@@ -128,8 +128,7 @@ function AdminSidebar() {
         .from("ebd_shopify_pedidos_mercadopago")
         .select("id", { count: "exact", head: true })
         .eq("status", "PAGO")
-        .is("bling_order_id", null)
-        .not("sync_error", "is", null);
+        .is("bling_order_id", null);
 
       if (error) throw error;
       return count || 0;
