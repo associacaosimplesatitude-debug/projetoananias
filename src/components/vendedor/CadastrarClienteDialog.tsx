@@ -192,6 +192,7 @@ export function CadastrarClienteDialog({
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const [documentoErro, setDocumentoErro] = useState<string | null>(null);
+  const [telefoneError, setTelefoneError] = useState<string>("");
 
   const isEditMode = !!clienteParaEditar;
 
