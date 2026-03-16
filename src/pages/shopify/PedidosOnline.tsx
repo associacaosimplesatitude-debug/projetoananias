@@ -257,10 +257,6 @@ export default function PedidosOnline() {
 
   // Realtime subscription for automatic updates
   useEffect(() => {
-    // Temporary: register webhook
-    supabase.functions.invoke('shopify-register-webhook', { body: { topic: 'orders/paid' } })
-      .then(({ data, error }) => console.log('WEBHOOK REGISTRO:', JSON.stringify(error || data)));
-
     const channel = supabase
       .channel('ebd-shopify-pedidos-realtime')
       .on(
