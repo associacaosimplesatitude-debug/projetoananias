@@ -462,6 +462,7 @@ export function CadastrarClienteDialog({
     setBlingClienteEncontrado(false);
     setBlingClienteId(null);
     setDocumentoJaBuscado("");
+    setTelefoneError("");
   };
 
   const generateRandomPassword = () => {
