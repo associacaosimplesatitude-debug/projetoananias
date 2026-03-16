@@ -511,11 +511,11 @@ export default function PedidosOnline() {
               Sincronizar Pedidos
             </Button>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => registerWebhookMutation.mutate()}
               disabled={registerWebhookMutation.isPending}
-              className="gap-2 text-muted-foreground"
+              className="gap-2"
               title="Registrar webhook para receber pedidos automaticamente"
             >
               {registerWebhookMutation.isPending ? (
