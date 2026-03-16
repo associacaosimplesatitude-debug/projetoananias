@@ -1,16 +1,29 @@
 
 
-## Problema
+## Plano: Incluir pedidos órfãos sem erro na página de Sync Errors
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+### Problema
+Existem pedidos MP pagos sem `bling_order_id` que também não têm `sync_error` registrado (a sincronização nunca foi tentada). Esses pedidos não aparecem na página de erros atual porque o filtro exige `sync_error IS NOT NULL`.
 
-## Solução
+### Solução
+Alterar a query na página `BlingSyncErrors.tsx` para incluir **todos** os pedidos pagos sem `bling_order_id`, independentemente de terem `sync_error` ou não.
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+### Alteração
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+**Arquivo:** `src/pages/admin/BlingSyncErrors.tsx`
+
+- **Remover** o filtro `.not("sync_error", "is", null)`
+- Manter os filtros: `status = 'PAGO'`, `bling_order_id IS NULL`, `created_at >= 2026-01-01`
+- Na coluna "Erro", exibir "Sincronização não tentada" quando `sync_error` for null
+- Alterar o título/descrição para refletir que mostra "pedidos pendentes de sincronização" (não apenas erros)
+
+### Alteração no menu lateral
+
+**Arquivo:** `src/components/admin/AdminEBDLayout.tsx`
+
+- Atualizar a query de contagem para também remover o filtro `sync_error IS NOT NULL`, mantendo coerência com a página
+
+### Escopo
+- 2 arquivos editados
+- Nenhuma tabela ou Edge Function alterada
 
