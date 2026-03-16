@@ -65,6 +65,7 @@ import { RoyaltiesAdminLayout } from "@/components/royalties/RoyaltiesAdminLayou
 import { AutorLayout } from "@/components/royalties/AutorLayout";
 import { RoyaltiesProtectedRoute } from "@/components/royalties/RoyaltiesProtectedRoute";
 import BlingIntegration from "./pages/admin/BlingIntegration";
+import BlingSyncErrors from "./pages/admin/BlingSyncErrors";
 import RevistasDigitais from "./pages/admin/RevistasDigitais";
 import RevistasAssinaturas from "./pages/admin/RevistasAssinaturas";
 import RevistaLicencasAdmin from "./pages/admin/RevistaLicencasAdmin";
