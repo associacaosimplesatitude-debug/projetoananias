@@ -1485,6 +1485,12 @@ serve(async (req) => {
         .update({ status_nfe: 'PROCESSANDO', nfe_id: nfeId })
         .eq('bling_order_id', orderId);
     }
+
+    // Mesmo com polling expirado, se SEFAZ já autorizou (cStat 100), mover pedido para "Atendido"
+    if (orderId && nfeAutorizadaSefaz) {
+      console.log(`[BLING-NFE] Polling expirou mas SEFAZ autorizou (cStat 100) - movendo pedido ${orderId} para Atendido`);
+      await moverPedidoParaAtendido(orderId, accessToken);
+    }
     
     return new Response(
       JSON.stringify({
