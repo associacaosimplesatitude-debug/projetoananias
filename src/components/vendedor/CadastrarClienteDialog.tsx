@@ -192,6 +192,7 @@ export function CadastrarClienteDialog({
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const [documentoErro, setDocumentoErro] = useState<string | null>(null);
+  const [telefoneError, setTelefoneError] = useState<string>("");
 
   const isEditMode = !!clienteParaEditar;
 
@@ -323,6 +324,14 @@ export function CadastrarClienteDialog({
     return validateCPF(limpo) ? null : "CPF inválido — verifique os dígitos";
   };
 
+  const validateTelefone = (telefone: string): boolean => {
+    const digits = telefone.replace(/\D/g, "");
+    if (digits.length === 0) return true;
+    if (digits.length < 10 || digits.length > 11) return false;
+    if (digits.substring(0, 2) === "00") return false;
+    return true;
+  };
+
   const handleDocumentoChange = (value: string) => {
     const formatted = formData.possui_cnpj ? formatCNPJ(value) : formatCPF(value);
     setFormData({ ...formData, documento: formatted });
@@ -373,7 +382,15 @@ export function CadastrarClienteDialog({
           nome_igreja: clienteBling.nome || clienteBling.fantasia || prev.nome_igreja,
           nome_responsavel: clienteBling.fantasia || prev.nome_responsavel,
           email_superintendente: clienteBling.email || prev.email_superintendente,
-          telefone: formatPhone(clienteBling.telefone || clienteBling.celular || prev.telefone),
+          telefone: (() => {
+            const telBling = clienteBling.telefone || clienteBling.celular || "";
+            if (telBling && !validateTelefone(telBling)) {
+              setTelefoneError("Telefone inválido no Bling — preencha manualmente");
+              return "";
+            }
+            setTelefoneError("");
+            return formatPhone(telBling || prev.telefone);
+          })(),
           endereco_cep: formatCEP(clienteBling.endereco_cep || prev.endereco_cep),
           endereco_rua: clienteBling.endereco_rua || prev.endereco_rua,
           endereco_numero: clienteBling.endereco_numero || prev.endereco_numero,
@@ -445,6 +462,7 @@ export function CadastrarClienteDialog({
     setBlingClienteEncontrado(false);
     setBlingClienteId(null);
     setDocumentoJaBuscado("");
+    setTelefoneError("");
   };
 
   const generateRandomPassword = () => {
@@ -469,6 +487,12 @@ export function CadastrarClienteDialog({
     // Validate email TLD
     if (!validateEmailTLD(formData.email_superintendente)) {
       toast.error("Email parece ter erro de digitação. Verifique o domínio (.com, .com.br, etc)");
+      return;
+    }
+
+    // Validate phone if filled
+    if (formData.telefone && !validateTelefone(formData.telefone)) {
+      setTelefoneError("Telefone inválido — informe DDD + número (mínimo 10 dígitos)");
       return;
     }
 
@@ -931,9 +955,14 @@ export function CadastrarClienteDialog({
                 <Input
                   id="telefone"
                   value={formData.telefone}
-                  onChange={(e) => setFormData({ ...formData, telefone: formatPhone(e.target.value) })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, telefone: formatPhone(e.target.value) });
+                    setTelefoneError("");
+                  }}
                   placeholder="(00) 00000-0000"
+                  className={telefoneError ? "border-destructive" : ""}
                 />
+                {telefoneError && <p className="text-destructive text-sm">{telefoneError}</p>}
               </div>
 
               <Separator />

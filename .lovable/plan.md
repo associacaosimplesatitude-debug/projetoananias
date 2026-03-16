@@ -1,34 +1,16 @@
 
 
-## Plano: Validação de Telefone no CadastrarClienteDialog
+## Problema
 
-### Alterações no arquivo `src/components/vendedor/CadastrarClienteDialog.tsx`
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-**1. Criar função `validateTelefone`** (após `validarDocumento`, ~linha 324):
-```typescript
-const validateTelefone = (telefone: string): boolean => {
-  const digits = telefone.replace(/\D/g, "");
-  if (digits.length === 0) return true; // vazio é ok
-  if (digits.length < 10 || digits.length > 11) return false;
-  if (digits.substring(0, 2) === "00") return false;
-  return true;
-};
-```
+## Solução
 
-**2. Adicionar estado de erro** (junto aos outros estados, ~linha 194):
-```typescript
-const [telefoneError, setTelefoneError] = useState<string>("");
-```
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-**3. No `handleSubmit`** (após validação de email TLD, ~linha 473): adicionar bloco que valida telefone se preenchido. Se inválido, seta `telefoneError` e retorna.
-
-**4. Na busca Bling** (~linha 376): após preencher telefone do Bling, validar com `validateTelefone`. Se inválido, limpar o campo telefone e setar `telefoneError("Telefone inválido no Bling — preencha manualmente")`.
-
-**5. No JSX do campo telefone** (~linha 931-935): adicionar `className` com borda vermelha condicional e exibir `{telefoneError && <p className="text-red-500 text-sm">{telefoneError}</p>}` abaixo do Input.
-
-**6. Limpar erro** no `onChange` do telefone e no `resetForm`.
-
-### Escopo
-- 1 arquivo editado
-- Nenhuma tabela, rota ou Edge Function alterada
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 
