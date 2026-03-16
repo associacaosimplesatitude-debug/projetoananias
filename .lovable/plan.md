@@ -1,16 +1,42 @@
 
 
-## Problema
+## Plano: Ativar Webhook Automático para Pedidos Shopify Pagos
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+### Diagnóstico
 
-## Solução
+1. **`ebd-shopify-order-webhook`**: Processa TODOS os pedidos recebidos (qualquer `financial_status`). Não filtra por `paid` — salva tudo via upsert. O auto-provisioning (criar usuário, funil pós-venda) já roda apenas quando `statusPagamento === 'paid'`, mas o upsert acontece para qualquer status.
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+2. **`shopify-register-webhook`**: Tem um bug na lógica de roteamento — quando o topic é `orders/create`, aponta para `shopify-orders-webhook` (função antiga de debug). Para qualquer outro topic, aponta para `ebd-shopify-order-webhook`. Ou seja, **nunca registra corretamente o topic `orders/paid`** apontando para a edge function certa.
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+3. **Verificação de duplicata**: O check `w.address.includes("shopify")` é muito genérico e pode detectar webhooks antigos como "já existentes" incorretamente.
+
+### Alterações necessárias
+
+#### 1. Edge Function `shopify-register-webhook` — Corrigir roteamento
+
+- Sempre apontar para `ebd-shopify-order-webhook` independente do topic
+- Default do topic muda de `orders/create` para `orders/paid` (captura apenas pedidos com pagamento confirmado)
+- Melhorar verificação de duplicata: comparar `address` exatamente com a URL gerada
+
+#### 2. Edge Function `ebd-shopify-order-webhook` — Adicionar filtro de status
+
+- No início do processamento, após parsear o payload, verificar `financial_status`
+- Se **não for `paid`**: retornar 200 OK com log "Pedido ignorado (status: {status})" sem processar
+- Se for `paid`: continuar com o fluxo atual normalmente
+
+#### 3. Página `PedidosOnline.tsx` — Botão "Registrar Webhook"
+
+- Adicionar botão discreto ao lado do "Sincronizar Pedidos"
+- Ícone: `Webhook` do lucide-react
+- Mutation chama `supabase.functions.invoke('shopify-register-webhook', { body: { topic: 'orders/paid' } })`
+- Sucesso: toast verde com ID do webhook e topic registrado
+- Erro: toast vermelho com mensagem de erro
+
+### Arquivos impactados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/shopify-register-webhook/index.ts` | Corrigir roteamento: sempre apontar para `ebd-shopify-order-webhook`, default topic `orders/paid` |
+| `supabase/functions/ebd-shopify-order-webhook/index.ts` | Adicionar filtro: ignorar pedidos com `financial_status !== 'paid'` |
+| `src/pages/shopify/PedidosOnline.tsx` | Adicionar botão "Registrar Webhook" com mutation |
 
