@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { topic = "orders/create" } = await req.json().catch(() => ({}));
+    const { topic = "orders/paid" } = await req.json().catch(() => ({}));
     
     const SHOPIFY_ACCESS_TOKEN = Deno.env.get("SHOPIFY_CENTRAL_GOSPEL_ACCESS_TOKEN");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -21,14 +21,12 @@ serve(async (req) => {
       throw new Error("SHOPIFY_CENTRAL_GOSPEL_ACCESS_TOKEN not configured");
     }
 
-    // Determinar a URL do webhook baseado no topic
-    const webhookUrl = topic === "orders/create" 
-      ? `${SUPABASE_URL}/functions/v1/shopify-orders-webhook`
-      : `${SUPABASE_URL}/functions/v1/ebd-shopify-order-webhook`;
+    // Always point to ebd-shopify-order-webhook regardless of topic
+    const webhookUrl = `${SUPABASE_URL}/functions/v1/ebd-shopify-order-webhook`;
     
     console.log(`Registering webhook for ${topic} to:`, webhookUrl);
 
-    // First, check existing webhooks
+    // List existing webhooks
     const listResponse = await fetch(
       `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/webhooks.json`,
       {
@@ -48,9 +46,9 @@ serve(async (req) => {
     const existingWebhooks = await listResponse.json();
     console.log("Existing webhooks:", JSON.stringify(existingWebhooks.webhooks?.map((w: any) => ({ id: w.id, topic: w.topic, address: w.address }))));
 
-    // Check if webhook already exists for this topic
+    // Check if webhook already exists for this exact topic AND address
     const existingWebhook = existingWebhooks.webhooks?.find(
-      (w: any) => w.topic === topic && w.address.includes("shopify")
+      (w: any) => w.topic === topic && w.address === webhookUrl
     );
 
     if (existingWebhook) {

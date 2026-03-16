@@ -489,6 +489,21 @@ export default function PedidosOnline() {
               )}
               Sincronizar Pedidos
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => registerWebhookMutation.mutate()}
+              disabled={registerWebhookMutation.isPending}
+              className="gap-2 text-muted-foreground"
+              title="Registrar webhook para receber pedidos automaticamente"
+            >
+              {registerWebhookMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ExternalLink className="h-4 w-4" />
+              )}
+              Registrar Webhook
+            </Button>
           </div>
         )}
       </header>
