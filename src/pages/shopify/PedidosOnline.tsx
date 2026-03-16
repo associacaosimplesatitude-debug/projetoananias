@@ -197,7 +197,7 @@ export default function PedidosOnline() {
     },
   });
 
-
+  const backfillItemsMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("ebd-shopify-backfill-items", {
         body: { batch_size: 50 },
