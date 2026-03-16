@@ -13,6 +13,55 @@ const corsHeaders = {
 const LOJA_PENHA_ID = 205891152;
 const SERIE_PENHA = 1;  // Série 1 para TODAS as vendas da Penha (PF e PJ)
 
+// Helper: Mover pedido para "Atendido" no Bling após NF-e autorizada
+async function moverPedidoParaAtendido(orderId: number | string, accessToken: string): Promise<void> {
+  try {
+    // Buscar situações do módulo Vendas para descobrir ID do "Atendido"
+    const situacoesModuloUrl = 'https://www.bling.com.br/Api/v3/situacoes/modulos';
+    const situacoesModuloResp = await fetch(situacoesModuloUrl, {
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+    });
+    
+    let situacaoAtendidoId = 9; // fallback hardcoded
+    
+    if (situacoesModuloResp.ok) {
+      const modulosData = await situacoesModuloResp.json();
+      const modulos = Array.isArray(modulosData?.data) ? modulosData.data : [];
+      const moduloVendas = modulos.find((m: any) => 
+        (m?.nome || '').toLowerCase() === 'vendas'
+      );
+      
+      if (moduloVendas?.id) {
+        const situacoesUrl = `https://www.bling.com.br/Api/v3/situacoes/modulos/${moduloVendas.id}`;
+        const situacoesResp = await fetch(situacoesUrl, {
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+        });
+        
+        if (situacoesResp.ok) {
+          const situacoesData = await situacoesResp.json();
+          const situacoes = Array.isArray(situacoesData?.data) ? situacoesData.data : [];
+          const atendido = situacoes.find((s: any) => 
+            (s?.nome || '').toLowerCase().trim() === 'atendido'
+          );
+          if (atendido?.id) situacaoAtendidoId = atendido.id;
+        }
+      }
+    }
+
+    const patchUrl = `https://www.bling.com.br/Api/v3/pedidos/vendas/${orderId}/situacoes/${situacaoAtendidoId}`;
+    const patchResp = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+    console.log(`[BLING-NFE] PATCH pedido ${orderId} → Atendido (ID ${situacaoAtendidoId}): HTTP ${patchResp.status}`);
+  } catch (patchError) {
+    console.error(`[BLING-NFE] Falha ao mover pedido para Atendido:`, patchError);
+  }
+}
+
 // Natureza de Operação específicas para Penha
 const NATUREZA_PENHA_PF_ID = 15108893128; // "PENHA - Venda de mercadoria - PF"
 const NATUREZA_PENHA_PJ_ID = 15108893188; // "PENHA - Venda de mercadoria - PJ"
