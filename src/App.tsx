@@ -125,6 +125,7 @@ import EBDMyOrders from "./pages/ebd/MyOrders";
 import EBDOrderSuccess from "./pages/ebd/OrderSuccess";
 import EBDFrequenciaRelatorio from "./pages/ebd/FrequenciaRelatorio";
 import EBDAdmin from "./pages/ebd/Admin";
+import RegistrarWebhook from "./pages/ebd/RegistrarWebhook";
 import EBDLancamentoManual from "./pages/ebd/LancamentoManual";
 import EBDClassroomForm from "./pages/ebd/ClassroomForm";
 import EBDAreaAluno from "./pages/ebd/AreaAluno";
