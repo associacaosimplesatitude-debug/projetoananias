@@ -38,7 +38,6 @@ export default function BlingSyncErrors() {
         .select("id, cliente_nome, cliente_email, valor_total, created_at, sync_retries, sync_error, bling_order_id")
         .eq("status", "PAGO")
         .is("bling_order_id", null)
-        .not("sync_error", "is", null)
         .gte("created_at", "2026-01-01T00:00:00.000Z")
         .order("created_at", { ascending: false });
 
