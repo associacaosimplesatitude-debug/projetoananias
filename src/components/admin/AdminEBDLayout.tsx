@@ -321,6 +321,21 @@ function AdminSidebar() {
                     </RouterNavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {countSyncErrors > 0 && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/sync-errors')}>
+                      <RouterNavLink to="/admin/ebd/sync-errors">
+                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                        <span className="flex items-center gap-2">
+                          Erros Sync Bling
+                          <Badge variant="destructive" className="text-xs px-1.5 py-0.5 min-w-[20px] h-5">
+                            {countSyncErrors}
+                          </Badge>
+                        </span>
+                      </RouterNavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
