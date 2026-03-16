@@ -120,6 +120,24 @@ function AdminSidebar() {
     enabled: !isFinanceiro,
   });
 
+  // Query para contar erros de sync Bling
+  const { data: countSyncErrors = 0 } = useQuery({
+    queryKey: ["bling-sync-errors-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("ebd_shopify_pedidos_mercadopago")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "PAGO")
+        .is("bling_order_id", null)
+        .not("sync_error", "is", null);
+
+      if (error) throw error;
+      return count || 0;
+    },
+    staleTime: 1000 * 60 * 2,
+    enabled: !isFinanceiro,
+  });
+
   const pedidosSubItems = [
     { to: "/admin/ebd/pedidos-online", icon: ShoppingBag, label: "Central Gospel" },
     { to: "/admin/ebd/pedidos-igreja-cpf", icon: User, label: "Igreja CPF" },
