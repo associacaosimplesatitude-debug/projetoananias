@@ -149,8 +149,8 @@ export default function BlingSyncErrors() {
                       <TableCell className="max-w-[300px]">
                         <div className="flex items-start gap-1.5">
                           <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                          <span className="text-xs text-destructive line-clamp-3">
-                            {row.sync_error}
+                          <span className={`text-xs line-clamp-3 ${row.sync_error ? "text-destructive" : "text-muted-foreground italic"}`}>
+                            {row.sync_error || "Sincronização não tentada"}
                           </span>
                         </div>
                       </TableCell>
