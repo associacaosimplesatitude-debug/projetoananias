@@ -1,56 +1,16 @@
 
 
-## Diagnóstico
+## Problema
 
-O erro **não é de sessão expirada**. A resposta HTTP é **409 Conflict** com a mensagem:
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-```
-duplicate key value violates unique constraint "ebd_clientes_cpf_unique_not_null"
-```
+## Solução
 
-**Causa raiz**: Existem 2 cadastros duplicados da "Rosangela Silva" na carteira da Neila:
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-| ID | CPF | Email | Criado em |
-|---|---|---|---|
-| `93dd8b9d...` | **NULL** | patrickvideocf@gmail.com | 11/fev |
-| `71bdb635...` | **01769949470** | aquinorosangela772@gmail.com | 02/mar |
-
-A vendedora está editando o cadastro `93dd8b9d` (que tem CPF nulo) e tentando salvar o CPF `017.699.494-70`, mas esse CPF já existe no cadastro `71bdb635`. O constraint `ebd_clientes_cpf_unique_not_null` impede a duplicação.
-
-## Plano
-
-### 1. Melhorar o tratamento do erro 23505 no modo edição
-
-Atualmente, o `catch` genérico na linha 697-699 apenas mostra "Erro ao atualizar cliente". O tratamento de duplicidade (linhas 588-661) só existe para o modo de **cadastro novo**.
-
-**Arquivo**: `src/components/vendedor/CadastrarClienteDialog.tsx`
-
-No bloco de edição (linhas 534-541), após o `if (error) throw error;`, interceptar o erro `23505` antes do throw:
-
-```typescript
-if (isEditMode && clienteParaEditar) {
-  const { error } = await supabase
-    .from("ebd_clientes")
-    .update(clienteData)
-    .eq("id", clienteParaEditar.id);
-
-  if (error) {
-    if (error.code === "23505") {
-      // Duplicate CPF/CNPJ
-      const docLabel = formData.possui_cnpj ? "CNPJ" : "CPF";
-      toast.error(`Este ${docLabel} já está cadastrado em outro cliente. Verifique antes de salvar.`);
-      setLoading(false);
-      return;
-    }
-    throw error;
-  }
-  // ... rest of edit logic
-}
-```
-
-This gives a clear, actionable message instead of a generic error.
-
-### 2. (Dados) Limpar o cadastro duplicado
-
-Os dois registros pertencem à mesma vendedora. O cadastro antigo (`93dd8b9d`, sem CPF) provavelmente deve ser removido ou unificado manualmente. Não farei isso automaticamente — apenas melhorarei a mensagem para que a vendedora saiba exatamente o que está acontecendo.
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 
