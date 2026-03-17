@@ -541,7 +541,24 @@ export function CadastrarClienteDialog({
         if (error) {
           if (error.code === "23505") {
             const docLabel = formData.possui_cnpj ? "CNPJ" : "CPF";
-            toast.error(`Este ${docLabel} já está em uso por outro cliente. Verifique os cadastros antes de salvar.`);
+            const docValue = formData.documento?.replace(/\D/g, "");
+            
+            let nomeExistente = "";
+            if (docValue) {
+              const column = formData.possui_cnpj ? "cnpj" : "cpf";
+              const { data: existing } = await supabase
+                .from("ebd_clientes")
+                .select("nome_igreja")
+                .eq(column, docValue)
+                .neq("id", clienteParaEditar.id)
+                .maybeSingle();
+              nomeExistente = existing?.nome_igreja || "";
+            }
+            
+            const msg = nomeExistente
+              ? `Este ${docLabel} já está em uso pelo cliente "${nomeExistente}". Verifique os cadastros antes de salvar.`
+              : `Este ${docLabel} já está em uso por outro cliente. Verifique os cadastros antes de salvar.`;
+            toast.error(msg);
             setLoading(false);
             return;
           }
