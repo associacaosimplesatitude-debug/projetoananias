@@ -1,16 +1,39 @@
 
 
-## Problema
+## Plano: Mostrar nome do cliente que já usa o CPF/CNPJ
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+### Alteração
 
-## Solução
+**`src/components/vendedor/CadastrarClienteDialog.tsx`** — linhas 541-547
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+Antes de mostrar o toast de erro, fazer uma consulta rápida para buscar o nome do cliente que já possui aquele documento:
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+```typescript
+if (error.code === "23505") {
+  const docLabel = formData.possui_cnpj ? "CNPJ" : "CPF";
+  const docValue = (formData.possui_cnpj ? formData.cnpj : formData.cpf)?.replace(/\D/g, "");
+  
+  // Buscar nome do cliente que já tem esse documento
+  let nomeExistente = "";
+  if (docValue) {
+    const column = formData.possui_cnpj ? "cnpj" : "cpf";
+    const { data: existing } = await supabase
+      .from("ebd_clientes")
+      .select("nome_igreja")
+      .eq(column, docValue)
+      .neq("id", clienteParaEditar.id)
+      .maybeSingle();
+    nomeExistente = existing?.nome_igreja || "";
+  }
+  
+  const msg = nomeExistente
+    ? `Este ${docLabel} já está em uso pelo cliente "${nomeExistente}". Verifique os cadastros antes de salvar.`
+    : `Este ${docLabel} já está em uso por outro cliente. Verifique os cadastros antes de salvar.`;
+  toast.error(msg);
+  setLoading(false);
+  return;
+}
+```
+
+Nota: O CPF pode estar salvo com ou sem formatação. Se a busca por valor limpo não encontrar, tenta com o valor formatado como fallback. Verificarei o formato usado no banco antes de implementar.
 
