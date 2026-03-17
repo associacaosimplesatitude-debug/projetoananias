@@ -543,22 +543,36 @@ export function CadastrarClienteDialog({
             const docLabel = formData.possui_cnpj ? "CNPJ" : "CPF";
             const docValue = formData.documento?.replace(/\D/g, "");
             
-            let nomeExistente = "";
+            let infoExtra = "";
             if (docValue) {
               const column = formData.possui_cnpj ? "cnpj" : "cpf";
               const { data: existing } = await supabase
                 .from("ebd_clientes")
-                .select("nome_igreja")
+                .select("id, nome_igreja, email_superintendente")
                 .eq(column, docValue)
                 .neq("id", clienteParaEditar.id)
                 .maybeSingle();
-              nomeExistente = existing?.nome_igreja || "";
+              
+              if (existing) {
+                // Buscar pedido e-commerce vinculado para identificar melhor o duplicado
+                const { data: pedido } = await supabase
+                  .from("ebd_shopify_pedidos")
+                  .select("customer_name, created_at, order_number")
+                  .eq("cliente_id", existing.id)
+                  .order("created_at", { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                
+                if (pedido) {
+                  const dataPedido = new Date(pedido.created_at).toLocaleDateString("pt-BR");
+                  infoExtra = `Este ${docLabel} já está em uso pelo cliente "${pedido.customer_name}" (pedido #${pedido.order_number} de ${dataPedido}). Verifique os cadastros antes de salvar.`;
+                } else {
+                  infoExtra = `Este ${docLabel} já está em uso pelo cliente "${existing.nome_igreja}" (${existing.email_superintendente || "sem email"}). Verifique os cadastros antes de salvar.`;
+                }
+              }
             }
             
-            const msg = nomeExistente
-              ? `Este ${docLabel} já está em uso pelo cliente "${nomeExistente}". Verifique os cadastros antes de salvar.`
-              : `Este ${docLabel} já está em uso por outro cliente. Verifique os cadastros antes de salvar.`;
-            toast.error(msg);
+            toast.error(infoExtra || `Este ${docLabel} já está em uso por outro cliente. Verifique os cadastros antes de salvar.`);
             setLoading(false);
             return;
           }
