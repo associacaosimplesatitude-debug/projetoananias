@@ -175,35 +175,8 @@ export default function Auth() {
         return;
       }
 
-      // 4. ADMIN - verificar pela role
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      console.log('Role check:', { roleData, roleError });
-
-      if (roleData?.role === 'admin') {
-        pushLoginSuccess(user.id, 'Admin');
-        console.log('Redirecting to /admin');
-        navigate('/admin');
-        return;
-      }
-
-      // 5. GERENTE EBD - redirecionar para Admin EBD
-      if (roleData?.role === 'gerente_ebd') {
-        console.log('Redirecting to /admin/ebd (gerente_ebd)');
-        navigate('/admin/ebd');
-        return;
-      }
-
-      // 5.1. FINANCEIRO - redirecionar para Aprovação Faturamento
-      if (roleData?.role === 'financeiro') {
-        console.log('Redirecting to /admin/ebd/aprovacao-faturamento (financeiro)');
-        navigate('/admin/ebd/aprovacao-faturamento');
-        return;
-      }
+      // 4. Roles restantes (tesoureiro, secretario, client) - já carregadas acima
+      // (admin, gerente_ebd, financeiro, gerente_royalties já tratados no início)
 
       // 6. PROFESSOR (prioridade sobre "client" / "/dashboard")
       // Pode existir mais de um registro ativo para o mesmo user_id, então evitamos maybeSingle
