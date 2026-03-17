@@ -541,11 +541,7 @@ export function CadastrarClienteDialog({
         if (error) {
           if (error.code === "23505") {
             const docLabel = formData.possui_cnpj ? "CNPJ" : "CPF";
-            toast({
-              title: `${docLabel} já cadastrado`,
-              description: `Este ${docLabel} já está em uso por outro cliente. Verifique os cadastros antes de salvar.`,
-              variant: "destructive",
-            });
+            toast.error(`Este ${docLabel} já está em uso por outro cliente. Verifique os cadastros antes de salvar.`);
             setLoading(false);
             return;
           }
