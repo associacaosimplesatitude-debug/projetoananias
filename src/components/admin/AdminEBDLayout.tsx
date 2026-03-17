@@ -497,7 +497,8 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Google - visível para admin, gerente_ebd e financeiro */}
+        {/* Google - apenas para admin geral */}
+        {isAdmin && (
         <SidebarGroup>
           <SidebarGroupLabel>Google</SidebarGroupLabel>
           <SidebarGroupContent>
