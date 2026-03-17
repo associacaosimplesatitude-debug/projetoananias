@@ -170,12 +170,12 @@ export default function EBDLogin() {
         return;
       }
 
-      if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
+      if (roles.includes('tesoureiro') || roles.includes('secretario')) {
         navigate('/dashboard');
         return;
       }
 
-      if (roleData?.role === 'client') {
+      if (roles.includes('client')) {
         const { data: church } = await supabase
           .from('churches')
           .select('process_status')
