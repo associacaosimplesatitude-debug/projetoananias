@@ -541,7 +541,7 @@ export function CadastrarClienteDialog({
         if (error) {
           if (error.code === "23505") {
             const docLabel = formData.possui_cnpj ? "CNPJ" : "CPF";
-            const docValue = (formData.possui_cnpj ? formData.cnpj : formData.cpf)?.replace(/\D/g, "");
+            const docValue = formData.documento?.replace(/\D/g, "");
             
             let nomeExistente = "";
             if (docValue) {
