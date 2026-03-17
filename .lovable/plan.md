@@ -1,16 +1,58 @@
 
 
-## Problema
+## Plano: Mostrar nome do pedido e-commerce e data na mensagem de erro duplicado
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+### Problema
+A mensagem atual mostra o `nome_igreja` do cliente duplicado, mas como ambos têm o mesmo nome ("Rosangela Silva"), não ajuda. O usuário quer ver **o nome que veio no pedido do e-commerce** e **a data do pedido**.
 
-## Solução
+### Alteração
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+**Arquivo**: `src/components/vendedor/CadastrarClienteDialog.tsx` (linhas 546-560)
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+Após encontrar o cliente duplicado em `ebd_clientes`, buscar também o pedido Shopify vinculado a esse cliente para mostrar o nome do pedido e a data:
+
+```typescript
+if (error.code === "23505") {
+  const docLabel = formData.possui_cnpj ? "CNPJ" : "CPF";
+  const docValue = formData.documento?.replace(/\D/g, "");
+  
+  let infoExtra = "";
+  if (docValue) {
+    const column = formData.possui_cnpj ? "cnpj" : "cpf";
+    const { data: existing } = await supabase
+      .from("ebd_clientes")
+      .select("id, nome_igreja, email_superintendente")
+      .eq(column, docValue)
+      .neq("id", clienteParaEditar.id)
+      .maybeSingle();
+    
+    if (existing) {
+      // Buscar pedido e-commerce vinculado
+      const { data: pedido } = await supabase
+        .from("ebd_shopify_pedidos")
+        .select("customer_name, created_at, order_number")
+        .eq("cliente_id", existing.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (pedido) {
+        const dataPedido = new Date(pedido.created_at).toLocaleDateString("pt-BR");
+        infoExtra = `Este ${docLabel} já está em uso pelo cliente "${pedido.customer_name}" (pedido #${pedido.order_number} de ${dataPedido}). Verifique os cadastros antes de salvar.`;
+      } else {
+        infoExtra = `Este ${docLabel} já está em uso pelo cliente "${existing.nome_igreja}" (${existing.email_superintendente || "sem email"}). Verifique os cadastros antes de salvar.`;
+      }
+    }
+  }
+  
+  toast.error(infoExtra || `Este ${docLabel} já está em uso por outro cliente.`);
+  setLoading(false);
+  return;
+}
+```
+
+A mensagem agora mostrará algo como:
+> "Este CPF já está em uso pelo cliente "Rosangela Silva" (pedido #1234 de 02/03/2026). Verifique os cadastros antes de salvar."
+
+Isso dá contexto suficiente para a vendedora identificar a origem do cadastro duplicado, mesmo que ele esteja oculto na listagem.
 
