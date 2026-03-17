@@ -47,6 +47,41 @@ export default function Auth() {
     console.log('User Email:', userEmail);
     
     try {
+      // 0. VERIFICAR ROLES ADMINISTRATIVAS PRIMEIRO (prioridade sobre vendedor)
+      const { data: userRoleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+
+      const roles = (userRoleData || []).map(r => r.role as string);
+      const ROLE_PRIORITY = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd'];
+      const priorityRole = ROLE_PRIORITY.find(r => roles.includes(r));
+
+      console.log('Role priority check:', { roles, priorityRole });
+
+      if (priorityRole === 'admin') {
+        pushLoginSuccess(user.id, 'Admin');
+        console.log('Redirecting to /admin (priority role)');
+        navigate('/admin');
+        return;
+      }
+      if (priorityRole === 'gerente_royalties') {
+        pushLoginSuccess(user.id, 'Gerente Royalties');
+        console.log('Redirecting to /royalties (priority role)');
+        navigate('/royalties');
+        return;
+      }
+      if (priorityRole === 'financeiro') {
+        console.log('Redirecting to /admin/ebd/aprovacao-faturamento (priority role)');
+        navigate('/admin/ebd/aprovacao-faturamento');
+        return;
+      }
+      if (priorityRole === 'gerente_ebd') {
+        console.log('Redirecting to /admin/ebd (priority role)');
+        navigate('/admin/ebd');
+        return;
+      }
+
       // 1. VENDEDOR - verificar pelo email (CASE INSENSITIVE)
       const { data: vendedorData, error: vendedorError } = await supabase
         .from('vendedores')
@@ -140,35 +175,8 @@ export default function Auth() {
         return;
       }
 
-      // 4. ADMIN - verificar pela role
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      console.log('Role check:', { roleData, roleError });
-
-      if (roleData?.role === 'admin') {
-        pushLoginSuccess(user.id, 'Admin');
-        console.log('Redirecting to /admin');
-        navigate('/admin');
-        return;
-      }
-
-      // 5. GERENTE EBD - redirecionar para Admin EBD
-      if (roleData?.role === 'gerente_ebd') {
-        console.log('Redirecting to /admin/ebd (gerente_ebd)');
-        navigate('/admin/ebd');
-        return;
-      }
-
-      // 5.1. FINANCEIRO - redirecionar para Aprovação Faturamento
-      if (roleData?.role === 'financeiro') {
-        console.log('Redirecting to /admin/ebd/aprovacao-faturamento (financeiro)');
-        navigate('/admin/ebd/aprovacao-faturamento');
-        return;
-      }
+      // 4. Roles restantes (tesoureiro, secretario, client) - já carregadas acima
+      // (admin, gerente_ebd, financeiro, gerente_royalties já tratados no início)
 
       // 6. PROFESSOR (prioridade sobre "client" / "/dashboard")
       // Pode existir mais de um registro ativo para o mesmo user_id, então evitamos maybeSingle
@@ -202,14 +210,14 @@ export default function Auth() {
       }
 
       // 8. TESOUREIRO/SECRETÁRIO
-      if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
+      if (roles.includes('tesoureiro') || roles.includes('secretario')) {
         console.log('Redirecting to /dashboard (tesoureiro/secretario)');
         navigate('/dashboard');
         return;
       }
 
       // 9. CLIENT - verificar igreja
-      if (roleData?.role === 'client') {
+      if (roles.includes('client')) {
         const { data: church } = await supabase
           .from('churches')
           .select('process_status')

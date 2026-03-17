@@ -45,6 +45,34 @@ export default function EBDLogin() {
     const userEmail = user.email.toLowerCase().trim();
     
     try {
+      // 0. VERIFICAR ROLES ADMINISTRATIVAS PRIMEIRO (prioridade sobre vendedor)
+      const { data: userRoleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+
+      const roles = (userRoleData || []).map(r => r.role as string);
+      const ROLE_PRIORITY = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd'];
+      const priorityRole = ROLE_PRIORITY.find(r => roles.includes(r));
+
+      if (priorityRole === 'admin') {
+        pushLoginSuccess(user.id, 'Admin');
+        navigate('/admin');
+        return;
+      }
+      if (priorityRole === 'gerente_royalties') {
+        navigate('/royalties');
+        return;
+      }
+      if (priorityRole === 'financeiro') {
+        navigate('/admin/ebd/aprovacao-faturamento');
+        return;
+      }
+      if (priorityRole === 'gerente_ebd') {
+        navigate('/admin/ebd');
+        return;
+      }
+
       // 1. VENDEDOR - verificar pelo email (CASE INSENSITIVE)
       const { data: vendedorData } = await supabase
         .from('vendedores')
@@ -110,28 +138,8 @@ export default function EBDLogin() {
         return;
       }
 
-      // 4. ADMIN / GERENTE / CLIENT etc. – mesma lógica da página Auth padrão
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (roleData?.role === 'admin') {
-        pushLoginSuccess(user.id, 'Admin');
-        navigate('/admin');
-        return;
-      }
-
-      if (roleData?.role === 'gerente_ebd') {
-        navigate('/admin/ebd');
-        return;
-      }
-
-      if (roleData?.role === 'financeiro') {
-        navigate('/admin/ebd/aprovacao-faturamento');
-        return;
-      }
+      // 4. Roles restantes - já carregadas acima
+      // (admin, gerente_ebd, financeiro já tratados no início)
 
       // 5. PROFESSOR (prioridade sobre "client" / "/dashboard")
       // Pode existir mais de um registro ativo para o mesmo user_id, então evitamos maybeSingle
@@ -162,12 +170,12 @@ export default function EBDLogin() {
         return;
       }
 
-      if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
+      if (roles.includes('tesoureiro') || roles.includes('secretario')) {
         navigate('/dashboard');
         return;
       }
 
-      if (roleData?.role === 'client') {
+      if (roles.includes('client')) {
         const { data: church } = await supabase
           .from('churches')
           .select('process_status')
