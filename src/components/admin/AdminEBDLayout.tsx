@@ -400,8 +400,8 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Configurações - apenas para admin e gerente_ebd */}
-        {!isFinanceiro && (
+        {/* Configurações - apenas para admin geral */}
+        {isAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel>Configurações</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -497,7 +497,8 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Google - visível para admin, gerente_ebd e financeiro */}
+        {/* Google - apenas para admin geral */}
+        {isAdmin && (
         <SidebarGroup>
           <SidebarGroupLabel>Google</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -584,6 +585,7 @@ function AdminSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
       </SidebarContent>
     </Sidebar>
   );
