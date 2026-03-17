@@ -538,7 +538,19 @@ export function CadastrarClienteDialog({
           .update(clienteData)
           .eq("id", clienteParaEditar.id);
 
-        if (error) throw error;
+        if (error) {
+          if (error.code === "23505") {
+            const docLabel = formData.possui_cnpj ? "CNPJ" : "CPF";
+            toast({
+              title: `${docLabel} já cadastrado`,
+              description: `Este ${docLabel} já está em uso por outro cliente. Verifique os cadastros antes de salvar.`,
+              variant: "destructive",
+            });
+            setLoading(false);
+            return;
+          }
+          throw error;
+        }
 
         // Escolhe a senha a ser usada para o acesso do superintendente
         const senhaParaLogin = formData.senha || clienteParaEditar.senha_temporaria || senhaGerada;
