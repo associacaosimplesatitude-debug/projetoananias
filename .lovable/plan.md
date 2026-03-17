@@ -1,16 +1,25 @@
 
 
-## Problema
+## Plan: Enable commission approval for EBD managers
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+### What changes
 
-## Solução
+**`src/pages/shopify/PedidosCentralGospel.tsx`** — Single change:
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+Replace:
+```typescript
+const isAdmin = role === 'admin';
+```
+With:
+```typescript
+const isAdmin = role === 'admin' || role === 'gerente_ebd';
+```
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+This will enable all `isAdmin`-gated features on this page (select all pending, approve commissions, sync button, action columns) for `gerente_ebd` users as well.
+
+Both `gabriel.lourenco` and `elielson` already have the `gerente_ebd` role, so no database changes are needed.
+
+### Risk
+
+Low — this only affects the Pedidos Central Gospel page. The `gerente_ebd` role already has access to the Admin EBD panel and can view this page; this change simply unlocks the approval controls.
 
