@@ -45,6 +45,34 @@ export default function EBDLogin() {
     const userEmail = user.email.toLowerCase().trim();
     
     try {
+      // 0. VERIFICAR ROLES ADMINISTRATIVAS PRIMEIRO (prioridade sobre vendedor)
+      const { data: userRoleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+
+      const roles = (userRoleData || []).map(r => r.role as string);
+      const ROLE_PRIORITY = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd'];
+      const priorityRole = ROLE_PRIORITY.find(r => roles.includes(r));
+
+      if (priorityRole === 'admin') {
+        pushLoginSuccess(user.id, 'Admin');
+        navigate('/admin');
+        return;
+      }
+      if (priorityRole === 'gerente_royalties') {
+        navigate('/royalties');
+        return;
+      }
+      if (priorityRole === 'financeiro') {
+        navigate('/admin/ebd/aprovacao-faturamento');
+        return;
+      }
+      if (priorityRole === 'gerente_ebd') {
+        navigate('/admin/ebd');
+        return;
+      }
+
       // 1. VENDEDOR - verificar pelo email (CASE INSENSITIVE)
       const { data: vendedorData } = await supabase
         .from('vendedores')

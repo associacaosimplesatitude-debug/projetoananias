@@ -47,6 +47,41 @@ export default function Auth() {
     console.log('User Email:', userEmail);
     
     try {
+      // 0. VERIFICAR ROLES ADMINISTRATIVAS PRIMEIRO (prioridade sobre vendedor)
+      const { data: userRoleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+
+      const roles = (userRoleData || []).map(r => r.role as string);
+      const ROLE_PRIORITY = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd'];
+      const priorityRole = ROLE_PRIORITY.find(r => roles.includes(r));
+
+      console.log('Role priority check:', { roles, priorityRole });
+
+      if (priorityRole === 'admin') {
+        pushLoginSuccess(user.id, 'Admin');
+        console.log('Redirecting to /admin (priority role)');
+        navigate('/admin');
+        return;
+      }
+      if (priorityRole === 'gerente_royalties') {
+        pushLoginSuccess(user.id, 'Gerente Royalties');
+        console.log('Redirecting to /royalties (priority role)');
+        navigate('/royalties');
+        return;
+      }
+      if (priorityRole === 'financeiro') {
+        console.log('Redirecting to /admin/ebd/aprovacao-faturamento (priority role)');
+        navigate('/admin/ebd/aprovacao-faturamento');
+        return;
+      }
+      if (priorityRole === 'gerente_ebd') {
+        console.log('Redirecting to /admin/ebd (priority role)');
+        navigate('/admin/ebd');
+        return;
+      }
+
       // 1. VENDEDOR - verificar pelo email (CASE INSENSITIVE)
       const { data: vendedorData, error: vendedorError } = await supabase
         .from('vendedores')
