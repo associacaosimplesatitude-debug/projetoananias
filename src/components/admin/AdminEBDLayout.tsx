@@ -400,8 +400,8 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Configurações - apenas para admin e gerente_ebd */}
-        {!isFinanceiro && (
+        {/* Configurações - apenas para admin geral */}
+        {isAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel>Configurações</SidebarGroupLabel>
             <SidebarGroupContent>
