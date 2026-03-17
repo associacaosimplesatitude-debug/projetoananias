@@ -85,7 +85,7 @@ interface ShopifyPedidoCG {
 export default function PedidosCentralGospel() {
   const queryClient = useQueryClient();
   const { role } = useAuth();
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'gerente_ebd';
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("30days");
   const [customDateRange, setCustomDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
