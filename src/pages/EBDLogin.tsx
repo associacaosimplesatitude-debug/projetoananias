@@ -138,28 +138,8 @@ export default function EBDLogin() {
         return;
       }
 
-      // 4. ADMIN / GERENTE / CLIENT etc. – mesma lógica da página Auth padrão
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (roleData?.role === 'admin') {
-        pushLoginSuccess(user.id, 'Admin');
-        navigate('/admin');
-        return;
-      }
-
-      if (roleData?.role === 'gerente_ebd') {
-        navigate('/admin/ebd');
-        return;
-      }
-
-      if (roleData?.role === 'financeiro') {
-        navigate('/admin/ebd/aprovacao-faturamento');
-        return;
-      }
+      // 4. Roles restantes - já carregadas acima
+      // (admin, gerente_ebd, financeiro já tratados no início)
 
       // 5. PROFESSOR (prioridade sobre "client" / "/dashboard")
       // Pode existir mais de um registro ativo para o mesmo user_id, então evitamos maybeSingle

@@ -210,14 +210,14 @@ export default function Auth() {
       }
 
       // 8. TESOUREIRO/SECRETÁRIO
-      if (roleData?.role === 'tesoureiro' || roleData?.role === 'secretario') {
+      if (roles.includes('tesoureiro') || roles.includes('secretario')) {
         console.log('Redirecting to /dashboard (tesoureiro/secretario)');
         navigate('/dashboard');
         return;
       }
 
       // 9. CLIENT - verificar igreja
-      if (roleData?.role === 'client') {
+      if (roles.includes('client')) {
         const { data: church } = await supabase
           .from('churches')
           .select('process_status')
