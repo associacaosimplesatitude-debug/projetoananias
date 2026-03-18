@@ -3655,6 +3655,57 @@ export type Database = {
           },
         ]
       }
+      ebd_retencao_contatos: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          data_contato: string
+          id: string
+          motivo_perda: string | null
+          observacao: string | null
+          resultado: string
+          tipo_contato: string
+          vendedor_id: string | null
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          data_contato?: string
+          id?: string
+          motivo_perda?: string | null
+          observacao?: string | null
+          resultado: string
+          tipo_contato: string
+          vendedor_id?: string | null
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          data_contato?: string
+          id?: string
+          motivo_perda?: string | null
+          observacao?: string | null
+          resultado?: string
+          tipo_contato?: string
+          vendedor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ebd_retencao_contatos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "ebd_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ebd_retencao_contatos_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "vendedores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ebd_revistas: {
         Row: {
           autor: string | null
@@ -7273,6 +7324,10 @@ export type Database = {
         Returns: Json
       }
       get_publicos_revistas_por_mes: { Args: never; Returns: Json }
+      get_retencao_dashboard: {
+        Args: { p_vendedor_id?: string }
+        Returns: Json
+      }
       get_sales_channel_totals: {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: Json
