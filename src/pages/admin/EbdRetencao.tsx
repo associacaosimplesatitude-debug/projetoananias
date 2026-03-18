@@ -10,7 +10,7 @@ import { useVendedor } from "@/hooks/useVendedor";
 import { Shield, AlertTriangle, Clock, XCircle, CheckCircle } from "lucide-react";
 
 interface RetencaoDashboard {
-  faixas: { verde: number; amarelo: number; vermelho: number; perdido: number };
+  faixas: { verde: number; amarelo: number; vermelho: number; perdido: number; fechados: number };
   kanban_clientes: KanbanCliente[];
 }
 
