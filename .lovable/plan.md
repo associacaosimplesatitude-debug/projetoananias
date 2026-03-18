@@ -1,27 +1,16 @@
 
 
-## Fix RLS Policies on `ebd_retencao_contatos`
+## Problema
 
-The error "permission denied for table users" occurs because the existing RLS policies reference the `users` table, which the authenticated user cannot access. The fix replaces all policies with simple `auth.uid() IS NOT NULL` checks.
+A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
 
-### Migration SQL
+## Solução
 
-Drop all existing policies and recreate three simple ones (INSERT, SELECT, UPDATE) that only check `auth.uid() IS NOT NULL`. This allows any authenticated user to interact with the table without querying restricted system tables.
+**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
 
-```sql
-DROP POLICY IF EXISTS "vendedores_insert_retencao" ON ebd_retencao_contatos;
-DROP POLICY IF EXISTS "vendedores_select_retencao" ON ebd_retencao_contatos;
-DROP POLICY IF EXISTS "admin_all_retencao" ON ebd_retencao_contatos;
-
-CREATE POLICY "allow_insert_retencao" ON ebd_retencao_contatos
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
-
-CREATE POLICY "allow_select_retencao" ON ebd_retencao_contatos
-  FOR SELECT USING (auth.uid() IS NOT NULL);
-
-CREATE POLICY "allow_update_retencao" ON ebd_retencao_contatos
-  FOR UPDATE USING (auth.uid() IS NOT NULL);
-```
-
-No frontend changes needed.
+1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
+2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
+3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
+4. Manter a expansão do payload completo ao clicar na linha
+5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
 
