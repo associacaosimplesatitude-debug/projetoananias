@@ -48,7 +48,7 @@ export default function EbdRetencao() {
     enabled: isAdmin,
   });
 
-  const faixas = data?.faixas || { verde: 0, amarelo: 0, vermelho: 0, perdido: 0 };
+  const faixas = data?.faixas || { verde: 0, amarelo: 0, vermelho: 0, perdido: 0, fechados: 0 };
 
   const cards = [
     { label: "Ativos (0-30d)", value: faixas.verde, icon: Shield, color: "text-green-600", bg: "bg-green-50 dark:bg-green-950/30" },
