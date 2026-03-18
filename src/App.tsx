@@ -56,6 +56,7 @@ import TransferRequests from "./pages/admin/TransferRequests";
 import EBDSystemUsers from "./pages/admin/EBDSystemUsers";
 import WhatsAppPanel from "./pages/admin/WhatsAppPanel";
 import CampaignTracking from "./pages/admin/CampaignTracking";
+import EbdRetencao from "./pages/admin/EbdRetencao";
 import { AdminEBDLayout } from "@/components/admin/AdminEBDLayout";
 import { EBDLayout } from "@/components/ebd/EBDLayout";
 import { ProfessorLayout } from "@/components/ebd/ProfessorLayout";
@@ -525,6 +526,7 @@ const App = () => (
                       <Route path="google/notas" element={<GoogleNotasFiscais />} />
                       <Route path="google/recargas" element={<GoogleRecargas />} />
                       <Route path="sync-errors" element={<BlingSyncErrors />} />
+                      <Route path="retencao" element={<EbdRetencao />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"

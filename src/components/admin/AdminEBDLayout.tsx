@@ -223,6 +223,15 @@ function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/ebd/retencao')}>
+                  <RouterNavLink to="/admin/ebd/retencao">
+                    <ArrowRightLeft className="h-4 w-4" />
+                    <span>Retenção</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
               {/* Pedidos com submenu */}
               <Collapsible open={pedidosOpen} onOpenChange={setPedidosOpen} className="group/collapsible">
                 <SidebarMenuItem>
