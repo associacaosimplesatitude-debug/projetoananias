@@ -55,6 +55,7 @@ export default function EbdRetencao() {
     { label: "Atenção (30-60d)", value: faixas.amarelo, icon: Clock, color: "text-yellow-600", bg: "bg-yellow-50 dark:bg-yellow-950/30" },
     { label: "Crítico (60-90d)", value: faixas.vermelho, icon: AlertTriangle, color: "text-red-600", bg: "bg-red-50 dark:bg-red-950/30" },
     { label: "Perdidos (90+d)", value: faixas.perdido, icon: XCircle, color: "text-muted-foreground", bg: "bg-muted/40" },
+    { label: "Fechados (mês atual)", value: faixas.fechados, icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
   ];
 
   return (
