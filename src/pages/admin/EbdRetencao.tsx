@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RetencaoKanban, type KanbanCliente } from "@/components/admin/retencao/RetencaoKanban";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useVendedor } from "@/hooks/useVendedor";
-import { Shield, AlertTriangle, Clock, XCircle } from "lucide-react";
+import { Shield, AlertTriangle, Clock, XCircle, CheckCircle } from "lucide-react";
 
 interface RetencaoDashboard {
   faixas: { verde: number; amarelo: number; vermelho: number; perdido: number };
