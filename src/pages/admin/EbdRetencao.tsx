@@ -68,7 +68,7 @@ export default function EbdRetencao() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {cards.map(c => (
           <Card key={c.label} className={c.bg}>
             <CardContent className="p-4 flex items-center gap-3">
