@@ -526,6 +526,7 @@ const App = () => (
                       <Route path="google/notas" element={<GoogleNotasFiscais />} />
                       <Route path="google/recargas" element={<GoogleRecargas />} />
                       <Route path="sync-errors" element={<BlingSyncErrors />} />
+                      <Route path="retencao" element={<EbdRetencao />} />
                     </Route>
                     <Route
                       path="/superadmin/branding"
