@@ -157,6 +157,9 @@ export default function SorteioLanding() {
         return;
       }
       toast.success("Cadastro realizado com sucesso! 🎉");
+      const primeiroNome = form.nome.trim().split(' ')[0];
+      sessionStorage.setItem('sorteio_nome', primeiroNome);
+      sessionStorage.setItem('sorteio_whatsapp', whatsappDigits);
       navigate("/embaixadora?cadastro=ok");
     } catch {
       toast.error("Erro inesperado. Tente novamente.");
