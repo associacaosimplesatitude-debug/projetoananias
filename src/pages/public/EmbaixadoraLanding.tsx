@@ -61,14 +61,14 @@ export default function EmbaixadoraLanding() {
       // Get tier Iniciante
       const tierIniciante = tiers?.find((t) => t.nome === "Iniciante");
 
-      const { error } = await supabase.from("embaixadoras").insert({
+      const { data: insertedData, error } = await supabase.from("embaixadoras").insert({
         nome: form.nome.trim(),
         email: form.email.trim().toLowerCase(),
         whatsapp: whatsappDigits,
         codigo_unico: codigo,
         status: "pendente",
         tier_id: tierIniciante?.id ?? null,
-      });
+      }).select("id").single();
 
       if (error) {
         if (error.code === "23505") {
@@ -78,6 +78,12 @@ export default function EmbaixadoraLanding() {
         }
         return;
       }
+
+      // Trigger email sequence
+      await supabase.functions.invoke("embaixadora-email-sequence", {
+        body: { embaixadora_id: insertedData.id },
+      });
+
       setCadastroFeito(true);
       toast.success("Cadastro realizado! 🎉");
     } catch {
