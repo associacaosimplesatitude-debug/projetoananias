@@ -106,6 +106,8 @@ import AutorMeusResgates from "./pages/autor/MeusResgates";
 
 // Public Landing Pages
 import LivroLandingPage from "./pages/public/LivroLandingPage";
+import SorteioLanding from "./pages/public/SorteioLanding";
+import EmbaixadoraLanding from "./pages/public/EmbaixadoraLanding";
 
 // EBD Pages
 import EBDIndex from "./pages/ebd/Index";
@@ -238,6 +240,8 @@ const App = () => (
               <Route path="/cadastro/revista/:churchId" element={<CadastroRevistaPublico />} />
               <Route path="/pagar/:codigo" element={<PagamentoRevistaPublico />} />
               <Route path="/livro/:slug" element={<LivroLandingPage />} />
+              <Route path="/sorteio" element={<SorteioLanding />} />
+              <Route path="/embaixadora" element={<EmbaixadoraLanding />} />
               <Route path="/oferta-ebd" element={<OfertaEBD />} />
               <Route path="/oferta/:token" element={<OfertaPersonalizada />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
