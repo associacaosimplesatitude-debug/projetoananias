@@ -1,20 +1,13 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Crown, DollarSign, Smartphone, Gift, CheckCircle, Loader2, Star } from "lucide-react";
-import { z } from "zod";
-
-const embaixadoraSchema = z.object({
-  nome: z.string().trim().min(3, "Nome deve ter pelo menos 3 caracteres").max(100),
-  email: z.string().trim().email("Email inválido").max(255),
-  whatsapp: z.string().trim().min(10, "WhatsApp inválido").max(15),
-});
+import { Crown, DollarSign, Smartphone, Gift, CheckCircle, Loader2, Star, Copy, ExternalLink } from "lucide-react";
 
 const gerarCodigoUnico = (nome: string): string => {
   const prefixo = nome
@@ -29,11 +22,16 @@ const gerarCodigoUnico = (nome: string): string => {
 
 export default function EmbaixadoraLanding() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const cadastroOk = searchParams.get("cadastro") === "ok";
 
-  const [form, setForm] = useState({ nome: "", email: "", whatsapp: "" });
+  const nome = sessionStorage.getItem("sorteio_nome") || "Você";
+  const savedWhatsapp = sessionStorage.getItem("sorteio_whatsapp") || "";
+
+  const [confirmado, setConfirmado] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cadastroFeito, setCadastroFeito] = useState(false);
+  const [embaixadoraData, setEmbaixadoraData] = useState<{ codigo: string; nome: string } | null>(null);
 
   const { data: tiers } = useQuery({
     queryKey: ["embaixadoras-tiers"],
@@ -46,25 +44,49 @@ export default function EmbaixadoraLanding() {
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsed = embaixadoraSchema.safeParse(form);
-    if (!parsed.success) {
-      toast.error(parsed.error.errors[0].message);
+  const handleSubmit = async () => {
+    if (!confirmado) {
+      toast.error("Confirme que seus dados estão corretos.");
       return;
     }
     setSubmitting(true);
     try {
-      const whatsappDigits = form.whatsapp.replace(/\D/g, "");
-      const codigo = gerarCodigoUnico(form.nome);
+      // Buscar participante recém-cadastrado
+      let participante: { nome: string; email: string; whatsapp: string } | null = null;
 
-      // Get tier Iniciante
+      if (savedWhatsapp) {
+        const { data } = await supabase
+          .from("sorteio_participantes")
+          .select("nome, email, whatsapp")
+          .eq("whatsapp", savedWhatsapp)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        participante = data;
+      }
+
+      if (!participante) {
+        const { data } = await supabase
+          .from("sorteio_participantes")
+          .select("nome, email, whatsapp")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        participante = data;
+      }
+
+      if (!participante) {
+        toast.error("Não encontramos seu cadastro. Volte e cadastre-se primeiro.");
+        return;
+      }
+
+      const codigo = gerarCodigoUnico(participante.nome);
       const tierIniciante = tiers?.find((t) => t.nome === "Iniciante");
 
       const { data: insertedData, error } = await supabase.from("embaixadoras").insert({
-        nome: form.nome.trim(),
-        email: form.email.trim().toLowerCase(),
-        whatsapp: whatsappDigits,
+        nome: participante.nome,
+        email: participante.email,
+        whatsapp: participante.whatsapp,
         codigo_unico: codigo,
         status: "pendente",
         tier_id: tierIniciante?.id ?? null,
@@ -72,25 +94,29 @@ export default function EmbaixadoraLanding() {
 
       if (error) {
         if (error.code === "23505") {
-          toast.error("Este email já está cadastrado como embaixadora.");
+          toast.error("Você já está cadastrada como embaixadora.");
         } else {
           toast.error("Erro ao cadastrar. Tente novamente.");
         }
         return;
       }
 
-      // Trigger email sequence
       await supabase.functions.invoke("embaixadora-email-sequence", {
         body: { embaixadora_id: insertedData.id },
       });
 
+      setEmbaixadoraData({ codigo, nome: participante.nome.split(" ")[0] });
       setCadastroFeito(true);
-      toast.success("Cadastro realizado! 🎉");
     } catch {
       toast.error("Erro inesperado. Tente novamente.");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const copiarTexto = (texto: string, label: string) => {
+    navigator.clipboard.writeText(texto);
+    toast.success(`${label} copiado!`);
   };
 
   const tierConfig = [
@@ -99,12 +125,72 @@ export default function EmbaixadoraLanding() {
     { icon: "🥇", color: "from-yellow-400/20 to-yellow-500/10", border: "border-yellow-400/30", badge: "bg-[#C9A84C]" },
   ];
 
-  const formatWhatsApp = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 11);
-    if (digits.length <= 2) return `(${digits}`;
-    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  };
+  // Tela de confirmação pós-cadastro
+  if (cadastroFeito && embaixadoraData) {
+    const link = `centralgospel.com.br?emb=${embaixadoraData.codigo}`;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] flex items-center justify-center px-4 py-12">
+        <div className="max-w-lg w-full space-y-6">
+          {/* Header dourado */}
+          <div className="text-center space-y-3">
+            <div className="w-20 h-20 rounded-full bg-[#C9A84C]/20 flex items-center justify-center mx-auto">
+              <Crown className="w-10 h-10 text-[#C9A84C]" />
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-white">
+              Bem-vinda ao time, <span className="text-[#C9A84C]">{embaixadoraData.nome}!</span> 🎉
+            </h1>
+          </div>
+
+          {/* Card com código e link */}
+          <Card className="border-0 bg-white/10 backdrop-blur border border-[#C9A84C]/30">
+            <CardContent className="p-6 md:p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <p className="text-white/60 text-sm">Seu código exclusivo:</p>
+                <p className="text-4xl font-bold text-[#C9A84C] font-mono tracking-wider">
+                  {embaixadoraData.codigo}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copiarTexto(embaixadoraData.codigo, "Código")}
+                  className="border-[#C9A84C]/30 text-[#C9A84C] hover:bg-[#C9A84C]/10"
+                >
+                  <Copy className="w-4 h-4 mr-2" /> Copiar código
+                </Button>
+              </div>
+
+              <div className="border-t border-white/10 pt-4 text-center space-y-2">
+                <p className="text-white/60 text-sm">Seu link personalizado:</p>
+                <p className="text-white font-medium text-sm break-all">{link}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copiarTexto(link, "Link")}
+                  className="border-[#C9A84C]/30 text-[#C9A84C] hover:bg-[#C9A84C]/10"
+                >
+                  <Copy className="w-4 h-4 mr-2" /> Copiar link
+                </Button>
+              </div>
+
+              <div className="bg-white/5 rounded-lg p-4 text-center">
+                <p className="text-white/70 text-sm">
+                  📧 Enviamos todos os detalhes para seu email
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button
+            onClick={() => navigate("/embaixadora/painel")}
+            className="w-full h-14 text-lg font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0"
+          >
+            <ExternalLink className="w-5 h-5 mr-2" />
+            Acessar meu Painel de Embaixadora 👑
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]">
@@ -113,7 +199,7 @@ export default function EmbaixadoraLanding() {
         <div className="bg-emerald-500 text-white text-center py-4 px-4">
           <div className="flex items-center justify-center gap-2 font-semibold">
             <CheckCircle className="w-5 h-5" />
-            Cadastro realizado! Você está concorrendo aos prêmios 🎉
+            Parabéns, {nome}! Você está concorrendo aos prêmios 🎉
           </div>
         </div>
       )}
@@ -128,16 +214,19 @@ export default function EmbaixadoraLanding() {
             </div>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
-            Seja uma <span className="text-[#C9A84C]">Embaixadora</span> Central Gospel
+            {nome}, enquanto aguarda o sorteio, <span className="text-[#C9A84C]">que tal ganhar dinheiro todo mês?</span>
           </h1>
           <p className="text-lg text-white/70">
-            Indique, venda e ganhe comissões todo mês
+            Seja uma Embaixadora Central Gospel — indique, venda e ganhe comissões
           </p>
         </div>
       </section>
 
       {/* Benefits */}
       <section className="px-4 pb-12">
+        <h2 className="text-xl text-white/80 text-center mb-6 font-medium">
+          {nome}, imagine receber comissão toda vez que uma amiga comprar...
+        </h2>
         <div className="max-w-4xl mx-auto grid md:grid-cols-3 gap-4">
           {[
             {
@@ -200,58 +289,38 @@ export default function EmbaixadoraLanding() {
         </div>
       </section>
 
-      {/* Form */}
+      {/* Form - simplified */}
       <section className="px-4 pb-16">
         <Card className="max-w-lg mx-auto border-0 shadow-2xl bg-white/95 backdrop-blur">
           <CardContent className="p-6 md:p-8">
-            {cadastroFeito ? (
-              <div className="text-center space-y-4 py-6">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
-                  <CheckCircle className="w-8 h-8 text-emerald-600" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800">Cadastro realizado!</h3>
-                <p className="text-gray-600">
-                  Em breve você receberá seu link personalizado por email.
-                </p>
+            <h2 className="text-xl font-bold text-center mb-2 text-gray-800">
+              👑 Sim, {nome}, eu quero ser Embaixadora!
+            </h2>
+            <p className="text-gray-500 text-sm text-center mb-6">
+              Usaremos os dados que você já cadastrou no sorteio.
+            </p>
+
+            <div className="space-y-6">
+              <div className="flex items-start gap-3 bg-gray-50 rounded-lg p-4">
+                <Checkbox
+                  id="confirmar"
+                  checked={confirmado}
+                  onCheckedChange={(checked) => setConfirmado(checked === true)}
+                  className="mt-0.5"
+                />
+                <label htmlFor="confirmar" className="text-sm text-gray-700 cursor-pointer leading-relaxed">
+                  Confirmo que meus dados estão corretos e quero me cadastrar como Embaixadora
+                </label>
               </div>
-            ) : (
-              <>
-                <h2 className="text-xl font-bold text-center mb-6 text-gray-800">
-                  👑 Quero ser Embaixadora
-                </h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <Input
-                    placeholder="Nome completo"
-                    value={form.nome}
-                    onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                    maxLength={100}
-                    required
-                  />
-                  <Input
-                    type="email"
-                    placeholder="Seu melhor email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    maxLength={255}
-                    required
-                  />
-                  <Input
-                    placeholder="WhatsApp (00) 00000-0000"
-                    value={form.whatsapp}
-                    onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })}
-                    maxLength={15}
-                    required
-                  />
-                  <Button
-                    type="submit"
-                    disabled={submitting}
-                    className="w-full h-12 text-base font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0"
-                  >
-                    {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Cadastrar como Embaixadora 👑"}
-                  </Button>
-                </form>
-              </>
-            )}
+
+              <Button
+                onClick={handleSubmit}
+                disabled={submitting || !confirmado}
+                className="w-full h-12 text-base font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : `Sim! Quero ser Embaixadora 👑`}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </section>
