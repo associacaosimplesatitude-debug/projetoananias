@@ -305,6 +305,12 @@ export default function SorteioLanding() {
                   <CardContent className="p-6 text-center space-y-3">
                     <Badge className="bg-[#C9A84C] text-white border-0 text-sm px-4">🎉 Ganhadora Atual</Badge>
                     <h3 className="text-2xl font-bold text-white">{ganhadoresNome(ganhadoresAtual)}</h3>
+                    {ganhadoresAtual.sorteado_em && (
+                      <p className="text-white/50 text-sm">
+                        Sorteada em: {new Date(ganhadoresAtual.sorteado_em).toLocaleDateString("pt-BR")} às{" "}
+                        {new Date(ganhadoresAtual.sorteado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
                     {ganhadoresAtual.premio_descricao && (
                       <p className="text-[#C9A84C] font-medium">{ganhadoresAtual.premio_descricao}</p>
                     )}
