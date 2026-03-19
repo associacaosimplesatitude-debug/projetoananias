@@ -87,7 +87,7 @@ export default function SorteioLanding() {
         .eq("status", "retirado")
         .order("sorteado_em", { ascending: false })
         .limit(5);
-      return data ?? [];
+      return (data ?? []) as any[];
     },
     refetchInterval: 30000,
   });
