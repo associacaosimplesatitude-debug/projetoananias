@@ -156,6 +156,7 @@ function SessoesTab() {
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 <p>📅 {format(new Date(s.data_inicio), "dd/MM/yy HH:mm")} → {format(new Date(s.data_fim), "dd/MM/yy HH:mm")}</p>
                 <p>⏱️ Intervalo: {s.intervalo_minutos} min</p>
+                {(s as any).premio_padrao && <p>🎁 Prêmio: {(s as any).premio_padrao}</p>}
                 <Button
                   size="sm"
                   variant={s.ativo ? "destructive" : "default"}
