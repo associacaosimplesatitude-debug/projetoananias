@@ -23,7 +23,7 @@ function SessoesTab() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [newSession, setNewSession] = useState({
-    nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60,
+    nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "",
   });
 
   const { data: sessoes, isLoading } = useQuery({
@@ -45,14 +45,15 @@ function SessoesTab() {
         data_inicio: newSession.data_inicio,
         data_fim: newSession.data_fim,
         intervalo_minutos: newSession.intervalo_minutos,
+        premio_padrao: newSession.premio_padrao.trim() || null,
         ativo: false,
-      });
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-sorteio-sessoes"] });
       setModalOpen(false);
-      setNewSession({ nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60 });
+      setNewSession({ nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "" });
       toast.success("Sessão criada!");
     },
     onError: () => toast.error("Erro ao criar sessão"),
@@ -117,6 +118,15 @@ function SessoesTab() {
                   onChange={(e) => setNewSession({ ...newSession, intervalo_minutos: parseInt(e.target.value) || 60 })}
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Prêmio padrão dos sorteios (opcional)</label>
+                <Input
+                  placeholder='Ex: Kit de Revistas EBD'
+                  value={newSession.premio_padrao}
+                  onChange={(e) => setNewSession({ ...newSession, premio_padrao: e.target.value })}
+                  maxLength={200}
+                />
+              </div>
               <Button
                 className="w-full"
                 disabled={!newSession.nome || !newSession.data_inicio || !newSession.data_fim || createMutation.isPending}
@@ -146,6 +156,7 @@ function SessoesTab() {
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 <p>📅 {format(new Date(s.data_inicio), "dd/MM/yy HH:mm")} → {format(new Date(s.data_fim), "dd/MM/yy HH:mm")}</p>
                 <p>⏱️ Intervalo: {s.intervalo_minutos} min</p>
+                {(s as any).premio_padrao && <p>🎁 Prêmio: {(s as any).premio_padrao}</p>}
                 <Button
                   size="sm"
                   variant={s.ativo ? "destructive" : "default"}

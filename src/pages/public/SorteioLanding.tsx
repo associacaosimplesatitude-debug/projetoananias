@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import { Gift, Users, Clock, Trophy, Share2, Loader2 } from "lucide-react";
 import { z } from "zod";
+import confetti from "canvas-confetti";
 
 const participanteSchema = z.object({
   nome: z.string().trim().min(3, "Nome deve ter pelo menos 3 caracteres").max(100),
@@ -26,11 +27,83 @@ const formatWhatsApp = (value: string) => {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 };
 
+const NOMES_FICTICIOS = [
+  "Maria Silva", "Ana Oliveira", "Juliana Santos", "Priscila Costa",
+  "Fernanda Lima", "Débora Souza", "Raquel Almeida", "Patrícia Ribeiro",
+  "Camila Martins", "Beatriz Ferreira", "Larissa Pereira", "Gabriela Rocha",
+  "Luciana Gomes", "Cristina Araújo", "Vanessa Barbosa", "Renata Cardoso",
+];
+
+function RouletteOverlay({ nome, onDone }: { nome: string; onDone: () => void }) {
+  const [displayName, setDisplayName] = useState(NOMES_FICTICIOS[0]);
+  const [revealed, setRevealed] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let step = 0;
+    const totalSteps = 30;
+    let delay = 60;
+
+    const tick = () => {
+      step++;
+      if (step >= totalSteps) {
+        setDisplayName(nome);
+        setRevealed(true);
+        // Fire confetti
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.5 },
+          colors: ["#C9A84C", "#FFD700", "#FFA500", "#FFFFFF"],
+        });
+        setTimeout(onDone, 4000);
+        return;
+      }
+      const idx = Math.floor(Math.random() * NOMES_FICTICIOS.length);
+      setDisplayName(NOMES_FICTICIOS[idx]);
+      delay += step * 4; // decelerate
+      intervalRef.current = setTimeout(tick, delay);
+    };
+
+    intervalRef.current = setTimeout(tick, delay);
+    return () => {
+      if (intervalRef.current) clearTimeout(intervalRef.current);
+    };
+  }, [nome, onDone]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center animate-fade-in">
+      <div className="text-center space-y-6 px-4">
+        <p className="text-white/60 text-lg uppercase tracking-widest">
+          {revealed ? "🎉 Ganhadora!" : "Sorteando..."}
+        </p>
+        <p
+          className={`text-white font-bold transition-all duration-500 ${
+            revealed
+              ? "text-5xl md:text-7xl text-[#C9A84C] scale-110"
+              : "text-3xl md:text-5xl animate-pulse"
+          }`}
+        >
+          {displayName}
+        </p>
+        {revealed && (
+          <div className="animate-fade-in">
+            <Trophy className="w-16 h-16 text-[#C9A84C] mx-auto mt-4" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SorteioLanding() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ nome: "", whatsapp: "", email: "", cidade: "", igreja: "" });
   const [submitting, setSubmitting] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [mostrandoRoleta, setMostrandoRoleta] = useState(false);
+  const [nomeRoleta, setNomeRoleta] = useState("");
+  const ultimoGanhadorRef = useRef<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -74,7 +147,7 @@ export default function SorteioLanding() {
         .limit(1);
       return data?.[0] ?? null;
     },
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
 
   // History
@@ -91,6 +164,26 @@ export default function SorteioLanding() {
     },
     refetchInterval: 30000,
   });
+
+  // Detect new winner → trigger roulette
+  useEffect(() => {
+    if (!ganhadoresAtual?.id) return;
+    if (ultimoGanhadorRef.current === null) {
+      // First load, just record
+      ultimoGanhadorRef.current = ganhadoresAtual.id;
+      return;
+    }
+    if (ganhadoresAtual.id !== ultimoGanhadorRef.current) {
+      const nome = ganhadoresAtual?.sorteio_participantes?.nome ?? "Ganhadora";
+      setNomeRoleta(nome);
+      setMostrandoRoleta(true);
+      ultimoGanhadorRef.current = ganhadoresAtual.id;
+    }
+  }, [ganhadoresAtual?.id]);
+
+  const handleRouletteEnd = useCallback(() => {
+    setMostrandoRoleta(false);
+  }, []);
 
   // Countdown
   const proximoSorteio = useMemo(() => {
@@ -133,8 +226,6 @@ export default function SorteioLanding() {
     setSubmitting(true);
     try {
       const whatsappDigits = form.whatsapp.replace(/\D/g, "");
-
-      // Get active session id
       let sessaoId: string | null = null;
       if (sessaoAtiva) sessaoId = sessaoAtiva.id;
 
@@ -168,12 +259,13 @@ export default function SorteioLanding() {
     }
   };
 
-  const ganhadoresNome = (g: any) => {
-    return g?.sorteio_participantes?.nome ?? "Participante";
-  };
+  const ganhadoresNome = (g: any) => g?.sorteio_participantes?.nome ?? "Participante";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]">
+      {/* Roulette Overlay */}
+      {mostrandoRoleta && <RouletteOverlay nome={nomeRoleta} onDone={handleRouletteEnd} />}
+
       {/* Hero */}
       <section className="relative overflow-hidden py-16 px-4 text-center">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(201,168,76,0.15),transparent_70%)]" />
@@ -205,53 +297,14 @@ export default function SorteioLanding() {
               📝 Faça sua inscrição
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Input
-                  placeholder="Nome completo"
-                  value={form.nome}
-                  onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                  maxLength={100}
-                  required
-                />
-              </div>
-              <div>
-                <Input
-                  placeholder="WhatsApp (00) 00000-0000"
-                  value={form.whatsapp}
-                  onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })}
-                  maxLength={15}
-                  required
-                />
-              </div>
-              <div>
-                <Input
-                  type="email"
-                  placeholder="Seu melhor email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  maxLength={255}
-                  required
-                />
-              </div>
+              <Input placeholder="Nome completo" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} maxLength={100} required />
+              <Input placeholder="WhatsApp (00) 00000-0000" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })} maxLength={15} required />
+              <Input type="email" placeholder="Seu melhor email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={255} required />
               <div className="grid grid-cols-2 gap-3">
-                <Input
-                  placeholder="Cidade"
-                  value={form.cidade}
-                  onChange={(e) => setForm({ ...form, cidade: e.target.value })}
-                  maxLength={100}
-                />
-                <Input
-                  placeholder="Igreja"
-                  value={form.igreja}
-                  onChange={(e) => setForm({ ...form, igreja: e.target.value })}
-                  maxLength={100}
-                />
+                <Input placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} maxLength={100} />
+                <Input placeholder="Igreja" value={form.igreja} onChange={(e) => setForm({ ...form, igreja: e.target.value })} maxLength={100} />
               </div>
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full h-12 text-base font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0"
-              >
+              <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0">
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Quero participar! 🎁"}
               </Button>
             </form>
@@ -301,7 +354,7 @@ export default function SorteioLanding() {
 
               {/* Current winner */}
               {ganhadoresAtual && (
-                <Card className="border-0 bg-gradient-to-r from-yellow-500/20 to-amber-500/10 backdrop-blur border border-yellow-500/30 animate-pulse-slow">
+                <Card className="border-0 bg-gradient-to-r from-yellow-500/20 to-amber-500/10 backdrop-blur border border-yellow-500/30">
                   <CardContent className="p-6 text-center space-y-3">
                     <Badge className="bg-[#C9A84C] text-white border-0 text-sm px-4">🎉 Ganhadora Atual</Badge>
                     <h3 className="text-2xl font-bold text-white">{ganhadoresNome(ganhadoresAtual)}</h3>
@@ -332,13 +385,8 @@ export default function SorteioLanding() {
                     <div className="space-y-3">
                       {historico.map((g: any) => (
                         <div key={g.id} className="flex items-center gap-4 bg-white/5 rounded-lg px-4 py-3">
-                          {/* Foto ou placeholder */}
                           {g.foto_url ? (
-                            <img
-                              src={g.foto_url}
-                              alt={ganhadoresNome(g)}
-                              className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] flex-shrink-0"
-                            />
+                            <img src={g.foto_url} alt={ganhadoresNome(g)} className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] flex-shrink-0" />
                           ) : (
                             <div className="w-12 h-12 rounded-full bg-[#C9A84C]/20 flex items-center justify-center flex-shrink-0">
                               <Trophy className="w-6 h-6 text-[#C9A84C]" />
@@ -346,9 +394,7 @@ export default function SorteioLanding() {
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-white font-medium">{ganhadoresNome(g)}</p>
-                            {g.premio_descricao && (
-                              <p className="text-white/50 text-sm">{g.premio_descricao}</p>
-                            )}
+                            {g.premio_descricao && <p className="text-white/50 text-sm">{g.premio_descricao}</p>}
                             {g.sorteado_em && (
                               <p className="text-white/40 text-xs">
                                 {new Date(g.sorteado_em).toLocaleDateString("pt-BR")} às{" "}
@@ -377,12 +423,7 @@ export default function SorteioLanding() {
             <Share2 className="w-8 h-8 text-[#C9A84C] mx-auto" />
             <p className="text-white font-semibold">Compartilhe com amigas!</p>
             <div className="bg-white rounded-xl p-4 inline-block">
-              <QRCodeSVG
-                value="https://gestaoebd.lovable.app/sorteio"
-                size={160}
-                fgColor="#1a1a2e"
-                bgColor="#ffffff"
-              />
+              <QRCodeSVG value="https://gestaoebd.lovable.app/sorteio" size={160} fgColor="#1a1a2e" bgColor="#ffffff" />
             </div>
             <p className="text-white/50 text-sm">Escaneie o QR Code para acessar</p>
           </CardContent>
