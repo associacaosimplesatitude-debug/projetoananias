@@ -4424,6 +4424,169 @@ export type Database = {
           },
         ]
       }
+      embaixadoras: {
+        Row: {
+          codigo_unico: string
+          created_at: string | null
+          email: string
+          id: string
+          nome: string
+          participante_id: string | null
+          status: string | null
+          tier_id: string | null
+          total_comissao: number | null
+          total_vendas: number | null
+          whatsapp: string
+        }
+        Insert: {
+          codigo_unico: string
+          created_at?: string | null
+          email: string
+          id?: string
+          nome: string
+          participante_id?: string | null
+          status?: string | null
+          tier_id?: string | null
+          total_comissao?: number | null
+          total_vendas?: number | null
+          whatsapp: string
+        }
+        Update: {
+          codigo_unico?: string
+          created_at?: string | null
+          email?: string
+          id?: string
+          nome?: string
+          participante_id?: string | null
+          status?: string | null
+          tier_id?: string | null
+          total_comissao?: number | null
+          total_vendas?: number | null
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "embaixadoras_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "embaixadoras_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "embaixadoras_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      embaixadoras_cliques: {
+        Row: {
+          created_at: string | null
+          embaixadora_id: string | null
+          id: string
+          ip_hash: string | null
+          referrer: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          embaixadora_id?: string | null
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          embaixadora_id?: string | null
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "embaixadoras_cliques_embaixadora_id_fkey"
+            columns: ["embaixadora_id"]
+            isOneToOne: false
+            referencedRelation: "embaixadoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      embaixadoras_tiers: {
+        Row: {
+          created_at: string | null
+          id: string
+          nome: string
+          percentual_comissao: number
+          volume_maximo: number | null
+          volume_minimo: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          nome: string
+          percentual_comissao: number
+          volume_maximo?: number | null
+          volume_minimo?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          nome?: string
+          percentual_comissao?: number
+          volume_maximo?: number | null
+          volume_minimo?: number | null
+        }
+        Relationships: []
+      }
+      embaixadoras_vendas: {
+        Row: {
+          canal: string | null
+          created_at: string | null
+          embaixadora_id: string | null
+          id: string
+          pedido_id: string | null
+          percentual_comissao: number
+          status: string | null
+          valor_comissao: number
+          valor_venda: number
+        }
+        Insert: {
+          canal?: string | null
+          created_at?: string | null
+          embaixadora_id?: string | null
+          id?: string
+          pedido_id?: string | null
+          percentual_comissao: number
+          status?: string | null
+          valor_comissao: number
+          valor_venda: number
+        }
+        Update: {
+          canal?: string | null
+          created_at?: string | null
+          embaixadora_id?: string | null
+          id?: string
+          pedido_id?: string | null
+          percentual_comissao?: number
+          status?: string | null
+          valor_comissao?: number
+          valor_venda?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "embaixadoras_vendas_embaixadora_id_fkey"
+            columns: ["embaixadora_id"]
+            isOneToOne: false
+            referencedRelation: "embaixadoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_entries: {
         Row: {
           church_id: string
@@ -6183,6 +6346,131 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sorteio_ganhadores: {
+        Row: {
+          confirmado_em: string | null
+          created_at: string | null
+          expira_em: string | null
+          id: string
+          participante_id: string | null
+          premio_descricao: string | null
+          sessao_id: string | null
+          sorteado_em: string | null
+          status: string | null
+        }
+        Insert: {
+          confirmado_em?: string | null
+          created_at?: string | null
+          expira_em?: string | null
+          id?: string
+          participante_id?: string | null
+          premio_descricao?: string | null
+          sessao_id?: string | null
+          sorteado_em?: string | null
+          status?: string | null
+        }
+        Update: {
+          confirmado_em?: string | null
+          created_at?: string | null
+          expira_em?: string | null
+          id?: string
+          participante_id?: string | null
+          premio_descricao?: string | null
+          sessao_id?: string | null
+          sorteado_em?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sorteio_ganhadores_participante_id_fkey"
+            columns: ["participante_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_participantes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sorteio_ganhadores_sessao_id_fkey"
+            columns: ["sessao_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_sessoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sorteio_participantes: {
+        Row: {
+          cidade: string | null
+          created_at: string | null
+          email: string
+          id: string
+          igreja: string | null
+          nome: string
+          quer_ser_embaixadora: boolean | null
+          sessao_id: string | null
+          whatsapp: string
+        }
+        Insert: {
+          cidade?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          igreja?: string | null
+          nome: string
+          quer_ser_embaixadora?: boolean | null
+          sessao_id?: string | null
+          whatsapp: string
+        }
+        Update: {
+          cidade?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          igreja?: string | null
+          nome?: string
+          quer_ser_embaixadora?: boolean | null
+          sessao_id?: string | null
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sorteio_participantes_sessao_id_fkey"
+            columns: ["sessao_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_sessoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sorteio_sessoes: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          data_fim: string
+          data_inicio: string
+          id: string
+          intervalo_minutos: number
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          data_fim: string
+          data_inicio: string
+          id?: string
+          intervalo_minutos?: number
+          nome: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          data_fim?: string
+          data_inicio?: string
+          id?: string
+          intervalo_minutos?: number
+          nome?: string
+        }
+        Relationships: []
       }
       stage_info_texts: {
         Row: {
