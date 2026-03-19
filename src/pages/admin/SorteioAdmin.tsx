@@ -45,8 +45,9 @@ function SessoesTab() {
         data_inicio: newSession.data_inicio,
         data_fim: newSession.data_fim,
         intervalo_minutos: newSession.intervalo_minutos,
+        premio_padrao: newSession.premio_padrao.trim() || null,
         ativo: false,
-      });
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
