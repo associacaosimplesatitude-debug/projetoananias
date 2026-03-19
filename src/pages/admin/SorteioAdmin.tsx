@@ -53,7 +53,7 @@ function SessoesTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-sorteio-sessoes"] });
       setModalOpen(false);
-      setNewSession({ nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60 });
+      setNewSession({ nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "" });
       toast.success("Sessão criada!");
     },
     onError: () => toast.error("Erro ao criar sessão"),
