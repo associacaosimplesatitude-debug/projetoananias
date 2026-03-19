@@ -1,0 +1,1 @@
+ALTER TABLE sorteio_sessoes ADD COLUMN IF NOT EXISTS premio_padrao text;

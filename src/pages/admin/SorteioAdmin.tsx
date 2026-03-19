@@ -23,7 +23,7 @@ function SessoesTab() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [newSession, setNewSession] = useState({
-    nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60,
+    nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "",
   });
 
   const { data: sessoes, isLoading } = useQuery({
