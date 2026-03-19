@@ -6352,9 +6352,11 @@ export type Database = {
           confirmado_em: string | null
           created_at: string | null
           expira_em: string | null
+          foto_url: string | null
           id: string
           participante_id: string | null
           premio_descricao: string | null
+          recusou_foto: boolean | null
           sessao_id: string | null
           sorteado_em: string | null
           status: string | null
@@ -6363,9 +6365,11 @@ export type Database = {
           confirmado_em?: string | null
           created_at?: string | null
           expira_em?: string | null
+          foto_url?: string | null
           id?: string
           participante_id?: string | null
           premio_descricao?: string | null
+          recusou_foto?: boolean | null
           sessao_id?: string | null
           sorteado_em?: string | null
           status?: string | null
@@ -6374,9 +6378,11 @@ export type Database = {
           confirmado_em?: string | null
           created_at?: string | null
           expira_em?: string | null
+          foto_url?: string | null
           id?: string
           participante_id?: string | null
           premio_descricao?: string | null
+          recusou_foto?: boolean | null
           sessao_id?: string | null
           sorteado_em?: string | null
           status?: string | null
