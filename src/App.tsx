@@ -106,6 +106,8 @@ import AutorMeusResgates from "./pages/autor/MeusResgates";
 
 // Public Landing Pages
 import LivroLandingPage from "./pages/public/LivroLandingPage";
+import SorteioLanding from "./pages/public/SorteioLanding";
+import EmbaixadoraLanding from "./pages/public/EmbaixadoraLanding";
 
 // EBD Pages
 import EBDIndex from "./pages/ebd/Index";
