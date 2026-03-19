@@ -31,6 +31,7 @@ import {
   Mail,
   DollarSign,
   AlertTriangle,
+  Gift,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
