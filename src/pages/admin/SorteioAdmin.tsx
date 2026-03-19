@@ -422,8 +422,12 @@ function RealizarSorteioTab() {
                             <Button
                               size="sm"
                               variant="outline"
-                              disabled={confirmarMutation.isPending}
-                              onClick={() => confirmarMutation.mutate(g.id)}
+                              onClick={() => {
+                                setRetiradaModal(g);
+                                setRetiradaFoto(null);
+                                setRetiradaFotoPreview(null);
+                                setRecusouFoto(false);
+                              }}
                             >
                               <CheckCircle className="w-4 h-4 mr-1" />Confirmar
                             </Button>
@@ -436,6 +440,64 @@ function RealizarSorteioTab() {
               )}
             </CardContent>
           </Card>
+
+          {/* Modal de Confirmação de Retirada */}
+          <Dialog open={!!retiradaModal} onOpenChange={(open) => { if (!open) setRetiradaModal(null); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  Confirmar Retirada — {retiradaModal?.sorteio_participantes?.nome ?? "Ganhadora"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Upload de foto */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Foto da ganhadora com o prêmio</label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFotoChange}
+                    disabled={recusouFoto}
+                    className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
+                  />
+                  {retiradaFotoPreview && !recusouFoto && (
+                    <div className="mt-2 rounded-lg overflow-hidden border">
+                      <img src={retiradaFotoPreview} alt="Preview" className="w-full max-h-48 object-cover" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Checkbox recusou foto */}
+                <div className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
+                  <Checkbox
+                    id="recusou-foto"
+                    checked={recusouFoto}
+                    onCheckedChange={(checked) => {
+                      setRecusouFoto(checked === true);
+                      if (checked) {
+                        setRetiradaFoto(null);
+                        setRetiradaFotoPreview(null);
+                      }
+                    }}
+                  />
+                  <label htmlFor="recusou-foto" className="text-sm cursor-pointer">
+                    Ganhadora recusou a foto
+                  </label>
+                </div>
+
+                <Button
+                  className="w-full"
+                  disabled={confirmandoRetirada || (!retiradaFoto && !recusouFoto)}
+                  onClick={confirmarRetirada}
+                >
+                  {confirmandoRetirada ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                    <><CheckCircle className="w-4 h-4 mr-2" />Confirmar Retirada</>
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
