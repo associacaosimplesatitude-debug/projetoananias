@@ -195,19 +195,66 @@ function RealizarSorteioTab() {
     },
   });
 
-  const confirmarMutation = useMutation({
-    mutationFn: async (id: string) => {
+  const [retiradaModal, setRetiradaModal] = useState<any>(null);
+  const [retiradaFoto, setRetiradaFoto] = useState<File | null>(null);
+  const [retiradaFotoPreview, setRetiradaFotoPreview] = useState<string | null>(null);
+  const [recusouFoto, setRecusouFoto] = useState(false);
+  const [confirmandoRetirada, setConfirmandoRetirada] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setRetiradaFoto(file);
+      setRetiradaFotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const confirmarRetirada = async () => {
+    if (!retiradaModal) return;
+    if (!retiradaFoto && !recusouFoto) return;
+
+    setConfirmandoRetirada(true);
+    try {
+      let fotoUrl: string | null = null;
+
+      if (retiradaFoto && !recusouFoto) {
+        const ext = retiradaFoto.name.split(".").pop() || "jpg";
+        const path = `${retiradaModal.id}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("sorteio-fotos")
+          .upload(path, retiradaFoto, { upsert: true });
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("sorteio-fotos")
+          .getPublicUrl(path);
+        fotoUrl = urlData.publicUrl;
+      }
+
       const { error } = await supabase
         .from("sorteio_ganhadores")
-        .update({ status: "retirado", confirmado_em: new Date().toISOString() })
-        .eq("id", id);
+        .update({
+          status: "retirado",
+          confirmado_em: new Date().toISOString(),
+          foto_url: fotoUrl,
+          recusou_foto: recusouFoto,
+        })
+        .eq("id", retiradaModal.id);
       if (error) throw error;
-    },
-    onSuccess: () => {
+
       refetchGanhadoras();
       toast.success("Retirada confirmada!");
-    },
-  });
+      setRetiradaModal(null);
+      setRetiradaFoto(null);
+      setRetiradaFotoPreview(null);
+      setRecusouFoto(false);
+    } catch {
+      toast.error("Erro ao confirmar retirada");
+    } finally {
+      setConfirmandoRetirada(false);
+    }
+  };
 
   const realizarSorteio = async () => {
     if (!sessaoAtiva) return toast.error("Nenhuma sessão ativa");
