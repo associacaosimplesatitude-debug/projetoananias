@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +15,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Plus, Power, PowerOff, Dice5, Trophy, Users, Download,
-  CheckCircle, Clock, Search, Loader2, Gift, Crown,
+  CheckCircle, Clock, Search, Loader2, Gift, Crown, Camera, ImageOff,
 } from "lucide-react";
 
 // ─── Sessões Tab ───────────────────────────────────────────
@@ -194,19 +195,66 @@ function RealizarSorteioTab() {
     },
   });
 
-  const confirmarMutation = useMutation({
-    mutationFn: async (id: string) => {
+  const [retiradaModal, setRetiradaModal] = useState<any>(null);
+  const [retiradaFoto, setRetiradaFoto] = useState<File | null>(null);
+  const [retiradaFotoPreview, setRetiradaFotoPreview] = useState<string | null>(null);
+  const [recusouFoto, setRecusouFoto] = useState(false);
+  const [confirmandoRetirada, setConfirmandoRetirada] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setRetiradaFoto(file);
+      setRetiradaFotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const confirmarRetirada = async () => {
+    if (!retiradaModal) return;
+    if (!retiradaFoto && !recusouFoto) return;
+
+    setConfirmandoRetirada(true);
+    try {
+      let fotoUrl: string | null = null;
+
+      if (retiradaFoto && !recusouFoto) {
+        const ext = retiradaFoto.name.split(".").pop() || "jpg";
+        const path = `${retiradaModal.id}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("sorteio-fotos")
+          .upload(path, retiradaFoto, { upsert: true });
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("sorteio-fotos")
+          .getPublicUrl(path);
+        fotoUrl = urlData.publicUrl;
+      }
+
       const { error } = await supabase
         .from("sorteio_ganhadores")
-        .update({ status: "retirado", confirmado_em: new Date().toISOString() })
-        .eq("id", id);
+        .update({
+          status: "retirado",
+          confirmado_em: new Date().toISOString(),
+          foto_url: fotoUrl,
+          recusou_foto: recusouFoto,
+        })
+        .eq("id", retiradaModal.id);
       if (error) throw error;
-    },
-    onSuccess: () => {
+
       refetchGanhadoras();
       toast.success("Retirada confirmada!");
-    },
-  });
+      setRetiradaModal(null);
+      setRetiradaFoto(null);
+      setRetiradaFotoPreview(null);
+      setRecusouFoto(false);
+    } catch {
+      toast.error("Erro ao confirmar retirada");
+    } finally {
+      setConfirmandoRetirada(false);
+    }
+  };
 
   const realizarSorteio = async () => {
     if (!sessaoAtiva) return toast.error("Nenhuma sessão ativa");
@@ -374,8 +422,12 @@ function RealizarSorteioTab() {
                             <Button
                               size="sm"
                               variant="outline"
-                              disabled={confirmarMutation.isPending}
-                              onClick={() => confirmarMutation.mutate(g.id)}
+                              onClick={() => {
+                                setRetiradaModal(g);
+                                setRetiradaFoto(null);
+                                setRetiradaFotoPreview(null);
+                                setRecusouFoto(false);
+                              }}
                             >
                               <CheckCircle className="w-4 h-4 mr-1" />Confirmar
                             </Button>
@@ -388,6 +440,64 @@ function RealizarSorteioTab() {
               )}
             </CardContent>
           </Card>
+
+          {/* Modal de Confirmação de Retirada */}
+          <Dialog open={!!retiradaModal} onOpenChange={(open) => { if (!open) setRetiradaModal(null); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  Confirmar Retirada — {retiradaModal?.sorteio_participantes?.nome ?? "Ganhadora"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Upload de foto */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Foto da ganhadora com o prêmio</label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFotoChange}
+                    disabled={recusouFoto}
+                    className="block w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
+                  />
+                  {retiradaFotoPreview && !recusouFoto && (
+                    <div className="mt-2 rounded-lg overflow-hidden border">
+                      <img src={retiradaFotoPreview} alt="Preview" className="w-full max-h-48 object-cover" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Checkbox recusou foto */}
+                <div className="flex items-center gap-3 bg-muted/50 rounded-lg p-3">
+                  <Checkbox
+                    id="recusou-foto"
+                    checked={recusouFoto}
+                    onCheckedChange={(checked) => {
+                      setRecusouFoto(checked === true);
+                      if (checked) {
+                        setRetiradaFoto(null);
+                        setRetiradaFotoPreview(null);
+                      }
+                    }}
+                  />
+                  <label htmlFor="recusou-foto" className="text-sm cursor-pointer">
+                    Ganhadora recusou a foto
+                  </label>
+                </div>
+
+                <Button
+                  className="w-full"
+                  disabled={confirmandoRetirada || (!retiradaFoto && !recusouFoto)}
+                  onClick={confirmarRetirada}
+                >
+                  {confirmandoRetirada ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                    <><CheckCircle className="w-4 h-4 mr-2" />Confirmar Retirada</>
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

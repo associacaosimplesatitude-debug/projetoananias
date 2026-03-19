@@ -87,7 +87,7 @@ export default function SorteioLanding() {
         .eq("status", "retirado")
         .order("sorteado_em", { ascending: false })
         .limit(5);
-      return data ?? [];
+      return (data ?? []) as any[];
     },
     refetchInterval: 30000,
   });
@@ -305,6 +305,12 @@ export default function SorteioLanding() {
                   <CardContent className="p-6 text-center space-y-3">
                     <Badge className="bg-[#C9A84C] text-white border-0 text-sm px-4">🎉 Ganhadora Atual</Badge>
                     <h3 className="text-2xl font-bold text-white">{ganhadoresNome(ganhadoresAtual)}</h3>
+                    {ganhadoresAtual.sorteado_em && (
+                      <p className="text-white/50 text-sm">
+                        Sorteada em: {new Date(ganhadoresAtual.sorteado_em).toLocaleDateString("pt-BR")} às{" "}
+                        {new Date(ganhadoresAtual.sorteado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
                     {ganhadoresAtual.premio_descricao && (
                       <p className="text-[#C9A84C] font-medium">{ganhadoresAtual.premio_descricao}</p>
                     )}
@@ -325,14 +331,32 @@ export default function SorteioLanding() {
                     <h3 className="text-white/80 font-semibold mb-4">🏆 Últimas Ganhadoras</h3>
                     <div className="space-y-3">
                       {historico.map((g: any) => (
-                        <div key={g.id} className="flex items-center justify-between bg-white/5 rounded-lg px-4 py-3">
-                          <div>
+                        <div key={g.id} className="flex items-center gap-4 bg-white/5 rounded-lg px-4 py-3">
+                          {/* Foto ou placeholder */}
+                          {g.foto_url ? (
+                            <img
+                              src={g.foto_url}
+                              alt={ganhadoresNome(g)}
+                              className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-[#C9A84C]/20 flex items-center justify-center flex-shrink-0">
+                              <Trophy className="w-6 h-6 text-[#C9A84C]" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
                             <p className="text-white font-medium">{ganhadoresNome(g)}</p>
                             {g.premio_descricao && (
                               <p className="text-white/50 text-sm">{g.premio_descricao}</p>
                             )}
+                            {g.sorteado_em && (
+                              <p className="text-white/40 text-xs">
+                                {new Date(g.sorteado_em).toLocaleDateString("pt-BR")} às{" "}
+                                {new Date(g.sorteado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            )}
                           </div>
-                          <Badge variant="outline" className="border-green-500/50 text-green-400 text-xs">
+                          <Badge variant="outline" className="border-green-500/50 text-green-400 text-xs flex-shrink-0">
                             ✅ Retirado
                           </Badge>
                         </div>
