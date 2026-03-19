@@ -118,6 +118,15 @@ function SessoesTab() {
                   onChange={(e) => setNewSession({ ...newSession, intervalo_minutos: parseInt(e.target.value) || 60 })}
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Prêmio padrão dos sorteios (opcional)</label>
+                <Input
+                  placeholder='Ex: Kit de Revistas EBD'
+                  value={newSession.premio_padrao}
+                  onChange={(e) => setNewSession({ ...newSession, premio_padrao: e.target.value })}
+                  maxLength={200}
+                />
+              </div>
               <Button
                 className="w-full"
                 disabled={!newSession.nome || !newSession.data_inicio || !newSession.data_fim || createMutation.isPending}
