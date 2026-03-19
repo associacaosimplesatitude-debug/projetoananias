@@ -233,6 +233,15 @@ function AdminSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/ebd/sorteio')}>
+                  <RouterNavLink to="/admin/ebd/sorteio">
+                    <Gift className="h-4 w-4" />
+                    <span>Sorteio & Embaixadoras</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
               {/* Pedidos com submenu */}
               <Collapsible open={pedidosOpen} onOpenChange={setPedidosOpen} className="group/collapsible">
                 <SidebarMenuItem>
