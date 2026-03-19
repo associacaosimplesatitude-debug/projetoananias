@@ -31,6 +31,7 @@ import {
   Mail,
   DollarSign,
   AlertTriangle,
+  Gift,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -228,6 +229,15 @@ function AdminSidebar() {
                   <RouterNavLink to="/admin/ebd/retencao">
                     <ArrowRightLeft className="h-4 w-4" />
                     <span>Retenção</span>
+                  </RouterNavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/ebd/sorteio')}>
+                  <RouterNavLink to="/admin/ebd/sorteio">
+                    <Gift className="h-4 w-4" />
+                    <span>Sorteio & Embaixadoras</span>
                   </RouterNavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
