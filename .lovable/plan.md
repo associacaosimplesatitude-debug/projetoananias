@@ -1,16 +1,28 @@
 
 
-## Problema
+## Etapa 1 — Database Migration: Sorteio + Embaixadoras
 
-A aba "Webhooks" em `/admin/whatsapp` exibe a descrição "Últimos 100 eventos recebidos da Z-API" mas o sistema ja migrou para a API Oficial Meta. Os dados na tabela `whatsapp_webhooks` ja contêm eventos da Meta (formato `whatsapp_business_account`), então basta atualizar os textos e melhorar a exibição para refletir o formato Meta.
+### Single Migration
 
-## Solução
+One SQL migration covering all 7 tables, indexes, RLS policies, and seed data for `embaixadoras_tiers`.
 
-**Arquivo: `src/pages/admin/WhatsAppPanel.tsx`** (function `WebhooksTab`, linhas 608-679)
+**Tables created:**
+1. `sorteio_sessoes` — session config
+2. `sorteio_participantes` — public registrations (unique by whatsapp/email)
+3. `sorteio_ganhadores` — winners with status tracking
+4. `embaixadoras_tiers` — commission tiers (seeded with 3 defaults)
+5. `embaixadoras` — ambassador profiles linked to participants
+6. `embaixadoras_cliques` — click tracking
+7. `embaixadoras_vendas` — sales attribution
 
-1. Atualizar `CardDescription` de "Z-API" para "API Oficial Meta"
-2. Adicionar coluna "Remetente" extraindo o nome do contato do payload Meta (`payload.entry[0].changes[0].value.contacts[0].profile.name`)
-3. Adicionar coluna "Conteúdo" extraindo o texto da mensagem (`payload.entry[0].changes[0].value.messages[0].text.body`)
-4. Manter a expansão do payload completo ao clicar na linha
-5. Atualizar label do JsonBlock de "📋 Payload Completo" para "📋 Payload Meta"
+**RLS policies** as specified: public INSERT for participants/clicks, public SELECT for winners/sessions/tiers, admin-only for mutations.
+
+**Storage bucket note:** The `storage` schema is reserved and cannot be modified via migrations. The `sorteio-fotos` bucket will need to be created in a later step when building the frontend, or via a different approach.
+
+### Technical details
+
+- All SQL exactly as provided by the user, combined into a single migration
+- Indexes on foreign keys, status columns, and lookup fields
+- Seed data for 3 tiers: Iniciante (5%), Ativa (8%), Premium (12%)
+- No frontend files created
 
