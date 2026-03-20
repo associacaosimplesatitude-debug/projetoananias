@@ -10,12 +10,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Plus, Power, PowerOff, Dice5, Trophy, Users, Download,
   CheckCircle, Clock, Search, Loader2, Gift, Crown, Camera, ImageOff, Pencil, Trash2,
+  MousePointerClick, DollarSign, TrendingUp, AlertCircle, Medal, MapPin, Share2, Instagram, Facebook, MessageCircle, Globe, Banknote,
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
