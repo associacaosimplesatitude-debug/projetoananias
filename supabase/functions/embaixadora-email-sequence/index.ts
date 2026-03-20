@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Central Gospel <noreply@notify.gestaoebd.com.br>",
+        from: "Central Gospel <noreply@painel.editoracentralgospel.com.br>",
         to: [emb.email],
         subject: schedules[0].assunto,
         html: buildWelcomeEmail(emb.nome, emb.codigo_unico),
