@@ -127,7 +127,7 @@ export default function EmbaixadoraLanding() {
 
   // Tela de confirmação pós-cadastro
   if (cadastroFeito && embaixadoraData) {
-    const link = `centralgospel.com.br?emb=${embaixadoraData.codigo}`;
+    const link = `gestaoebd.com.br/r/${embaixadoraData.codigo}`;
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] flex items-center justify-center px-4 py-12">
         <div className="max-w-lg w-full space-y-6">
