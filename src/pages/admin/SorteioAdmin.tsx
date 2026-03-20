@@ -18,6 +18,7 @@ import {
   Plus, Power, PowerOff, Dice5, Trophy, Users, Download,
   CheckCircle, Clock, Search, Loader2, Gift, Crown, Camera, ImageOff, Pencil, Trash2,
   MousePointerClick, DollarSign, TrendingUp, AlertCircle, Medal, MapPin, Share2, Instagram, Facebook, MessageCircle, Globe, Banknote,
+  Eye, Copy,
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -763,6 +764,7 @@ function ParticipantesTab() {
 function EmbaixadorasTab() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [selectedEmb, setSelectedEmb] = useState<any>(null);
 
   const { data: embaixadoras, isLoading } = useQuery({
     queryKey: ["admin-embaixadoras"],
@@ -1240,15 +1242,25 @@ function EmbaixadorasTab() {
                     <TableCell className="text-right">R${Number(e.total_vendas ?? 0).toFixed(2)}</TableCell>
                     <TableCell className="text-right">R${Number(e.total_comissao ?? 0).toFixed(2)}</TableCell>
                     <TableCell>
-                      {e.status === "pendente" && (
+                      <div className="flex items-center gap-1">
                         <Button
-                          size="sm"
-                          disabled={ativarMutation.isPending}
-                          onClick={() => ativarMutation.mutate(e.id)}
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => setSelectedEmb(e)}
                         >
-                          Ativar
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      )}
+                        {e.status === "pendente" && (
+                          <Button
+                            size="sm"
+                            disabled={ativarMutation.isPending}
+                            onClick={() => ativarMutation.mutate(e.id)}
+                          >
+                            Ativar
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1264,6 +1276,76 @@ function EmbaixadorasTab() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Modal detalhes da embaixadora ── */}
+      <Dialog open={!!selectedEmb} onOpenChange={(open) => !open && setSelectedEmb(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Embaixadora</DialogTitle>
+          </DialogHeader>
+          {selectedEmb && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Nome</p>
+                  <p className="font-medium">{selectedEmb.nome}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Email</p>
+                  <p className="font-medium">{selectedEmb.email}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">WhatsApp</p>
+                  <p className="font-medium">{selectedEmb.whatsapp || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Código</p>
+                  <code className="bg-muted px-2 py-0.5 rounded text-xs">{selectedEmb.codigo_unico}</code>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  {statusBadge(selectedEmb.status)}
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Tier</p>
+                  {tierBadge(selectedEmb.embaixadoras_tiers?.nome)}
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Total Vendas</p>
+                  <p className="font-medium">R${Number(selectedEmb.total_vendas ?? 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Total Comissão</p>
+                  <p className="font-medium">R${Number(selectedEmb.total_comissao ?? 0).toFixed(2)}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-muted-foreground">Cadastro</p>
+                  <p className="font-medium">{format(new Date(selectedEmb.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Link de compartilhamento</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-muted px-3 py-2 rounded text-xs break-all">
+                    {`${window.location.origin}/r/${selectedEmb.codigo_unico}`}
+                  </code>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/r/${selectedEmb.codigo_unico}`);
+                      toast.success("Link copiado!");
+                    }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
