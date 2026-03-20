@@ -764,6 +764,7 @@ function ParticipantesTab() {
 function EmbaixadorasTab() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [selectedEmb, setSelectedEmb] = useState<any>(null);
 
   const { data: embaixadoras, isLoading } = useQuery({
     queryKey: ["admin-embaixadoras"],
