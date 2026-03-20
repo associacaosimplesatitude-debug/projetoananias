@@ -1242,15 +1242,25 @@ function EmbaixadorasTab() {
                     <TableCell className="text-right">R${Number(e.total_vendas ?? 0).toFixed(2)}</TableCell>
                     <TableCell className="text-right">R${Number(e.total_comissao ?? 0).toFixed(2)}</TableCell>
                     <TableCell>
-                      {e.status === "pendente" && (
+                      <div className="flex items-center gap-1">
                         <Button
-                          size="sm"
-                          disabled={ativarMutation.isPending}
-                          onClick={() => ativarMutation.mutate(e.id)}
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => setSelectedEmb(e)}
                         >
-                          Ativar
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      )}
+                        {e.status === "pendente" && (
+                          <Button
+                            size="sm"
+                            disabled={ativarMutation.isPending}
+                            onClick={() => ativarMutation.mutate(e.id)}
+                          >
+                            Ativar
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
