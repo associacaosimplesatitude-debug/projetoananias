@@ -32,21 +32,7 @@ export default function EmbaixadoraRedirect() {
         return;
       }
 
-      // Geolocalização expandida
-      let cidade = null, estado = null, pais = null, cep = null;
-      let operadora = null, fuso_horario = null;
-      try {
-        const geo = await fetch('https://ipapi.co/json/');
-        const geoData = await geo.json();
-        cidade = geoData.city || null;
-        estado = geoData.region || null;
-        pais = geoData.country_name || null;
-        cep = geoData.postal || null;
-        operadora = geoData.org || null;
-        fuso_horario = geoData.timezone || null;
-      } catch (e) {}
-
-      // Dados do navegador
+      // Dados do navegador (síncronos, sem bloqueio)
       const ua = navigator.userAgent;
 
       const dispositivo = /Mobi|Android|iPhone|iPad/i.test(ua)
@@ -81,30 +67,40 @@ export default function EmbaixadoraRedirect() {
 
       const hora_clique = new Date().getHours();
 
-      // Registrar clique com todos os dados
-      await supabase.from("embaixadoras_cliques").insert({
+      // Inserir clique SEM geo (retorna id para update posterior)
+      const { data: clickRow } = await supabase.from("embaixadoras_cliques").insert({
         embaixadora_id: emb.id,
         ip_hash: null,
         referrer: ref || null,
-        cidade,
-        estado,
-        pais,
-        cep,
-        operadora,
-        fuso_horario,
         dispositivo,
         sistema_operacional,
         navegador,
         largura_tela,
         canal_origem,
         hora_clique,
-      });
+      }).select('id').single();
 
-      // Salvar código no localStorage com expiração de 30 dias
+      // Salvar localStorage e redirecionar IMEDIATAMENTE
       localStorage.setItem(EMB_REF_KEY, codigoUpper);
       localStorage.setItem(EMB_REF_EXPIRY_KEY, String(Date.now() + THIRTY_DAYS_MS));
 
-      // Redirecionar para a loja com o parâmetro emb
+      // Disparar geo em background sem bloquear
+      if (clickRow?.id) {
+        fetch('https://ipapi.co/json/')
+          .then(r => r.json())
+          .then(geoData => {
+            supabase.from("embaixadoras_cliques").update({
+              cidade: geoData.city || null,
+              estado: geoData.region || null,
+              pais: geoData.country_name || null,
+              cep: geoData.postal || null,
+              operadora: geoData.org || null,
+              fuso_horario: geoData.timezone || null,
+            }).eq('id', clickRow.id).then(() => {});
+          })
+          .catch(() => {});
+      }
+
       window.location.href = `https://centralgospel.com.br?emb=${codigoUpper}`;
     };
 
