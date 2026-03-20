@@ -32,23 +32,72 @@ export default function EmbaixadoraRedirect() {
         return;
       }
 
-      // Buscar geolocalização
-      let cidade = null;
-      let estado = null;
+      // Geolocalização expandida
+      let cidade = null, estado = null, pais = null, cep = null;
+      let operadora = null, fuso_horario = null;
       try {
         const geo = await fetch('https://ipapi.co/json/');
         const geoData = await geo.json();
         cidade = geoData.city || null;
         estado = geoData.region || null;
-      } catch(e) {}
+        pais = geoData.country_name || null;
+        cep = geoData.postal || null;
+        operadora = geoData.org || null;
+        fuso_horario = geoData.timezone || null;
+      } catch (e) {}
 
-      // Registrar clique com localização
+      // Dados do navegador
+      const ua = navigator.userAgent;
+
+      const dispositivo = /Mobi|Android|iPhone|iPad/i.test(ua)
+        ? (/iPad/i.test(ua) ? 'tablet' : 'mobile')
+        : 'desktop';
+
+      const sistema_operacional = /Android/i.test(ua) ? 'Android'
+        : /iPhone|iPad/i.test(ua) ? 'iOS'
+        : /Windows/i.test(ua) ? 'Windows'
+        : /Mac/i.test(ua) ? 'macOS'
+        : /Linux/i.test(ua) ? 'Linux'
+        : 'Outro';
+
+      const navegador = /Edg/i.test(ua) ? 'Edge'
+        : /Chrome/i.test(ua) ? 'Chrome'
+        : /Firefox/i.test(ua) ? 'Firefox'
+        : /Safari/i.test(ua) ? 'Safari'
+        : /Opera|OPR/i.test(ua) ? 'Opera'
+        : 'Outro';
+
+      const largura_tela = window.screen.width;
+
+      const ref = document.referrer || '';
+      const canal_origem = ref.includes('whatsapp') ? 'WhatsApp'
+        : ref.includes('instagram') ? 'Instagram'
+        : ref.includes('facebook') ? 'Facebook'
+        : ref.includes('google') ? 'Google'
+        : ref.includes('youtube') ? 'YouTube'
+        : ref.includes('tiktok') ? 'TikTok'
+        : ref ? 'Outro'
+        : 'Direto';
+
+      const hora_clique = new Date().getHours();
+
+      // Registrar clique com todos os dados
       await supabase.from("embaixadoras_cliques").insert({
         embaixadora_id: emb.id,
         ip_hash: null,
-        referrer: document.referrer || null,
+        referrer: ref || null,
         cidade,
         estado,
+        pais,
+        cep,
+        operadora,
+        fuso_horario,
+        dispositivo,
+        sistema_operacional,
+        navegador,
+        largura_tela,
+        canal_origem,
+        hora_clique,
       });
 
       // Salvar código no localStorage com expiração de 30 dias
