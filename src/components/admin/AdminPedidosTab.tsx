@@ -229,7 +229,7 @@ export function AdminPedidosTab({ vendedores = [], hideStats = false }: AdminPed
       const { data, error } = await supabase
         .from("vendedor_propostas")
         .select("*, vendedor:vendedores(nome)")
-        .in("status", ["FATURADO", "APROVADA_FATURAMENTO"])
+        .in("status", ["FATURADO", "APROVADA_FATURAMENTO", "PAGO"])
         .order("created_at", { ascending: false });
       
       if (error) throw error;
