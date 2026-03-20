@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,6 +107,7 @@ export default function SorteioLanding() {
   const [mostrandoRoleta, setMostrandoRoleta] = useState(false);
   const [nomeRoleta, setNomeRoleta] = useState("");
   const ultimoGanhadorRef = useRef<string | null>(null);
+  const [fotoModal, setFotoModal] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -380,9 +382,9 @@ export default function SorteioLanding() {
                 <Card className="border-0 bg-gradient-to-r from-yellow-500/20 to-amber-500/10 backdrop-blur border border-yellow-500/30">
                   <CardContent className="p-6 text-center space-y-3">
                     <Badge className="bg-[#C9A84C] text-white border-0 text-sm px-4">🎉 Ganhadora Atual</Badge>
-                    <h3 className="text-2xl font-bold text-white">{ganhadoresNome(ganhadoresAtual)}</h3>
+                    <h3 className="text-2xl font-bold text-black">{ganhadoresNome(ganhadoresAtual)}</h3>
                     {ganhadoresAtual.sorteado_em && (
-                      <p className="text-white/50 text-sm">
+                      <p className="text-black/60 text-sm">
                         Sorteada em: {new Date(ganhadoresAtual.sorteado_em).toLocaleDateString("pt-BR")} às{" "}
                         {new Date(ganhadoresAtual.sorteado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                       </p>
@@ -391,7 +393,7 @@ export default function SorteioLanding() {
                       <p className="text-[#C9A84C] font-medium">{ganhadoresAtual.premio_descricao}</p>
                     )}
                     {tempoRetirada && !tempoRetirada.expirado && (
-                      <p className="text-white/60 text-sm">
+                      <p className="text-black/60 text-sm">
                         ⏳ Tempo para retirada: {String(tempoRetirada.h).padStart(2, "0")}:
                         {String(tempoRetirada.m).padStart(2, "0")}:{String(tempoRetirada.s).padStart(2, "0")}
                       </p>
@@ -409,7 +411,12 @@ export default function SorteioLanding() {
                       {historico.map((g: any) => (
                         <div key={g.id} className="flex items-center gap-4 bg-white/5 rounded-lg px-4 py-3 border border-[#FF6B35]/15">
                           {g.foto_url ? (
-                            <img src={g.foto_url} alt={ganhadoresNome(g)} className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] flex-shrink-0" />
+                            <img
+                              src={g.foto_url}
+                              alt={ganhadoresNome(g)}
+                              className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => setFotoModal(g.foto_url)}
+                            />
                           ) : (
                             <div className="w-12 h-12 rounded-full bg-[#C9A84C]/20 flex items-center justify-center flex-shrink-0">
                               <Trophy className="w-6 h-6 text-[#C9A84C]" />
@@ -452,6 +459,15 @@ export default function SorteioLanding() {
           </CardContent>
         </Card>
       </section>
+
+      {/* Modal de foto ampliada */}
+      <Dialog open={!!fotoModal} onOpenChange={() => setFotoModal(null)}>
+        <DialogContent className="sm:max-w-lg p-2 bg-black/90 border-0">
+          {fotoModal && (
+            <img src={fotoModal} alt="Foto da ganhadora" className="w-full h-auto rounded-lg object-contain max-h-[80vh]" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
