@@ -87,8 +87,10 @@ function convertToKg(weight: number | null, unit: string | null): number {
     case 'POUNDS':
       return weight * 0.453592;
     case 'KILOGRAMS':
-    default:
       return weight;
+    default:
+      // Se unidade não informada e peso > 50, provavelmente está em gramas
+      return weight > 50 ? weight / 1000 : weight;
   }
 }
 
