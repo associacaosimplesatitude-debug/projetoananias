@@ -1,36 +1,24 @@
 
 
-## Plano: Confirmar Pagamento Cartão de Crédito — Livraria Foco Gospel
+## Plano: Mostrar pedidos com status PAGO na aba "Pedidos Confirmados"
 
-### Resumo
+### Problema
 
-Adicionar botão "Confirmar Pagamento" para propostas com status `AGUARDANDO_PAGAMENTO` na aba "Propostas Digitais". Ao clicar, o sistema envia o pedido ao Bling com forma de pagamento **cartão de crédito**, atualiza o status para `PAGO`, e gera as parcelas de comissão do vendedor.
+O pedido da Livraria Foco Gospel foi confirmado com sucesso (status `PAGO`, Bling order criado, comissão gerada), mas **não aparece na aba "Pedidos Confirmados"** porque a query dessa aba filtra apenas `["FATURADO", "APROVADA_FATURAMENTO"]`, excluindo `PAGO`.
 
-### Alterações em `src/pages/admin/AdminEBDPropostasPage.tsx`
+### Correção
 
-**1. Nova função `handleConfirmarPagamentoMP`**
+**Arquivo: `src/components/admin/AdminPedidosTab.tsx`** (linha ~232)
 
-Reutiliza a mesma lógica de `processFaturamento` (montar cliente, itens, endereço), mas com diferenças:
-- `forma_pagamento: 'credito'` (cartão de crédito) em vez de `'FATURAMENTO'`
-- Sem `faturamento_prazo`
-- Atualiza status para `PAGO` em vez de `FATURADO`
-- Após sucesso no Bling, gera parcela de comissão (1 parcela, à vista, vencimento = hoje) usando a mesma lógica de `aprovarComissaoMutation`:
-  - Busca `comissao_percentual` do vendedor
-  - Insere em `vendedor_propostas_parcelas` com `origem: 'mercado_pago'`, `status: 'aguardando'`
-  - Marca `comissao_aprovada: true` na proposta
+Adicionar `"PAGO"` ao filtro de status na query de propostas faturadas:
 
-**2. Botão na UI**
+```typescript
+// ANTES
+.in("status", ["FATURADO", "APROVADA_FATURAMENTO"])
 
-Para propostas com `status === "AGUARDANDO_PAGAMENTO"`, renderizar:
+// DEPOIS
+.in("status", ["FATURADO", "APROVADA_FATURAMENTO", "PAGO"])
 ```
-[✓ Confirmar Pagamento] (botão verde)
-```
-Visível para admin, gerente_ebd e financeiro. Mostra spinner enquanto processa.
 
-### Resultado
-
-- Proposta sai de "Propostas Digitais" → aparece em "Pedidos Confirmados" com status `PAGO`
-- Pedido criado no Bling com forma de pagamento cartão de crédito
-- Comissão da vendedora (Neila) gerada automaticamente
-- Funcionalidade reutilizável para futuras confirmações manuais
+Isso fará com que pedidos pagos via cartão de crédito (confirmados manualmente) apareçam na aba "Pedidos Confirmados" junto com os faturados.
 
