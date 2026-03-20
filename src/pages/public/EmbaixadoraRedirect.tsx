@@ -67,8 +67,8 @@ export default function EmbaixadoraRedirect() {
 
       const hora_clique = new Date().getHours();
 
-      // Inserir clique SEM geo (retorna id para update posterior)
-      const { data: clickRow } = await supabase.from("embaixadoras_cliques").insert({
+      // Inserir clique SEM geo
+      const { error: insertError } = await supabase.from("embaixadoras_cliques").insert({
         embaixadora_id: emb.id,
         ip_hash: null,
         referrer: ref || null,
@@ -78,28 +78,26 @@ export default function EmbaixadoraRedirect() {
         largura_tela,
         canal_origem,
         hora_clique,
-      }).select('id').single();
+      });
 
-      // Salvar localStorage e redirecionar IMEDIATAMENTE
-      localStorage.setItem(EMB_REF_KEY, codigoUpper);
-      localStorage.setItem(EMB_REF_EXPIRY_KEY, String(Date.now() + THIRTY_DAYS_MS));
-
-      // Disparar geo em background sem bloquear
-      if (clickRow?.id) {
-        fetch('https://ipapi.co/json/')
-          .then(r => r.json())
-          .then(geoData => {
-            supabase.from("embaixadoras_cliques").update({
-              cidade: geoData.city || null,
-              estado: geoData.region || null,
-              pais: geoData.country_name || null,
-              cep: geoData.postal || null,
-              operadora: geoData.org || null,
-              fuso_horario: geoData.timezone || null,
-            }).eq('id', clickRow.id).then(() => {});
-          })
-          .catch(() => {});
+      if (insertError) {
+        console.error("Erro ao registrar clique:", insertError);
       }
+
+      // Geo update em background (sem bloquear redirect)
+      fetch('https://ipapi.co/json/')
+        .then(r => r.json())
+        .then(geoData => {
+          supabase.from("embaixadoras_cliques").update({
+            cidade: geoData.city || null,
+            estado: geoData.region || null,
+            pais: geoData.country_name || null,
+            cep: geoData.postal || null,
+            operadora: geoData.org || null,
+            fuso_horario: geoData.timezone || null,
+          }).eq('embaixadora_id', emb.id).order('created_at', { ascending: false }).limit(1).then(() => {});
+        })
+        .catch(() => {});
 
       // Aguardar 300ms para garantir que o INSERT foi confirmado
       await new Promise(resolve => setTimeout(resolve, 300));
