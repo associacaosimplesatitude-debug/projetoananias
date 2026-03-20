@@ -276,7 +276,7 @@ export default function EmbaixadoraLanding() {
                       {tier.nome}
                     </Badge>
                     <p className="text-4xl font-bold text-white">{Number(tier.percentual_comissao)}%</p>
-                    <p className="text-white/50 text-sm">
+                    <p className="text-gray-200 text-sm">
                       {tier.volume_maximo
                         ? `R$${Number(tier.volume_minimo).toFixed(0)} a R$${Number(tier.volume_maximo).toFixed(0)}`
                         : `Acima de R$${Number(tier.volume_minimo).toFixed(0)}`}
