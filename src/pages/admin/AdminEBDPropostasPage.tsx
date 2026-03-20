@@ -787,6 +787,22 @@ export default function AdminEBDPropostasPage() {
                         )}
                       </div>
                       <div className="flex gap-2 flex-wrap justify-end">
+                        {proposta.status === "AGUARDANDO_PAGAMENTO" && (isAdmin || isGerenteEbd || isFinanceiro) && (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => handleConfirmarPagamentoMP(proposta)}
+                            disabled={confirmingPagamentoId === proposta.id}
+                          >
+                            {confirmingPagamentoId === proposta.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                            )}
+                            Confirmar Pagamento
+                          </Button>
+                        )}
                         {proposta.status === "PROPOSTA_ACEITA" && (
                           <Button 
                             variant="default" 
