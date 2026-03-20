@@ -522,7 +522,8 @@ export default function AdminEBDPropostasPage() {
       const valorFrete = proposta.valor_frete || 0;
       const metodoFrete = proposta.metodo_frete || "COMBINAR";
 
-      const itensBling = proposta.itens.map((item) => {
+      const itensArray: PropostaItem[] = typeof proposta.itens === 'string' ? JSON.parse(proposta.itens) : proposta.itens;
+      const itensBling = itensArray.map((item) => {
         const precoOriginal = Number(item.price);
         const precoComDesconto = descontoPercentual > 0
           ? Math.round((precoOriginal * (1 - descontoPercentual / 100)) * 100) / 100
@@ -537,7 +538,7 @@ export default function AdminEBDPropostasPage() {
         };
       });
 
-      const valorProdutosSemDesconto = proposta.itens.reduce(
+      const valorProdutosSemDesconto = itensArray.reduce(
         (sum, i) => sum + Number(i.price) * i.quantity, 0
       );
       const valorProdutos = descontoPercentual > 0
