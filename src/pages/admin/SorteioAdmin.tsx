@@ -746,6 +746,144 @@ function EmbaixadorasTab() {
     },
   });
 
+  // ─── Seção A: Totais consolidados ───
+  const { data: totalCliques } = useQuery({
+    queryKey: ["admin-emb-total-cliques"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("embaixadoras_cliques")
+        .select("*", { count: "exact", head: true });
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: vendasAgg } = useQuery({
+    queryKey: ["admin-emb-vendas-agg"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("embaixadoras_vendas")
+        .select("valor_venda, valor_comissao, status, pago_em");
+      if (error) throw error;
+      const totalVendas = (data ?? []).reduce((s, v) => s + Number(v.valor_venda ?? 0), 0);
+      const totalComissao = (data ?? []).reduce((s, v) => s + Number(v.valor_comissao ?? 0), 0);
+      const pendentes = (data ?? [])
+        .filter((v) => v.status === "aprovada" && !v.pago_em)
+        .reduce((s, v) => s + Number(v.valor_comissao ?? 0), 0);
+      return { totalVendas, totalComissao, pendentes };
+    },
+  });
+
+  // ─── Seção B: Ranking top 5 ───
+  const rankingData = useMemo(() => {
+    if (!embaixadoras) return [];
+    return [...embaixadoras]
+      .sort((a, b) => Number(b.total_vendas ?? 0) - Number(a.total_vendas ?? 0))
+      .slice(0, 5);
+  }, [embaixadoras]);
+
+  // ─── Seção C: Insights ───
+  const { data: topEstados } = useQuery({
+    queryKey: ["admin-emb-top-estados"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("embaixadoras_cliques")
+        .select("estado");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((c) => {
+        const est = c.estado || "Desconhecido";
+        counts[est] = (counts[est] || 0) + 1;
+      });
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+    },
+  });
+
+  const { data: canaisOrigem } = useQuery({
+    queryKey: ["admin-emb-canais-origem"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("embaixadoras_cliques")
+        .select("canal_origem");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((c) => {
+        const canal = c.canal_origem || "Direto";
+        counts[canal] = (counts[canal] || 0) + 1;
+      });
+      return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    },
+  });
+
+  const { data: melhorHorario } = useQuery({
+    queryKey: ["admin-emb-melhor-horario"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("embaixadoras_cliques")
+        .select("created_at");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((c) => {
+        const hora = new Date(c.created_at).getHours().toString().padStart(2, "0") + ":00";
+        counts[hora] = (counts[hora] || 0) + 1;
+      });
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
+    },
+  });
+
+  // ─── Seção D: Comissões pendentes ───
+  const { data: comissoesPendentes } = useQuery({
+    queryKey: ["admin-emb-comissoes-pendentes"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("embaixadoras_vendas")
+        .select("*, embaixadoras(nome, codigo_unico)")
+        .eq("status", "aprovada")
+        .is("pago_em", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const pagarMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("embaixadoras_vendas")
+        .update({ status: "paga", pago_em: new Date().toISOString() } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-emb-comissoes-pendentes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-emb-vendas-agg"] });
+      toast.success("Comissão marcada como paga!");
+    },
+    onError: () => toast.error("Erro ao marcar como paga"),
+  });
+
+  const pagarTodasMutation = useMutation({
+    mutationFn: async () => {
+      if (!comissoesPendentes || comissoesPendentes.length === 0) return;
+      const ids = comissoesPendentes.map((c) => c.id);
+      const { error } = await supabase
+        .from("embaixadoras_vendas")
+        .update({ status: "paga", pago_em: new Date().toISOString() } as any)
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-emb-comissoes-pendentes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-emb-vendas-agg"] });
+      toast.success("Todas as comissões foram marcadas como pagas!");
+    },
+    onError: () => toast.error("Erro ao pagar todas"),
+  });
+
   const ativarMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("embaixadoras").update({ status: "ativa" }).eq("id", id);
@@ -784,8 +922,246 @@ function EmbaixadorasTab() {
     return <Badge variant={conf.variant} className={conf.className}>{status}</Badge>;
   };
 
+  const canalIcon = (canal: string) => {
+    const lower = canal.toLowerCase();
+    if (lower.includes("whatsapp")) return <MessageCircle className="w-4 h-4 text-emerald-500" />;
+    if (lower.includes("instagram")) return <Instagram className="w-4 h-4 text-purple-500" />;
+    if (lower.includes("facebook")) return <Facebook className="w-4 h-4 text-blue-600" />;
+    return <Globe className="w-4 h-4 text-muted-foreground" />;
+  };
+
+  const rankingColors = ["bg-amber-50 border-amber-300", "bg-gray-50 border-gray-300", "bg-orange-50 border-orange-300"];
+  const rankingIcons = ["🥇", "🥈", "🥉"];
+
+  const maxEstado = topEstados?.[0]?.[1] ?? 1;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* ── Seção A: Totais consolidados ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                <MousePointerClick className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total de Cliques</p>
+                <p className="text-2xl font-bold">{totalCliques?.toLocaleString("pt-BR") ?? "—"}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total de Vendas</p>
+                <p className="text-2xl font-bold">R${(vendasAgg?.totalVendas ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Comissões</p>
+                <p className="text-2xl font-bold">R${(vendasAgg?.totalComissao ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Comissões Pendentes</p>
+                <p className="text-2xl font-bold text-amber-600">R${(vendasAgg?.pendentes ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Seção B: Ranking top 5 ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Medal className="w-5 h-5 text-amber-500" />
+            Ranking de Embaixadoras
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {rankingData.length === 0 ? (
+            <p className="text-muted-foreground text-sm text-center py-4">Sem dados</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {rankingData.map((e: any, i) => (
+                <div
+                  key={e.id}
+                  className={`rounded-lg border p-4 ${i < 3 ? rankingColors[i] : "bg-muted/30 border-border"}`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">{i < 3 ? rankingIcons[i] : `${i + 1}º`}</span>
+                    <span className="font-semibold text-sm truncate">{e.nome}</span>
+                  </div>
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{e.codigo_unico}</code>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {tierBadge((e as any).embaixadoras_tiers?.nome)}
+                  </div>
+                  <div className="mt-2 flex justify-between text-xs">
+                    <span>Vendas: <strong>R${Number(e.total_vendas ?? 0).toFixed(2)}</strong></span>
+                  </div>
+                  <div className="text-xs">
+                    Comissão: <strong>R${Number(e.total_comissao ?? 0).toFixed(2)}</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Seção C: Insights ── */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {/* Top Estados */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-muted-foreground" /> Top Estados
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {topEstados && topEstados.length > 0 ? topEstados.map(([estado, count]) => (
+              <div key={estado} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span>{estado}</span>
+                  <span className="text-muted-foreground">{count}</span>
+                </div>
+                <Progress value={(count / maxEstado) * 100} className="h-2" />
+              </div>
+            )) : <p className="text-sm text-muted-foreground text-center py-2">Sem dados</p>}
+          </CardContent>
+        </Card>
+
+        {/* Canais de Origem */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Share2 className="w-4 h-4 text-muted-foreground" /> Canais de Origem
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {canaisOrigem && canaisOrigem.length > 0 ? canaisOrigem.map(([canal, count]) => (
+              <div key={canal} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {canalIcon(canal)}
+                  <span className="text-sm">{canal}</span>
+                </div>
+                <span className="text-sm font-medium">{count}</span>
+              </div>
+            )) : <p className="text-sm text-muted-foreground text-center py-2">Sem dados</p>}
+          </CardContent>
+        </Card>
+
+        {/* Melhor Horário */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Clock className="w-4 h-4 text-muted-foreground" /> Melhor Horário
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {melhorHorario && melhorHorario.length > 0 ? melhorHorario.map(([hora, count], i) => (
+              <div key={hora} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{i === 0 ? "🔥" : i === 1 ? "⚡" : "📊"}</span>
+                  <span className="text-sm font-medium">{hora}</span>
+                </div>
+                <span className="text-sm text-muted-foreground">{count} cliques</span>
+              </div>
+            )) : <p className="text-sm text-muted-foreground text-center py-2">Sem dados</p>}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Seção D: Comissões pendentes de pagamento ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Banknote className="w-5 h-5 text-amber-500" />
+              Comissões Pendentes de Pagamento
+            </CardTitle>
+            {comissoesPendentes && comissoesPendentes.length > 0 && (
+              <Button
+                size="sm"
+                onClick={() => pagarTodasMutation.mutate()}
+                disabled={pagarTodasMutation.isPending}
+              >
+                {pagarTodasMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                  <><CheckCircle className="w-4 h-4 mr-1" />Pagar Todas ({comissoesPendentes.length})</>
+                )}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {!comissoesPendentes || comissoesPendentes.length === 0 ? (
+            <p className="text-muted-foreground text-sm text-center py-8">Nenhuma comissão pendente 🎉</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Embaixadora</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead className="text-right">Valor Venda</TableHead>
+                  <TableHead className="text-right">% Comissão</TableHead>
+                  <TableHead className="text-right">Valor Comissão</TableHead>
+                  <TableHead>Data Venda</TableHead>
+                  <TableHead>Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {comissoesPendentes.map((v: any) => (
+                  <TableRow key={v.id}>
+                    <TableCell className="font-medium">{v.embaixadoras?.nome ?? "—"}</TableCell>
+                    <TableCell><code className="bg-muted px-2 py-0.5 rounded text-xs">{v.embaixadoras?.codigo_unico ?? "—"}</code></TableCell>
+                    <TableCell className="text-right">R${Number(v.valor_venda ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{Number(v.percentual_comissao ?? 0)}%</TableCell>
+                    <TableCell className="text-right font-medium">R${Number(v.valor_comissao ?? 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {v.created_at ? format(new Date(v.created_at), "dd/MM/yy") : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pagarMutation.isPending}
+                        onClick={() => pagarMutation.mutate(v.id)}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-1" />Pagar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Tabela de embaixadoras (existente) ── */}
       <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
         <div className="flex items-center gap-2">
           <Crown className="w-5 h-5 text-muted-foreground" />
@@ -861,7 +1237,6 @@ function EmbaixadorasTab() {
     </div>
   );
 }
-
 // ─── Main Page ──────────────────────────────────────────────
 export default function SorteioAdmin() {
   return (
