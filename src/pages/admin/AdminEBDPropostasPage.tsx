@@ -529,7 +529,8 @@ export default function AdminEBDPropostasPage() {
           ? Math.round((precoOriginal * (1 - descontoPercentual / 100)) * 100) / 100
           : precoOriginal;
         return {
-          codigo: undefined,
+          codigo: item.sku || undefined,
+          sku: item.sku || undefined,
           descricao: item.title,
           unidade: "UN",
           quantidade: item.quantity,
