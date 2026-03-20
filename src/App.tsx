@@ -491,7 +491,7 @@ const App = () => (
                     <Route
                       path="/admin/ebd"
                       element={
-                        <ProtectedRoute requireAdmin allowGerenteEbd allowFinanceiro>
+                        <ProtectedRoute requireAdmin allowGerenteEbd allowFinanceiro allowGerenteSorteio>
                           <AdminEBDLayout />
                         </ProtectedRoute>
                       }

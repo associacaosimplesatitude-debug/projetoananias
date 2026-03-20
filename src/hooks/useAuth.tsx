@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const fetchUserRole = async (userId: string) => {
-    const ROLE_PRIORITY: AppRole[] = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd', 'secretario', 'tesoureiro', 'representante', 'autor', 'client'];
+    const ROLE_PRIORITY: AppRole[] = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd', 'gerente_sorteio', 'secretario', 'tesoureiro', 'representante', 'autor', 'client'];
     
     const { data, error } = await supabase
       .from('user_roles')

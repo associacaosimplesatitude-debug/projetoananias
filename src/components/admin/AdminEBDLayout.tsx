@@ -69,6 +69,7 @@ function AdminSidebar() {
   const isGerenteEbd = role === 'gerente_ebd';
   const isFinanceiro = role === 'financeiro';
   const isAdmin = role === 'admin';
+  const isGerenteSorteio = role === 'gerente_sorteio';
 
   const [pedidosOpen, setPedidosOpen] = useState(
     location.pathname.includes('/admin/ebd/pedidos')
