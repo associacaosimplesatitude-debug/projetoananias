@@ -410,7 +410,12 @@ export default function SorteioLanding() {
                       {historico.map((g: any) => (
                         <div key={g.id} className="flex items-center gap-4 bg-white/5 rounded-lg px-4 py-3 border border-[#FF6B35]/15">
                           {g.foto_url ? (
-                            <img src={g.foto_url} alt={ganhadoresNome(g)} className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] flex-shrink-0" />
+                            <img
+                              src={g.foto_url}
+                              alt={ganhadoresNome(g)}
+                              className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => setFotoModal(g.foto_url)}
+                            />
                           ) : (
                             <div className="w-12 h-12 rounded-full bg-[#C9A84C]/20 flex items-center justify-center flex-shrink-0">
                               <Trophy className="w-6 h-6 text-[#C9A84C]" />
