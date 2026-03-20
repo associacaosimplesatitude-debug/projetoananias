@@ -275,8 +275,8 @@ export default function EmbaixadoraLanding() {
                     <Badge className={`${config.badge} text-white border-0 text-sm px-3`}>
                       {tier.nome}
                     </Badge>
-                    <p className="text-4xl font-bold text-white">{Number(tier.percentual_comissao)}%</p>
-                    <p className="text-gray-100 text-sm font-medium">
+                    <p className={`text-4xl font-bold ${config.textColor}`}>{Number(tier.percentual_comissao)}%</p>
+                    <p className={`text-sm font-medium ${config.subText}`}>
                       {tier.volume_maximo
                         ? `R$${Number(tier.volume_minimo).toFixed(0)} a R$${Number(tier.volume_maximo).toFixed(0)}`
                         : `Acima de R$${Number(tier.volume_minimo).toFixed(0)}`}
