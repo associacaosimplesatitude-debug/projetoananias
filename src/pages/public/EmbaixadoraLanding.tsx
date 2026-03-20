@@ -120,9 +120,9 @@ export default function EmbaixadoraLanding() {
   };
 
   const tierConfig = [
-    { icon: "🥉", color: "from-amber-700/20 to-amber-800/10", border: "border-amber-700/30", badge: "bg-amber-700" },
-    { icon: "🥈", color: "from-gray-300/20 to-gray-400/10", border: "border-gray-400/30", badge: "bg-gray-500" },
-    { icon: "🥇", color: "from-yellow-400/20 to-yellow-500/10", border: "border-yellow-400/30", badge: "bg-[#C9A84C]" },
+    { icon: "🥉", color: "from-amber-100 to-amber-50", border: "border-amber-300", badge: "bg-amber-700", textColor: "text-amber-900", subText: "text-amber-700" },
+    { icon: "🥈", color: "from-gray-100 to-gray-50", border: "border-gray-300", badge: "bg-gray-500", textColor: "text-gray-800", subText: "text-gray-600" },
+    { icon: "🥇", color: "from-yellow-100 to-yellow-50", border: "border-yellow-300", badge: "bg-[#C9A84C]", textColor: "text-yellow-900", subText: "text-yellow-700" },
   ];
 
   // Tela de confirmação pós-cadastro
@@ -275,8 +275,8 @@ export default function EmbaixadoraLanding() {
                     <Badge className={`${config.badge} text-white border-0 text-sm px-3`}>
                       {tier.nome}
                     </Badge>
-                    <p className="text-4xl font-bold text-white">{Number(tier.percentual_comissao)}%</p>
-                    <p className="text-gray-100 text-sm font-medium">
+                    <p className={`text-4xl font-bold ${config.textColor}`}>{Number(tier.percentual_comissao)}%</p>
+                    <p className={`text-sm font-medium ${config.subText}`}>
                       {tier.volume_maximo
                         ? `R$${Number(tier.volume_minimo).toFixed(0)} a R$${Number(tier.volume_maximo).toFixed(0)}`
                         : `Acima de R$${Number(tier.volume_minimo).toFixed(0)}`}
