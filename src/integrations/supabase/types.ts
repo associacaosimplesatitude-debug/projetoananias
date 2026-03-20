@@ -4483,33 +4483,63 @@ export type Database = {
       }
       embaixadoras_cliques: {
         Row: {
+          canal_origem: string | null
+          cep: string | null
           cidade: string | null
           created_at: string | null
+          dispositivo: string | null
           embaixadora_id: string | null
           estado: string | null
+          fuso_horario: string | null
+          hora_clique: number | null
           id: string
           ip_hash: string | null
+          largura_tela: number | null
+          navegador: string | null
+          operadora: string | null
+          pais: string | null
           referrer: string | null
+          sistema_operacional: string | null
           user_agent: string | null
         }
         Insert: {
+          canal_origem?: string | null
+          cep?: string | null
           cidade?: string | null
           created_at?: string | null
+          dispositivo?: string | null
           embaixadora_id?: string | null
           estado?: string | null
+          fuso_horario?: string | null
+          hora_clique?: number | null
           id?: string
           ip_hash?: string | null
+          largura_tela?: number | null
+          navegador?: string | null
+          operadora?: string | null
+          pais?: string | null
           referrer?: string | null
+          sistema_operacional?: string | null
           user_agent?: string | null
         }
         Update: {
+          canal_origem?: string | null
+          cep?: string | null
           cidade?: string | null
           created_at?: string | null
+          dispositivo?: string | null
           embaixadora_id?: string | null
           estado?: string | null
+          fuso_horario?: string | null
+          hora_clique?: number | null
           id?: string
           ip_hash?: string | null
+          largura_tela?: number | null
+          navegador?: string | null
+          operadora?: string | null
+          pais?: string | null
           referrer?: string | null
+          sistema_operacional?: string | null
           user_agent?: string | null
         }
         Relationships: [

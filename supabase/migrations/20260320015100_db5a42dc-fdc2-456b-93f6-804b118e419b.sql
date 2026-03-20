@@ -1,0 +1,10 @@
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS pais text;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS cep text;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS operadora text;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS fuso_horario text;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS dispositivo text;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS sistema_operacional text;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS navegador text;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS largura_tela integer;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS canal_origem text;
+ALTER TABLE embaixadoras_cliques ADD COLUMN IF NOT EXISTS hora_clique integer;

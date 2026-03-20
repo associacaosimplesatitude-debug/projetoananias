@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   Crown, DollarSign, ShoppingCart, MousePointerClick, TrendingUp,
   Copy, LogOut, Loader2, Lock, Smartphone, Camera, Users, MapPin,
+  Monitor, Clock, Share2,
 } from "lucide-react";
 
 const STORAGE_KEY = "emb_codigo";
@@ -20,12 +21,9 @@ export default function EmbaixadoraPainel() {
   const [checking, setChecking] = useState(true);
   const [loginError, setLoginError] = useState("");
 
-  // Check localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      setCodigo(saved);
-    }
+    if (saved) setCodigo(saved);
     setChecking(false);
   }, []);
 
@@ -165,6 +163,60 @@ function Dashboard({ codigo, onLogout }: { codigo: string; onLogout: () => void 
     },
   });
 
+  const { data: topDispositivos } = useQuery({
+    queryKey: ["emb-top-dispositivos", emb?.id],
+    enabled: !!emb?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("embaixadoras_cliques")
+        .select("dispositivo")
+        .eq("embaixadora_id", emb!.id)
+        .not("dispositivo", "is", null);
+      if (!data || data.length === 0) return [];
+      const counts: Record<string, number> = {};
+      data.forEach((r) => { counts[r.dispositivo!] = (counts[r.dispositivo!] || 0) + 1; });
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([dispositivo, total]) => ({ dispositivo, total }));
+    },
+  });
+
+  const { data: topCanais } = useQuery({
+    queryKey: ["emb-top-canais", emb?.id],
+    enabled: !!emb?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("embaixadoras_cliques")
+        .select("canal_origem")
+        .eq("embaixadora_id", emb!.id)
+        .not("canal_origem", "is", null);
+      if (!data || data.length === 0) return [];
+      const counts: Record<string, number> = {};
+      data.forEach((r) => { counts[r.canal_origem!] = (counts[r.canal_origem!] || 0) + 1; });
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([canal, total]) => ({ canal, total }));
+    },
+  });
+
+  const { data: melhorHorario } = useQuery({
+    queryKey: ["emb-melhor-horario", emb?.id],
+    enabled: !!emb?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("embaixadoras_cliques")
+        .select("hora_clique")
+        .eq("embaixadora_id", emb!.id)
+        .not("hora_clique", "is", null);
+      if (!data || data.length === 0) return null;
+      const counts: Record<number, number> = {};
+      data.forEach((r) => { counts[r.hora_clique!] = (counts[r.hora_clique!] || 0) + 1; });
+      const sorted = Object.entries(counts).sort((a, b) => Number(b[1]) - Number(a[1]));
+      return sorted.length > 0 ? { hora: Number(sorted[0][0]), total: sorted[0][1] } : null;
+    },
+  });
+
   const { data: tiers } = useQuery({
     queryKey: ["emb-tiers"],
     queryFn: async () => {
@@ -248,7 +300,7 @@ function Dashboard({ codigo, onLogout }: { codigo: string; onLogout: () => void 
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 {topEstados.map((e, i) => (
                   <div key={e.estado} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
                     <span className="text-sm font-bold" style={{ color: "#C9A84C" }}>{i + 1}º</span>
@@ -257,6 +309,69 @@ function Dashboard({ codigo, onLogout }: { codigo: string; onLogout: () => void 
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Insights de Cliques */}
+        {((topDispositivos && topDispositivos.length > 0) || (topCanais && topCanais.length > 0) || melhorHorario) && (
+          <Card className="border-0 shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Monitor className="h-4 w-4" style={{ color: "#C9A84C" }} />
+                Insights dos Cliques
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Dispositivos */}
+              {topDispositivos && topDispositivos.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                    <Smartphone className="h-3 w-3" /> Dispositivos
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {topDispositivos.map((d) => (
+                      <div key={d.dispositivo} className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-3 py-1.5">
+                        <span className="text-sm font-medium text-gray-800 capitalize">{d.dispositivo}</span>
+                        <span className="text-xs text-gray-500">({d.total})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Canais */}
+              {topCanais && topCanais.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                    <Share2 className="h-3 w-3" /> Canais de Origem
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {topCanais.map((c, i) => (
+                      <div key={c.canal} className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-3 py-1.5">
+                        <span className="text-sm font-bold" style={{ color: "#C9A84C" }}>{i + 1}º</span>
+                        <span className="text-sm font-medium text-gray-800">{c.canal}</span>
+                        <span className="text-xs text-gray-500">({c.total})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Melhor Horário */}
+              {melhorHorario && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> Melhor Horário
+                  </p>
+                  <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5 w-fit">
+                    <span className="text-sm font-medium text-gray-800">
+                      {String(melhorHorario.hora).padStart(2, '0')}:00 — {String(melhorHorario.hora).padStart(2, '0')}:59
+                    </span>
+                    <span className="text-xs text-gray-500">({melhorHorario.total} cliques)</span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
