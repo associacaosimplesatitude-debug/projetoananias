@@ -1,22 +1,17 @@
 
 
-## Correção: Peso exibido como 750kg ao invés de 750g
+## Correção: Heurística de peso também para `KILOGRAMS`
 
 ### Problema
-A função `convertToKg` no `VendedorCalculadoraPeso.tsx` (linha 80-93) trata `weightUnit = null` como quilogramas (caso `default`). Quando a API do Shopify retorna `weight: 750` com `weightUnit: null` (ou um valor inesperado), o sistema interpreta como 750 **kg** ao invés de 750 **gramas**.
+O produto "Bíblia King James - Preta" retorna `weightUnit: "KILOGRAMS"` com `weight: 750` da API Shopify. A heurística atual só cobre o caso `default` (unidade null), mas não o caso `KILOGRAMS`. Como nenhum produto individual pesa 50+ kg, o valor 750 com unidade "KILOGRAMS" está claramente em gramas.
 
-### Causa raiz
-O produto no Bling tem peso bruto de 0,750 (kg). Ao ser sincronizado com Shopify, o valor pode ser armazenado como `750` (gramas) mas o campo `weightUnit` pode vir como `null` da Storefront API, fazendo o `default` do switch tratar como kg.
+A variante "Cobre" provavelmente retorna `weightUnit: null`, por isso já foi corrigida pela heurística anterior. A "Preta" retorna `KILOGRAMS` explicitamente, entrando no `case 'KILOGRAMS': return weight` sem nenhuma verificação.
 
 ### Solução
 
-**Arquivo: `src/pages/vendedor/VendedorCalculadoraPeso.tsx`** (linhas 79-93)
+**Arquivo: `src/pages/vendedor/VendedorCalculadoraPeso.tsx`** (linhas 80-94)
 
-Atualizar a função `convertToKg` para:
-1. Adicionar heurística: se `weight > 50` e a unidade é null/KILOGRAMS, provavelmente está em gramas (nenhum produto individual pesa 50+ kg)
-2. Alternativamente, tratar `null` como `GRAMS` por padrão, já que a maioria dos produtos no Shopify armazena peso em gramas
-
-A abordagem mais segura é a heurística:
+Aplicar a mesma heurística no caso `KILOGRAMS`: se `weight > 50`, tratar como gramas.
 
 ```typescript
 function convertToKg(weight: number | null, unit: string | null): number {
@@ -29,14 +24,12 @@ function convertToKg(weight: number | null, unit: string | null): number {
     case 'POUNDS':
       return weight * 0.453592;
     case 'KILOGRAMS':
-      return weight;
+      return weight > 50 ? weight / 1000 : weight;
     default:
-      // Se unidade não informada e peso > 50, provavelmente está em gramas
       return weight > 50 ? weight / 1000 : weight;
   }
 }
 ```
 
-### Resultado
-A Bíblia King James (750g) passará a exibir "750g" corretamente ao invés de "750.00kg".
+Uma única linha alterada (linha 90).
 
