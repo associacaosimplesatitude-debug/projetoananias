@@ -4483,24 +4483,30 @@ export type Database = {
       }
       embaixadoras_cliques: {
         Row: {
+          cidade: string | null
           created_at: string | null
           embaixadora_id: string | null
+          estado: string | null
           id: string
           ip_hash: string | null
           referrer: string | null
           user_agent: string | null
         }
         Insert: {
+          cidade?: string | null
           created_at?: string | null
           embaixadora_id?: string | null
+          estado?: string | null
           id?: string
           ip_hash?: string | null
           referrer?: string | null
           user_agent?: string | null
         }
         Update: {
+          cidade?: string | null
           created_at?: string | null
           embaixadora_id?: string | null
+          estado?: string | null
           id?: string
           ip_hash?: string | null
           referrer?: string | null

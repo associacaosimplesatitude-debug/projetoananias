@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
   Crown, DollarSign, ShoppingCart, MousePointerClick, TrendingUp,
-  Copy, LogOut, Loader2, Lock, Smartphone, Camera, Users,
+  Copy, LogOut, Loader2, Lock, Smartphone, Camera, Users, MapPin,
 } from "lucide-react";
 
 const STORAGE_KEY = "emb_codigo";
@@ -146,6 +146,25 @@ function Dashboard({ codigo, onLogout }: { codigo: string; onLogout: () => void 
     },
   });
 
+  const { data: topEstados } = useQuery({
+    queryKey: ["emb-top-estados", emb?.id],
+    enabled: !!emb?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("embaixadoras_cliques")
+        .select("estado")
+        .eq("embaixadora_id", emb!.id)
+        .not("estado", "is", null);
+      if (!data || data.length === 0) return [];
+      const counts: Record<string, number> = {};
+      data.forEach((r) => { counts[r.estado!] = (counts[r.estado!] || 0) + 1; });
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([estado, total]) => ({ estado, total }));
+    },
+  });
+
   const { data: tiers } = useQuery({
     queryKey: ["emb-tiers"],
     queryFn: async () => {
@@ -218,6 +237,29 @@ function Dashboard({ codigo, onLogout }: { codigo: string; onLogout: () => void 
           <MetricCard icon={<MousePointerClick className="h-5 w-5" />} label="Total Cliques" value={String(cliques)} />
           <MetricCard icon={<TrendingUp className="h-5 w-5" />} label="Conversão" value={`${conversao}%`} />
         </div>
+
+        {/* Top Estados */}
+        {topEstados && topEstados.length > 0 && (
+          <Card className="border-0 shadow-md">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <MapPin className="h-4 w-4" style={{ color: "#C9A84C" }} />
+                Top Estados (Cliques)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3">
+                {topEstados.map((e, i) => (
+                  <div key={e.estado} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="text-sm font-bold" style={{ color: "#C9A84C" }}>{i + 1}º</span>
+                    <span className="text-sm font-medium text-gray-800">{e.estado}</span>
+                    <span className="text-xs text-gray-500">({e.total})</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* My Link */}
         <Card className="border-0 shadow-md">
