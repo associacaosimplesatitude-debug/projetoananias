@@ -54,6 +54,7 @@ export default function EmbaixadoraLanding() {
       // Buscar participante recém-cadastrado
       let participante: { nome: string; email: string; whatsapp: string } | null = null;
 
+      // Tentar pelo WhatsApp primeiro
       if (savedWhatsapp) {
         const { data } = await supabase
           .from("sorteio_participantes")
@@ -65,13 +66,31 @@ export default function EmbaixadoraLanding() {
         participante = data;
       }
 
+      // Fallback: buscar pelo email salvo no sessionStorage
       if (!participante) {
+        const savedEmail = sessionStorage.getItem("sorteio_email");
+        if (savedEmail) {
+          const { data } = await supabase
+            .from("sorteio_participantes")
+            .select("nome, email, whatsapp")
+            .eq("email", savedEmail)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          participante = data;
+        }
+      }
+
+      // Fallback final: buscar participante mais recente (últimos 10 minutos)
+      if (!participante) {
+        const dezMinutosAtras = new Date(Date.now() - 10 * 60 * 1000).toISOString();
         const { data } = await supabase
           .from("sorteio_participantes")
           .select("nome, email, whatsapp")
+          .gte("created_at", dezMinutosAtras)
           .order("created_at", { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
         participante = data;
       }
 
