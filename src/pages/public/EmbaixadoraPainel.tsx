@@ -179,7 +179,7 @@ function Dashboard({ codigo, onLogout }: { codigo: string; onLogout: () => void 
   const tierAtual = emb.embaixadoras_tiers;
   const proximoTier = tiers?.find((t) => t.volume_minimo > (tierAtual?.volume_minimo ?? 0));
 
-  const link = `centralgospel.com.br?emb=${codigo}`;
+  const link = `gestaoebd.com.br/r/${codigo}`;
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);

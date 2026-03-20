@@ -110,6 +110,7 @@ import LivroLandingPage from "./pages/public/LivroLandingPage";
 import SorteioLanding from "./pages/public/SorteioLanding";
 import EmbaixadoraLanding from "./pages/public/EmbaixadoraLanding";
 import EmbaixadoraPainel from "./pages/public/EmbaixadoraPainel";
+import EmbaixadoraRedirect from "./pages/public/EmbaixadoraRedirect";
 
 // EBD Pages
 import EBDIndex from "./pages/ebd/Index";
@@ -245,6 +246,7 @@ const App = () => (
               <Route path="/sorteio" element={<SorteioLanding />} />
               <Route path="/embaixadora" element={<EmbaixadoraLanding />} />
               <Route path="/embaixadora/painel" element={<EmbaixadoraPainel />} />
+              <Route path="/r/:codigo" element={<EmbaixadoraRedirect />} />
               <Route path="/oferta-ebd" element={<OfertaEBD />} />
               <Route path="/oferta/:token" element={<OfertaPersonalizada />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
