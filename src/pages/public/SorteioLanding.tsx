@@ -459,6 +459,15 @@ export default function SorteioLanding() {
           </CardContent>
         </Card>
       </section>
+
+      {/* Modal de foto ampliada */}
+      <Dialog open={!!fotoModal} onOpenChange={() => setFotoModal(null)}>
+        <DialogContent className="sm:max-w-lg p-2 bg-black/90 border-0">
+          {fotoModal && (
+            <img src={fotoModal} alt="Foto da ganhadora" className="w-full h-auto rounded-lg object-contain max-h-[80vh]" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
