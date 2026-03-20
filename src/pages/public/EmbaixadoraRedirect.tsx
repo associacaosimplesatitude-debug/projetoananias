@@ -32,11 +32,23 @@ export default function EmbaixadoraRedirect() {
         return;
       }
 
-      // Registrar clique
+      // Buscar geolocalização
+      let cidade = null;
+      let estado = null;
+      try {
+        const geo = await fetch('https://ipapi.co/json/');
+        const geoData = await geo.json();
+        cidade = geoData.city || null;
+        estado = geoData.region || null;
+      } catch(e) {}
+
+      // Registrar clique com localização
       await supabase.from("embaixadoras_cliques").insert({
         embaixadora_id: emb.id,
         ip_hash: null,
         referrer: document.referrer || null,
+        cidade,
+        estado,
       });
 
       // Salvar código no localStorage com expiração de 30 dias
