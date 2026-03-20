@@ -107,6 +107,7 @@ export default function SorteioLanding() {
   const [mostrandoRoleta, setMostrandoRoleta] = useState(false);
   const [nomeRoleta, setNomeRoleta] = useState("");
   const ultimoGanhadorRef = useRef<string | null>(null);
+  const [fotoModal, setFotoModal] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
