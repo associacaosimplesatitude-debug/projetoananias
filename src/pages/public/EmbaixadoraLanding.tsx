@@ -88,7 +88,7 @@ export default function EmbaixadoraLanding() {
         email: participante.email,
         whatsapp: participante.whatsapp,
         codigo_unico: codigo,
-        status: "pendente",
+        status: "ativa",
         tier_id: tierIniciante?.id ?? null,
       }).select("id").single();
 
@@ -251,7 +251,7 @@ export default function EmbaixadoraLanding() {
                   {benefit.icon}
                 </div>
                 <h3 className="text-white font-bold text-lg">{benefit.title}</h3>
-                <p className="text-white/60 text-sm">{benefit.desc}</p>
+                <p className="text-gray-200 text-sm">{benefit.desc}</p>
               </CardContent>
             </Card>
           ))}
@@ -276,7 +276,7 @@ export default function EmbaixadoraLanding() {
                       {tier.nome}
                     </Badge>
                     <p className="text-4xl font-bold text-white">{Number(tier.percentual_comissao)}%</p>
-                    <p className="text-white/50 text-sm">
+                    <p className="text-gray-200 text-sm">
                       {tier.volume_maximo
                         ? `R$${Number(tier.volume_minimo).toFixed(0)} a R$${Number(tier.volume_maximo).toFixed(0)}`
                         : `Acima de R$${Number(tier.volume_minimo).toFixed(0)}`}
