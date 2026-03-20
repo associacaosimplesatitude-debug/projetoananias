@@ -146,6 +146,25 @@ function Dashboard({ codigo, onLogout }: { codigo: string; onLogout: () => void 
     },
   });
 
+  const { data: topEstados } = useQuery({
+    queryKey: ["emb-top-estados", emb?.id],
+    enabled: !!emb?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("embaixadoras_cliques")
+        .select("estado")
+        .eq("embaixadora_id", emb!.id)
+        .not("estado", "is", null);
+      if (!data || data.length === 0) return [];
+      const counts: Record<string, number> = {};
+      data.forEach((r) => { counts[r.estado!] = (counts[r.estado!] || 0) + 1; });
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([estado, total]) => ({ estado, total }));
+    },
+  });
+
   const { data: tiers } = useQuery({
     queryKey: ["emb-tiers"],
     queryFn: async () => {
