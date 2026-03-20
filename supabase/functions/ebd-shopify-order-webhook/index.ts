@@ -65,6 +65,8 @@ interface ShopifyOrder {
     price: string;
     variant_title?: string;
   }>;
+  landing_site?: string;
+  referring_site?: string;
   created_at: string;
   updated_at: string;
 }
