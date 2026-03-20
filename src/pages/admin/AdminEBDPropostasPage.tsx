@@ -538,7 +538,7 @@ export default function AdminEBDPropostasPage() {
         };
       });
 
-      const valorProdutosSemDesconto = proposta.itens.reduce(
+      const valorProdutosSemDesconto = itensArray.reduce(
         (sum, i) => sum + Number(i.price) * i.quantity, 0
       );
       const valorProdutos = descontoPercentual > 0
