@@ -52,7 +52,7 @@ export default function EBDLogin() {
         .eq('user_id', user.id);
 
       const roles = (userRoleData || []).map(r => r.role as string);
-      const ROLE_PRIORITY = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd'];
+      const ROLE_PRIORITY = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd', 'gerente_sorteio'];
       const priorityRole = ROLE_PRIORITY.find(r => roles.includes(r));
 
       if (priorityRole === 'admin') {
@@ -70,6 +70,10 @@ export default function EBDLogin() {
       }
       if (priorityRole === 'gerente_ebd') {
         navigate('/admin/ebd');
+        return;
+      }
+      if (priorityRole === 'gerente_sorteio') {
+        navigate('/admin/ebd/sorteio');
         return;
       }
 

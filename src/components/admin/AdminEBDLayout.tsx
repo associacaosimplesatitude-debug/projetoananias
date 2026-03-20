@@ -155,6 +155,38 @@ function AdminSidebar() {
     return location.pathname.startsWith(path);
   };
 
+  // Se for gerente_sorteio, mostrar apenas o menu Sorteio & Embaixadoras
+  if (isGerenteSorteio) {
+    return (
+      <Sidebar collapsible="icon" className="border-r">
+        <SidebarHeader className="border-b p-4">
+          <div className="flex items-center gap-2">
+            <Gift className="h-6 w-6 text-primary" />
+            <span className="font-semibold text-lg group-data-[collapsible=icon]:hidden">
+              Sorteio & Embaixadoras
+            </span>
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/sorteio')}>
+                    <RouterNavLink to="/admin/ebd/sorteio">
+                      <Gift className="h-4 w-4" />
+                      <span>Sorteio & Embaixadoras</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
+
   return (
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="border-b p-4">

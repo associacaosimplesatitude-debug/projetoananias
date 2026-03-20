@@ -81,6 +81,11 @@ export default function Auth() {
         navigate('/admin/ebd');
         return;
       }
+      if (priorityRole === 'gerente_sorteio') {
+        console.log('Redirecting to /admin/ebd/sorteio (priority role)');
+        navigate('/admin/ebd/sorteio');
+        return;
+      }
 
       // 1. VENDEDOR - verificar pelo email (CASE INSENSITIVE)
       const { data: vendedorData, error: vendedorError } = await supabase
