@@ -90,7 +90,8 @@ function SessoesTab() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("sorteio_ganhadores").delete().eq("sessao_id", id);
       if (error) throw error;
-      const { error: error2 } = await supabase.from("sorteio_participantes").delete().eq("sessao_id", id);
+      // Desvincular participantes (preservar dados para futuros contatos)
+      const { error: error2 } = await supabase.from("sorteio_participantes").update({ sessao_id: null }).eq("sessao_id", id);
       if (error2) throw error2;
       const { error: error3 } = await supabase.from("sorteio_sessoes").delete().eq("id", id);
       if (error3) throw error3;
