@@ -245,6 +245,7 @@ export default function SorteioLanding() {
       const primeiroNome = form.nome.trim().split(' ')[0];
       sessionStorage.setItem('sorteio_nome', primeiroNome);
       sessionStorage.setItem('sorteio_whatsapp', whatsappDigits);
+      sessionStorage.setItem('sorteio_email', form.email.trim().toLowerCase());
       navigate("/embaixadora?cadastro=ok");
     } catch {
       toast.error("Erro inesperado. Tente novamente.");
