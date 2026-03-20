@@ -99,6 +99,7 @@ export default function AdminEBDPropostasPage() {
   const isFinanceiro = role === 'financeiro';
   const queryClient = useQueryClient();
   const [processingPropostaId, setProcessingPropostaId] = useState<string | null>(null);
+  const [confirmingPagamentoId, setConfirmingPagamentoId] = useState<string | null>(null);
   const [deletePropostaId, setDeletePropostaId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPropostas, setSelectedPropostas] = useState<Set<string>>(new Set());
