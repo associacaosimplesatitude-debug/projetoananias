@@ -251,7 +251,7 @@ export default function EmbaixadoraLanding() {
                   {benefit.icon}
                 </div>
                 <h3 className="text-white font-bold text-lg">{benefit.title}</h3>
-                <p className="text-white/60 text-sm">{benefit.desc}</p>
+                <p className="text-gray-200 text-sm">{benefit.desc}</p>
               </CardContent>
             </Card>
           ))}
