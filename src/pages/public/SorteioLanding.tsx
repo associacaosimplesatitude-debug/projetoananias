@@ -355,7 +355,7 @@ export default function SorteioLanding() {
               {countdown && countdown.total > 0 && (
                 <Card className="border border-[#FF6B35]/40 bg-gradient-to-r from-[#C9A84C]/20 to-[#C9A84C]/10 backdrop-blur">
                   <CardContent className="p-6 text-center">
-                    <p className="text-white/70 text-sm mb-3">Próximo sorteio em</p>
+                    <p className="text-white text-sm mb-3">Próximo sorteio em</p>
                     <div className="flex justify-center gap-4">
                       {[
                         { label: "Horas", value: countdown.h },
