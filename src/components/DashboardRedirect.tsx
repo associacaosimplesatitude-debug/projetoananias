@@ -216,6 +216,12 @@ export default function DashboardRedirect() {
     return <Navigate to="/admin/ebd/aprovacao-faturamento" replace />;
   }
 
+  // Gerente Sorteio redirects to sorteio page
+  if (role === 'gerente_sorteio') {
+    console.log('DashboardRedirect - Redirecting gerente_sorteio to /admin/ebd/sorteio');
+    return <Navigate to="/admin/ebd/sorteio" replace />;
+  }
+
   // If user is a vendedor, redirect to vendedor dashboard
   if (vendedor) {
     console.log('DashboardRedirect - Redirecting vendedor to /vendedor');
