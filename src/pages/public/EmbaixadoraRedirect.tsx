@@ -101,7 +101,11 @@ export default function EmbaixadoraRedirect() {
           .catch(() => {});
       }
 
-      window.location.href = `https://centralgospel.com.br?emb=${codigoUpper}`;
+      // Aguardar 300ms para garantir que o INSERT foi confirmado
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Redirecionar
+      window.location.replace(`https://centralgospel.com.br?emb=${codigoUpper}`);
     };
 
     processRedirect();
