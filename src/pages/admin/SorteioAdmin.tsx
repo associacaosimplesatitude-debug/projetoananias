@@ -1334,7 +1334,7 @@ function EmbaixadorasTab() {
                     variant="outline"
                     className="shrink-0"
                     onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/r/${selectedEmb.codigo_unico}`);
+                      navigator.clipboard.writeText(`https://gestaoebd.com.br/r/${selectedEmb.codigo_unico}`);
                       toast.success("Link copiado!");
                     }}
                   >
