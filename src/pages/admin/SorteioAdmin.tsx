@@ -15,8 +15,9 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Plus, Power, PowerOff, Dice5, Trophy, Users, Download,
-  CheckCircle, Clock, Search, Loader2, Gift, Crown, Camera, ImageOff,
+  CheckCircle, Clock, Search, Loader2, Gift, Crown, Camera, ImageOff, Pencil, Trash2,
 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 // ─── Sessões Tab ───────────────────────────────────────────
 function SessoesTab() {
