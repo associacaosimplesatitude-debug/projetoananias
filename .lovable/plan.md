@@ -1,48 +1,24 @@
 
 
-## Plano: Criar usuário com acesso exclusivo ao Sorteio & Embaixadoras
+## Plano: Preservar participantes ao excluir sessão
 
 ### Problema
-O sistema atual só permite acesso ao `/admin/ebd` para roles `admin`, `gerente_ebd` e `financeiro`. Precisamos de um usuário que veja **apenas** o menu "Sorteio & Embaixadoras".
+A função `deleteMutation` no `SorteioAdmin.tsx` (linha 93) deleta explicitamente todos os participantes da sessão antes de excluir a sessão. Além disso, a FK `sessao_id` em `sorteio_participantes` referencia `sorteio_sessoes(id)` sem `ON DELETE CASCADE`, mas o código faz o delete manual.
 
 ### Solução
-Criar uma nova role `gerente_sorteio` e ajustar o sistema de permissões.
+1. **`src/pages/admin/SorteioAdmin.tsx`** (linhas 89-97): Alterar o `deleteMutation` para:
+   - **Não deletar participantes** — remover a linha 93-94
+   - Antes de deletar a sessão, fazer `UPDATE sorteio_participantes SET sessao_id = NULL WHERE sessao_id = id` para desvincular os participantes (evitar erro de FK)
+   - Manter a exclusão de `sorteio_ganhadores` (linha 91) pois são dados do sorteio em si
 
-### 1. Migration SQL
-- Adicionar `gerente_sorteio` ao enum `app_role`
-- Criar o usuário via edge function existente (`create-ebd-user`) ou criar direto na migration
+2. **Migration SQL**: Alterar a FK de `sorteio_participantes.sessao_id` para `ON DELETE SET NULL` (para que futuras exclusões diretas também preservem os dados):
+   ```sql
+   ALTER TABLE sorteio_participantes 
+     DROP CONSTRAINT sorteio_participantes_sessao_id_fkey,
+     ADD CONSTRAINT sorteio_participantes_sessao_id_fkey 
+       FOREIGN KEY (sessao_id) REFERENCES sorteio_sessoes(id) ON DELETE SET NULL;
+   ```
 
-### 2. Criar o usuário auth + atribuir role
-Usar a edge function `create-ebd-user` (ou chamar diretamente) para criar:
-- Email: `sorteio@centralgospel.com.br`
-- Senha: `124578`
-- Atribuir role `gerente_sorteio` na tabela `user_roles`
-
-### 3. Atualizar `ProtectedRoute.tsx`
-Adicionar prop `allowGerenteSorteio` e permitir acesso ao `/admin/ebd` para essa role.
-
-### 4. Atualizar `AdminEBDLayout.tsx` (Sidebar)
-- Detectar `role === 'gerente_sorteio'`
-- Quando for essa role, mostrar **apenas** o menu "Sorteio & Embaixadoras" na sidebar, escondendo todos os outros menus (Dashboard, Vendas, Pedidos, etc.)
-
-### 5. Atualizar `App.tsx`
-Na rota `/admin/ebd`, adicionar a prop para permitir `gerente_sorteio`:
-```
-<ProtectedRoute requireAdmin allowGerenteEbd allowFinanceiro allowGerenteSorteio>
-```
-
-### 6. Atualizar `useAuth.tsx`
-Adicionar `gerente_sorteio` na lista de roles e no ROLE_PRIORITY.
-
-### 7. Atualizar redirecionamento pós-login
-Quando o usuário com role `gerente_sorteio` fizer login, redirecionar direto para `/admin/ebd/sorteio`.
-
-### Arquivos alterados
-- `src/components/ProtectedRoute.tsx` — nova prop `allowGerenteSorteio`
-- `src/components/admin/AdminEBDLayout.tsx` — filtrar sidebar por role
-- `src/App.tsx` — adicionar prop na rota
-- `src/hooks/useAuth.tsx` — adicionar role no priority
-- `src/hooks/useUserRole.tsx` — adicionar tipo
-- Migration: adicionar valor ao enum + inserir user_role
-- Edge function call ou migration para criar o auth user
+### Resultado
+Os participantes ficam armazenados permanentemente para futuros contatos, mesmo após excluir uma sessão. O `sessao_id` deles fica `NULL` indicando que a sessão foi removida.
 
