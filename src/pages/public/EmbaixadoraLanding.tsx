@@ -88,7 +88,7 @@ export default function EmbaixadoraLanding() {
         email: participante.email,
         whatsapp: participante.whatsapp,
         codigo_unico: codigo,
-        status: "pendente",
+        status: "ativa",
         tier_id: tierIniciante?.id ?? null,
       }).select("id").single();
 

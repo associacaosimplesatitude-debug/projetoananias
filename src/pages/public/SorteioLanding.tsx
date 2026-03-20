@@ -366,7 +366,7 @@ export default function SorteioLanding() {
                           <span className="text-3xl font-bold text-[#C9A84C] font-mono">
                             {String(item.value).padStart(2, "0")}
                           </span>
-                          <p className="text-white/50 text-xs mt-1">{item.label}</p>
+                          <p className="text-gray-200 text-xs mt-1">{item.label}</p>
                         </div>
                       ))}
                     </div>
