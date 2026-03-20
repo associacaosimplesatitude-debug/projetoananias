@@ -1,0 +1,1 @@
+ALTER TABLE public.embaixadoras_vendas ADD COLUMN IF NOT EXISTS pago_em timestamptz;

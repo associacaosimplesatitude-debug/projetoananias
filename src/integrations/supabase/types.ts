@@ -4585,6 +4585,7 @@ export type Database = {
           created_at: string | null
           embaixadora_id: string | null
           id: string
+          pago_em: string | null
           pedido_id: string | null
           percentual_comissao: number
           status: string | null
@@ -4596,6 +4597,7 @@ export type Database = {
           created_at?: string | null
           embaixadora_id?: string | null
           id?: string
+          pago_em?: string | null
           pedido_id?: string | null
           percentual_comissao: number
           status?: string | null
@@ -4607,6 +4609,7 @@ export type Database = {
           created_at?: string | null
           embaixadora_id?: string | null
           id?: string
+          pago_em?: string | null
           pedido_id?: string | null
           percentual_comissao?: number
           status?: string | null
