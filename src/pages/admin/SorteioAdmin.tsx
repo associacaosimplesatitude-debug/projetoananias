@@ -1327,7 +1327,7 @@ function EmbaixadorasTab() {
                 <p className="text-sm text-muted-foreground">Link de compartilhamento</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 bg-muted px-3 py-2 rounded text-xs break-all">
-                    {`${window.location.origin}/r/${selectedEmb.codigo_unico}`}
+                    {`https://gestaoebd.com.br/r/${selectedEmb.codigo_unico}`}
                   </code>
                   <Button
                     size="icon"
