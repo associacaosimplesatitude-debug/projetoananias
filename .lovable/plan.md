@@ -1,24 +1,30 @@
 
 
-## Plano: Mostrar pedidos com status PAGO na aba "Pedidos Confirmados"
+## Plano: Adicionar Editar e Excluir em Sessões de Sorteio
 
-### Problema
+### Alterações em `src/pages/admin/SorteioAdmin.tsx` — componente `SessoesTab`
 
-O pedido da Livraria Foco Gospel foi confirmado com sucesso (status `PAGO`, Bling order criado, comissão gerada), mas **não aparece na aba "Pedidos Confirmados"** porque a query dessa aba filtra apenas `["FATURADO", "APROVADA_FATURAMENTO"]`, excluindo `PAGO`.
+**1. Mutation de exclusão**
+- Nova `deleteMutation` que executa `supabase.from("sorteio_sessoes").delete().eq("id", id)`
+- Só permite excluir sessões inativas (`ativo === false`)
+- Invalida query `admin-sorteio-sessoes` no sucesso
 
-### Correção
+**2. Mutation de edição**
+- Nova `updateMutation` que executa `supabase.from("sorteio_sessoes").update({...}).eq("id", id)`
+- Atualiza nome, data_inicio, data_fim, intervalo_minutos, premio_padrao
 
-**Arquivo: `src/components/admin/AdminPedidosTab.tsx`** (linha ~232)
+**3. Estado de edição**
+- State `editSession` para armazenar a sessão sendo editada (ou `null`)
+- Reutilizar o mesmo Dialog de criação, adaptado para modo edição (título "Editar Sessão", botão "Salvar Alterações")
 
-Adicionar `"PAGO"` ao filtro de status na query de propostas faturadas:
+**4. UI nos cards de sessão**
+- Adicionar dois botões ao lado do Ativar/Desativar:
+  - **Editar** (ícone Pencil) — abre modal preenchido com dados da sessão
+  - **Excluir** (ícone Trash2, vermelho) — com confirmação via `window.confirm()`, desabilitado se sessão ativa
+- Layout: linha de 3 botões (Editar | Excluir | Ativar/Desativar)
 
-```typescript
-// ANTES
-.in("status", ["FATURADO", "APROVADA_FATURAMENTO"])
-
-// DEPOIS
-.in("status", ["FATURADO", "APROVADA_FATURAMENTO", "PAGO"])
-```
-
-Isso fará com que pedidos pagos via cartão de crédito (confirmados manualmente) apareçam na aba "Pedidos Confirmados" junto com os faturados.
+### Resultado
+- Admin pode editar nome, datas, intervalo e prêmio de qualquer sessão
+- Admin pode excluir sessões inativas (com confirmação)
+- Sessões ativas não podem ser excluídas (botão desabilitado)
 
