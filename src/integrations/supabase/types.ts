@@ -7736,6 +7736,7 @@ export type Database = {
         | "representante"
         | "autor"
         | "gerente_royalties"
+        | "gerente_sorteio"
       church_permission:
         | "view_financial"
         | "edit_financial"
@@ -7895,6 +7896,7 @@ export const Constants = {
         "representante",
         "autor",
         "gerente_royalties",
+        "gerente_sorteio",
       ],
       church_permission: [
         "view_financial",

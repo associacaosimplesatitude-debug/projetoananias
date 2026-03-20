@@ -3,7 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
-type AppRole = 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd' | 'financeiro' | 'representante' | 'autor' | 'gerente_royalties';
+type AppRole = 'admin' | 'client' | 'tesoureiro' | 'secretario' | 'gerente_ebd' | 'financeiro' | 'representante' | 'autor' | 'gerente_royalties' | 'gerente_sorteio';
 
 interface AuthContextType {
   user: User | null;
@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const fetchUserRole = async (userId: string) => {
-    const ROLE_PRIORITY: AppRole[] = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd', 'secretario', 'tesoureiro', 'representante', 'autor', 'client'];
+    const ROLE_PRIORITY: AppRole[] = ['admin', 'gerente_royalties', 'financeiro', 'gerente_ebd', 'gerente_sorteio', 'secretario', 'tesoureiro', 'representante', 'autor', 'client'];
     
     const { data, error } = await supabase
       .from('user_roles')

@@ -6,9 +6,10 @@ interface ProtectedRouteProps {
   requireAdmin?: boolean;
   allowGerenteEbd?: boolean;
   allowFinanceiro?: boolean;
+  allowGerenteSorteio?: boolean;
 }
 
-export default function ProtectedRoute({ children, requireAdmin = false, allowGerenteEbd = false, allowFinanceiro = false }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requireAdmin = false, allowGerenteEbd = false, allowFinanceiro = false, allowGerenteSorteio = false }: ProtectedRouteProps) {
   const { user, role, loading } = useAuth();
 
   if (loading) {
@@ -27,9 +28,9 @@ export default function ProtectedRoute({ children, requireAdmin = false, allowGe
     const isAdmin = role === 'admin';
     const isGerenteEbd = role === 'gerente_ebd';
     const isFinanceiro = role === 'financeiro';
+    const isGerenteSorteio = role === 'gerente_sorteio';
     
-    // Allow access if user is admin, or if allowGerenteEbd is true and user is gerente_ebd, or if allowFinanceiro is true and user is financeiro
-    if (!isAdmin && !(allowGerenteEbd && isGerenteEbd) && !(allowFinanceiro && isFinanceiro)) {
+    if (!isAdmin && !(allowGerenteEbd && isGerenteEbd) && !(allowFinanceiro && isFinanceiro) && !(allowGerenteSorteio && isGerenteSorteio)) {
       return <Navigate to="/" replace />;
     }
   }
