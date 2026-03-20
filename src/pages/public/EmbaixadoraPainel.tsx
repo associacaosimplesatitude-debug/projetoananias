@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
   Crown, DollarSign, ShoppingCart, MousePointerClick, TrendingUp,
-  Copy, LogOut, Loader2, Lock, Smartphone, Camera, Users,
+  Copy, LogOut, Loader2, Lock, Smartphone, Camera, Users, MapPin,
 } from "lucide-react";
 
 const STORAGE_KEY = "emb_codigo";
