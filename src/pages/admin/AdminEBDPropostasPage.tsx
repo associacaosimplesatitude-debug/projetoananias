@@ -99,6 +99,7 @@ export default function AdminEBDPropostasPage() {
   const isFinanceiro = role === 'financeiro';
   const queryClient = useQueryClient();
   const [processingPropostaId, setProcessingPropostaId] = useState<string | null>(null);
+  const [confirmingPagamentoId, setConfirmingPagamentoId] = useState<string | null>(null);
   const [deletePropostaId, setDeletePropostaId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPropostas, setSelectedPropostas] = useState<Set<string>>(new Set());
@@ -497,6 +498,158 @@ export default function AdminEBDPropostasPage() {
     }
   };
 
+  const handleConfirmarPagamentoMP = async (proposta: Proposta) => {
+    setConfirmingPagamentoId(proposta.id);
+    try {
+      const clienteProposta = proposta.cliente || {
+        id: proposta.cliente_id || "",
+        nome_igreja: proposta.cliente_nome,
+        cnpj: proposta.cliente_cnpj || "",
+        email_superintendente: null,
+        telefone: null,
+        nome_responsavel: proposta.cliente_nome,
+        endereco_cep: proposta.cliente_endereco?.cep || null,
+        endereco_rua: proposta.cliente_endereco?.rua || null,
+        endereco_numero: proposta.cliente_endereco?.numero || null,
+        endereco_complemento: proposta.cliente_endereco?.complemento || null,
+        endereco_bairro: proposta.cliente_endereco?.bairro || null,
+        endereco_cidade: proposta.cliente_endereco?.cidade || null,
+        endereco_estado: proposta.cliente_endereco?.estado || null,
+        pode_faturar: false,
+      };
+
+      const descontoPercentual = proposta.desconto_percentual || 0;
+      const valorFrete = proposta.valor_frete || 0;
+      const metodoFrete = proposta.metodo_frete || "COMBINAR";
+
+      const itensBling = proposta.itens.map((item) => {
+        const precoOriginal = Number(item.price);
+        const precoComDesconto = descontoPercentual > 0
+          ? Math.round((precoOriginal * (1 - descontoPercentual / 100)) * 100) / 100
+          : precoOriginal;
+        return {
+          codigo: undefined,
+          descricao: item.title,
+          unidade: "UN",
+          quantidade: item.quantity,
+          valor: precoComDesconto,
+          preco_cheio: precoOriginal,
+        };
+      });
+
+      const valorProdutosSemDesconto = proposta.itens.reduce(
+        (sum, i) => sum + Number(i.price) * i.quantity, 0
+      );
+      const valorProdutos = descontoPercentual > 0
+        ? Math.round((valorProdutosSemDesconto * (1 - descontoPercentual / 100)) * 100) / 100
+        : Math.round(valorProdutosSemDesconto * 100) / 100;
+      const valorTotal = Math.round((valorProdutos + valorFrete) * 100) / 100;
+
+      const clienteBling = {
+        nome: clienteProposta.nome_responsavel || clienteProposta.nome_igreja,
+        sobrenome: null,
+        cpf_cnpj: "",
+        email: clienteProposta.email_superintendente,
+        telefone: clienteProposta.telefone,
+      };
+
+      const enderecoEntrega = clienteProposta.endereco_rua
+        ? {
+            rua: clienteProposta.endereco_rua,
+            numero: clienteProposta.endereco_numero || "S/N",
+            complemento: clienteProposta.endereco_complemento || "",
+            bairro: clienteProposta.endereco_bairro || "",
+            cep: clienteProposta.endereco_cep || "",
+            cidade: clienteProposta.endereco_cidade || "",
+            estado: clienteProposta.endereco_estado || "",
+          }
+        : null;
+
+      const contatoIdSistema = proposta.cliente_id || clienteProposta.id || null;
+
+      // 1. Criar pedido no Bling com forma de pagamento cartão de crédito
+      const { data, error } = await supabase.functions.invoke("bling-create-order", {
+        body: {
+          contato: contatoIdSistema ? { id: contatoIdSistema } : undefined,
+          cliente: clienteBling,
+          endereco_entrega: enderecoEntrega,
+          itens: itensBling,
+          pedido_id: proposta.id,
+          valor_frete: valorFrete,
+          metodo_frete: metodoFrete,
+          forma_pagamento: "credito",
+          valor_produtos: valorProdutos,
+          valor_total: valorTotal,
+          vendedor_nome: proposta.vendedor_nome || proposta.vendedor?.nome,
+          desconto_percentual: descontoPercentual,
+        },
+      });
+
+      if (error) {
+        let msg = error.message || "Erro ao chamar função";
+        const jsonMatch = msg.match(/\{.*\}/);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            msg = parsed.error || parsed.message || msg;
+          } catch { /* ignore */ }
+        }
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
+
+      // 2. Atualizar status para PAGO
+      await supabase
+        .from("vendedor_propostas")
+        .update({ 
+          status: "PAGO", 
+          comissao_aprovada: true,
+          confirmado_em: new Date().toISOString(),
+        })
+        .eq("id", proposta.id);
+
+      // 3. Gerar parcela de comissão (1 parcela, à vista)
+      if (proposta.vendedor_id) {
+        const { data: vendedor } = await supabase
+          .from('vendedores')
+          .select('comissao_percentual')
+          .eq('id', proposta.vendedor_id)
+          .single();
+
+        const comissaoPercentual = vendedor?.comissao_percentual || 5;
+        await supabase
+          .from('vendedor_propostas_parcelas')
+          .insert({
+            proposta_id: proposta.id,
+            vendedor_id: proposta.vendedor_id,
+            cliente_id: proposta.cliente_id,
+            origem: 'mercado_pago',
+            status: 'aguardando',
+            numero_parcela: 1,
+            total_parcelas: 1,
+            valor: proposta.valor_total,
+            valor_comissao: proposta.valor_total * (comissaoPercentual / 100),
+            data_vencimento: format(new Date(), 'yyyy-MM-dd'),
+            comissao_status: 'pendente',
+          });
+      }
+
+      const blingIdentifier = data?.bling_order_number || data?.bling_order_id;
+      toast.success("Pagamento confirmado e pedido enviado ao Bling!", {
+        description: blingIdentifier ? `Pedido Bling: ${blingIdentifier}` : undefined,
+        duration: 5000,
+      });
+      refetch();
+    } catch (error: unknown) {
+      console.error("Erro ao confirmar pagamento:", error);
+      toast.error("Erro ao confirmar pagamento", {
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+      });
+    } finally {
+      setConfirmingPagamentoId(null);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PROPOSTA_PENDENTE":
@@ -634,6 +787,22 @@ export default function AdminEBDPropostasPage() {
                         )}
                       </div>
                       <div className="flex gap-2 flex-wrap justify-end">
+                        {proposta.status === "AGUARDANDO_PAGAMENTO" && (isAdmin || isGerenteEbd || isFinanceiro) && (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => handleConfirmarPagamentoMP(proposta)}
+                            disabled={confirmingPagamentoId === proposta.id}
+                          >
+                            {confirmingPagamentoId === proposta.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                            )}
+                            Confirmar Pagamento
+                          </Button>
+                        )}
                         {proposta.status === "PROPOSTA_ACEITA" && (
                           <Button 
                             variant="default" 
