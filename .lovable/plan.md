@@ -1,59 +1,27 @@
 
 
-## Diagnóstico e Plano de Correção
+## Plano: Botão "olhinho" para ver detalhes da embaixadora
 
-### Problema 1: Contador de inscritas mostra 0 no navegador
+### O que será feito
 
-**Causa raiz**: A política RLS da tabela `sorteio_participantes` exige autenticação para SELECT:
-```sql
-CREATE POLICY "select_admin" ON sorteio_participantes FOR SELECT 
-  USING (auth.uid() IS NOT NULL);
-```
-A página `/sorteio` é pública (visitante anônimo), então o `count` retorna 0. No preview do Lovable você está logado como admin, por isso mostra 1.
+Adicionar um botão com ícone de olho (Eye) na coluna "Ação" de cada embaixadora na tabela do admin. Ao clicar, abre um Dialog/modal com os dados completos da embaixadora e seu link de compartilhamento, com botão de copiar.
 
-**Correção**: Criar nova política RLS que permita SELECT público apenas para contagem, ou alterar a política existente para permitir leitura pública (os dados de participantes não contêm informações sensíveis além de nome/email/whatsapp — mas para segurança, criaremos uma política que permite apenas `count` via SELECT público).
+### Alterações em `src/pages/admin/SorteioAdmin.tsx`
 
-Na prática, o Supabase não permite restringir a "apenas count" via RLS. A solução mais segura é:
-- Criar uma **database function** `get_sorteio_count()` com `SECURITY DEFINER` que retorna apenas o COUNT
-- Chamar essa função no frontend em vez do `.select("*", { count: "exact", head: true })`
+1. **Import**: Adicionar `Eye`, `Copy` aos imports do lucide-react
+2. **Estado**: Adicionar `selectedEmb` state para controlar qual embaixadora está selecionada no modal
+3. **Modal**: Adicionar um `Dialog` que exibe:
+   - Nome, Email, WhatsApp, Código único
+   - Status e Tier
+   - Vendas e Comissão totais
+   - Data de cadastro
+   - Link completo (`https://gestaoebd.lovable.app/r/{codigo_unico}`) com botão de copiar
+4. **Botão Eye**: Na coluna "Ação", ao lado do botão "Ativar" existente, adicionar botão com ícone `Eye` que seta `selectedEmb` e abre o modal
 
-Alternativa mais simples (aceitável pois os dados já são públicos — inseridos via formulário público):
-- Alterar a política para `USING (true)` (permitir SELECT público)
+### Detalhes técnicos
 
-### Problema 2: Cliques não registrados (0 na tabela)
-
-**Causa raiz**: O INSERT provavelmente está falhando silenciosamente. A análise indica que o código NÃO verifica o `error` retornado pelo Supabase. Além disso, há uma falta de política UPDATE para `embaixadoras_cliques`, o que impede a atualização com dados de geolocalização.
-
-Possíveis causas do INSERT falhar:
-- Erro de JS no carregamento da página `/r/:codigo` no domínio customizado
-- O `window.location.replace` pode interromper o request antes da resposta
-
-**Correção**:
-1. Remover o `.select('id').single()` do INSERT — não é necessário para o INSERT funcionar e pode causar problemas com a política SELECT que exige autenticação
-2. Usar `fetch` direto para o INSERT (via REST API) como fire-and-forget, garantindo que o redirect não interrompa
-3. Adicionar política UPDATE pública para `embaixadoras_cliques` (para o update de geo funcionar)
-4. Adicionar tratamento de erro no INSERT
-
-### Alterações necessárias
-
-**Migration SQL**:
-```sql
--- Permitir SELECT público em sorteio_participantes
-DROP POLICY "select_admin" ON sorteio_participantes;
-CREATE POLICY "select_publico" ON sorteio_participantes FOR SELECT USING (true);
-
--- Permitir UPDATE público em embaixadoras_cliques (para geo data)
-CREATE POLICY "update_publico_cliques" ON embaixadoras_cliques FOR UPDATE USING (true) WITH CHECK (true);
-```
-
-**`src/pages/public/EmbaixadoraRedirect.tsx`**:
-- Trocar `.insert({...}).select('id').single()` por `.insert({...})` sem `.select()` — evita conflito com SELECT policy
-- Guardar os dados de geo para enviar junto no INSERT inicial (em vez de fazer UPDATE depois), eliminando a necessidade da política UPDATE
-- Ou: manter o fluxo atual mas sem `.select()`, e adicionar a política UPDATE
-
-**`src/pages/public/SorteioLanding.tsx`**: Nenhuma alteração necessária (o count vai funcionar automaticamente após a correção da RLS).
-
-### Resumo das mudanças
-1. **Migration**: 2 novas políticas RLS (SELECT público para participantes, UPDATE público para cliques)
-2. **EmbaixadoraRedirect.tsx**: Remover `.select('id').single()` do INSERT de cliques, adicionar log de erro
+- O link da embaixadora segue o padrão `/r/{codigo_unico}` conforme o `EmbaixadoraRedirect.tsx`
+- Usar `navigator.clipboard.writeText()` + `toast.success` para feedback ao copiar
+- Os dados já estão disponíveis no objeto `e` da iteração (nome, email, codigo_unico, status, total_vendas, total_comissao, embaixadoras_tiers, created_at)
+- Verificar se `whatsapp` está no select da query de embaixadoras; se não, adicioná-lo
 
