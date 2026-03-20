@@ -7656,6 +7656,10 @@ export type Database = {
         Returns: boolean
       }
       has_royalties_access: { Args: { _user_id: string }; Returns: boolean }
+      increment_comissao: {
+        Args: { emb_id: string; valor: number }
+        Returns: number
+      }
       is_admin_geral: { Args: { _user_id: string }; Returns: boolean }
       is_ebd_superintendent: {
         Args: { _church_id: string; _user_id: string }

@@ -436,6 +436,108 @@ serve(async (req) => {
     console.log("Webhook processado: Pedido #", order.name, "atribuído ao Vendedor:", finalVendedorId);
     console.log("Order saved successfully:", data);
 
+    // ===================================================================
+    // ATRIBUIÇÃO DE VENDA À EMBAIXADORA
+    // Verifica se o pedido veio de um link de embaixadora (?emb=CODIGO)
+    // ===================================================================
+    const embCodigo = (() => {
+      // 1. Verificar note_attributes
+      const noteAttr = order.note_attributes?.find(
+        (a: any) => a.name === 'emb'
+      );
+      if (noteAttr?.value) return noteAttr.value.toUpperCase();
+
+      // 2. Verificar landing_site
+      if (order.landing_site) {
+        const match = order.landing_site.match(/[?&]emb=([A-Z0-9]+)/i);
+        if (match) return match[1].toUpperCase();
+      }
+
+      // 3. Verificar referring_site
+      if (order.referring_site) {
+        const match = order.referring_site.match(/[?&]emb=([A-Z0-9]+)/i);
+        if (match) return match[1].toUpperCase();
+      }
+
+      return null;
+    })();
+
+    if (embCodigo && statusPagamento === 'paid') {
+      console.log(`[EMB] Código embaixadora detectado: ${embCodigo}`);
+
+      // Buscar embaixadora ativa pelo código
+      const { data: emb } = await supabase
+        .from('embaixadoras')
+        .select('id, tier_id, total_vendas, embaixadoras_tiers(percentual_comissao)')
+        .eq('codigo_unico', embCodigo)
+        .eq('status', 'ativa')
+        .maybeSingle();
+
+      if (emb) {
+        const valorVenda = Number(order.total_price || 0);
+        const percentual = Number((emb as any).embaixadoras_tiers?.percentual_comissao || 5);
+        const valorComissao = (valorVenda * percentual) / 100;
+
+        // Verificar se já existe venda para esse pedido
+        const { data: vendaExistente } = await supabase
+          .from('embaixadoras_vendas')
+          .select('id')
+          .eq('pedido_id', String(order.id))
+          .maybeSingle();
+
+        if (!vendaExistente) {
+          // Registrar venda
+          const { error: vendaErr } = await supabase.from('embaixadoras_vendas').insert({
+            embaixadora_id: emb.id,
+            pedido_id: String(order.id),
+            canal: 'shopify',
+            valor_venda: valorVenda,
+            percentual_comissao: percentual,
+            valor_comissao: valorComissao,
+            status: 'pendente',
+          });
+
+          if (vendaErr) {
+            console.error('[EMB] Erro ao registrar venda:', vendaErr);
+          } else {
+            // Atualizar totais da embaixadora
+            const novoTotalVendas = Number(emb.total_vendas || 0) + valorVenda;
+
+            // Verificar se deve subir de tier
+            const { data: tiers } = await supabase
+              .from('embaixadoras_tiers')
+              .select('*')
+              .order('volume_minimo', { ascending: true });
+
+            const novoTier = tiers?.reduce((melhor: any, tier: any) => {
+              if (novoTotalVendas >= Number(tier.volume_minimo)) return tier;
+              return melhor;
+            }, tiers?.[0]);
+
+            // Incrementar comissão via RPC e atualizar vendas/tier
+            await supabase.rpc('increment_comissao', {
+              emb_id: emb.id,
+              valor: valorComissao,
+            });
+
+            await supabase
+              .from('embaixadoras')
+              .update({
+                total_vendas: novoTotalVendas,
+                tier_id: novoTier?.id || emb.tier_id,
+              })
+              .eq('id', emb.id);
+
+            console.log(`[EMB] Venda atribuída: ${embCodigo} → R$${valorVenda} (${percentual}% = R$${valorComissao})`);
+          }
+        } else {
+          console.log(`[EMB] Venda já registrada para pedido ${order.id}`);
+        }
+      } else {
+        console.log(`[EMB] Embaixadora não encontrada ou inativa: ${embCodigo}`);
+      }
+    }
+
     // If payment is confirmed (paid), update related vendedor_propostas status to PAGO
     if (statusPagamento === "paid") {
       console.log("Payment confirmed, checking for related proposal...");
