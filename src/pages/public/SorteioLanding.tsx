@@ -12,6 +12,9 @@ import { Gift, Users, Clock, Trophy, Share2, Loader2 } from "lucide-react";
 import { z } from "zod";
 import confetti from "canvas-confetti";
 
+const BANNER_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/ebd-assets/sorteio-banner.jpg";
+const PREMIO_URL = "https://nccyrvfnvjngfyfvgnww.supabase.co/storage/v1/object/public/ebd-assets/sorteio-premio.webp";
+
 const participanteSchema = z.object({
   nome: z.string().trim().min(3, "Nome deve ter pelo menos 3 caracteres").max(100),
   whatsapp: z.string().trim().min(14, "WhatsApp inválido").max(15),
@@ -49,7 +52,6 @@ function RouletteOverlay({ nome, onDone }: { nome: string; onDone: () => void })
       if (step >= totalSteps) {
         setDisplayName(nome);
         setRevealed(true);
-        // Fire confetti
         confetti({
           particleCount: 150,
           spread: 80,
@@ -61,7 +63,7 @@ function RouletteOverlay({ nome, onDone }: { nome: string; onDone: () => void })
       }
       const idx = Math.floor(Math.random() * NOMES_FICTICIOS.length);
       setDisplayName(NOMES_FICTICIOS[idx]);
-      delay += step * 4; // decelerate
+      delay += step * 4;
       intervalRef.current = setTimeout(tick, delay);
     };
 
@@ -110,7 +112,6 @@ export default function SorteioLanding() {
     return () => clearInterval(interval);
   }, []);
 
-  // Count participants
   const { data: totalParticipantes } = useQuery({
     queryKey: ["sorteio-count"],
     queryFn: async () => {
@@ -120,7 +121,6 @@ export default function SorteioLanding() {
     refetchInterval: 15000,
   });
 
-  // Active session
   const { data: sessaoAtiva } = useQuery({
     queryKey: ["sorteio-sessao-ativa"],
     queryFn: async () => {
@@ -135,7 +135,6 @@ export default function SorteioLanding() {
     refetchInterval: 30000,
   });
 
-  // Current winner (aguardando)
   const { data: ganhadoresAtual } = useQuery({
     queryKey: ["sorteio-ganhador-atual"],
     queryFn: async () => {
@@ -150,7 +149,6 @@ export default function SorteioLanding() {
     refetchInterval: 5000,
   });
 
-  // History
   const { data: historico } = useQuery({
     queryKey: ["sorteio-historico"],
     queryFn: async () => {
@@ -165,11 +163,9 @@ export default function SorteioLanding() {
     refetchInterval: 30000,
   });
 
-  // Detect new winner → trigger roulette
   useEffect(() => {
     if (!ganhadoresAtual?.id) return;
     if (ultimoGanhadorRef.current === null) {
-      // First load, just record
       ultimoGanhadorRef.current = ganhadoresAtual.id;
       return;
     }
@@ -185,7 +181,6 @@ export default function SorteioLanding() {
     setMostrandoRoleta(false);
   }, []);
 
-  // Countdown
   const proximoSorteio = useMemo(() => {
     if (!sessaoAtiva) return null;
     const inicio = new Date(sessaoAtiva.data_inicio).getTime();
@@ -205,7 +200,6 @@ export default function SorteioLanding() {
     return { h, m, s, total: diff };
   }, [proximoSorteio, now]);
 
-  // Winner expiry countdown
   const tempoRetirada = useMemo(() => {
     if (!ganhadoresAtual?.sorteado_em) return null;
     const expira = new Date(ganhadoresAtual.sorteado_em).getTime() + 3 * 3600000;
@@ -262,54 +256,82 @@ export default function SorteioLanding() {
   const ganhadoresNome = (g: any) => g?.sorteio_participantes?.nome ?? "Participante";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]">
-      {/* Roulette Overlay */}
+    <div className="min-h-screen bg-[#0f172a]">
       {mostrandoRoleta && <RouletteOverlay nome={nomeRoleta} onDone={handleRouletteEnd} />}
 
-      {/* Hero */}
-      <section className="relative overflow-hidden py-16 px-4 text-center">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(201,168,76,0.15),transparent_70%)]" />
-        <div className="relative max-w-2xl mx-auto space-y-6">
-          <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 rounded-full bg-[#C9A84C]/20 flex items-center justify-center">
-              <Gift className="w-10 h-10 text-[#C9A84C]" />
-            </div>
-          </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
-            Concorra a Prêmios <span className="text-[#C9A84C]">Incríveis!</span>
-          </h1>
-          <p className="text-lg text-white/70">
-            Cadastre-se gratuitamente e participe dos sorteios ao vivo
-          </p>
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-6 py-3 border border-white/10">
-            <Users className="w-5 h-5 text-[#C9A84C]" />
-            <span className="text-white font-semibold text-lg">{totalParticipantes ?? 0}</span>
-            <span className="text-white/60 text-sm">inscritas</span>
-          </div>
+      {/* Banner do Evento */}
+      <section className="relative w-full">
+        <img
+          src={BANNER_URL}
+          alt="Vitoriosas Conference — 21 e 22 de Março"
+          className="w-full h-[340px] md:h-[480px] object-cover object-top"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0f172a]" />
+      </section>
+
+      {/* Título + Contador */}
+      <section className="relative -mt-20 z-10 text-center px-4 pb-4">
+        <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-3">
+          Concorra a Prêmios <span className="text-[#C9A84C]">Incríveis!</span>
+        </h1>
+        <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-6 py-3 border border-white/10">
+          <Users className="w-5 h-5 text-[#C9A84C]" />
+          <span className="text-white font-semibold text-lg">{totalParticipantes ?? 0}</span>
+          <span className="text-white/60 text-sm">inscritas</span>
         </div>
       </section>
 
-      {/* Formulário */}
-      <section className="px-4 pb-12 -mt-4">
-        <Card className="max-w-lg mx-auto border-0 shadow-2xl bg-white/95 backdrop-blur">
-          <CardContent className="p-6 md:p-8">
-            <h2 className="text-xl font-bold text-center mb-6 text-gray-800">
-              📝 Faça sua inscrição
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input placeholder="Nome completo" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} maxLength={100} required />
-              <Input placeholder="WhatsApp (00) 00000-0000" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })} maxLength={15} required />
-              <Input type="email" placeholder="Seu melhor email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={255} required />
-              <div className="grid grid-cols-2 gap-3">
-                <Input placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} maxLength={100} />
-                <Input placeholder="Igreja" value={form.igreja} onChange={(e) => setForm({ ...form, igreja: e.target.value })} maxLength={100} />
-              </div>
-              <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0">
-                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Quero participar! 🎁"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      {/* Credibilidade do evento */}
+      <section className="text-center px-4 pb-8">
+        <p className="text-[#C9A84C]/80 text-sm md:text-base tracking-wide">
+          Vitoriosas Conference • 21 e 22 de Março • Rua Montevidéu, 900 — Penha, Rio de Janeiro
+        </p>
+      </section>
+
+      {/* Formulário + Prêmio — 2 colunas */}
+      <section className="px-4 pb-12">
+        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-8 items-start">
+          {/* Coluna esquerda — Prêmio */}
+          <div className="flex flex-col items-center text-center space-y-5 order-1 md:order-1">
+            <img
+              src={PREMIO_URL}
+              alt="Kit Gotas de Consolo — Eyshila Santos"
+              className="w-64 md:w-80 rounded-2xl"
+              style={{
+                boxShadow: "0 20px 60px -15px rgba(201,168,76,0.35), 0 0 0 1px rgba(201,168,76,0.15)",
+              }}
+            />
+            <h3 className="text-xl font-bold text-white">🎁 Prêmio deste Sorteio</h3>
+            <p className="text-[#C9A84C] font-semibold text-lg">Kit Gotas de Consolo — Eyshila Santos</p>
+            <p className="text-white/60 text-sm max-w-xs leading-relaxed">
+              Box exclusivo com devocional, caderno espiral, marcador de página, caneta e cartela de adesivos
+            </p>
+            <Badge className="bg-[#C9A84C]/20 text-[#C9A84C] border border-[#C9A84C]/40 text-sm px-4 py-1.5 hover:bg-[#C9A84C]/30">
+              ⏱ Sorteado a cada 1 hora
+            </Badge>
+          </div>
+
+          {/* Coluna direita — Formulário */}
+          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur order-2 md:order-2">
+            <CardContent className="p-6 md:p-8">
+              <h2 className="text-xl font-bold text-center mb-6 text-gray-800">
+                📝 Faça sua inscrição
+              </h2>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <Input placeholder="Nome completo" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} maxLength={100} required />
+                <Input placeholder="WhatsApp (00) 00000-0000" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: formatWhatsApp(e.target.value) })} maxLength={15} required />
+                <Input type="email" placeholder="Seu melhor email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={255} required />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} maxLength={100} />
+                  <Input placeholder="Igreja" value={form.igreja} onChange={(e) => setForm({ ...form, igreja: e.target.value })} maxLength={100} />
+                </div>
+                <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-bold bg-[#C9A84C] hover:bg-[#b8963e] text-white border-0">
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Quero participar! 🎁"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       {/* Sorteio ao Vivo */}
@@ -331,7 +353,7 @@ export default function SorteioLanding() {
             <>
               {/* Countdown */}
               {countdown && countdown.total > 0 && (
-                <Card className="border-0 bg-gradient-to-r from-[#C9A84C]/20 to-[#C9A84C]/10 backdrop-blur border border-[#C9A84C]/30">
+                <Card className="border border-[#FF6B35]/40 bg-gradient-to-r from-[#C9A84C]/20 to-[#C9A84C]/10 backdrop-blur">
                   <CardContent className="p-6 text-center">
                     <p className="text-white/70 text-sm mb-3">Próximo sorteio em</p>
                     <div className="flex justify-center gap-4">
@@ -340,7 +362,7 @@ export default function SorteioLanding() {
                         { label: "Min", value: countdown.m },
                         { label: "Seg", value: countdown.s },
                       ].map((item) => (
-                        <div key={item.label} className="bg-white/10 rounded-lg px-4 py-3 min-w-[70px]">
+                        <div key={item.label} className="bg-white/10 rounded-lg px-4 py-3 min-w-[70px] border border-[#FF6B35]/20">
                           <span className="text-3xl font-bold text-[#C9A84C] font-mono">
                             {String(item.value).padStart(2, "0")}
                           </span>
@@ -379,12 +401,12 @@ export default function SorteioLanding() {
 
               {/* History */}
               {historico && historico.length > 0 && (
-                <Card className="border-0 bg-white/5 backdrop-blur">
+                <Card className="border border-[#FF6B35]/30 bg-white/5 backdrop-blur">
                   <CardContent className="p-6">
                     <h3 className="text-white/80 font-semibold mb-4">🏆 Últimas Ganhadoras</h3>
                     <div className="space-y-3">
                       {historico.map((g: any) => (
-                        <div key={g.id} className="flex items-center gap-4 bg-white/5 rounded-lg px-4 py-3">
+                        <div key={g.id} className="flex items-center gap-4 bg-white/5 rounded-lg px-4 py-3 border border-[#FF6B35]/15">
                           {g.foto_url ? (
                             <img src={g.foto_url} alt={ganhadoresNome(g)} className="w-12 h-12 rounded-full object-cover border-2 border-[#C9A84C] flex-shrink-0" />
                           ) : (
@@ -423,7 +445,7 @@ export default function SorteioLanding() {
             <Share2 className="w-8 h-8 text-[#C9A84C] mx-auto" />
             <p className="text-white font-semibold">Compartilhe com amigas!</p>
             <div className="bg-white rounded-xl p-4 inline-block">
-              <QRCodeSVG value="https://gestaoebd.lovable.app/sorteio" size={160} fgColor="#1a1a2e" bgColor="#ffffff" />
+              <QRCodeSVG value="https://gestaoebd.lovable.app/sorteio" size={160} fgColor="#0f172a" bgColor="#ffffff" />
             </div>
             <p className="text-white/50 text-sm">Escaneie o QR Code para acessar</p>
           </CardContent>
