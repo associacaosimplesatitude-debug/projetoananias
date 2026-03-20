@@ -18,6 +18,7 @@ import {
   Plus, Power, PowerOff, Dice5, Trophy, Users, Download,
   CheckCircle, Clock, Search, Loader2, Gift, Crown, Camera, ImageOff, Pencil, Trash2,
   MousePointerClick, DollarSign, TrendingUp, AlertCircle, Medal, MapPin, Share2, Instagram, Facebook, MessageCircle, Globe, Banknote,
+  Eye, Copy,
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
