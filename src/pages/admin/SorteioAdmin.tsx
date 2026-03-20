@@ -622,6 +622,8 @@ function RealizarSorteioTab() {
 // ─── Participantes Tab ──────────────────────────────────────
 function ParticipantesTab() {
   const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: participantes, isLoading } = useQuery({
     queryKey: ["admin-sorteio-participantes"],
@@ -634,6 +636,22 @@ function ParticipantesTab() {
       return data;
     },
   });
+
+  const handleDelete = async (id: string, nome: string) => {
+    if (!confirm(`Excluir participante "${nome}"? Isso também removerá ganhadores vinculados.`)) return;
+    setDeletingId(id);
+    try {
+      await supabase.from("sorteio_ganhadores").delete().eq("participante_id", id);
+      const { error } = await supabase.from("sorteio_participantes").delete().eq("id", id);
+      if (error) throw error;
+      toast.success(`Participante "${nome}" excluído.`);
+      queryClient.invalidateQueries({ queryKey: ["admin-sorteio-participantes"] });
+    } catch {
+      toast.error("Erro ao excluir participante.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!participantes) return [];
@@ -698,6 +716,7 @@ function ParticipantesTab() {
                   <TableHead>Cidade</TableHead>
                   <TableHead>Igreja</TableHead>
                   <TableHead>Cadastro</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -711,11 +730,22 @@ function ParticipantesTab() {
                     <TableCell className="text-sm text-muted-foreground">
                       {format(new Date(p.created_at), "dd/MM/yy HH:mm")}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(p.id, p.nome)}
+                        disabled={deletingId === p.id}
+                      >
+                        {deletingId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Nenhum participante encontrado
                     </TableCell>
                   </TableRow>
