@@ -23,6 +23,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 function SessoesTab() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
+  const [editSession, setEditSession] = useState<any>(null);
   const [newSession, setNewSession] = useState({
     nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "",
   });
@@ -60,10 +61,47 @@ function SessoesTab() {
     onError: () => toast.error("Erro ao criar sessão"),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editSession) return;
+      const { error } = await supabase.from("sorteio_sessoes").update({
+        nome: newSession.nome,
+        data_inicio: newSession.data_inicio,
+        data_fim: newSession.data_fim,
+        intervalo_minutos: newSession.intervalo_minutos,
+        premio_padrao: newSession.premio_padrao.trim() || null,
+      }).eq("id", editSession.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-sorteio-sessoes"] });
+      setModalOpen(false);
+      setEditSession(null);
+      setNewSession({ nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "" });
+      toast.success("Sessão atualizada!");
+    },
+    onError: () => toast.error("Erro ao atualizar sessão"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("sorteio_ganhadores").delete().eq("sessao_id", id);
+      if (error) throw error;
+      const { error: error2 } = await supabase.from("sorteio_participantes").delete().eq("sessao_id", id);
+      if (error2) throw error2;
+      const { error: error3 } = await supabase.from("sorteio_sessoes").delete().eq("id", id);
+      if (error3) throw error3;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-sorteio-sessoes"] });
+      toast.success("Sessão excluída!");
+    },
+    onError: () => toast.error("Erro ao excluir sessão"),
+  });
+
   const toggleMutation = useMutation({
     mutationFn: async ({ id, ativar }: { id: string; ativar: boolean }) => {
       if (ativar) {
-        // Deactivate all first
         await supabase.from("sorteio_sessoes").update({ ativo: false }).neq("id", "00000000-0000-0000-0000-000000000000");
       }
       const { error } = await supabase.from("sorteio_sessoes").update({ ativo: ativar }).eq("id", id);
@@ -76,17 +114,40 @@ function SessoesTab() {
     onError: () => toast.error("Erro ao atualizar"),
   });
 
+  const openEdit = (s: any) => {
+    setEditSession(s);
+    setNewSession({
+      nome: s.nome,
+      data_inicio: s.data_inicio ? s.data_inicio.slice(0, 16) : "",
+      data_fim: s.data_fim ? s.data_fim.slice(0, 16) : "",
+      intervalo_minutos: s.intervalo_minutos,
+      premio_padrao: s.premio_padrao || "",
+    });
+    setModalOpen(true);
+  };
+
+  const handleCloseModal = (open: boolean) => {
+    setModalOpen(open);
+    if (!open) {
+      setEditSession(null);
+      setNewSession({ nome: "", data_inicio: "", data_fim: "", intervalo_minutos: 60, premio_padrao: "" });
+    }
+  };
+
+  const isEditing = !!editSession;
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Sessões de Sorteio</h3>
-        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <Dialog open={modalOpen} onOpenChange={handleCloseModal}>
           <DialogTrigger asChild>
             <Button><Plus className="w-4 h-4 mr-2" />Nova Sessão</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nova Sessão de Sorteio</DialogTitle>
+              <DialogTitle>{isEditing ? "Editar Sessão" : "Nova Sessão de Sorteio"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input
@@ -130,10 +191,10 @@ function SessoesTab() {
               </div>
               <Button
                 className="w-full"
-                disabled={!newSession.nome || !newSession.data_inicio || !newSession.data_fim || createMutation.isPending}
-                onClick={() => createMutation.mutate()}
+                disabled={!newSession.nome || !newSession.data_inicio || !newSession.data_fim || isSaving}
+                onClick={() => isEditing ? updateMutation.mutate() : createMutation.mutate()}
               >
-                {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Criar Sessão"}
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : isEditing ? "Salvar Alterações" : "Criar Sessão"}
               </Button>
             </div>
           </DialogContent>
@@ -158,15 +219,55 @@ function SessoesTab() {
                 <p>📅 {format(new Date(s.data_inicio), "dd/MM/yy HH:mm")} → {format(new Date(s.data_fim), "dd/MM/yy HH:mm")}</p>
                 <p>⏱️ Intervalo: {s.intervalo_minutos} min</p>
                 {(s as any).premio_padrao && <p>🎁 Prêmio: {(s as any).premio_padrao}</p>}
-                <Button
-                  size="sm"
-                  variant={s.ativo ? "destructive" : "default"}
-                  className="w-full mt-2"
-                  disabled={toggleMutation.isPending}
-                  onClick={() => toggleMutation.mutate({ id: s.id, ativar: !s.ativo })}
-                >
-                  {s.ativo ? <><PowerOff className="w-4 h-4 mr-1" />Desativar</> : <><Power className="w-4 h-4 mr-1" />Ativar</>}
-                </Button>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEdit(s)}
+                  >
+                    <Pencil className="w-4 h-4 mr-1" />Editar
+                  </Button>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                        disabled={s.ativo || deleteMutation.isPending}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />Excluir
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir sessão?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Isso removerá a sessão "{s.nome}" e todos os participantes/ganhadores vinculados. Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => deleteMutation.mutate(s.id)}
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
+                  <Button
+                    size="sm"
+                    variant={s.ativo ? "destructive" : "default"}
+                    className="flex-1"
+                    disabled={toggleMutation.isPending}
+                    onClick={() => toggleMutation.mutate({ id: s.id, ativar: !s.ativo })}
+                  >
+                    {s.ativo ? <><PowerOff className="w-4 h-4 mr-1" />Desativar</> : <><Power className="w-4 h-4 mr-1" />Ativar</>}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
