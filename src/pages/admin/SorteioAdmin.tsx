@@ -1272,6 +1272,31 @@ function EmbaixadorasTab() {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir embaixadora?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Isso removerá permanentemente <strong>{e.nome}</strong>, todos os registros de cliques e comissões/vendas associados. Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                disabled={deletarEmbMutation.isPending}
+                                onClick={() => deletarEmbMutation.mutate(e.id)}
+                              >
+                                {deletarEmbMutation.isPending ? "Excluindo..." : "Excluir"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                         {e.status === "pendente" && (
                           <Button
                             size="sm"
