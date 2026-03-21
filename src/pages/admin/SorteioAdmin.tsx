@@ -43,6 +43,22 @@ function SessoesTab() {
     },
   });
 
+  const { data: pageViewStats } = useQuery({
+    queryKey: ["admin-sorteio-page-views"],
+    queryFn: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
+      const [totalRes, todayRes] = await Promise.all([
+        supabase.from("sorteio_page_views").select("*", { count: "exact", head: true }),
+        supabase.from("sorteio_page_views").select("*", { count: "exact", head: true }).gte("created_at", todayISO),
+      ]);
+      return { total: totalRes.count ?? 0, today: todayRes.count ?? 0 };
+    },
+    refetchInterval: 30000,
+  });
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const dataInicioISO = new Date(newSession.data_inicio).toISOString();
