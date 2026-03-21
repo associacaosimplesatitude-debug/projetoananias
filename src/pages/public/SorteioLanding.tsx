@@ -176,18 +176,19 @@ export default function SorteioLanding() {
   });
 
   useEffect(() => {
-    if (!ganhadoresAtual?.id) return;
+    const latest = ganhadoresAtuais?.[0];
+    if (!latest?.id) return;
     if (ultimoGanhadorRef.current === null) {
-      ultimoGanhadorRef.current = ganhadoresAtual.id;
+      ultimoGanhadorRef.current = latest.id;
       return;
     }
-    if (ganhadoresAtual.id !== ultimoGanhadorRef.current) {
-      const nome = ganhadoresAtual?.sorteio_participantes?.nome ?? "Ganhadora";
+    if (latest.id !== ultimoGanhadorRef.current) {
+      const nome = latest?.sorteio_participantes?.nome ?? "Ganhadora";
       setNomeRoleta(nome);
       setMostrandoRoleta(true);
-      ultimoGanhadorRef.current = ganhadoresAtual.id;
+      ultimoGanhadorRef.current = latest.id;
     }
-  }, [ganhadoresAtual?.id]);
+  }, [ganhadoresAtuais]);
 
   const handleRouletteEnd = useCallback(() => {
     setMostrandoRoleta(false);
@@ -212,15 +213,14 @@ export default function SorteioLanding() {
     return { h, m, s, total: diff };
   }, [proximoSorteio, now]);
 
-  const tempoRetirada = useMemo(() => {
-    if (!ganhadoresAtual?.sorteado_em) return null;
-    const expira = new Date(ganhadoresAtual.sorteado_em).getTime() + 3 * 3600000;
+  const calcTempoRetirada = (sorteadoEm: string) => {
+    const expira = new Date(sorteadoEm).getTime() + 3 * 3600000;
     const diff = Math.max(0, expira - now);
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
     const s = Math.floor((diff % 60000) / 1000);
     return { h, m, s, expirado: diff === 0 };
-  }, [ganhadoresAtual, now]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
