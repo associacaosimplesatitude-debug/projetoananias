@@ -148,16 +148,15 @@ export default function SorteioLanding() {
     refetchInterval: 30000,
   });
 
-  const { data: ganhadoresAtual } = useQuery({
-    queryKey: ["sorteio-ganhador-atual"],
+  const { data: ganhadoresAtuais } = useQuery({
+    queryKey: ["sorteio-ganhadores-atuais"],
     queryFn: async () => {
       const { data } = await supabase
         .from("sorteio_ganhadores")
         .select("*, sorteio_participantes(nome)")
         .eq("status", "aguardando")
-        .order("sorteado_em", { ascending: false })
-        .limit(1);
-      return data?.[0] ?? null;
+        .order("sorteado_em", { ascending: false });
+      return (data ?? []) as any[];
     },
     refetchInterval: 5000,
   });
@@ -177,18 +176,19 @@ export default function SorteioLanding() {
   });
 
   useEffect(() => {
-    if (!ganhadoresAtual?.id) return;
+    const latest = ganhadoresAtuais?.[0];
+    if (!latest?.id) return;
     if (ultimoGanhadorRef.current === null) {
-      ultimoGanhadorRef.current = ganhadoresAtual.id;
+      ultimoGanhadorRef.current = latest.id;
       return;
     }
-    if (ganhadoresAtual.id !== ultimoGanhadorRef.current) {
-      const nome = ganhadoresAtual?.sorteio_participantes?.nome ?? "Ganhadora";
+    if (latest.id !== ultimoGanhadorRef.current) {
+      const nome = latest?.sorteio_participantes?.nome ?? "Ganhadora";
       setNomeRoleta(nome);
       setMostrandoRoleta(true);
-      ultimoGanhadorRef.current = ganhadoresAtual.id;
+      ultimoGanhadorRef.current = latest.id;
     }
-  }, [ganhadoresAtual?.id]);
+  }, [ganhadoresAtuais]);
 
   const handleRouletteEnd = useCallback(() => {
     setMostrandoRoleta(false);
@@ -213,15 +213,14 @@ export default function SorteioLanding() {
     return { h, m, s, total: diff };
   }, [proximoSorteio, now]);
 
-  const tempoRetirada = useMemo(() => {
-    if (!ganhadoresAtual?.sorteado_em) return null;
-    const expira = new Date(ganhadoresAtual.sorteado_em).getTime() + 3 * 3600000;
+  const calcTempoRetirada = (sorteadoEm: string) => {
+    const expira = new Date(sorteadoEm).getTime() + 3 * 3600000;
     const diff = Math.max(0, expira - now);
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
     const s = Math.floor((diff % 60000) / 1000);
     return { h, m, s, expirado: diff === 0 };
-  }, [ganhadoresAtual, now]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -389,29 +388,32 @@ export default function SorteioLanding() {
               )}
 
               {/* Current winner */}
-              {ganhadoresAtual && (
-                <Card className="border-0 bg-gradient-to-r from-yellow-500/20 to-amber-500/10 backdrop-blur border border-yellow-500/30">
-                  <CardContent className="p-6 text-center space-y-3">
-                    <Badge className="bg-[#C9A84C] text-white border-0 text-sm px-4">🎉 Ganhadora Atual</Badge>
-                    <h3 className="text-2xl font-bold text-black">{ganhadoresNome(ganhadoresAtual)}</h3>
-                    {ganhadoresAtual.sorteado_em && (
-                      <p className="text-black/60 text-sm">
-                        Sorteada em: {new Date(ganhadoresAtual.sorteado_em).toLocaleDateString("pt-BR")} às{" "}
-                        {new Date(ganhadoresAtual.sorteado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    )}
-                    {ganhadoresAtual.premio_descricao && (
-                      <p className="text-[#C9A84C] font-medium">{ganhadoresAtual.premio_descricao}</p>
-                    )}
-                    {tempoRetirada && !tempoRetirada.expirado && (
-                      <p className="text-black/60 text-sm">
-                        ⏳ Tempo para retirada: {String(tempoRetirada.h).padStart(2, "0")}:
-                        {String(tempoRetirada.m).padStart(2, "0")}:{String(tempoRetirada.s).padStart(2, "0")}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+              {ganhadoresAtuais && ganhadoresAtuais.length > 0 && ganhadoresAtuais.map((ganhador: any) => {
+                const tempo = ganhador.sorteado_em ? calcTempoRetirada(ganhador.sorteado_em) : null;
+                return (
+                  <Card key={ganhador.id} className="border-0 bg-gradient-to-r from-yellow-500/20 to-amber-500/10 backdrop-blur border border-yellow-500/30">
+                    <CardContent className="p-6 text-center space-y-3">
+                      <Badge className="bg-[#C9A84C] text-white border-0 text-sm px-4">🎉 Ganhadora</Badge>
+                      <h3 className="text-2xl font-bold text-black">{ganhadoresNome(ganhador)}</h3>
+                      {ganhador.sorteado_em && (
+                        <p className="text-black/60 text-sm">
+                          Sorteada em: {new Date(ganhador.sorteado_em).toLocaleDateString("pt-BR")} às{" "}
+                          {new Date(ganhador.sorteado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
+                      {ganhador.premio_descricao && (
+                        <p className="text-[#C9A84C] font-medium">{ganhador.premio_descricao}</p>
+                      )}
+                      {tempo && !tempo.expirado && (
+                        <p className="text-black/60 text-sm">
+                          ⏳ Tempo para retirada: {String(tempo.h).padStart(2, "0")}:
+                          {String(tempo.m).padStart(2, "0")}:{String(tempo.s).padStart(2, "0")}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
 
               {/* History */}
               {historico && historico.length > 0 && (
