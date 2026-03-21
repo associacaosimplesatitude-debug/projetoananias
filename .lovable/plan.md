@@ -1,23 +1,56 @@
 
 
-## Correção: Layout mobile da página Sorteio & Embaixadoras
+## Contador de acessos à página /sorteio
 
-### Problemas identificados
-1. **TabsList com `grid-cols-4`** (linha 1418): em telas de 390px, 4 colunas comprimem o texto das abas, causando sobreposição.
-2. **Cards de sessão** com botões Editar/Excluir/Ativar lado a lado (linha 230): em mobile os botões se sobrepõem.
-3. **Cabeçalho "Sessões de Sorteio" + botão "Nova Sessão"** na mesma linha sem wrap.
+### O que será feito
 
-### Alterações
+1. **Criar tabela `sorteio_page_views`** no banco para registrar cada visita:
+   - `id` (uuid, PK)
+   - `sessao_id` (uuid, nullable, FK para sorteio_sessoes)
+   - `ip_hash` (text, nullable - IP anonimizado)
+   - `user_agent` (text, nullable)
+   - `referrer` (text, nullable)
+   - `created_at` (timestamptz, default now())
+   - RLS: permitir INSERT para anon/authenticated (público), SELECT apenas para admins
 
-**Arquivo: `src/pages/admin/SorteioAdmin.tsx`**
+2. **Registrar acesso no frontend** (`SorteioLanding.tsx`)
+   - No `useEffect` inicial, fazer um insert na tabela `sorteio_page_views` com sessao_id ativa (se houver)
+   - Fire-and-forget, sem bloquear o carregamento da página
 
-1. **TabsList** (linha 1418): Trocar `grid w-full grid-cols-4` por layout com scroll horizontal:
-   ```
-   <TabsList className="flex w-full overflow-x-auto">
-   ```
-   Isso permite scroll lateral em mobile sem comprimir texto.
+3. **Exibir contador no painel admin** (`SorteioAdmin.tsx`)
+   - Adicionar card com total de acessos (hoje e total geral) na aba Sessões, junto aos cards existentes
+   - Query simples com count na tabela `sorteio_page_views`
+   - Ícone `Eye` para visualização rápida
 
-2. **Botões dos cards de sessão** (linhas 230-278): Mudar de `flex gap-2` para `flex flex-wrap gap-2` para que os botões quebrem linha em telas menores.
+### Detalhes técnicos
 
-3. **Cabeçalho "Sessões de Sorteio"** (linhas 150-151): Adicionar `flex-wrap` no container para que o botão "Nova Sessão" quebre para a linha de baixo em mobile.
+**Migration SQL:**
+```sql
+CREATE TABLE public.sorteio_page_views (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sessao_id uuid REFERENCES public.sorteio_sessoes(id) ON DELETE SET NULL,
+  ip_hash text,
+  user_agent text,
+  referrer text,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.sorteio_page_views ENABLE ROW LEVEL SECURITY;
+
+-- Qualquer visitante pode registrar acesso
+CREATE POLICY "Anyone can insert page views"
+  ON public.sorteio_page_views FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (true);
+
+-- Apenas admins podem ver
+CREATE POLICY "Admins can view page views"
+  ON public.sorteio_page_views FOR SELECT
+  TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'));
+```
+
+**Frontend (SorteioLanding.tsx):** useEffect com insert assíncrono no mount.
+
+**Admin (SorteioAdmin.tsx):** Card com contagem de acessos hoje + total, posicionado no topo da aba Sessões.
 
