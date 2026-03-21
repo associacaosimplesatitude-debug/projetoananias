@@ -188,7 +188,7 @@ export default function SorteioLanding() {
     const inicio = new Date(sessaoAtiva.data_inicio).getTime();
     const fim = new Date(sessaoAtiva.data_fim).getTime();
     const intervalo = (sessaoAtiva.intervalo_minutos ?? 60) * 60 * 1000;
-    let proximo = inicio;
+    let proximo = inicio + intervalo;
     while (proximo <= now && proximo < fim) proximo += intervalo;
     return proximo <= fim ? proximo : null;
   }, [sessaoAtiva, now]);
