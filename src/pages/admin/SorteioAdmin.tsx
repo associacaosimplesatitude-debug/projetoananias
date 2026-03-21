@@ -227,7 +227,7 @@ function SessoesTab() {
                 <p>📅 {format(new Date(s.data_inicio), "dd/MM/yy HH:mm")} → {format(new Date(s.data_fim), "dd/MM/yy HH:mm")}</p>
                 <p>⏱️ Intervalo: {s.intervalo_minutos} min</p>
                 {(s as any).premio_padrao && <p>🎁 Prêmio: {(s as any).premio_padrao}</p>}
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   <Button
                     size="sm"
                     variant="outline"
