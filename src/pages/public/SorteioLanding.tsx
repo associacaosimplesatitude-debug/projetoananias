@@ -148,16 +148,15 @@ export default function SorteioLanding() {
     refetchInterval: 30000,
   });
 
-  const { data: ganhadoresAtual } = useQuery({
-    queryKey: ["sorteio-ganhador-atual"],
+  const { data: ganhadoresAtuais } = useQuery({
+    queryKey: ["sorteio-ganhadores-atuais"],
     queryFn: async () => {
       const { data } = await supabase
         .from("sorteio_ganhadores")
         .select("*, sorteio_participantes(nome)")
         .eq("status", "aguardando")
-        .order("sorteado_em", { ascending: false })
-        .limit(1);
-      return data?.[0] ?? null;
+        .order("sorteado_em", { ascending: false });
+      return (data ?? []) as any[];
     },
     refetchInterval: 5000,
   });
