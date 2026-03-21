@@ -147,7 +147,7 @@ function SessoesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="text-lg font-semibold">Sessões de Sorteio</h3>
         <Dialog open={modalOpen} onOpenChange={handleCloseModal}>
           <DialogTrigger asChild>
@@ -227,7 +227,7 @@ function SessoesTab() {
                 <p>📅 {format(new Date(s.data_inicio), "dd/MM/yy HH:mm")} → {format(new Date(s.data_fim), "dd/MM/yy HH:mm")}</p>
                 <p>⏱️ Intervalo: {s.intervalo_minutos} min</p>
                 {(s as any).premio_padrao && <p>🎁 Prêmio: {(s as any).premio_padrao}</p>}
-                <div className="flex gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   <Button
                     size="sm"
                     variant="outline"
@@ -1415,7 +1415,7 @@ export default function SorteioAdmin() {
       </div>
 
       <Tabs defaultValue="sessoes">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="flex w-full overflow-x-auto">
           <TabsTrigger value="sessoes">Sessões</TabsTrigger>
           <TabsTrigger value="sorteio">Realizar Sorteio</TabsTrigger>
           <TabsTrigger value="participantes">Participantes</TabsTrigger>
