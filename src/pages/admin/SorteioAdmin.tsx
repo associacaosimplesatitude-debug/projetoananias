@@ -147,7 +147,7 @@ function SessoesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="text-lg font-semibold">Sessões de Sorteio</h3>
         <Dialog open={modalOpen} onOpenChange={handleCloseModal}>
           <DialogTrigger asChild>
