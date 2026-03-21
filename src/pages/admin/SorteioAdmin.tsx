@@ -69,10 +69,12 @@ function SessoesTab() {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editSession) return;
+      const dataInicioISO = new Date(newSession.data_inicio).toISOString();
+      const dataFimISO = new Date(newSession.data_fim).toISOString();
       const { error } = await supabase.from("sorteio_sessoes").update({
         nome: newSession.nome,
-        data_inicio: newSession.data_inicio,
-        data_fim: newSession.data_fim,
+        data_inicio: dataInicioISO,
+        data_fim: dataFimISO,
         intervalo_minutos: newSession.intervalo_minutos,
         premio_padrao: newSession.premio_padrao.trim() || null,
       }).eq("id", editSession.id);
