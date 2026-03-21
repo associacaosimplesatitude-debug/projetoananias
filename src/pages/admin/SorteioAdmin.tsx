@@ -930,17 +930,18 @@ function EmbaixadorasTab() {
 
   const deletarEmbMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error: e1 } = await supabase.from("embaixadoras_vendas").delete().eq("embaixadora_id", id);
-      if (e1) throw e1;
-      const { error: e2 } = await supabase.from("embaixadoras_cliques").delete().eq("embaixadora_id", id);
-      if (e2) throw e2;
-      const { error: e3 } = await supabase.from("embaixadoras").delete().eq("id", id);
-      if (e3) throw e3;
+      const { error, count } = await supabase
+        .from("embaixadoras")
+        .delete({ count: "exact" })
+        .eq("id", id);
+      if (error) throw error;
+      if (!count || count === 0) throw new Error("Nenhum registro removido. Verifique suas permissões.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-embaixadoras"] });
       queryClient.invalidateQueries({ queryKey: ["admin-emb-total-cliques"] });
       queryClient.invalidateQueries({ queryKey: ["admin-emb-vendas-agg"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-emb-comissoes-pendentes"] });
       toast.success("Embaixadora excluída com sucesso!");
     },
     onError: (err: any) => {
