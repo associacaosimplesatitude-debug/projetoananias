@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 
     // 3. Calcular se é hora de sortear
     const intervaloMs = (sessao.intervalo_minutos ?? 60) * 60 * 1000;
-    let proximoSlot = inicio;
+    let proximoSlot = inicio + intervaloMs;
     while (proximoSlot < nowMs) {
       proximoSlot += intervaloMs;
     }
