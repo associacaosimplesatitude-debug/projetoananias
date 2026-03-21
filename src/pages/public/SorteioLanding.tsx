@@ -114,6 +114,17 @@ export default function SorteioLanding() {
     return () => clearInterval(interval);
   }, []);
 
+  // Track page view (fire-and-forget)
+  useEffect(() => {
+    supabase
+      .from("sorteio_page_views")
+      .insert({
+        user_agent: navigator.userAgent,
+        referrer: document.referrer || null,
+      } as any)
+      .then(() => {});
+  }, []);
+
   const { data: totalParticipantes } = useQuery({
     queryKey: ["sorteio-count"],
     queryFn: async () => {

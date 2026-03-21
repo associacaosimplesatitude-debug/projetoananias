@@ -43,6 +43,22 @@ function SessoesTab() {
     },
   });
 
+  const { data: pageViewStats } = useQuery({
+    queryKey: ["admin-sorteio-page-views"],
+    queryFn: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
+      const [totalRes, todayRes] = await Promise.all([
+        supabase.from("sorteio_page_views").select("*", { count: "exact", head: true }),
+        supabase.from("sorteio_page_views").select("*", { count: "exact", head: true }).gte("created_at", todayISO),
+      ]);
+      return { total: totalRes.count ?? 0, today: todayRes.count ?? 0 };
+    },
+    refetchInterval: 30000,
+  });
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const dataInicioISO = new Date(newSession.data_inicio).toISOString();
@@ -147,6 +163,28 @@ function SessoesTab() {
 
   return (
     <div className="space-y-4">
+      {/* Page view stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Eye className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Acessos Hoje</p>
+              <p className="text-xl font-bold">{pageViewStats?.today ?? 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Eye className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Total de Acessos</p>
+              <p className="text-xl font-bold">{pageViewStats?.total ?? 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="text-lg font-semibold">Sessões de Sorteio</h3>
         <Dialog open={modalOpen} onOpenChange={handleCloseModal}>
