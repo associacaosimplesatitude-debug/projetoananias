@@ -1,35 +1,26 @@
 
 
-## Correção: Heurística de peso também para `KILOGRAMS`
+## Plano: Botão de excluir embaixadora com cascata de dados
 
-### Problema
-O produto "Bíblia King James - Preta" retorna `weightUnit: "KILOGRAMS"` com `weight: 750` da API Shopify. A heurística atual só cobre o caso `default` (unidade null), mas não o caso `KILOGRAMS`. Como nenhum produto individual pesa 50+ kg, o valor 750 com unidade "KILOGRAMS" está claramente em gramas.
+### O que será feito
+Adicionar um botão de exclusão na tabela de embaixadoras (aba Embaixadoras do `/admin/ebd/sorteio`). Ao excluir, também serão removidos:
+- Registros de cliques (`embaixadoras_cliques`)
+- Registros de vendas/comissões (`embaixadoras_vendas`)
+- A embaixadora em si (`embaixadoras`)
 
-A variante "Cobre" provavelmente retorna `weightUnit: null`, por isso já foi corrigida pela heurística anterior. A "Preta" retorna `KILOGRAMS` explicitamente, entrando no `case 'KILOGRAMS': return weight` sem nenhuma verificação.
+### Alterações
 
-### Solução
+**Arquivo: `src/pages/admin/SorteioAdmin.tsx`**
 
-**Arquivo: `src/pages/vendedor/VendedorCalculadoraPeso.tsx`** (linhas 80-94)
+1. Criar `deletarEmbMutation` dentro de `EmbaixadorasTab()` que executa em sequência:
+   - `DELETE FROM embaixadoras_vendas WHERE embaixadora_id = id`
+   - `DELETE FROM embaixadoras_cliques WHERE embaixadora_id = id`
+   - `DELETE FROM embaixadoras WHERE id = id`
+   - Invalida queries e exibe toast de sucesso
 
-Aplicar a mesma heurística no caso `KILOGRAMS`: se `weight > 50`, tratar como gramas.
+2. Na tabela de embaixadoras (linha ~1246), adicionar botão com ícone `Trash2` ao lado do botão de visualizar (Eye), envolvido em `AlertDialog` para confirmação antes de excluir.
 
-```typescript
-function convertToKg(weight: number | null, unit: string | null): number {
-  if (!weight) return 0;
-  switch (unit) {
-    case 'GRAMS':
-      return weight / 1000;
-    case 'OUNCES':
-      return weight * 0.0283495;
-    case 'POUNDS':
-      return weight * 0.453592;
-    case 'KILOGRAMS':
-      return weight > 50 ? weight / 1000 : weight;
-    default:
-      return weight > 50 ? weight / 1000 : weight;
-  }
-}
-```
-
-Uma única linha alterada (linha 90).
+### Segurança
+- Confirmação obrigatória via AlertDialog antes da exclusão
+- Exclusão cascata feita no frontend (3 deletes sequenciais) para garantir que todos os dados relacionados sejam removidos
 
