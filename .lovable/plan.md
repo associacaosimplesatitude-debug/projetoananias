@@ -1,32 +1,25 @@
 
 
-## Correção: Countdown do primeiro sorteio
+## Correção: Fuso horário na criação de sessões de sorteio
 
 ### Problema
-A sessão começa às 14:00 com intervalo de 60 min. O código calcula o próximo sorteio começando em `inicio` (14:00), mas o primeiro sorteio real deve ser às 15:00 (início + intervalo). Atualmente o loop em `proximoSorteio` (linha 191-192) começa com `proximo = inicio`, tratando 14:00 como um slot válido de sorteio.
+O input `datetime-local` retorna valores sem fuso horário (ex: `2026-03-21T14:00`). Quando enviado ao banco (coluna `timestamptz`), o Supabase interpreta como UTC. O admin quis dizer 14:00 BRT (UTC-3), mas o banco armazena como 14:00 UTC (= 11:00 BRT).
+
+Resultado: o countdown calcula os slots com base em horários errados (3 horas adiantados), gerando o timer de ~43 minutos ao invés do correto.
 
 ### Solução
 
-**Arquivo: `src/pages/public/SorteioLanding.tsx`** (linha 191)
+**Arquivo: `src/pages/admin/SorteioAdmin.tsx`**
 
-Mudar o ponto de partida para `inicio + intervalo`:
+Ao salvar a sessão (tanto na criação quanto na edição), converter o valor do `datetime-local` para ISO string com fuso horário local antes de enviar ao banco:
 
 ```typescript
-let proximo = inicio + intervalo;
+// Antes de inserir/atualizar:
+const dataInicioISO = new Date(newSession.data_inicio).toISOString();
+const dataFimISO = new Date(newSession.data_fim).toISOString();
 ```
 
-Assim, para uma sessão das 14:00 às 18:00 com intervalo de 60 min, os slots serão: 15:00, 16:00, 17:00, 18:00 — e não 14:00, 15:00, 16:00, etc.
+`new Date("2026-03-21T14:00")` em JS cria um Date no fuso local do navegador. `.toISOString()` converte para UTC corretamente. Assim, 14:00 BRT vira 17:00 UTC no banco, e o countdown funciona.
 
-**Também verificar a mesma lógica na edge function `sorteio-automatico/index.ts`** (linhas 51-53), onde o cálculo do slot segue a mesma estrutura. Atualmente:
-```typescript
-let proximoSlot = inicio;
-while (proximoSlot < nowMs) proximoSlot += intervaloMs;
-```
-Deve ser:
-```typescript
-let proximoSlot = inicio + intervaloMs;
-while (proximoSlot < nowMs) proximoSlot += intervaloMs;
-```
-
-Isso garante que o backend e o frontend concordem: o primeiro sorteio é sempre `início + intervalo`.
+Aplicar nos dois pontos: `createMutation` (linha ~48) e `updateMutation` (linha ~70).
 
