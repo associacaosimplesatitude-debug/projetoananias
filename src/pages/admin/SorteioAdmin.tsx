@@ -1415,7 +1415,7 @@ export default function SorteioAdmin() {
       </div>
 
       <Tabs defaultValue="sessoes">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="flex w-full overflow-x-auto">
           <TabsTrigger value="sessoes">Sessões</TabsTrigger>
           <TabsTrigger value="sorteio">Realizar Sorteio</TabsTrigger>
           <TabsTrigger value="participantes">Participantes</TabsTrigger>
