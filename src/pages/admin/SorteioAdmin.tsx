@@ -686,8 +686,9 @@ function ParticipantesTab() {
     setDeletingId(id);
     try {
       await supabase.from("sorteio_ganhadores").delete().eq("participante_id", id);
-      const { error } = await supabase.from("sorteio_participantes").delete().eq("id", id);
+      const { error, data } = await supabase.from("sorteio_participantes").delete().eq("id", id).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Sem permissão para excluir.");
       toast.success(`Participante "${nome}" excluído.`);
       queryClient.invalidateQueries({ queryKey: ["admin-sorteio-participantes"] });
     } catch {
