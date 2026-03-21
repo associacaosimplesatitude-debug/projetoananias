@@ -163,6 +163,28 @@ function SessoesTab() {
 
   return (
     <div className="space-y-4">
+      {/* Page view stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Eye className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Acessos Hoje</p>
+              <p className="text-xl font-bold">{pageViewStats?.today ?? 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Eye className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Total de Acessos</p>
+              <p className="text-xl font-bold">{pageViewStats?.total ?? 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-wrap justify-between items-center gap-2">
         <h3 className="text-lg font-semibold">Sessões de Sorteio</h3>
         <Dialog open={modalOpen} onOpenChange={handleCloseModal}>
