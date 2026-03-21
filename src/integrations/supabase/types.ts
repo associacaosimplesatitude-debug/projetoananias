@@ -6443,6 +6443,41 @@ export type Database = {
           },
         ]
       }
+      sorteio_page_views: {
+        Row: {
+          created_at: string | null
+          id: string
+          ip_hash: string | null
+          referrer: string | null
+          sessao_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          sessao_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          ip_hash?: string | null
+          referrer?: string | null
+          sessao_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sorteio_page_views_sessao_id_fkey"
+            columns: ["sessao_id"]
+            isOneToOne: false
+            referencedRelation: "sorteio_sessoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sorteio_participantes: {
         Row: {
           cidade: string | null
