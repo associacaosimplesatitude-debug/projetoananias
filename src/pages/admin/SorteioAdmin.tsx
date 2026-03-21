@@ -928,6 +928,26 @@ function EmbaixadorasTab() {
     },
   });
 
+  const deletarEmbMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error: e1 } = await supabase.from("embaixadoras_vendas").delete().eq("embaixadora_id", id);
+      if (e1) throw e1;
+      const { error: e2 } = await supabase.from("embaixadoras_cliques").delete().eq("embaixadora_id", id);
+      if (e2) throw e2;
+      const { error: e3 } = await supabase.from("embaixadoras").delete().eq("id", id);
+      if (e3) throw e3;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-embaixadoras"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-emb-total-cliques"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-emb-vendas-agg"] });
+      toast.success("Embaixadora excluída com sucesso!");
+    },
+    onError: (err: any) => {
+      toast.error("Erro ao excluir: " + err.message);
+    },
+  });
+
   const filtered = useMemo(() => {
     if (!embaixadoras) return [];
     if (statusFilter === "todos") return embaixadoras;
@@ -1252,6 +1272,31 @@ function EmbaixadorasTab() {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir embaixadora?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Isso removerá permanentemente <strong>{e.nome}</strong>, todos os registros de cliques e comissões/vendas associados. Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                disabled={deletarEmbMutation.isPending}
+                                onClick={() => deletarEmbMutation.mutate(e.id)}
+                              >
+                                {deletarEmbMutation.isPending ? "Excluindo..." : "Excluir"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                         {e.status === "pendente" && (
                           <Button
                             size="sm"
