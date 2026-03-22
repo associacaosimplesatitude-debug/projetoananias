@@ -1,33 +1,27 @@
 
 
-## Correção: Exclusão de participante não funciona para `gerente_sorteio`
+## Sorteio manual das 21h - Sessão "Vitoriosas Conference 26 [Sáb.]"
 
-### Problema
-A policy de DELETE na tabela `sorteio_participantes` permite apenas a role `admin`. O usuário logado como `gerente_sorteio` recebe sucesso aparente (toast "excluído"), mas a row não é deletada no banco — o Supabase retorna 0 rows affected sem erro.
+### Situação
+- A sessão terminou às 00:00 UTC (21h BRT) e o cron executou após esse horário, perdendo o último sorteio
+- Último sorteio realizado: **20h BRT** (Milena Gasoni Hybner)
+- 41 participantes na sessão, elegível sorteada aleatoriamente: **Rebeka Cristiana** (id: `210f5368-d147-4dcf-830f-ad8cbc218cc2`)
 
-### Solução
-1. **Migration SQL**: Atualizar a policy `admin_delete_participantes` para incluir `gerente_sorteio`:
+### Ação
+Inserir manualmente a ganhadora na tabela `sorteio_ganhadores`:
 
 ```sql
-DROP POLICY "admin_delete_participantes" ON public.sorteio_participantes;
-
-CREATE POLICY "admin_gerente_delete_participantes" ON public.sorteio_participantes
-FOR DELETE TO authenticated
-USING (
-  public.has_role(auth.uid(), 'admin') 
-  OR public.has_role(auth.uid(), 'gerente_sorteio')
+INSERT INTO sorteio_ganhadores (participante_id, sessao_id, status, expira_em)
+VALUES (
+  '210f5368-d147-4dcf-830f-ad8cbc218cc2',
+  '7d05ac91-a95d-483e-acd9-c21659b24c9b',
+  'aguardando',
+  (now() + interval '3 hours')
 );
 ```
 
-2. **Código (`SorteioAdmin.tsx`)**: Adicionar verificação do resultado do delete para mostrar erro caso 0 rows sejam afetadas:
+Isso fará com que **Rebeka Cristiana** apareça imediatamente na página `/sorteio` com o timer de 3 horas para retirar o prêmio.
 
-```typescript
-const { error, count } = await supabase
-  .from("sorteio_participantes")
-  .delete()
-  .eq("id", id)
-  .select("id", { count: "exact", head: true });
-```
-
-Nenhum outro arquivo será alterado.
+### Correção futura recomendada
+Ajustar a edge function para usar `nowMs >= fim` em vez de `nowMs > fim`, ou estender o `data_fim` em 5 minutos para cobrir o último slot.
 
