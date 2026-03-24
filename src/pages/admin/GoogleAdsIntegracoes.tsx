@@ -49,31 +49,15 @@ export default function GoogleAdsIntegracoes() {
         const val = (values[field.key] || "").trim();
         if (!val && field.key === "google_ads_login_customer_id") continue;
 
-        const { data: existing, error: selectError } = await supabase
+        const { error } = await supabase
           .from("system_settings")
-          .select("id")
-          .eq("key", field.key)
-          .maybeSingle();
+          .upsert({ key: field.key, value: val }, { onConflict: "key" });
 
-        if (selectError) {
-          throw new Error(`Erro ao verificar ${field.label}: ${selectError.message}`);
-        }
-
-        if (existing) {
-          const { error: updateError } = await supabase
-            .from("system_settings")
-            .update({ value: val })
-            .eq("key", field.key);
-          if (updateError) {
-            throw new Error(`Erro ao atualizar ${field.label}: ${updateError.message}`);
-          }
-        } else {
-          const { error: insertError } = await supabase
-            .from("system_settings")
-            .insert({ key: field.key, value: val });
-          if (insertError) {
-            throw new Error(`Erro ao inserir ${field.label}: ${insertError.message}`);
-          }
+        if (error) {
+          toast.error(`Erro ao salvar ${field.label}: ${error.message}`);
+          console.error(`Erro ao salvar ${field.key}:`, error);
+          setSaving(false);
+          return;
         }
       }
       toast.success("Credenciais salvas com sucesso!");
