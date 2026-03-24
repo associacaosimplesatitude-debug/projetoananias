@@ -549,8 +549,8 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Google - apenas para admin geral */}
-        {isAdmin && (
+        {/* Google - para admin e financeiro */}
+        {(isAdmin || isFinanceiro) && (
         <SidebarGroup>
           <SidebarGroupLabel>Google</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -601,35 +601,30 @@ function AdminSidebar() {
                           </RouterNavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      {/* Google Ads sub-items - apenas admin/gerente_ebd */}
-                      {!isFinanceiro && (
-                        <>
-                          <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-faturamento')}>
-                              <RouterNavLink to="/admin/ebd/google-ads-faturamento">
-                                <Wallet className="h-4 w-4" />
-                                <span>Faturamento</span>
-                              </RouterNavLink>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                          <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-documentos')}>
-                              <RouterNavLink to="/admin/ebd/google-ads-documentos">
-                                <FileText className="h-4 w-4" />
-                                <span>Documentos</span>
-                              </RouterNavLink>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                          <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-integracoes')}>
-                              <RouterNavLink to="/admin/ebd/google-ads-integracoes">
-                                <Settings className="h-4 w-4" />
-                                <span>Integrações</span>
-                              </RouterNavLink>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        </>
-                      )}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-faturamento')}>
+                          <RouterNavLink to="/admin/ebd/google-ads-faturamento">
+                            <Wallet className="h-4 w-4" />
+                            <span>Faturamento</span>
+                          </RouterNavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-documentos')}>
+                          <RouterNavLink to="/admin/ebd/google-ads-documentos">
+                            <FileText className="h-4 w-4" />
+                            <span>Documentos</span>
+                          </RouterNavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive('/admin/ebd/google-ads-integracoes')}>
+                          <RouterNavLink to="/admin/ebd/google-ads-integracoes">
+                            <Settings className="h-4 w-4" />
+                            <span>Integrações</span>
+                          </RouterNavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </SidebarMenuItem>
