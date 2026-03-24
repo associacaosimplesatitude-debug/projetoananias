@@ -212,7 +212,17 @@ export default function GoogleRecargas() {
               {saldoLoading ? <Loader2 className="h-8 w-8 animate-spin inline" /> : formatCurrency(saldo)}
             </p>
           </div>
-          <Button variant="secondary" size="lg" onClick={() => setRequestOpen(true)}>
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => {
+              const cid = (customerId || "").replace(/-/g, "");
+              window.open(
+                `https://ads.google.com/aw/billing/summary${cid ? `?__e=${cid}` : ""}`,
+                "_blank"
+              );
+            }}
+          >
             <Plus className="h-5 w-5 mr-2" /> Adicionar Saldo
           </Button>
         </CardContent>
