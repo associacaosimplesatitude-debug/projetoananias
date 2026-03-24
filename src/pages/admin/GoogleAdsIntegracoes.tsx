@@ -45,23 +45,28 @@ export default function GoogleAdsIntegracoes() {
   async function handleSave() {
     setSaving(true);
     try {
-      for (const field of FIELDS) {
-        const val = (values[field.key] || "").trim();
-        if (!val && field.key === "google_ads_login_customer_id") continue;
+      const settings = FIELDS
+        .filter(f => {
+          const val = (values[f.key] || "").trim();
+          return val || f.key !== "google_ads_login_customer_id";
+        })
+        .map(f => ({ key: f.key, value: (values[f.key] || "").trim() }));
 
-        const { error } = await supabase
-          .from("system_settings")
-          .upsert({ key: field.key, value: val }, { onConflict: "key" });
-
-        if (error) {
-          toast.error(`Erro ao salvar ${field.label}: ${error.message}`);
-          console.error(`Erro ao salvar ${field.key}:`, error);
-          setSaving(false);
-          return;
-        }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sessão expirada. Faça login novamente.");
+        setSaving(false);
+        return;
       }
+
+      const res = await supabase.functions.invoke("save-system-settings", {
+        body: { settings },
+      });
+
+      if (res.error) throw new Error(res.error.message);
+      if (res.data?.error) throw new Error(res.data.error);
+
       toast.success("Credenciais salvas com sucesso!");
-      // Auto-test after save
       await handleTest();
     } catch (err: any) {
       console.error("Erro ao salvar:", err);
