@@ -15,6 +15,31 @@ interface GoogleAdsCredentials {
   login_customer_id?: string;
 }
 
+function getOAuthErrorMessage(errorCode?: string, errorDescription?: string) {
+  const normalized = `${errorCode || ""} ${errorDescription || ""}`.toLowerCase();
+
+  if (errorCode === "unauthorized_client" || normalized.includes("unauthorized_client")) {
+    return "Client ID/Secret inválidos";
+  }
+
+  if (
+    errorCode === "invalid_client" ||
+    normalized.includes("invalid_client")
+  ) {
+    return "Client ID/Secret inválidos ou cliente OAuth desativado";
+  }
+
+  if (
+    errorCode === "invalid_grant" ||
+    normalized.includes("expired or revoked") ||
+    normalized.includes("token has been expired or revoked")
+  ) {
+    return "Refresh Token do Google Ads expirado ou revogado. Gere um novo Refresh Token e salve em Integrações.";
+  }
+
+  return errorDescription || errorCode || "Falha ao autenticar com o Google Ads";
+}
+
 async function getCredentials(supabaseClient: any): Promise<GoogleAdsCredentials> {
   const keys = [
     "google_ads_developer_token",
@@ -63,14 +88,31 @@ async function refreshAccessToken(creds: GoogleAdsCredentials): Promise<string> 
     }),
   });
 
-  const data = await res.json();
-  if (data.error) {
-    const msg = data.error === "unauthorized_client"
-      ? "Client ID/Secret inválidos"
-      : data.error_description || data.error;
+  const rawBody = await res.text();
+
+  let data: Record<string, unknown> = {};
+  try {
+    data = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    data = {};
+  }
+
+  const errorCode = typeof data.error === "string" ? data.error : undefined;
+  const errorDescription = typeof data.error_description === "string"
+    ? data.error_description
+    : rawBody;
+
+  if (!res.ok || errorCode) {
+    const msg = getOAuthErrorMessage(errorCode, errorDescription);
     throw new Error(`Erro OAuth2: ${msg}`);
   }
-  return data.access_token;
+
+  const accessToken = typeof data.access_token === "string" ? data.access_token : undefined;
+  if (!accessToken) {
+    throw new Error("Erro OAuth2: Não foi possível obter um access token válido do Google Ads");
+  }
+
+  return accessToken;
 }
 
 function buildHeaders(creds: GoogleAdsCredentials, accessToken: string): Record<string, string> {
