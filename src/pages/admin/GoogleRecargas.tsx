@@ -11,8 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TopupPixModal } from "@/components/google/TopupPixModal";
-import { Wallet, Plus, Copy, Eye, EyeOff, CheckCircle, XCircle, Upload, Loader2 } from "lucide-react";
+import { Wallet, Plus, Copy, Eye, EyeOff, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   SOLICITADA: "bg-blue-100 text-blue-800",
@@ -43,8 +42,6 @@ export default function GoogleRecargas() {
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [requestOpen, setRequestOpen] = useState(false);
-  const [pixModalOpen, setPixModalOpen] = useState(false);
-  const [selectedTopupId, setSelectedTopupId] = useState("");
   const [showPixMap, setShowPixMap] = useState<Record<string, boolean>>({});
 
   // Request form
@@ -304,8 +301,18 @@ export default function GoogleRecargas() {
                       <div className="flex items-center gap-1 flex-wrap">
                         {/* Admin: inserir PIX */}
                         {isAdmin && t.status === "AGUARDANDO_CODIGO_PIX" && (
-                          <Button size="sm" variant="outline" onClick={() => { setSelectedTopupId(t.id); setPixModalOpen(true); }}>
-                            Inserir PIX
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const cid = (customerId || "").replace(/-/g, "");
+                              window.open(
+                                `https://ads.google.com/aw/billing/summary${cid ? `?__e=${cid}` : ""}`,
+                                "_blank"
+                              );
+                            }}
+                          >
+                            Gerar PIX no Google Ads
                           </Button>
                         )}
                         {/* Financeiro/todos: marcar como pago */}
@@ -366,13 +373,6 @@ export default function GoogleRecargas() {
         </DialogContent>
       </Dialog>
 
-      {/* PIX Modal (Admin) */}
-      <TopupPixModal
-        open={pixModalOpen}
-        onOpenChange={setPixModalOpen}
-        topupId={selectedTopupId}
-        onSuccess={refresh}
-      />
     </div>
   );
 }
