@@ -156,8 +156,8 @@ export default function RevistaAcesso() {
       <Card className="w-full max-w-[480px] shadow-lg border-0">
         <CardContent className="p-8 space-y-6">
           <div className="text-center space-y-3">
-            <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-              <BookOpen className="h-8 w-8 text-primary" />
+            <div className="mx-auto w-20 h-20 flex items-center justify-center">
+              <img src={logoCentralGospel} alt="Central Gospel Editora" className="w-20 h-20 object-contain" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">
               {step === "numero"
