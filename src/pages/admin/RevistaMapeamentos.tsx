@@ -75,7 +75,8 @@ export default function RevistaMapeamentos() {
       qc.invalidateQueries({ queryKey: ["revista-mappings"] });
       setOpen(false);
       setSku("");
-      setRevistaId("");
+      setRevistaDigitalId("");
+      setRevistaEbdId("");
       setBlingProdutoId("");
     },
     onError: (e: any) => toast.error(e.message || "Erro ao salvar"),
