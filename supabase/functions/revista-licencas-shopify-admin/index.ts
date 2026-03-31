@@ -128,7 +128,7 @@ serve(async (req) => {
     if (action === "list_mappings") {
       const { data, error } = await supabaseAdmin
         .from("ebd_produto_revista_mapping")
-        .select("*, ebd_revistas(id, titulo, categoria)")
+        .select("*, ebd_revistas(id, titulo, categoria), revistas_digitais:revista_digital_id(id, titulo)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return new Response(JSON.stringify({ data }), {
@@ -137,13 +137,15 @@ serve(async (req) => {
     }
 
     if (action === "insert_mapping") {
+      const record: Record<string, unknown> = {
+        sku: params.sku,
+        revista_digital_id: params.revista_digital_id,
+        bling_produto_id: params.bling_produto_id || null,
+      };
+      if (params.revista_id) record.revista_id = params.revista_id;
       const { error } = await supabaseAdmin
         .from("ebd_produto_revista_mapping")
-        .insert({
-          sku: params.sku,
-          revista_id: params.revista_id,
-          bling_produto_id: params.bling_produto_id || null,
-        });
+        .insert(record);
       if (error) throw error;
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

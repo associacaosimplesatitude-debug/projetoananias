@@ -3303,6 +3303,7 @@ export type Database = {
           created_at: string
           id: string
           product_title: string | null
+          revista_digital_id: string | null
           revista_id: string
           sku: string | null
           tipo_material: string | null
@@ -3313,6 +3314,7 @@ export type Database = {
           created_at?: string
           id?: string
           product_title?: string | null
+          revista_digital_id?: string | null
           revista_id: string
           sku?: string | null
           tipo_material?: string | null
@@ -3323,12 +3325,20 @@ export type Database = {
           created_at?: string
           id?: string
           product_title?: string | null
+          revista_digital_id?: string | null
           revista_id?: string
           sku?: string | null
           tipo_material?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ebd_produto_revista_mapping_revista_digital_id_fkey"
+            columns: ["revista_digital_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ebd_produto_revista_mapping_revista_id_fkey"
             columns: ["revista_id"]

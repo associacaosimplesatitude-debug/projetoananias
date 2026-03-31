@@ -21,7 +21,8 @@ export default function RevistaMapeamentos() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [sku, setSku] = useState("");
-  const [revistaId, setRevistaId] = useState("");
+  const [revistaDigitalId, setRevistaDigitalId] = useState("");
+  const [revistaEbdId, setRevistaEbdId] = useState("");
   const [blingProdutoId, setBlingProdutoId] = useState("");
 
   const { data: mappings, isLoading } = useQuery({
@@ -33,7 +34,20 @@ export default function RevistaMapeamentos() {
     },
   });
 
-  const { data: revistas } = useQuery({
+  const { data: revistasDigitais } = useQuery({
+    queryKey: ["revistas-digitais-select"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("revistas_digitais")
+        .select("id, titulo")
+        .eq("ativo", true)
+        .order("titulo");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: revistasEbd } = useQuery({
     queryKey: ["ebd-revistas-select"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -49,7 +63,8 @@ export default function RevistaMapeamentos() {
     mutationFn: async () => {
       const { data, error } = await callAdmin("insert_mapping", {
         sku,
-        revista_id: revistaId,
+        revista_digital_id: revistaDigitalId,
+        revista_id: revistaEbdId || null,
         bling_produto_id: blingProdutoId || null,
       });
       if (error) throw error;
@@ -60,7 +75,8 @@ export default function RevistaMapeamentos() {
       qc.invalidateQueries({ queryKey: ["revista-mappings"] });
       setOpen(false);
       setSku("");
-      setRevistaId("");
+      setRevistaDigitalId("");
+      setRevistaEbdId("");
       setBlingProdutoId("");
     },
     onError: (e: any) => toast.error(e.message || "Erro ao salvar"),
@@ -105,11 +121,22 @@ export default function RevistaMapeamentos() {
                 <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex: REV-ADULTO-3T-2026" />
               </div>
               <div className="space-y-2">
-                <Label>Revista Digital *</Label>
-                <Select value={revistaId} onValueChange={setRevistaId}>
-                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <Label>Revista Digital (revistas_digitais) *</Label>
+                <Select value={revistaDigitalId} onValueChange={setRevistaDigitalId}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a revista digital..." /></SelectTrigger>
                   <SelectContent>
-                    {(revistas ?? []).map((r: any) => (
+                    {(revistasDigitais ?? []).map((r: any) => (
+                      <SelectItem key={r.id} value={r.id}>{r.titulo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Revista EBD / Bling (opcional)</Label>
+                <Select value={revistaEbdId} onValueChange={setRevistaEbdId}>
+                  <SelectTrigger><SelectValue placeholder="Selecione (opcional)..." /></SelectTrigger>
+                  <SelectContent>
+                    {(revistasEbd ?? []).map((r: any) => (
                       <SelectItem key={r.id} value={r.id}>{r.titulo}</SelectItem>
                     ))}
                   </SelectContent>
@@ -121,7 +148,7 @@ export default function RevistaMapeamentos() {
               </div>
               <Button
                 className="w-full"
-                disabled={!sku || !revistaId || insertMutation.isPending}
+                disabled={!sku || !revistaDigitalId || insertMutation.isPending}
                 onClick={() => insertMutation.mutate()}
               >
                 {insertMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -139,7 +166,8 @@ export default function RevistaMapeamentos() {
           <TableHeader>
             <TableRow>
               <TableHead>SKU</TableHead>
-              <TableHead>Revista Vinculada</TableHead>
+              <TableHead>Revista Digital</TableHead>
+              <TableHead>Revista EBD</TableHead>
               <TableHead>Bling Produto ID</TableHead>
               <TableHead>Data</TableHead>
               <TableHead className="w-16"></TableHead>
@@ -148,7 +176,7 @@ export default function RevistaMapeamentos() {
           <TableBody>
             {(mappings ?? []).length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   Nenhum mapeamento cadastrado. Clique em "Adicionar" para vincular um SKU a uma revista.
                 </TableCell>
               </TableRow>
@@ -156,7 +184,8 @@ export default function RevistaMapeamentos() {
               (mappings ?? []).map((m: any) => (
                 <TableRow key={m.id}>
                   <TableCell className="font-mono text-sm">{m.sku}</TableCell>
-                  <TableCell>{m.ebd_revistas?.titulo ?? "—"}</TableCell>
+                  <TableCell>{m.revistas_digitais?.titulo ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{m.ebd_revistas?.titulo ?? "—"}</TableCell>
                   <TableCell className="font-mono text-sm">{m.bling_produto_id || "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {m.created_at ? format(new Date(m.created_at), "dd/MM/yyyy") : "—"}
