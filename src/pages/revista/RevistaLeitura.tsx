@@ -25,7 +25,7 @@ interface Licao {
   id: string;
   titulo: string;
   numero: number;
-  conteudo: string | null;
+  paginas: string[] | null;
 }
 
 export default function RevistaLeitura() {
