@@ -63,7 +63,8 @@ export default function RevistaMapeamentos() {
     mutationFn: async () => {
       const { data, error } = await callAdmin("insert_mapping", {
         sku,
-        revista_id: revistaId,
+        revista_digital_id: revistaDigitalId,
+        revista_id: revistaEbdId || null,
         bling_produto_id: blingProdutoId || null,
       });
       if (error) throw error;
