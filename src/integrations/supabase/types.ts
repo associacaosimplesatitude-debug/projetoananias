@@ -5542,6 +5542,56 @@ export type Database = {
           },
         ]
       }
+      revista_licencas_shopify: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          email: string | null
+          expira_em: string | null
+          id: string
+          nome_comprador: string | null
+          revista_id: string | null
+          shopify_order_id: string | null
+          shopify_order_number: string | null
+          updated_at: string | null
+          whatsapp: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          expira_em?: string | null
+          id?: string
+          nome_comprador?: string | null
+          revista_id?: string | null
+          shopify_order_id?: string | null
+          shopify_order_number?: string | null
+          updated_at?: string | null
+          whatsapp: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          expira_em?: string | null
+          id?: string
+          nome_comprador?: string | null
+          revista_id?: string | null
+          shopify_order_id?: string | null
+          shopify_order_number?: string | null
+          updated_at?: string | null
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_licencas_shopify_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revista_licoes: {
         Row: {
           created_at: string | null
@@ -5576,6 +5626,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      revista_otp: {
+        Row: {
+          codigo: string
+          created_at: string | null
+          expira_em: string
+          id: string
+          usado: boolean | null
+          whatsapp: string
+        }
+        Insert: {
+          codigo: string
+          created_at?: string | null
+          expira_em: string
+          id?: string
+          usado?: boolean | null
+          whatsapp: string
+        }
+        Update: {
+          codigo?: string
+          created_at?: string | null
+          expira_em?: string
+          id?: string
+          usado?: boolean | null
+          whatsapp?: string
+        }
+        Relationships: []
       }
       revista_planos: {
         Row: {
