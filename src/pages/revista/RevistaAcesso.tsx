@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, BookOpen, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import logoCentralGospel from "@/assets/logo_central_gospel.png";
 
 function formatPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -155,8 +156,8 @@ export default function RevistaAcesso() {
       <Card className="w-full max-w-[480px] shadow-lg border-0">
         <CardContent className="p-8 space-y-6">
           <div className="text-center space-y-3">
-            <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-              <BookOpen className="h-8 w-8 text-primary" />
+            <div className="mx-auto w-20 h-20 flex items-center justify-center">
+              <img src={logoCentralGospel} alt="Central Gospel Editora" className="w-20 h-20 object-contain" />
             </div>
             <h1 className="text-2xl font-bold text-foreground">
               {step === "numero"
