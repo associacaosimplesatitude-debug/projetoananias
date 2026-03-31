@@ -145,6 +145,10 @@ import CadastroAlunoPublico from "./pages/ebd/CadastroAlunoPublico";
 import CadastroRevistaPublico from "./pages/ebd/CadastroRevistaPublico";
 import PagamentoRevistaPublico from "./pages/ebd/PagamentoRevistaPublico";
 
+// Revista Digital Pública (Shopify)
+import RevistaAcesso from "./pages/revista/RevistaAcesso";
+import RevistaLeitura from "./pages/revista/RevistaLeitura";
+
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
 import AlunoTurma from "./pages/ebd/aluno/AlunoTurma";
@@ -251,6 +255,8 @@ const App = () => (
               <Route path="/oferta/:token" element={<OfertaPersonalizada />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
               <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
+              <Route path="/revista/acesso" element={<RevistaAcesso />} />
+              <Route path="/revista/leitura" element={<RevistaLeitura />} />
             <Route
               path="/*"
               element={

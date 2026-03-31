@@ -64,6 +64,7 @@ interface ShopifyOrder {
     quantity: number;
     price: string;
     variant_title?: string;
+    sku?: string;
   }>;
   landing_site?: string;
   referring_site?: string;
@@ -993,6 +994,84 @@ serve(async (req) => {
         console.log("=== LEAD KANBAN UPDATE END ===");
       }
     }
+
+    // === REVISTA DIGITAL — VENDA DIRETA SHOPIFY ===
+    try {
+      const lineItems = order.line_items || [];
+      for (const item of lineItems) {
+        const sku = item.sku || '';
+        if (!sku) continue;
+
+        const { data: mapping } = await supabase
+          .from('ebd_produto_revista_mapping')
+          .select('revista_id, revistas_digitais(titulo)')
+          .eq('sku', sku)
+          .single();
+
+        if (!mapping) continue;
+
+        const rawPhone = order.customer?.phone || '';
+        const digitsOnly = rawPhone.replace(/\D/g, '');
+        const whatsappLimpo = digitsOnly.startsWith('55') && digitsOnly.length >= 12
+          ? digitsOnly.slice(2)
+          : digitsOnly;
+
+        if (!whatsappLimpo || whatsappLimpo.length < 10) continue;
+
+        const nomeComprador = order.customer?.first_name
+          ? `${order.customer.first_name} ${order.customer.last_name || ''}`.trim()
+          : 'Cliente';
+
+        const emailComprador = order.customer?.email || order.email || '';
+        const tituloRevista = (mapping as any).revistas_digitais?.titulo || 'Revista';
+
+        await supabase
+          .from('revista_licencas_shopify')
+          .insert({
+            revista_id: mapping.revista_id,
+            shopify_order_id: String(order.id),
+            shopify_order_number: String(order.order_number),
+            nome_comprador: nomeComprador,
+            whatsapp: whatsappLimpo,
+            email: emailComprador,
+            ativo: true
+          });
+
+        const urlAcesso = 'https://gestaoebd.lovable.app/revista/acesso';
+
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-message`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+          },
+          body: JSON.stringify({
+            telefone: whatsappLimpo,
+            mensagem: `Ola, ${nomeComprador}! Sua ${tituloRevista} esta pronta!\n\nPara acessar, entre em:\n${urlAcesso}\n\nDigite seu numero de WhatsApp e enviaremos um codigo de 4 numeros para voce entrar. Simples assim!\n\nQualquer duvida, responda esta mensagem.`
+          })
+        });
+
+        if (emailComprador) {
+          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-ebd-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({
+              to: emailComprador,
+              subject: `Sua ${tituloRevista} esta pronta!`,
+              html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px"><h2>Ola, ${nomeComprador}!</h2><p>Sua <strong>${tituloRevista}</strong> foi liberada com sucesso!</p><p><a href="${urlAcesso}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-size:16px">Acessar minha revista</a></p><p style="color:#666;font-size:14px">Voce vai precisar do seu numero de WhatsApp para entrar.</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0"/><p style="color:#999;font-size:12px">Pedido Shopify: #${order.order_number}</p></div>`
+            })
+          });
+        }
+
+        console.log(`✅ Revista digital license created for ${nomeComprador} (${whatsappLimpo}), revista: ${tituloRevista}`);
+      }
+    } catch (revistaErr) {
+      console.error("Error in revista digital flow:", revistaErr);
+    }
+    // === FIM REVISTA DIGITAL ===
 
     return new Response(
       JSON.stringify({ 
