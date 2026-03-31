@@ -531,6 +531,7 @@ const App = () => (
                       <Route path="revistas-digitais" element={<ProtectedRoute requireAdmin><RevistasDigitais /></ProtectedRoute>} />
                       <Route path="revistas-assinaturas" element={<ProtectedRoute requireAdmin><RevistasAssinaturas /></ProtectedRoute>} />
                       <Route path="revista-licencas" element={<ProtectedRoute requireAdmin><RevistaLicencasAdmin /></ProtectedRoute>} />
+                      <Route path="revista-mapeamentos" element={<ProtectedRoute requireAdmin><RevistaMapeamentos /></ProtectedRoute>} />
                       <Route path="usuarios" element={<EBDSystemUsers />} />
                       <Route path="funil" element={<VendedorFunil isAdminView />} />
                       <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />

@@ -501,6 +501,14 @@ function AdminSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-mapeamentos')}>
+                        <RouterNavLink to="/admin/ebd/revista-mapeamentos">
+                          <Link2 className="h-4 w-4" />
+                          <span>Mapeamento SKU</span>
+                        </RouterNavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={isActive('/admin/ebd/shopify')}>
                         <RouterNavLink to="/admin/ebd/shopify">
                           <Store className="h-4 w-4" />
