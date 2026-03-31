@@ -121,11 +121,22 @@ export default function RevistaMapeamentos() {
                 <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ex: REV-ADULTO-3T-2026" />
               </div>
               <div className="space-y-2">
-                <Label>Revista Digital *</Label>
-                <Select value={revistaId} onValueChange={setRevistaId}>
-                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <Label>Revista Digital (revistas_digitais) *</Label>
+                <Select value={revistaDigitalId} onValueChange={setRevistaDigitalId}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a revista digital..." /></SelectTrigger>
                   <SelectContent>
-                    {(revistas ?? []).map((r: any) => (
+                    {(revistasDigitais ?? []).map((r: any) => (
+                      <SelectItem key={r.id} value={r.id}>{r.titulo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Revista EBD / Bling (opcional)</Label>
+                <Select value={revistaEbdId} onValueChange={setRevistaEbdId}>
+                  <SelectTrigger><SelectValue placeholder="Selecione (opcional)..." /></SelectTrigger>
+                  <SelectContent>
+                    {(revistasEbd ?? []).map((r: any) => (
                       <SelectItem key={r.id} value={r.id}>{r.titulo}</SelectItem>
                     ))}
                   </SelectContent>
