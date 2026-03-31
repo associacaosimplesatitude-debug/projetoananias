@@ -1006,7 +1006,7 @@ serve(async (req) => {
           .from('ebd_produto_revista_mapping')
           .select('revista_id, revista_digital_id, revistas_digitais:revista_digital_id(titulo)')
           .eq('sku', sku)
-          .single();
+          .maybeSingle();
 
         if (!mapping) continue;
 
