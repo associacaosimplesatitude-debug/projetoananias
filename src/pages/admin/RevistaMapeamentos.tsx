@@ -21,7 +21,8 @@ export default function RevistaMapeamentos() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [sku, setSku] = useState("");
-  const [revistaId, setRevistaId] = useState("");
+  const [revistaDigitalId, setRevistaDigitalId] = useState("");
+  const [revistaEbdId, setRevistaEbdId] = useState("");
   const [blingProdutoId, setBlingProdutoId] = useState("");
 
   const { data: mappings, isLoading } = useQuery({
