@@ -127,37 +127,46 @@ serve(async (req) => {
       );
     }
 
-    // ── Fallback: enviar código também por email (se disponível) ──
+    // ── Fallback: enviar código também por email via Resend (se disponível) ──
     if (licenca.email) {
       try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-ebd-email`,
-          {
+        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        if (resendApiKey) {
+          const emailRes = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
+              Authorization: `Bearer ${resendApiKey}`,
               "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
             },
             body: JSON.stringify({
-              to: licenca.email,
-              subject: "Seu codigo de acesso a revista",
+              from: "Gestão EBD <relatorios@painel.editoracentralgospel.com.br>",
+              to: [licenca.email],
+              subject: "Seu código de acesso à revista",
               html: `
                 <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-                  <h2 style="color:#1B3A5C">Ola, ${licenca.nome_comprador || "leitor"}!</h2>
-                  <p style="font-size:16px">Seu codigo de acesso a revista e:</p>
+                  <h2 style="color:#1B3A5C">Olá, ${licenca.nome_comprador || "leitor"}!</h2>
+                  <p style="font-size:16px">Seu código de acesso à revista é:</p>
                   <div style="font-size:48px;font-weight:bold;text-align:center;
                               letter-spacing:12px;color:#1B3A5C;padding:24px 0">
                     ${codigo}
                   </div>
                   <p style="font-size:14px;color:#666">
-                    Este codigo expira em 10 minutos.<br>
-                    Nao compartilhe este codigo.
+                    Este código expira em 10 minutos.<br>
+                    Não compartilhe este código.
                   </p>
                 </div>
               `,
             }),
+          });
+          const emailData = await emailRes.json();
+          if (!emailRes.ok) {
+            console.error("Resend email error:", JSON.stringify(emailData));
+          } else {
+            console.log("OTP email sent to:", licenca.email);
           }
-        );
+        } else {
+          console.warn("RESEND_API_KEY not configured, skipping email fallback");
+        }
       } catch (emailErr) {
         console.error("Email fallback error:", emailErr);
         // Não bloqueia — WhatsApp já foi enviado com sucesso
