@@ -255,6 +255,8 @@ const App = () => (
               <Route path="/oferta/:token" element={<OfertaPersonalizada />} />
               <Route path="/payment-blocked" element={<PaymentBlocked />} />
               <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
+              <Route path="/revista/acesso" element={<RevistaAcesso />} />
+              <Route path="/revista/leitura" element={<RevistaLeitura />} />
             <Route
               path="/*"
               element={
