@@ -94,7 +94,7 @@ serve(async (req) => {
     const digits = numeroLimpo.replace(/\D/g, "");
     const metaPhone = digits.startsWith("55") ? digits : `55${digits}`;
 
-    // ── Enviar WhatsApp diretamente via API da Meta ──
+    // ── Enviar WhatsApp via template AUTHENTICATION da Meta ──
     const waRes = await fetch(
       `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
       {
@@ -106,10 +106,27 @@ serve(async (req) => {
         body: JSON.stringify({
           messaging_product: "whatsapp",
           to: metaPhone,
-          type: "text",
-          text: {
-            body: `Seu codigo de acesso a revista e:\n\n*${codigo}*\n\nDigite este codigo na tela.\nEle expira em 10 minutos.\n\nNao compartilhe este codigo.`,
-          },
+          type: "template",
+          template: {
+            name: "acesso_revista_otp",
+            language: { code: "pt_BR" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: codigo }
+                ]
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  { type: "text", text: codigo }
+                ]
+              }
+            ]
+          }
         }),
       }
     );
