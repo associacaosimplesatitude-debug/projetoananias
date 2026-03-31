@@ -145,6 +145,10 @@ import CadastroAlunoPublico from "./pages/ebd/CadastroAlunoPublico";
 import CadastroRevistaPublico from "./pages/ebd/CadastroRevistaPublico";
 import PagamentoRevistaPublico from "./pages/ebd/PagamentoRevistaPublico";
 
+// Revista Digital Pública (Shopify)
+import RevistaAcesso from "./pages/revista/RevistaAcesso";
+import RevistaLeitura from "./pages/revista/RevistaLeitura";
+
 // Aluno Module Pages
 import AlunoHome from "./pages/ebd/aluno/AlunoHome";
 import AlunoTurma from "./pages/ebd/aluno/AlunoTurma";
