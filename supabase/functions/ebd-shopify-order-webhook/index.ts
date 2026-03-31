@@ -830,7 +830,7 @@ serve(async (req) => {
                 }).join("\n");
 
                 const zapiBaseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
-                const trackerUrl = `${supabaseUrl}/functions/v1/whatsapp-link-tracker?c=${clienteId}&f=1`;
+                const trackerUrl = `${SUPABASE_URL}/functions/v1/whatsapp-link-tracker?c=${clienteId}&f=1`;
                 
                 const fase1Msg = `Olá, ${nomeCliente}! 👋\n\nRecebemos seu pedido na Central Gospel! Obrigado pela confiança.\n\nResumo do Pedido:\n${itensTexto}\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}\n✨ Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}\n\nQuer acompanhar o prazo de entrega e o código de rastreio em tempo real?\n\nSIM, QUERO 👉 ${trackerUrl}`;
                 
@@ -1006,7 +1006,7 @@ serve(async (req) => {
           .from('ebd_produto_revista_mapping')
           .select('revista_id, revista_digital_id, revistas_digitais:revista_digital_id(titulo)')
           .eq('sku', sku)
-          .single();
+          .maybeSingle();
 
         if (!mapping) continue;
 
@@ -1031,6 +1031,19 @@ serve(async (req) => {
 
         const emailComprador = order.customer?.email || order.email || '';
         const tituloRevista = (mapping as any).revistas_digitais?.titulo || 'Revista';
+
+        // Idempotency guard - skip if license already exists
+        const { data: existingLicense } = await supabase
+          .from('revista_licencas_shopify')
+          .select('id')
+          .eq('shopify_order_id', String(order.id))
+          .eq('whatsapp', whatsappLimpo)
+          .maybeSingle();
+
+        if (existingLicense) {
+          console.log(`⚠️ License already exists for order ${order.id}, skipping...`);
+          continue;
+        }
 
         await supabase
           .from('revista_licencas_shopify')
