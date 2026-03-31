@@ -166,7 +166,8 @@ export default function RevistaMapeamentos() {
           <TableHeader>
             <TableRow>
               <TableHead>SKU</TableHead>
-              <TableHead>Revista Vinculada</TableHead>
+              <TableHead>Revista Digital</TableHead>
+              <TableHead>Revista EBD</TableHead>
               <TableHead>Bling Produto ID</TableHead>
               <TableHead>Data</TableHead>
               <TableHead className="w-16"></TableHead>
