@@ -137,15 +137,19 @@ serve(async (req) => {
     }
 
     if (action === "insert_mapping") {
-      const record: Record<string, unknown> = {
+      const insertData: Record<string, unknown> = {
         sku: params.sku,
         revista_digital_id: params.revista_digital_id,
-        bling_produto_id: params.bling_produto_id || null,
       };
-      if (params.revista_id) record.revista_id = params.revista_id;
+      if (params.bling_produto_id) {
+        insertData.bling_produto_id = params.bling_produto_id;
+      }
+      if (params.revista_id) {
+        insertData.revista_id = params.revista_id;
+      }
       const { error } = await supabaseAdmin
         .from("ebd_produto_revista_mapping")
-        .insert(record);
+        .insert(insertData);
       if (error) throw error;
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

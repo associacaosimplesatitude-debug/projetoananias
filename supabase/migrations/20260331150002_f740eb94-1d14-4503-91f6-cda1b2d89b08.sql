@@ -1,0 +1,1 @@
+ALTER TABLE public.ebd_produto_revista_mapping ALTER COLUMN revista_id DROP NOT NULL;

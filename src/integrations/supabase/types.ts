@@ -3304,7 +3304,7 @@ export type Database = {
           id: string
           product_title: string | null
           revista_digital_id: string | null
-          revista_id: string
+          revista_id: string | null
           sku: string | null
           tipo_material: string | null
           updated_at: string
@@ -3315,7 +3315,7 @@ export type Database = {
           id?: string
           product_title?: string | null
           revista_digital_id?: string | null
-          revista_id: string
+          revista_id?: string | null
           sku?: string | null
           tipo_material?: string | null
           updated_at?: string
@@ -3326,7 +3326,7 @@ export type Database = {
           id?: string
           product_title?: string | null
           revista_digital_id?: string | null
-          revista_id?: string
+          revista_id?: string | null
           sku?: string | null
           tipo_material?: string | null
           updated_at?: string
