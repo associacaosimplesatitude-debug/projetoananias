@@ -128,7 +128,16 @@ serve(async (req) => {
     if (action === "list_mappings") {
       const { data, error } = await supabaseAdmin
         .from("ebd_produto_revista_mapping")
-        .select("*, ebd_revistas(id, titulo, categoria), revistas_digitais:revista_digital_id(id, titulo)")
+        .select(`
+          id,
+          sku,
+          revista_id,
+          revista_digital_id,
+          bling_produto_id,
+          created_at,
+          revista_digital:revistas_digitais!ebd_produto_revista_mapping_revista_digital_id_fkey(titulo),
+          revista_ebd:ebd_revistas!ebd_produto_revista_mapping_revista_id_fkey(titulo)
+        `)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return new Response(JSON.stringify({ data }), {
