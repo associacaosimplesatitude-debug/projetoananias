@@ -1,51 +1,52 @@
 
 
-# Fix 3 Bugs in ebd-shopify-order-webhook
+# Replace email sending with direct Resend API in webhook
 
-Only file changed: `supabase/functions/ebd-shopify-order-webhook/index.ts`
+## What's wrong
+Lines 1074-1087 in `ebd-shopify-order-webhook/index.ts` send the welcome email via `send-ebd-email` edge function, which expects `clienteId` + `templateCode`. The current code passes `to`, `subject`, `html` — an incompatible format. This likely results in silent failures.
 
-## Correction 1 — `supabaseUrl is not defined` (line 833)
+## Fix
+Replace lines 1074-1087 with a direct Resend API call, matching the pattern already used in `revista-solicitar-otp`.
 
-**Current** (line 833):
+### Code change (lines 1074-1087)
+
+Replace the `send-ebd-email` fetch block with:
+
 ```typescript
-const trackerUrl = `${supabaseUrl}/functions/v1/whatsapp-link-tracker?c=${clienteId}&f=1`;
-```
-
-**Fix**: Replace `supabaseUrl` with `SUPABASE_URL` (defined at line 138).
-
-## Correction 2 — Idempotency guard for duplicate licenses
-
-**Current** (lines 1035-1045): Inserts directly into `revista_licencas_shopify` without checking for existing records.
-
-**Fix**: Add check before the insert (after line 1033, before line 1035):
-```typescript
-// Idempotency guard
-const { data: existingLicense } = await supabase
-  .from('revista_licencas_shopify')
-  .select('id')
-  .eq('shopify_order_id', String(order.id))
-  .eq('whatsapp', whatsappLimpo)
-  .maybeSingle();
-
-if (existingLicense) {
-  console.log(`⚠️ License already exists for order ${order.id}, skipping...`);
-  continue;
+if (emailComprador) {
+  try {
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    if (resendApiKey) {
+      const urlAcessoEmail = 'https://revistas.centralgospel.com.br/revista/acesso';
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Central Gospel <noreply@centralgospel.com.br>',
+          to: [emailComprador],
+          subject: `Sua ${tituloRevista} está pronta!`,
+          html: `<div style="font-family:Arial,sans-serif;...">
+            <!-- Full branded HTML with access button, 
+                 WhatsApp instructions, order number -->
+          </div>`
+        })
+      });
+      console.log('Email de boas-vindas enviado para:', emailComprador);
+    }
+  } catch (emailErr) {
+    console.error('Erro ao enviar email de boas-vindas:', emailErr);
+  }
 }
 ```
 
-## Correction 3 — `.single()` → `.maybeSingle()` on mapping query
+The HTML will include: greeting with buyer name, magazine title, CTA button linking to `revistas.centralgospel.com.br/revista/acesso`, WhatsApp login instructions, and order number footer.
 
-**Current** (line 1009):
-```typescript
-.single();
-```
+## Secret status
+`RESEND_API_KEY` is already configured in the project secrets. No action needed.
 
-**Fix**: Change to `.maybeSingle()`. The existing `if (!mapping) continue;` on line 1011 already handles null, so no other changes needed.
-
-Note: The `ebd_clientes` lookups (lines 672 and 928) already use `.maybeSingle()` — no changes needed there. The PGRST116 error was likely triggered by the `.single()` on line 1009 when a SKU has no mapping.
-
-## Summary of changes
-- Line 833: `supabaseUrl` → `SUPABASE_URL`
-- Line 1009: `.single()` → `.maybeSingle()`
-- Lines 1034-1035: Insert idempotency guard block
+## File changed
+- `supabase/functions/ebd-shopify-order-webhook/index.ts` — lines 1074-1087 only
 
