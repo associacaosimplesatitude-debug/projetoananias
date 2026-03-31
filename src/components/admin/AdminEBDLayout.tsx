@@ -61,7 +61,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useState } from "react";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Link2 } from "lucide-react";
 
 function AdminSidebar() {
   const { role } = useAuth();
