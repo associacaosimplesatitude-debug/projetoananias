@@ -1,52 +1,36 @@
 
 
-# Replace email sending with direct Resend API in webhook
+# Diagnóstico: Pedido #2969 (R$ 5,14) — Licença e email não processados
 
-## What's wrong
-Lines 1074-1087 in `ebd-shopify-order-webhook/index.ts` send the welcome email via `send-ebd-email` edge function, which expects `clienteId` + `templateCode`. The current code passes `to`, `subject`, `html` — an incompatible format. This likely results in silent failures.
+## O que encontrei
 
-## Fix
-Replace lines 1074-1087 with a direct Resend API call, matching the pattern already used in `revista-solicitar-otp`.
+1. **O pedido existe** no banco (`ebd_shopify_pedidos`): order #2969, R$ 5,14, `cleuton.soares@gmail.com`, status `paid`
+2. **A tabela `revista_licencas_shopify` está vazia** — nenhuma licença foi criada
+3. **Não há nenhum log** do `ebd-shopify-order-webhook` nos analytics recentes — o webhook **nunca foi chamado** pelo Shopify para este pedido
+4. O pedido foi importado via `ebd-shopify-sync-orders` (sync manual), mas o webhook `orders/paid` não disparou
 
-### Code change (lines 1074-1087)
+## Causa raiz
 
-Replace the `send-ebd-email` fetch block with:
+O webhook do Shopify (`orders/paid`) **não disparou** para o pedido #2969. Possíveis razões:
+- A edge function foi editada mas **não foi redeployada** — sem deploy, o Shopify pode estar recebendo erros 500 nas tentativas anteriores e parou de retentar
+- O webhook pode ter sido removido/desconfigurado no Shopify
 
-```typescript
-if (emailComprador) {
-  try {
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (resendApiKey) {
-      const urlAcessoEmail = 'https://revistas.centralgospel.com.br/revista/acesso';
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: 'Central Gospel <noreply@centralgospel.com.br>',
-          to: [emailComprador],
-          subject: `Sua ${tituloRevista} está pronta!`,
-          html: `<div style="font-family:Arial,sans-serif;...">
-            <!-- Full branded HTML with access button, 
-                 WhatsApp instructions, order number -->
-          </div>`
-        })
-      });
-      console.log('Email de boas-vindas enviado para:', emailComprador);
-    }
-  } catch (emailErr) {
-    console.error('Erro ao enviar email de boas-vindas:', emailErr);
-  }
-}
-```
+## Plano de correção
 
-The HTML will include: greeting with buyer name, magazine title, CTA button linking to `revistas.centralgospel.com.br/revista/acesso`, WhatsApp login instructions, and order number footer.
+### Passo 1 — Redeployar a edge function
+Deployar `ebd-shopify-order-webhook` com todas as correções já feitas (SUPABASE_URL, idempotência, maybeSingle, email via Resend).
 
-## Secret status
-`RESEND_API_KEY` is already configured in the project secrets. No action needed.
+### Passo 2 — Re-registrar o webhook no Shopify
+Usar o botão "Registrar Webhook" em `/admin/ebd/pedidos-online` para garantir que o webhook está ativo.
 
-## File changed
-- `supabase/functions/ebd-shopify-order-webhook/index.ts` — lines 1074-1087 only
+### Passo 3 — Processar manualmente o pedido #2969
+Como o webhook não vai ser retransmitido pelo Shopify, precisamos disparar o processamento manualmente. Duas opções:
+- **Opção A**: Chamar a edge function via `curl` simulando o payload do pedido #2969
+- **Opção B**: Criar a licença manualmente via painel admin em `/admin/ebd/revista-licencas` (aba Vendas Shopify → Criar Licença Manual)
+
+### Detalhes técnicos
+- SKU do produto: `REV-N07-2026` (mapeado para revista digital `503e5583-2f3f-4b75-819e-bd241c590bc4`)
+- WhatsApp do comprador: precisa ser extraído do pedido Shopify
+- Email: `cleuton.soares@gmail.com`
+- Após criar a licença, o email de boas-vindas via Resend será enviado automaticamente pelo webhook (opção A) ou manualmente (opção B)
 
