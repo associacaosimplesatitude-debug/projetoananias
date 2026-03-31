@@ -1,0 +1,1 @@
+ALTER TABLE public.ebd_produto_revista_mapping ADD COLUMN revista_digital_id UUID REFERENCES public.revistas_digitais(id) ON DELETE SET NULL;
