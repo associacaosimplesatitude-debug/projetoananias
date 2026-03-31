@@ -128,7 +128,7 @@ serve(async (req) => {
     if (action === "list_mappings") {
       const { data, error } = await supabaseAdmin
         .from("ebd_produto_revista_mapping")
-        .select("*, ebd_revistas(id, titulo, categoria)")
+        .select("*, ebd_revistas(id, titulo, categoria), revistas_digitais:revista_digital_id(id, titulo)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return new Response(JSON.stringify({ data }), {
