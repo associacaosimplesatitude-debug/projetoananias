@@ -830,7 +830,7 @@ serve(async (req) => {
                 }).join("\n");
 
                 const zapiBaseUrl = `https://api.z-api.io/instances/${instanceId}/token/${zapiToken}`;
-                const trackerUrl = `${supabaseUrl}/functions/v1/whatsapp-link-tracker?c=${clienteId}&f=1`;
+                const trackerUrl = `${SUPABASE_URL}/functions/v1/whatsapp-link-tracker?c=${clienteId}&f=1`;
                 
                 const fase1Msg = `Olá, ${nomeCliente}! 👋\n\nRecebemos seu pedido na Central Gospel! Obrigado pela confiança.\n\nResumo do Pedido:\n${itensTexto}\n🚚 Frete: R$ ${frete.toFixed(2).replace(".", ",")}\n✨ Total: R$ ${totalPedido.toFixed(2).replace(".", ",")}\n\nQuer acompanhar o prazo de entrega e o código de rastreio em tempo real?\n\nSIM, QUERO 👉 ${trackerUrl}`;
                 
