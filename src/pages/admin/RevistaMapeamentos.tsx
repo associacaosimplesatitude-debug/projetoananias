@@ -156,7 +156,7 @@ export default function RevistaMapeamentos() {
               (mappings ?? []).map((m: any) => (
                 <TableRow key={m.id}>
                   <TableCell className="font-mono text-sm">{m.sku}</TableCell>
-                  <TableCell>{m.revistas_digitais?.titulo ?? "—"}</TableCell>
+                  <TableCell>{m.ebd_revistas?.titulo ?? "—"}</TableCell>
                   <TableCell className="font-mono text-sm">{m.bling_produto_id || "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {m.created_at ? format(new Date(m.created_at), "dd/MM/yyyy") : "—"}
