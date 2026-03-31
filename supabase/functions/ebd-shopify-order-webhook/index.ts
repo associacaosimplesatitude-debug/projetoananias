@@ -1032,6 +1032,19 @@ serve(async (req) => {
         const emailComprador = order.customer?.email || order.email || '';
         const tituloRevista = (mapping as any).revistas_digitais?.titulo || 'Revista';
 
+        // Idempotency guard - skip if license already exists
+        const { data: existingLicense } = await supabase
+          .from('revista_licencas_shopify')
+          .select('id')
+          .eq('shopify_order_id', String(order.id))
+          .eq('whatsapp', whatsappLimpo)
+          .maybeSingle();
+
+        if (existingLicense) {
+          console.log(`⚠️ License already exists for order ${order.id}, skipping...`);
+          continue;
+        }
+
         await supabase
           .from('revista_licencas_shopify')
           .insert({
