@@ -1059,31 +1059,78 @@ serve(async (req) => {
 
         const urlAcesso = 'https://gestaoebd.lovable.app/revista/acesso';
 
-        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-message`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-          },
-          body: JSON.stringify({
-            telefone: whatsappLimpo,
-            mensagem: `Ola, ${nomeComprador}! Sua ${tituloRevista} esta pronta!\n\nPara acessar, entre em:\n${urlAcesso}\n\nDigite seu numero de WhatsApp e enviaremos um codigo de 4 numeros para voce entrar. Simples assim!\n\nQualquer duvida, responda esta mensagem.`
-          })
-        });
+        // === WhatsApp boas-vindas via Meta API direta (template) ===
+        try {
+          const settingsRes = await supabase
+            .from('system_settings')
+            .select('key, value')
+            .in('key', ['whatsapp_phone_number_id', 'whatsapp_access_token']);
 
+          const waSettings: Record<string, string> = {};
+          (settingsRes.data || []).forEach((s: any) => { waSettings[s.key] = s.value; });
+
+          const phoneNumberId = waSettings['whatsapp_phone_number_id'];
+          const accessToken = waSettings['whatsapp_access_token'];
+
+          if (phoneNumberId && accessToken) {
+            const metaPhone = whatsappLimpo.startsWith('55') ? whatsappLimpo : `55${whatsappLimpo}`;
+
+            const waRes = await fetch(
+              `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                  messaging_product: 'whatsapp',
+                  to: metaPhone,
+                  type: 'template',
+                  template: {
+                    name: 'revista_acesso_liberado',
+                    language: { code: 'pt_BR' },
+                    components: [
+                      {
+                        type: 'body',
+                        parameters: [
+                          { type: 'text', text: nomeComprador },
+                          { type: 'text', text: tituloRevista }
+                        ]
+                      }
+                    ]
+                  }
+                })
+              }
+            );
+
+            const waData = await waRes.json();
+            if (!waRes.ok) {
+              console.error('WhatsApp boas-vindas error:', JSON.stringify(waData));
+            } else {
+              console.log('WhatsApp boas-vindas enviado para:', whatsappLimpo);
+            }
+          } else {
+            console.warn('WhatsApp credentials not found in system_settings');
+          }
+        } catch (waErr) {
+          console.error('Erro ao enviar WhatsApp boas-vindas:', waErr);
+        }
+
+        // === Email boas-vindas via Resend API direta ===
         if (emailComprador) {
           try {
             const resendApiKey = Deno.env.get('RESEND_API_KEY');
             if (resendApiKey) {
               const urlAcessoEmail = 'https://revistas.centralgospel.com.br/revista/acesso';
-              await fetch('https://api.resend.com/emails', {
+              const emailRes = await fetch('https://api.resend.com/emails', {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${resendApiKey}`,
                   'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                  from: 'Central Gospel <noreply@centralgospel.com.br>',
+                  from: 'Central Gospel <relatorios@painel.editoracentralgospel.com.br>',
                   to: [emailComprador],
                   subject: `Sua ${tituloRevista} está pronta!`,
                   html: `
@@ -1111,7 +1158,13 @@ serve(async (req) => {
                   `
                 })
               });
-              console.log('Email de boas-vindas enviado para:', emailComprador);
+
+              const emailData = await emailRes.json();
+              if (!emailRes.ok) {
+                console.error('Resend email error:', JSON.stringify(emailData));
+              } else {
+                console.log('Email de boas-vindas enviado para:', emailComprador);
+              }
             }
           } catch (emailErr) {
             console.error('Erro ao enviar email de boas-vindas:', emailErr);
