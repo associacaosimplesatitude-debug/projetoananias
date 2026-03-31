@@ -34,12 +34,11 @@ export default function RevistaMapeamentos() {
   });
 
   const { data: revistas } = useQuery({
-    queryKey: ["revistas-digitais-select"],
+    queryKey: ["ebd-revistas-select"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("revistas_digitais")
+        .from("ebd_revistas")
         .select("id, titulo")
-        .eq("ativo", true)
         .order("titulo");
       if (error) throw error;
       return data ?? [];
