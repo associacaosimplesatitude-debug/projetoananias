@@ -34,7 +34,20 @@ export default function RevistaMapeamentos() {
     },
   });
 
-  const { data: revistas } = useQuery({
+  const { data: revistasDigitais } = useQuery({
+    queryKey: ["revistas-digitais-select"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("revistas_digitais")
+        .select("id, titulo")
+        .eq("ativo", true)
+        .order("titulo");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: revistasEbd } = useQuery({
     queryKey: ["ebd-revistas-select"],
     queryFn: async () => {
       const { data, error } = await supabase
