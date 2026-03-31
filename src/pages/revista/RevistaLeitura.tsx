@@ -72,8 +72,8 @@ export default function RevistaLeitura() {
     if (!selectedRevista) return;
     setLoadingLicoes(true);
     supabase
-      .from("ebd_licoes" as any)
-      .select("id, titulo, numero, conteudo")
+      .from("revista_licoes" as any)
+      .select("id, titulo, numero, paginas")
       .eq("revista_id", selectedRevista)
       .order("numero", { ascending: true })
       .then(({ data }) => {

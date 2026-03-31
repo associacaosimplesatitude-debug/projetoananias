@@ -115,11 +115,13 @@ serve(async (req) => {
     );
 
     const waData = await waRes.json();
+    console.log("Meta WA response status:", waRes.status);
+    console.log("Meta WA response body:", JSON.stringify(waData));
 
     if (!waRes.ok) {
       console.error("WhatsApp send error:", JSON.stringify(waData));
       return new Response(
-        JSON.stringify({ erro: "falha_whatsapp", detalhe: waData }),
+        JSON.stringify({ erro: "falha_whatsapp", status: waRes.status, detalhe: waData }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
