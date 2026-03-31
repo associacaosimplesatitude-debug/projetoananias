@@ -1035,7 +1035,7 @@ serve(async (req) => {
         await supabase
           .from('revista_licencas_shopify')
           .insert({
-            revista_id: mapping.revista_id,
+            revista_id: revistaDigitalId,
             shopify_order_id: String(order.id),
             shopify_order_number: String(order.order_number),
             nome_comprador: nomeComprador,
