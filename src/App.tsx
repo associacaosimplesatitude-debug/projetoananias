@@ -71,6 +71,7 @@ import BlingSyncErrors from "./pages/admin/BlingSyncErrors";
 import RevistasDigitais from "./pages/admin/RevistasDigitais";
 import RevistasAssinaturas from "./pages/admin/RevistasAssinaturas";
 import RevistaLicencasAdmin from "./pages/admin/RevistaLicencasAdmin";
+import RevistaMapeamentos from "./pages/admin/RevistaMapeamentos";
 import LicencasPanel from "./pages/ebd/aluno/LicencasPanel";
 import AlunoRevistaVirtual from "./pages/ebd/aluno/AlunoRevistaVirtual";
 import RevistaLeitor from "./pages/ebd/aluno/RevistaLeitor";
@@ -530,6 +531,7 @@ const App = () => (
                       <Route path="revistas-digitais" element={<ProtectedRoute requireAdmin><RevistasDigitais /></ProtectedRoute>} />
                       <Route path="revistas-assinaturas" element={<ProtectedRoute requireAdmin><RevistasAssinaturas /></ProtectedRoute>} />
                       <Route path="revista-licencas" element={<ProtectedRoute requireAdmin><RevistaLicencasAdmin /></ProtectedRoute>} />
+                      <Route path="revista-mapeamentos" element={<ProtectedRoute requireAdmin><RevistaMapeamentos /></ProtectedRoute>} />
                       <Route path="usuarios" element={<EBDSystemUsers />} />
                       <Route path="funil" element={<VendedorFunil isAdminView />} />
                       <Route path="emails-ebd" element={<VendedorEmailsEBD isAdminView />} />

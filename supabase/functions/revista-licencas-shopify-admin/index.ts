@@ -125,6 +125,42 @@ serve(async (req) => {
       });
     }
 
+    if (action === "list_mappings") {
+      const { data, error } = await supabaseAdmin
+        .from("ebd_produto_revista_mapping")
+        .select("*, revistas_digitais(titulo, tipo)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return new Response(JSON.stringify({ data }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "insert_mapping") {
+      const { error } = await supabaseAdmin
+        .from("ebd_produto_revista_mapping")
+        .insert({
+          sku: params.sku,
+          revista_id: params.revista_id,
+          bling_produto_id: params.bling_produto_id || null,
+        });
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "delete_mapping") {
+      const { error } = await supabaseAdmin
+        .from("ebd_produto_revista_mapping")
+        .delete()
+        .eq("id", params.id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Ação inválida" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

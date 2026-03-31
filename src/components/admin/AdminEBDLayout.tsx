@@ -61,7 +61,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useState } from "react";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Link2 } from "lucide-react";
 
 function AdminSidebar() {
   const { role } = useAuth();
@@ -497,6 +497,14 @@ function AdminSidebar() {
                         <RouterNavLink to="/admin/ebd/revista-licencas">
                           <Users className="h-4 w-4" />
                           <span>Licenças Revistas</span>
+                        </RouterNavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-mapeamentos')}>
+                        <RouterNavLink to="/admin/ebd/revista-mapeamentos">
+                          <Link2 className="h-4 w-4" />
+                          <span>Mapeamento SKU</span>
                         </RouterNavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
