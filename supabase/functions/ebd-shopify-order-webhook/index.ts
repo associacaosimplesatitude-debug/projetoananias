@@ -1072,18 +1072,50 @@ serve(async (req) => {
         });
 
         if (emailComprador) {
-          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-ebd-email`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-            },
-            body: JSON.stringify({
-              to: emailComprador,
-              subject: `Sua ${tituloRevista} esta pronta!`,
-              html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px"><h2>Ola, ${nomeComprador}!</h2><p>Sua <strong>${tituloRevista}</strong> foi liberada com sucesso!</p><p><a href="${urlAcesso}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-size:16px">Acessar minha revista</a></p><p style="color:#666;font-size:14px">Voce vai precisar do seu numero de WhatsApp para entrar.</p><hr style="border:none;border-top:1px solid #eee;margin:20px 0"/><p style="color:#999;font-size:12px">Pedido Shopify: #${order.order_number}</p></div>`
-            })
-          });
+          try {
+            const resendApiKey = Deno.env.get('RESEND_API_KEY');
+            if (resendApiKey) {
+              const urlAcessoEmail = 'https://revistas.centralgospel.com.br/revista/acesso';
+              await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${resendApiKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  from: 'Central Gospel <noreply@centralgospel.com.br>',
+                  to: [emailComprador],
+                  subject: `Sua ${tituloRevista} está pronta!`,
+                  html: `
+                    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                      <h2 style="color:#1B3A5C">Olá, ${nomeComprador}!</h2>
+                      <p style="font-size:16px">Sua <strong>${tituloRevista}</strong> foi liberada com sucesso!</p>
+                      <p style="font-size:16px">Para acessar, clique no botão abaixo:</p>
+                      <p style="text-align:center;margin:24px 0">
+                        <a href="${urlAcessoEmail}" style="display:inline-block;padding:14px 32px;background:#1B3A5C;color:#fff;text-decoration:none;border-radius:8px;font-size:16px;font-weight:bold">
+                          Acessar minha revista
+                        </a>
+                      </p>
+                      <p style="font-size:14px;color:#666">
+                        Você vai precisar do seu número de WhatsApp para entrar.<br>
+                        Enviaremos um código de 4 números para confirmar sua identidade.
+                      </p>
+                      <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
+                      <p style="font-size:13px;color:#999">
+                        Ou acesse diretamente:<br>
+                        <a href="${urlAcessoEmail}" style="color:#1B3A5C">${urlAcessoEmail}</a>
+                      </p>
+                      <hr style="border:none;border-top:1px solid #eee;margin:16px 0"/>
+                      <p style="font-size:12px;color:#999">Pedido Shopify: #${order.order_number}</p>
+                    </div>
+                  `
+                })
+              });
+              console.log('Email de boas-vindas enviado para:', emailComprador);
+            }
+          } catch (emailErr) {
+            console.error('Erro ao enviar email de boas-vindas:', emailErr);
+          }
         }
 
         console.log(`✅ Revista digital license created for ${nomeComprador} (${whatsappLimpo}), revista: ${tituloRevista}`);
