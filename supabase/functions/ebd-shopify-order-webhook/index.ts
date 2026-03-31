@@ -1004,11 +1004,18 @@ serve(async (req) => {
 
         const { data: mapping } = await supabase
           .from('ebd_produto_revista_mapping')
-          .select('revista_id, revistas_digitais(titulo)')
+          .select('revista_id, revista_digital_id, revistas_digitais:revista_digital_id(titulo)')
           .eq('sku', sku)
           .single();
 
         if (!mapping) continue;
+
+        // Use revista_digital_id (points to revistas_digitais) for license creation
+        const revistaDigitalId = (mapping as any).revista_digital_id;
+        if (!revistaDigitalId) {
+          console.log(`⚠️ SKU ${sku} mapped but revista_digital_id is null, skipping license`);
+          continue;
+        }
 
         const rawPhone = order.customer?.phone || '';
         const digitsOnly = rawPhone.replace(/\D/g, '');
