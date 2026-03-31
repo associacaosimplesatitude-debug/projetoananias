@@ -1,109 +1,33 @@
 
+# Fix: Lessons not loading for Shopify OTP readers
 
-# Plano: Fluxo Venda Shopify → OTP WhatsApp → Leitura de Revista Digital
+## Root Cause
 
-## Visão Geral
+The `revista_licoes` table has an RLS policy "Anyone can read licoes" that is restricted to the `authenticated` role. Shopify OTP users access the app without Supabase Auth (they use sessionStorage tokens), so all queries run as `anon`. The query returns 0 rows — not a UUID mismatch.
 
-Criar um fluxo independente de acesso a revistas digitais para compradores diretos do Shopify, autenticados via OTP por WhatsApp (sem Supabase Auth). Totalmente separado do sistema existente de licenças por superintendente.
+**Evidence:**
+- UUIDs are correct: `revista_licencas_shopify.revista_id` = `503e5583...` matches `revista_licoes.revista_id` = `503e5583...` (13 lessons exist)
+- RLS policy: `polroles = {authenticated}`, `polcmd = r (SELECT)`, `qual = true`
+- OTP readers use `supabase` client with anon key → blocked by RLS
 
----
+## Fix (single change)
 
-## Parte 1 — Banco de Dados (Migration)
+**Database migration** — Add an RLS policy allowing `anon` to SELECT from `revista_licoes`:
 
-Criar 2 tabelas novas com RLS:
+```sql
+CREATE POLICY "Public can read licoes"
+ON public.revista_licoes
+FOR SELECT
+TO anon
+USING (true);
+```
 
-- **`revista_licencas_shopify`** — licenças de compra direta (revista_id, shopify_order_id, whatsapp, nome_comprador, email, ativo, expira_em)
-- **`revista_otp`** — códigos OTP temporários (whatsapp, codigo, expira_em, usado) + índice de lookup
+This is safe because:
+- Lesson content (image URLs) is meant to be viewable by anyone with a valid OTP session
+- The images are already public URLs in storage
+- No sensitive data in `revista_licoes` (just lesson number, title, and image URLs)
+- Write operations remain restricted to authenticated managers
 
-RLS: `service_role` full access + admin select na tabela de licenças. Ambas com `ENABLE ROW LEVEL SECURITY`.
-
----
-
-## Parte 2 — Edge Functions
-
-### 2A. Atualizar `ebd-shopify-order-webhook`
-
-Após toda a lógica existente (antes do `return` final, ~linha 997), adicionar bloco que:
-1. Itera `order.line_items`, extrai SKU de cada item
-2. Consulta `ebd_produto_revista_mapping` por SKU
-3. Se encontrar mapeamento → cria registro em `revista_licencas_shopify`
-4. Envia WhatsApp de boas-vindas com link `/revista/acesso` via `send-whatsapp-message`
-5. Envia email via `send-ebd-email` se houver email
-
-**Nota técnica**: O type `ShopifyOrder.line_items` atual não inclui `sku`. Será necessário adicionar `sku?: string` à interface.
-
-### 2B. Criar `revista-solicitar-otp` (verify_jwt = false)
-
-- Recebe `{ whatsapp }`, normaliza número
-- Verifica licença ativa em `revista_licencas_shopify`
-- Gera código 4 dígitos, salva em `revista_otp` (expira 10min)
-- Envia código via `send-whatsapp-message`
-
-### 2C. Criar `revista-validar-otp` (verify_jwt = false)
-
-- Recebe `{ whatsapp, codigo }`
-- Valida OTP não usado e não expirado
-- Marca OTP como usado
-- Retorna licenças ativas com dados da revista + token base64 (24h)
-
----
-
-## Parte 3 — Frontend (Rotas Públicas)
-
-### 3A. `/revista/acesso` — `RevistaAcesso.tsx`
-
-Componente com 2 steps via state local:
-
-**Step 1 (número)**: Input de telefone com máscara `(XX) XXXXX-XXXX`, botão grande "Enviar código pelo WhatsApp". Chama `revista-solicitar-otp`. Tratamento de erros amigável.
-
-**Step 2 (código)**: 4 inputs separados (64×72px, font 36px), auto-focus entre campos. Botão "Entrar" chama `revista-validar-otp`. Timer de 60s para reenvio. Sucesso salva token + licenças em `sessionStorage` e redireciona para `/revista/leitura`.
-
-Design para público idoso: fonte mínima 18px, botões 56px altura, contraste alto.
-
-### 3B. `/revista/leitura` — `RevistaLeitura.tsx`
-
-- Valida token do `sessionStorage` (redireciona se ausente/expirado)
-- 1 licença: mostra capa + botão "Começar a leitura"
-- Múltiplas: grid de cards com capa e título
-- Ao clicar numa revista: lista lições (query a `ebd_licoes` onde `revista_id` = X)
-- Botão "Sair" limpa session e volta para `/revista/acesso`
-
-### 3C. Registrar rotas em `App.tsx`
-
-Adicionar ambas como rotas públicas (sem `ProtectedRoute`).
-
----
-
-## Parte 4 — Painel Admin
-
-### Aba "Vendas Shopify" em `RevistaLicencasAdmin.tsx`
-
-Adicionar sistema de abas (Tabs shadcn/ui):
-- **Aba 1**: "Licenças Superintendente" (conteúdo atual, inalterado)
-- **Aba 2**: "Vendas Shopify" (novo)
-
-Conteúdo da aba Vendas Shopify:
-- Tabela: Nome, WhatsApp, Email, Revista, Pedido, Data, Status
-- Query via `save-system-settings` pattern (ou edge function dedicada) para ler `revista_licencas_shopify`
-- Filtro por revista e status
-- Botão "Adicionar licença manual" (modal)
-- Botão "Reenviar acesso" por linha
-- Botão "Desativar" por linha
-
-**Nota**: Como RLS só permite service_role, as operações de leitura/escrita do admin serão feitas via a edge function `save-system-settings` ou uma nova edge function leve para queries admin.
-
----
-
-## Arquivos Modificados/Criados
-
-| Arquivo | Ação |
-|---------|------|
-| Migration SQL | Criar 2 tabelas + RLS + índice |
-| `supabase/functions/ebd-shopify-order-webhook/index.ts` | Adicionar bloco revista digital (~40 linhas antes do return final) |
-| `supabase/functions/revista-solicitar-otp/index.ts` | Criar |
-| `supabase/functions/revista-validar-otp/index.ts` | Criar |
-| `src/pages/revista/RevistaAcesso.tsx` | Criar |
-| `src/pages/revista/RevistaLeitura.tsx` | Criar |
-| `src/App.tsx` | Adicionar 2 rotas públicas + imports |
-| `src/pages/admin/RevistaLicencasAdmin.tsx` | Adicionar aba "Vendas Shopify" |
-
+## Files changed
+- 1 database migration only
+- No code changes needed — `RevistaLeitura.tsx` is already correct
