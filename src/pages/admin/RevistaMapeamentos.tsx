@@ -194,6 +194,13 @@ export default function RevistaMapeamentos() {
                   <TableCell className="font-mono text-sm">{m.sku}</TableCell>
                   <TableCell>{m.revista_digital?.titulo ?? "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{m.revista_ebd?.titulo ?? "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {m.shopify_url ? (
+                      <a href={m.shopify_url} target="_blank" rel="noopener noreferrer" className="text-primary underline truncate block max-w-[200px]">
+                        {m.shopify_url.replace(/https?:\/\//, '').slice(0, 30)}…
+                      </a>
+                    ) : "—"}
+                  </TableCell>
                   <TableCell className="font-mono text-sm">{m.bling_produto_id || "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {m.created_at ? format(new Date(m.created_at), "dd/MM/yyyy") : "—"}
