@@ -38,12 +38,14 @@ serve(async (req) => {
     );
 
     // Verificar se número tem licença ativa
-    const { data: licenca } = await supabaseAdmin
+    const { data } = await supabaseAdmin
       .from("revista_licencas_shopify")
       .select("id, nome_comprador, email")
       .eq("whatsapp", numeroLimpo)
       .eq("ativo", true)
-      .maybeSingle();
+      .limit(1);
+
+    const licenca = data?.[0] || null;
 
     if (!licenca) {
       return new Response(
