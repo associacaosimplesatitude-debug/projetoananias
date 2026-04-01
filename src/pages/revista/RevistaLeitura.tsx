@@ -98,6 +98,26 @@ export default function RevistaLeitura() {
     }
   }, [navigate]);
 
+  // Fetch catalog for "Descubra mais"
+  useEffect(() => {
+    if (licencas.length === 0) return;
+    callAdminPublic("list_catalogo").then(({ data, error }) => {
+      if (error || !data?.data) return;
+      const ownedIds = new Set(licencas.map((l) => l.revista_id));
+      const filtered = (data.data as CatalogoItem[]).filter(
+        (item) => item.revistas_digitais && !ownedIds.has(item.revista_digital_id)
+      );
+      // Dedupe by revista_digital_id
+      const seen = new Set<string>();
+      const unique = filtered.filter((item) => {
+        if (seen.has(item.revista_digital_id)) return false;
+        seen.add(item.revista_digital_id);
+        return true;
+      });
+      setCatalogo(unique);
+    });
+  }, [licencas]);
+
   // Fetch lessons
   useEffect(() => {
     if (!selectedRevista) return;
