@@ -146,6 +146,10 @@ export default function RevistaMapeamentos() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label>URL do produto na Shopify (opcional)</Label>
+                <Input value={shopifyUrl} onChange={(e) => setShopifyUrl(e.target.value)} placeholder="https://sualoja.myshopify.com/products/..." />
+              </div>
+              <div className="space-y-2">
                 <Label>Bling Produto ID (opcional)</Label>
                 <Input value={blingProdutoId} onChange={(e) => setBlingProdutoId(e.target.value)} placeholder="ID numérico do Bling" />
               </div>
