@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   BookOpen, LogOut, ArrowLeft, ChevronLeft, ChevronRight,
-  X, List, Columns, PartyPopper,
+  X, List, Columns, PartyPopper, ExternalLink,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
