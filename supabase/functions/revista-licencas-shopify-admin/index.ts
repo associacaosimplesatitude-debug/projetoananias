@@ -169,25 +169,6 @@ serve(async (req) => {
       });
     }
 
-    if (action === "list_catalogo") {
-      const { data, error } = await supabaseAdmin
-        .from("ebd_produto_revista_mapping")
-        .select(`
-          id,
-          sku,
-          shopify_url,
-          revista_digital_id,
-          revistas_digitais:revistas_digitais!ebd_produto_revista_mapping_revista_digital_id_fkey(
-            id, titulo, capa_url, tipo
-          )
-        `)
-        .not("revista_digital_id", "is", null)
-        .not("shopify_url", "is", null);
-      if (error) throw error;
-      return new Response(JSON.stringify({ data }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     if (action === "insert_mapping") {
       const insertData: Record<string, unknown> = {
