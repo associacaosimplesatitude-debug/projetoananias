@@ -67,6 +67,7 @@ export default function RevistaMapeamentos() {
         revista_digital_id: revistaDigitalId,
         revista_id: revistaEbdId || null,
         bling_produto_id: blingProdutoId || null,
+        shopify_url: shopifyUrl || null,
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -79,6 +80,7 @@ export default function RevistaMapeamentos() {
       setRevistaDigitalId("");
       setRevistaEbdId("");
       setBlingProdutoId("");
+      setShopifyUrl("");
     },
     onError: (e: any) => toast.error(e.message || "Erro ao salvar"),
   });
