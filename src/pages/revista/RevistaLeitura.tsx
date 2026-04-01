@@ -57,6 +57,7 @@ export default function RevistaLeitura() {
   const [selectedRevista, setSelectedRevista] = useState<string | null>(null);
   const [licoes, setLicoes] = useState<Licao[]>([]);
   const [loadingLicoes, setLoadingLicoes] = useState(false);
+  const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
 
   // Reader state
   const [licaoAberta, setLicaoAberta] = useState<Licao | null>(null);
