@@ -24,6 +24,7 @@ export default function RevistaMapeamentos() {
   const [revistaDigitalId, setRevistaDigitalId] = useState("");
   const [revistaEbdId, setRevistaEbdId] = useState("");
   const [blingProdutoId, setBlingProdutoId] = useState("");
+  const [shopifyUrl, setShopifyUrl] = useState("");
 
   const { data: mappings, isLoading } = useQuery({
     queryKey: ["revista-mappings"],
