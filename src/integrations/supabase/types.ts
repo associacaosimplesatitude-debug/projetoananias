@@ -3305,6 +3305,7 @@ export type Database = {
           product_title: string | null
           revista_digital_id: string | null
           revista_id: string | null
+          shopify_url: string | null
           sku: string | null
           tipo_material: string | null
           updated_at: string
@@ -3316,6 +3317,7 @@ export type Database = {
           product_title?: string | null
           revista_digital_id?: string | null
           revista_id?: string | null
+          shopify_url?: string | null
           sku?: string | null
           tipo_material?: string | null
           updated_at?: string
@@ -3327,6 +3329,7 @@ export type Database = {
           product_title?: string | null
           revista_digital_id?: string | null
           revista_id?: string | null
+          shopify_url?: string | null
           sku?: string | null
           tipo_material?: string | null
           updated_at?: string
