@@ -156,6 +156,9 @@ serve(async (req) => {
       if (params.revista_id) {
         insertData.revista_id = params.revista_id;
       }
+      if (params.shopify_url) {
+        insertData.shopify_url = params.shopify_url;
+      }
       const { error } = await supabaseAdmin
         .from("ebd_produto_revista_mapping")
         .insert(insertData);
