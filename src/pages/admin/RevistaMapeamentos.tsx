@@ -24,6 +24,7 @@ export default function RevistaMapeamentos() {
   const [revistaDigitalId, setRevistaDigitalId] = useState("");
   const [revistaEbdId, setRevistaEbdId] = useState("");
   const [blingProdutoId, setBlingProdutoId] = useState("");
+  const [shopifyUrl, setShopifyUrl] = useState("");
 
   const { data: mappings, isLoading } = useQuery({
     queryKey: ["revista-mappings"],
@@ -66,6 +67,7 @@ export default function RevistaMapeamentos() {
         revista_digital_id: revistaDigitalId,
         revista_id: revistaEbdId || null,
         bling_produto_id: blingProdutoId || null,
+        shopify_url: shopifyUrl || null,
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -78,6 +80,7 @@ export default function RevistaMapeamentos() {
       setRevistaDigitalId("");
       setRevistaEbdId("");
       setBlingProdutoId("");
+      setShopifyUrl("");
     },
     onError: (e: any) => toast.error(e.message || "Erro ao salvar"),
   });
@@ -143,6 +146,10 @@ export default function RevistaMapeamentos() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label>URL do produto na Shopify (opcional)</Label>
+                <Input value={shopifyUrl} onChange={(e) => setShopifyUrl(e.target.value)} placeholder="https://sualoja.myshopify.com/products/..." />
+              </div>
+              <div className="space-y-2">
                 <Label>Bling Produto ID (opcional)</Label>
                 <Input value={blingProdutoId} onChange={(e) => setBlingProdutoId(e.target.value)} placeholder="ID numérico do Bling" />
               </div>
@@ -168,6 +175,7 @@ export default function RevistaMapeamentos() {
               <TableHead>SKU</TableHead>
               <TableHead>Revista Digital</TableHead>
               <TableHead>Revista EBD</TableHead>
+              <TableHead>URL Shopify</TableHead>
               <TableHead>Bling Produto ID</TableHead>
               <TableHead>Data</TableHead>
               <TableHead className="w-16"></TableHead>
@@ -176,7 +184,7 @@ export default function RevistaMapeamentos() {
           <TableBody>
             {(mappings ?? []).length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   Nenhum mapeamento cadastrado. Clique em "Adicionar" para vincular um SKU a uma revista.
                 </TableCell>
               </TableRow>
@@ -186,6 +194,13 @@ export default function RevistaMapeamentos() {
                   <TableCell className="font-mono text-sm">{m.sku}</TableCell>
                   <TableCell>{m.revista_digital?.titulo ?? "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{m.revista_ebd?.titulo ?? "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {m.shopify_url ? (
+                      <a href={m.shopify_url} target="_blank" rel="noopener noreferrer" className="text-primary underline truncate block max-w-[200px]">
+                        {m.shopify_url.replace(/https?:\/\//, '').slice(0, 30)}…
+                      </a>
+                    ) : "—"}
+                  </TableCell>
                   <TableCell className="font-mono text-sm">{m.bling_produto_id || "—"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {m.created_at ? format(new Date(m.created_at), "dd/MM/yyyy") : "—"}

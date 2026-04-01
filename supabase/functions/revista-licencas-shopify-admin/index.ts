@@ -13,6 +13,36 @@ serve(async (req) => {
   }
 
   try {
+    const body = await req.json();
+    const { action, ...params } = body;
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Public action — no auth required
+    if (action === "list_catalogo") {
+      const { data, error } = await supabaseAdmin
+        .from("ebd_produto_revista_mapping")
+        .select(`
+          id,
+          sku,
+          shopify_url,
+          revista_digital_id,
+          revistas_digitais:revistas_digitais!ebd_produto_revista_mapping_revista_digital_id_fkey(
+            id, titulo, capa_url, tipo
+          )
+        `)
+        .not("revista_digital_id", "is", null)
+        .not("shopify_url", "is", null);
+      if (error) throw error;
+      return new Response(JSON.stringify({ data }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // All other actions require auth + admin role
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -37,11 +67,6 @@ serve(async (req) => {
 
     const userId = userData.user.id;
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
     // Verify admin role
     const { data: roles } = await supabaseAdmin
       .from("user_roles")
@@ -58,8 +83,6 @@ serve(async (req) => {
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const { action, ...params } = await req.json();
 
     if (action === "list") {
       const { data, error } = await supabaseAdmin
@@ -134,6 +157,7 @@ serve(async (req) => {
           revista_id,
           revista_digital_id,
           bling_produto_id,
+          shopify_url,
           created_at,
           revista_digital:revistas_digitais!ebd_produto_revista_mapping_revista_digital_id_fkey(titulo),
           revista_ebd:ebd_revistas!ebd_produto_revista_mapping_revista_id_fkey(titulo)
@@ -145,6 +169,7 @@ serve(async (req) => {
       });
     }
 
+
     if (action === "insert_mapping") {
       const insertData: Record<string, unknown> = {
         sku: params.sku,
@@ -155,6 +180,9 @@ serve(async (req) => {
       }
       if (params.revista_id) {
         insertData.revista_id = params.revista_id;
+      }
+      if (params.shopify_url) {
+        insertData.shopify_url = params.shopify_url;
       }
       const { error } = await supabaseAdmin
         .from("ebd_produto_revista_mapping")

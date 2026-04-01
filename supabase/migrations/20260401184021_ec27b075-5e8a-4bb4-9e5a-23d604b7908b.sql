@@ -1,0 +1,1 @@
+ALTER TABLE public.ebd_produto_revista_mapping ADD COLUMN IF NOT EXISTS shopify_url text;
