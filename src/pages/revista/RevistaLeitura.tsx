@@ -32,6 +32,24 @@ interface Licao {
   paginas: string[] | null;
 }
 
+interface CatalogoItem {
+  id: string;
+  revista_digital_id: string;
+  shopify_url: string;
+  revistas_digitais: {
+    id: string;
+    titulo: string;
+    capa_url: string | null;
+    tipo: string | null;
+  } | null;
+}
+
+function callAdminPublic(action: string, params: Record<string, unknown> = {}) {
+  return supabase.functions.invoke("revista-licencas-shopify-admin", {
+    body: { action, ...params },
+  });
+}
+
 export default function RevistaLeitura() {
   const navigate = useNavigate();
   const [licencas, setLicencas] = useState<Licenca[]>([]);
