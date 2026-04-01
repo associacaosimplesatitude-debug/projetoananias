@@ -134,11 +134,32 @@ serve(async (req) => {
           revista_id,
           revista_digital_id,
           bling_produto_id,
+          shopify_url,
           created_at,
           revista_digital:revistas_digitais!ebd_produto_revista_mapping_revista_digital_id_fkey(titulo),
           revista_ebd:ebd_revistas!ebd_produto_revista_mapping_revista_id_fkey(titulo)
         `)
         .order("created_at", { ascending: false });
+      if (error) throw error;
+      return new Response(JSON.stringify({ data }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "list_catalogo") {
+      const { data, error } = await supabaseAdmin
+        .from("ebd_produto_revista_mapping")
+        .select(`
+          id,
+          sku,
+          shopify_url,
+          revista_digital_id,
+          revistas_digitais:revistas_digitais!ebd_produto_revista_mapping_revista_digital_id_fkey(
+            id, titulo, capa_url, tipo
+          )
+        `)
+        .not("revista_digital_id", "is", null)
+        .not("shopify_url", "is", null);
       if (error) throw error;
       return new Response(JSON.stringify({ data }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
