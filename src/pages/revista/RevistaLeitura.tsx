@@ -486,6 +486,46 @@ export default function RevistaLeitura() {
           </div>
         )}
 
+        {/* Descubra mais */}
+        {catalogo.length > 0 && !selectedRevista && (
+          <div className="space-y-6 mt-10">
+            <h2 className="text-2xl font-bold text-foreground">Descubra mais materiais</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {catalogo.map((item) => (
+                <Card
+                  key={item.id}
+                  className="overflow-hidden border-dashed border-2 border-muted-foreground/30"
+                >
+                  {item.revistas_digitais?.capa_url && (
+                    <img
+                      src={item.revistas_digitais.capa_url}
+                      alt={item.revistas_digitais.titulo}
+                      className="w-full h-48 object-cover opacity-90"
+                    />
+                  )}
+                  <CardContent className="p-5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        Disponível
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-semibold">
+                      {item.revistas_digitais?.titulo || "Revista"}
+                    </h3>
+                    <Button
+                      className="w-full h-12 text-base"
+                      variant="outline"
+                      onClick={() => window.open(item.shopify_url, "_blank")}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" /> Ver produto
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* No licencas */}
         {licencas.length === 0 && (
           <div className="text-center space-y-4 py-12">
