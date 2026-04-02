@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Link2 } from "lucide-react";
+import { Plus, Trash2, Loader2, Link2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 
 function callAdmin(action: string, params: Record<string, unknown> = {}) {
@@ -25,6 +25,14 @@ export default function RevistaMapeamentos() {
   const [revistaEbdId, setRevistaEbdId] = useState("");
   const [blingProdutoId, setBlingProdutoId] = useState("");
   const [shopifyUrl, setShopifyUrl] = useState("");
+
+  // Edit state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editId, setEditId] = useState("");
+  const [editSku, setEditSku] = useState("");
+  const [editRevistaDigitalId, setEditRevistaDigitalId] = useState("");
+  const [editShopifyUrl, setEditShopifyUrl] = useState("");
+  const [editBlingProdutoId, setEditBlingProdutoId] = useState("");
 
   const { data: mappings, isLoading } = useQuery({
     queryKey: ["revista-mappings"],
@@ -85,6 +93,26 @@ export default function RevistaMapeamentos() {
     onError: (e: any) => toast.error(e.message || "Erro ao salvar"),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await callAdmin("update_mapping", {
+        id: editId,
+        sku: editSku,
+        revista_digital_id: editRevistaDigitalId || null,
+        shopify_url: editShopifyUrl || null,
+        bling_produto_id: editBlingProdutoId || null,
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+    },
+    onSuccess: () => {
+      toast.success("Mapeamento atualizado!");
+      qc.invalidateQueries({ queryKey: ["revista-mappings"] });
+      setEditOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao atualizar"),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await callAdmin("delete_mapping", { id });
@@ -97,6 +125,15 @@ export default function RevistaMapeamentos() {
     },
     onError: (e: any) => toast.error(e.message || "Erro ao excluir"),
   });
+
+  const openEdit = (m: any) => {
+    setEditId(m.id);
+    setEditSku(m.sku || "");
+    setEditRevistaDigitalId(m.revista_digital_id || "");
+    setEditShopifyUrl(m.shopify_url || "");
+    setEditBlingProdutoId(m.bling_produto_id || "");
+    setEditOpen(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -166,6 +203,48 @@ export default function RevistaMapeamentos() {
         </Dialog>
       </div>
 
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Mapeamento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>SKU (Shopify) *</Label>
+              <Input value={editSku} onChange={(e) => setEditSku(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Revista Digital *</Label>
+              <Select value={editRevistaDigitalId} onValueChange={setEditRevistaDigitalId}>
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  {(revistasDigitais ?? []).map((r: any) => (
+                    <SelectItem key={r.id} value={r.id}>{r.titulo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>URL do produto na Shopify (opcional)</Label>
+              <Input value={editShopifyUrl} onChange={(e) => setEditShopifyUrl(e.target.value)} placeholder="https://sualoja.myshopify.com/products/..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Bling Produto ID (opcional)</Label>
+              <Input value={editBlingProdutoId} onChange={(e) => setEditBlingProdutoId(e.target.value)} />
+            </div>
+            <Button
+              className="w-full"
+              disabled={!editSku || !editRevistaDigitalId || updateMutation.isPending}
+              onClick={() => updateMutation.mutate()}
+            >
+              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Salvar alterações
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : (
@@ -178,7 +257,7 @@ export default function RevistaMapeamentos() {
               <TableHead>URL Shopify</TableHead>
               <TableHead>Bling Produto ID</TableHead>
               <TableHead>Data</TableHead>
-              <TableHead className="w-16"></TableHead>
+              <TableHead className="w-24"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -206,16 +285,25 @@ export default function RevistaMapeamentos() {
                     {m.created_at ? format(new Date(m.created_at), "dd/MM/yyyy") : "—"}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm("Excluir este mapeamento?")) deleteMutation.mutate(m.id);
-                      }}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(m)}
+                      >
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (confirm("Excluir este mapeamento?")) deleteMutation.mutate(m.id);
+                        }}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
