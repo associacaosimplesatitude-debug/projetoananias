@@ -352,6 +352,61 @@ export default function RevistasDigitais() {
     queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
   };
 
+  // Add lição mutation
+  const addLicaoMutation = useMutation({
+    mutationFn: async () => {
+      if (!managingLicoes) return;
+      const maxNumero = licoes?.length ? Math.max(...licoes.map(l => l.numero)) : 0;
+      const newNumero = maxNumero + 1;
+      const { error } = await supabase.from("revista_licoes").insert({
+        revista_id: managingLicoes.id,
+        numero: newNumero,
+        titulo: `Lição ${newNumero}`,
+        paginas: [],
+      });
+      if (error) throw error;
+      // Update total_licoes
+      const { error: err2 } = await supabase
+        .from("revistas_digitais")
+        .update({ total_licoes: (licoes?.length || 0) + 1 })
+        .eq("id", managingLicoes.id);
+      if (err2) throw err2;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
+      queryClient.invalidateQueries({ queryKey: ["revistas-digitais"] });
+      toast.success("Lição adicionada!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // Remove lição mutation
+  const removeLicaoMutation = useMutation({
+    mutationFn: async (licaoId: string) => {
+      if (!managingLicoes) return;
+      const { error } = await supabase.from("revista_licoes").delete().eq("id", licaoId);
+      if (error) throw error;
+      // Renumber remaining
+      const remaining = (licoes || []).filter(l => l.id !== licaoId).sort((a, b) => a.numero - b.numero);
+      for (let i = 0; i < remaining.length; i++) {
+        if (remaining[i].numero !== i + 1) {
+          await supabase.from("revista_licoes").update({ numero: i + 1 }).eq("id", remaining[i].id);
+        }
+      }
+      // Update total_licoes
+      await supabase
+        .from("revistas_digitais")
+        .update({ total_licoes: remaining.length })
+        .eq("id", managingLicoes.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
+      queryClient.invalidateQueries({ queryKey: ["revistas-digitais"] });
+      toast.success("Lição removida!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const statusLabel = (s: string | null) => {
     switch (s) {
       case "publicada": return "Publicada";
