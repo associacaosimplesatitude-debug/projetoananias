@@ -418,11 +418,13 @@ export default function RevistaLeitura() {
                   onClick={() => setSelectedRevista(l.revista_id)}
                 >
                   {l.revistas_digitais?.capa_url && (
-                    <img
-                      src={l.revistas_digitais.capa_url}
-                      alt={l.revistas_digitais.titulo}
-                      className="w-full h-48 object-cover"
-                    />
+                    <div className="w-full aspect-[3/4] flex items-center justify-center bg-muted">
+                      <img
+                        src={l.revistas_digitais.capa_url}
+                        alt={l.revistas_digitais.titulo}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   )}
                   <CardContent className="p-5">
                     <h2 className="text-lg font-semibold">
