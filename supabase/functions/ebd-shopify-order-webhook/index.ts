@@ -1032,22 +1032,10 @@ serve(async (req) => {
         const emailComprador = order.customer?.email || order.email || '';
         const tituloRevista = (mapping as any).revistas_digitais?.titulo || 'Revista';
 
-        // Idempotency guard - skip if license already exists
-        const { data: existingLicense } = await supabase
+        // Upsert with ignoreDuplicates — UNIQUE constraint prevents race condition duplicates
+        const { error: upsertError } = await supabase
           .from('revista_licencas_shopify')
-          .select('id')
-          .eq('shopify_order_id', String(order.id))
-          .eq('whatsapp', whatsappLimpo)
-          .maybeSingle();
-
-        if (existingLicense) {
-          console.log(`⚠️ License already exists for order ${order.id}, skipping...`);
-          continue;
-        }
-
-        await supabase
-          .from('revista_licencas_shopify')
-          .insert({
+          .upsert({
             revista_id: revistaDigitalId,
             shopify_order_id: String(order.id),
             shopify_order_number: String(order.order_number),
@@ -1055,7 +1043,15 @@ serve(async (req) => {
             whatsapp: whatsappLimpo,
             email: emailComprador,
             ativo: true
+          }, {
+            onConflict: 'shopify_order_id,whatsapp,revista_id',
+            ignoreDuplicates: true
           });
+
+        if (upsertError) {
+          console.log(`⚠️ Upsert error for order ${order.id}:`, upsertError.message);
+          continue;
+        }
 
         const urlAcesso = 'https://gestaoebd.lovable.app/revista/acesso';
 

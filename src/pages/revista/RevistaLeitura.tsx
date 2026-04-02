@@ -499,11 +499,13 @@ export default function RevistaLeitura() {
                   className="overflow-hidden border-dashed border-2 border-muted-foreground/30"
                 >
                   {item.revistas_digitais?.capa_url && (
-                    <img
-                      src={item.revistas_digitais.capa_url}
-                      alt={item.revistas_digitais.titulo}
-                      className="w-full h-48 object-cover opacity-90"
-                    />
+                    <div className="w-full aspect-[3/4] flex items-center justify-center bg-muted">
+                      <img
+                        src={item.revistas_digitais.capa_url}
+                        alt={item.revistas_digitais.titulo}
+                        className="w-full h-full object-contain opacity-90"
+                      />
+                    </div>
                   )}
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-center gap-2">
