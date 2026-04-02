@@ -49,7 +49,7 @@ export default function RevistasDigitais() {
   const [titulo, setTitulo] = useState("");
   const [tipo, setTipo] = useState("aluno");
   const [trimestre, setTrimestre] = useState("");
-  const [totalLicoes, setTotalLicoes] = useState(13);
+  const [totalLicoes, setTotalLicoes] = useState<number | "">("");
   const [descricao, setDescricao] = useState("");
   const [autor, setAutor] = useState("");
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
