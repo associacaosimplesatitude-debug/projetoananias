@@ -1017,13 +1017,16 @@ serve(async (req) => {
           continue;
         }
 
-        const rawPhone = order.customer?.phone || '';
+        const rawPhone = order.customer?.phone 
+          || order.shipping_address?.phone 
+          || order.billing_address?.phone 
+          || '';
         const digitsOnly = rawPhone.replace(/\D/g, '');
         const whatsappLimpo = digitsOnly.startsWith('55') && digitsOnly.length >= 12
           ? digitsOnly.slice(2)
           : digitsOnly;
 
-        if (!whatsappLimpo || whatsappLimpo.length < 10) continue;
+        const temWhatsapp = whatsappLimpo && whatsappLimpo.length >= 10;
 
         const nomeComprador = order.customer?.first_name
           ? `${order.customer.first_name} ${order.customer.last_name || ''}`.trim()
@@ -1032,88 +1035,100 @@ serve(async (req) => {
         const emailComprador = order.customer?.email || order.email || '';
         const tituloRevista = (mapping as any).revistas_digitais?.titulo || 'Revista';
 
-        // Upsert with ignoreDuplicates — UNIQUE constraint prevents race condition duplicates
-        const { error: upsertError } = await supabase
-          .from('revista_licencas_shopify')
-          .upsert({
-            revista_id: revistaDigitalId,
-            shopify_order_id: String(order.id),
-            shopify_order_number: String(order.order_number),
-            nome_comprador: nomeComprador,
-            whatsapp: whatsappLimpo,
-            email: emailComprador,
-            ativo: true
-          }, {
-            onConflict: 'shopify_order_id,whatsapp,revista_id',
-            ignoreDuplicates: true
-          });
-
-        if (upsertError) {
-          console.log(`⚠️ Upsert error for order ${order.id}:`, upsertError.message);
+        // Se não tem telefone válido NEM email, pular
+        if (!temWhatsapp && !emailComprador) {
+          console.warn(`Pedido ${order.order_number}: sem telefone nem email, pulando revista digital para SKU ${sku}`);
           continue;
         }
 
         const urlAcesso = 'https://gestaoebd.lovable.app/revista/acesso';
 
-        // === WhatsApp boas-vindas via Meta API direta (template) ===
-        try {
-          const settingsRes = await supabase
-            .from('system_settings')
-            .select('key, value')
-            .in('key', ['whatsapp_phone_number_id', 'whatsapp_access_token']);
+        // === Criar licença e enviar WhatsApp apenas se tiver telefone válido ===
+        if (temWhatsapp) {
+          // Upsert with ignoreDuplicates — UNIQUE constraint prevents race condition duplicates
+          const { error: upsertError } = await supabase
+            .from('revista_licencas_shopify')
+            .upsert({
+              revista_id: revistaDigitalId,
+              shopify_order_id: String(order.id),
+              shopify_order_number: String(order.order_number),
+              nome_comprador: nomeComprador,
+              whatsapp: whatsappLimpo,
+              email: emailComprador,
+              ativo: true
+            }, {
+              onConflict: 'shopify_order_id,whatsapp,revista_id',
+              ignoreDuplicates: true
+            });
 
-          const waSettings: Record<string, string> = {};
-          (settingsRes.data || []).forEach((s: any) => { waSettings[s.key] = s.value; });
-
-          const phoneNumberId = waSettings['whatsapp_phone_number_id'];
-          const accessToken = waSettings['whatsapp_access_token'];
-
-          if (phoneNumberId && accessToken) {
-            const metaPhone = whatsappLimpo.startsWith('55') ? whatsappLimpo : `55${whatsappLimpo}`;
-
-            const waRes = await fetch(
-              `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${accessToken}`
-                },
-                body: JSON.stringify({
-                  messaging_product: 'whatsapp',
-                  to: metaPhone,
-                  type: 'template',
-                  template: {
-                    name: 'revista_acesso_liberado',
-                    language: { code: 'pt_BR' },
-                    components: [
-                      {
-                        type: 'body',
-                        parameters: [
-                          { type: 'text', text: nomeComprador },
-                          { type: 'text', text: tituloRevista }
-                        ]
-                      }
-                    ]
-                  }
-                })
-              }
-            );
-
-            const waData = await waRes.json();
-            if (!waRes.ok) {
-              console.error('WhatsApp boas-vindas error:', JSON.stringify(waData));
-            } else {
-              console.log('WhatsApp boas-vindas enviado para:', whatsappLimpo);
-            }
+          if (upsertError) {
+            console.log(`⚠️ Upsert error for order ${order.id}:`, upsertError.message);
           } else {
-            console.warn('WhatsApp credentials not found in system_settings');
+            console.log(`✅ Revista digital license created for ${nomeComprador} (${whatsappLimpo}), revista: ${tituloRevista}`);
           }
-        } catch (waErr) {
-          console.error('Erro ao enviar WhatsApp boas-vindas:', waErr);
+
+          // === WhatsApp boas-vindas via Meta API direta (template) ===
+          try {
+            const settingsRes = await supabase
+              .from('system_settings')
+              .select('key, value')
+              .in('key', ['whatsapp_phone_number_id', 'whatsapp_access_token']);
+
+            const waSettings: Record<string, string> = {};
+            (settingsRes.data || []).forEach((s: any) => { waSettings[s.key] = s.value; });
+
+            const phoneNumberId = waSettings['whatsapp_phone_number_id'];
+            const accessToken = waSettings['whatsapp_access_token'];
+
+            if (phoneNumberId && accessToken) {
+              const metaPhone = whatsappLimpo.startsWith('55') ? whatsappLimpo : `55${whatsappLimpo}`;
+
+              const waRes = await fetch(
+                `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                  },
+                  body: JSON.stringify({
+                    messaging_product: 'whatsapp',
+                    to: metaPhone,
+                    type: 'template',
+                    template: {
+                      name: 'revista_acesso_liberado',
+                      language: { code: 'pt_BR' },
+                      components: [
+                        {
+                          type: 'body',
+                          parameters: [
+                            { type: 'text', text: nomeComprador },
+                            { type: 'text', text: tituloRevista }
+                          ]
+                        }
+                      ]
+                    }
+                  })
+                }
+              );
+
+              const waData = await waRes.json();
+              if (!waRes.ok) {
+                console.error('WhatsApp boas-vindas error:', JSON.stringify(waData));
+              } else {
+                console.log('WhatsApp boas-vindas enviado para:', whatsappLimpo);
+              }
+            } else {
+              console.warn('WhatsApp credentials not found in system_settings');
+            }
+          } catch (waErr) {
+            console.error('Erro ao enviar WhatsApp boas-vindas:', waErr);
+          }
+        } else {
+          console.log(`⚠️ Pedido ${order.order_number}: sem telefone válido, licença e WhatsApp não criados para SKU ${sku}`);
         }
 
-        // === Email boas-vindas via Resend API direta ===
+        // === Email boas-vindas via Resend API direta (SEMPRE que houver email) ===
         if (emailComprador) {
           try {
             const resendApiKey = Deno.env.get('RESEND_API_KEY');
@@ -1140,8 +1155,7 @@ serve(async (req) => {
                         </a>
                       </p>
                       <p style="font-size:14px;color:#666">
-                        Você vai precisar do seu número de WhatsApp para entrar.<br>
-                        Enviaremos um código de 4 números para confirmar sua identidade.
+                        ${temWhatsapp ? 'Você vai precisar do seu número de WhatsApp para entrar.<br>Enviaremos um código de 4 números para confirmar sua identidade.' : 'Acesse com o email usado na compra.'}
                       </p>
                       <hr style="border:none;border-top:1px solid #eee;margin:24px 0"/>
                       <p style="font-size:13px;color:#999">
@@ -1166,8 +1180,6 @@ serve(async (req) => {
             console.error('Erro ao enviar email de boas-vindas:', emailErr);
           }
         }
-
-        console.log(`✅ Revista digital license created for ${nomeComprador} (${whatsappLimpo}), revista: ${tituloRevista}`);
       }
     } catch (revistaErr) {
       console.error("Error in revista digital flow:", revistaErr);
