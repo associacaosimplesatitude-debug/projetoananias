@@ -651,14 +651,20 @@ export default function RevistasDigitais() {
                 </div>
                 {!editingRevista && (
                   <div>
-                    <Label>Total de Lições</Label>
-                    <Input type="number" value={totalLicoes} onChange={(e) => setTotalLicoes(Number(e.target.value))} />
+                    <Label>Total de Lições *</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={totalLicoes}
+                      onChange={(e) => setTotalLicoes(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="Ex: 13"
+                    />
                   </div>
                 )}
               </div>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={!titulo || saveMutation.isPending}
+                disabled={!titulo || saveMutation.isPending || (!editingRevista && (!totalLicoes || Number(totalLicoes) < 1))}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2"
               >
                 <Save className="h-4 w-4" />
