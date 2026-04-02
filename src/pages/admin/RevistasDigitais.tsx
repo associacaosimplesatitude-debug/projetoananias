@@ -527,11 +527,48 @@ export default function RevistasDigitais() {
                     >
                       <Eye className="h-3 w-3" /> Visualizar
                     </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="gap-1 text-xs text-destructive hover:text-destructive"
+                              disabled={licao.paginas.length > 0 || removeLicaoMutation.isPending}
+                              onClick={() => {
+                                if (confirm(`Tem certeza que deseja remover a Lição ${licao.numero}?`)) {
+                                  removeLicaoMutation.mutate(licao.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {licao.paginas.length > 0 && (
+                          <TooltipContent>
+                            <p>Remova as páginas antes de excluir esta lição</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
               </CardContent>
             </Card>
           ))}
+
+          {/* Botão adicionar lição */}
+          <Button
+            variant="outline"
+            className="w-full border-dashed gap-2"
+            onClick={() => addLicaoMutation.mutate()}
+            disabled={addLicaoMutation.isPending}
+          >
+            {addLicaoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Adicionar lição
+          </Button>
         </div>
       </div>
     );
