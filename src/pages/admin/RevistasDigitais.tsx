@@ -238,7 +238,7 @@ export default function RevistasDigitais() {
     setTipo("aluno");
     setTrimestre("");
     setCapaUrl("");
-    setTotalLicoes(13);
+    setTotalLicoes("");
     setDescricao("");
     setAutor("");
     setAnoPublicacao(new Date().getFullYear());
