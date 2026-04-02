@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
@@ -48,7 +49,7 @@ export default function RevistasDigitais() {
   const [titulo, setTitulo] = useState("");
   const [tipo, setTipo] = useState("aluno");
   const [trimestre, setTrimestre] = useState("");
-  const [totalLicoes, setTotalLicoes] = useState(13);
+  const [totalLicoes, setTotalLicoes] = useState<number | "">("");
   const [descricao, setDescricao] = useState("");
   const [autor, setAutor] = useState("");
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
@@ -137,7 +138,7 @@ export default function RevistasDigitais() {
         tipo,
         trimestre,
         capa_url: capaUrl || null,
-        total_licoes: totalLicoes,
+        total_licoes: Number(totalLicoes) || 0,
         ativo: true,
         descricao: descricao || null,
         autor: autor || null,
@@ -151,7 +152,8 @@ export default function RevistasDigitais() {
       } else {
         const { data, error } = await supabase.from("revistas_digitais").insert(payload).select().single();
         if (error) throw error;
-        const licoesArr = Array.from({ length: totalLicoes }, (_, i) => ({
+        const numLicoes = Number(totalLicoes) || 0;
+        const licoesArr = Array.from({ length: numLicoes }, (_, i) => ({
           revista_id: data.id,
           numero: i + 1,
           titulo: `Lição ${i + 1}`,
@@ -237,7 +239,7 @@ export default function RevistasDigitais() {
     setTipo("aluno");
     setTrimestre("");
     setCapaUrl("");
-    setTotalLicoes(13);
+    setTotalLicoes("");
     setDescricao("");
     setAutor("");
     setAnoPublicacao(new Date().getFullYear());
@@ -349,6 +351,61 @@ export default function RevistasDigitais() {
     if (error) { toast.error(error.message); return; }
     queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
   };
+
+  // Add lição mutation
+  const addLicaoMutation = useMutation({
+    mutationFn: async () => {
+      if (!managingLicoes) return;
+      const maxNumero = licoes?.length ? Math.max(...licoes.map(l => l.numero)) : 0;
+      const newNumero = maxNumero + 1;
+      const { error } = await supabase.from("revista_licoes").insert({
+        revista_id: managingLicoes.id,
+        numero: newNumero,
+        titulo: `Lição ${newNumero}`,
+        paginas: [],
+      });
+      if (error) throw error;
+      // Update total_licoes
+      const { error: err2 } = await supabase
+        .from("revistas_digitais")
+        .update({ total_licoes: (licoes?.length || 0) + 1 })
+        .eq("id", managingLicoes.id);
+      if (err2) throw err2;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
+      queryClient.invalidateQueries({ queryKey: ["revistas-digitais"] });
+      toast.success("Lição adicionada!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // Remove lição mutation
+  const removeLicaoMutation = useMutation({
+    mutationFn: async (licaoId: string) => {
+      if (!managingLicoes) return;
+      const { error } = await supabase.from("revista_licoes").delete().eq("id", licaoId);
+      if (error) throw error;
+      // Renumber remaining
+      const remaining = (licoes || []).filter(l => l.id !== licaoId).sort((a, b) => a.numero - b.numero);
+      for (let i = 0; i < remaining.length; i++) {
+        if (remaining[i].numero !== i + 1) {
+          await supabase.from("revista_licoes").update({ numero: i + 1 }).eq("id", remaining[i].id);
+        }
+      }
+      // Update total_licoes
+      await supabase
+        .from("revistas_digitais")
+        .update({ total_licoes: remaining.length })
+        .eq("id", managingLicoes.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["revista-licoes"] });
+      queryClient.invalidateQueries({ queryKey: ["revistas-digitais"] });
+      toast.success("Lição removida!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const statusLabel = (s: string | null) => {
     switch (s) {
@@ -470,11 +527,48 @@ export default function RevistasDigitais() {
                     >
                       <Eye className="h-3 w-3" /> Visualizar
                     </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="gap-1 text-xs text-destructive hover:text-destructive"
+                              disabled={licao.paginas.length > 0 || removeLicaoMutation.isPending}
+                              onClick={() => {
+                                if (confirm(`Tem certeza que deseja remover a Lição ${licao.numero}?`)) {
+                                  removeLicaoMutation.mutate(licao.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {licao.paginas.length > 0 && (
+                          <TooltipContent>
+                            <p>Remova as páginas antes de excluir esta lição</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
               </CardContent>
             </Card>
           ))}
+
+          {/* Botão adicionar lição */}
+          <Button
+            variant="outline"
+            className="w-full border-dashed gap-2"
+            onClick={() => addLicaoMutation.mutate()}
+            disabled={addLicaoMutation.isPending}
+          >
+            {addLicaoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Adicionar lição
+          </Button>
         </div>
       </div>
     );
@@ -557,14 +651,20 @@ export default function RevistasDigitais() {
                 </div>
                 {!editingRevista && (
                   <div>
-                    <Label>Total de Lições</Label>
-                    <Input type="number" value={totalLicoes} onChange={(e) => setTotalLicoes(Number(e.target.value))} />
+                    <Label>Total de Lições *</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={totalLicoes}
+                      onChange={(e) => setTotalLicoes(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="Ex: 13"
+                    />
                   </div>
                 )}
               </div>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={!titulo || saveMutation.isPending}
+                disabled={!titulo || saveMutation.isPending || (!editingRevista && (!totalLicoes || Number(totalLicoes) < 1))}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2"
               >
                 <Save className="h-4 w-4" />
