@@ -138,7 +138,7 @@ export default function RevistasDigitais() {
         tipo,
         trimestre,
         capa_url: capaUrl || null,
-        total_licoes: totalLicoes,
+        total_licoes: Number(totalLicoes) || 0,
         ativo: true,
         descricao: descricao || null,
         autor: autor || null,
