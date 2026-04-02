@@ -193,6 +193,22 @@ serve(async (req) => {
       });
     }
 
+    if (action === "update_mapping") {
+      const { error } = await supabaseAdmin
+        .from("ebd_produto_revista_mapping")
+        .update({
+          sku: params.sku,
+          revista_digital_id: params.revista_digital_id || null,
+          shopify_url: params.shopify_url || null,
+          bling_produto_id: params.bling_produto_id || null,
+        })
+        .eq("id", params.id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "delete_mapping") {
       const { error } = await supabaseAdmin
         .from("ebd_produto_revista_mapping")
