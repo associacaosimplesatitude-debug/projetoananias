@@ -152,7 +152,8 @@ export default function RevistasDigitais() {
       } else {
         const { data, error } = await supabase.from("revistas_digitais").insert(payload).select().single();
         if (error) throw error;
-        const licoesArr = Array.from({ length: totalLicoes }, (_, i) => ({
+        const numLicoes = Number(totalLicoes) || 0;
+        const licoesArr = Array.from({ length: numLicoes }, (_, i) => ({
           revista_id: data.id,
           numero: i + 1,
           titulo: `Lição ${i + 1}`,
