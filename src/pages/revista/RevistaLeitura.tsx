@@ -306,15 +306,15 @@ export default function RevistaLeitura() {
         <div style={{
           display: 'flex', alignItems: 'center',
           padding: '10px 16px',
-          background: modoNoturno ? '#000' : '#e8dcc8',
-          borderBottom: `1px solid ${modoNoturno ? '#333' : '#c8b89a'}`,
+          background: '#1c1915',
+          borderBottom: '1px solid rgba(246,186,50,0.2)',
           gap: '12px'
         }}>
           <button
             onClick={() => setModoKindle(false)}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: '14px', color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+              fontSize: '14px', color: '#f6ba32',
               display: 'flex', alignItems: 'center', gap: '6px'
             }}
           >
@@ -322,14 +322,14 @@ export default function RevistaLeitura() {
           </button>
           <span style={{
             flex: 1, fontSize: '14px', fontWeight: '500',
-            color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+            color: '#f6ba32',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
           }}>
             {revista?.titulo}
           </span>
           <button
             onClick={toggleModoNoturno}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#f6ba32', opacity: 1 }}
           >
             {modoNoturno ? '☀️' : '🌙'}
           </button>
