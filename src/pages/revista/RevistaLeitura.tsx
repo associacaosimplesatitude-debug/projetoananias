@@ -625,23 +625,26 @@ export default function RevistaLeitura() {
     >
       {/* Header */}
       <div
-        className={`px-4 py-4 flex items-center justify-between ${modoNoturno ? "" : "bg-primary text-primary-foreground"}`}
-        style={modoNoturno ? { background: "#1a1a1a", color: "#fff" } : undefined}
+        className="px-4 py-4 flex items-center justify-between"
+        style={{ background: '#1c1915', color: '#f6ba32' }}
       >
         <div className="flex items-center gap-3">
-          <BookOpen className="h-6 w-6" />
+          <BookOpen className="h-6 w-6" style={{ color: '#f6ba32' }} />
           <div>
-            <p className="text-lg font-semibold">Revista Digital</p>
+            <p className="text-lg font-semibold" style={{ color: '#f6ba32' }}>Revista Digital</p>
             {nomeComprador && (
-              <p className="text-sm opacity-80">Olá, {nomeComprador}</p>
+              <p className="text-sm" style={{ color: '#f6ba32', opacity: 0.8 }}>Olá, {nomeComprador}</p>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={toggleModoNoturno}
-            className="p-2 text-lg rounded hover:opacity-80"
+            className="p-2 rounded"
+            style={{ fontSize: '20px', color: '#f6ba32', opacity: 1, background: 'none', border: 'none', cursor: 'pointer' }}
             title={modoNoturno ? "Modo claro" : "Modo noturno"}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(246,186,50,0.15)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
           >
             {modoNoturno ? "☀️" : "🌙"}
           </button>
@@ -649,10 +652,8 @@ export default function RevistaLeitura() {
             variant="ghost"
             size="sm"
             onClick={handleLogout}
-            className={modoNoturno
-              ? "text-white hover:text-white/80 hover:bg-white/10 text-base"
-              : "text-primary-foreground hover:text-primary-foreground/80 hover:bg-primary-foreground/10 text-base"
-            }
+            style={{ color: '#f6ba32' }}
+            className="hover:bg-[rgba(246,186,50,0.15)] text-base"
           >
             <LogOut className="h-5 w-5 mr-2" />
             Sair
