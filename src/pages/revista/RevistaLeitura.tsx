@@ -533,8 +533,8 @@ export default function RevistaLeitura() {
 
             {/* Footer nav */}
             <div
-              className="flex items-center justify-between px-4 py-3 backdrop-blur"
-              style={{ backgroundColor: "rgba(15,23,42,0.8)" }}
+              className="flex items-center justify-between px-4 py-3"
+              style={{ backgroundColor: '#1c1915' }}
             >
               <Button
                 variant="ghost"
