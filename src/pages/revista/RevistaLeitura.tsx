@@ -439,7 +439,8 @@ export default function RevistaLeitura() {
           <Progress
             value={progressPercent}
             className="h-1 rounded-none"
-            style={{ backgroundColor: "#1e293b" }}
+            style={{ backgroundColor: '#1c1915' }}
+            indicatorClassName="bg-[#f6ba32]"
           />
         )}
 
