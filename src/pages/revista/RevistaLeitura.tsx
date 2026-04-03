@@ -551,7 +551,7 @@ export default function RevistaLeitura() {
               </span>
               {isLastPage ? (
                 isLastLicao ? (
-                  <span className="text-sm font-medium flex items-center gap-1" style={{ color: "#f97316" }}>
+                  <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#f6ba32' }}>
                     <PartyPopper className="h-4 w-4" /> Concluída!
                   </span>
                 ) : (
