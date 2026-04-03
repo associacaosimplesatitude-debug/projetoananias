@@ -568,7 +568,8 @@ export default function RevistaLeitura() {
                   variant="ghost"
                   size="sm"
                   onClick={() => goToPage(paginaAtual + 1)}
-                  className="text-white hover:bg-white/10"
+                  style={{ color: '#f6ba32' }}
+                  className="hover:bg-[rgba(246,186,50,0.15)]"
                 >
                   Próxima <ChevronRight className="h-5 w-5 ml-1" />
                 </Button>
