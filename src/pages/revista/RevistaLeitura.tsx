@@ -66,6 +66,8 @@ export default function RevistaLeitura() {
   const [modoLeitura, setModoLeitura] = useState<"setas" | "rolagem">("setas");
   const [zoomed, setZoomed] = useState(false);
   const [pdfAberto, setPdfAberto] = useState(false);
+  const [pdfCarregando, setPdfCarregando] = useState(true);
+  const [pdfZoom, setPdfZoom] = useState(100);
   const touchStartX = useRef(0);
 
   // Auth check
