@@ -494,22 +494,6 @@ export default function RevistaLeitura() {
               </p>
             ) : (
               <div className="space-y-3">
-                {/* PDF completo button */}
-                {revista?.pdf_url && (
-                  <button
-                    onClick={() => setPdfAberto(true)}
-                    className="flex items-center justify-center gap-2 w-full p-4 border-2 border-primary rounded-lg text-primary font-medium text-lg hover:bg-primary hover:text-primary-foreground transition-colors"
-                  >
-                    <FileText className="h-5 w-5" />
-                    Ler revista completa
-                  </button>
-                )}
-
-                {revista?.pdf_url && (
-                  <p className="text-sm text-muted-foreground font-medium">
-                    Ou leia por capítulo:
-                  </p>
-                )}
 
                 {licoes.map((licao) => (
                   <Card
