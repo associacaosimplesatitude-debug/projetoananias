@@ -83,6 +83,9 @@ export default function RevistaLeitura() {
   // Melhoria 3 — Dica de navegação
   const [mostrarDica, setMostrarDica] = useState(false);
 
+  // Modo Kindle
+  const [modoKindle, setModoKindle] = useState(false);
+
   // Load night mode preference
   useEffect(() => {
     const salvo = localStorage.getItem("revista_modo_noturno");
@@ -178,6 +181,7 @@ export default function RevistaLeitura() {
   const handleLogout = () => {
     sessionStorage.removeItem("revista_token");
     sessionStorage.removeItem("revista_licencas");
+    setModoKindle(false);
     navigate("/revista/acesso", { replace: true });
   };
 
@@ -209,6 +213,7 @@ export default function RevistaLeitura() {
     if (!licaoAberta) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (modoKindle) { setModoKindle(false); return; }
         if (zoomed) { setZoomed(false); return; }
         setLicaoAberta(null); setPaginaAtual(0); return;
       }
@@ -283,6 +288,65 @@ export default function RevistaLeitura() {
   const revista = selectedLicenca?.revistas_digitais;
 
   const readerBg = modoNoturno ? "#0a0a0a" : "#000";
+
+  // ─── MODO KINDLE (PDF) ────────────────────────────────────────
+  if (modoKindle && revista?.pdf_url) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0,
+        background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+        display: 'flex', flexDirection: 'column',
+        zIndex: 50
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          padding: '10px 16px',
+          background: modoNoturno ? '#000' : '#e8dcc8',
+          borderBottom: `1px solid ${modoNoturno ? '#333' : '#c8b89a'}`,
+          gap: '12px'
+        }}>
+          <button
+            onClick={() => setModoKindle(false)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '14px', color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+              display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            ← Voltar
+          </button>
+          <span style={{
+            flex: 1, fontSize: '14px', fontWeight: '500',
+            color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+          }}>
+            {revista?.titulo}
+          </span>
+          <button
+            onClick={toggleModoNoturno}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}
+          >
+            {modoNoturno ? '☀️' : '🌙'}
+          </button>
+        </div>
+        <div style={{
+          flex: 1, overflow: 'hidden', display: 'flex',
+          justifyContent: 'center',
+          background: modoNoturno ? '#1a1a1a' : '#f5f0e8'
+        }}>
+          <iframe
+            src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+            style={{
+              border: 'none', width: '100%', maxWidth: '800px', height: '100%',
+              background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+              filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+            }}
+            title={revista?.titulo}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // ─── ZOOM OVERLAY ────────────────────────────────────────────
   if (licaoAberta && zoomed && paginas[paginaAtual]) {
@@ -542,6 +606,7 @@ export default function RevistaLeitura() {
               setSelectedRevista(null);
               setLicoes([]);
               setProgressoSalvo(null);
+              setModoKindle(false);
             }}
             className={`mb-4 text-base ${modoNoturno ? "text-white hover:bg-white/10" : ""}`}
           >
@@ -610,6 +675,22 @@ export default function RevistaLeitura() {
               </p>
             ) : (
               <div className="space-y-3">
+                {/* Modo Kindle button */}
+                {revista?.pdf_url && (
+                  <button
+                    onClick={() => setModoKindle(true)}
+                    className="flex items-center gap-2 w-full p-4 rounded-lg font-medium text-lg transition-colors mb-4"
+                    style={{
+                      background: modoNoturno ? '#2a2a2a' : '#f5f0e8',
+                      color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+                      border: `2px solid ${modoNoturno ? '#444' : '#c8b89a'}`
+                    }}
+                  >
+                    <BookOpen className="h-5 w-5" />
+                    Modo Leitura (texto contínuo)
+                  </button>
+                )}
+
                 {/* Melhoria 1 — Continue where you left off */}
                 {progressoSalvo && licoes.length > 0 && (
                   <div
