@@ -67,7 +67,7 @@ export default function RevistaLeitura() {
   const [zoomed, setZoomed] = useState(false);
   const [pdfAberto, setPdfAberto] = useState(false);
   const [pdfCarregando, setPdfCarregando] = useState(true);
-  const [pdfZoom, setPdfZoom] = useState(100);
+  const [pdfZoomed, setPdfZoomed] = useState(false);
   const touchStartX = useRef(0);
 
   // Auth check
@@ -156,24 +156,21 @@ export default function RevistaLeitura() {
 
   // Keyboard navigation
   useEffect(() => {
-    if (!licaoAberta) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (zoomed) {
-          setZoomed(false);
-          return;
-        }
-        setLicaoAberta(null);
-        setPaginaAtual(0);
+        if (pdfZoomed) { setPdfZoomed(false); return; }
+        if (pdfAberto) { setPdfAberto(false); setPdfZoomed(false); setPdfCarregando(true); return; }
+        if (zoomed) { setZoomed(false); return; }
+        if (licaoAberta) { setLicaoAberta(null); setPaginaAtual(0); return; }
         return;
       }
-      if (modoLeitura !== "setas" || zoomed) return;
+      if (!licaoAberta || modoLeitura !== "setas" || zoomed) return;
       if (e.key === "ArrowRight" || e.key === " ") goToPage(paginaAtual + 1);
       if (e.key === "ArrowLeft") goToPage(paginaAtual - 1);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [licaoAberta, paginaAtual, goToPage, modoLeitura, zoomed]);
+  }, [licaoAberta, paginaAtual, goToPage, modoLeitura, zoomed, pdfAberto, pdfZoomed]);
 
   // Touch swipe
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -236,7 +233,7 @@ export default function RevistaLeitura() {
           style={{ background: "#000" }}
         >
           <button
-            onClick={() => { setPdfAberto(false); setPdfZoom(100); }}
+            onClick={() => { setPdfAberto(false); setPdfZoomed(false); setPdfCarregando(true); }}
             className="text-white text-sm flex items-center gap-1.5"
             style={{ background: "none", border: "none", cursor: "pointer" }}
           >
@@ -245,41 +242,42 @@ export default function RevistaLeitura() {
           <span className="text-white text-sm flex-1 truncate">
             {revista?.titulo}
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPdfZoom(z => Math.max(50, z - 25))}
-              className="text-white text-lg font-bold px-2"
-              style={{ background: "none", border: "none", cursor: "pointer" }}
-            >
-              −
-            </button>
-            <span className="text-white text-sm min-w-[3rem] text-center">{pdfZoom}%</span>
-            <button
-              onClick={() => setPdfZoom(z => Math.min(200, z + 25))}
-              className="text-white text-lg font-bold px-2"
-              style={{ background: "none", border: "none", cursor: "pointer" }}
-            >
-              +
-            </button>
+        </div>
+
+        {pdfZoomed ? (
+          <div
+            onClick={() => setPdfZoomed(false)}
+            style={{ position: "fixed", inset: 0, background: "#000", zIndex: 100, cursor: "zoom-out", overflow: "auto" }}
+          >
+            <iframe
+              src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
+              style={{ border: "none", width: "100%", height: "100vh", pointerEvents: "none" }}
+              title={revista?.titulo || "PDF Viewer"}
+              allow="fullscreen"
+              onLoad={() => setPdfCarregando(false)}
+            />
           </div>
-        </div>
-        <div className="flex-1 overflow-auto relative">
-          {pdfCarregando && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-10" style={{ background: "#1a1a1a" }}>
-              <div style={{ width: 40, height: 40, border: "3px solid rgba(255,255,255,0.2)", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-              <span className="text-white/60 text-sm mt-3">Carregando revista...</span>
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-            </div>
-          )}
-          <iframe
-            src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
-            className="border-0"
-            style={{ width: `${pdfZoom}%`, height: `${pdfZoom}%`, minWidth: "100%", minHeight: "100%", transformOrigin: "top left" }}
-            title={revista?.titulo || "PDF Viewer"}
-            allow="fullscreen"
-            onLoad={() => setPdfCarregando(false)}
-          />
-        </div>
+        ) : (
+          <div
+            onClick={() => setPdfZoomed(true)}
+            style={{ flex: 1, overflow: "auto", display: "flex", justifyContent: "center", background: "#1a1a1a", position: "relative", cursor: "zoom-in" }}
+          >
+            {pdfCarregando && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center z-10" style={{ background: "#1a1a1a" }}>
+                <div style={{ width: 40, height: 40, border: "3px solid rgba(255,255,255,0.2)", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <span className="text-white/60 text-sm mt-3">Carregando revista...</span>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              </div>
+            )}
+            <iframe
+              src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
+              style={{ border: "none", width: "100%", height: "100%", pointerEvents: "none" }}
+              title={revista?.titulo || "PDF Viewer"}
+              allow="fullscreen"
+              onLoad={() => setPdfCarregando(false)}
+            />
+          </div>
+        )}
       </div>
     );
   }
