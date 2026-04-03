@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   BookOpen, LogOut, ArrowLeft, ChevronLeft, ChevronRight,
-  X, List, Columns, PartyPopper, ExternalLink, FileText,
+  X, List, Columns, PartyPopper, ExternalLink,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -65,9 +65,6 @@ export default function RevistaLeitura() {
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [modoLeitura, setModoLeitura] = useState<"setas" | "rolagem">("setas");
   const [zoomed, setZoomed] = useState(false);
-  const [pdfAberto, setPdfAberto] = useState(false);
-  const [pdfCarregando, setPdfCarregando] = useState(true);
-  const [pdfZoomed, setPdfZoomed] = useState(false);
   const touchStartX = useRef(0);
 
   // Auth check
@@ -156,21 +153,19 @@ export default function RevistaLeitura() {
 
   // Keyboard navigation
   useEffect(() => {
+    if (!licaoAberta) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (pdfZoomed) { setPdfZoomed(false); return; }
-        if (pdfAberto) { setPdfAberto(false); setPdfZoomed(false); setPdfCarregando(true); return; }
         if (zoomed) { setZoomed(false); return; }
-        if (licaoAberta) { setLicaoAberta(null); setPaginaAtual(0); return; }
-        return;
+        setLicaoAberta(null); setPaginaAtual(0); return;
       }
-      if (!licaoAberta || modoLeitura !== "setas" || zoomed) return;
+      if (modoLeitura !== "setas" || zoomed) return;
       if (e.key === "ArrowRight" || e.key === " ") goToPage(paginaAtual + 1);
       if (e.key === "ArrowLeft") goToPage(paginaAtual - 1);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [licaoAberta, paginaAtual, goToPage, modoLeitura, zoomed, pdfAberto, pdfZoomed]);
+  }, [licaoAberta, paginaAtual, goToPage, modoLeitura, zoomed]);
 
   // Touch swipe
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -216,71 +211,6 @@ export default function RevistaLeitura() {
   const selectedLicenca = licencas.find((l) => l.revista_id === selectedRevista);
   const revista = selectedLicenca?.revistas_digitais;
 
-  // Reset loading when PDF opens
-  useEffect(() => {
-    if (pdfAberto) setPdfCarregando(true);
-  }, [pdfAberto]);
-
-  // ─── PDF VIEWER ──────────────────────────────────────────────
-  if (pdfAberto && revista?.pdf_url) {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex flex-col select-none"
-        style={{ background: "#1a1a1a" }}
-      >
-        <div
-          className="flex items-center px-4 py-2 gap-3"
-          style={{ background: "#000" }}
-        >
-          <button
-            onClick={() => { setPdfAberto(false); setPdfZoomed(false); setPdfCarregando(true); }}
-            className="text-white text-sm flex items-center gap-1.5"
-            style={{ background: "none", border: "none", cursor: "pointer" }}
-          >
-            <ArrowLeft className="h-4 w-4" /> Voltar
-          </button>
-          <span className="text-white text-sm flex-1 truncate">
-            {revista?.titulo}
-          </span>
-        </div>
-
-        {pdfZoomed ? (
-          <div
-            onClick={() => setPdfZoomed(false)}
-            style={{ position: "fixed", inset: 0, background: "#000", zIndex: 100, cursor: "zoom-out", overflow: "auto" }}
-          >
-            <iframe
-              src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
-              style={{ border: "none", width: "100%", height: "100vh", pointerEvents: "none" }}
-              title={revista?.titulo || "PDF Viewer"}
-              allow="fullscreen"
-              onLoad={() => setPdfCarregando(false)}
-            />
-          </div>
-        ) : (
-          <div
-            onClick={() => setPdfZoomed(true)}
-            style={{ flex: 1, overflow: "auto", display: "flex", justifyContent: "center", background: "#1a1a1a", position: "relative", cursor: "zoom-in" }}
-          >
-            {pdfCarregando && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center z-10" style={{ background: "#1a1a1a" }}>
-                <div style={{ width: 40, height: 40, border: "3px solid rgba(255,255,255,0.2)", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                <span className="text-white/60 text-sm mt-3">Carregando revista...</span>
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              </div>
-            )}
-            <iframe
-              src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
-              style={{ border: "none", width: "100%", height: "100%", pointerEvents: "none" }}
-              title={revista?.titulo || "PDF Viewer"}
-              allow="fullscreen"
-              onLoad={() => setPdfCarregando(false)}
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
 
   // ─── ZOOM OVERLAY ────────────────────────────────────────────
   if (licaoAberta && zoomed && paginas[paginaAtual]) {
@@ -564,22 +494,6 @@ export default function RevistaLeitura() {
               </p>
             ) : (
               <div className="space-y-3">
-                {/* PDF completo button */}
-                {revista?.pdf_url && (
-                  <button
-                    onClick={() => setPdfAberto(true)}
-                    className="flex items-center justify-center gap-2 w-full p-4 border-2 border-primary rounded-lg text-primary font-medium text-lg hover:bg-primary hover:text-primary-foreground transition-colors"
-                  >
-                    <FileText className="h-5 w-5" />
-                    Ler revista completa
-                  </button>
-                )}
-
-                {revista?.pdf_url && (
-                  <p className="text-sm text-muted-foreground font-medium">
-                    Ou leia por capítulo:
-                  </p>
-                )}
 
                 {licoes.map((licao) => (
                   <Card
