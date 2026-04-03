@@ -606,6 +606,7 @@ export default function RevistaLeitura() {
               setSelectedRevista(null);
               setLicoes([]);
               setProgressoSalvo(null);
+              setModoKindle(false);
             }}
             className={`mb-4 text-base ${modoNoturno ? "text-white hover:bg-white/10" : ""}`}
           >
