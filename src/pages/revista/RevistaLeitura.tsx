@@ -83,6 +83,9 @@ export default function RevistaLeitura() {
   // Melhoria 3 — Dica de navegação
   const [mostrarDica, setMostrarDica] = useState(false);
 
+  // Modo Kindle
+  const [modoKindle, setModoKindle] = useState(false);
+
   // Load night mode preference
   useEffect(() => {
     const salvo = localStorage.getItem("revista_modo_noturno");
