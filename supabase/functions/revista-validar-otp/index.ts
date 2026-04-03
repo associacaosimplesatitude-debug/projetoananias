@@ -68,7 +68,8 @@ serve(async (req) => {
           titulo,
           capa_url,
           total_licoes,
-          tipo
+          tipo,
+          pdf_url
         )
       `
       )

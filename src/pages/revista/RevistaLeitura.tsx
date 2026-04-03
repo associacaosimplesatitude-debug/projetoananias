@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   BookOpen, LogOut, ArrowLeft, ChevronLeft, ChevronRight,
-  X, List, Columns, PartyPopper, ExternalLink,
+  X, List, Columns, PartyPopper, ExternalLink, FileText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -15,6 +15,7 @@ interface RevistaDigital {
   capa_url: string | null;
   total_licoes: number | null;
   tipo: string | null;
+  pdf_url?: string | null;
 }
 
 interface Licenca {
@@ -63,6 +64,7 @@ export default function RevistaLeitura() {
   const [licaoAberta, setLicaoAberta] = useState<Licao | null>(null);
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [modoLeitura, setModoLeitura] = useState<"setas" | "rolagem">("setas");
+  const [zoomed, setZoomed] = useState(false);
   const touchStartX = useRef(0);
 
   // Auth check
@@ -107,7 +109,6 @@ export default function RevistaLeitura() {
       const filtered = (data.data as CatalogoItem[]).filter(
         (item) => item.revistas_digitais && !ownedIds.has(item.revista_digital_id)
       );
-      // Dedupe by revista_digital_id
       const seen = new Set<string>();
       const unique = filtered.filter((item) => {
         if (seen.has(item.revista_digital_id)) return false;
@@ -147,29 +148,36 @@ export default function RevistaLeitura() {
   const goToPage = useCallback((page: number) => {
     if (page < 0 || page >= totalPages) return;
     setPaginaAtual(page);
+    setZoomed(false);
   }, [totalPages]);
 
   // Keyboard navigation
   useEffect(() => {
-    if (!licaoAberta || modoLeitura !== "setas") return;
+    if (!licaoAberta) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === " ") goToPage(paginaAtual + 1);
-      if (e.key === "ArrowLeft") goToPage(paginaAtual - 1);
       if (e.key === "Escape") {
+        if (zoomed) {
+          setZoomed(false);
+          return;
+        }
         setLicaoAberta(null);
         setPaginaAtual(0);
+        return;
       }
+      if (modoLeitura !== "setas" || zoomed) return;
+      if (e.key === "ArrowRight" || e.key === " ") goToPage(paginaAtual + 1);
+      if (e.key === "ArrowLeft") goToPage(paginaAtual - 1);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [licaoAberta, paginaAtual, goToPage, modoLeitura]);
+  }, [licaoAberta, paginaAtual, goToPage, modoLeitura, zoomed]);
 
   // Touch swipe
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (modoLeitura !== "setas") return;
+    if (modoLeitura !== "setas" || zoomed) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) > 50) {
       if (diff > 0) goToPage(paginaAtual + 1);
@@ -181,11 +189,13 @@ export default function RevistaLeitura() {
     setLicaoAberta(licao);
     setPaginaAtual(0);
     setModoLeitura("setas");
+    setZoomed(false);
   };
 
   const fecharLeitor = () => {
     setLicaoAberta(null);
     setPaginaAtual(0);
+    setZoomed(false);
   };
 
   const irProximaLicao = () => {
@@ -194,6 +204,7 @@ export default function RevistaLeitura() {
     if (idx >= 0 && idx < licoes.length - 1) {
       setLicaoAberta(licoes[idx + 1]);
       setPaginaAtual(0);
+      setZoomed(false);
     }
   };
 
@@ -204,6 +215,26 @@ export default function RevistaLeitura() {
 
   const selectedLicenca = licencas.find((l) => l.revista_id === selectedRevista);
   const revista = selectedLicenca?.revistas_digitais;
+
+  // ─── ZOOM OVERLAY ────────────────────────────────────────────
+  if (licaoAberta && zoomed && paginas[paginaAtual]) {
+    return (
+      <div
+        className="fixed inset-0 z-[60] overflow-auto cursor-zoom-out"
+        style={{ backgroundColor: "#000" }}
+        onClick={() => setZoomed(false)}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <img
+          src={paginas[paginaAtual]}
+          alt={`Página ${paginaAtual + 1} (zoom)`}
+          className="w-full"
+          style={{ minWidth: "100vw", touchAction: "pinch-zoom" }}
+          draggable={false}
+        />
+      </div>
+    );
+  }
 
   // ─── READER VIEW ────────────────────────────────────────────
   if (licaoAberta) {
@@ -274,8 +305,10 @@ export default function RevistaLeitura() {
                 <img
                   src={paginas[paginaAtual]}
                   alt={`Página ${paginaAtual + 1}`}
-                  className="max-h-[calc(100vh-120px)] max-w-full object-contain pointer-events-none"
+                  className="h-[calc(100vh-120px)] w-full object-contain cursor-zoom-in"
+                  style={{ touchAction: "pinch-zoom" }}
                   draggable={false}
+                  onClick={() => setZoomed(true)}
                 />
               ) : (
                 <p className="text-white/50">Nenhuma página disponível</p>
@@ -335,7 +368,8 @@ export default function RevistaLeitura() {
                   <img
                     src={url}
                     alt={`Página ${i + 1}`}
-                    className="w-full object-contain pointer-events-none"
+                    className="w-full object-contain"
+                    style={{ touchAction: "pinch-zoom" }}
                     draggable={false}
                   />
                 </div>
@@ -464,6 +498,25 @@ export default function RevistaLeitura() {
               </p>
             ) : (
               <div className="space-y-3">
+                {/* PDF completo button */}
+                {revista?.pdf_url && (
+                  <a
+                    href={revista.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full p-4 border-2 border-primary rounded-lg text-primary font-medium text-lg hover:bg-primary hover:text-primary-foreground transition-colors"
+                  >
+                    <FileText className="h-5 w-5" />
+                    Ler revista completa em PDF
+                  </a>
+                )}
+
+                {revista?.pdf_url && (
+                  <p className="text-sm text-muted-foreground font-medium">
+                    Ou leia por capítulo:
+                  </p>
+                )}
+
                 {licoes.map((licao) => (
                   <Card
                     key={licao.id}
