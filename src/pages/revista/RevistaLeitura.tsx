@@ -602,8 +602,7 @@ export default function RevistaLeitura() {
                   <Button
                     size="lg"
                     onClick={irProximaLicao}
-                    className="text-white"
-                    style={{ backgroundColor: "#f97316" }}
+                    style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
                   >
                     Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
                   </Button>
