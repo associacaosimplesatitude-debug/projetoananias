@@ -139,6 +139,10 @@ export default function RevistaLeitura() {
       if (parsed.length === 1 && parsed[0].revista_id) {
         setSelectedRevista(parsed[0].revista_id);
       }
+
+      // Show onboarding if first visit
+      const jaViu = localStorage.getItem('revista_onboarding_v2');
+      if (!jaViu) setMostrarOnboarding(true);
     }
   }, [navigate]);
 
