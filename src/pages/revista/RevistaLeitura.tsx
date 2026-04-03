@@ -330,19 +330,24 @@ export default function RevistaLeitura() {
           </button>
         </div>
         <div style={{
-          flex: 1, overflow: 'auto', display: 'flex',
+          flex: 1,
+          overflow: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          display: 'flex',
           justifyContent: 'center',
           background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
-          WebkitOverflowScrolling: 'touch'
+          position: 'relative'
         }}>
           <iframe
-            src={`https://docs.google.com/viewer?url=${encodeURIComponent(revista.pdf_url)}&embedded=true`}
+            src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
             style={{
               border: 'none',
               width: '100%',
               maxWidth: '800px',
               height: '100%',
-              minHeight: '100vh'
+              minHeight: '100vh',
+              background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+              filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
             }}
             title={revista?.titulo}
           />
