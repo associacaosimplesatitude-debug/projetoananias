@@ -8,6 +8,7 @@ import {
   X, List, Columns, PartyPopper, ExternalLink,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import logoCentralGospel from "@/assets/logo_central_gospel.png";
 
 interface RevistaDigital {
   id: string;
