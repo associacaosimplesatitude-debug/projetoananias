@@ -336,12 +336,13 @@ export default function RevistaLeitura() {
           WebkitOverflowScrolling: 'touch'
         }}>
           <iframe
-            src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+            src={`https://docs.google.com/viewer?url=${encodeURIComponent(revista.pdf_url)}&embedded=true`}
             style={{
-              border: 'none', width: '100%', maxWidth: '800px',
-              minHeight: '100vh', height: '200vh',
-              background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
-              filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+              border: 'none',
+              width: '100%',
+              maxWidth: '800px',
+              height: '100%',
+              minHeight: '100vh'
             }}
             title={revista?.titulo}
           />
