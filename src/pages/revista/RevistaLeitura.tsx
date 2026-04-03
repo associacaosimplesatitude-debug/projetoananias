@@ -746,8 +746,8 @@ export default function RevistaLeitura() {
                     className="flex items-center gap-2 w-full p-4 rounded-lg font-medium text-lg transition-colors mb-4"
                     style={{
                       background: modoNoturno ? '#2a2a2a' : '#f5f0e8',
-                      color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
-                      border: `2px solid ${modoNoturno ? '#444' : '#c8b89a'}`
+                      color: modoNoturno ? '#f6ba32' : '#1c1915',
+                      border: `2px solid #f6ba32`
                     }}
                   >
                     <BookOpen className="h-5 w-5" />
