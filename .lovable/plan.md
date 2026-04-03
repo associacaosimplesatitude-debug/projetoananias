@@ -1,36 +1,27 @@
 
 
-# Diagnóstico: Pedido #2969 (R$ 5,14) — Licença e email não processados
+## Plan: Add "Modo Leitura" (Kindle-style PDF reader) to RevistaLeitura.tsx
 
-## O que encontrei
+**Only file changed:** `src/pages/revista/RevistaLeitura.tsx`
 
-1. **O pedido existe** no banco (`ebd_shopify_pedidos`): order #2969, R$ 5,14, `cleuton.soares@gmail.com`, status `paid`
-2. **A tabela `revista_licencas_shopify` está vazia** — nenhuma licença foi criada
-3. **Não há nenhum log** do `ebd-shopify-order-webhook` nos analytics recentes — o webhook **nunca foi chamado** pelo Shopify para este pedido
-4. O pedido foi importado via `ebd-shopify-sync-orders` (sync manual), mas o webhook `orders/paid` não disparou
+### Changes
 
-## Causa raiz
+1. **New state** — Add `modoKindle` (boolean, default `false`) alongside existing states (~line 74)
 
-O webhook do Shopify (`orders/paid`) **não disparou** para o pedido #2969. Possíveis razões:
-- A edge function foi editada mas **não foi redeployada** — sem deploy, o Shopify pode estar recebendo erros 500 nas tentativas anteriores e parou de retentar
-- O webhook pode ter sido removido/desconfigurado no Shopify
+2. **Kindle viewer block** — Insert a new conditional render block BEFORE the reader view (before line 288), returning a fullscreen overlay when `modoKindle && revista?.pdf_url`:
+   - Fixed overlay with Kindle-style warm background (`#f5f0e8` light / `#1a1a1a` dark)
+   - Header with "← Voltar" button, revista title, and night mode toggle
+   - PDF iframe with `#toolbar=0&navpanes=0&scrollbar=1&view=FitH`, max-width 800px
+   - Night mode applies CSS `filter: invert(1) hue-rotate(180deg)` to iframe
 
-## Plano de correção
+3. **"Modo Leitura" button** — In the lessons list section (~line 612, inside the `<div className="space-y-3">`), add a button ABOVE the progress banner when `revista?.pdf_url` exists:
+   - Kindle-themed styling (warm beige/brown colors, adapts to night mode)
+   - Text: "Modo Leitura (texto contínuo)"
+   - onClick: `setModoKindle(true)`
 
-### Passo 1 — Redeployar a edge function
-Deployar `ebd-shopify-order-webhook` com todas as correções já feitas (SUPABASE_URL, idempotência, maybeSingle, email via Resend).
+4. **Reset modoKindle on exit** — Add `setModoKindle(false)` to:
+   - `handleLogout` function (line 178)
+   - "Voltar às revistas" button onClick (line 541)
 
-### Passo 2 — Re-registrar o webhook no Shopify
-Usar o botão "Registrar Webhook" em `/admin/ebd/pedidos-online` para garantir que o webhook está ativo.
-
-### Passo 3 — Processar manualmente o pedido #2969
-Como o webhook não vai ser retransmitido pelo Shopify, precisamos disparar o processamento manualmente. Duas opções:
-- **Opção A**: Chamar a edge function via `curl` simulando o payload do pedido #2969
-- **Opção B**: Criar a licença manualmente via painel admin em `/admin/ebd/revista-licencas` (aba Vendas Shopify → Criar Licença Manual)
-
-### Detalhes técnicos
-- SKU do produto: `REV-N07-2026` (mapeado para revista digital `503e5583-2f3f-4b75-819e-bd241c590bc4`)
-- WhatsApp do comprador: precisa ser extraído do pedido Shopify
-- Email: `cleuton.soares@gmail.com`
-- Após criar a licença, o email de boas-vindas via Resend será enviado automaticamente pelo webhook (opção A) ou manualmente (opção B)
+5. **Keyboard: ESC exits Kindle** — Update keyboard handler (line 210) to check `modoKindle` first and close it on Escape
 
