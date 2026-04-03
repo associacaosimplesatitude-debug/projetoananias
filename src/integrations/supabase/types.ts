@@ -5757,6 +5757,7 @@ export type Database = {
           created_at: string | null
           descricao: string | null
           id: string
+          pdf_url: string | null
           status_publicacao: string | null
           tipo: string
           titulo: string
@@ -5771,6 +5772,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          pdf_url?: string | null
           status_publicacao?: string | null
           tipo?: string
           titulo: string
@@ -5785,6 +5787,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          pdf_url?: string | null
           status_publicacao?: string | null
           tipo?: string
           titulo?: string

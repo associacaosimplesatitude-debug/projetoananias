@@ -1,0 +1,1 @@
+ALTER TABLE revistas_digitais ADD COLUMN IF NOT EXISTS pdf_url text;
