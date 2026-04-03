@@ -45,6 +45,13 @@ interface CatalogoItem {
   } | null;
 }
 
+interface ProgressoSalvo {
+  licaoId: string;
+  licaoNumero: number;
+  licaoTitulo: string;
+  pagina: number;
+}
+
 function callAdminPublic(action: string, params: Record<string, unknown> = {}) {
   return supabase.functions.invoke("revista-licencas-shopify-admin", {
     body: { action, ...params },
@@ -66,6 +73,27 @@ export default function RevistaLeitura() {
   const [modoLeitura, setModoLeitura] = useState<"setas" | "rolagem">("setas");
   const [zoomed, setZoomed] = useState(false);
   const touchStartX = useRef(0);
+
+  // Melhoria 1 — Lembrar onde parou
+  const [progressoSalvo, setProgressoSalvo] = useState<ProgressoSalvo | null>(null);
+
+  // Melhoria 2 — Modo noturno
+  const [modoNoturno, setModoNoturno] = useState(false);
+
+  // Melhoria 3 — Dica de navegação
+  const [mostrarDica, setMostrarDica] = useState(false);
+
+  // Load night mode preference
+  useEffect(() => {
+    const salvo = localStorage.getItem("revista_modo_noturno");
+    if (salvo === "true") setModoNoturno(true);
+  }, []);
+
+  const toggleModoNoturno = () => {
+    const novo = !modoNoturno;
+    setModoNoturno(novo);
+    localStorage.setItem("revista_modo_noturno", String(novo));
+  };
 
   // Auth check
   useEffect(() => {
@@ -119,7 +147,7 @@ export default function RevistaLeitura() {
     });
   }, [licencas]);
 
-  // Fetch lessons
+  // Fetch lessons + check saved progress
   useEffect(() => {
     if (!selectedRevista) return;
     setLoadingLicoes(true);
@@ -132,6 +160,19 @@ export default function RevistaLeitura() {
         setLicoes((data as any) || []);
         setLoadingLicoes(false);
       });
+
+    // Melhoria 1 — check saved progress
+    const progressKey = `revista_progresso_${selectedRevista}`;
+    const salvo = localStorage.getItem(progressKey);
+    if (salvo) {
+      try {
+        setProgressoSalvo(JSON.parse(salvo));
+      } catch {
+        setProgressoSalvo(null);
+      }
+    } else {
+      setProgressoSalvo(null);
+    }
   }, [selectedRevista]);
 
   const handleLogout = () => {
@@ -144,12 +185,24 @@ export default function RevistaLeitura() {
   const paginas = licaoAberta?.paginas || [];
   const totalPages = paginas.length;
   const progressPercent = totalPages > 0 ? ((paginaAtual + 1) / totalPages) * 100 : 0;
+  const progressKey = selectedRevista ? `revista_progresso_${selectedRevista}` : null;
 
   const goToPage = useCallback((page: number) => {
     if (page < 0 || page >= totalPages) return;
     setPaginaAtual(page);
     setZoomed(false);
   }, [totalPages]);
+
+  // Save progress on page change
+  useEffect(() => {
+    if (!licaoAberta || !progressKey) return;
+    localStorage.setItem(progressKey, JSON.stringify({
+      licaoId: licaoAberta.id,
+      licaoNumero: licaoAberta.numero,
+      licaoTitulo: licaoAberta.titulo,
+      pagina: paginaAtual,
+    }));
+  }, [licaoAberta, paginaAtual, progressKey]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -185,6 +238,24 @@ export default function RevistaLeitura() {
     setPaginaAtual(0);
     setModoLeitura("setas");
     setZoomed(false);
+
+    // Melhoria 1 — save on open
+    if (progressKey) {
+      localStorage.setItem(progressKey, JSON.stringify({
+        licaoId: licao.id,
+        licaoNumero: licao.numero,
+        licaoTitulo: licao.titulo,
+        pagina: 0,
+      }));
+    }
+
+    // Melhoria 3 — keyboard hint
+    const jaViu = localStorage.getItem("revista_dica_teclado");
+    if (!jaViu) {
+      setMostrarDica(true);
+      localStorage.setItem("revista_dica_teclado", "true");
+      setTimeout(() => setMostrarDica(false), 3000);
+    }
   };
 
   const fecharLeitor = () => {
@@ -211,6 +282,7 @@ export default function RevistaLeitura() {
   const selectedLicenca = licencas.find((l) => l.revista_id === selectedRevista);
   const revista = selectedLicenca?.revistas_digitais;
 
+  const readerBg = modoNoturno ? "#0a0a0a" : "#000";
 
   // ─── ZOOM OVERLAY ────────────────────────────────────────────
   if (licaoAberta && zoomed && paginas[paginaAtual]) {
@@ -237,7 +309,7 @@ export default function RevistaLeitura() {
     return (
       <div
         className="fixed inset-0 z-50 flex flex-col select-none"
-        style={{ backgroundColor: "#000" }}
+        style={{ backgroundColor: readerBg }}
         onContextMenu={(e) => e.preventDefault()}
       >
         {/* Progress bar */}
@@ -263,6 +335,13 @@ export default function RevistaLeitura() {
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={toggleModoNoturno}
+              className="p-2 text-lg hover:bg-white/10 rounded"
+              title={modoNoturno ? "Modo claro" : "Modo noturno"}
+            >
+              {modoNoturno ? "☀️" : "🌙"}
+            </button>
             <Button
               variant="ghost"
               size="icon"
@@ -308,6 +387,19 @@ export default function RevistaLeitura() {
                 />
               ) : (
                 <p className="text-white/50">Nenhuma página disponível</p>
+              )}
+
+              {/* Melhoria 3 — Keyboard hint */}
+              {mostrarDica && modoLeitura === "setas" && (
+                <div
+                  className="absolute bottom-6 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-full text-white text-sm pointer-events-none"
+                  style={{
+                    background: "rgba(0,0,0,0.75)",
+                    animation: "fadeInOut 3s ease-in-out forwards",
+                  }}
+                >
+                  Use ← → ou toque para navegar
+                </div>
               )}
             </div>
 
@@ -391,15 +483,24 @@ export default function RevistaLeitura() {
             </div>
           </div>
         )}
+
+        {/* Keyframe for hint animation */}
+        <style>{`@keyframes fadeInOut { 0% { opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }`}</style>
       </div>
     );
   }
 
   // ─── LIST VIEW ──────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className={`min-h-screen ${modoNoturno ? "" : "bg-background"}`}
+      style={modoNoturno ? { background: "#0f0f0f" } : undefined}
+    >
       {/* Header */}
-      <div className="bg-primary text-primary-foreground px-4 py-4 flex items-center justify-between">
+      <div
+        className={`px-4 py-4 flex items-center justify-between ${modoNoturno ? "" : "bg-primary text-primary-foreground"}`}
+        style={modoNoturno ? { background: "#1a1a1a", color: "#fff" } : undefined}
+      >
         <div className="flex items-center gap-3">
           <BookOpen className="h-6 w-6" />
           <div>
@@ -409,15 +510,27 @@ export default function RevistaLeitura() {
             )}
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLogout}
-          className="text-primary-foreground hover:text-primary-foreground/80 hover:bg-primary-foreground/10 text-base"
-        >
-          <LogOut className="h-5 w-5 mr-2" />
-          Sair
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleModoNoturno}
+            className="p-2 text-lg rounded hover:opacity-80"
+            title={modoNoturno ? "Modo claro" : "Modo noturno"}
+          >
+            {modoNoturno ? "☀️" : "🌙"}
+          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className={modoNoturno
+              ? "text-white hover:text-white/80 hover:bg-white/10 text-base"
+              : "text-primary-foreground hover:text-primary-foreground/80 hover:bg-primary-foreground/10 text-base"
+            }
+          >
+            <LogOut className="h-5 w-5 mr-2" />
+            Sair
+          </Button>
+        </div>
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
@@ -428,8 +541,9 @@ export default function RevistaLeitura() {
             onClick={() => {
               setSelectedRevista(null);
               setLicoes([]);
+              setProgressoSalvo(null);
             }}
-            className="mb-4 text-base"
+            className={`mb-4 text-base ${modoNoturno ? "text-white hover:bg-white/10" : ""}`}
           >
             <ArrowLeft className="h-5 w-5 mr-2" />
             Voltar às revistas
@@ -439,12 +553,14 @@ export default function RevistaLeitura() {
         {/* Multiple revistas - show grid */}
         {!selectedRevista && licencas.length > 1 && (
           <div className="space-y-6">
-            <h1 className="text-2xl font-bold text-foreground">Suas Revistas</h1>
+            <h1 className={`text-2xl font-bold ${modoNoturno ? "text-white" : "text-foreground"}`}>
+              Suas Revistas
+            </h1>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {licencas.map((l) => (
                 <Card
                   key={l.id}
-                  className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
+                  className={`cursor-pointer hover:shadow-lg transition-shadow overflow-hidden ${modoNoturno ? "bg-[#1a1a1a] border-white/10" : ""}`}
                   onClick={() => setSelectedRevista(l.revista_id)}
                 >
                   {l.revistas_digitais?.capa_url && (
@@ -457,7 +573,7 @@ export default function RevistaLeitura() {
                     </div>
                   )}
                   <CardContent className="p-5">
-                    <h2 className="text-lg font-semibold">
+                    <h2 className={`text-lg font-semibold ${modoNoturno ? "text-white" : ""}`}>
                       {l.revistas_digitais?.titulo || "Revista"}
                     </h2>
                     <Button className="w-full mt-3 h-12 text-base">Ler</Button>
@@ -480,37 +596,89 @@ export default function RevistaLeitura() {
                 />
               </div>
             )}
-            <h1 className="text-2xl font-bold text-center text-foreground">
+            <h1 className={`text-2xl font-bold text-center ${modoNoturno ? "text-white" : "text-foreground"}`}>
               {revista?.titulo || "Revista"}
             </h1>
 
             {loadingLicoes ? (
-              <p className="text-center text-lg text-muted-foreground">
+              <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                 Carregando lições...
               </p>
             ) : licoes.length === 0 ? (
-              <p className="text-center text-lg text-muted-foreground">
+              <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                 Nenhuma lição disponível no momento.
               </p>
             ) : (
               <div className="space-y-3">
+                {/* Melhoria 1 — Continue where you left off */}
+                {progressoSalvo && licoes.length > 0 && (
+                  <div
+                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-lg"
+                    style={{ background: "#1B3A5C" }}
+                  >
+                    <span className="text-white text-sm">
+                      Continuar da Lição {progressoSalvo.licaoNumero}, Página {progressoSalvo.pagina + 1}?
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          const licao = licoes.find((l) => l.id === progressoSalvo.licaoId);
+                          if (licao) {
+                            abrirLicao(licao);
+                            setTimeout(() => setPaginaAtual(progressoSalvo.pagina), 100);
+                          }
+                          setProgressoSalvo(null);
+                        }}
+                        style={{
+                          background: "#fff",
+                          color: "#1B3A5C",
+                          border: "none",
+                          borderRadius: "6px",
+                          padding: "6px 14px",
+                          cursor: "pointer",
+                          fontWeight: "500",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Continuar
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (progressKey) localStorage.removeItem(progressKey);
+                          setProgressoSalvo(null);
+                        }}
+                        style={{
+                          background: "transparent",
+                          color: "#fff",
+                          border: "1px solid rgba(255,255,255,0.4)",
+                          borderRadius: "6px",
+                          padding: "6px 14px",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Recomeçar
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {licoes.map((licao) => (
                   <Card
                     key={licao.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className={`cursor-pointer hover:shadow-md transition-shadow ${modoNoturno ? "bg-[#1a1a1a] border-white/10" : ""}`}
                     onClick={() => abrirLicao(licao)}
                   >
                     <CardContent className="p-5 flex items-center justify-between">
                       <div>
-                        <p className="text-lg font-semibold">
+                        <p className={`text-lg font-semibold ${modoNoturno ? "text-white" : ""}`}>
                           Lição {licao.numero}
                         </p>
-                        <p className="text-base text-muted-foreground">
+                        <p className={`text-base ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                           {licao.titulo}
                         </p>
                       </div>
-                      <BookOpen className="h-5 w-5 text-muted-foreground" />
+                      <BookOpen className={`h-5 w-5 ${modoNoturno ? "text-white/40" : "text-muted-foreground"}`} />
                     </CardContent>
                   </Card>
                 ))}
@@ -522,12 +690,14 @@ export default function RevistaLeitura() {
         {/* Descubra mais */}
         {catalogo.length > 0 && !selectedRevista && (
           <div className="space-y-6 mt-10">
-            <h2 className="text-2xl font-bold text-foreground">Descubra mais materiais</h2>
+            <h2 className={`text-2xl font-bold ${modoNoturno ? "text-white" : "text-foreground"}`}>
+              Descubra mais materiais
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {catalogo.map((item) => (
                 <Card
                   key={item.id}
-                  className="overflow-hidden border-dashed border-2 border-muted-foreground/30"
+                  className={`overflow-hidden border-dashed border-2 ${modoNoturno ? "bg-[#1a1a1a] border-white/20" : "border-muted-foreground/30"}`}
                 >
                   {item.revistas_digitais?.capa_url && (
                     <div className="w-full aspect-[3/4] flex items-center justify-center bg-muted">
@@ -544,7 +714,7 @@ export default function RevistaLeitura() {
                         Disponível
                       </span>
                     </div>
-                    <h3 className="text-lg font-semibold">
+                    <h3 className={`text-lg font-semibold ${modoNoturno ? "text-white" : ""}`}>
                       {item.revistas_digitais?.titulo || "Revista"}
                     </h3>
                     <Button
@@ -564,7 +734,7 @@ export default function RevistaLeitura() {
         {/* No licencas */}
         {licencas.length === 0 && (
           <div className="text-center space-y-4 py-12">
-            <p className="text-lg text-muted-foreground">
+            <p className={`text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
               Nenhuma revista encontrada.
             </p>
             <Button onClick={handleLogout} className="h-12 text-base">
