@@ -759,9 +759,9 @@ export default function RevistaLeitura() {
                 {progressoSalvo && licoes.length > 0 && (
                   <div
                     className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-lg"
-                    style={{ background: "#1B3A5C" }}
+                    style={{ background: '#1c1915' }}
                   >
-                    <span className="text-white text-sm">
+                    <span className="text-sm" style={{ color: '#f6ba32' }}>
                       Continuar da Lição {progressoSalvo.licaoNumero}, Página {progressoSalvo.pagina + 1}?
                     </span>
                     <div className="flex gap-2">
@@ -775,14 +775,14 @@ export default function RevistaLeitura() {
                           setProgressoSalvo(null);
                         }}
                         style={{
-                          background: "#fff",
-                          color: "#1B3A5C",
-                          border: "none",
-                          borderRadius: "6px",
-                          padding: "6px 14px",
-                          cursor: "pointer",
-                          fontWeight: "500",
-                          fontSize: "14px",
+                          background: '#f6ba32',
+                          color: '#1c1915',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 14px',
+                          cursor: 'pointer',
+                          fontWeight: '500',
+                          fontSize: '14px',
                         }}
                       >
                         Continuar
