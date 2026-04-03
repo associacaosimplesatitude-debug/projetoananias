@@ -445,22 +445,25 @@ export default function RevistaLeitura() {
 
         {/* Header */}
         <div
-          className="flex items-center justify-between px-4 py-2 backdrop-blur"
-          style={{ backgroundColor: "rgba(15,23,42,0.8)" }}
+          className="flex items-center justify-between px-4 py-2"
+          style={{ backgroundColor: '#1c1915' }}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <span className="text-white/60 text-sm shrink-0">
+            <span className="text-sm shrink-0" style={{ color: '#f6ba32', opacity: 0.7 }}>
               Lição {licaoAberta.numero}
             </span>
-            <span className="text-white font-medium text-sm truncate">
+            <span className="font-medium text-sm truncate" style={{ color: '#f6ba32' }}>
               {licaoAberta.titulo || `Lição ${licaoAberta.numero}`}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={toggleModoNoturno}
-              className="p-2 text-lg hover:bg-white/10 rounded"
+              className="p-2 rounded"
+              style={{ fontSize: '20px', color: '#f6ba32', opacity: 1, background: 'none', border: 'none', cursor: 'pointer' }}
               title={modoNoturno ? "Modo claro" : "Modo noturno"}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(246,186,50,0.15)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
             >
               {modoNoturno ? "☀️" : "🌙"}
             </button>
@@ -470,7 +473,8 @@ export default function RevistaLeitura() {
               onClick={() =>
                 setModoLeitura(modoLeitura === "setas" ? "rolagem" : "setas")
               }
-              className="text-white hover:bg-white/10"
+              style={{ color: '#f6ba32' }}
+              className="hover:bg-[rgba(246,186,50,0.15)]"
               title={modoLeitura === "setas" ? "Modo rolagem" : "Modo setas"}
             >
               {modoLeitura === "setas" ? (
@@ -483,7 +487,8 @@ export default function RevistaLeitura() {
               variant="ghost"
               size="icon"
               onClick={fecharLeitor}
-              className="text-white hover:bg-white/10"
+              style={{ color: '#f6ba32' }}
+              className="hover:bg-[rgba(246,186,50,0.15)]"
             >
               <X className="h-5 w-5" />
             </Button>
