@@ -306,15 +306,15 @@ export default function RevistaLeitura() {
         <div style={{
           display: 'flex', alignItems: 'center',
           padding: '10px 16px',
-          background: modoNoturno ? '#000' : '#e8dcc8',
-          borderBottom: `1px solid ${modoNoturno ? '#333' : '#c8b89a'}`,
+          background: '#1c1915',
+          borderBottom: '1px solid rgba(246,186,50,0.2)',
           gap: '12px'
         }}>
           <button
             onClick={() => setModoKindle(false)}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: '14px', color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+              fontSize: '14px', color: '#f6ba32',
               display: 'flex', alignItems: 'center', gap: '6px'
             }}
           >
@@ -322,14 +322,14 @@ export default function RevistaLeitura() {
           </button>
           <span style={{
             flex: 1, fontSize: '14px', fontWeight: '500',
-            color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+            color: '#f6ba32',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
           }}>
             {revista?.titulo}
           </span>
           <button
             onClick={toggleModoNoturno}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#f6ba32', opacity: 1 }}
           >
             {modoNoturno ? '☀️' : '🌙'}
           </button>
@@ -439,28 +439,32 @@ export default function RevistaLeitura() {
           <Progress
             value={progressPercent}
             className="h-1 rounded-none"
-            style={{ backgroundColor: "#1e293b" }}
+            style={{ backgroundColor: '#1c1915' }}
+            indicatorClassName="bg-[#f6ba32]"
           />
         )}
 
         {/* Header */}
         <div
-          className="flex items-center justify-between px-4 py-2 backdrop-blur"
-          style={{ backgroundColor: "rgba(15,23,42,0.8)" }}
+          className="flex items-center justify-between px-4 py-2"
+          style={{ backgroundColor: '#1c1915' }}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <span className="text-white/60 text-sm shrink-0">
+            <span className="text-sm shrink-0" style={{ color: '#f6ba32', opacity: 0.7 }}>
               Lição {licaoAberta.numero}
             </span>
-            <span className="text-white font-medium text-sm truncate">
+            <span className="font-medium text-sm truncate" style={{ color: '#f6ba32' }}>
               {licaoAberta.titulo || `Lição ${licaoAberta.numero}`}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={toggleModoNoturno}
-              className="p-2 text-lg hover:bg-white/10 rounded"
+              className="p-2 rounded"
+              style={{ fontSize: '20px', color: '#f6ba32', opacity: 1, background: 'none', border: 'none', cursor: 'pointer' }}
               title={modoNoturno ? "Modo claro" : "Modo noturno"}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(246,186,50,0.15)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
             >
               {modoNoturno ? "☀️" : "🌙"}
             </button>
@@ -470,7 +474,8 @@ export default function RevistaLeitura() {
               onClick={() =>
                 setModoLeitura(modoLeitura === "setas" ? "rolagem" : "setas")
               }
-              className="text-white hover:bg-white/10"
+              style={{ color: '#f6ba32' }}
+              className="hover:bg-[rgba(246,186,50,0.15)]"
               title={modoLeitura === "setas" ? "Modo rolagem" : "Modo setas"}
             >
               {modoLeitura === "setas" ? (
@@ -483,7 +488,8 @@ export default function RevistaLeitura() {
               variant="ghost"
               size="icon"
               onClick={fecharLeitor}
-              className="text-white hover:bg-white/10"
+              style={{ color: '#f6ba32' }}
+              className="hover:bg-[rgba(246,186,50,0.15)]"
             >
               <X className="h-5 w-5" />
             </Button>
@@ -527,32 +533,32 @@ export default function RevistaLeitura() {
 
             {/* Footer nav */}
             <div
-              className="flex items-center justify-between px-4 py-3 backdrop-blur"
-              style={{ backgroundColor: "rgba(15,23,42,0.8)" }}
+              className="flex items-center justify-between px-4 py-3"
+              style={{ backgroundColor: '#1c1915' }}
             >
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => goToPage(paginaAtual - 1)}
                 disabled={paginaAtual === 0}
-                className="text-white hover:bg-white/10"
+                style={{ color: '#f6ba32' }}
+                className="hover:bg-[rgba(246,186,50,0.15)]"
               >
                 <ChevronLeft className="h-5 w-5 mr-1" /> Anterior
               </Button>
-              <span className="text-white/60 text-sm">
+              <span className="text-sm" style={{ color: '#f6ba32', opacity: 0.6 }}>
                 Página {paginaAtual + 1} de {totalPages}
               </span>
               {isLastPage ? (
                 isLastLicao ? (
-                  <span className="text-sm font-medium flex items-center gap-1" style={{ color: "#f97316" }}>
+                  <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#f6ba32' }}>
                     <PartyPopper className="h-4 w-4" /> Concluída!
                   </span>
                 ) : (
                   <Button
                     size="sm"
                     onClick={irProximaLicao}
-                    className="text-white"
-                    style={{ backgroundColor: "#f97316" }}
+                    style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
                   >
                     Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
                   </Button>
@@ -562,7 +568,8 @@ export default function RevistaLeitura() {
                   variant="ghost"
                   size="sm"
                   onClick={() => goToPage(paginaAtual + 1)}
-                  className="text-white hover:bg-white/10"
+                  style={{ color: '#f6ba32' }}
+                  className="hover:bg-[rgba(246,186,50,0.15)]"
                 >
                   Próxima <ChevronRight className="h-5 w-5 ml-1" />
                 </Button>
@@ -588,15 +595,14 @@ export default function RevistaLeitura() {
               <div className="py-8 text-center">
                 {isLastLicao ? (
                   <p className="text-white font-medium flex items-center justify-center gap-2">
-                    <PartyPopper className="h-5 w-5" style={{ color: "#f97316" }} />
+                    <PartyPopper className="h-5 w-5" style={{ color: '#f6ba32' }} />
                     Você concluiu a revista!
                   </p>
                 ) : (
                   <Button
                     size="lg"
                     onClick={irProximaLicao}
-                    className="text-white"
-                    style={{ backgroundColor: "#f97316" }}
+                    style={{ backgroundColor: '#f6ba32', color: '#1c1915' }}
                   >
                     Próxima lição <ChevronRight className="h-5 w-5 ml-1" />
                   </Button>
@@ -620,23 +626,26 @@ export default function RevistaLeitura() {
     >
       {/* Header */}
       <div
-        className={`px-4 py-4 flex items-center justify-between ${modoNoturno ? "" : "bg-primary text-primary-foreground"}`}
-        style={modoNoturno ? { background: "#1a1a1a", color: "#fff" } : undefined}
+        className="px-4 py-4 flex items-center justify-between"
+        style={{ background: '#1c1915', color: '#f6ba32' }}
       >
         <div className="flex items-center gap-3">
-          <BookOpen className="h-6 w-6" />
+          <BookOpen className="h-6 w-6" style={{ color: '#f6ba32' }} />
           <div>
-            <p className="text-lg font-semibold">Revista Digital</p>
+            <p className="text-lg font-semibold" style={{ color: '#f6ba32' }}>Revista Digital</p>
             {nomeComprador && (
-              <p className="text-sm opacity-80">Olá, {nomeComprador}</p>
+              <p className="text-sm" style={{ color: '#f6ba32', opacity: 0.8 }}>Olá, {nomeComprador}</p>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={toggleModoNoturno}
-            className="p-2 text-lg rounded hover:opacity-80"
+            className="p-2 rounded"
+            style={{ fontSize: '20px', color: '#f6ba32', opacity: 1, background: 'none', border: 'none', cursor: 'pointer' }}
             title={modoNoturno ? "Modo claro" : "Modo noturno"}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(246,186,50,0.15)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
           >
             {modoNoturno ? "☀️" : "🌙"}
           </button>
@@ -644,10 +653,8 @@ export default function RevistaLeitura() {
             variant="ghost"
             size="sm"
             onClick={handleLogout}
-            className={modoNoturno
-              ? "text-white hover:text-white/80 hover:bg-white/10 text-base"
-              : "text-primary-foreground hover:text-primary-foreground/80 hover:bg-primary-foreground/10 text-base"
-            }
+            style={{ color: '#f6ba32' }}
+            className="hover:bg-[rgba(246,186,50,0.15)] text-base"
           >
             <LogOut className="h-5 w-5 mr-2" />
             Sair
@@ -699,7 +706,7 @@ export default function RevistaLeitura() {
                     <h2 className={`text-lg font-semibold ${modoNoturno ? "text-white" : ""}`}>
                       {l.revistas_digitais?.titulo || "Revista"}
                     </h2>
-                    <Button className="w-full mt-3 h-12 text-base">Ler</Button>
+                    <Button className="w-full mt-3 h-12 text-base" style={{ background: '#f6ba32', color: '#1c1915' }}>Ler</Button>
                   </CardContent>
                 </Card>
               ))}
@@ -740,8 +747,8 @@ export default function RevistaLeitura() {
                     className="flex items-center gap-2 w-full p-4 rounded-lg font-medium text-lg transition-colors mb-4"
                     style={{
                       background: modoNoturno ? '#2a2a2a' : '#f5f0e8',
-                      color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
-                      border: `2px solid ${modoNoturno ? '#444' : '#c8b89a'}`
+                      color: modoNoturno ? '#f6ba32' : '#1c1915',
+                      border: `2px solid #f6ba32`
                     }}
                   >
                     <BookOpen className="h-5 w-5" />
@@ -753,9 +760,9 @@ export default function RevistaLeitura() {
                 {progressoSalvo && licoes.length > 0 && (
                   <div
                     className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-lg"
-                    style={{ background: "#1B3A5C" }}
+                    style={{ background: '#1c1915' }}
                   >
-                    <span className="text-white text-sm">
+                    <span className="text-sm" style={{ color: '#f6ba32' }}>
                       Continuar da Lição {progressoSalvo.licaoNumero}, Página {progressoSalvo.pagina + 1}?
                     </span>
                     <div className="flex gap-2">
@@ -769,14 +776,14 @@ export default function RevistaLeitura() {
                           setProgressoSalvo(null);
                         }}
                         style={{
-                          background: "#fff",
-                          color: "#1B3A5C",
-                          border: "none",
-                          borderRadius: "6px",
-                          padding: "6px 14px",
-                          cursor: "pointer",
-                          fontWeight: "500",
-                          fontSize: "14px",
+                          background: '#f6ba32',
+                          color: '#1c1915',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 14px',
+                          cursor: 'pointer',
+                          fontWeight: '500',
+                          fontSize: '14px',
                         }}
                       >
                         Continuar
