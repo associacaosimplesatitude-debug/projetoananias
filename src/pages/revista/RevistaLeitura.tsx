@@ -330,14 +330,16 @@ export default function RevistaLeitura() {
           </button>
         </div>
         <div style={{
-          flex: 1, overflow: 'hidden', display: 'flex',
+          flex: 1, overflow: 'auto', display: 'flex',
           justifyContent: 'center',
-          background: modoNoturno ? '#1a1a1a' : '#f5f0e8'
+          background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+          WebkitOverflowScrolling: 'touch'
         }}>
           <iframe
             src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
             style={{
-              border: 'none', width: '100%', maxWidth: '800px', height: '100%',
+              border: 'none', width: '100%', maxWidth: '800px',
+              minHeight: '100vh', height: '200vh',
               background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
               filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
             }}
