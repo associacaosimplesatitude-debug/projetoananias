@@ -904,6 +904,114 @@ export default function RevistaLeitura() {
           </div>
         )}
       </div>
+      {mostrarOnboarding && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.88)',
+          zIndex: 300,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px'
+        }}>
+          <div style={{
+            background: '#1c1915',
+            borderRadius: '16px',
+            padding: '28px 24px',
+            maxWidth: '480px',
+            width: '100%',
+            border: '2px solid #f6ba32',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <img
+                src={logoCentralGospel}
+                alt="Central Gospel Editora"
+                style={{ height: '48px', marginBottom: '16px' }}
+              />
+              <h2 style={{
+                color: '#f6ba32', margin: 0,
+                fontSize: '20px', fontWeight: '600'
+              }}>
+                Bem-vindo à sua Revista Digital!
+              </h2>
+              <p style={{
+                color: '#aaa', fontSize: '14px',
+                marginTop: '8px', marginBottom: 0
+              }}>
+                Veja tudo que você pode fazer:
+              </p>
+            </div>
+
+            {[
+              { icon: '📚', titulo: 'Leitura por Lições', descricao: 'Acesse cada lição separadamente com navegação por setas ou rolagem. Use ← → no teclado ou deslize a tela no celular.' },
+              { icon: '📜', titulo: 'Modo Leitura (texto contínuo)', descricao: 'Leia a revista inteira do início ao fim sem interrupções. No celular as imagens aparecem em scroll, no computador abre o PDF completo.' },
+              { icon: '🌙', titulo: 'Modo Noturno', descricao: 'Toque no ícone de lua no canto superior direito para ativar o fundo escuro. Ideal para leitura à noite. As cores invertem automaticamente.' },
+              { icon: '🔍', titulo: 'Zoom nas páginas', descricao: 'Toque ou clique em qualquer página para ampliar e ver os detalhes. Toque novamente ou pressione ESC para voltar.' },
+              { icon: '🔖', titulo: 'Continuar de onde parou', descricao: 'O sistema salva seu progresso automaticamente. Na próxima visita aparece um aviso para continuar da página onde você parou.' },
+              { icon: '🛒', titulo: 'Descubra mais materiais', descricao: 'Na tela inicial role até o final para ver outros materiais disponíveis que você ainda não tem.' },
+            ].map((item, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                gap: '12px',
+                marginBottom: '16px',
+                padding: '12px',
+                background: 'rgba(246,186,50,0.08)',
+                borderRadius: '10px',
+                border: '1px solid rgba(246,186,50,0.2)'
+              }}>
+                <span style={{ fontSize: '24px', flexShrink: 0 }}>{item.icon}</span>
+                <div>
+                  <div style={{
+                    color: '#f6ba32', fontWeight: '600',
+                    fontSize: '14px', marginBottom: '4px'
+                  }}>
+                    {item.titulo}
+                  </div>
+                  <div style={{ color: '#ccc', fontSize: '13px', lineHeight: '1.5' }}>
+                    {item.descricao}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={() => fecharOnboarding(false)}
+                style={{
+                  background: '#f6ba32',
+                  color: '#1c1915',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+              >
+                Entendi, vamos lá!
+              </button>
+              <button
+                onClick={() => fecharOnboarding(true)}
+                style={{
+                  background: 'transparent',
+                  color: '#888',
+                  border: '1px solid #444',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+              >
+                Não mostrar novamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
