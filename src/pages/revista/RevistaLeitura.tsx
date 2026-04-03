@@ -217,6 +217,38 @@ export default function RevistaLeitura() {
   const selectedLicenca = licencas.find((l) => l.revista_id === selectedRevista);
   const revista = selectedLicenca?.revistas_digitais;
 
+  // ─── PDF VIEWER ──────────────────────────────────────────────
+  if (pdfAberto && revista?.pdf_url) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex flex-col select-none"
+        style={{ background: "#1a1a1a" }}
+      >
+        <div
+          className="flex items-center px-4 py-2 gap-3"
+          style={{ background: "#000" }}
+        >
+          <button
+            onClick={() => setPdfAberto(false)}
+            className="text-white text-sm flex items-center gap-1.5"
+            style={{ background: "none", border: "none", cursor: "pointer" }}
+          >
+            <ArrowLeft className="h-4 w-4" /> Voltar
+          </button>
+          <span className="text-white text-sm flex-1 truncate">
+            {revista?.titulo}
+          </span>
+        </div>
+        <iframe
+          src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
+          className="flex-1 w-full border-0"
+          title="PDF Viewer"
+          allow="fullscreen"
+        />
+      </div>
+    );
+  }
+
   // ─── ZOOM OVERLAY ────────────────────────────────────────────
   if (licaoAberta && zoomed && paginas[paginaAtual]) {
     return (
