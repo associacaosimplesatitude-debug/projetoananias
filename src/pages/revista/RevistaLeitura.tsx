@@ -493,8 +493,8 @@ export default function RevistaLeitura() {
   // ─── LIST VIEW ──────────────────────────────────────────────
   return (
     <div
-      className="min-h-screen"
-      style={{ background: modoNoturno ? "#0f0f0f" : undefined }}
+      className={`min-h-screen ${modoNoturno ? "" : "bg-background"}`}
+      style={modoNoturno ? { background: "#0f0f0f" } : undefined}
     >
       {/* Header */}
       <div
