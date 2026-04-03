@@ -153,21 +153,19 @@ export default function RevistaLeitura() {
 
   // Keyboard navigation
   useEffect(() => {
+    if (!licaoAberta) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (pdfZoomed) { setPdfZoomed(false); return; }
-        if (pdfAberto) { setPdfAberto(false); setPdfZoomed(false); setPdfCarregando(true); return; }
         if (zoomed) { setZoomed(false); return; }
-        if (licaoAberta) { setLicaoAberta(null); setPaginaAtual(0); return; }
-        return;
+        setLicaoAberta(null); setPaginaAtual(0); return;
       }
-      if (!licaoAberta || modoLeitura !== "setas" || zoomed) return;
+      if (modoLeitura !== "setas" || zoomed) return;
       if (e.key === "ArrowRight" || e.key === " ") goToPage(paginaAtual + 1);
       if (e.key === "ArrowLeft") goToPage(paginaAtual - 1);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [licaoAberta, paginaAtual, goToPage, modoLeitura, zoomed, pdfAberto, pdfZoomed]);
+  }, [licaoAberta, paginaAtual, goToPage, modoLeitura, zoomed]);
 
   // Touch swipe
   const handleTouchStart = (e: React.TouchEvent) => {
