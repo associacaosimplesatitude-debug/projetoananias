@@ -705,7 +705,7 @@ export default function RevistaLeitura() {
                     <h2 className={`text-lg font-semibold ${modoNoturno ? "text-white" : ""}`}>
                       {l.revistas_digitais?.titulo || "Revista"}
                     </h2>
-                    <Button className="w-full mt-3 h-12 text-base">Ler</Button>
+                    <Button className="w-full mt-3 h-12 text-base" style={{ background: '#f6ba32', color: '#1c1915' }}>Ler</Button>
                   </CardContent>
                 </Card>
               ))}
