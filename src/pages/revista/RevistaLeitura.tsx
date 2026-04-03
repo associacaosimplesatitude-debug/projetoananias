@@ -533,15 +533,13 @@ export default function RevistaLeitura() {
               <div className="space-y-3">
                 {/* PDF completo button */}
                 {revista?.pdf_url && (
-                  <a
-                    href={revista.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setPdfAberto(true)}
                     className="flex items-center justify-center gap-2 w-full p-4 border-2 border-primary rounded-lg text-primary font-medium text-lg hover:bg-primary hover:text-primary-foreground transition-colors"
                   >
                     <FileText className="h-5 w-5" />
                     Ler revista completa em PDF
-                  </a>
+                  </button>
                 )}
 
                 {revista?.pdf_url && (
