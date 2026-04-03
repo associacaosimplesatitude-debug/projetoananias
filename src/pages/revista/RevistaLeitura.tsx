@@ -498,12 +498,8 @@ export default function RevistaLeitura() {
     >
       {/* Header */}
       <div
-        className="px-4 py-4 flex items-center justify-between"
-        style={{
-          background: modoNoturno ? "#1a1a1a" : undefined,
-          color: modoNoturno ? "#fff" : undefined,
-        }}
-        {...(!modoNoturno ? { className: "bg-primary text-primary-foreground px-4 py-4 flex items-center justify-between" } : {})}
+        className={`px-4 py-4 flex items-center justify-between ${modoNoturno ? "" : "bg-primary text-primary-foreground"}`}
+        style={modoNoturno ? { background: "#1a1a1a", color: "#fff" } : undefined}
       >
         <div className="flex items-center gap-3">
           <BookOpen className="h-6 w-6" />
