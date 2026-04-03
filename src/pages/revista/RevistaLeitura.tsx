@@ -541,11 +541,12 @@ export default function RevistaLeitura() {
                 size="sm"
                 onClick={() => goToPage(paginaAtual - 1)}
                 disabled={paginaAtual === 0}
-                className="text-white hover:bg-white/10"
+                style={{ color: '#f6ba32' }}
+                className="hover:bg-[rgba(246,186,50,0.15)]"
               >
                 <ChevronLeft className="h-5 w-5 mr-1" /> Anterior
               </Button>
-              <span className="text-white/60 text-sm">
+              <span className="text-sm" style={{ color: '#f6ba32', opacity: 0.6 }}>
                 Página {paginaAtual + 1} de {totalPages}
               </span>
               {isLastPage ? (
