@@ -595,7 +595,7 @@ export default function RevistaLeitura() {
               <div className="py-8 text-center">
                 {isLastLicao ? (
                   <p className="text-white font-medium flex items-center justify-center gap-2">
-                    <PartyPopper className="h-5 w-5" style={{ color: "#f97316" }} />
+                    <PartyPopper className="h-5 w-5" style={{ color: '#f6ba32' }} />
                     Você concluiu a revista!
                   </p>
                 ) : (
