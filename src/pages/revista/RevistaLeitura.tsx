@@ -213,6 +213,7 @@ export default function RevistaLeitura() {
     if (!licaoAberta) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (modoKindle) { setModoKindle(false); return; }
         if (zoomed) { setZoomed(false); return; }
         setLicaoAberta(null); setPaginaAtual(0); return;
       }
