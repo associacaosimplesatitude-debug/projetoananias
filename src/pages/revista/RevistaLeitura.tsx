@@ -289,6 +289,65 @@ export default function RevistaLeitura() {
 
   const readerBg = modoNoturno ? "#0a0a0a" : "#000";
 
+  // ─── MODO KINDLE (PDF) ────────────────────────────────────────
+  if (modoKindle && revista?.pdf_url) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0,
+        background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+        display: 'flex', flexDirection: 'column',
+        zIndex: 50
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          padding: '10px 16px',
+          background: modoNoturno ? '#000' : '#e8dcc8',
+          borderBottom: `1px solid ${modoNoturno ? '#333' : '#c8b89a'}`,
+          gap: '12px'
+        }}>
+          <button
+            onClick={() => setModoKindle(false)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '14px', color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+              display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            ← Voltar
+          </button>
+          <span style={{
+            flex: 1, fontSize: '14px', fontWeight: '500',
+            color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+          }}>
+            {revista?.titulo}
+          </span>
+          <button
+            onClick={toggleModoNoturno}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}
+          >
+            {modoNoturno ? '☀️' : '🌙'}
+          </button>
+        </div>
+        <div style={{
+          flex: 1, overflow: 'hidden', display: 'flex',
+          justifyContent: 'center',
+          background: modoNoturno ? '#1a1a1a' : '#f5f0e8'
+        }}>
+          <iframe
+            src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+            style={{
+              border: 'none', width: '100%', maxWidth: '800px', height: '100%',
+              background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+              filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+            }}
+            title={revista?.titulo}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // ─── ZOOM OVERLAY ────────────────────────────────────────────
   if (licaoAberta && zoomed && paginas[paginaAtual]) {
     return (
