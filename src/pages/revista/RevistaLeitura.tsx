@@ -87,6 +87,16 @@ export default function RevistaLeitura() {
   // Modo Kindle
   const [modoKindle, setModoKindle] = useState(false);
 
+  // Onboarding modal
+  const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
+
+  const fecharOnboarding = (naoMostrarMais: boolean) => {
+    if (naoMostrarMais) {
+      localStorage.setItem('revista_onboarding_v2', 'true');
+    }
+    setMostrarOnboarding(false);
+  };
+
   // Load night mode preference
   useEffect(() => {
     const salvo = localStorage.getItem("revista_modo_noturno");
