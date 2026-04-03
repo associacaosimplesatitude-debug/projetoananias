@@ -339,15 +339,15 @@ export default function RevistaLeitura() {
           position: 'relative'
         }}>
           <iframe
-            src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
+            src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
             style={{
               border: 'none',
               width: '100%',
-              maxWidth: '800px',
               height: '100%',
               minHeight: '100vh',
               background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
-              filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+              filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
+              display: 'block'
             }}
             title={revista?.titulo}
           />
