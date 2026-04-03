@@ -289,8 +289,12 @@ export default function RevistaLeitura() {
 
   const readerBg = modoNoturno ? "#0a0a0a" : "#000";
 
-  // ─── MODO KINDLE (PDF) ────────────────────────────────────────
-  if (modoKindle && revista?.pdf_url) {
+  // ─── MODO KINDLE (PDF / imagens) ──────────────────────────────
+  const isMobile = typeof window !== 'undefined' && (
+    window.innerWidth < 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  );
+
+  if (modoKindle && revista) {
     return (
       <div style={{
         position: 'fixed', inset: 0,
@@ -298,6 +302,7 @@ export default function RevistaLeitura() {
         display: 'flex', flexDirection: 'column',
         zIndex: 50
       }}>
+        {/* Header — igual para mobile e desktop */}
         <div style={{
           display: 'flex', alignItems: 'center',
           padding: '10px 16px',
@@ -329,29 +334,74 @@ export default function RevistaLeitura() {
             {modoNoturno ? '☀️' : '🌙'}
           </button>
         </div>
-        <div style={{
-          flex: 1,
-          overflow: 'auto',
-          WebkitOverflowScrolling: 'touch',
-          display: 'flex',
-          justifyContent: 'center',
-          background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
-          position: 'relative'
-        }}>
-          <iframe
-            src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
-            style={{
-              border: 'none',
-              width: '100%',
-              height: '100%',
-              minHeight: '100vh',
-              background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
-              filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
-              display: 'block'
-            }}
-            title={revista?.titulo}
-          />
-        </div>
+
+        {/* Conteúdo — condicional mobile vs desktop */}
+        {isMobile ? (
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
+          }}>
+            {licoes.map((licao) => (
+              <div key={licao.id}>
+                <div style={{
+                  textAlign: 'center',
+                  padding: '12px',
+                  background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
+                  color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  borderTop: '1px solid rgba(0,0,0,0.1)'
+                }}>
+                  Lição {licao.numero} — {licao.titulo}
+                </div>
+                {(licao.paginas || []).map((url: string, i: number) => (
+                  <img
+                    key={i}
+                    src={url}
+                    alt={`Lição ${licao.numero} - Página ${i + 1}`}
+                    style={{
+                      width: '100%',
+                      display: 'block',
+                      filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            flex: 1,
+            overflow: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            display: 'flex',
+            justifyContent: 'center',
+            background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+            position: 'relative'
+          }}>
+            {revista.pdf_url ? (
+              <iframe
+                src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&zoom=page-width`}
+                style={{
+                  border: 'none',
+                  width: '100%',
+                  height: '100%',
+                  minHeight: '100vh',
+                  background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+                  filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
+                  display: 'block'
+                }}
+                title={revista?.titulo}
+              />
+            ) : (
+              <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
+                PDF não disponível para esta revista.
+              </p>
+            )}
+          </div>
+        )}
       </div>
     );
   }
