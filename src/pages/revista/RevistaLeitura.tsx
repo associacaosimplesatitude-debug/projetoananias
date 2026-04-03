@@ -65,6 +65,7 @@ export default function RevistaLeitura() {
   const [paginaAtual, setPaginaAtual] = useState(0);
   const [modoLeitura, setModoLeitura] = useState<"setas" | "rolagem">("setas");
   const [zoomed, setZoomed] = useState(false);
+  const [pdfAberto, setPdfAberto] = useState(false);
   const touchStartX = useRef(0);
 
   // Auth check
@@ -215,6 +216,38 @@ export default function RevistaLeitura() {
 
   const selectedLicenca = licencas.find((l) => l.revista_id === selectedRevista);
   const revista = selectedLicenca?.revistas_digitais;
+
+  // ─── PDF VIEWER ──────────────────────────────────────────────
+  if (pdfAberto && revista?.pdf_url) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex flex-col select-none"
+        style={{ background: "#1a1a1a" }}
+      >
+        <div
+          className="flex items-center px-4 py-2 gap-3"
+          style={{ background: "#000" }}
+        >
+          <button
+            onClick={() => setPdfAberto(false)}
+            className="text-white text-sm flex items-center gap-1.5"
+            style={{ background: "none", border: "none", cursor: "pointer" }}
+          >
+            <ArrowLeft className="h-4 w-4" /> Voltar
+          </button>
+          <span className="text-white text-sm flex-1 truncate">
+            {revista?.titulo}
+          </span>
+        </div>
+        <iframe
+          src={`${revista.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
+          className="flex-1 w-full border-0"
+          title="PDF Viewer"
+          allow="fullscreen"
+        />
+      </div>
+    );
+  }
 
   // ─── ZOOM OVERLAY ────────────────────────────────────────────
   if (licaoAberta && zoomed && paginas[paginaAtual]) {
@@ -500,15 +533,13 @@ export default function RevistaLeitura() {
               <div className="space-y-3">
                 {/* PDF completo button */}
                 {revista?.pdf_url && (
-                  <a
-                    href={revista.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setPdfAberto(true)}
                     className="flex items-center justify-center gap-2 w-full p-4 border-2 border-primary rounded-lg text-primary font-medium text-lg hover:bg-primary hover:text-primary-foreground transition-colors"
                   >
                     <FileText className="h-5 w-5" />
                     Ler revista completa em PDF
-                  </a>
+                  </button>
                 )}
 
                 {revista?.pdf_url && (
