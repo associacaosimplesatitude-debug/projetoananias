@@ -110,6 +110,7 @@ export default function RevistaLeitura() {
   };
 
   const trackAcesso = async (licencasArr: Licenca[]) => {
+    console.log('trackAcesso chamada com', licencasArr.length, 'licenças');
     const trackKey = 'revista_geo_tracked_' + new Date().toDateString();
     if (sessionStorage.getItem(trackKey)) return;
     sessionStorage.setItem(trackKey, 'true');
@@ -133,8 +134,10 @@ export default function RevistaLeitura() {
       if (resp.ok) ipData = await resp.json();
     } catch { /* silent */ }
 
+    console.log('ipapi.co data:', ipData);
+
     for (const licenca of licencasArr) {
-      const { data: record } = await supabase
+      const { data: record, error: insertError } = await supabase
         .from('revista_acessos_geo' as any)
         .insert({
           whatsapp: whatsappVal,
@@ -152,6 +155,12 @@ export default function RevistaLeitura() {
         } as any)
         .select('id')
         .single();
+
+      if (insertError) {
+        console.error('revista_acessos_geo insert error:', insertError);
+      } else {
+        console.log('revista_acessos_geo inserido:', record);
+      }
 
       if ((record as any)?.id && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
