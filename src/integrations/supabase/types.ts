@@ -5244,6 +5244,74 @@ export type Database = {
           },
         ]
       }
+      revista_acessos_geo: {
+        Row: {
+          cidade: string | null
+          created_at: string | null
+          estado: string | null
+          fonte_localizacao: string | null
+          id: string
+          ip: string | null
+          is_mobile: boolean | null
+          latitude: number | null
+          latitude_gps: number | null
+          longitude: number | null
+          longitude_gps: number | null
+          pais: string | null
+          precisao_gps: number | null
+          revista_id: string | null
+          screen_width: number | null
+          user_agent: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          cidade?: string | null
+          created_at?: string | null
+          estado?: string | null
+          fonte_localizacao?: string | null
+          id?: string
+          ip?: string | null
+          is_mobile?: boolean | null
+          latitude?: number | null
+          latitude_gps?: number | null
+          longitude?: number | null
+          longitude_gps?: number | null
+          pais?: string | null
+          precisao_gps?: number | null
+          revista_id?: string | null
+          screen_width?: number | null
+          user_agent?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          cidade?: string | null
+          created_at?: string | null
+          estado?: string | null
+          fonte_localizacao?: string | null
+          id?: string
+          ip?: string | null
+          is_mobile?: boolean | null
+          latitude?: number | null
+          latitude_gps?: number | null
+          longitude?: number | null
+          longitude_gps?: number | null
+          pais?: string | null
+          precisao_gps?: number | null
+          revista_id?: string | null
+          screen_width?: number | null
+          user_agent?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_acessos_geo_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revista_assinaturas: {
         Row: {
           cliente_id: string
