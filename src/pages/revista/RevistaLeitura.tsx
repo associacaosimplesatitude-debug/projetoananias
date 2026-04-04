@@ -647,7 +647,7 @@ export default function RevistaLeitura() {
         <div className="flex items-center gap-3">
           <BookOpen className="h-6 w-6" style={{ color: '#f6ba32' }} />
           <div>
-            <p className="text-lg font-semibold" style={{ color: '#f6ba32' }}>Revista Digital</p>
+            <p className="text-lg font-semibold" style={{ color: '#f6ba32' }}>Minha Biblioteca</p>
             {nomeComprador && (
               <p className="text-sm" style={{ color: '#f6ba32', opacity: 0.8 }}>Olá, {nomeComprador}</p>
             )}
@@ -699,7 +699,7 @@ export default function RevistaLeitura() {
         {!selectedRevista && licencas.length > 1 && (
           <div className="space-y-6">
             <h1 className={`text-2xl font-bold ${modoNoturno ? "text-white" : "text-foreground"}`}>
-              Suas Revistas
+              Minha Biblioteca
             </h1>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {licencas.map((l) => (
@@ -852,7 +852,7 @@ export default function RevistaLeitura() {
         {catalogo.length > 0 && !selectedRevista && (
           <div className="space-y-6 mt-10">
             <h2 className={`text-2xl font-bold ${modoNoturno ? "text-white" : "text-foreground"}`}>
-              Descubra mais materiais
+              Descubra mais
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {catalogo.map((item) => (
@@ -944,7 +944,7 @@ export default function RevistaLeitura() {
                 color: '#f6ba32', margin: 0,
                 fontSize: '20px', fontWeight: '600'
               }}>
-                Bem-vindo à sua Revista Digital!
+                Bem-vindo à sua Minha Biblioteca!
               </h2>
               <p style={{
                 color: '#aaa', fontSize: '14px',
@@ -960,7 +960,7 @@ export default function RevistaLeitura() {
               { icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6ba32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>, titulo: 'Modo Noturno', descricao: 'Toque no ícone de lua no canto superior direito para ativar o fundo escuro. Ideal para leitura à noite. As cores invertem automaticamente.' },
               { icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6ba32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>, titulo: 'Zoom nas páginas', descricao: 'Toque ou clique em qualquer página para ampliar e ver os detalhes. Toque novamente ou pressione ESC para voltar.' },
               { icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6ba32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>, titulo: 'Continuar de onde parou', descricao: 'O sistema salva seu progresso automaticamente. Na próxima visita aparece um aviso para continuar da página onde você parou.' },
-              { icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6ba32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>, titulo: 'Descubra mais materiais', descricao: 'Na tela inicial role até o final para ver outros materiais disponíveis que você ainda não tem.' },
+              { icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6ba32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>, titulo: 'Descubra mais', descricao: 'Na tela inicial role até o final para ver outros materiais disponíveis que você ainda não tem.' },
             ].map((item, i) => (
               <div key={i} style={{
                 display: 'flex',
