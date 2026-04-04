@@ -1,11 +1,76 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Globe, Smartphone, Monitor } from "lucide-react";
+
+function MapaLeaflet({ pontos }: { pontos: any[] }) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const L = (window as any).L;
+    if (!L) return;
+
+    if (mapInstance.current) {
+      mapInstance.current.remove();
+      mapInstance.current = null;
+    }
+
+    if (pontos.length === 0) return;
+
+    const map = L.map(mapRef.current).setView([-14.235, -51.925], 4);
+    mapInstance.current = map;
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+
+    pontos.forEach((p: any) => {
+      const lat = p.latitude_gps ?? p.latitude;
+      const lng = p.longitude_gps ?? p.longitude;
+      if (!lat || !lng) return;
+
+      const isGps = p.fonte_localizacao === "gps";
+      const color = isGps ? "#1d9e4e" : "#f6ba32";
+
+      L.circleMarker([Number(lat), Number(lng)], {
+        radius: 8,
+        fillColor: color,
+        color: "#fff",
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.8,
+      })
+        .bindPopup(
+          `<div style="font-size:13px;line-height:1.5">
+            <strong>${p.cidade || "—"}, ${p.estado || "—"}</strong><br/>
+            ${p.is_mobile ? "📱 Mobile" : "💻 Desktop"}<br/>
+            <span style="font-size:11px;color:#888">
+              ${new Date(p.created_at).toLocaleDateString("pt-BR")} às
+              ${new Date(p.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            </span><br/>
+            <span style="font-size:11px">
+              ${isGps ? "📍 GPS" : "🌐 IP"} — ${p.whatsapp || "sem whatsapp"}
+            </span>
+          </div>`
+        )
+        .addTo(map);
+    });
+
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
+  }, [pontos]);
+
+  return <div ref={mapRef} style={{ height: "100%", width: "100%" }} />;
+}
 
 export default function RevistaMapa() {
   const [filtroRevista, setFiltroRevista] = useState<string>("todas");
@@ -113,50 +178,7 @@ export default function RevistaMapa() {
           {isLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">Carregando mapa...</div>
           ) : (
-            <MapContainer
-              center={[-14.235, -51.925]}
-              zoom={4}
-              style={{ height: "100%", width: "100%" }}
-              scrollWheelZoom
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              {filtered.map((a: any) => {
-                const lat = a.latitude_gps ?? a.latitude;
-                const lng = a.longitude_gps ?? a.longitude;
-                const isGps = a.fonte_localizacao === "gps";
-                if (!lat || !lng) return null;
-                return (
-                  <CircleMarker
-                    key={a.id}
-                    center={[Number(lat), Number(lng)]}
-                    radius={7}
-                    pathOptions={{
-                      fillColor: isGps ? "#1d9e4e" : "#f6ba32",
-                      color: isGps ? "#1d9e4e" : "#f6ba32",
-                      weight: 1,
-                      fillOpacity: 0.8,
-                    }}
-                  >
-                    <Popup>
-                      <div className="text-sm space-y-1">
-                        <p className="font-semibold">{a.cidade || "—"}, {a.estado || "—"}</p>
-                        <p>{a.is_mobile ? "📱 Mobile" : "💻 Desktop"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(a.created_at).toLocaleDateString("pt-BR")} às{" "}
-                          {new Date(a.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                        <p className="text-xs">
-                          {isGps ? "📍 GPS" : "🌐 IP"} — {a.whatsapp || "sem whatsapp"}
-                        </p>
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                );
-              })}
-            </MapContainer>
+            <MapaLeaflet pontos={filtered} />
           )}
         </CardContent>
       </Card>
