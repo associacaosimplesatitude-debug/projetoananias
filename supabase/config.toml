@@ -305,3 +305,6 @@ verify_jwt = true
 
 [functions.gerar-quiz-revista]
 verify_jwt = false
+
+[functions.geo-ip]
+verify_jwt = false
