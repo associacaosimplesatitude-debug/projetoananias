@@ -130,11 +130,14 @@ export default function RevistaLeitura() {
 
     let ipData: any = {};
     try {
-      const resp = await fetch('https://ipapi.co/json/');
+      const geoUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geo-ip`;
+      const resp = await fetch(geoUrl, {
+        headers: { 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      });
       if (resp.ok) ipData = await resp.json();
     } catch { /* silent */ }
 
-    console.log('ipapi.co data:', ipData);
+    console.log('geo-ip data:', ipData);
 
     for (const licenca of licencasArr) {
       const { data: record, error: insertError } = await supabase
