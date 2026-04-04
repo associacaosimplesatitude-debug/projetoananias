@@ -944,7 +944,7 @@ export default function RevistaLeitura() {
                 color: '#f6ba32', margin: 0,
                 fontSize: '20px', fontWeight: '600'
               }}>
-                Bem-vindo à sua Minha Biblioteca!
+                Bem-vindo à Minha Biblioteca!
               </h2>
               <p style={{
                 color: '#aaa', fontSize: '14px',
