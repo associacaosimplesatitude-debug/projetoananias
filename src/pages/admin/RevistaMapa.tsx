@@ -86,7 +86,6 @@ export default function RevistaMapa() {
       const { data, error } = await supabase
         .from("revista_acessos_geo" as any)
         .select("id, whatsapp, cidade, estado, latitude, longitude, latitude_gps, longitude_gps, fonte_localizacao, is_mobile, created_at, revista_id")
-        .not("latitude", "is", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as any[];
