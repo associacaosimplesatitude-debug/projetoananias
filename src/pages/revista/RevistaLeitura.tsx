@@ -109,6 +109,70 @@ export default function RevistaLeitura() {
     localStorage.setItem("revista_modo_noturno", String(novo));
   };
 
+  const trackAcesso = async (licencasArr: Licenca[]) => {
+    const trackKey = 'revista_geo_tracked_' + new Date().toDateString();
+    if (sessionStorage.getItem(trackKey)) return;
+    sessionStorage.setItem(trackKey, 'true');
+
+    let whatsappVal = '';
+    try {
+      const token = sessionStorage.getItem('revista_token');
+      if (token) {
+        const decoded = JSON.parse(atob(token));
+        whatsappVal = decoded.whatsapp || '';
+      }
+    } catch { /* silent */ }
+
+    const isMobileDevice = window.innerWidth < 768;
+    const ua = navigator.userAgent;
+    const sw = window.innerWidth;
+
+    let ipData: any = {};
+    try {
+      const resp = await fetch('https://ipapi.co/json/');
+      if (resp.ok) ipData = await resp.json();
+    } catch { /* silent */ }
+
+    for (const licenca of licencasArr) {
+      const { data: record } = await supabase
+        .from('revista_acessos_geo' as any)
+        .insert({
+          whatsapp: whatsappVal,
+          revista_id: licenca.revista_id,
+          ip: ipData.ip || null,
+          cidade: ipData.city || null,
+          estado: ipData.region || null,
+          pais: ipData.country || 'BR',
+          latitude: ipData.latitude || null,
+          longitude: ipData.longitude || null,
+          fonte_localizacao: 'ip',
+          user_agent: ua,
+          is_mobile: isMobileDevice,
+          screen_width: sw,
+        } as any)
+        .select('id')
+        .single();
+
+      if ((record as any)?.id && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            await supabase
+              .from('revista_acessos_geo' as any)
+              .update({
+                latitude_gps: pos.coords.latitude,
+                longitude_gps: pos.coords.longitude,
+                precisao_gps: pos.coords.accuracy,
+                fonte_localizacao: 'gps',
+              } as any)
+              .eq('id', (record as any).id);
+          },
+          () => { /* GPS denied */ },
+          { timeout: 10000, maximumAge: 300000 }
+        );
+      }
+    }
+  };
+
   // Auth check
   useEffect(() => {
     const token = sessionStorage.getItem("revista_token");
@@ -143,6 +207,9 @@ export default function RevistaLeitura() {
       // Show onboarding if first visit
       const jaViu = localStorage.getItem('revista_onboarding_v2');
       if (!jaViu) setMostrarOnboarding(true);
+
+      // Geo tracking
+      trackAcesso(parsed);
     }
   }, [navigate]);
 
