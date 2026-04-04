@@ -143,6 +143,9 @@ export default function RevistaLeitura() {
       // Show onboarding if first visit
       const jaViu = localStorage.getItem('revista_onboarding_v2');
       if (!jaViu) setMostrarOnboarding(true);
+
+      // Geo tracking
+      trackAcesso(parsed);
     }
   }, [navigate]);
 
