@@ -165,7 +165,7 @@ export default function RevistaLeitura() {
       if ((record as any)?.id && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
-            await supabase
+            const { error: gpsError } = await supabase
               .from('revista_acessos_geo' as any)
               .update({
                 latitude_gps: pos.coords.latitude,
@@ -174,8 +174,15 @@ export default function RevistaLeitura() {
                 fonte_localizacao: 'gps',
               } as any)
               .eq('id', (record as any).id);
+            if (gpsError) {
+              console.error('revista_acessos_geo GPS update error:', gpsError);
+            } else {
+              console.log('revista_acessos_geo GPS salvo:', pos.coords.latitude, pos.coords.longitude);
+            }
           },
-          () => { /* GPS denied */ },
+          (geoErr) => {
+            console.warn('GPS negado/timeout:', geoErr.code, geoErr.message);
+          },
           { timeout: 10000, maximumAge: 300000 }
         );
       }

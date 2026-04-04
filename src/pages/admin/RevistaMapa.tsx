@@ -86,7 +86,6 @@ export default function RevistaMapa() {
       const { data, error } = await supabase
         .from("revista_acessos_geo" as any)
         .select("id, whatsapp, cidade, estado, latitude, longitude, latitude_gps, longitude_gps, fonte_localizacao, is_mobile, created_at, revista_id")
-        .not("latitude", "is", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as any[];
@@ -108,6 +107,14 @@ export default function RevistaMapa() {
     if (filtroRevista === "todas") return acessos;
     return acessos.filter((a: any) => a.revista_id === filtroRevista);
   }, [acessos, filtroRevista]);
+
+  const pontosMapeaveis = useMemo(() => {
+    return filtered.filter((a: any) => {
+      const lat = a.latitude_gps ?? a.latitude;
+      const lng = a.longitude_gps ?? a.longitude;
+      return lat != null && lng != null;
+    });
+  }, [filtered]);
 
   const stats = useMemo(() => {
     const cidades = new Set(filtered.map((a: any) => a.cidade).filter(Boolean));
@@ -182,8 +189,19 @@ export default function RevistaMapa() {
         <CardContent className="p-0 overflow-hidden rounded-lg" style={{ height: "500px" }}>
           {isLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">Carregando mapa...</div>
+          ) : pontosMapeaveis.length > 0 ? (
+            <MapaLeaflet pontos={pontosMapeaveis} />
           ) : (
-            <MapaLeaflet pontos={filtered} />
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+              <MapPin className="h-8 w-8 opacity-40" />
+              {filtered.length > 0 ? (
+                <p className="text-sm text-center max-w-xs">
+                  {filtered.length} acesso(s) registrado(s), mas nenhum com coordenadas disponíveis para plotagem no mapa.
+                </p>
+              ) : (
+                <p className="text-sm">Nenhum acesso registrado ainda.</p>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
