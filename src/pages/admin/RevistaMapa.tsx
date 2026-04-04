@@ -10,56 +10,61 @@ function MapaLeaflet({ pontos }: { pontos: any[] }) {
   const mapInstance = useRef<any>(null);
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || pontos.length === 0) return;
 
-    const L = (window as any).L;
-    if (!L) return;
+    const initMap = () => {
+      const L = (window as any).L;
+      if (!L) {
+        setTimeout(initMap, 100);
+        return;
+      }
 
-    if (mapInstance.current) {
-      mapInstance.current.remove();
-      mapInstance.current = null;
-    }
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
 
-    if (pontos.length === 0) return;
+      const map = L.map(mapRef.current).setView([-14.235, -51.925], 4);
+      mapInstance.current = map;
 
-    const map = L.map(mapRef.current).setView([-14.235, -51.925], 4);
-    mapInstance.current = map;
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
+      pontos.forEach((p: any) => {
+        const lat = p.latitude_gps ?? p.latitude;
+        const lng = p.longitude_gps ?? p.longitude;
+        if (!lat || !lng) return;
 
-    pontos.forEach((p: any) => {
-      const lat = p.latitude_gps ?? p.latitude;
-      const lng = p.longitude_gps ?? p.longitude;
-      if (!lat || !lng) return;
+        const isGps = p.fonte_localizacao === "gps";
+        const color = isGps ? "#1d9e4e" : "#f6ba32";
 
-      const isGps = p.fonte_localizacao === "gps";
-      const color = isGps ? "#1d9e4e" : "#f6ba32";
+        L.circleMarker([Number(lat), Number(lng)], {
+          radius: 8,
+          fillColor: color,
+          color: "#fff",
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8,
+        })
+          .bindPopup(
+            `<div style="font-size:13px;line-height:1.5">
+              <strong>${p.cidade || "—"}, ${p.estado || "—"}</strong><br/>
+              ${p.is_mobile ? "📱 Mobile" : "💻 Desktop"}<br/>
+              <span style="font-size:11px;color:#888">
+                ${new Date(p.created_at).toLocaleDateString("pt-BR")} às
+                ${new Date(p.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </span><br/>
+              <span style="font-size:11px">
+                ${isGps ? "📍 GPS" : "🌐 IP"} — ${p.whatsapp || "sem whatsapp"}
+              </span>
+            </div>`
+          )
+          .addTo(map);
+      });
+    };
 
-      L.circleMarker([Number(lat), Number(lng)], {
-        radius: 8,
-        fillColor: color,
-        color: "#fff",
-        weight: 1,
-        opacity: 1,
-        fillOpacity: 0.8,
-      })
-        .bindPopup(
-          `<div style="font-size:13px;line-height:1.5">
-            <strong>${p.cidade || "—"}, ${p.estado || "—"}</strong><br/>
-            ${p.is_mobile ? "📱 Mobile" : "💻 Desktop"}<br/>
-            <span style="font-size:11px;color:#888">
-              ${new Date(p.created_at).toLocaleDateString("pt-BR")} às
-              ${new Date(p.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-            </span><br/>
-            <span style="font-size:11px">
-              ${isGps ? "📍 GPS" : "🌐 IP"} — ${p.whatsapp || "sem whatsapp"}
-            </span>
-          </div>`
-        )
-        .addTo(map);
-    });
+    initMap();
 
     return () => {
       if (mapInstance.current) {
