@@ -108,6 +108,14 @@ export default function RevistaMapa() {
     return acessos.filter((a: any) => a.revista_id === filtroRevista);
   }, [acessos, filtroRevista]);
 
+  const pontosMapeaveis = useMemo(() => {
+    return filtered.filter((a: any) => {
+      const lat = a.latitude_gps ?? a.latitude;
+      const lng = a.longitude_gps ?? a.longitude;
+      return lat != null && lng != null;
+    });
+  }, [filtered]);
+
   const stats = useMemo(() => {
     const cidades = new Set(filtered.map((a: any) => a.cidade).filter(Boolean));
     const estados = new Set(filtered.map((a: any) => a.estado).filter(Boolean));
