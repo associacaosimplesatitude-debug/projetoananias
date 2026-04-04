@@ -189,8 +189,19 @@ export default function RevistaMapa() {
         <CardContent className="p-0 overflow-hidden rounded-lg" style={{ height: "500px" }}>
           {isLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">Carregando mapa...</div>
+          ) : pontosMapeaveis.length > 0 ? (
+            <MapaLeaflet pontos={pontosMapeaveis} />
           ) : (
-            <MapaLeaflet pontos={filtered} />
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+              <MapPin className="h-8 w-8 opacity-40" />
+              {filtered.length > 0 ? (
+                <p className="text-sm text-center max-w-xs">
+                  {filtered.length} acesso(s) registrado(s), mas nenhum com coordenadas disponíveis para plotagem no mapa.
+                </p>
+              ) : (
+                <p className="text-sm">Nenhum acesso registrado ainda.</p>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
