@@ -1,0 +1,1 @@
+CREATE POLICY "anon_select_own" ON public.revista_acessos_geo FOR SELECT TO anon USING (true);
