@@ -141,7 +141,7 @@ export default function RevistasDigitais() {
       const payload = {
         titulo,
         tipo,
-        trimestre,
+        trimestre: isLivroDigital ? null : trimestre,
         capa_url: capaUrl || null,
         total_licoes: Number(totalLicoes) || 0,
         ativo: true,
@@ -149,6 +149,8 @@ export default function RevistasDigitais() {
         autor: autor || null,
         ano_publicacao: anoPublicacao,
         status_publicacao: statusPublicacao,
+        tipo_conteudo: tipoConteudo,
+        leitura_continua: isLivroDigital,
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);
