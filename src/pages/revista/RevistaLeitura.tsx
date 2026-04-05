@@ -117,7 +117,7 @@ export default function RevistaLeitura() {
 
     let whatsappVal = '';
     try {
-      const token = sessionStorage.getItem('revista_token');
+      const token = localStorage.getItem('revista_token');
       if (token) {
         const decoded = JSON.parse(atob(token));
         whatsappVal = decoded.whatsapp || '';
