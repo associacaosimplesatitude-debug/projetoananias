@@ -194,7 +194,7 @@ export default function RevistaLeitura() {
 
   // Auth check
   useEffect(() => {
-    const token = sessionStorage.getItem("revista_token");
+    const token = localStorage.getItem("revista_token");
     if (!token) {
       navigate("/revista/acesso", { replace: true });
       return;
@@ -202,8 +202,8 @@ export default function RevistaLeitura() {
     try {
       const decoded = JSON.parse(atob(token));
       if (decoded.exp < Date.now()) {
-        sessionStorage.removeItem("revista_token");
-        sessionStorage.removeItem("revista_licencas");
+        localStorage.removeItem("revista_token");
+        localStorage.removeItem("revista_licencas");
         navigate("/revista/acesso", { replace: true });
         return;
       }
@@ -212,7 +212,7 @@ export default function RevistaLeitura() {
       return;
     }
 
-    const stored = sessionStorage.getItem("revista_licencas");
+    const stored = localStorage.getItem("revista_licencas");
     if (stored) {
       const parsed = JSON.parse(stored) as Licenca[];
       setLicencas(parsed);
