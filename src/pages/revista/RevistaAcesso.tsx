@@ -30,7 +30,7 @@ export default function RevistaAcesso() {
 
   // Check existing session
   useEffect(() => {
-    const token = sessionStorage.getItem("revista_token");
+    const token = localStorage.getItem("revista_token");
     if (token) {
       try {
         const decoded = JSON.parse(atob(token));
@@ -39,7 +39,7 @@ export default function RevistaAcesso() {
           return;
         }
       } catch {
-        sessionStorage.removeItem("revista_token");
+        localStorage.removeItem("revista_token");
       }
     }
   }, [navigate]);
@@ -133,8 +133,12 @@ export default function RevistaAcesso() {
         setError("Ocorreu um erro. Tente novamente.");
         return;
       }
-      sessionStorage.setItem("revista_token", data.token);
-      sessionStorage.setItem(
+      // Build token with 30-day expiration
+      const tokenPayload = JSON.parse(atob(data.token));
+      tokenPayload.exp = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      const newToken = btoa(JSON.stringify(tokenPayload));
+      localStorage.setItem("revista_token", newToken);
+      localStorage.setItem(
         "revista_licencas",
         JSON.stringify(data.licencas)
       );
