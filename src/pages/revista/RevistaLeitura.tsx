@@ -280,8 +280,8 @@ export default function RevistaLeitura() {
   }, [selectedRevista]);
 
   const handleLogout = () => {
-    sessionStorage.removeItem("revista_token");
-    sessionStorage.removeItem("revista_licencas");
+    localStorage.removeItem("revista_token");
+    localStorage.removeItem("revista_licencas");
     setModoKindle(false);
     navigate("/revista/acesso", { replace: true });
   };
