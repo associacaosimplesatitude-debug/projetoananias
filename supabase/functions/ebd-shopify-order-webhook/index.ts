@@ -916,6 +916,7 @@ serve(async (req) => {
               } else {
                 console.log("⚠️ Credenciais Z-API não configuradas, WhatsApp não enviado");
               }
+              } // fim do lock fase1
             } else if (isDigitalOrder) {
               console.log("⏭️ funil_fase1_auto suprimido — pedido de revista digital");
             } else {
