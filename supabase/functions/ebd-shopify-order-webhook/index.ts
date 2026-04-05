@@ -785,9 +785,23 @@ serve(async (req) => {
             }
             
             // e) Enviar WhatsApp Fase 1 imediatamente
+            // === CORREÇÃO 1: Suprimir funil_fase1 para pedidos de revista digital ===
+            const orderSkus = (order.line_items || []).map((li) => li.sku).filter(Boolean);
+            let isDigitalOrder = false;
+            if (orderSkus.length > 0) {
+              const { data: digitalMappings } = await supabase
+                .from('ebd_produto_revista_mapping')
+                .select('sku')
+                .in('sku', orderSkus);
+              if (digitalMappings && digitalMappings.length > 0) {
+                isDigitalOrder = true;
+                console.log("🛑 Pedido contém revista digital, suprimindo funil_fase1_auto. SKUs digitais:", digitalMappings.map(m => m.sku));
+              }
+            }
+
             const telefoneCliente = clienteCheck.telefone || order.customer?.phone || (order.shipping_address?.phone) || null;
             
-            if (telefoneCliente) {
+            if (telefoneCliente && !isDigitalOrder) {
               console.log("Enviando WhatsApp Fase 1 para:", telefoneCliente);
               
               // Buscar credenciais Z-API + flag de envio automático
@@ -885,6 +899,8 @@ serve(async (req) => {
               } else {
                 console.log("⚠️ Credenciais Z-API não configuradas, WhatsApp não enviado");
               }
+            } else if (isDigitalOrder) {
+              console.log("⏭️ funil_fase1_auto suprimido — pedido de revista digital");
             } else {
               console.log("⚠️ Cliente sem telefone, WhatsApp não enviado");
             }
