@@ -28,6 +28,8 @@ interface Revista {
   ano_publicacao: number | null;
   status_publicacao: string | null;
   created_at: string;
+  tipo_conteudo?: string | null;
+  leitura_continua?: boolean;
 }
 
 interface Licao {
