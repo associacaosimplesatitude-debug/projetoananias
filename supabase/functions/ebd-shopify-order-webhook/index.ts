@@ -800,20 +800,7 @@ serve(async (req) => {
               console.log("✅ funil_posv_tracking inserido (fase 1)");
             }
             
-            // e) Enviar WhatsApp Fase 1 imediatamente
-            // === CORREÇÃO 1: Suprimir funil_fase1 para pedidos de revista digital ===
-            const orderSkus = (order.line_items || []).map((li) => li.sku).filter(Boolean);
-            let isDigitalOrder = false;
-            if (orderSkus.length > 0) {
-              const { data: digitalMappings } = await supabase
-                .from('ebd_produto_revista_mapping')
-                .select('sku')
-                .in('sku', orderSkus);
-              if (digitalMappings && digitalMappings.length > 0) {
-                isDigitalOrder = true;
-                console.log("🛑 Pedido contém revista digital, suprimindo funil_fase1_auto. SKUs digitais:", digitalMappings.map(m => m.sku));
-              }
-            }
+            // e) Enviar WhatsApp Fase 1 imediatamente (isDigitalOrder já calculado acima)
 
             const telefoneCliente = clienteCheck.telefone || order.customer?.phone || (order.shipping_address?.phone) || null;
             
