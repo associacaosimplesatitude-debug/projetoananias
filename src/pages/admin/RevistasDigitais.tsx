@@ -50,12 +50,15 @@ export default function RevistasDigitais() {
   // Form fields
   const [titulo, setTitulo] = useState("");
   const [tipo, setTipo] = useState("aluno");
+  const [tipoConteudo, setTipoConteudo] = useState("revista");
   const [trimestre, setTrimestre] = useState("");
   const [totalLicoes, setTotalLicoes] = useState<number | "">("");
   const [descricao, setDescricao] = useState("");
   const [autor, setAutor] = useState("");
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
+
+  const isLivroDigital = tipoConteudo === "livro_digital";
 
   // Capa upload
   const [capaUrl, setCapaUrl] = useState("");
