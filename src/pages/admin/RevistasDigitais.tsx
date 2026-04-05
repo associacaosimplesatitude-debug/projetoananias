@@ -28,6 +28,8 @@ interface Revista {
   ano_publicacao: number | null;
   status_publicacao: string | null;
   created_at: string;
+  tipo_conteudo?: string | null;
+  leitura_continua?: boolean;
 }
 
 interface Licao {
@@ -48,12 +50,15 @@ export default function RevistasDigitais() {
   // Form fields
   const [titulo, setTitulo] = useState("");
   const [tipo, setTipo] = useState("aluno");
+  const [tipoConteudo, setTipoConteudo] = useState("revista");
   const [trimestre, setTrimestre] = useState("");
   const [totalLicoes, setTotalLicoes] = useState<number | "">("");
   const [descricao, setDescricao] = useState("");
   const [autor, setAutor] = useState("");
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
+
+  const isLivroDigital = tipoConteudo === "livro_digital";
 
   // Capa upload
   const [capaUrl, setCapaUrl] = useState("");
@@ -136,7 +141,7 @@ export default function RevistasDigitais() {
       const payload = {
         titulo,
         tipo,
-        trimestre,
+        trimestre: isLivroDigital ? null : trimestre,
         capa_url: capaUrl || null,
         total_licoes: Number(totalLicoes) || 0,
         ativo: true,
@@ -144,6 +149,8 @@ export default function RevistasDigitais() {
         autor: autor || null,
         ano_publicacao: anoPublicacao,
         status_publicacao: statusPublicacao,
+        tipo_conteudo: tipoConteudo,
+        leitura_continua: isLivroDigital,
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);

@@ -5834,9 +5834,11 @@ export type Database = {
           created_at: string | null
           descricao: string | null
           id: string
+          leitura_continua: boolean
           pdf_url: string | null
           status_publicacao: string | null
           tipo: string
+          tipo_conteudo: string
           titulo: string
           total_licoes: number | null
           trimestre: string | null
@@ -5849,9 +5851,11 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          leitura_continua?: boolean
           pdf_url?: string | null
           status_publicacao?: string | null
           tipo?: string
+          tipo_conteudo?: string
           titulo: string
           total_licoes?: number | null
           trimestre?: string | null
@@ -5864,9 +5868,11 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          leitura_continua?: boolean
           pdf_url?: string | null
           status_publicacao?: string | null
           tipo?: string
+          tipo_conteudo?: string
           titulo?: string
           total_licoes?: number | null
           trimestre?: string | null
