@@ -30,7 +30,7 @@ export default function RevistaAcesso() {
 
   // Check existing session
   useEffect(() => {
-    const token = sessionStorage.getItem("revista_token");
+    const token = localStorage.getItem("revista_token");
     if (token) {
       try {
         const decoded = JSON.parse(atob(token));
@@ -39,7 +39,7 @@ export default function RevistaAcesso() {
           return;
         }
       } catch {
-        sessionStorage.removeItem("revista_token");
+        localStorage.removeItem("revista_token");
       }
     }
   }, [navigate]);
