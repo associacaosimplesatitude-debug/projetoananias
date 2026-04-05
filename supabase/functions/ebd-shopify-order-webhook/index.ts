@@ -1087,20 +1087,22 @@ serve(async (req) => {
           }
 
           // === WhatsApp boas-vindas via Meta API direta (template) ===
-          // === CORREÇÃO 2: Verificar se já foi enviado para evitar disparo duplo ===
+          // === IDEMPOTÊNCIA ATÔMICA: INSERT lock antes de enviar ===
           try {
-            // Checar se já existe registro de envio para este pedido + template
-            const { data: existingWa } = await supabase
-              .from('whatsapp_mensagens')
+            // Trava atômica: INSERT com UNIQUE constraint. Se outra execução já inseriu, retorna 0 rows.
+            const { data: lockData, error: lockError } = await supabase
+              .from('whatsapp_envio_locks')
+              .insert({
+                shopify_order_id: String(order.id),
+                sku,
+                tipo_mensagem: 'revista_acesso_liberado'
+              })
               .select('id')
-              .eq('tipo_mensagem', 'revista_acesso_liberado')
-              .eq('telefone_destino', whatsappLimpo)
-              .eq('status', 'enviado')
-              .contains('payload_enviado', { shopify_order_id: String(order.id), sku })
-              .limit(1);
+              .single();
 
-            if (existingWa && existingWa.length > 0) {
-              console.log(`⏭️ WhatsApp revista_acesso_liberado já enviado para pedido ${order.id}, SKU ${sku}. Pulando duplicata.`);
+            if (lockError) {
+              // UNIQUE violation = outra execução já reservou este envio
+              console.log(`⏭️ WhatsApp revista_acesso_liberado já reservado por outra execução para pedido ${order.id}, SKU ${sku}. Pulando duplicata.`);
             } else {
               const settingsRes = await supabase
                 .from('system_settings')
