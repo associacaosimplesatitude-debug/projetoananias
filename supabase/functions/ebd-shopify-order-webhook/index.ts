@@ -785,9 +785,23 @@ serve(async (req) => {
             }
             
             // e) Enviar WhatsApp Fase 1 imediatamente
+            // === CORREÇÃO 1: Suprimir funil_fase1 para pedidos de revista digital ===
+            const orderSkus = (order.line_items || []).map((li) => li.sku).filter(Boolean);
+            let isDigitalOrder = false;
+            if (orderSkus.length > 0) {
+              const { data: digitalMappings } = await supabase
+                .from('ebd_produto_revista_mapping')
+                .select('sku')
+                .in('sku', orderSkus);
+              if (digitalMappings && digitalMappings.length > 0) {
+                isDigitalOrder = true;
+                console.log("🛑 Pedido contém revista digital, suprimindo funil_fase1_auto. SKUs digitais:", digitalMappings.map(m => m.sku));
+              }
+            }
+
             const telefoneCliente = clienteCheck.telefone || order.customer?.phone || (order.shipping_address?.phone) || null;
             
-            if (telefoneCliente) {
+            if (telefoneCliente && !isDigitalOrder) {
               console.log("Enviando WhatsApp Fase 1 para:", telefoneCliente);
               
               // Buscar credenciais Z-API + flag de envio automático
@@ -885,6 +899,8 @@ serve(async (req) => {
               } else {
                 console.log("⚠️ Credenciais Z-API não configuradas, WhatsApp não enviado");
               }
+            } else if (isDigitalOrder) {
+              console.log("⏭️ funil_fase1_auto suprimido — pedido de revista digital");
             } else {
               console.log("⚠️ Cliente sem telefone, WhatsApp não enviado");
             }
@@ -1068,58 +1084,87 @@ serve(async (req) => {
           }
 
           // === WhatsApp boas-vindas via Meta API direta (template) ===
+          // === CORREÇÃO 2: Verificar se já foi enviado para evitar disparo duplo ===
           try {
-            const settingsRes = await supabase
-              .from('system_settings')
-              .select('key, value')
-              .in('key', ['whatsapp_phone_number_id', 'whatsapp_access_token']);
+            // Checar se já existe registro de envio para este pedido + template
+            const { data: existingWa } = await supabase
+              .from('whatsapp_mensagens')
+              .select('id')
+              .eq('tipo_mensagem', 'revista_acesso_liberado')
+              .eq('telefone_destino', whatsappLimpo)
+              .eq('status', 'enviado')
+              .contains('payload_enviado', { shopify_order_id: String(order.id), sku })
+              .limit(1);
 
-            const waSettings: Record<string, string> = {};
-            (settingsRes.data || []).forEach((s: any) => { waSettings[s.key] = s.value; });
-
-            const phoneNumberId = waSettings['whatsapp_phone_number_id'];
-            const accessToken = waSettings['whatsapp_access_token'];
-
-            if (phoneNumberId && accessToken) {
-              const metaPhone = whatsappLimpo.startsWith('55') ? whatsappLimpo : `55${whatsappLimpo}`;
-
-              const waRes = await fetch(
-                `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
-                  },
-                  body: JSON.stringify({
-                    messaging_product: 'whatsapp',
-                    to: metaPhone,
-                    type: 'template',
-                    template: {
-                      name: 'revista_acesso_liberado',
-                      language: { code: 'pt_BR' },
-                      components: [
-                        {
-                          type: 'body',
-                          parameters: [
-                            { type: 'text', text: nomeComprador },
-                            { type: 'text', text: tituloRevista }
-                          ]
-                        }
-                      ]
-                    }
-                  })
-                }
-              );
-
-              const waData = await waRes.json();
-              if (!waRes.ok) {
-                console.error('WhatsApp boas-vindas error:', JSON.stringify(waData));
-              } else {
-                console.log('WhatsApp boas-vindas enviado para:', whatsappLimpo);
-              }
+            if (existingWa && existingWa.length > 0) {
+              console.log(`⏭️ WhatsApp revista_acesso_liberado já enviado para pedido ${order.id}, SKU ${sku}. Pulando duplicata.`);
             } else {
-              console.warn('WhatsApp credentials not found in system_settings');
+              const settingsRes = await supabase
+                .from('system_settings')
+                .select('key, value')
+                .in('key', ['whatsapp_phone_number_id', 'whatsapp_access_token']);
+
+              const waSettings: Record<string, string> = {};
+              (settingsRes.data || []).forEach((s: any) => { waSettings[s.key] = s.value; });
+
+              const phoneNumberId = waSettings['whatsapp_phone_number_id'];
+              const accessToken = waSettings['whatsapp_access_token'];
+
+              if (phoneNumberId && accessToken) {
+                const metaPhone = whatsappLimpo.startsWith('55') ? whatsappLimpo : `55${whatsappLimpo}`;
+
+                const waRes = await fetch(
+                  `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                      messaging_product: 'whatsapp',
+                      to: metaPhone,
+                      type: 'template',
+                      template: {
+                        name: 'revista_acesso_liberado',
+                        language: { code: 'pt_BR' },
+                        components: [
+                          {
+                            type: 'body',
+                            parameters: [
+                              { type: 'text', text: nomeComprador },
+                              { type: 'text', text: tituloRevista }
+                            ]
+                          }
+                        ]
+                      }
+                    })
+                  }
+                );
+
+                const waData = await waRes.json();
+                const waOk = waRes.ok;
+
+                // Registrar no whatsapp_mensagens para idempotência
+                await supabase.from('whatsapp_mensagens').insert({
+                  tipo_mensagem: 'revista_acesso_liberado',
+                  telefone_destino: whatsappLimpo,
+                  nome_destino: nomeComprador,
+                  mensagem: `Template revista_acesso_liberado enviado para ${nomeComprador} - ${tituloRevista}`,
+                  status: waOk ? 'enviado' : 'erro',
+                  erro_detalhes: waOk ? null : JSON.stringify(waData),
+                  payload_enviado: { shopify_order_id: String(order.id), sku, revista: tituloRevista },
+                  resposta_recebida: waData,
+                });
+
+                if (!waOk) {
+                  console.error('WhatsApp boas-vindas error:', JSON.stringify(waData));
+                } else {
+                  console.log('WhatsApp boas-vindas enviado para:', whatsappLimpo);
+                }
+              } else {
+                console.warn('WhatsApp credentials not found in system_settings');
+              }
             }
           } catch (waErr) {
             console.error('Erro ao enviar WhatsApp boas-vindas:', waErr);
