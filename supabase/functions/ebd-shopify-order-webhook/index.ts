@@ -805,6 +805,20 @@ serve(async (req) => {
             const telefoneCliente = clienteCheck.telefone || order.customer?.phone || (order.shipping_address?.phone) || null;
             
             if (telefoneCliente && !isDigitalOrder) {
+              // Trava atômica para funil_fase1_auto
+              const { error: fase1LockErr } = await supabase
+                .from('whatsapp_envio_locks')
+                .insert({
+                  shopify_order_id: String(order.id),
+                  sku: '_funil_fase1',
+                  tipo_mensagem: 'funil_fase1_auto'
+                })
+                .select('id')
+                .single();
+
+              if (fase1LockErr) {
+                console.log(`⏭️ funil_fase1_auto já reservado por outra execução para pedido ${order.id}. Pulando.`);
+              } else {
               console.log("Enviando WhatsApp Fase 1 para:", telefoneCliente);
               
               // Buscar credenciais Z-API + flag de envio automático
