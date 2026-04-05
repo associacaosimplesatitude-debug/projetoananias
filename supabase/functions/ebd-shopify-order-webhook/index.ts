@@ -1126,7 +1126,7 @@ serve(async (req) => {
                       to: metaPhone,
                       type: 'template',
                       template: {
-                        name: 'revista_acesso_liberado',
+                        name: 'revista_acesso_liberado_v2',
                         language: { code: 'pt_BR' },
                         components: [
                           {
