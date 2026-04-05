@@ -663,6 +663,22 @@ serve(async (req) => {
       }
 
       // ===================================================================
+      // DETECÇÃO DE PEDIDO DIGITAL — antes do auto-provisioning
+      // ===================================================================
+      const orderSkusEarly = (order.line_items || []).map((li) => li.sku).filter(Boolean);
+      let isDigitalOrder = false;
+      if (orderSkusEarly.length > 0) {
+        const { data: digitalMappingsEarly } = await supabase
+          .from('ebd_produto_revista_mapping')
+          .select('sku')
+          .in('sku', orderSkusEarly);
+        if (digitalMappingsEarly && digitalMappingsEarly.length > 0) {
+          isDigitalOrder = true;
+          console.log("🛑 Pedido contém revista digital, suprimindo funil_fase1_auto. SKUs digitais:", digitalMappingsEarly.map(m => m.sku));
+        }
+      }
+
+      // ===================================================================
       // AUTO-PROVISIONING: Criar usuário + funil pós-venda para pedidos pagos
       // ===================================================================
       if (customerEmail && clienteId) {
@@ -784,24 +800,25 @@ serve(async (req) => {
               console.log("✅ funil_posv_tracking inserido (fase 1)");
             }
             
-            // e) Enviar WhatsApp Fase 1 imediatamente
-            // === CORREÇÃO 1: Suprimir funil_fase1 para pedidos de revista digital ===
-            const orderSkus = (order.line_items || []).map((li) => li.sku).filter(Boolean);
-            let isDigitalOrder = false;
-            if (orderSkus.length > 0) {
-              const { data: digitalMappings } = await supabase
-                .from('ebd_produto_revista_mapping')
-                .select('sku')
-                .in('sku', orderSkus);
-              if (digitalMappings && digitalMappings.length > 0) {
-                isDigitalOrder = true;
-                console.log("🛑 Pedido contém revista digital, suprimindo funil_fase1_auto. SKUs digitais:", digitalMappings.map(m => m.sku));
-              }
-            }
+            // e) Enviar WhatsApp Fase 1 imediatamente (isDigitalOrder já calculado acima)
 
             const telefoneCliente = clienteCheck.telefone || order.customer?.phone || (order.shipping_address?.phone) || null;
             
             if (telefoneCliente && !isDigitalOrder) {
+              // Trava atômica para funil_fase1_auto
+              const { error: fase1LockErr } = await supabase
+                .from('whatsapp_envio_locks')
+                .insert({
+                  shopify_order_id: String(order.id),
+                  sku: '_funil_fase1',
+                  tipo_mensagem: 'funil_fase1_auto'
+                })
+                .select('id')
+                .single();
+
+              if (fase1LockErr) {
+                console.log(`⏭️ funil_fase1_auto já reservado por outra execução para pedido ${order.id}. Pulando.`);
+              } else {
               console.log("Enviando WhatsApp Fase 1 para:", telefoneCliente);
               
               // Buscar credenciais Z-API + flag de envio automático
@@ -899,6 +916,7 @@ serve(async (req) => {
               } else {
                 console.log("⚠️ Credenciais Z-API não configuradas, WhatsApp não enviado");
               }
+              } // fim do lock fase1
             } else if (isDigitalOrder) {
               console.log("⏭️ funil_fase1_auto suprimido — pedido de revista digital");
             } else {
@@ -1084,20 +1102,22 @@ serve(async (req) => {
           }
 
           // === WhatsApp boas-vindas via Meta API direta (template) ===
-          // === CORREÇÃO 2: Verificar se já foi enviado para evitar disparo duplo ===
+          // === IDEMPOTÊNCIA ATÔMICA: INSERT lock antes de enviar ===
           try {
-            // Checar se já existe registro de envio para este pedido + template
-            const { data: existingWa } = await supabase
-              .from('whatsapp_mensagens')
+            // Trava atômica: INSERT com UNIQUE constraint. Se outra execução já inseriu, retorna 0 rows.
+            const { data: lockData, error: lockError } = await supabase
+              .from('whatsapp_envio_locks')
+              .insert({
+                shopify_order_id: String(order.id),
+                sku,
+                tipo_mensagem: 'revista_acesso_liberado'
+              })
               .select('id')
-              .eq('tipo_mensagem', 'revista_acesso_liberado')
-              .eq('telefone_destino', whatsappLimpo)
-              .eq('status', 'enviado')
-              .contains('payload_enviado', { shopify_order_id: String(order.id), sku })
-              .limit(1);
+              .single();
 
-            if (existingWa && existingWa.length > 0) {
-              console.log(`⏭️ WhatsApp revista_acesso_liberado já enviado para pedido ${order.id}, SKU ${sku}. Pulando duplicata.`);
+            if (lockError) {
+              // UNIQUE violation = outra execução já reservou este envio
+              console.log(`⏭️ WhatsApp revista_acesso_liberado já reservado por outra execução para pedido ${order.id}, SKU ${sku}. Pulando duplicata.`);
             } else {
               const settingsRes = await supabase
                 .from('system_settings')
