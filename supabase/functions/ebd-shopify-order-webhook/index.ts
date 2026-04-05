@@ -663,6 +663,22 @@ serve(async (req) => {
       }
 
       // ===================================================================
+      // DETECÇÃO DE PEDIDO DIGITAL — antes do auto-provisioning
+      // ===================================================================
+      const orderSkusEarly = (order.line_items || []).map((li) => li.sku).filter(Boolean);
+      let isDigitalOrder = false;
+      if (orderSkusEarly.length > 0) {
+        const { data: digitalMappingsEarly } = await supabase
+          .from('ebd_produto_revista_mapping')
+          .select('sku')
+          .in('sku', orderSkusEarly);
+        if (digitalMappingsEarly && digitalMappingsEarly.length > 0) {
+          isDigitalOrder = true;
+          console.log("🛑 Pedido contém revista digital, suprimindo funil_fase1_auto. SKUs digitais:", digitalMappingsEarly.map(m => m.sku));
+        }
+      }
+
+      // ===================================================================
       // AUTO-PROVISIONING: Criar usuário + funil pós-venda para pedidos pagos
       // ===================================================================
       if (customerEmail && clienteId) {
