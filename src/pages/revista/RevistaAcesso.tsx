@@ -5,6 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getRevistaTokenExpiresAt,
+  parseRevistaToken,
+  persistRevistaToken,
+} from "@/lib/revistaSession";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 
 function formatPhone(value: string) {
@@ -31,16 +36,25 @@ export default function RevistaAcesso() {
   // Check existing session
   useEffect(() => {
     const token = localStorage.getItem("revista_token");
-    if (token) {
-      try {
-        const decoded = JSON.parse(atob(token));
-        if (decoded.exp > Date.now()) {
-          navigate("/revista/leitura", { replace: true });
-          return;
-        }
-      } catch {
-        localStorage.removeItem("revista_token");
-      }
+    console.log("[RevistaAcesso] revista_token bruto:", token);
+
+    if (!token) return;
+
+    const decoded = parseRevistaToken(token);
+    console.log("[RevistaAcesso] JSON.parse(atob(token)):", decoded);
+    console.log("[RevistaAcesso] decoded.exp vs Date.now():", decoded?.exp, Date.now());
+    console.log("[RevistaAcesso] decoded.expires_at vs Date.now():", decoded?.expires_at, Date.now());
+
+    const expiresAt = getRevistaTokenExpiresAt(decoded);
+
+    if (expiresAt && expiresAt > Date.now()) {
+      navigate("/revista/leitura", { replace: true });
+      return;
+    }
+
+    if (!decoded || !expiresAt || expiresAt <= Date.now()) {
+      localStorage.removeItem("revista_token");
+      localStorage.removeItem("revista_licencas");
     }
   }, [navigate]);
 
@@ -133,10 +147,12 @@ export default function RevistaAcesso() {
         setError("Ocorreu um erro. Tente novamente.");
         return;
       }
-      // Build token with 30-day expiration
-      const tokenPayload = JSON.parse(atob(data.token));
-      tokenPayload.exp = Date.now() + 30 * 24 * 60 * 60 * 1000;
-      const newToken = btoa(JSON.stringify(tokenPayload));
+      const newToken = persistRevistaToken(data.token);
+      if (!newToken) {
+        setError("Ocorreu um erro. Tente novamente.");
+        return;
+      }
+
       localStorage.setItem("revista_token", newToken);
       localStorage.setItem(
         "revista_licencas",

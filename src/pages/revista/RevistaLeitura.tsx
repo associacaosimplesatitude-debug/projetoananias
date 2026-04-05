@@ -8,6 +8,10 @@ import {
   X, List, Columns, PartyPopper, ExternalLink,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getRevistaTokenExpiresAt,
+  parseRevistaToken,
+} from "@/lib/revistaSession";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 
 interface RevistaDigital {
@@ -116,13 +120,9 @@ export default function RevistaLeitura() {
     sessionStorage.setItem(trackKey, 'true');
 
     let whatsappVal = '';
-    try {
-      const token = localStorage.getItem('revista_token');
-      if (token) {
-        const decoded = JSON.parse(atob(token));
-        whatsappVal = decoded.whatsapp || '';
-      }
-    } catch { /* silent */ }
+    const token = localStorage.getItem('revista_token');
+    const decoded = token ? parseRevistaToken(token) : null;
+    whatsappVal = typeof decoded?.whatsapp === 'string' ? decoded.whatsapp : '';
 
     const isMobileDevice = window.innerWidth < 768;
     const ua = navigator.userAgent;
@@ -199,15 +199,13 @@ export default function RevistaLeitura() {
       navigate("/revista/acesso", { replace: true });
       return;
     }
-    try {
-      const decoded = JSON.parse(atob(token));
-      if (decoded.exp < Date.now()) {
-        localStorage.removeItem("revista_token");
-        localStorage.removeItem("revista_licencas");
-        navigate("/revista/acesso", { replace: true });
-        return;
-      }
-    } catch {
+
+    const decoded = parseRevistaToken(token);
+    const expiresAt = getRevistaTokenExpiresAt(decoded);
+
+    if (!decoded || !expiresAt || expiresAt <= Date.now()) {
+      localStorage.removeItem("revista_token");
+      localStorage.removeItem("revista_licencas");
       navigate("/revista/acesso", { replace: true });
       return;
     }
