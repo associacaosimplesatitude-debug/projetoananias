@@ -39,6 +39,9 @@ interface Revista {
   estoque: number | null;
   categoria: string | null;
   possui_plano_leitura: boolean;
+  tipo_conteudo?: string | null;
+  leitura_continua?: boolean;
+  capitulos_obrigatorio?: boolean;
 }
 
 export default function EBDCurriculo() {
