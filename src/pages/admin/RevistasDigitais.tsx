@@ -671,7 +671,7 @@ export default function RevistasDigitais() {
                     </SelectContent>
                   </Select>
                 </div>
-                {!editingRevista && (
+                {!editingRevista && tipoConteudo !== 'livro_digital' && (
                   <div>
                     <Label>Total de Lições *</Label>
                     <Input
