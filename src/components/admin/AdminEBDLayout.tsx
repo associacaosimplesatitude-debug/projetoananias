@@ -476,30 +476,36 @@ function AdminSidebar() {
                         </RouterNavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revistas-digitais')}>
-                        <RouterNavLink to="/admin/ebd/revistas-digitais">
-                          <BookOpen className="h-4 w-4" />
-                          <span>Revistas Digitais</span>
-                        </RouterNavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revistas-assinaturas')}>
-                        <RouterNavLink to="/admin/ebd/revistas-assinaturas">
-                          <BookOpen className="h-4 w-4" />
-                          <span>Assinaturas Revistas</span>
-                        </RouterNavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-licencas')}>
-                        <RouterNavLink to="/admin/ebd/revista-licencas">
-                          <Users className="h-4 w-4" />
-                          <span>Licenças Revistas</span>
-                        </RouterNavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                  </>
+                )}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revistas-digitais')}>
+                    <RouterNavLink to="/admin/ebd/revistas-digitais">
+                      <BookOpen className="h-4 w-4" />
+                      <span>Revistas Digitais</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {!isGerenteEbd && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revistas-assinaturas')}>
+                      <RouterNavLink to="/admin/ebd/revistas-assinaturas">
+                        <BookOpen className="h-4 w-4" />
+                        <span>Assinaturas Revistas</span>
+                      </RouterNavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-licencas')}>
+                    <RouterNavLink to="/admin/ebd/revista-licencas">
+                      <Users className="h-4 w-4" />
+                      <span>Licenças Revistas</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {!isGerenteEbd && (
+                  <>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-mapeamentos')}>
                         <RouterNavLink to="/admin/ebd/revista-mapeamentos">
@@ -508,23 +514,25 @@ function AdminSidebar() {
                         </RouterNavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-mapa')}>
-                        <RouterNavLink to="/admin/ebd/revista-mapa">
-                          <Globe className="h-4 w-4" />
-                          <span>Mapa de Leitores</span>
-                        </RouterNavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive('/admin/ebd/shopify')}>
-                        <RouterNavLink to="/admin/ebd/shopify">
-                          <Store className="h-4 w-4" />
-                          <span>Integração Shopify</span>
-                        </RouterNavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
                   </>
+                )}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive('/admin/ebd/revista-mapa')}>
+                    <RouterNavLink to="/admin/ebd/revista-mapa">
+                      <Globe className="h-4 w-4" />
+                      <span>Mapa de Leitores</span>
+                    </RouterNavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {!isGerenteEbd && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive('/admin/ebd/shopify')}>
+                      <RouterNavLink to="/admin/ebd/shopify">
+                        <Store className="h-4 w-4" />
+                        <span>Integração Shopify</span>
+                      </RouterNavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 )}
                 {(isGerenteEbd || isAdmin) && (
                   <SidebarMenuItem>

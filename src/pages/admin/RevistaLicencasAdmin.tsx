@@ -55,6 +55,7 @@ type ShopifyLicencaRow = {
   ativo: boolean;
   expira_em: string | null;
   created_at: string;
+  primeiro_acesso_em: string | null;
   revistas_digitais?: { titulo: string; capa_url: string | null } | null;
 };
 
@@ -521,15 +522,16 @@ function ShopifyTab() {
                 <TableHead>Revista</TableHead>
                 <TableHead>Pedido</TableHead>
                 <TableHead>Data</TableHead>
+                <TableHead>Logou</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
               ) : (
                 filtered.map((l) => (
                   <TableRow key={l.id}>
@@ -542,7 +544,8 @@ function ShopifyTab() {
                         <Badge variant="outline" className="font-mono text-xs">#{l.shopify_order_number}</Badge>
                       ) : "Manual"}
                     </TableCell>
-                    <TableCell><TableCell>{format(new Date(l.created_at), "dd/MM/yyyy 'às' HH:mm")}</TableCell></TableCell>
+                    <TableCell>{format(new Date(l.created_at), "dd/MM/yyyy 'às' HH:mm")}</TableCell>
+                    <TableCell className="text-xs">{l.primeiro_acesso_em ? format(new Date(l.primeiro_acesso_em), "dd/MM/yyyy HH:mm") : "—"}</TableCell>
                     <TableCell>
                       <Badge variant={l.ativo ? "default" : "secondary"}>{l.ativo ? "Ativo" : "Inativo"}</Badge>
                     </TableCell>

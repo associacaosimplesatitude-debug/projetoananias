@@ -1,0 +1,1 @@
+ALTER TABLE public.revista_licencas_shopify ADD COLUMN IF NOT EXISTS primeiro_acesso_em timestamptz DEFAULT NULL;
