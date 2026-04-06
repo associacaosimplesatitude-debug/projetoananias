@@ -40,6 +40,7 @@ interface RevistaFormData {
   autor: string;
   imagem_url: string;
   num_licoes: number;
+  tipo_conteudo: string;
 }
 
 interface Licao {
