@@ -244,6 +244,7 @@ export default function RevistasDigitais() {
     setEditingRevista(null);
     setTitulo("");
     setTipo("aluno");
+    setTipoConteudo("revista");
     setTrimestre("");
     setCapaUrl("");
     setTotalLicoes("");
