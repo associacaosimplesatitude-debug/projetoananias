@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2 } from "lucide-react";
+import { Plus, BookOpen, Pencil, Image, Trash2, Upload, Eye, Save, ArrowLeft, GripVertical, ImagePlus, FileText, Loader2, ImageIcon } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
 
@@ -72,6 +73,12 @@ export default function RevistasDigitais() {
   const [uploadingPdfGlobal, setUploadingPdfGlobal] = useState(false);
   const [pdfProgress, setPdfProgress] = useState("");
   const pdfGlobalInputRef = useRef<HTMLInputElement>(null);
+
+  // Pages upload for livro_digital
+  const [uploadingPages, setUploadingPages] = useState(false);
+  const [pagesProgress, setPagesProgress] = useState({ current: 0, total: 0 });
+  const [pagesResult, setPagesResult] = useState<string | null>(null);
+  const pagesInputRef = useRef<HTMLInputElement>(null);
 
   // PDF worker
   if (typeof window !== "undefined") {
@@ -341,6 +348,60 @@ export default function RevistasDigitais() {
     } finally {
       setUploadingPdfGlobal(false);
       setPdfProgress("");
+    }
+  };
+
+  // Upload múltiplo de páginas para livro_digital
+  const handlePagesUpload = async (files: File[], revistaId: string) => {
+    if (files.length === 0) return;
+    setUploadingPages(true);
+    setPagesResult(null);
+    setPagesProgress({ current: 0, total: files.length });
+
+    try {
+      // Ordenar por nome do arquivo
+      const sorted = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      const urls: string[] = [];
+
+      for (let i = 0; i < sorted.length; i++) {
+        setPagesProgress({ current: i + 1, total: sorted.length });
+        const file = sorted[i];
+        const path = `${revistaId}/paginas/${file.name}`;
+        const { error } = await supabase.storage.from("revistas").upload(path, file, { upsert: true });
+        if (error) throw error;
+        const { data } = supabase.storage.from("revistas").getPublicUrl(path);
+        urls.push(data.publicUrl);
+      }
+
+      // Upsert single lição with all pages
+      const { data: existing } = await supabase
+        .from("revista_licoes")
+        .select("id")
+        .eq("revista_id", revistaId)
+        .eq("numero", 1)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("revista_licoes").update({ paginas: urls, titulo: "Conteúdo" }).eq("id", existing.id);
+      } else {
+        await supabase.from("revista_licoes").insert({
+          revista_id: revistaId,
+          numero: 1,
+          titulo: "Conteúdo",
+          paginas: urls,
+        });
+      }
+
+      // Update total_licoes with page count
+      await supabase.from("revistas_digitais").update({ total_licoes: urls.length }).eq("id", revistaId);
+
+      queryClient.invalidateQueries({ queryKey: ["revistas-digitais"] });
+      setPagesResult(`${urls.length} páginas carregadas com sucesso`);
+      toast.success(`${urls.length} páginas carregadas com sucesso!`);
+    } catch (e: any) {
+      toast.error("Erro no upload: " + e.message);
+    } finally {
+      setUploadingPages(false);
     }
   };
 
@@ -789,6 +850,50 @@ export default function RevistasDigitais() {
                   </p>
                 )}
               </div>
+
+              {/* Upload de Páginas para Livro Digital */}
+              {tipoConteudo === 'livro_digital' && editingRevista && (
+                <div className="pt-2 border-t">
+                  <Label className="text-xs">Páginas do Livro</Label>
+                  <p className="text-[10px] text-muted-foreground mb-2">
+                    Selecione as imagens das páginas (serão ordenadas pelo nome do arquivo)
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1 text-xs"
+                    disabled={uploadingPages}
+                    onClick={(e) => { e.stopPropagation(); pagesInputRef.current?.click(); }}
+                  >
+                    {uploadingPages ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />}
+                    {uploadingPages ? `Enviando ${pagesProgress.current} de ${pagesProgress.total}...` : "🖼️ Selecionar Páginas"}
+                  </Button>
+                  <input
+                    ref={pagesInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+                      handlePagesUpload(files, editingRevista.id);
+                      e.target.value = "";
+                    }}
+                  />
+                  {uploadingPages && (
+                    <div className="mt-2 space-y-1">
+                      <Progress value={(pagesProgress.current / pagesProgress.total) * 100} className="h-2" />
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        {pagesProgress.current} / {pagesProgress.total}
+                      </p>
+                    </div>
+                  )}
+                  {pagesResult && (
+                    <p className="text-[10px] text-green-600 mt-1">✅ {pagesResult}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </DialogContent>
@@ -835,7 +940,11 @@ export default function RevistasDigitais() {
                     <Badge variant="outline">{r.tipo === "professor" ? "Professor" : "Aluno"}</Badge>
                   </TableCell>
                   <TableCell>{r.trimestre}</TableCell>
-                  <TableCell>{r.total_licoes}</TableCell>
+                  <TableCell>
+                    {(r as any).tipo_conteudo === 'livro_digital'
+                      ? r.total_licoes > 0 ? `${r.total_licoes} páginas` : "—"
+                      : r.total_licoes}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={statusVariant(r.status_publicacao)}>
                       {statusLabel(r.status_publicacao)}
@@ -843,7 +952,9 @@ export default function RevistasDigitais() {
                   </TableCell>
                   <TableCell className="text-right space-x-1">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(r)} title="Editar"><Pencil className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => setManagingLicoes(r)} title="Gerir Lições"><Image className="h-4 w-4" /></Button>
+                    {(r as any).tipo_conteudo !== 'livro_digital' && (
+                      <Button size="sm" variant="ghost" onClick={() => setManagingLicoes(r)} title="Gerir Lições"><Image className="h-4 w-4" /></Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(r.id)} title="Excluir"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
                 </TableRow>

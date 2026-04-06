@@ -70,9 +70,29 @@ export default function LivroDigitalLeitura() {
     enabled: !!revistaId,
   });
 
+  // Buscar imagens de páginas como fallback
+  const { data: paginasImagens } = useQuery({
+    queryKey: ["revista-paginas-imagens", revistaId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("revista_licoes")
+        .select("paginas")
+        .eq("revista_id", revistaId!)
+        .eq("numero", 1)
+        .maybeSingle();
+      const paginas = (data?.paginas as string[]) || [];
+      return paginas.length > 0 ? paginas : null;
+    },
+    enabled: !!revistaId,
+  });
+
   const pdfUrl = revista?.pdf_url || storagePdfUrl || null;
   const watermarkText = cliente?.nome_igreja || user?.email || "";
   const titulo = revista?.titulo || "Livro Digital";
+
+  // Determinar modo de exibição: PDF tem prioridade, depois imagens
+  const usePdf = !!pdfUrl;
+  const useImages = !usePdf && !!paginasImagens && paginasImagens.length > 0;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -90,7 +110,7 @@ export default function LivroDigitalLeitura() {
     setNumPages(n);
   }, []);
 
-  if (!pdfUrl) {
+  if (!usePdf && !useImages) {
     return (
       <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center select-none">
         <p className="text-white/60 text-sm mb-4">Conteúdo ainda não disponível.</p>
@@ -111,27 +131,49 @@ export default function LivroDigitalLeitura() {
       </div>
 
       <div className="flex-1 overflow-y-auto" ref={containerRef}>
-        <Document
-          file={pdfUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          loading={
-            <div className="flex items-center justify-center py-20">
-              <span className="text-white/60 text-sm">Carregando PDF...</span>
-            </div>
-          }
-          error={
-            <div className="flex items-center justify-center py-20">
-              <span className="text-white/60 text-sm">Erro ao carregar o PDF.</span>
-            </div>
-          }
-        >
-          {Array.from({ length: numPages }, (_, i) => (
+        {usePdf ? (
+          <Document
+            file={pdfUrl}
+            onLoadSuccess={onDocumentLoadSuccess}
+            loading={
+              <div className="flex items-center justify-center py-20">
+                <span className="text-white/60 text-sm">Carregando PDF...</span>
+              </div>
+            }
+            error={
+              <div className="flex items-center justify-center py-20">
+                <span className="text-white/60 text-sm">Erro ao carregar o PDF.</span>
+              </div>
+            }
+          >
+            {Array.from({ length: numPages }, (_, i) => (
+              <div key={i} className="relative flex justify-center">
+                <Page
+                  pageNumber={i + 1}
+                  width={containerWidth}
+                  renderAnnotationLayer={false}
+                  renderTextLayer={false}
+                />
+                {watermarkText && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                    <span className="text-white/[0.07] text-4xl font-bold whitespace-nowrap rotate-[-30deg] select-none">
+                      {watermarkText}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </Document>
+        ) : (
+          /* Modo imagens - scroll contínuo */
+          paginasImagens!.map((url, i) => (
             <div key={i} className="relative flex justify-center">
-              <Page
-                pageNumber={i + 1}
-                width={containerWidth}
-                renderAnnotationLayer={false}
-                renderTextLayer={false}
+              <img
+                src={url}
+                alt={`Página ${i + 1}`}
+                className="w-full max-w-full"
+                loading="lazy"
+                draggable={false}
               />
               {watermarkText && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
@@ -141,8 +183,8 @@ export default function LivroDigitalLeitura() {
                 </div>
               )}
             </div>
-          ))}
-        </Document>
+          ))
+        )}
       </div>
     </div>
   );
