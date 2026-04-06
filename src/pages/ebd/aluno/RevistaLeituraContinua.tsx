@@ -57,10 +57,18 @@ export default function RevistaLeituraContinua() {
     enabled: !!user,
   });
 
-  // Check if a complete PDF exists in storage
+  // Check if a complete PDF exists — first from DB column, then fallback to storage
   const { data: pdfUrl } = useQuery({
     queryKey: ["revista-pdf-completo", revistaId],
     queryFn: async () => {
+      // Try pdf_url column first
+      const { data: revista } = await supabase
+        .from("revistas_digitais")
+        .select("pdf_url")
+        .eq("id", revistaId!)
+        .maybeSingle();
+      if (revista?.pdf_url) return revista.pdf_url;
+      // Fallback: check storage directly
       const { data: listData } = await supabase.storage.from("revistas").list(revistaId!, {
         search: "completo.pdf",
       });

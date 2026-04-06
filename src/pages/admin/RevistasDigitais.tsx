@@ -330,6 +330,17 @@ export default function RevistasDigitais() {
       const path = `${revistaId}/completo.pdf`;
       const { error } = await supabase.storage.from("revistas").upload(path, file, { upsert: true, contentType: "application/pdf" });
       if (error) throw error;
+      // Save public URL to pdf_url column
+      const { data: urlData } = supabase.storage.from("revistas").getPublicUrl(path);
+      if (urlData?.publicUrl) {
+        const { error: updateError } = await supabase
+          .from("revistas_digitais")
+          .update({ pdf_url: urlData.publicUrl })
+          .eq("id", revistaId);
+        if (updateError) console.error("Erro ao salvar pdf_url:", updateError);
+        else console.log("[handleGlobalPdfUpload] pdf_url salvo:", urlData.publicUrl);
+      }
+      queryClient.invalidateQueries({ queryKey: ["revistas-digitais"] });
       toast.success("PDF completo enviado com sucesso!");
     } catch (e: any) {
       toast.error("Erro ao enviar PDF: " + e.message);
