@@ -834,7 +834,7 @@ export default function RevistaLeitura() {
               <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                 Carregando lições...
               </p>
-            ) : licoes.length === 0 ? (
+            ) : (licoes.length === 0 && !revista?.pdf_url) ? (
               <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                 Nenhuma lição disponível no momento.
               </p>
