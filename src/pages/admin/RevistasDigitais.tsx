@@ -351,6 +351,60 @@ export default function RevistasDigitais() {
     }
   };
 
+  // Upload múltiplo de páginas para livro_digital
+  const handlePagesUpload = async (files: File[], revistaId: string) => {
+    if (files.length === 0) return;
+    setUploadingPages(true);
+    setPagesResult(null);
+    setPagesProgress({ current: 0, total: files.length });
+
+    try {
+      // Ordenar por nome do arquivo
+      const sorted = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      const urls: string[] = [];
+
+      for (let i = 0; i < sorted.length; i++) {
+        setPagesProgress({ current: i + 1, total: sorted.length });
+        const file = sorted[i];
+        const path = `${revistaId}/paginas/${file.name}`;
+        const { error } = await supabase.storage.from("revistas").upload(path, file, { upsert: true });
+        if (error) throw error;
+        const { data } = supabase.storage.from("revistas").getPublicUrl(path);
+        urls.push(data.publicUrl);
+      }
+
+      // Upsert single lição with all pages
+      const { data: existing } = await supabase
+        .from("revista_licoes")
+        .select("id")
+        .eq("revista_id", revistaId)
+        .eq("numero", 1)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("revista_licoes").update({ paginas: urls, titulo: "Conteúdo" }).eq("id", existing.id);
+      } else {
+        await supabase.from("revista_licoes").insert({
+          revista_id: revistaId,
+          numero: 1,
+          titulo: "Conteúdo",
+          paginas: urls,
+        });
+      }
+
+      // Update total_licoes with page count
+      await supabase.from("revistas_digitais").update({ total_licoes: urls.length }).eq("id", revistaId);
+
+      queryClient.invalidateQueries({ queryKey: ["revistas-digitais"] });
+      setPagesResult(`${urls.length} páginas carregadas com sucesso`);
+      toast.success(`${urls.length} páginas carregadas com sucesso!`);
+    } catch (e: any) {
+      toast.error("Erro no upload: " + e.message);
+    } finally {
+      setUploadingPages(false);
+    }
+  };
+
 
   const removePageFromLicao = async (licaoId: string, pageUrl: string) => {
     const licao = licoes?.find(l => l.id === licaoId);
