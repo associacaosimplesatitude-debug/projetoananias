@@ -1,76 +1,33 @@
 
-Diagnóstico
 
-- O botão apareceu porque o fluxo legado `/revista/leitura` já reconhece o item como livro digital.
-- O `pdf_url` do livro `teste` existe e está preenchido corretamente.
-- O motivo de funcionar no computador e não no iPhone é o render atual do livro nesse fluxo legado:
-  - em `src/pages/revista/RevistaLeitura.tsx`
-  - quando `modoKindle` está ativo e `isMobile === true`
-  - o código abre o PDF com `<iframe src="{pdf_url}#toolbar=0&view=FitH" />`
-- iPhone/Safari costuma falhar ou limitar PDF embutido em `iframe`, especialmente em viewer interno dentro de app web. Isso bate exatamente com o sintoma: no desktop abre, no iPhone não.
+## Diagnóstico
 
-Evidências lidas no código
+O screenshot mostra **"Erro ao carregar o PDF"** no iPhone. O problema é claro:
 
-- `src/pages/revista/RevistaLeitura.tsx`
-  - detecção mobile:
-    - `window.innerWidth < 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)`
-  - fluxo do botão “Ler Livro”:
-    - ativa `setModoKindle(true)`
-  - render mobile do livro:
-    - usa `iframe` com `src={`${revista.pdf_url}#toolbar=0&view=FitH`}`
-- `src/pages/ebd/aluno/LivroDigitalLeitura.tsx`
-  - usa `react-pdf`, que é justamente a abordagem mais compatível para iPhone
-- `src/App.tsx`
-  - a rota `/ebd/livro/:revistaId/ler` está protegida por `ProtectedRoute`
-  - então ela não serve diretamente para o portal OTP da “Minha Biblioteca”
-- snapshot de rede
-  - o registro da revista `teste` mostra:
-    - `tipo_conteudo: "livro_digital"`
-    - `leitura_continua: true`
-    - `pdf_url` preenchido
+- O livro "Autoridade Espiritual" tem `pdf_url` preenchido **e** 144 imagens na `revista_licoes`
+- O código atual prioriza PDF **sempre** (`usePdf = !!pdfUrl`)
+- `react-pdf` falha no Safari mobile com PDFs grandes (80MB+)
+- As 144 imagens existem mas nunca são usadas porque o PDF tem prioridade
 
-Causa raiz atual
+## Solução
 
-- Não é mais falta de PDF.
-- Não é mais falta de flag `leitura_continua`.
-- O gargalo agora é exclusivamente de compatibilidade no iPhone:
-  - o fluxo legado de livros ainda usa `iframe` no mobile
-  - o iPhone precisa de renderização tipo `react-pdf` no próprio frontend, não embed nativo por `iframe`
+Adicionar detecção de mobile em `LivroDigitalLeitura.tsx` e inverter a prioridade: **no mobile, usar imagens primeiro; PDF só como fallback**.
 
-Plano de correção
+## Passos
 
-1. Atualizar `src/pages/revista/RevistaLeitura.tsx`
-- Substituir apenas o render mobile do livro digital no `modoKindle`
-- Em vez de `<iframe>`, usar `react-pdf` com:
-  - `<Document file={revista.pdf_url}>`
-  - múltiplos `<Page>` em scroll vertical contínuo
-  - `ResizeObserver` + largura responsiva do container
-  - header atual preservado
-  - modo noturno preservado no que for possível visualmente
+1. **Adicionar detecção mobile** usando o mesmo padrão já existente no projeto: `window.innerWidth < 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)`
 
-2. Manter revistas comuns intactas
-- Não mexer no fluxo atual de revistas EBD com imagens das lições
-- A mudança deve valer só para:
-  - `revista.leitura_continua === true`
-  - ou `tipo_conteudo === "livro_digital"`
+2. **Ajustar lógica de prioridade** (linhas 93-95):
+   - Desktop: PDF primeiro, imagens como fallback (comportamento atual)
+   - Mobile: imagens primeiro, PDF só se não houver imagens
 
-3. Manter o portal OTP compatível
-- Fazer tudo dentro de `RevistaLeitura.tsx`
-- Não redirecionar para `/ebd/livro/:revistaId/ler`
-- Assim não quebramos o acesso da “Minha Biblioteca”, que não usa o login autenticado normal
+```
+const isMobile = window.innerWidth < 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const hasImages = !!paginasImagens && paginasImagens.length > 0;
 
-4. Preservar comportamento existente
-- botão “← Voltar”
-- título
-- bloqueio de menu de contexto, se já existir no reader
-- fallback “PDF não disponível” se `pdf_url` vier vazio
+const usePdf = isMobile ? (!hasImages && !!pdfUrl) : !!pdfUrl;
+const useImages = isMobile ? hasImages : (!usePdf && hasImages);
+```
 
-5. Validar cenário alvo
-- Livro `teste` abrindo:
-  - desktop: continua funcionando
-  - iPhone: passa a renderizar páginas do PDF em scroll contínuo sem depender do viewer nativo do Safari
+3. **Arquivo alterado**: apenas `src/pages/ebd/aluno/LivroDigitalLeitura.tsx`
 
-Detalhe técnico
-
-- A dependência `react-pdf` já está em uso no projeto em `LivroDigitalLeitura.tsx`
-- Então o ajuste ideal é reaproveitar o mesmo padrão de leitura contínua no fluxo legado, sem depender de `iframe` no mobile para livros digitais
