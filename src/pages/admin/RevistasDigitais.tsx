@@ -366,7 +366,11 @@ export default function RevistasDigitais() {
       for (let i = 0; i < sorted.length; i++) {
         setPagesProgress({ current: i + 1, total: sorted.length });
         const file = sorted[i];
-        const path = `${revistaId}/paginas/${file.name}`;
+        const safeName = file.name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `${revistaId}/paginas/${safeName}`;
         const { error } = await supabase.storage.from("revistas").upload(path, file, { upsert: true });
         if (error) throw error;
         const { data } = supabase.storage.from("revistas").getPublicUrl(path);
