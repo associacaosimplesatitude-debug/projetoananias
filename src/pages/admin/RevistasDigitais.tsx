@@ -777,6 +777,13 @@ export default function RevistasDigitais() {
                     e.target.value = "";
                   }}
                 />
+                {pdfFileInfo && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    📄 {pdfFileInfo.name} ({pdfFileInfo.size < 1024 * 1024
+                      ? `${(pdfFileInfo.size / 1024).toFixed(1)} KB`
+                      : `${(pdfFileInfo.size / (1024 * 1024)).toFixed(2)} MB`})
+                  </p>
+                )}
               </div>
             </div>
           </div>
