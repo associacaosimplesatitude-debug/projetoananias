@@ -624,6 +624,16 @@ export default function RevistasDigitais() {
                 </div>
               </div>
               <div>
+                <Label>Tipo de Conteúdo</Label>
+                <Select value={tipoConteudo} onValueChange={setTipoConteudo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="revista">Revista EBD</SelectItem>
+                    <SelectItem value="livro_digital">Livro Digital</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Descrição / Tema</Label>
                 <Textarea
                   value={descricao}
