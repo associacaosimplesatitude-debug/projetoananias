@@ -111,7 +111,7 @@ export default function AlunoRevistaVirtual() {
       if (!cliente?.id) return null;
       const { data } = await supabase
         .from("revista_assinaturas")
-        .select("*, revista:revistas_digitais(*)")
+        .select("*, revista:revistas_digitais(id, titulo, tipo, tipo_conteudo, trimestre, capa_url, pdf_url, leitura_continua)")
         .eq("cliente_id", cliente.id)
         .eq("status", "ativa")
         .order("created_at", { ascending: false })
@@ -303,6 +303,7 @@ export default function AlunoRevistaVirtual() {
   }
 
   const revista = assinatura.revista as any;
+  const isLivro = revista?.leitura_continua === true;
   const concluidas = licoes?.filter(l => progressos?.[l.id]?.concluida).length || 0;
   const total = licoes?.length || 0;
   const progressPercent = total > 0 ? (concluidas / total) * 100 : 0;
@@ -319,9 +320,11 @@ export default function AlunoRevistaVirtual() {
       <div className="container mx-auto py-6 px-4 space-y-8">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <span>📖</span> Revista Virtual
+            <span>📖</span> {isLivro ? "Livro Digital" : "Revista Virtual"}
           </h1>
-          <p className="text-muted-foreground mt-1">Acompanhe seu estudo bíblico trimestral</p>
+          <p className="text-muted-foreground mt-1">
+            {isLivro ? "Acesse seu livro digital" : "Acompanhe seu estudo bíblico trimestral"}
+          </p>
         </div>
         <Separator />
         <Card className="border border-border/40 shadow-sm bg-card">
@@ -335,86 +338,94 @@ export default function AlunoRevistaVirtual() {
                     <BookOpen className="h-10 w-10 text-muted-foreground/40" />
                   </div>
                 )}
-                <Badge className="absolute -top-2 -right-2 bg-primary text-primary-foreground border-0 shadow-sm text-[10px] px-2">
-                  {revista?.tipo === "professor" ? "Professor" : "Aluno"}
-                </Badge>
+                {!isLivro && (
+                  <Badge className="absolute -top-2 -right-2 bg-primary text-primary-foreground border-0 shadow-sm text-[10px] px-2">
+                    {revista?.tipo === "professor" ? "Professor" : "Aluno"}
+                  </Badge>
+                )}
               </div>
               <div className="flex-1 space-y-4">
                 <div>
                   <h2 className="text-xl font-bold text-foreground">{revista?.titulo}</h2>
-                  <p className="text-muted-foreground text-sm">{revista?.trimestre}</p>
+                  {!isLivro && <p className="text-muted-foreground text-sm">{revista?.trimestre}</p>}
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm font-medium">
-                    <span className="text-foreground">{concluidas} de {total} lições concluídas</span>
-                    <span className="text-primary font-semibold">{Math.round(progressPercent)}%</span>
+                {!isLivro && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm font-medium">
+                      <span className="text-foreground">{concluidas} de {total} lições concluídas</span>
+                      <span className="text-primary font-semibold">{Math.round(progressPercent)}%</span>
+                    </div>
+                    <Progress value={progressPercent} className="h-2" />
                   </div>
-                  <Progress value={progressPercent} className="h-2" />
-                </div>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Botão de leitura */}
         <div className="flex items-center justify-between">
           <div />
           <Button
-            variant="outline"
+            variant={isLivro ? "default" : "outline"}
             size="sm"
             className="gap-2"
             onClick={() => {
-              const rev = revista as any;
-              if (rev?.leitura_continua === true) {
+              if (isLivro) {
                 navigate(`/ebd/livro/${assinatura.revista_id}/ler`);
               } else {
                 navigate(`/ebd/revista/${assinatura.revista_id}/leitura-continua`);
               }
             }}
           >
-            <ScrollText className="h-4 w-4" /> Leitura Contínua
+            <ScrollText className="h-4 w-4" /> {isLivro ? "Ler Livro" : "Leitura Contínua"}
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {licoes?.map((licao) => {
-            const status = getLicaoStatus(licao.id);
-            const paginas = licao.paginas as string[] || [];
-            const thumbnail = paginas[0] || `https://placehold.co/400x550/1e293b/f97316?text=Li%C3%A7%C3%A3o+${licao.numero}`;
+        {/* Cards de lições - apenas para revistas */}
+        {!isLivro && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {licoes?.map((licao) => {
+              const status = getLicaoStatus(licao.id);
+              const paginas = licao.paginas as string[] || [];
+              const thumbnail = paginas[0] || `https://placehold.co/400x550/1e293b/f97316?text=Li%C3%A7%C3%A3o+${licao.numero}`;
 
-            return (
-              <Card key={licao.id} className="overflow-hidden border border-border/40 bg-card shadow-sm hover:shadow-md transition-shadow group">
-                <div className="relative aspect-[3/4] bg-muted overflow-hidden">
-                  <img src={thumbnail} alt={`Lição ${licao.numero}`} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" />
-                  <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground border-0 shadow text-[11px] px-2.5 py-0.5">
-                    Lição {licao.numero}
-                  </Badge>
-                  <div className="absolute top-2 right-2">
-                    {status === "concluida" && (
-                      <div className="h-7 w-7 rounded-full bg-green-500 flex items-center justify-center shadow">
-                        <CheckCircle2 className="h-4 w-4 text-white" />
-                      </div>
-                    )}
-                    {status === "em_andamento" && (
-                      <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center shadow">
-                        <Clock className="h-4 w-4 text-primary-foreground" />
-                      </div>
-                    )}
-                    {status === "nao_lida" && (
-                      <div className="h-7 w-7 rounded-full bg-muted-foreground/30 flex items-center justify-center shadow">
-                        <Circle className="h-4 w-4 text-white" />
-                      </div>
-                    )}
+              return (
+                <Card key={licao.id} className="overflow-hidden border border-border/40 bg-card shadow-sm hover:shadow-md transition-shadow group">
+                  <div className="relative aspect-[3/4] bg-muted overflow-hidden">
+                    <img src={thumbnail} alt={`Lição ${licao.numero}`} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" />
+                    <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground border-0 shadow text-[11px] px-2.5 py-0.5">
+                      Lição {licao.numero}
+                    </Badge>
+                    <div className="absolute top-2 right-2">
+                      {status === "concluida" && (
+                        <div className="h-7 w-7 rounded-full bg-green-500 flex items-center justify-center shadow">
+                          <CheckCircle2 className="h-4 w-4 text-white" />
+                        </div>
+                      )}
+                      {status === "em_andamento" && (
+                        <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center shadow">
+                          <Clock className="h-4 w-4 text-primary-foreground" />
+                        </div>
+                      )}
+                      {status === "nao_lida" && (
+                        <div className="h-7 w-7 rounded-full bg-muted-foreground/30 flex items-center justify-center shadow">
+                          <Circle className="h-4 w-4 text-white" />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <CardContent className="p-4 space-y-3">
-                  <p className="font-semibold text-sm text-foreground truncate">{licao.titulo || `Lição ${licao.numero}`}</p>
-                  <Button size="sm" className="w-full text-xs font-medium" onClick={() => { if (paginas.length > 0) navigate(`/ebd/revista/${assinatura.revista_id}/licao/${licao.numero}`); }}>
-                    <Play className="h-3.5 w-3.5 mr-1" /> Ler Lição
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  <CardContent className="p-4 space-y-3">
+                    <p className="font-semibold text-sm text-foreground truncate">{licao.titulo || `Lição ${licao.numero}`}</p>
+                    <Button size="sm" className="w-full text-xs font-medium" onClick={() => { if (paginas.length > 0) navigate(`/ebd/revista/${assinatura.revista_id}/licao/${licao.numero}`); }}>
+                      <Play className="h-3.5 w-3.5 mr-1" /> Ler Lição
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

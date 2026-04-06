@@ -62,6 +62,9 @@ export default function RevistasDigitais() {
   const [dragOverCapa, setDragOverCapa] = useState(false);
   const capaInputRef = useRef<HTMLInputElement>(null);
 
+  // PDF file info
+  const [pdfFileInfo, setPdfFileInfo] = useState<{ name: string; size: number } | null>(null);
+
   // Drag state for lesson pages
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
@@ -134,19 +137,20 @@ export default function RevistasDigitais() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const isLivro = tipoConteudo === 'livro_digital';
       const payload = {
         titulo,
-        tipo,
-        trimestre,
+        tipo: isLivro ? 'aluno' : tipo,
+        trimestre: isLivro ? null : trimestre,
         capa_url: capaUrl || null,
-        total_licoes: Number(totalLicoes) || 0,
+        total_licoes: isLivro ? 0 : (Number(totalLicoes) || 0),
         ativo: true,
         descricao: descricao || null,
         autor: autor || null,
         ano_publicacao: anoPublicacao,
         status_publicacao: statusPublicacao,
         tipo_conteudo: tipoConteudo,
-        leitura_continua: tipoConteudo === 'livro_digital',
+        leitura_continua: isLivro,
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);
@@ -248,6 +252,7 @@ export default function RevistasDigitais() {
     setAnoPublicacao(new Date().getFullYear());
     setStatusPublicacao("rascunho");
     setTipoConteudo("revista");
+    setPdfFileInfo(null);
   };
 
   const openEdit = (r: Revista) => {
@@ -607,22 +612,24 @@ export default function RevistasDigitais() {
                 <Label>Título</Label>
                 <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex: Estudo Bíblico Nº 9" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Tipo</Label>
-                  <Select value={tipo} onValueChange={setTipo}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="aluno">Aluno</SelectItem>
-                      <SelectItem value="professor">Professor</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {tipoConteudo !== 'livro_digital' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Tipo</Label>
+                    <Select value={tipo} onValueChange={setTipo}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aluno">Aluno</SelectItem>
+                        <SelectItem value="professor">Professor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Trimestre</Label>
+                    <Input value={trimestre} onChange={(e) => setTrimestre(e.target.value)} placeholder="2026-T1" />
+                  </div>
                 </div>
-                <div>
-                  <Label>Trimestre</Label>
-                  <Input value={trimestre} onChange={(e) => setTrimestre(e.target.value)} placeholder="2026-T1" />
-                </div>
-              </div>
+              )}
               <div>
                 <Label>Tipo de Conteúdo</Label>
                 <Select value={tipoConteudo} onValueChange={setTipoConteudo}>
@@ -664,7 +671,7 @@ export default function RevistasDigitais() {
                     </SelectContent>
                   </Select>
                 </div>
-                {!editingRevista && (
+                {!editingRevista && tipoConteudo !== 'livro_digital' && (
                   <div>
                     <Label>Total de Lições *</Label>
                     <Input
@@ -679,7 +686,7 @@ export default function RevistasDigitais() {
               </div>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={!titulo || saveMutation.isPending || (!editingRevista && (!totalLicoes || Number(totalLicoes) < 1))}
+                disabled={!titulo || saveMutation.isPending || (!editingRevista && tipoConteudo !== 'livro_digital' && (!totalLicoes || Number(totalLicoes) < 1))}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2"
               >
                 <Save className="h-4 w-4" />
@@ -760,6 +767,7 @@ export default function RevistasDigitais() {
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (!f) return;
+                    setPdfFileInfo({ name: f.name, size: f.size });
                     const revId = editingRevista?.id;
                     if (revId) {
                       handleGlobalPdfUpload(f, revId);
@@ -769,6 +777,13 @@ export default function RevistasDigitais() {
                     e.target.value = "";
                   }}
                 />
+                {pdfFileInfo && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    📄 {pdfFileInfo.name} ({pdfFileInfo.size < 1024 * 1024
+                      ? `${(pdfFileInfo.size / 1024).toFixed(1)} KB`
+                      : `${(pdfFileInfo.size / (1024 * 1024)).toFixed(2)} MB`})
+                  </p>
+                )}
               </div>
             </div>
           </div>
