@@ -74,6 +74,12 @@ export default function RevistasDigitais() {
   const [pdfProgress, setPdfProgress] = useState("");
   const pdfGlobalInputRef = useRef<HTMLInputElement>(null);
 
+  // Pages upload for livro_digital
+  const [uploadingPages, setUploadingPages] = useState(false);
+  const [pagesProgress, setPagesProgress] = useState({ current: 0, total: 0 });
+  const [pagesResult, setPagesResult] = useState<string | null>(null);
+  const pagesInputRef = useRef<HTMLInputElement>(null);
+
   // PDF worker
   if (typeof window !== "undefined") {
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
