@@ -1,43 +1,61 @@
 
+Motivo atual: você não está caindo no leitor novo de livro no celular.
 
-# Diagnóstico: Por que o livro "teste" não mostra o PDF no celular
+O que a captura mostra:
+- A tela do print é da página `src/pages/revista/RevistaLeitura.tsx`
+- Essa página exibe exatamente:
+  - “Minha Biblioteca”
+  - “Voltar às revistas”
+  - “Nenhuma lição disponível no momento.”
+- Esse fluxo é o portal `/revista/leitura`, que ainda trabalha com lista de lições
 
-## Problemas encontrados
+O que deveria acontecer para livro:
+- Livro digital no fluxo novo abre em `src/pages/ebd/aluno/LivroDigitalLeitura.tsx`
+- Essa tela usa `react-pdf`
+- Se o PDF faltar, ela mostra “Conteúdo ainda não disponível.”
+- Portanto, como sua tela mostra “Nenhuma lição disponível no momento”, o app não entrou nessa rota de livro
 
-### Problema 1: `pdf_url` está NULL no banco de dados
-O livro "teste" foi cadastrado com `leitura_continua: true` e `tipo_conteudo: livro_digital`, porém a coluna `pdf_url` está **NULL**. Também não há arquivo `completo.pdf` no storage.
+Diagnóstico mais provável agora:
+1. O acesso foi feito pelo fluxo antigo `/revista/leitura`
+   - Esse fluxo não usa a lógica nova de `AlunoRevistaVirtual.tsx`
+   - Ele continua esperando lições
+   - Como livro não tem lições, aparece “Nenhuma lição disponível no momento”
 
-**Causa raiz**: A função `handleGlobalPdfUpload` no `RevistasDigitais.tsx` faz upload do PDF para o storage (`revistas/{id}/completo.pdf`), mas **nunca atualiza a coluna `pdf_url`** na tabela `revistas_digitais`. O campo fica vazio.
+2. O redirecionamento para `/ebd/livro/:revistaId/ler` só existe em:
+   - `src/pages/ebd/aluno/AlunoRevistaVirtual.tsx`
+- Então só funciona quando o usuário entra por esse painel do aluno, não pelo portal antigo “Minha Biblioteca”
 
-### Problema 2: Nenhuma assinatura foi criada
-A tabela `revista_assinaturas` está **vazia**. O componente `AlunoRevistaVirtual.tsx` depende de uma assinatura ativa para carregar o conteúdo. Sem assinatura, o aluno não consegue acessar nenhum livro.
+3. Mesmo com o upload corrigido, isso sozinho não conserta o fluxo antigo
+   - O PDF pode até estar salvo agora
+   - Mas a tela do print é outra página, com outra lógica
 
-A tela que aparece no celular ("Nenhuma lição disponível no momento") vem de um fluxo onde o aluno pode ter uma licença mas sem assinatura vinculada, e o sistema mostra as lições (que não existem para livros).
+Arquivos relevantes identificados:
+- `src/pages/ebd/aluno/AlunoRevistaVirtual.tsx`
+  - já redireciona livro para `/ebd/livro/${assinatura.revista_id}/ler`
+- `src/pages/ebd/aluno/LivroDigitalLeitura.tsx`
+  - já usa `react-pdf`
+- `src/pages/revista/RevistaLeitura.tsx`
+  - ainda mostra lições e a mensagem “Nenhuma lição disponível no momento”
 
-### Problema 3 (potencial): O botão "Ler Livro" navega para `/ebd/livro/{id}/ler`, mas sem `pdf_url` e sem arquivo no storage, a tela mostra "Conteúdo ainda não disponível"
+Plano de correção enxuto:
+1. Revisar `src/pages/revista/RevistaLeitura.tsx`
+   - detectar quando a revista selecionada é um livro (`leitura_continua === true` ou `tipo_conteudo === 'livro_digital'`)
+2. Nesse caso, não renderizar a lista de lições
+3. Exibir um botão único de leitura contínua para livro
+4. Fazer esse botão abrir o PDF do livro no mesmo padrão mobile já usado no leitor novo
+   - idealmente redirecionando para a rota de livro já existente
+5. Confirmar que esse fluxo antigo também carrega `pdf_url`/metadados do livro no select
 
-## Plano de correção (2 arquivos)
+Detalhe técnico importante:
+- Hoje o gargalo não parece ser mais o `react-pdf`
+- O gargalo é de roteamento/fluxo: livro está sendo aberto numa página feita para revista com lições
 
-### Correção 1: `RevistasDigitais.tsx` — Salvar `pdf_url` após upload do PDF
+Resultado esperado após ajuste:
+- Se o usuário entrar pelo fluxo antigo e o item for livro, ele não verá mais “Nenhuma lição disponível”
+- Em vez disso, verá um acesso direto ao PDF em modo contínuo no celular
 
-Na função `handleGlobalPdfUpload`, após o upload bem-sucedido no storage, obter a URL pública e atualizar a coluna `pdf_url` da revista:
-
-```typescript
-// Após upload com sucesso:
-const { data: urlData } = supabase.storage.from("revistas").getPublicUrl(path);
-await supabase.from("revistas_digitais")
-  .update({ pdf_url: urlData.publicUrl })
-  .eq("id", revistaId);
-```
-
-### Correção 2: `AlunoRevistaVirtual.tsx` — Tratar corretamente o fluxo de licença para livros
-
-Quando o acesso vem via licença (`resolvedRevistaId`), o `select("*")` na linha 103 já traz `leitura_continua`, mas o objeto é montado como `{ revista_id, revista, status }`. Na linha 305, `assinatura.revista` funciona corretamente para o join da assinatura, mas para o fluxo de licença, o objeto `revista` contém todos os campos diretamente.
-
-Verificar que o campo `leitura_continua` é acessado corretamente em ambos os fluxos.
-
-## Resumo dos problemas
-1. **PDF não foi salvo no banco** — `handleGlobalPdfUpload` não atualiza `pdf_url`
-2. **Sem assinatura** — se o admin não criou uma assinatura em "Assinaturas", o aluno não vê nada
-3. Mesmo que a assinatura existisse, o PDF URL estaria null → tela "Conteúdo não disponível"
-
+<lov-actions>
+<lov-suggestion message="Test the complete mobile flow end-to-end for a digital book, starting from the library screen until the PDF opens on the phone.">Verifique no celular</lov-suggestion>
+<lov-suggestion message="Corrija o fluxo antigo em RevistaLeitura.tsx para detectar livros digitais e abrir o leitor de PDF em vez de mostrar lições vazias.">Corrigir fluxo antigo de livros</lov-suggestion>
+<lov-suggestion message="Add a visible status indicator in the admin page showing whether each book already has a PDF linked in pdf_url.">Mostrar status do PDF no admin</lov-suggestion>
+</lov-actions>
