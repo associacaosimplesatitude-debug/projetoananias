@@ -54,6 +54,7 @@ export default function RevistasDigitais() {
   const [autor, setAutor] = useState("");
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
+  const [tipoConteudo, setTipoConteudo] = useState("revista");
 
   // Capa upload
   const [capaUrl, setCapaUrl] = useState("");
