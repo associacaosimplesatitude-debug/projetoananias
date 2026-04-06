@@ -32,7 +32,7 @@ export default function RevistaLeituraContinua() {
     return () => ro.disconnect();
   }, []);
 
-  const isMobile = containerWidth < 768;
+  
 
   const { data: cliente } = useQuery({
     queryKey: ["meu-cliente-continua", user?.id],
