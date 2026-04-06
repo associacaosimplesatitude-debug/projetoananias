@@ -85,13 +85,26 @@ serve(async (req) => {
     }
 
     if (action === "list") {
-      const { data, error } = await supabaseAdmin
-        .from("revista_licencas_shopify")
-        .select("*, revistas_digitais(titulo, capa_url)")
-        .order("created_at", { ascending: false })
-        .limit(5000);
-      if (error) throw error;
-      return new Response(JSON.stringify({ data }), {
+      const allRows: any[] = [];
+      const pageSize = 1000;
+
+      for (let from = 0; ; from += pageSize) {
+        const to = from + pageSize - 1;
+        const { data, error } = await supabaseAdmin
+          .from("revista_licencas_shopify")
+          .select("*, revistas_digitais(titulo, capa_url)")
+          .order("created_at", { ascending: false })
+          .range(from, to);
+
+        if (error) throw error;
+        if (!data?.length) break;
+
+        allRows.push(...data);
+
+        if (data.length < pageSize) break;
+      }
+
+      return new Response(JSON.stringify({ data: allRows }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
