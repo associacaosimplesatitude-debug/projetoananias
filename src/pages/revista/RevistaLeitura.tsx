@@ -68,6 +68,41 @@ function callAdminPublic(action: string, params: Record<string, unknown> = {}) {
   });
 }
 
+function MobilePdfReader({ pdfUrl, modoNoturno, titulo }: { pdfUrl: string; modoNoturno: boolean; titulo: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [numPages, setNumPages] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      for (const entry of entries) setContainerWidth(entry.contentRect.width);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none' }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <Document
+        file={pdfUrl}
+        onLoadSuccess={({ numPages: n }) => setNumPages(n)}
+        loading={<p style={{ color: '#888', textAlign: 'center', padding: '40px' }}>Carregando PDF...</p>}
+        error={<p style={{ color: '#888', textAlign: 'center', padding: '40px' }}>Erro ao carregar o PDF.</p>}
+      >
+        {Array.from({ length: numPages }, (_, i) => (
+          <Page key={i} pageNumber={i + 1} width={containerWidth} renderAnnotationLayer={false} renderTextLayer={false} />
+        ))}
+      </Document>
+    </div>
+  );
+}
+
 export default function RevistaLeitura() {
   const navigate = useNavigate();
   const [licencas, setLicencas] = useState<Licenca[]>([]);
