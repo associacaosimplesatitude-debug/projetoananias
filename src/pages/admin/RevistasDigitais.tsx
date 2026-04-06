@@ -612,22 +612,24 @@ export default function RevistasDigitais() {
                 <Label>Título</Label>
                 <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex: Estudo Bíblico Nº 9" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Tipo</Label>
-                  <Select value={tipo} onValueChange={setTipo}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="aluno">Aluno</SelectItem>
-                      <SelectItem value="professor">Professor</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {tipoConteudo !== 'livro_digital' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Tipo</Label>
+                    <Select value={tipo} onValueChange={setTipo}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aluno">Aluno</SelectItem>
+                        <SelectItem value="professor">Professor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Trimestre</Label>
+                    <Input value={trimestre} onChange={(e) => setTrimestre(e.target.value)} placeholder="2026-T1" />
+                  </div>
                 </div>
-                <div>
-                  <Label>Trimestre</Label>
-                  <Input value={trimestre} onChange={(e) => setTrimestre(e.target.value)} placeholder="2026-T1" />
-                </div>
-              </div>
+              )}
               <div>
                 <Label>Tipo de Conteúdo</Label>
                 <Select value={tipoConteudo} onValueChange={setTipoConteudo}>
