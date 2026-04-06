@@ -62,6 +62,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
       autor: "",
       imagem_url: "",
       num_licoes: 13,
+      tipo_conteudo: "revista",
     },
   });
 
