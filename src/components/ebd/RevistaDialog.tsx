@@ -40,6 +40,7 @@ interface RevistaFormData {
   autor: string;
   imagem_url: string;
   num_licoes: number;
+  tipo_conteudo: string;
 }
 
 interface Licao {
@@ -61,6 +62,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
       autor: "",
       imagem_url: "",
       num_licoes: 13,
+      tipo_conteudo: "revista",
     },
   });
 
@@ -91,6 +93,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
         autor: revista.autor || "",
         imagem_url: revista.imagem_url || "",
         num_licoes: revista.num_licoes,
+        tipo_conteudo: (revista as any).tipo_conteudo || "revista",
       });
     } else {
       reset({
@@ -100,6 +103,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
         autor: "",
         imagem_url: "",
         num_licoes: 13,
+        tipo_conteudo: "revista",
       });
     }
   }, [revista, reset]);
@@ -122,10 +126,14 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
 
   const saveMutation = useMutation({
     mutationFn: async (data: RevistaFormData) => {
+      const payload = {
+        ...data,
+        leitura_continua: data.tipo_conteudo === 'livro_digital',
+      };
       if (revista) {
         const { error } = await supabase
           .from('ebd_revistas')
-          .update(data)
+          .update(payload)
           .eq('id', revista.id);
 
         if (error) throw error;
@@ -133,7 +141,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
       } else {
         const { data: newRevista, error } = await supabase
           .from('ebd_revistas')
-          .insert([data])
+          .insert([payload])
           .select()
           .single();
 
@@ -240,6 +248,22 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="tipo_conteudo">Tipo de Conteúdo</Label>
+                  <Select
+                    value={watch("tipo_conteudo")}
+                    onValueChange={(value) => setValue("tipo_conteudo", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="revista">Revista EBD</SelectItem>
+                      <SelectItem value="livro_digital">Livro Digital</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="autor">Autor</Label>
                   <Input
                     id="autor"
@@ -247,7 +271,9 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
                     placeholder="Nome do autor"
                   />
                 </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="num_licoes">Número de Lições</Label>
                   <Input
