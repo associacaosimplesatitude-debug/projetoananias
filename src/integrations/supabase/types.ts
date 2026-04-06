@@ -7669,30 +7669,6 @@ export type Database = {
           },
         ]
       }
-      whatsapp_envio_locks: {
-        Row: {
-          created_at: string
-          id: string
-          shopify_order_id: string
-          sku: string
-          tipo_mensagem: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          shopify_order_id: string
-          sku: string
-          tipo_mensagem: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          shopify_order_id?: string
-          sku?: string
-          tipo_mensagem?: string
-        }
-        Relationships: []
-      }
       whatsapp_mensagens: {
         Row: {
           created_at: string
