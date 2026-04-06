@@ -745,9 +745,11 @@ export default function RevistasDigitais() {
               <div className="pt-2 border-t">
                 <Label className="text-xs">PDF Completo</Label>
                 <p className="text-[10px] text-muted-foreground mb-2">
-                  {editingRevista 
-                    ? "As páginas serão distribuídas entre as lições existentes" 
-                    : "Após salvar, as páginas serão distribuídas automaticamente"}
+                  {isLivroDigital
+                    ? "PDF completo do livro"
+                    : editingRevista 
+                      ? "As páginas serão distribuídas entre as lições existentes" 
+                      : "Após salvar, as páginas serão distribuídas automaticamente"}
                 </p>
                 <Button
                   variant="outline"
