@@ -437,40 +437,62 @@ export default function RevistaLeitura() {
 
         {/* Conteúdo — condicional mobile vs desktop */}
         {isMobile ? (
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            WebkitOverflowScrolling: 'touch',
-            background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
-          }}>
-            {licoes.map((licao) => (
-              <div key={licao.id}>
-                <div style={{
-                  textAlign: 'center',
-                  padding: '12px',
-                  background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
-                  color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  borderTop: '1px solid rgba(0,0,0,0.1)'
-                }}>
-                  Lição {licao.numero} — {licao.titulo}
+          revista.pdf_url ? (
+            <div style={{
+              flex: 1,
+              overflow: 'hidden',
+              background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
+              position: 'relative',
+            }}>
+              <iframe
+                src={`${revista.pdf_url}#toolbar=0&navpanes=0&view=FitH`}
+                style={{
+                  border: 'none',
+                  width: '100%',
+                  height: '100%',
+                  background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+                  filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
+                  display: 'block',
+                }}
+                title={revista?.titulo}
+              />
+            </div>
+          ) : (
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
+            }}>
+              {licoes.map((licao) => (
+                <div key={licao.id}>
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '12px',
+                    background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
+                    color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    borderTop: '1px solid rgba(0,0,0,0.1)'
+                  }}>
+                    Lição {licao.numero} — {licao.titulo}
+                  </div>
+                  {(licao.paginas || []).map((url: string, i: number) => (
+                    <img
+                      key={i}
+                      src={url}
+                      alt={`Lição ${licao.numero} - Página ${i + 1}`}
+                      style={{
+                        width: '100%',
+                        display: 'block',
+                        filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+                      }}
+                    />
+                  ))}
                 </div>
-                {(licao.paginas || []).map((url: string, i: number) => (
-                  <img
-                    key={i}
-                    src={url}
-                    alt={`Lição ${licao.numero} - Página ${i + 1}`}
-                    style={{
-                      width: '100%',
-                      display: 'block',
-                      filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
-                    }}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )
         ) : (
           <div style={{
             flex: 1,
