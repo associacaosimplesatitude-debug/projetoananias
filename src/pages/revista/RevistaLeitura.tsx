@@ -21,6 +21,8 @@ interface RevistaDigital {
   total_licoes: number | null;
   tipo: string | null;
   pdf_url?: string | null;
+  leitura_continua?: boolean | null;
+  tipo_conteudo?: string | null;
 }
 
 interface Licenca {
@@ -442,33 +444,54 @@ export default function RevistaLeitura() {
             WebkitOverflowScrolling: 'touch',
             background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
           }}>
-            {licoes.map((licao) => (
-              <div key={licao.id}>
-                <div style={{
-                  textAlign: 'center',
-                  padding: '12px',
-                  background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
-                  color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  borderTop: '1px solid rgba(0,0,0,0.1)'
-                }}>
-                  Lição {licao.numero} — {licao.titulo}
+            {(revista?.leitura_continua || revista?.tipo_conteudo === 'livro_digital') ? (
+              revista.pdf_url ? (
+                <iframe
+                  src={`${revista.pdf_url}#toolbar=0&view=FitH`}
+                  style={{
+                    border: 'none',
+                    width: '100%',
+                    height: 'calc(100vh - 50px)',
+                    background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
+                    filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
+                    display: 'block'
+                  }}
+                  title={revista?.titulo}
+                />
+              ) : (
+                <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
+                  PDF não disponível.
+                </p>
+              )
+            ) : (
+              licoes.map((licao) => (
+                <div key={licao.id}>
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '12px',
+                    background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
+                    color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    borderTop: '1px solid rgba(0,0,0,0.1)'
+                  }}>
+                    Lição {licao.numero} — {licao.titulo}
+                  </div>
+                  {(licao.paginas || []).map((url: string, i: number) => (
+                    <img
+                      key={i}
+                      src={url}
+                      alt={`Lição ${licao.numero} - Página ${i + 1}`}
+                      style={{
+                        width: '100%',
+                        display: 'block',
+                        filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+                      }}
+                    />
+                  ))}
                 </div>
-                {(licao.paginas || []).map((url: string, i: number) => (
-                  <img
-                    key={i}
-                    src={url}
-                    alt={`Lição ${licao.numero} - Página ${i + 1}`}
-                    style={{
-                      width: '100%',
-                      display: 'block',
-                      filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
-                    }}
-                  />
-                ))}
-              </div>
-            ))}
+              ))
+            )}
           </div>
         ) : (
           <div style={{
@@ -831,8 +854,28 @@ export default function RevistaLeitura() {
 
             {loadingLicoes ? (
               <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
-                Carregando lições...
+                Carregando...
               </p>
+            ) : (revista?.leitura_continua || revista?.tipo_conteudo === 'livro_digital') ? (
+              <div className="space-y-4">
+                {revista?.pdf_url ? (
+                  <button
+                    onClick={() => setModoKindle(true)}
+                    className="flex items-center justify-center gap-3 w-full p-5 rounded-lg font-semibold text-lg transition-colors"
+                    style={{
+                      background: '#f6ba32',
+                      color: '#1c1915',
+                    }}
+                  >
+                    <BookOpen className="h-6 w-6" />
+                    Ler Livro
+                  </button>
+                ) : (
+                  <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
+                    Conteúdo ainda não disponível.
+                  </p>
+                )}
+              </div>
             ) : licoes.length === 0 ? (
               <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                 Nenhuma lição disponível no momento.
