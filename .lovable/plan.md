@@ -1,66 +1,43 @@
 
 
-## Diagnóstico
+# Diagnóstico: Por que o livro "teste" não mostra o PDF no celular
 
-Todos os 10 registros no banco estão com **todos os campos nulos** (ip, cidade, estado, latitude, longitude, latitude_gps, longitude_gps). Isso confirma que:
+## Problemas encontrados
 
-1. **`ipapi.co` está retornando `{}`** — provavelmente bloqueado por rate-limit ou CORS no domínio do Lovable/produção
-2. **GPS não está sendo concedido** — o navegador não concede permissão automaticamente, e o usuário não está interagindo com o prompt
+### Problema 1: `pdf_url` está NULL no banco de dados
+O livro "teste" foi cadastrado com `leitura_continua: true` e `tipo_conteudo: livro_digital`, porém a coluna `pdf_url` está **NULL**. Também não há arquivo `completo.pdf` no storage.
 
-## Solução proposta
+**Causa raiz**: A função `handleGlobalPdfUpload` no `RevistasDigitais.tsx` faz upload do PDF para o storage (`revistas/{id}/completo.pdf`), mas **nunca atualiza a coluna `pdf_url`** na tabela `revistas_digitais`. O campo fica vazio.
 
-Criar uma **Edge Function** que faz a chamada de geolocalização por IP no lado do servidor, eliminando problemas de CORS e rate-limit do frontend.
+### Problema 2: Nenhuma assinatura foi criada
+A tabela `revista_assinaturas` está **vazia**. O componente `AlunoRevistaVirtual.tsx` depende de uma assinatura ativa para carregar o conteúdo. Sem assinatura, o aluno não consegue acessar nenhum livro.
 
-### Arquivos envolvidos
+A tela que aparece no celular ("Nenhuma lição disponível no momento") vem de um fluxo onde o aluno pode ter uma licença mas sem assinatura vinculada, e o sistema mostra as lições (que não existem para livros).
 
-1. **`supabase/functions/geo-ip/index.ts`** (novo) — Edge Function que:
-   - Recebe o IP do cliente via header `x-forwarded-for` ou `cf-connecting-ip`
-   - Chama `ipapi.co/{ip}/json/` server-side
-   - Retorna os dados de geolocalização
-   - Fallback: se ipapi.co falhar, tenta `ip-api.com/json/{ip}` (outra API gratuita)
+### Problema 3 (potencial): O botão "Ler Livro" navega para `/ebd/livro/{id}/ler`, mas sem `pdf_url` e sem arquivo no storage, a tela mostra "Conteúdo ainda não disponível"
 
-2. **`src/pages/revista/RevistaLeitura.tsx`** — Alterar `trackAcesso` para:
-   - Chamar a Edge Function em vez de `ipapi.co` direto do frontend
-   - Manter o fallback de GPS como está
+## Plano de correção (2 arquivos)
 
-### Fluxo corrigido
+### Correção 1: `RevistasDigitais.tsx` — Salvar `pdf_url` após upload do PDF
 
-```text
-Frontend (trackAcesso)
-  → POST /functions/v1/geo-ip
-  → Edge Function lê IP do request
-  → Chama ipapi.co server-side (sem CORS)
-  → Fallback: ip-api.com se ipapi.co falhar
-  → Retorna { ip, city, region, latitude, longitude }
-  → Frontend insere em revista_acessos_geo
-  → Tenta GPS como enriquecimento opcional
-```
-
-### Detalhes da Edge Function
+Na função `handleGlobalPdfUpload`, após o upload bem-sucedido no storage, obter a URL pública e atualizar a coluna `pdf_url` da revista:
 
 ```typescript
-// supabase/functions/geo-ip/index.ts
-// 1. Extrair IP real do header
-// 2. Tentar ipapi.co/{ip}/json/
-// 3. Se falhar, tentar ip-api.com/json/{ip}
-// 4. Retornar JSON normalizado: { ip, city, region, country, latitude, longitude }
+// Após upload com sucesso:
+const { data: urlData } = supabase.storage.from("revistas").getPublicUrl(path);
+await supabase.from("revistas_digitais")
+  .update({ pdf_url: urlData.publicUrl })
+  .eq("id", revistaId);
 ```
 
-### Alteração em RevistaLeitura.tsx
+### Correção 2: `AlunoRevistaVirtual.tsx` — Tratar corretamente o fluxo de licença para livros
 
-Substituir:
-```typescript
-const resp = await fetch('https://ipapi.co/json/');
-```
+Quando o acesso vem via licença (`resolvedRevistaId`), o `select("*")` na linha 103 já traz `leitura_continua`, mas o objeto é montado como `{ revista_id, revista, status }`. Na linha 305, `assinatura.revista` funciona corretamente para o join da assinatura, mas para o fluxo de licença, o objeto `revista` contém todos os campos diretamente.
 
-Por:
-```typescript
-const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geo-ip`);
-```
+Verificar que o campo `leitura_continua` é acessado corretamente em ambos os fluxos.
 
-### Critérios de aceite
-
-- Novos acessos passam a ter cidade, estado e coordenadas preenchidos
-- Se ambas APIs falharem, o acesso ainda é registrado (com campos nulos)
-- O mapa plota os novos acessos corretamente
+## Resumo dos problemas
+1. **PDF não foi salvo no banco** — `handleGlobalPdfUpload` não atualiza `pdf_url`
+2. **Sem assinatura** — se o admin não criou uma assinatura em "Assinaturas", o aluno não vê nada
+3. Mesmo que a assinatura existisse, o PDF URL estaria null → tela "Conteúdo não disponível"
 
