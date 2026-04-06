@@ -850,6 +850,50 @@ export default function RevistasDigitais() {
                   </p>
                 )}
               </div>
+
+              {/* Upload de Páginas para Livro Digital */}
+              {tipoConteudo === 'livro_digital' && editingRevista && (
+                <div className="pt-2 border-t">
+                  <Label className="text-xs">Páginas do Livro</Label>
+                  <p className="text-[10px] text-muted-foreground mb-2">
+                    Selecione as imagens das páginas (serão ordenadas pelo nome do arquivo)
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1 text-xs"
+                    disabled={uploadingPages}
+                    onClick={(e) => { e.stopPropagation(); pagesInputRef.current?.click(); }}
+                  >
+                    {uploadingPages ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />}
+                    {uploadingPages ? `Enviando ${pagesProgress.current} de ${pagesProgress.total}...` : "🖼️ Selecionar Páginas"}
+                  </Button>
+                  <input
+                    ref={pagesInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+                      handlePagesUpload(files, editingRevista.id);
+                      e.target.value = "";
+                    }}
+                  />
+                  {uploadingPages && (
+                    <div className="mt-2 space-y-1">
+                      <Progress value={(pagesProgress.current / pagesProgress.total) * 100} className="h-2" />
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        {pagesProgress.current} / {pagesProgress.total}
+                      </p>
+                    </div>
+                  )}
+                  {pagesResult && (
+                    <p className="text-[10px] text-green-600 mt-1">✅ {pagesResult}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </DialogContent>
