@@ -1,68 +1,30 @@
 
-Diagnóstico
 
-- Do I know what the issue is? Sim.
-- A rota está correta e leva para `LivroDigitalLeitura.tsx`.
-- O problema real não é mais o parâmetro da rota; é a estratégia de render no mobile.
-- Hoje o componente ainda mantém caminho de PDF no celular:
-  - tenta priorizar imagens, mas ainda permite `usePdf` no mobile quando `paginasImagens` não chegou ainda ou vier vazio
-  - isso é insuficiente para “garantir” iPhone, porque o `react-pdf` continua podendo entrar no fluxo e exibir `Erro ao carregar o PDF`
+## Correção: erro "Invalid key" no upload de páginas
 
-Arquivos envolvidos
+**Problema**: O upload de imagens de páginas usa o nome original do arquivo (`file.name`) como chave no storage. Nomes com espaços e caracteres especiais (como "35978_MIOLO_O líder acolhedor_Preflight_WEB_pages-to-jpg-0001.jpg") são rejeitados pelo Supabase Storage.
 
-- `src/pages/ebd/aluno/LivroDigitalLeitura.tsx`
-- Não preciso mexer em rota nem em `AlunoRevistaVirtual.tsx`, porque o redirecionamento já está correto para `/ebd/livro/:revistaId/ler`
+**Solução**: Sanitizar o nome do arquivo antes do upload, substituindo espaços e caracteres especiais por underscores, ou usar um nome sequencial simples.
 
-Plano de implementação
+## Arquivo alterado
 
-1. Tornar o mobile “image-only”
-- Em `LivroDigitalLeitura.tsx`, quando `isMobile` for true:
-  - nunca renderizar `<Document>`
-  - ignorar completamente `pdf_url`
-  - usar apenas o array `paginas` vindo de `revista_licoes` (`numero = 1`)
+`src/pages/admin/RevistasDigitais.tsx` (linha 369)
 
-2. Separar claramente os fluxos desktop e mobile
-- Desktop:
-  - mantém PDF como principal
-  - imagens continuam como fallback se não houver PDF
-- Mobile:
-  - imagens como única fonte
-  - PDF não entra em nenhuma condição de render
+## Mudança
 
-3. Adicionar estado de carregamento das imagens no mobile
-- Enquanto a query de `revista_licoes` estiver carregando:
-  - mostrar algo como “Carregando páginas...”
-- Isso evita que o componente entre cedo demais no ramo do PDF antes da resposta do banco
+Trocar:
+```typescript
+const path = `${revistaId}/paginas/${file.name}`;
+```
 
-4. Ajustar condição de tela vazia
-- No mobile:
-  - se não houver imagens, mostrar mensagem específica de conteúdo indisponível no celular
-- No desktop:
-  - mantém comportamento atual de PDF/imagens
+Por:
+```typescript
+const safeName = file.name
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9._-]/g, '_');
+const path = `${revistaId}/paginas/${safeName}`;
+```
 
-5. Preservar o modo atual de leitura por imagens
-- Reaproveitar o renderer já existente de scroll contínuo:
-  - `paginasImagens!.map(...)`
-- Manter:
-  - marca d’água
-  - `loading="lazy"`
-  - bloqueio de menu de contexto
-  - layout em rolagem vertical contínua
+Isso remove acentos e substitui espaços e caracteres especiais por `_`, garantindo que a chave seja sempre válida no storage.
 
-Resultado esperado
-
-- iPhone/Android:
-  - livro digital abre sempre pelas imagens
-  - nunca aparece “Erro ao carregar o PDF” porque o PDF deixa de ser usado no celular
-- Desktop:
-  - continua usando PDF normalmente
-  - fallback por imagens continua disponível
-
-Detalhe técnico
-
-- Hoje o trecho crítico é este conceito:
-  - `const usePdf = isMobile ? (!hasImages && !!pdfUrl) : !!pdfUrl;`
-- Para garantir mobile, ele precisa virar lógica efetivamente equivalente a:
-  - mobile: `usePdf = false`
-  - mobile: `useImages = hasImages`
-- Além disso, a UI deve respeitar o `isLoading` da query de páginas antes de decidir o que renderizar
