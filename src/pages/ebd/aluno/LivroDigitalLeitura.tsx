@@ -71,7 +71,7 @@ export default function LivroDigitalLeitura() {
   });
 
   // Buscar imagens de páginas como fallback
-  const { data: paginasImagens } = useQuery({
+  const { data: paginasImagens, isLoading: isLoadingImagens } = useQuery({
     queryKey: ["revista-paginas-imagens", revistaId],
     queryFn: async () => {
       const { data } = await supabase
@@ -90,11 +90,11 @@ export default function LivroDigitalLeitura() {
   const watermarkText = cliente?.nome_igreja || user?.email || "";
   const titulo = revista?.titulo || "Livro Digital";
 
-  // No mobile, priorizar imagens (PDF grande falha no Safari/iOS)
+  // Mobile: NUNCA usar PDF (react-pdf falha com PDFs grandes no Safari/iOS)
   const isMobile = window.innerWidth < 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const hasImages = !!paginasImagens && paginasImagens.length > 0;
 
-  const usePdf = isMobile ? (!hasImages && !!pdfUrl) : !!pdfUrl;
+  const usePdf = isMobile ? false : !!pdfUrl;
   const useImages = isMobile ? hasImages : (!usePdf && hasImages);
 
   useEffect(() => {
