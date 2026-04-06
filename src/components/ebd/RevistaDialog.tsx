@@ -273,6 +273,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="num_licoes">Número de Lições</Label>
                   <Input
