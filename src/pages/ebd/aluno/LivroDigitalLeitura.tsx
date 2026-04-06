@@ -90,9 +90,12 @@ export default function LivroDigitalLeitura() {
   const watermarkText = cliente?.nome_igreja || user?.email || "";
   const titulo = revista?.titulo || "Livro Digital";
 
-  // Determinar modo de exibição: PDF tem prioridade, depois imagens
-  const usePdf = !!pdfUrl;
-  const useImages = !usePdf && !!paginasImagens && paginasImagens.length > 0;
+  // No mobile, priorizar imagens (PDF grande falha no Safari/iOS)
+  const isMobile = window.innerWidth < 768 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const hasImages = !!paginasImagens && paginasImagens.length > 0;
+
+  const usePdf = isMobile ? (!hasImages && !!pdfUrl) : !!pdfUrl;
+  const useImages = isMobile ? hasImages : (!usePdf && hasImages);
 
   useEffect(() => {
     const el = containerRef.current;
