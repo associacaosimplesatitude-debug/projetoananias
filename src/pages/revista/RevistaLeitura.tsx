@@ -833,8 +833,28 @@ export default function RevistaLeitura() {
 
             {loadingLicoes ? (
               <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
-                Carregando lições...
+                Carregando...
               </p>
+            ) : (revista?.leitura_continua || revista?.tipo_conteudo === 'livro_digital') ? (
+              <div className="space-y-4">
+                {revista?.pdf_url ? (
+                  <button
+                    onClick={() => setModoKindle(true)}
+                    className="flex items-center justify-center gap-3 w-full p-5 rounded-lg font-semibold text-lg transition-colors"
+                    style={{
+                      background: '#f6ba32',
+                      color: '#1c1915',
+                    }}
+                  >
+                    <BookOpen className="h-6 w-6" />
+                    Ler Livro
+                  </button>
+                ) : (
+                  <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
+                    Conteúdo ainda não disponível.
+                  </p>
+                )}
+              </div>
             ) : licoes.length === 0 ? (
               <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                 Nenhuma lição disponível no momento.
