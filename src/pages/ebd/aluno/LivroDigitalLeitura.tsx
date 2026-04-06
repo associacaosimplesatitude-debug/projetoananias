@@ -4,11 +4,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import "react-pdf/dist/esm/Page/TextLayer.css";
+
+pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 export default function LivroDigitalLeitura() {
   const { revistaId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  const [numPages, setNumPages] = useState<number>(0);
+  const [containerWidth, setContainerWidth] = useState<number>(800);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: cliente } = useQuery({
     queryKey: ["meu-cliente-continua", user?.id],
@@ -33,16 +43,27 @@ export default function LivroDigitalLeitura() {
     enabled: !!user,
   });
 
-  // Check if a complete PDF exists in storage
-  const { data: pdfUrl } = useQuery({
+  const { data: revista } = useQuery({
+    queryKey: ["revista-digital-info", revistaId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("revistas_digitais")
+        .select("pdf_url, titulo")
+        .eq("id", revistaId!)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!revistaId,
+  });
+
+  const { data: storagePdfUrl } = useQuery({
     queryKey: ["revista-pdf-completo", revistaId],
     queryFn: async () => {
-      const path = `${revistaId}/completo.pdf`;
-      // Try to get public URL - if file exists it will work
       const { data: listData } = await supabase.storage.from("revistas").list(revistaId!, {
         search: "completo.pdf",
       });
       if (listData && listData.length > 0) {
+        const path = `${revistaId}/completo.pdf`;
         const { data } = supabase.storage.from("revistas").getPublicUrl(path);
         return data.publicUrl;
       }
@@ -51,92 +72,79 @@ export default function LivroDigitalLeitura() {
     enabled: !!revistaId,
   });
 
-  const { data: licoes } = useQuery({
-    queryKey: ["all-licoes-continua", revistaId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("revista_licoes")
-        .select("*, revista:revistas_digitais(titulo)")
-        .eq("revista_id", revistaId!)
-        .order("numero");
-      return data || [];
-    },
-    enabled: !!revistaId && !pdfUrl,
-  });
-
+  const pdfUrl = revista?.pdf_url || storagePdfUrl || null;
   const watermarkText = cliente?.nome_igreja || user?.email || "";
-  const revistaTitulo = (licoes?.[0] as any)?.revista?.titulo || "Revista";
+  const titulo = revista?.titulo || "Livro Digital";
 
-  // If PDF exists, show it in an iframe with watermark overlay
-  if (pdfUrl) {
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const onDocumentLoadSuccess = useCallback(({ numPages: n }: { numPages: number }) => {
+    setNumPages(n);
+  }, []);
+
+  if (!pdfUrl) {
     return (
-      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none" onContextMenu={(e) => e.preventDefault()}>
-        <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0">
-          <span className="text-white font-medium text-sm truncate">Leitura Contínua</span>
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-white hover:bg-white/10 shrink-0">
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-        <div className="flex-1 relative">
-          <iframe
-            src={`${pdfUrl}#toolbar=0&navpanes=0`}
-            className="w-full h-full border-0"
-            title="Revista PDF"
-          />
-          {watermarkText && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-              <span className="text-white/[0.07] text-5xl font-bold whitespace-nowrap rotate-[-30deg] select-none">
-                {watermarkText}
-              </span>
-            </div>
-          )}
-        </div>
+      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center select-none">
+        <p className="text-white/60 text-sm mb-4">Conteúdo ainda não disponível.</p>
+        <Button variant="ghost" onClick={() => navigate(-1)} className="text-white hover:bg-white/10">
+          Voltar
+        </Button>
       </div>
     );
   }
 
-  // Fallback: show lesson images in continuous scroll
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none" onContextMenu={(e) => e.preventDefault()}>
       <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0">
-        <span className="text-white font-medium text-sm truncate">{revistaTitulo} — Leitura Contínua</span>
+        <span className="text-white font-medium text-sm truncate">{titulo}</span>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-white hover:bg-white/10 shrink-0">
           <X className="h-5 w-5" />
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {licoes?.map((licao: any) => {
-          const paginas = (licao.paginas as string[]) || [];
-          if (paginas.length === 0) return null;
-          return (
-            <div key={licao.id} className="mb-8">
-              <div className="sticky top-0 z-10 bg-slate-900/90 backdrop-blur px-4 py-2 border-b border-white/10">
-                <span className="text-orange-400 font-semibold text-sm">Lição {licao.numero}</span>
-                <span className="text-white/60 text-sm ml-2">{licao.titulo || ""}</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                {paginas.map((url: string, i: number) => (
-                  <div key={i} className="relative w-full max-w-3xl mx-auto">
-                    <img
-                      src={url}
-                      alt={`Lição ${licao.numero} - Página ${i + 1}`}
-                      className="w-full object-contain pointer-events-none"
-                      draggable={false}
-                    />
-                    {watermarkText && (
-                      <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
-                        <span className="text-white/[0.07] text-4xl font-bold whitespace-nowrap rotate-[-30deg] select-none">
-                          {watermarkText}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+      <div className="flex-1 overflow-y-auto" ref={containerRef}>
+        <Document
+          file={pdfUrl}
+          onLoadSuccess={onDocumentLoadSuccess}
+          loading={
+            <div className="flex items-center justify-center py-20">
+              <span className="text-white/60 text-sm">Carregando PDF...</span>
             </div>
-          );
-        })}
+          }
+          error={
+            <div className="flex items-center justify-center py-20">
+              <span className="text-white/60 text-sm">Erro ao carregar o PDF.</span>
+            </div>
+          }
+        >
+          {Array.from({ length: numPages }, (_, i) => (
+            <div key={i} className="relative flex justify-center">
+              <Page
+                pageNumber={i + 1}
+                width={containerWidth}
+                renderAnnotationLayer={false}
+                renderTextLayer={false}
+              />
+              {watermarkText && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                  <span className="text-white/[0.07] text-4xl font-bold whitespace-nowrap rotate-[-30deg] select-none">
+                    {watermarkText}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </Document>
       </div>
     </div>
   );
