@@ -331,6 +331,10 @@ export default function RevistasDigitais() {
       const path = `${revistaId}/completo.pdf`;
       const { error } = await supabase.storage.from("revistas").upload(path, file, { upsert: true, contentType: "application/pdf" });
       if (error) throw error;
+      const { data: urlData } = supabase.storage.from("revistas").getPublicUrl(path);
+      if (urlData?.publicUrl) {
+        await supabase.from("revistas_digitais").update({ pdf_url: urlData.publicUrl }).eq("id", revistaId);
+      }
       toast.success("PDF completo enviado com sucesso!");
     } catch (e: any) {
       toast.error("Erro ao enviar PDF: " + e.message);
