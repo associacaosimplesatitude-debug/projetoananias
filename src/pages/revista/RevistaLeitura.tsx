@@ -483,11 +483,32 @@ export default function RevistaLeitura() {
             background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
           }}>
             {(revista?.leitura_continua || revista?.tipo_conteudo === 'livro_digital') ? (
-              revista.pdf_url ? (
-                <MobilePdfReader pdfUrl={revista.pdf_url} modoNoturno={modoNoturno} titulo={revista.titulo} />
+              licoes.length > 0 ? (
+                <>
+                  {licoes.map((licao) => (
+                    (licao.paginas || []).map((url: string, i: number) => (
+                      <img
+                        key={`${licao.id}-${i}`}
+                        src={url}
+                        alt={`Página ${i + 1}`}
+                        loading="lazy"
+                        onContextMenu={(e) => e.preventDefault()}
+                        style={{
+                          width: '100%',
+                          display: 'block',
+                          filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+                        }}
+                      />
+                    ))
+                  ))}
+                </>
+              ) : loadingLicoes ? (
+                <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
+                  Carregando páginas...
+                </p>
               ) : (
                 <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
-                  PDF não disponível.
+                  Conteúdo não disponível no momento.
                 </p>
               )
             ) : (
