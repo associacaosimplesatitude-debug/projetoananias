@@ -449,18 +449,7 @@ export default function RevistaLeitura() {
           }}>
             {(revista?.leitura_continua || revista?.tipo_conteudo === 'livro_digital') ? (
               revista.pdf_url ? (
-                <iframe
-                  src={`${revista.pdf_url}#toolbar=0&view=FitH`}
-                  style={{
-                    border: 'none',
-                    width: '100%',
-                    height: 'calc(100vh - 50px)',
-                    background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
-                    filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
-                    display: 'block'
-                  }}
-                  title={revista?.titulo}
-                />
+                <MobilePdfReader pdfUrl={revista.pdf_url} modoNoturno={modoNoturno} titulo={revista.titulo} />
               ) : (
                 <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
                   PDF não disponível.
