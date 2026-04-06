@@ -39,9 +39,6 @@ interface Revista {
   estoque: number | null;
   categoria: string | null;
   possui_plano_leitura: boolean;
-  tipo_conteudo?: string | null;
-  leitura_continua?: boolean;
-  capitulos_obrigatorio?: boolean;
 }
 
 export default function EBDCurriculo() {
@@ -346,13 +343,8 @@ export default function EBDCurriculo() {
                     <div>
                       <CardTitle className="text-lg">{revista.titulo}</CardTitle>
                       <CardDescription>
-                        {revista.faixa_etaria_alvo} • {revista.tipo_conteudo === 'livro_digital' ? `${revista.num_licoes} capítulos` : `${revista.num_licoes} lições`}
+                        {revista.faixa_etaria_alvo} • {revista.num_licoes} lições
                       </CardDescription>
-                      {revista.tipo_conteudo === 'livro_digital' && (
-                        <Badge variant="secondary" className="mt-1 text-xs w-fit">
-                          📖 Livro Digital
-                        </Badge>
-                      )}
                     </div>
                     <Badge 
                       variant={revista.estoque && revista.estoque > 0 ? "default" : "destructive"}

@@ -28,8 +28,6 @@ interface Revista {
   ano_publicacao: number | null;
   status_publicacao: string | null;
   created_at: string;
-  tipo_conteudo?: string | null;
-  leitura_continua?: boolean;
 }
 
 interface Licao {
@@ -50,15 +48,12 @@ export default function RevistasDigitais() {
   // Form fields
   const [titulo, setTitulo] = useState("");
   const [tipo, setTipo] = useState("aluno");
-  const [tipoConteudo, setTipoConteudo] = useState("revista");
   const [trimestre, setTrimestre] = useState("");
   const [totalLicoes, setTotalLicoes] = useState<number | "">("");
   const [descricao, setDescricao] = useState("");
   const [autor, setAutor] = useState("");
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
-
-  const isLivroDigital = tipoConteudo === "livro_digital";
 
   // Capa upload
   const [capaUrl, setCapaUrl] = useState("");
@@ -141,7 +136,7 @@ export default function RevistasDigitais() {
       const payload = {
         titulo,
         tipo,
-        trimestre: isLivroDigital ? null : trimestre,
+        trimestre,
         capa_url: capaUrl || null,
         total_licoes: Number(totalLicoes) || 0,
         ativo: true,
@@ -149,8 +144,6 @@ export default function RevistasDigitais() {
         autor: autor || null,
         ano_publicacao: anoPublicacao,
         status_publicacao: statusPublicacao,
-        tipo_conteudo: tipoConteudo,
-        leitura_continua: isLivroDigital,
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);
@@ -244,7 +237,6 @@ export default function RevistasDigitais() {
     setEditingRevista(null);
     setTitulo("");
     setTipo("aluno");
-    setTipoConteudo("revista");
     setTrimestre("");
     setCapaUrl("");
     setTotalLicoes("");
@@ -258,7 +250,6 @@ export default function RevistasDigitais() {
     setEditingRevista(r);
     setTitulo(r.titulo);
     setTipo(r.tipo);
-    setTipoConteudo(r.tipo_conteudo || "revista");
     setTrimestre(r.trimestre || "");
     setCapaUrl(r.capa_url || "");
     setTotalLicoes(r.total_licoes);
@@ -330,17 +321,6 @@ export default function RevistasDigitais() {
       const path = `${revistaId}/completo.pdf`;
       const { error } = await supabase.storage.from("revistas").upload(path, file, { upsert: true, contentType: "application/pdf" });
       if (error) throw error;
-      // Save public URL to pdf_url column
-      const { data: urlData } = supabase.storage.from("revistas").getPublicUrl(path);
-      if (urlData?.publicUrl) {
-        const { error: updateError } = await supabase
-          .from("revistas_digitais")
-          .update({ pdf_url: urlData.publicUrl })
-          .eq("id", revistaId);
-        if (updateError) console.error("Erro ao salvar pdf_url:", updateError);
-        else console.log("[handleGlobalPdfUpload] pdf_url salvo:", urlData.publicUrl);
-      }
-      queryClient.invalidateQueries({ queryKey: ["revistas-digitais"] });
       toast.success("PDF completo enviado com sucesso!");
     } catch (e: any) {
       toast.error("Erro ao enviar PDF: " + e.message);
@@ -624,33 +604,20 @@ export default function RevistasDigitais() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Categoria</Label>
+                  <Label>Tipo</Label>
                   <Select value={tipo} onValueChange={setTipo}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="aluno">Aluno</SelectItem>
                       <SelectItem value="professor">Professor</SelectItem>
-                      <SelectItem value="geral">Geral</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Tipo de Conteúdo</Label>
-                  <Select value={tipoConteudo} onValueChange={setTipoConteudo}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="revista">Revista EBD</SelectItem>
-                      <SelectItem value="livro_digital">Livro Digital</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {!isLivroDigital && (
                 <div>
                   <Label>Trimestre</Label>
                   <Input value={trimestre} onChange={(e) => setTrimestre(e.target.value)} placeholder="2026-T1" />
                 </div>
-              )}
+              </div>
               <div>
                 <Label>Descrição / Tema</Label>
                 <Textarea
@@ -684,20 +651,20 @@ export default function RevistasDigitais() {
                 </div>
                 {!editingRevista && (
                   <div>
-                    <Label>{isLivroDigital ? "Capítulos (opcional)" : "Total de Lições *"}</Label>
+                    <Label>Total de Lições *</Label>
                     <Input
                       type="number"
-                      min={isLivroDigital ? 0 : 1}
+                      min={1}
                       value={totalLicoes}
                       onChange={(e) => setTotalLicoes(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder={isLivroDigital ? "0" : "Ex: 13"}
+                      placeholder="Ex: 13"
                     />
                   </div>
                 )}
               </div>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={!titulo || saveMutation.isPending || (!editingRevista && !isLivroDigital && (!totalLicoes || Number(totalLicoes) < 1))}
+                disabled={!titulo || saveMutation.isPending || (!editingRevista && (!totalLicoes || Number(totalLicoes) < 1))}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2"
               >
                 <Save className="h-4 w-4" />
@@ -756,11 +723,9 @@ export default function RevistasDigitais() {
               <div className="pt-2 border-t">
                 <Label className="text-xs">PDF Completo</Label>
                 <p className="text-[10px] text-muted-foreground mb-2">
-                  {isLivroDigital
-                    ? "PDF completo do livro"
-                    : editingRevista 
-                      ? "As páginas serão distribuídas entre as lições existentes" 
-                      : "Após salvar, as páginas serão distribuídas automaticamente"}
+                  {editingRevista 
+                    ? "As páginas serão distribuídas entre as lições existentes" 
+                    : "Após salvar, as páginas serão distribuídas automaticamente"}
                 </p>
                 <Button
                   variant="outline"

@@ -21,7 +21,6 @@ interface RevistaDigital {
   total_licoes: number | null;
   tipo: string | null;
   pdf_url?: string | null;
-  leitura_continua?: boolean | null;
 }
 
 interface Licenca {
@@ -437,62 +436,40 @@ export default function RevistaLeitura() {
 
         {/* Conteúdo — condicional mobile vs desktop */}
         {isMobile ? (
-          revista.pdf_url ? (
-            <div style={{
-              flex: 1,
-              overflow: 'hidden',
-              background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
-              position: 'relative',
-            }}>
-              <iframe
-                src={`${revista.pdf_url}#toolbar=0&navpanes=0&view=FitH`}
-                style={{
-                  border: 'none',
-                  width: '100%',
-                  height: '100%',
-                  background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
-                  filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
-                  display: 'block',
-                }}
-                title={revista?.titulo}
-              />
-            </div>
-          ) : (
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
-            }}>
-              {licoes.map((licao) => (
-                <div key={licao.id}>
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '12px',
-                    background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
-                    color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    borderTop: '1px solid rgba(0,0,0,0.1)'
-                  }}>
-                    Lição {licao.numero} — {licao.titulo}
-                  </div>
-                  {(licao.paginas || []).map((url: string, i: number) => (
-                    <img
-                      key={i}
-                      src={url}
-                      alt={`Lição ${licao.numero} - Página ${i + 1}`}
-                      style={{
-                        width: '100%',
-                        display: 'block',
-                        filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
-                      }}
-                    />
-                  ))}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            background: modoNoturno ? '#0a0a0a' : '#f5f0e8',
+          }}>
+            {licoes.map((licao) => (
+              <div key={licao.id}>
+                <div style={{
+                  textAlign: 'center',
+                  padding: '12px',
+                  background: modoNoturno ? '#1a1a1a' : '#e8dcc8',
+                  color: modoNoturno ? '#e8dcc8' : '#3d2b1f',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  borderTop: '1px solid rgba(0,0,0,0.1)'
+                }}>
+                  Lição {licao.numero} — {licao.titulo}
                 </div>
-              ))}
-            </div>
-          )
+                {(licao.paginas || []).map((url: string, i: number) => (
+                  <img
+                    key={i}
+                    src={url}
+                    alt={`Lição ${licao.numero} - Página ${i + 1}`}
+                    style={{
+                      width: '100%',
+                      display: 'block',
+                      filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none'
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
         ) : (
           <div style={{
             flex: 1,
@@ -856,7 +833,7 @@ export default function RevistaLeitura() {
               <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                 Carregando lições...
               </p>
-            ) : (licoes.length === 0 && !revista?.pdf_url) ? (
+            ) : licoes.length === 0 ? (
               <p className={`text-center text-lg ${modoNoturno ? "text-white/60" : "text-muted-foreground"}`}>
                 Nenhuma lição disponível no momento.
               </p>
@@ -879,7 +856,7 @@ export default function RevistaLeitura() {
                 )}
 
                 {/* Melhoria 1 — Continue where you left off */}
-                {!revista?.leitura_continua && progressoSalvo && licoes.length > 0 && (
+                {progressoSalvo && licoes.length > 0 && (
                   <div
                     className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-lg"
                     style={{ background: '#1c1915' }}
@@ -931,8 +908,7 @@ export default function RevistaLeitura() {
                   </div>
                 )}
 
-                {/* Only show lesson list if NOT leitura_continua */}
-                {!revista?.leitura_continua && licoes.map((licao) => (
+                {licoes.map((licao) => (
                   <Card
                     key={licao.id}
                     className={`cursor-pointer hover:shadow-md transition-shadow ${modoNoturno ? "bg-[#1a1a1a] border-white/10" : ""}`}

@@ -49,7 +49,7 @@ export default function RevistasAssinaturas() {
   const { data: revistas } = useQuery({
     queryKey: ["revistas-digitais-select"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("revistas_digitais").select("id, titulo, tipo_conteudo").eq("ativo", true);
+      const { data, error } = await supabase.from("revistas_digitais").select("id, titulo").eq("ativo", true);
       if (error) throw error;
       return data;
     },
@@ -118,20 +118,16 @@ export default function RevistasAssinaturas() {
               <Select value={clienteId} onValueChange={setClienteId}>
                 <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
                 <SelectContent>
-                   {clientes?.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome_igreja}</SelectItem>)}
-                 </SelectContent>
-               </Select>
-             </div>
-             <div>
-               <Label>Revista / Livro Digital</Label>
-               <Select value={revistaId} onValueChange={setRevistaId}>
-                 <SelectTrigger><SelectValue placeholder="Selecione a revista ou livro" /></SelectTrigger>
-                 <SelectContent>
-                   {revistas?.map((r: any) => (
-                     <SelectItem key={r.id} value={r.id}>
-                       {r.titulo} {r.tipo_conteudo === 'livro_digital' ? '📖' : '📰'}
-                     </SelectItem>
-                   ))}
+                  {clientes?.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome_igreja}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Revista</Label>
+              <Select value={revistaId} onValueChange={setRevistaId}>
+                <SelectTrigger><SelectValue placeholder="Selecione a revista" /></SelectTrigger>
+                <SelectContent>
+                  {revistas?.map((r) => <SelectItem key={r.id} value={r.id}>{r.titulo}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
