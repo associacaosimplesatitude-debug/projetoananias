@@ -248,6 +248,22 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="tipo_conteudo">Tipo de Conteúdo</Label>
+                  <Select
+                    value={watch("tipo_conteudo")}
+                    onValueChange={(value) => setValue("tipo_conteudo", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="revista">Revista EBD</SelectItem>
+                      <SelectItem value="livro_digital">Livro Digital</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="autor">Autor</Label>
                   <Input
                     id="autor"
@@ -255,6 +271,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
                     placeholder="Nome do autor"
                   />
                 </div>
+              </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="num_licoes">Número de Lições</Label>
