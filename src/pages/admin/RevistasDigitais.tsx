@@ -252,6 +252,7 @@ export default function RevistasDigitais() {
     setAnoPublicacao(new Date().getFullYear());
     setStatusPublicacao("rascunho");
     setTipoConteudo("revista");
+    setPdfFileInfo(null);
   };
 
   const openEdit = (r: Revista) => {
