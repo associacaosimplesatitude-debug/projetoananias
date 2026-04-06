@@ -54,6 +54,7 @@ export default function RevistasDigitais() {
   const [autor, setAutor] = useState("");
   const [anoPublicacao, setAnoPublicacao] = useState(new Date().getFullYear());
   const [statusPublicacao, setStatusPublicacao] = useState("rascunho");
+  const [tipoConteudo, setTipoConteudo] = useState("revista");
 
   // Capa upload
   const [capaUrl, setCapaUrl] = useState("");
@@ -144,6 +145,8 @@ export default function RevistasDigitais() {
         autor: autor || null,
         ano_publicacao: anoPublicacao,
         status_publicacao: statusPublicacao,
+        tipo_conteudo: tipoConteudo,
+        leitura_continua: tipoConteudo === 'livro_digital',
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);
@@ -244,6 +247,7 @@ export default function RevistasDigitais() {
     setAutor("");
     setAnoPublicacao(new Date().getFullYear());
     setStatusPublicacao("rascunho");
+    setTipoConteudo("revista");
   };
 
   const openEdit = (r: Revista) => {
@@ -257,6 +261,7 @@ export default function RevistasDigitais() {
     setAutor(r.autor || "");
     setAnoPublicacao(r.ano_publicacao || new Date().getFullYear());
     setStatusPublicacao(r.status_publicacao || "rascunho");
+    setTipoConteudo((r as any).tipo_conteudo || "revista");
     setShowForm(true);
   };
 
@@ -617,6 +622,16 @@ export default function RevistasDigitais() {
                   <Label>Trimestre</Label>
                   <Input value={trimestre} onChange={(e) => setTrimestre(e.target.value)} placeholder="2026-T1" />
                 </div>
+              </div>
+              <div>
+                <Label>Tipo de Conteúdo</Label>
+                <Select value={tipoConteudo} onValueChange={setTipoConteudo}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="revista">Revista EBD</SelectItem>
+                    <SelectItem value="livro_digital">Livro Digital</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Descrição / Tema</Label>
