@@ -857,7 +857,7 @@ export default function RevistaLeitura() {
                 )}
 
                 {/* Melhoria 1 — Continue where you left off */}
-                {progressoSalvo && licoes.length > 0 && (
+                {!revista?.leitura_continua && progressoSalvo && licoes.length > 0 && (
                   <div
                     className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-lg"
                     style={{ background: '#1c1915' }}
@@ -909,7 +909,8 @@ export default function RevistaLeitura() {
                   </div>
                 )}
 
-                {licoes.map((licao) => (
+                {/* Only show lesson list if NOT leitura_continua */}
+                {!revista?.leitura_continua && licoes.map((licao) => (
                   <Card
                     key={licao.id}
                     className={`cursor-pointer hover:shadow-md transition-shadow ${modoNoturno ? "bg-[#1a1a1a] border-white/10" : ""}`}
