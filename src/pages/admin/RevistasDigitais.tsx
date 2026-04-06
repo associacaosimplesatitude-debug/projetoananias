@@ -767,6 +767,7 @@ export default function RevistasDigitais() {
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (!f) return;
+                    setPdfFileInfo({ name: f.name, size: f.size });
                     const revId = editingRevista?.id;
                     if (revId) {
                       handleGlobalPdfUpload(f, revId);
