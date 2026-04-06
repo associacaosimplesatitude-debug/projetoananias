@@ -62,6 +62,9 @@ export default function RevistasDigitais() {
   const [dragOverCapa, setDragOverCapa] = useState(false);
   const capaInputRef = useRef<HTMLInputElement>(null);
 
+  // PDF file info
+  const [pdfFileInfo, setPdfFileInfo] = useState<{ name: string; size: number } | null>(null);
+
   // Drag state for lesson pages
   const [draggingPageIdx, setDraggingPageIdx] = useState<{ licaoId: string; idx: number } | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState<string | null>(null);
