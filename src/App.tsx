@@ -77,6 +77,7 @@ import LicencasPanel from "./pages/ebd/aluno/LicencasPanel";
 import AlunoRevistaVirtual from "./pages/ebd/aluno/AlunoRevistaVirtual";
 import RevistaLeitor from "./pages/ebd/aluno/RevistaLeitor";
 import RevistaLeituraContinua from "./pages/ebd/aluno/RevistaLeituraContinua";
+import LivroDigitalLeitura from "./pages/ebd/aluno/LivroDigitalLeitura";
 import ShopifyIntegration from "./pages/admin/ShopifyIntegration";
 import PaymentBlocked from "./pages/PaymentBlocked";
 import PoliticaPrivacidade from "./pages/PoliticaPrivacidade";
@@ -462,6 +463,7 @@ const App = () => (
                     </Route>
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
+                    <Route path="/ebd/livro/:revistaId/ler" element={<ProtectedRoute><LivroDigitalLeitura /></ProtectedRoute>} />
                     
                     {/* Admin Routes with Layout */}
                     <Route

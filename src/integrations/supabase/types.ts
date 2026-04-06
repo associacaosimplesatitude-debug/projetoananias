@@ -3723,6 +3723,7 @@ export type Database = {
         Row: {
           autor: string | null
           bling_produto_id: number | null
+          capitulos_obrigatorio: boolean
           categoria: string | null
           created_at: string
           estoque: number | null
@@ -3730,18 +3731,21 @@ export type Database = {
           id: string
           imagem_url: string | null
           last_sync_at: string | null
+          leitura_continua: boolean
           num_licoes: number
           peso_bruto: number | null
           possui_plano_leitura: boolean
           possui_quiz_mestre: boolean
           preco_cheio: number | null
           sinopse: string | null
+          tipo_conteudo: string
           titulo: string
           updated_at: string
         }
         Insert: {
           autor?: string | null
           bling_produto_id?: number | null
+          capitulos_obrigatorio?: boolean
           categoria?: string | null
           created_at?: string
           estoque?: number | null
@@ -3749,18 +3753,21 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           last_sync_at?: string | null
+          leitura_continua?: boolean
           num_licoes?: number
           peso_bruto?: number | null
           possui_plano_leitura?: boolean
           possui_quiz_mestre?: boolean
           preco_cheio?: number | null
           sinopse?: string | null
+          tipo_conteudo?: string
           titulo: string
           updated_at?: string
         }
         Update: {
           autor?: string | null
           bling_produto_id?: number | null
+          capitulos_obrigatorio?: boolean
           categoria?: string | null
           created_at?: string
           estoque?: number | null
@@ -3768,12 +3775,14 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           last_sync_at?: string | null
+          leitura_continua?: boolean
           num_licoes?: number
           peso_bruto?: number | null
           possui_plano_leitura?: boolean
           possui_quiz_mestre?: boolean
           preco_cheio?: number | null
           sinopse?: string | null
+          tipo_conteudo?: string
           titulo?: string
           updated_at?: string
         }
@@ -5825,9 +5834,11 @@ export type Database = {
           created_at: string | null
           descricao: string | null
           id: string
+          leitura_continua: boolean
           pdf_url: string | null
           status_publicacao: string | null
           tipo: string
+          tipo_conteudo: string
           titulo: string
           total_licoes: number | null
           trimestre: string | null
@@ -5840,9 +5851,11 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          leitura_continua?: boolean
           pdf_url?: string | null
           status_publicacao?: string | null
           tipo?: string
+          tipo_conteudo?: string
           titulo: string
           total_licoes?: number | null
           trimestre?: string | null
@@ -5855,9 +5868,11 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           id?: string
+          leitura_continua?: boolean
           pdf_url?: string | null
           status_publicacao?: string | null
           tipo?: string
+          tipo_conteudo?: string
           titulo?: string
           total_licoes?: number | null
           trimestre?: string | null
@@ -7668,6 +7683,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_envio_locks: {
+        Row: {
+          created_at: string
+          id: string
+          shopify_order_id: string
+          sku: string
+          tipo_mensagem: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          shopify_order_id: string
+          sku: string
+          tipo_mensagem: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          shopify_order_id?: string
+          sku?: string
+          tipo_mensagem?: string
+        }
+        Relationships: []
       }
       whatsapp_mensagens: {
         Row: {
