@@ -113,6 +113,15 @@ export default function LivroDigitalLeitura() {
     setNumPages(n);
   }, []);
 
+  // No mobile, aguardar query de imagens antes de decidir
+  if (isMobile && isLoadingImagens) {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center select-none">
+        <p className="text-white/60 text-sm">Carregando páginas...</p>
+      </div>
+    );
+  }
+
   if (!usePdf && !useImages) {
     return (
       <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center select-none">
