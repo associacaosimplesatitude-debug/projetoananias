@@ -258,6 +258,7 @@ export default function RevistasDigitais() {
     setEditingRevista(r);
     setTitulo(r.titulo);
     setTipo(r.tipo);
+    setTipoConteudo(r.tipo_conteudo || "revista");
     setTrimestre(r.trimestre || "");
     setCapaUrl(r.capa_url || "");
     setTotalLicoes(r.total_licoes);
