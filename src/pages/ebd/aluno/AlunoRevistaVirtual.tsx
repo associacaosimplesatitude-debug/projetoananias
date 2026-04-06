@@ -361,7 +361,14 @@ export default function AlunoRevistaVirtual() {
             variant="outline"
             size="sm"
             className="gap-2"
-            onClick={() => navigate(`/ebd/revista/${assinatura.revista_id}/leitura-continua`)}
+            onClick={() => {
+              const rev = revista as any;
+              if (rev?.leitura_continua === true) {
+                navigate(`/ebd/livro/${assinatura.revista_id}/ler`);
+              } else {
+                navigate(`/ebd/revista/${assinatura.revista_id}/leitura-continua`);
+              }
+            }}
           >
             <ScrollText className="h-4 w-4" /> Leitura Contínua
           </Button>

@@ -463,6 +463,7 @@ const App = () => (
                     </Route>
                     
                     <Route path="/settings/users" element={<ChurchUsers />} />
+                    <Route path="/ebd/livro/:revistaId/ler" element={<ProtectedRoute><LivroDigitalLeitura /></ProtectedRoute>} />
                     
                     {/* Admin Routes with Layout */}
                     <Route
