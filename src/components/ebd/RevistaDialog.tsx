@@ -126,10 +126,14 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
 
   const saveMutation = useMutation({
     mutationFn: async (data: RevistaFormData) => {
+      const payload = {
+        ...data,
+        leitura_continua: data.tipo_conteudo === 'livro_digital',
+      };
       if (revista) {
         const { error } = await supabase
           .from('ebd_revistas')
-          .update(data)
+          .update(payload)
           .eq('id', revista.id);
 
         if (error) throw error;
@@ -137,7 +141,7 @@ export function RevistaDialog({ open, onOpenChange, revista }: RevistaDialogProp
       } else {
         const { data: newRevista, error } = await supabase
           .from('ebd_revistas')
-          .insert([data])
+          .insert([payload])
           .select()
           .single();
 
