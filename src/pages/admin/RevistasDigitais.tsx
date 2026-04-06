@@ -261,6 +261,7 @@ export default function RevistasDigitais() {
     setAutor(r.autor || "");
     setAnoPublicacao(r.ano_publicacao || new Date().getFullYear());
     setStatusPublicacao(r.status_publicacao || "rascunho");
+    setTipoConteudo((r as any).tipo_conteudo || "revista");
     setShowForm(true);
   };
 
