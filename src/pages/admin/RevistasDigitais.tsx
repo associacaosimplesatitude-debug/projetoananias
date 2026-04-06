@@ -613,20 +613,33 @@ export default function RevistasDigitais() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Tipo</Label>
+                  <Label>Categoria</Label>
                   <Select value={tipo} onValueChange={setTipo}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="aluno">Aluno</SelectItem>
                       <SelectItem value="professor">Professor</SelectItem>
+                      <SelectItem value="geral">Geral</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
+                  <Label>Tipo de Conteúdo</Label>
+                  <Select value={tipoConteudo} onValueChange={setTipoConteudo}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="revista">Revista EBD</SelectItem>
+                      <SelectItem value="livro_digital">Livro Digital</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {!isLivroDigital && (
+                <div>
                   <Label>Trimestre</Label>
                   <Input value={trimestre} onChange={(e) => setTrimestre(e.target.value)} placeholder="2026-T1" />
                 </div>
-              </div>
+              )}
               <div>
                 <Label>Descrição / Tema</Label>
                 <Textarea
