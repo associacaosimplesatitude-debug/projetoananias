@@ -452,8 +452,8 @@ function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Configurações - apenas para admin geral */}
-        {isAdmin && (
+        {/* Configurações - admin geral e gerente_ebd (itens filtrados por role) */}
+        {(isAdmin || isGerenteEbd) && (
           <SidebarGroup>
             <SidebarGroupLabel>Configurações</SidebarGroupLabel>
             <SidebarGroupContent>
