@@ -88,7 +88,8 @@ serve(async (req) => {
       const { data, error } = await supabaseAdmin
         .from("revista_licencas_shopify")
         .select("*, revistas_digitais(titulo, capa_url)")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(5000);
       if (error) throw error;
       return new Response(JSON.stringify({ data }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

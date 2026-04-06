@@ -544,7 +544,8 @@ function ShopifyTab() {
                         <Badge variant="outline" className="font-mono text-xs">#{l.shopify_order_number}</Badge>
                       ) : "Manual"}
                     </TableCell>
-                    <TableCell><TableCell>{format(new Date(l.created_at), "dd/MM/yyyy 'às' HH:mm")}</TableCell></TableCell>
+                    <TableCell>{format(new Date(l.created_at), "dd/MM/yyyy 'às' HH:mm")}</TableCell>
+                    <TableCell className="text-xs">{l.primeiro_acesso_em ? format(new Date(l.primeiro_acesso_em), "dd/MM/yyyy HH:mm") : "—"}</TableCell>
                     <TableCell>
                       <Badge variant={l.ativo ? "default" : "secondary"}>{l.ativo ? "Ativo" : "Inativo"}</Badge>
                     </TableCell>
