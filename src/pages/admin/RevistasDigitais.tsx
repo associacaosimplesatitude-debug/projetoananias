@@ -940,7 +940,11 @@ export default function RevistasDigitais() {
                     <Badge variant="outline">{r.tipo === "professor" ? "Professor" : "Aluno"}</Badge>
                   </TableCell>
                   <TableCell>{r.trimestre}</TableCell>
-                  <TableCell>{r.total_licoes}</TableCell>
+                  <TableCell>
+                    {(r as any).tipo_conteudo === 'livro_digital'
+                      ? r.total_licoes > 0 ? `${r.total_licoes} páginas` : "—"
+                      : r.total_licoes}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={statusVariant(r.status_publicacao)}>
                       {statusLabel(r.status_publicacao)}
