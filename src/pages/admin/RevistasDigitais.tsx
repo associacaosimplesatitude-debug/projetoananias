@@ -145,6 +145,8 @@ export default function RevistasDigitais() {
         autor: autor || null,
         ano_publicacao: anoPublicacao,
         status_publicacao: statusPublicacao,
+        tipo_conteudo: tipoConteudo,
+        leitura_continua: tipoConteudo === 'livro_digital',
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);
