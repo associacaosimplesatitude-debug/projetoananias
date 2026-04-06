@@ -952,7 +952,9 @@ export default function RevistasDigitais() {
                   </TableCell>
                   <TableCell className="text-right space-x-1">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(r)} title="Editar"><Pencil className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => setManagingLicoes(r)} title="Gerir Lições"><Image className="h-4 w-4" /></Button>
+                    {(r as any).tipo_conteudo !== 'livro_digital' && (
+                      <Button size="sm" variant="ghost" onClick={() => setManagingLicoes(r)} title="Gerir Lições"><Image className="h-4 w-4" /></Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(r.id)} title="Excluir"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </TableCell>
                 </TableRow>
