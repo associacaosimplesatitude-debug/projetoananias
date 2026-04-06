@@ -5640,6 +5640,7 @@ export type Database = {
           expira_em: string | null
           id: string
           nome_comprador: string | null
+          primeiro_acesso_em: string | null
           revista_id: string | null
           shopify_order_id: string | null
           shopify_order_number: string | null
@@ -5653,6 +5654,7 @@ export type Database = {
           expira_em?: string | null
           id?: string
           nome_comprador?: string | null
+          primeiro_acesso_em?: string | null
           revista_id?: string | null
           shopify_order_id?: string | null
           shopify_order_number?: string | null
@@ -5666,6 +5668,7 @@ export type Database = {
           expira_em?: string | null
           id?: string
           nome_comprador?: string | null
+          primeiro_acesso_em?: string | null
           revista_id?: string | null
           shopify_order_id?: string | null
           shopify_order_number?: string | null
