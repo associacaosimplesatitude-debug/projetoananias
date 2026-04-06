@@ -1,4 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+
+pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -63,6 +66,41 @@ function callAdminPublic(action: string, params: Record<string, unknown> = {}) {
   return supabase.functions.invoke("revista-licencas-shopify-admin", {
     body: { action, ...params },
   });
+}
+
+function MobilePdfReader({ pdfUrl, modoNoturno, titulo }: { pdfUrl: string; modoNoturno: boolean; titulo: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [numPages, setNumPages] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      for (const entry of entries) setContainerWidth(entry.contentRect.width);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none' }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <Document
+        file={pdfUrl}
+        onLoadSuccess={({ numPages: n }) => setNumPages(n)}
+        loading={<p style={{ color: '#888', textAlign: 'center', padding: '40px' }}>Carregando PDF...</p>}
+        error={<p style={{ color: '#888', textAlign: 'center', padding: '40px' }}>Erro ao carregar o PDF.</p>}
+      >
+        {Array.from({ length: numPages }, (_, i) => (
+          <Page key={i} pageNumber={i + 1} width={containerWidth} renderAnnotationLayer={false} renderTextLayer={false} />
+        ))}
+      </Document>
+    </div>
+  );
 }
 
 export default function RevistaLeitura() {
@@ -446,18 +484,7 @@ export default function RevistaLeitura() {
           }}>
             {(revista?.leitura_continua || revista?.tipo_conteudo === 'livro_digital') ? (
               revista.pdf_url ? (
-                <iframe
-                  src={`${revista.pdf_url}#toolbar=0&view=FitH`}
-                  style={{
-                    border: 'none',
-                    width: '100%',
-                    height: 'calc(100vh - 50px)',
-                    background: modoNoturno ? '#1a1a1a' : '#f5f0e8',
-                    filter: modoNoturno ? 'invert(1) hue-rotate(180deg)' : 'none',
-                    display: 'block'
-                  }}
-                  title={revista?.titulo}
-                />
+                <MobilePdfReader pdfUrl={revista.pdf_url} modoNoturno={modoNoturno} titulo={revista.titulo} />
               ) : (
                 <p style={{ color: modoNoturno ? '#e8dcc8' : '#3d2b1f', padding: '40px', textAlign: 'center' }}>
                   PDF não disponível.
