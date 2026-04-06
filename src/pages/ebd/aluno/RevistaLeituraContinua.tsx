@@ -32,7 +32,7 @@ export default function RevistaLeituraContinua() {
     return () => ro.disconnect();
   }, []);
 
-  const isMobile = containerWidth < 768;
+  
 
   const { data: cliente } = useQuery({
     queryKey: ["meu-cliente-continua", user?.id],
@@ -57,10 +57,18 @@ export default function RevistaLeituraContinua() {
     enabled: !!user,
   });
 
-  // Check if a complete PDF exists in storage
+  // Check if a complete PDF exists — first from DB column, then fallback to storage
   const { data: pdfUrl } = useQuery({
     queryKey: ["revista-pdf-completo", revistaId],
     queryFn: async () => {
+      // Try pdf_url column first
+      const { data: revista } = await supabase
+        .from("revistas_digitais")
+        .select("pdf_url")
+        .eq("id", revistaId!)
+        .maybeSingle();
+      if (revista?.pdf_url) return revista.pdf_url;
+      // Fallback: check storage directly
       const { data: listData } = await supabase.storage.from("revistas").list(revistaId!, {
         search: "completo.pdf",
       });
@@ -90,14 +98,12 @@ export default function RevistaLeituraContinua() {
   const watermarkText = cliente?.nome_igreja || user?.email || "";
   const revistaTitulo = (licoes?.[0] as any)?.revista?.titulo || "Revista";
 
-  // PDF view — responsive for mobile with proper scaling
+  // PDF view — unified iframe for desktop and mobile
   if (pdfUrl) {
-    const mobilePdfSrc = isMobile
-      ? `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(pdfUrl)}`
-      : `${pdfUrl}#toolbar=0&navpanes=0&view=FitH&zoom=page-width`;
+    const pdfSrc = `${pdfUrl}#toolbar=0&navpanes=0&view=FitH`;
 
     return (
-      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none overflow-x-hidden" onContextMenu={(e) => e.preventDefault()}>
+      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
         <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0 z-20">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-white hover:bg-white/10 shrink-0 gap-1">
             <X className="h-4 w-4" /> Voltar
@@ -105,13 +111,12 @@ export default function RevistaLeituraContinua() {
           <span className="text-white font-medium text-sm truncate">Leitura Contínua</span>
           <div className="w-16" />
         </div>
-        <div className="flex-1 relative overflow-hidden overflow-x-hidden" ref={containerRef}>
+        <div className="flex-1 relative overflow-hidden" ref={containerRef}>
           <iframe
-            src={mobilePdfSrc}
-            className="absolute inset-0 border-0"
+            src={pdfSrc}
+            className="absolute inset-0 border-0 w-full h-full"
             title="Revista PDF"
             allow="autoplay"
-            style={{ width: `${containerWidth}px`, height: "100%" }}
           />
           {watermarkText && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden z-10">
