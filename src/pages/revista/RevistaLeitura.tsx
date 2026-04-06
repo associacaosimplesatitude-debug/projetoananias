@@ -21,6 +21,7 @@ interface RevistaDigital {
   total_licoes: number | null;
   tipo: string | null;
   pdf_url?: string | null;
+  leitura_continua?: boolean | null;
 }
 
 interface Licenca {
