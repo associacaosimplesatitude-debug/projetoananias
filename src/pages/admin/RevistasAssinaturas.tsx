@@ -49,7 +49,7 @@ export default function RevistasAssinaturas() {
   const { data: revistas } = useQuery({
     queryKey: ["revistas-digitais-select"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("revistas_digitais").select("id, titulo").eq("ativo", true);
+      const { data, error } = await supabase.from("revistas_digitais").select("id, titulo, tipo_conteudo").eq("ativo", true);
       if (error) throw error;
       return data;
     },
