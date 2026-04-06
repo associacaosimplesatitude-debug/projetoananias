@@ -137,19 +137,20 @@ export default function RevistasDigitais() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const isLivro = tipoConteudo === 'livro_digital';
       const payload = {
         titulo,
-        tipo,
-        trimestre,
+        tipo: isLivro ? 'aluno' : tipo,
+        trimestre: isLivro ? null : trimestre,
         capa_url: capaUrl || null,
-        total_licoes: Number(totalLicoes) || 0,
+        total_licoes: isLivro ? 0 : (Number(totalLicoes) || 0),
         ativo: true,
         descricao: descricao || null,
         autor: autor || null,
         ano_publicacao: anoPublicacao,
         status_publicacao: statusPublicacao,
         tipo_conteudo: tipoConteudo,
-        leitura_continua: tipoConteudo === 'livro_digital',
+        leitura_continua: isLivro,
       };
       if (editingRevista) {
         const { error } = await supabase.from("revistas_digitais").update(payload).eq("id", editingRevista.id);
