@@ -4,21 +4,35 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 export default function RevistaLeituraContinua() {
   const { revistaId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(window.innerWidth);
 
+  // Track container width via ResizeObserver for responsive scaling
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    const el = containerRef.current;
+    if (!el) {
+      // fallback to window resize
+      const onResize = () => setContainerWidth(window.innerWidth);
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    setContainerWidth(el.clientWidth);
+    return () => ro.disconnect();
   }, []);
+
+  const isMobile = containerWidth < 768;
 
   const { data: cliente } = useQuery({
     queryKey: ["meu-cliente-continua", user?.id],
@@ -76,29 +90,28 @@ export default function RevistaLeituraContinua() {
   const watermarkText = cliente?.nome_igreja || user?.email || "";
   const revistaTitulo = (licoes?.[0] as any)?.revista?.titulo || "Revista";
 
-  // PDF view — responsive for mobile
+  // PDF view — responsive for mobile with proper scaling
   if (pdfUrl) {
-    // On mobile, use Google Docs Viewer as fallback since iframes with PDFs 
-    // don't render well on iOS Safari
     const mobilePdfSrc = isMobile
       ? `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(pdfUrl)}`
       : `${pdfUrl}#toolbar=0&navpanes=0&view=FitH&zoom=page-width`;
 
     return (
-      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none" onContextMenu={(e) => e.preventDefault()}>
-        <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0">
-          <span className="text-white font-medium text-sm truncate">Leitura Contínua</span>
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-white hover:bg-white/10 shrink-0">
-            <X className="h-5 w-5" />
+      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none overflow-x-hidden" onContextMenu={(e) => e.preventDefault()}>
+        <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0 z-20">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-white hover:bg-white/10 shrink-0 gap-1">
+            <X className="h-4 w-4" /> Voltar
           </Button>
+          <span className="text-white font-medium text-sm truncate">Leitura Contínua</span>
+          <div className="w-16" />
         </div>
-        <div className="flex-1 relative overflow-hidden" ref={containerRef}>
+        <div className="flex-1 relative overflow-hidden overflow-x-hidden" ref={containerRef}>
           <iframe
             src={mobilePdfSrc}
-            className="absolute inset-0 w-full h-full border-0"
+            className="absolute inset-0 border-0"
             title="Revista PDF"
             allow="autoplay"
-            style={{ minHeight: "100vh" }}
+            style={{ width: `${containerWidth}px`, height: "100%" }}
           />
           {watermarkText && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden z-10">
@@ -114,15 +127,16 @@ export default function RevistaLeituraContinua() {
 
   // Fallback: show lesson images in continuous scroll
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none" onContextMenu={(e) => e.preventDefault()}>
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0">
-        <span className="text-white font-medium text-sm truncate">{revistaTitulo} — Leitura Contínua</span>
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-white hover:bg-white/10 shrink-0">
-          <X className="h-5 w-5" />
+    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col select-none overflow-x-hidden" onContextMenu={(e) => e.preventDefault()}>
+      <div className="flex items-center justify-between px-4 py-2 bg-slate-900/80 backdrop-blur shrink-0 z-20">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-white hover:bg-white/10 shrink-0 gap-1">
+          <X className="h-4 w-4" /> Voltar
         </Button>
+        <span className="text-white font-medium text-sm truncate">{revistaTitulo} — Leitura Contínua</span>
+        <div className="w-16" />
       </div>
 
-      <div className="flex-1 overflow-y-auto -webkit-overflow-scrolling-touch">
+      <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: "touch" }}>
         {licoes?.map((licao: any) => {
           const paginas = (licao.paginas as string[]) || [];
           if (paginas.length === 0) return null;
@@ -134,14 +148,13 @@ export default function RevistaLeituraContinua() {
               </div>
               <div className="flex flex-col items-center gap-1">
                 {paginas.map((url: string, i: number) => (
-                  <div key={i} className="relative w-full max-w-3xl mx-auto">
+                  <div key={i} className="relative mx-auto" style={{ width: `${containerWidth}px`, maxWidth: "100%" }}>
                     <img
                       src={url}
                       alt={`Lição ${licao.numero} - Página ${i + 1}`}
                       className="w-full h-auto object-contain pointer-events-none"
                       draggable={false}
                       loading="lazy"
-                      style={{ maxWidth: "100%", height: "auto" }}
                     />
                     {watermarkText && (
                       <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
