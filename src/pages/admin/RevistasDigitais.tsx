@@ -673,13 +673,13 @@ export default function RevistasDigitais() {
                 </div>
                 {!editingRevista && (
                   <div>
-                    <Label>Total de Lições *</Label>
+                    <Label>{isLivroDigital ? "Capítulos (opcional)" : "Total de Lições *"}</Label>
                     <Input
                       type="number"
-                      min={1}
+                      min={isLivroDigital ? 0 : 1}
                       value={totalLicoes}
                       onChange={(e) => setTotalLicoes(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="Ex: 13"
+                      placeholder={isLivroDigital ? "0" : "Ex: 13"}
                     />
                   </div>
                 )}
