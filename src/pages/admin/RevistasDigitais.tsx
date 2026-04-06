@@ -686,7 +686,7 @@ export default function RevistasDigitais() {
               </div>
               <Button
                 onClick={() => saveMutation.mutate()}
-                disabled={!titulo || saveMutation.isPending || (!editingRevista && (!totalLicoes || Number(totalLicoes) < 1))}
+                disabled={!titulo || saveMutation.isPending || (!editingRevista && !isLivroDigital && (!totalLicoes || Number(totalLicoes) < 1))}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2"
               >
                 <Save className="h-4 w-4" />
