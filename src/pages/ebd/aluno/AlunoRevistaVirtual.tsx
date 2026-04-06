@@ -111,7 +111,7 @@ export default function AlunoRevistaVirtual() {
       if (!cliente?.id) return null;
       const { data } = await supabase
         .from("revista_assinaturas")
-        .select("*, revista:revistas_digitais(*)")
+        .select("*, revista:revistas_digitais(id, titulo, tipo, tipo_conteudo, trimestre, capa_url, pdf_url, leitura_continua)")
         .eq("cliente_id", cliente.id)
         .eq("status", "ativa")
         .order("created_at", { ascending: false })
