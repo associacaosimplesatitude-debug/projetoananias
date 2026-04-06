@@ -118,16 +118,20 @@ export default function RevistasAssinaturas() {
               <Select value={clienteId} onValueChange={setClienteId}>
                 <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
                 <SelectContent>
-                  {clientes?.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome_igreja}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Revista</Label>
-              <Select value={revistaId} onValueChange={setRevistaId}>
-                <SelectTrigger><SelectValue placeholder="Selecione a revista" /></SelectTrigger>
-                <SelectContent>
-                  {revistas?.map((r) => <SelectItem key={r.id} value={r.id}>{r.titulo}</SelectItem>)}
+                   {clientes?.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome_igreja}</SelectItem>)}
+                 </SelectContent>
+               </Select>
+             </div>
+             <div>
+               <Label>Revista / Livro Digital</Label>
+               <Select value={revistaId} onValueChange={setRevistaId}>
+                 <SelectTrigger><SelectValue placeholder="Selecione a revista ou livro" /></SelectTrigger>
+                 <SelectContent>
+                   {revistas?.map((r: any) => (
+                     <SelectItem key={r.id} value={r.id}>
+                       {r.titulo} {r.tipo_conteudo === 'livro_digital' ? '📖' : '📰'}
+                     </SelectItem>
+                   ))}
                 </SelectContent>
               </Select>
             </div>
