@@ -522,6 +522,7 @@ function ShopifyTab() {
                 <TableHead>Revista</TableHead>
                 <TableHead>Pedido</TableHead>
                 <TableHead>Data</TableHead>
+                <TableHead>Logou</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Ações</TableHead>
               </TableRow>
