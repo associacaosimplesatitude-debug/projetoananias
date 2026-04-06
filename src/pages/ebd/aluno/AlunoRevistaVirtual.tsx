@@ -303,6 +303,8 @@ export default function AlunoRevistaVirtual() {
   }
 
   const revista = assinatura.revista as any;
+  console.log("[AlunoRevistaVirtual] revista object:", JSON.stringify(revista));
+  console.log("[AlunoRevistaVirtual] leitura_continua value:", revista?.leitura_continua, "type:", typeof revista?.leitura_continua);
   const isLeituraContinua = revista?.leitura_continua === true;
   const concluidas = licoes?.filter(l => progressos?.[l.id]?.concluida).length || 0;
   const total = licoes?.length || 0;
