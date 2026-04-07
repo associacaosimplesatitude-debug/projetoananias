@@ -19,6 +19,7 @@ import {
 } from "@/lib/revistaSession";
 import logoCentralGospel from "@/assets/logo_central_gospel.png";
 import { RevistaQuizPublico } from "@/components/revista/RevistaQuizPublico";
+import { AnotacaoPanel } from "@/components/revista/AnotacaoPanel";
 
 interface RevistaDigital {
   id: string;
@@ -159,6 +160,11 @@ export default function RevistaLeitura() {
   const [pontosVersion, setPontosVersion] = useState(0);
   const [pontosDb, setPontosDb] = useState<{ total_pontos: number; total_quizzes: number } | null>(null);
   const [pontosLoading, setPontosLoading] = useState(false);
+
+  // Annotation state
+  const [anotacoesPagina, setAnotacoesPagina] = useState<Record<number, string>>({});
+  const [anotacaoPainelAberto, setAnotacaoPainelAberto] = useState(false);
+  const [anotacoesLicaoMap, setAnotacoesLicaoMap] = useState<Record<string, boolean>>({});
 
   const fetchPontosDb = useCallback(async () => {
     if (!sessionWhatsapp) return;
@@ -359,6 +365,17 @@ export default function RevistaLeitura() {
               setQuizNumPerguntas((prev) => ({ ...prev, [licao.id]: numP }));
             }
           }).catch(() => {});
+
+          // Check if lesson has annotations (for list icon)
+          if (sessionWhatsapp) {
+            supabase.functions.invoke("buscar-anotacoes-licao", {
+              body: { whatsapp: sessionWhatsapp, licao_id: licao.id },
+            }).then(({ data: anotData }) => {
+              if (anotData?.anotacoes && anotData.anotacoes.length > 0) {
+                setAnotacoesLicaoMap((prev) => ({ ...prev, [licao.id]: true }));
+              }
+            }).catch(() => {});
+          }
         });
       });
 
@@ -489,6 +506,21 @@ export default function RevistaLeitura() {
     setZoomed(false);
     setTelaConclusao(false);
     setConclusaoQuizRespondido(false);
+    setAnotacoesPagina({});
+    setAnotacaoPainelAberto(false);
+
+    // Load annotations for this lesson
+    if (sessionWhatsapp) {
+      supabase.functions.invoke("buscar-anotacoes-licao", {
+        body: { whatsapp: sessionWhatsapp, licao_id: licao.id },
+      }).then(({ data }) => {
+        if (data?.anotacoes) {
+          const map: Record<number, string> = {};
+          data.anotacoes.forEach((a: any) => { map[a.pagina] = a.texto; });
+          setAnotacoesPagina(map);
+        }
+      }).catch(() => {});
+    }
 
     // Melhoria 1 — save on open
     if (progressKey) {
@@ -973,16 +1005,37 @@ export default function RevistaLeitura() {
               className="flex items-center justify-between px-4 py-3"
               style={{ backgroundColor: '#1c1915' }}
             >
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => goToPage(paginaAtual - 1)}
-                disabled={paginaAtual === 0}
-                style={{ color: '#f6ba32' }}
-                className="hover:bg-[rgba(246,186,50,0.15)]"
-              >
-                <ChevronLeft className="h-5 w-5 mr-1" /> Anterior
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => goToPage(paginaAtual - 1)}
+                  disabled={paginaAtual === 0}
+                  style={{ color: '#f6ba32' }}
+                  className="hover:bg-[rgba(246,186,50,0.15)]"
+                >
+                  <ChevronLeft className="h-5 w-5 mr-1" /> Anterior
+                </Button>
+                {sessionWhatsapp && (
+                  <button
+                    onClick={() => setAnotacaoPainelAberto(true)}
+                    style={{
+                      background: anotacoesPagina[paginaAtual] ? "#fffbeb" : "transparent",
+                      border: anotacoesPagina[paginaAtual] ? "1px solid #FFC107" : "1px solid rgba(255,255,255,0.2)",
+                      borderRadius: 6,
+                      padding: "4px 10px",
+                      fontSize: 13,
+                      color: anotacoesPagina[paginaAtual] ? "#92400e" : "rgba(255,255,255,0.6)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    📝 {anotacoesPagina[paginaAtual] ? "Ver nota" : "Anotar"}
+                  </button>
+                )}
+              </div>
               <span className="text-sm" style={{ color: '#f6ba32', opacity: 0.6 }}>
                 Página {paginaAtual + 1} de {totalPages}
               </span>
@@ -1106,6 +1159,29 @@ export default function RevistaLeitura() {
                setPontosVersion((v) => v + 1);
                fetchPontosDb();
             }}
+          />
+        )}
+
+        {/* Annotation panel */}
+        {anotacaoPainelAberto && licaoAberta && sessionWhatsapp && selectedRevista && (
+          <AnotacaoPanel
+            whatsapp={sessionWhatsapp}
+            revistaId={selectedRevista}
+            licaoId={licaoAberta.id}
+            pagina={paginaAtual}
+            anotacaoExistente={anotacoesPagina[paginaAtual] || null}
+            onSalvar={(texto) => {
+              setAnotacoesPagina((prev) => ({ ...prev, [paginaAtual]: texto }));
+              setAnotacoesLicaoMap((prev) => ({ ...prev, [licaoAberta.id]: true }));
+            }}
+            onExcluir={() => {
+              setAnotacoesPagina((prev) => {
+                const next = { ...prev };
+                delete next[paginaAtual];
+                return next;
+              });
+            }}
+            onFechar={() => setAnotacaoPainelAberto(false)}
           />
         )}
       </div>
@@ -1414,8 +1490,11 @@ export default function RevistaLeitura() {
                     >
                       <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
-                          <p style={{ fontSize: 18, fontWeight: 600, margin: 0, color: modoNoturno ? "#fff" : "#111" }}>
+                          <p style={{ fontSize: 18, fontWeight: 600, margin: 0, color: modoNoturno ? "#fff" : "#111", display: "flex", alignItems: "center", gap: 6 }}>
                             Lição {licao.numero}
+                            {anotacoesLicaoMap[licao.id] && (
+                              <span style={{ fontSize: 14, color: "#FFC107" }} title="Tem anotações">📝</span>
+                            )}
                           </p>
                           <p style={{ fontSize: 16, margin: "4px 0 0", color: modoNoturno ? "rgba(255,255,255,0.6)" : "#6b7280" }}>
                             {licao.titulo}
