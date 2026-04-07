@@ -852,7 +852,29 @@ export default function RevistaLeitura() {
                 </div>
               ))}
               {/* End-of-lesson action */}
-              <div className="py-8 text-center">
+              <div className="py-8 text-center space-y-4">
+                {/* Quiz button in scroll mode */}
+                {licaoAberta && quizDisponivel[licaoAberta.id] && (
+                  <button
+                    onClick={() => {
+                      setQuizLicaoId(licaoAberta.id);
+                      setQuizLicaoTitulo(licaoAberta.titulo || `Lição ${licaoAberta.numero}`);
+                      setQuizAberto(true);
+                    }}
+                    style={{
+                      background: localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '#22c55e' : '#FFC107',
+                      color: '#1c1915',
+                      border: 'none',
+                      borderRadius: 10,
+                      padding: '14px 28px',
+                      fontWeight: 700,
+                      fontSize: 16,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {localStorage.getItem(`quiz_feito_${licaoAberta.id}`) ? '✅ Quiz respondido' : '📝 Fazer Quiz desta Lição'}
+                  </button>
+                )}
                 {isLastLicao ? (
                   <p className="text-white font-medium flex items-center justify-center gap-2">
                     <PartyPopper className="h-5 w-5" style={{ color: '#f6ba32' }} />
