@@ -158,6 +158,13 @@ export default function RevistaLeitura() {
   // Points counter (force re-render after quiz)
   const [pontosVersion, setPontosVersion] = useState(0);
 
+  // Tela de conclusão de lição (intercepta navegação se quiz disponível)
+  const [telaConclusao, setTelaConclusao] = useState(false);
+  const [conclusaoQuizRespondido, setConclusaoQuizRespondido] = useState(false);
+  const [conclusaoPontos, setConclusaoPontos] = useState(0);
+  const [conclusaoAcertos, setConclusaoAcertos] = useState(0);
+  const [conclusaoTotal, setConclusaoTotal] = useState(0);
+
   const fecharOnboarding = (naoMostrarMais: boolean) => {
     if (naoMostrarMais) {
       localStorage.setItem('revista_onboarding_v2', 'true');
