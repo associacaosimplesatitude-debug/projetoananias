@@ -5831,6 +5831,57 @@ export type Database = {
           },
         ]
       }
+      revista_progresso_publico: {
+        Row: {
+          concluida: boolean | null
+          id: string
+          licao_id: string | null
+          licao_numero: number | null
+          licao_titulo: string | null
+          pagina_atual: number | null
+          revista_id: string | null
+          updated_at: string | null
+          whatsapp: string
+        }
+        Insert: {
+          concluida?: boolean | null
+          id?: string
+          licao_id?: string | null
+          licao_numero?: number | null
+          licao_titulo?: string | null
+          pagina_atual?: number | null
+          revista_id?: string | null
+          updated_at?: string | null
+          whatsapp: string
+        }
+        Update: {
+          concluida?: boolean | null
+          id?: string
+          licao_id?: string | null
+          licao_numero?: number | null
+          licao_titulo?: string | null
+          pagina_atual?: number | null
+          revista_id?: string | null
+          updated_at?: string | null
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revista_progresso_publico_licao_id_fkey"
+            columns: ["licao_id"]
+            isOneToOne: false
+            referencedRelation: "revista_licoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revista_progresso_publico_revista_id_fkey"
+            columns: ["revista_id"]
+            isOneToOne: false
+            referencedRelation: "revistas_digitais"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revistas_digitais: {
         Row: {
           ano_publicacao: number | null
