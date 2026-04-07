@@ -133,6 +133,25 @@ export default function RevistasDigitais() {
     enabled: !!managingLicoes && !!licoes?.length,
   });
 
+  // References status per lição
+  const { data: refsMap, refetch: refetchRefs } = useQuery({
+    queryKey: ["revista-licao-refs", managingLicoes?.id],
+    queryFn: async () => {
+      if (!managingLicoes || !licoes?.length) return {};
+      const map: Record<string, boolean> = {};
+      for (const licao of licoes) {
+        const { data } = await supabase
+          .from("revista_referencias_pagina" as any)
+          .select("id")
+          .eq("licao_id", licao.id)
+          .limit(1);
+        if (data && (data as any[]).length > 0) map[licao.id] = true;
+      }
+      return map;
+    },
+    enabled: !!managingLicoes && !!licoes?.length,
+  });
+
   const handleGenerateQuiz = async (licaoId: string) => {
     setGeneratingQuiz(licaoId);
     try {
@@ -150,6 +169,26 @@ export default function RevistasDigitais() {
       toast.error(e.message || "Erro ao gerar quiz");
     } finally {
       setGeneratingQuiz(null);
+    }
+  };
+
+  const handleExtractRefs = async (licaoId: string) => {
+    setExtractingRefs(licaoId);
+    try {
+      const { data, error } = await supabase.functions.invoke("extrair-referencias-pagina", {
+        body: { licao_id: licaoId },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+      } else {
+        toast.success(`${data.total_refs} referências extraídas em ${data.total_paginas} páginas`);
+        refetchRefs();
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao extrair referências");
+    } finally {
+      setExtractingRefs(null);
     }
   };
 
