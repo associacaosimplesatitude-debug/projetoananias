@@ -925,6 +925,7 @@ export default function RevistaLeitura() {
             onFechar={() => {
               setQuizAberto(false);
               setQuizLicaoId(null);
+              setPontosVersion((v) => v + 1);
             }}
           />
         )}
