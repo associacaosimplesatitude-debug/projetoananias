@@ -638,6 +638,38 @@ export default function RevistasDigitais() {
                   </div>
 
                   <div className="flex flex-col gap-2">
+                    {/* Quiz buttons */}
+                    {licao.paginas.length > 0 && (
+                      quizMap?.[licao.id] ? (
+                        <>
+                          <Badge className="bg-green-600 text-white text-[10px] gap-1 justify-center">
+                            <CheckCircle className="h-3 w-3" /> Quiz gerado
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-xs"
+                            onClick={() => setEditingQuizLicao({ id: licao.id, titulo: `Lição ${licao.numero} — ${licao.titulo || ""}` })}
+                          >
+                            <PencilLine className="h-3 w-3" /> Ver/Editar Quiz
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="gap-1 text-xs text-black"
+                          style={{ backgroundColor: "#FFC107" }}
+                          disabled={generatingQuiz === licao.id}
+                          onClick={() => handleGenerateQuiz(licao.id)}
+                        >
+                          {generatingQuiz === licao.id ? (
+                            <><Loader2 className="h-3 w-3 animate-spin" /> Analisando...</>
+                          ) : (
+                            <><Bot className="h-3 w-3" /> Gerar Quiz</>
+                          )}
+                        </Button>
+                      )
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
