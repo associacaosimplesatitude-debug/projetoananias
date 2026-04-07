@@ -144,6 +144,12 @@ export default function RevistaLeitura() {
   // Onboarding modal
   const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
 
+  // Quiz state
+  const [quizDisponivel, setQuizDisponivel] = useState<Record<string, boolean>>({});
+  const [quizAberto, setQuizAberto] = useState(false);
+  const [quizLicaoId, setQuizLicaoId] = useState<string | null>(null);
+  const [quizLicaoTitulo, setQuizLicaoTitulo] = useState("");
+
   const fecharOnboarding = (naoMostrarMais: boolean) => {
     if (naoMostrarMais) {
       localStorage.setItem('revista_onboarding_v2', 'true');
