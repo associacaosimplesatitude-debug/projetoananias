@@ -710,6 +710,28 @@ export default function RevistasDigitais() {
                         </Button>
                       )
                     )}
+                    {/* References button - only show when quiz is generated */}
+                    {licao.paginas.length > 0 && quizMap?.[licao.id] && (
+                      refsMap?.[licao.id] ? (
+                        <Badge className="bg-blue-600 text-white text-[10px] gap-1 justify-center">
+                          <CheckCircle className="h-3 w-3" /> ✅ Referências extraídas
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 text-xs"
+                          disabled={extractingRefs === licao.id}
+                          onClick={() => handleExtractRefs(licao.id)}
+                        >
+                          {extractingRefs === licao.id ? (
+                            <><Loader2 className="h-3 w-3 animate-spin" /> Analisando páginas...</>
+                          ) : (
+                            <>🔍 Extrair Referências</>
+                          )}
+                        </Button>
+                      )
+                    )
                     <Button
                       size="sm"
                       variant="outline"
